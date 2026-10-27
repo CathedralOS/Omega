@@ -1,4 +1,5 @@
 //! Exact operand-free architectural trap for a semantic Crash leaf.
+use crate::machine_effects::form_alternative;
 use register_model::RegisterInstructionConstraint;
 use selected_instructions::{
     MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
@@ -16,16 +17,11 @@ pub(crate) fn declaration(constraint: &RegisterInstructionConstraint) -> Machine
         barrier: MachineBarrier::ControlFlow,
         call: MachineCallEffect::NoneV1,
         cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey {
-                family: MachineAlternativeFamily::Crash,
-                variant: 0,
-            },
-            applicability: MachineAlternativeApplicability::Always,
-            size: MachineSizeKnowledge::ExactBytes(4),
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded: MachineEncodedEffects::crash_v1(&constraint.implicit_uses),
-        }],
+        alternatives: form_alternative!(
+            MachineAlternativeFamily::Crash,
+            MachineSizeKnowledge::ExactBytes(4),
+            MachineEncodedEffects::crash_v1(&constraint.implicit_uses)
+        ),
     }
 }
 

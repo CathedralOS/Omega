@@ -248,6 +248,7 @@ mod tests {
         MachineAlternativeFamily, MachineAlternativeKey, SelectedInstructionKind, encode, validate,
     };
     use crate::aarch64_physical_register_model;
+    use crate::test_support::reject_every_bit_flip;
     use selected_instructions::{FrameStorageSlotId, LocalStorageSlotId};
     use semantic_vocabulary::{OperationId, PlaceId};
 
@@ -319,22 +320,18 @@ mod tests {
                         assert!(home >= reserved_start);
                         assert!(home - reserved_start <= u64::from(alignment - 16));
                     }
-                    for bit in 0..encoded.bytes().len() * 8 {
-                        let mut corrupt = encoded.bytes().to_vec();
-                        corrupt[bit / 8] ^= 1 << (bit % 8);
-                        assert!(
-                            validate(
-                                &physical,
-                                kind,
-                                alternative,
-                                &[value],
-                                frame_offset,
-                                alignment,
-                                &corrupt
-                            )
-                            .is_err()
-                        );
-                    }
+                    reject_every_bit_flip(encoded.bytes(), "frame form", |corrupt| {
+                        validate(
+                            &physical,
+                            kind,
+                            alternative,
+                            &[value],
+                            frame_offset,
+                            alignment,
+                            &corrupt,
+                        )
+                        .is_err()
+                    });
                     let store = SelectedInstructionKind::Store64 {
                         slot,
                         byte_offset: member,
@@ -460,22 +457,18 @@ mod tests {
                     );
                 }
                 assert!(!encoded.footprint.writes_nzcv);
-                for bit in 0..(encoded.bytes().len() * 8) {
-                    let mut corrupt = encoded.bytes().to_vec();
-                    corrupt[bit / 8] ^= 1 << (bit % 8);
-                    assert!(
-                        validate(
-                            &physical,
-                            kind,
-                            alternative,
-                            &operands,
-                            displacement,
-                            1,
-                            &corrupt
-                        )
-                        .is_err()
-                    );
-                }
+                reject_every_bit_flip(encoded.bytes(), "frame round trip", |corrupt| {
+                    validate(
+                        &physical,
+                        kind,
+                        alternative,
+                        &operands,
+                        displacement,
+                        1,
+                        &corrupt,
+                    )
+                    .is_err()
+                });
                 assert!(
                     validate(
                         &physical,

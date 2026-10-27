@@ -2,6 +2,7 @@
 //! catalog identity, not an AtomicFence promise or a general immediate.
 //! Arm A64 ISA, DMB: CRm 1101/1110/1111 selects LD/ST/SY respectively.
 //! https://support.arm.com/documentation/ddi0596/2020-12/Base-Instructions/DMB--Data-Memory-Barrier-
+use crate::machine_effects::form_alternative;
 use register_model::RegisterConstraintKey;
 use selected_instructions::{
     MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
@@ -19,16 +20,11 @@ pub(crate) fn declaration(constraint: RegisterConstraintKey) -> MachineEffectDec
         barrier: MachineBarrier::ExternalEffect,
         call: MachineCallEffect::NoneV1,
         cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey {
-                family: MachineAlternativeFamily::MemoryFence,
-                variant: 0,
-            },
-            applicability: MachineAlternativeApplicability::Always,
-            size: MachineSizeKnowledge::ExactBytes(4),
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded: MachineEncodedEffects::catalog_fence_v1(),
-        }],
+        alternatives: form_alternative!(
+            MachineAlternativeFamily::MemoryFence,
+            MachineSizeKnowledge::ExactBytes(4),
+            MachineEncodedEffects::catalog_fence_v1()
+        ),
     }
 }
 
@@ -58,6 +54,7 @@ pub(crate) fn decode(bytes: &[u8]) -> Option<MemoryFenceKind> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::rejects_every_bit_flip;
     use selected_instructions::{RegisterOperation, SelectedInstructionKind};
     #[test]
     fn catalog_fences_keep_exact_bytes_and_reject_other_effects() {
@@ -90,21 +87,7 @@ mod tests {
                     && realized.footprint().register_writes.is_empty()
             );
             assert!(!realized.footprint().writes_nzcv);
-            for bit in 0..expected.len() * 8 {
-                let mut changed = expected.to_vec();
-                changed[bit / 8] ^= 1 << (bit % 8);
-                assert!(
-                    crate::validate_aarch64_selected_form_encoding(
-                        &physical,
-                        instruction,
-                        alternative,
-                        &[],
-                        &changed
-                    )
-                    .is_err(),
-                    "changed bit {bit}"
-                );
-            }
+            rejects_every_bit_flip(&physical, instruction, alternative, &[], expected);
             let mut doubled = expected.to_vec();
             doubled.extend(expected);
             for changed in [&doubled[..], &expected[..expected.len() - 1], &[]] {

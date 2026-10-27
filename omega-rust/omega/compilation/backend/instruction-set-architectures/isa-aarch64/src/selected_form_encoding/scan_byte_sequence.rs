@@ -686,6 +686,7 @@ mod tests {
     use crate::selected_form_encoding::selected_forms::{
         encode_aarch64_selected_form, validate_aarch64_selected_form_encoding,
     };
+    use crate::test_support::reject_every_bit_flip;
     use selected_instructions::ByteSequencePredicate;
     use selected_instructions::MachineAlternativeFamily;
     use selected_instructions::MachineAlternativeKey;
@@ -737,14 +738,9 @@ mod tests {
                 &encoded.bytes,
             )
             .unwrap();
-            for position in 0..encoded.bytes.len() * 8 {
-                let mut changed = encoded.bytes.clone();
-                changed[position / 8] ^= 1 << (position % 8);
-                assert!(
-                    validate(&physical, predicate, alternative, &operands, &changed).is_err(),
-                    "{predicate:?} bit {position}"
-                );
-            }
+            reject_every_bit_flip(&encoded.bytes, &format!("{predicate:?}"), |changed| {
+                validate(&physical, predicate, alternative, &operands, &changed).is_err()
+            });
         }
     }
 }
