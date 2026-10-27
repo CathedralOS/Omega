@@ -18374,11 +18374,11 @@ fail/generics/const_data_where_fact_false rejected 641ms expected @a92f16431042
 fail/generics/const_expression_cannot_supply_type_binder rejected 561ms expected @a92f16431042
 	machine `marker` static argument 1 requires its declared binder kind, not a const value
 	machine `marker` static argument 1 requires its declared binder kind, not a const value
-fail/generics/const_extent_guard_authored_comparison rejected 1623ms expected @a92f16431042
+fail/generics/const_extent_guard_authored_comparison rejected 701ms expected @3027947159d7
 	cannot prove index `0` is within const extent `Count` of `moments` in first::entry
 fail/generics/const_extent_guard_closed_alias_write rejected 1987ms expected @a92f16431042
 	cannot prove index `0` is within length 0
-fail/generics/const_extent_guard_closed_authored_comparison rejected 1996ms expected @a92f16431042
+fail/generics/const_extent_guard_closed_authored_comparison rejected 667ms expected @3027947159d7
 	cannot prove index `0` is within length 0
 fail/generics/const_extent_guard_closed_bad_index_type rejected 557ms expected @a92f16431042
 	machine `main` state `entry` indexes `values` with `false` of type `bool`, but an index or range endpoint must be an integer
