@@ -151,7 +151,10 @@ the same borrowed production facts without a second producer mode. Demanded
 components and lazy review descriptions enter the same product sequence as root
 compilation. Component completion owns its exported plans, description and
 permission evidence, not a second Terminal batch loop or public checked-source
-publication entrance.
+publication entrance. Terminal cohorts retain each admitted application beside
+its exact entry, callback roots and exclusion policy. Source-sharing comparisons
+use those requests directly; only caller order is restored after cohort work,
+without parallel entry tables or empty outcome slots.
 Package preparation advances dependency-first rounds across target rosters;
 demanded component continuations enter the same source batch as their siblings,
 rather than completing one target's entire dependency chain first.
