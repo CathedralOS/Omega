@@ -70,6 +70,8 @@ enum Value {
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Boolean {
     Constant(bool),
+    /// Private two-valued observation. It never becomes an integer subject.
+    Variable(Integer),
     Comparison(Comparison),
     And(Box<Self>, Box<Self>),
     Or(Box<Self>, Box<Self>),
@@ -730,6 +732,13 @@ impl Implication<'_> {
         }
     }
 
+    fn boolean(&mut self, path: &mut Path) -> Option<Value> {
+        self.spend()?;
+        let value = self.atom(true);
+        boolean_bounds(path, &value);
+        Some(Value::Boolean(Boolean::Variable(value)))
+    }
+
     fn integer(&mut self, carrier: TypeReferenceHandle, path: &mut Path) -> Option<Value> {
         let (minimum, maximum) = self
             .program
@@ -789,7 +798,7 @@ impl Implication<'_> {
                     projection: Vec::new(),
                 })
             }
-            ValueShape::Boolean => None,
+            ValueShape::Boolean => self.boolean(path),
         }
     }
 
@@ -921,6 +930,10 @@ impl Implication<'_> {
         }
         match goal {
             Boolean::Constant(value) => *value,
+            Boolean::Variable(value) => self.implies(
+                path,
+                &compare(BinaryOperator::Equal, value.clone(), number(1)),
+            ),
             Boolean::Comparison(comparison) => self.implies(path, comparison),
             Boolean::And(left, right) => self.entails(path, left) && self.entails(path, right),
             Boolean::Or(left, right) => {
@@ -1948,6 +1961,7 @@ fn integer_atoms(value: &Integer, atoms: &mut Vec<Integer>) {
 
 fn boolean_atoms(value: &Boolean, atoms: &mut Vec<Integer>) {
     match value {
+        Boolean::Variable(value) => integer_atoms(value, atoms),
         Boolean::Comparison(comparison) => {
             integer_atoms(&comparison.left, atoms);
             integer_atoms(&comparison.right, atoms);
@@ -2002,6 +2016,7 @@ fn substitute_value(value: &Value, replacements: &[(Integer, Integer)]) -> Value
 fn substitute_boolean(value: &Boolean, replacements: &[(Integer, Integer)]) -> Boolean {
     match value {
         Boolean::Constant(value) => Boolean::Constant(*value),
+        Boolean::Variable(value) => Boolean::Variable(substitute(value, replacements)),
         Boolean::Comparison(comparison) => {
             Boolean::Comparison(substitute_comparison(comparison, replacements))
         }
@@ -2048,11 +2063,31 @@ const SPLIT_CONSULTATIONS: usize = 256;
 /// Clauses one assumption may expand to; a wider distribution is declined.
 const MAXIMUM_CLAUSES: usize = 64;
 
+/// This internal solver carrier records only Boolean truth. It supplies no
+/// executable integer value, arithmetic carrier or source comparison meaning.
+fn boolean_bounds(path: &mut Path, value: &Integer) {
+    path.comparisons.push(compare(
+        BinaryOperator::GreaterOrEqual,
+        value.clone(),
+        number(0),
+    ));
+    path.comparisons.push(compare(
+        BinaryOperator::LessOrEqual,
+        value.clone(),
+        number(1),
+    ));
+}
+
 /// `value == holds` in conjunctive normal form over comparisons. No clause
 /// is `true`; an empty clause is `false`. A predicate call has no
 /// comparison form.
 fn clauses(value: &Boolean, holds: bool) -> Option<Vec<Clause>> {
     match value {
+        Boolean::Variable(value) => Some(vec![vec![compare(
+            BinaryOperator::Equal,
+            value.clone(),
+            number(i128::from(holds)),
+        )]]),
         Boolean::Constant(value) => Some(if *value == holds {
             Vec::new()
         } else {
