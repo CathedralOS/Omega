@@ -35,8 +35,17 @@ reference`; the unqualified predecessor still executes successfully. A generic
 borrowed-root regression exposed by the initial repair is fixed without weakening
 its complete predicate or exact nominal carrier lookup. Baselines remain under
 `/Users/zcanann/Omega-build/qualified-borrowed-array-view-probe-2026-10-27/`.
-Linux and Windows runs for `1d92ab9b09e` remain pending. The older matching-host
-records below establish only the unqualified predecessor, not this extension.
+The same optimized source also passes on matching Linux x86-64, Linux ARM64
+and Windows x86-64 hosts: ten corpus and ten public native/Terminal agreements,
+with all ten intended rejects on each host
+([Linux x86-64](https://github.com/CathedralOS/Omega/actions/runs/40581713175),
+[Linux ARM64](https://github.com/CathedralOS/Omega/actions/runs/40581713402),
+[Windows x86-64](https://github.com/CathedralOS/Omega/actions/runs/40581713496)).
+All three complete workflow jobs succeeded. Their exact producer bytes, source
+snapshots, C libraries and native/Psi products retain the original `1d92ab9b09e`
+identity in the same evidence directory; independent host reviews authenticate
+those observations. This qualifies the bounded row across four hosted targets,
+not the remaining parent capability or full release.
 
 `Buffer<'cells>` contains `&'cells mut [Cell; 3]`. The C counterpart stores
 `struct cell (*cells)[3]`: one explicit pointer to a fixed array, with no C
@@ -99,10 +108,11 @@ Their producers, C libraries, native/Psi products and raw reports retain those
 original source identities under
 `/Users/zcanann/Omega-build/retained-view-elf-export-2026-10-27/` and
 `/Users/zcanann/Omega-build/native-provider-test-codec-2026-10-27/`.
-The broader runs remain red: the older array constant rejects with its declared
-range diagnostic (now pinned by both public and corpus controls), and the Windows
-mutable-borrow call-result case has an unresolved native timeout. Neither is
-counted as successful whole-suite qualification.
+Those older broader runs were red for the array diagnostic pin and a Windows
+mutable-borrow call-result native timeout. The newer exact-source jobs above
+completed successfully; the old timeout did not recur, and its cause has not
+been isolated. Historical failures remain preserved under their original source
+identities.
 
 This row establishes the finite borrowed fixed-array descriptor and its original
 backing. Recursive/dynamic pointer graphs, newly introduced provider-owned
