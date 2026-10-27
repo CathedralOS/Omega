@@ -531,8 +531,8 @@ pub use attached_storage::{
 };
 pub use builtin_coordinates::{
     assignment_target_indexes, assignment_target_selectors, collection_length_receiver,
-    declared_collection_extent, ensured_range_call_endpoints, fixed_array_type_length,
-    has_builtin_subslice_meaning, indexed_operation_has_builtin_meaning,
+    declared_collection_extent, ensured_range_call_endpoints, fixed_array_type_extent,
+    fixed_array_type_length, has_builtin_subslice_meaning, indexed_operation_has_builtin_meaning,
     mutable_byte_slice_parameter_element, range_operator_establishes_endpoint_extent,
     subslice_expression, whole_collection_view_source,
 };

@@ -1354,6 +1354,43 @@ pub(super) fn runtime_borrowed_projection(
     Ok((selected, shape, offset, indices))
 }
 
+/// Taking an address needs the original storage path and selector geometry,
+/// not a standalone declaration for an inline scalar field. Typed call loans
+/// retain their separate leaf-presentation query above.
+pub(super) fn storage_address_indices(
+    structural_type: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+) -> Result<Vec<(semantic_vocabulary::ValueId, u32)>, LoweringError> {
+    let invalid = || LoweringError::UnsupportedStructuralReference(structural_type);
+    let regions =
+        reference_projection_regions(structural_type, path, declarations).ok_or_else(invalid)?;
+    let leaf_indices = if !regions.path.is_empty()
+        && matches!(
+            declarations.get(&regions.root).map(|row| &row.shape),
+            Some(StructuralTypeShape::ByteSequence(_))
+        ) {
+        contiguous_primitive_projection(regions.root, regions.path, declarations)
+            .ok_or_else(invalid)?
+            .2
+    } else {
+        runtime_storage_projection(
+            regions.root,
+            regions.path,
+            declarations,
+            &mut BTreeMap::new(),
+            &mut BTreeSet::new(),
+        )?
+        .3
+    };
+    Ok(regions
+        .pointer_slots
+        .into_iter()
+        .flat_map(|slot| slot.indices)
+        .chain(leaf_indices)
+        .collect())
+}
+
 fn runtime_projection_with_leaf_type(
     structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],

@@ -263,6 +263,19 @@ pub(crate) fn reference_source_geometry(
     )
 }
 
+/// Address exposure retains physical storage geometry without selecting a
+/// typed loan presentation. Inline scalar fields need no catalog declaration.
+pub(crate) fn storage_address_geometry(
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<ReferenceSourceGeometry<()>> {
+    reference_geometry(root, path, declarations, |root, path| {
+        let (_, offset, elements) = runtime_storage_projection(root, path, declarations)?;
+        Some(((), offset, elements))
+    })
+}
+
 /// A bounded byte owner lent through a field keeps its owned carrier as the
 /// endpoint; a canonical referent leaf deliberately declines inline byte
 /// storage. Predicates stay on the field and its loan's declaration.
