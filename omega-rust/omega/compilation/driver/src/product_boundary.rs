@@ -126,7 +126,7 @@ fn build_submits_admitted_package_batches_together() {
     assert!(products.contains("crate::project_compilation::compile_returned("));
     let application = include_str!("../../../application/build/src/project_compilation.rs");
     assert!(application.contains("package_manager::operations::admit_project_products("));
-    assert!(application.contains("crate::package_compilation::compile_returned_packages("));
+    assert!(application.contains("crate::package_compilation::compile_packages("));
     assert!(application.contains("admitted.completion.complete(products, session.packages)"));
     let admission =
         include_str!("../../../packages/package-manager/src/operations/accepted_compilation.rs");

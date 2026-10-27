@@ -1146,7 +1146,7 @@ fn build_native_fixture(
                 )
             })
             .collect::<Result<Vec<_>, Vec<diagnostics::Diagnostic>>>()?;
-        let outcomes = omega_build::compile_packages(&mut prepared.session, requests);
+        let outcomes = omega_build::compile_packages(&mut prepared.session, requests, &mut []);
         Some(
             targets
                 .iter()
@@ -1643,10 +1643,14 @@ fn check_fail_fixture(
         omega_build::compile_packages(
             &mut session,
             vec![compiler::PackageCompilationRequest {
-                occurrences,
+                occurrences: occurrences
+                    .into_iter()
+                    .map(compiler::PackageSourceRequest::Execute)
+                    .collect(),
                 product,
                 terminal_permissions: prepared.assumed_permissions,
             }],
+            &mut [],
         )
         .pop()
         .expect("one fixture product")
