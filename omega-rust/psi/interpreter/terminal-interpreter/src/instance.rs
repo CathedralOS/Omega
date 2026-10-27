@@ -368,7 +368,12 @@ impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
         let deferred = execution.boundary_supplies.get(&boundary)
             == Some(&crate::effects::AdmittedBoundarySupply::DeferredComponent);
         if self.invoked
-            && (!deferred || execution.awaiting_effect.is_none() || execution.failure.is_some())
+            && (!deferred
+                || !execution
+                    .awaiting_effect
+                    .as_ref()
+                    .is_some_and(|pending| pending.awaiting_provider_readiness)
+                || execution.failure.is_some())
         {
             return Err(
                 "component installation requires its reserved slot and a checked readiness pause"

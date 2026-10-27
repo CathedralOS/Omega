@@ -305,6 +305,7 @@ fn readiness_installs_exact_component_without_replaying_the_receiver() {
                 })
                 .unwrap();
             let ready = Arc::new(AtomicBool::new(false));
+            let computed = Arc::new(AtomicBool::new(false));
             let observations = Arc::new(Mutex::new(Vec::new()));
             assert!(
                 matches!(
@@ -319,15 +320,23 @@ fn readiness_installs_exact_component_without_replaying_the_receiver() {
                     signature.result,
                     terminal_psi::BoundaryMachineResult::Scalar(_)
                 );
-                let result = instance.bind_import(
-                    slot,
-                    ControlledImport {
-                        signature,
-                        park,
-                        ready: ready.clone(),
-                        observations: observations.clone(),
-                    },
-                );
+                let adapter = ControlledImport {
+                    signature,
+                    park,
+                    ready: ready.clone(),
+                    observations: observations.clone(),
+                };
+                let result = if park {
+                    instance.bind_import(slot, adapter)
+                } else {
+                    instance.bind_import(
+                        slot,
+                        HostComputation(ControlledImport {
+                            ready: Arc::clone(&computed),
+                            ..adapter
+                        }),
+                    )
+                };
                 if slot == boundary {
                     assert_eq!(
                         result,
@@ -393,6 +402,17 @@ fn readiness_installs_exact_component_without_replaying_the_receiver() {
                 );
                 continue;
             }
+            let computation = instance.invoke(&mut meter).unwrap();
+            assert!(matches!(
+                computation,
+                TerminalExecutionStatus::HostComputationPending(_)
+            ));
+            assert!(
+                instance.bind_component(make_binding()).is_err(),
+                "a synchronous host computation grants no provider installation authority"
+            );
+            assert!(observations.lock().unwrap().is_empty());
+            computed.store(true, Ordering::Relaxed);
             let paused = instance.invoke(&mut meter).unwrap();
             assert!(
                 matches!(paused, TerminalExecutionStatus::AwaitingEffect(_)),

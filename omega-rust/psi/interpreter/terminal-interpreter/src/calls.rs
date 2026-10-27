@@ -31,6 +31,7 @@ use terminal_psi::{
 /// reconstructs loans nor exports owned arguments a second time.
 pub(crate) struct PendingBoundaryCall {
     pub(crate) site: crate::results::TerminalEffectWait,
+    pub(crate) awaiting_provider_readiness: bool,
     arguments: crate::effects::byte_buffers::BoundaryArguments,
     remaining_claims: BTreeMap<semantic_vocabulary::ClaimId, crate::execution::LiveClaim>,
     effect: TerminalEffect,
@@ -311,6 +312,11 @@ impl<'artifact> TerminalExecution<'artifact> {
     ) -> Result<OperationFlow, TerminalInterpretError> {
         if let Some(pending) = self.awaiting_effect.as_ref() {
             if let Some(status) = self.boundary_effect_wait(operation, handler, pending)? {
+                self.awaiting_effect
+                    .as_mut()
+                    .ok_or_else(malformed)?
+                    .awaiting_provider_readiness =
+                    matches!(status, TerminalExecutionStatus::AwaitingEffect(_));
                 return Ok(OperationFlow::Yield(status));
             }
             let pending = self.awaiting_effect.take().ok_or_else(malformed)?;
@@ -648,7 +654,8 @@ impl<'artifact> TerminalExecution<'artifact> {
             completion_receipts: completion_receipts.clone(),
             result: boundary_declaration.result.clone(),
         };
-        let pending = PendingBoundaryCall {
+        let mut pending = PendingBoundaryCall {
+            awaiting_provider_readiness: false,
             site: crate::results::TerminalEffectWait {
                 program: self.program.identity.semantic(),
                 machine: self.current_machine,
@@ -661,6 +668,8 @@ impl<'artifact> TerminalExecution<'artifact> {
             effect,
         };
         if let Some(status) = self.boundary_effect_wait(operation, handler, &pending)? {
+            pending.awaiting_provider_readiness =
+                matches!(status, TerminalExecutionStatus::AwaitingEffect(_));
             self.awaiting_effect = Some(Box::new(pending));
             Ok(OperationFlow::Yield(status))
         } else {
