@@ -1075,10 +1075,26 @@ pub(super) fn captured_argument_write_regions(
     destination: WriteDestination,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<StorageRegion>> {
-    let trace = std::env::var_os("OMEGA_TRACE_STORAGE_CEILING").is_some();
     let machine = program.machine_by_symbol(machine_symbol)?;
     let state = program.state_by_symbol(state_symbol)?;
     let resolver = call_frames?;
+    let captured = match site {
+        validation::CallSite::Statement(call) => resolver.call_write_origins(machine, call),
+        validation::CallSite::Expression { expression, .. } => {
+            resolver.expression_call_write_origins(machine, *expression)
+        }
+        validation::CallSite::TransitionNamed { .. } => validation::transition_call_target(
+            program,
+            machine,
+            state,
+            statement_index,
+            call_ordinal,
+        )
+        .and_then(|target| resolver.transition_write_origins(machine, target)),
+    };
+    let references = captured
+        .as_ref()
+        .and_then(|origins| origins.references.as_deref());
     if validation::reference_shell(program, parameter_type).is_none() {
         let actual = *call_site_argument_expressions(program, site).get(position)?;
         let mut regions = Vec::new();
@@ -1132,6 +1148,7 @@ pub(super) fn captured_argument_write_regions(
                     projected_type,
                     &projection.remaining,
                     destination,
+                    references,
                     call_frames,
                 )? {
                     crate::collections::push_unique(&mut regions, region);
@@ -1140,31 +1157,7 @@ pub(super) fn captured_argument_write_regions(
         }
         return Some(regions);
     }
-    let origins = match site {
-        validation::CallSite::Statement(call) => resolver.call_write_origins(machine, call),
-        validation::CallSite::Expression { expression, .. } => {
-            resolver.expression_call_write_origins(machine, *expression)
-        }
-        validation::CallSite::TransitionNamed { .. } => resolver.transition_write_origins(
-            machine,
-            validation::transition_call_target(
-                program,
-                machine,
-                state,
-                statement_index,
-                call_ordinal,
-            )?,
-        ),
-    };
-    if trace {
-        eprintln!(
-            "storage-capture statement={} parameter={} origins={:?}",
-            statement_index,
-            position,
-            origins.as_ref().map(|origins| &origins.arguments)
-        );
-    }
-    let origins = origins?;
+    let origins = captured.as_ref()?;
     let mut places = Vec::new();
     for source in origins.arguments.get(position)?.as_ref()? {
         let projected = super::local_origins::write_source_region(
@@ -1173,14 +1166,7 @@ pub(super) fn captured_argument_write_regions(
             statement_index,
             source,
             relative,
-        );
-        if trace {
-            eprintln!(
-                "storage-capture projected={:?}",
-                projected.as_ref().map(|region| region.anchor())
-            );
-        }
-        let projected = projected?;
+        )?;
         if !storage_place_has_declared_identity(projected.anchor()) {
             return None;
         }
@@ -1192,15 +1178,9 @@ pub(super) fn captured_argument_write_regions(
             parameter_type,
             relative,
             destination,
+            references,
             call_frames,
-        );
-        if trace {
-            eprintln!(
-                "storage-capture rebased={:?}",
-                rebased.as_ref().map(Vec::len)
-            );
-        }
-        let rebased = rebased?;
+        )?;
         for place in rebased {
             crate::collections::push_unique(&mut places, place);
         }
@@ -1218,10 +1198,19 @@ fn rebase_projected_call_region(
     parameter: typed_trees::types::TypeReferenceHandle,
     path: &[facts::PlaceSegment],
     destination: WriteDestination,
+    references: Option<&[validation::LocalWriteOrigin]>,
     frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<StorageRegion>> {
     if destination == WriteDestination::Referent {
-        return rebase_storage_region(program, state, statement, region, frames);
+        return super::local_origins::rebase_captured_storage_region(
+            program,
+            state,
+            statement,
+            region,
+            references,
+            destination,
+            frames,
+        );
     }
     let StorageRegion::Declared(place) = region else {
         return None;
@@ -1235,7 +1224,15 @@ fn rebase_projected_call_region(
     if !validation::storage_origin_types_match(program, expected, actual) {
         return None;
     }
-    super::local_origins::rebase_descriptor_slot_regions(program, state, statement, place, frames)
+    super::local_origins::rebase_captured_storage_region(
+        program,
+        state,
+        statement,
+        StorageRegion::Declared(place),
+        references,
+        destination,
+        frames,
+    )
 }
 
 fn write_reaches_caller(

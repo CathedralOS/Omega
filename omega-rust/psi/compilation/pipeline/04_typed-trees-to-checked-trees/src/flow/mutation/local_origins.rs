@@ -384,39 +384,86 @@ pub(super) fn rebase_storage_region(
     region: StorageRegion,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<StorageRegion>> {
-    match region {
-        StorageRegion::Declared(place) => {
-            rebase_local_write_regions(program, state_symbol, statement_index, place, call_frames)
+    rebase_region_owner(region, |owner| {
+        rebase_local_write_regions(program, state_symbol, statement_index, owner, call_frames)
+    })
+}
+
+/// Rebase only through the leaf roster captured with these invocation inputs.
+/// A future callee write cannot erase it; an unknown operand-time roster still
+/// cannot establish a reachable home. This supplies no access or replacement.
+pub(super) fn rebase_captured_storage_region(
+    program: &dyn validation::CheckingInput,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    region: StorageRegion,
+    references: Option<&[validation::LocalWriteOrigin]>,
+    destination: super::summary::WriteDestination,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Option<Vec<StorageRegion>> {
+    let descriptor_slot = matches!(destination, super::summary::WriteDestination::DescriptorSlot);
+    rebase_region_owner(region, |place| {
+        if descriptor_slot
+            && descriptor_slot_is_inline(program, state_symbol, statement_index, &place)?
+        {
+            return Some(vec![StorageRegion::Declared(place)]);
         }
+        if !matches!(place.root, facts::PlaceRoot::Symbol(symbol) if symbol.is_valid()) {
+            return None;
+        }
+        if !place_requires_local_write_origin(
+            program,
+            state_symbol,
+            statement_index,
+            &place,
+            call_frames,
+        ) {
+            return Some(vec![StorageRegion::Declared(place)]);
+        }
+        rebase_reachable_storage(
+            program,
+            state_symbol,
+            statement_index,
+            place,
+            call_frames,
+            descriptor_slot,
+            references?,
+        )
+    })
+}
+
+/// Change owner coordinates without turning content into declared storage.
+fn rebase_region_owner(
+    region: StorageRegion,
+    mut rebase: impl FnMut(CanonicalPlace) -> Option<Vec<StorageRegion>>,
+) -> Option<Vec<StorageRegion>> {
+    match region {
+        StorageRegion::Declared(place) => rebase(place),
         StorageRegion::ResidentContent {
             owner,
             formation,
             granted,
             resident,
-        } => {
-            rebase_local_write_regions(program, state_symbol, statement_index, owner, call_frames)?
-                .into_iter()
-                .map(|region| {
-                    Some(StorageRegion::ResidentContent {
-                        owner: region.into_declared()?,
-                        formation,
-                        granted,
-                        resident,
-                    })
+        } => rebase(owner)?
+            .into_iter()
+            .map(|region| {
+                Some(StorageRegion::ResidentContent {
+                    owner: region.into_declared()?,
+                    formation,
+                    granted,
+                    resident,
                 })
-                .collect()
-        }
-        StorageRegion::NonresidentContent { owner, formation } => {
-            rebase_local_write_regions(program, state_symbol, statement_index, owner, call_frames)?
-                .into_iter()
-                .map(|region| {
-                    Some(StorageRegion::NonresidentContent {
-                        owner: region.into_declared()?,
-                        formation,
-                    })
+            })
+            .collect(),
+        StorageRegion::NonresidentContent { owner, formation } => rebase(owner)?
+            .into_iter()
+            .map(|region| {
+                Some(StorageRegion::NonresidentContent {
+                    owner: region.into_declared()?,
+                    formation,
                 })
-                .collect()
-        }
+            })
+            .collect(),
         region @ StorageRegion::UnresolvedContent { .. } => Some(vec![region]),
     }
 }
@@ -430,6 +477,25 @@ pub(super) fn rebase_descriptor_slot_regions(
     place: CanonicalPlace,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<StorageRegion>> {
+    if descriptor_slot_is_inline(program, state_symbol, statement_index, &place)? {
+        return Some(vec![StorageRegion::Declared(place)]);
+    }
+    rebase_write_regions(
+        program,
+        state_symbol,
+        statement_index,
+        place,
+        call_frames,
+        true,
+    )
+}
+
+fn descriptor_slot_is_inline(
+    program: &dyn validation::CheckingInput,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    place: &CanonicalPlace,
+) -> Option<bool> {
     let mut inline = true;
     for length in 0..place.segments.len() {
         let prefix = CanonicalPlace {
@@ -447,17 +513,7 @@ pub(super) fn rebase_descriptor_slot_regions(
             break;
         }
     }
-    if inline {
-        return Some(vec![StorageRegion::Declared(place)]);
-    }
-    rebase_write_regions(
-        program,
-        state_symbol,
-        statement_index,
-        place,
-        call_frames,
-        true,
-    )
+    Some(inline)
 }
 
 pub(super) fn rebase_local_write_regions(
@@ -485,13 +541,6 @@ fn rebase_write_regions(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     descriptor_slot: bool,
 ) -> Option<Vec<StorageRegion>> {
-    let trace = std::env::var_os("OMEGA_TRACE_STORAGE_CEILING").is_some();
-    if trace {
-        eprintln!(
-            "storage-rebase statement={} place={:?}",
-            statement_index, place
-        );
-    }
     // Evaluation identity is not backing identity. In particular, an inline
     // reference-producing call may return a descriptor for caller storage.
     // If its captured referent could not be projected, keeping the expression
@@ -514,18 +563,9 @@ fn rebase_write_regions(
     let statements = program.statement_table.statements(state.statement_nodes);
     let mut owned_frames = None;
     let resolver = crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames)?;
-    let origins =
-        resolver.local_write_origins_before_statement(machine, statements.get(statement_index)?);
-    if trace {
-        eprintln!(
-            "storage-rebase origins={:?}",
-            origins.as_ref().map(|rows| rows
-                .iter()
-                .map(|row| (row.local_symbol, &row.local_segments, &row.source))
-                .collect::<Vec<_>>())
-        );
-    }
-    let Some(origins) = origins else {
+    let Some(origins) =
+        resolver.local_write_origins_before_statement(machine, statements.get(statement_index)?)
+    else {
         return reference_result_candidate_places(
             program,
             state_symbol,
@@ -536,6 +576,27 @@ fn rebase_write_regions(
         )
         .map(|places| places.into_iter().map(StorageRegion::Declared).collect());
     };
+    rebase_reachable_storage(
+        program,
+        state_symbol,
+        statement_index,
+        place,
+        call_frames,
+        descriptor_slot,
+        &origins,
+    )
+}
+
+fn rebase_reachable_storage(
+    program: &dyn validation::CheckingInput,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    place: CanonicalPlace,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    descriptor_slot: bool,
+    origins: &[validation::LocalWriteOrigin],
+) -> Option<Vec<StorageRegion>> {
+    let (_, state) = validation::find_state(program, state_symbol)?;
     // An origin identifies the captured referent of one descriptor, not the
     // transitive storage footprint of that referent. Walk the same immutable
     // inventory through every writable descriptor before deciding a local
@@ -590,27 +651,23 @@ fn rebase_write_regions(
                 statement_index,
                 origin.source.as_ref()?,
                 relative,
-            );
-            if trace {
-                eprintln!(
-                    "storage-rebase source={:?} projected={:?}",
-                    origin.source,
-                    region.as_ref().map(|region| region.anchor())
-                );
-            }
-            let region = region?;
+            )?;
             let canonical = match region {
                 StorageRegion::Declared(place) => place,
                 region @ (StorageRegion::ResidentContent { .. }
                 | StorageRegion::NonresidentContent { .. }
                 | StorageRegion::UnresolvedContent { .. }) => {
-                    for rebased in rebase_storage_region(
-                        program,
-                        state_symbol,
-                        statement_index,
-                        region,
-                        call_frames,
-                    )? {
+                    for rebased in rebase_region_owner(region, |owner| {
+                        rebase_reachable_storage(
+                            program,
+                            state_symbol,
+                            statement_index,
+                            owner,
+                            call_frames,
+                            false,
+                            origins,
+                        )
+                    })? {
                         crate::collections::push_unique(&mut projected, rebased);
                     }
                     continue;

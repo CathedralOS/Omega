@@ -46,17 +46,6 @@ pub(crate) fn signature_ceiling_regions(
 ) -> Option<Vec<StorageRegion>> {
     let machine = program.machine_by_symbol(caller_machine_symbol)?;
     let state = program.state_by_symbol(caller_state_symbol)?;
-    let trace = std::env::var_os("OMEGA_TRACE_STORAGE_CEILING").is_some();
-    if trace {
-        eprintln!(
-            "storage-ceiling begin target={} statement={} call={}",
-            program
-                .symbols
-                .display_path(borrow_call.target_symbol, "::"),
-            borrow_call.statement_index,
-            borrow_call.call_ordinal
-        );
-    }
     // A builtin function (`min`, `max`, `sqrt`, the float classifiers, the
     // asm intrinsics) takes scalar values and owns no caller storage; its
     // ceiling is empty even though it declares no state parameters.
@@ -97,13 +86,6 @@ pub(crate) fn signature_ceiling_regions(
                 parameter.type_reference,
                 resolver,
             );
-            if trace {
-                eprintln!(
-                    "storage-ceiling parameter={} residents={:?}",
-                    argument_index - 1,
-                    residents.as_ref().map(Vec::len)
-                );
-            }
             for region in residents? {
                 crate::collections::push_unique(&mut places, region);
             }
@@ -128,15 +110,7 @@ pub(crate) fn signature_ceiling_regions(
                             parameter.type_reference,
                             resolver?,
                         )
-                    });
-                    if trace {
-                        eprintln!(
-                            "storage-ceiling parameter={} carried={:?}",
-                            argument_index - 1,
-                            referents.as_ref().map(Vec::len)
-                        );
-                    }
-                    let referents = referents?;
+                    })?;
                     for referent in referents {
                         for region in super::local_origins::rebase_storage_region(
                             program,
@@ -186,24 +160,13 @@ pub(crate) fn signature_ceiling_regions(
             super::summary::WriteDestination::Referent,
             resolver,
         );
-        if trace {
-            eprintln!(
-                "storage-ceiling parameter={} captured={:?}",
-                argument_index - 1,
-                captured.as_ref().map(Vec::len)
-            );
-        }
         let storage = captured.or_else(|| {
             let actual = validation::canonical_place_from_expression_in_state(
                 program,
                 state.symbol,
                 borrow_call.statement_index,
                 actual,
-            );
-            if trace {
-                eprintln!("storage-ceiling fallback actual={:?}", actual);
-            }
-            let actual = actual?;
+            )?;
             super::local_origins::rebase_local_write_regions(
                 program,
                 state.symbol,
@@ -211,15 +174,7 @@ pub(crate) fn signature_ceiling_regions(
                 actual,
                 resolver,
             )
-        });
-        if trace {
-            eprintln!(
-                "storage-ceiling parameter={} storage={:?}",
-                argument_index - 1,
-                storage.as_ref().map(Vec::len)
-            );
-        }
-        let storage = storage?;
+        })?;
         for storage in storage {
             crate::collections::push_unique(&mut places, storage);
         }
@@ -228,25 +183,15 @@ pub(crate) fn signature_ceiling_regions(
         // or the owner descriptor anchoring the content loan.
     }
     if let Some(borrow) = borrow {
-        let retained = retained_loan_write_regions(
+        for region in retained_loan_write_regions(
             program,
             caller_machine_symbol,
             caller_state_symbol,
             borrow,
             borrow_call,
-        );
-        if trace {
-            eprintln!(
-                "storage-ceiling retained={:?}",
-                retained.as_ref().map(Vec::len)
-            );
-        }
-        for region in retained? {
+        )? {
             crate::collections::push_unique(&mut places, region);
         }
-    }
-    if trace {
-        eprintln!("storage-ceiling end regions={}", places.len());
     }
     Some(places)
 }
