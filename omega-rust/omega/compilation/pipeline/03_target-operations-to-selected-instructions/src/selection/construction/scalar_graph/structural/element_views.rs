@@ -6,6 +6,7 @@ use super::{
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
+use crate::selection::construction::scalar_graph::structural::operation_provenance;
 use crate::selection::construction::scalar_graph::structural::provenance;
 use crate::selection::construction::scalar_graph::structural::scaled_element_index;
 use crate::selection::construction::scalar_graph::structural::transport_register;
@@ -202,12 +203,7 @@ fn element_view_read(
         kind,
         constraint.ok_or_else(|| invalid())?,
         &[address, output],
-        SelectedInstructionProvenance {
-            operations: vec![row.operation],
-            values: vec![index, length, definition.value],
-            fuel: row.fuel.clone(),
-            ..Default::default()
-        },
+        operation_provenance(row, vec![index, length, definition.value]),
     )?;
     // A narrow signed element loads zero-extended; the register carrier is
     // sign-extended, so a signed compare of `-5` would otherwise see 2^32 - 5.

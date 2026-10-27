@@ -2,11 +2,9 @@
 //! Operands (by semantic arity; IEEE payloads or integers) and the
 //! result stay in general registers; the arity's constraint row gives
 //! the target form its scratch floating registers.
-use super::{
-    Builder, LegalizedScalarInstructionKind, SelectedInstructionKind,
-    SelectedInstructionProvenance, VirtualRegisterId,
-};
+use super::{Builder, LegalizedScalarInstructionKind, SelectedInstructionKind, VirtualRegisterId};
 use crate::SelectedInstructionError;
+use crate::selection::construction::scalar_graph::structural::operation_provenance;
 use selected_instructions::IeeeFloatArithmeticForm;
 
 pub(super) fn emit(
@@ -59,12 +57,10 @@ pub(super) fn emit(
         SelectedInstructionKind::NearestIeeeFloatArithmetic { form },
         key,
         &registers,
-        SelectedInstructionProvenance {
-            operations: vec![operation.operation],
-            values: values.iter().copied().chain([result.value]).collect(),
-            fuel: operation.fuel.clone(),
-            ..Default::default()
-        },
+        operation_provenance(
+            operation,
+            values.iter().copied().chain([result.value]).collect(),
+        ),
     )?;
     Ok(output)
 }
