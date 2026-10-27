@@ -84,6 +84,34 @@ nominal/static identities. A facade may compose checked target-specific leaves.
 An exact call to a realization machine delegates directly; spelling its operator
 inside the provider redispatches and can recurse.
 
+### Build-owned target selection
+
+Target-prefixed machine declarations are retired. Different operating-system
+implementations are ordinary named implementations, and the evaluated Build
+records which implementation backs an exact requirement application for each
+target. The target key belongs to the Build row, not to the source machine's
+declaration, name, or body. There is no implicit same-path target-body family,
+target-sensitive source overload, or additional body-selection pass.
+
+For example, one portable `AudioPlayback` requirement may have Build rows selecting
+`WindowsAudioPlayback` for `windows_x86_64`, `LinuxAudioPlayback` for both Linux
+profiles, and `MacosAudioPlayback` for `macos_arm64`. Applications still call the
+same requirement. Shared implementation code and binding-value producers are
+ordinary machines; naming a Windows import does not require a Windows prefix.
+Raw per-OS requirements and irreducible foreign leaves remain explicit beneath
+the selected provider closure.
+
+Psi checks every supplied implementation independently of target selection.
+Omega validates each selected closure against the row's target, including ABI,
+imports, layout, ISA, contracts, and authority. An unselected implementation's
+foreign locator need not be realizable on the selected target, but its source
+must still be checked. Missing, duplicate, incompatible, or unadmitted selected
+supply rejects rather than choosing a body by spelling or source order.
+
+The reference compiler and existing sources still contain the retired family
+model. `BUILD-OWNED-TARGET-SELECTION` in [the task board](../../../TASKS.md)
+tracks the end-to-end migration; the existing prefix is not an alternate API.
+
 [Foreign binding](foreign_bindings.md) identities are normalized evaluated values;
 the requirement owns its
 [calling-policy application](calling_plans.md#identity-and-selection).

@@ -578,9 +578,10 @@ files without this application-mode declaration.
 
 Artifact-only builds retain an explicit target/evaluation context from their
 invocation; the mode does not imply cross-target equivalence or a new target
-profile. A generator cannot inspect a target: target-specific generated
-content is emitted as target-tagged declarations for every target, never a
-different file per target.
+profile. A generator cannot inspect a selected realization target: generated
+source contains ordinary named implementations for the supplied targets, and
+the evaluated Build records target-keyed provider rows. It emits neither
+target-prefixed declarations nor a different file selected per realized target.
 This first slice does not automatically merge outputs from different target
 children. Executable builds still require the target's ProgramEntry and other
 mandatory roots even when they also publish artifacts.

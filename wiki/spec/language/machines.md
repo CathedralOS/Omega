@@ -159,14 +159,29 @@ assemble provider-plan rows or reauthor inherited ceilings in a binding.
 
 ### Target-scoped families
 
-A machine declaration prefixed with a target name is one body of a family keyed
-by target under one path. Families are data: every body is resolved, typed,
-checked, and published in Terminal Psi with its target tag in every
-compilation, and realizing a target selects that target's body
-([multi-target compilation](../build/configuration.md#multi-target-compilation)).
-A family is never filtered before checking, and no realization set narrows
-checking. A realized target without a body for a called family rejects that
-realization; it is not a checking error for the program.
+Target-prefixed machine declarations and implicit same-path target-body families
+are retired. A spelling such as `windows_x86_64 machine play(...)` is not
+accepted language syntax. Target names are Build/toolchain data, not declaration
+modifiers or names that become keywords when a target package is available.
+
+Different operating-system or architecture implementations are ordinary named
+implementations of an explicit trait requirement. Build records which exact
+implementation supplies that requirement for each target through
+[provider selection](../build/provider_selection.md). Even when several targets
+share one implementation, selection retains explicit target-keyed rows; source
+declarations acquire no target tag or alternate-body identity.
+
+Psi resolves, types, checks, and publishes every supplied implementation once,
+independently of the realization set. Omega selects the Build row for the target
+it realizes and validates the selected closure's ABI, imports, layout, and ISA
+applicability. Missing or incompatible selected supply rejects that realization;
+selection never hides an unchecked body or grants authority. See
+[multi-target compilation](../build/configuration.md#multi-target-compilation).
+
+The reference compiler still accepts the retired syntax and retains its family
+machinery. `BUILD-OWNED-TARGET-SELECTION` in [the task board](../../../TASKS.md)
+tracks removal and migration; this specification does not claim that repair has
+already landed.
 
 ## Substitution
 
