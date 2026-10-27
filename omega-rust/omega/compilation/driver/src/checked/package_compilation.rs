@@ -133,7 +133,6 @@ pub struct CompletedBuild {
 #[derive(Clone, Default)]
 pub struct PackageProductOptions {
     pub optimization_rollback: optimization_core::OptimizationRollback,
-    pub permit_unsettled_fused_service_fields: bool,
 }
 
 impl CompletedBuild {
@@ -309,11 +308,7 @@ impl CompilationSession {
     ) -> Result<PackageBuild, CompileFailure> {
         super::run_on_compile_thread(|| {
             if let Some(prepared) = completed.products.iter().find(|prepared| {
-                prepared.has_source_admission(
-                    &inputs,
-                    &options.optimization_rollback,
-                    options.permit_unsettled_fused_service_fields,
-                )
+                prepared.has_source_admission(&inputs, &options.optimization_rollback)
             }) {
                 return prepared
                     .select_target(target, inputs)
@@ -322,8 +317,6 @@ impl CompilationSession {
             }
             let mut source = completed.source.fork();
             source.rollback = options.optimization_rollback;
-            source.permit_unsettled_fused_service_fields =
-                options.permit_unsettled_fused_service_fields;
             let source = super::checking::prepare_settled_package_product(source, target, inputs)?;
             completed.products.push(source.clone());
             Ok(PackageBuild { source })

@@ -30,7 +30,6 @@ pub struct SettledPackageBuild {
     pub target: target::TargetProfile,
     pub inputs: package_compilation::PackageCompilationInputs,
     pub rollback: optimization_core::OptimizationRollback,
-    pub permit_unsettled_fused_service_fields: bool,
     pub source: SettledBuildSource,
 }
 
@@ -43,7 +42,6 @@ impl SettledPackageBuild {
             target: self.target,
             inputs: self.inputs.clone(),
             rollback: self.rollback.clone(),
-            permit_unsettled_fused_service_fields: self.permit_unsettled_fused_service_fields,
             source: SettledBuildSource {
                 execution_contract: self.source.execution_contract.clone(),
                 parsed: self.source.parsed.fork(),

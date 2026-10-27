@@ -206,6 +206,24 @@ fn package_review_retains_products_not_checked_compiler_state() {
 }
 
 #[test]
+fn entry_storage_has_no_provisional_field_mode() {
+    for source in [
+        include_str!("../../products/src/compile_request/checked.rs"),
+        include_str!("../../products/src/package_build.rs"),
+        include_str!("checked/package_compilation.rs"),
+        include_str!("execution_settlement.rs"),
+        include_str!("../../realization/selected-dispatch/src/execution_settlement.rs"),
+        include_str!(
+            "../../../packages/package-manager/src/review/candidate/passes/occurrences.rs"
+        ),
+        include_str!("../../../packages/package-manager/src/review/candidate/review_cache.rs"),
+    ] {
+        assert!(!source.contains("unsettled_fused_service_fields"));
+        assert!(!source.contains("tolerated_unsettled_service_fields"));
+    }
+}
+
+#[test]
 fn package_binding_policy_does_not_interpret_checked_source() {
     let policy =
         include_str!("../../../packages/package-manager/src/review/candidate/semantic_bindings.rs");

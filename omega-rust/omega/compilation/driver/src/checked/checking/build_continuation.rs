@@ -43,7 +43,6 @@ pub(super) fn prepare_build_invocation(
         package_inputs,
         build,
         optimization_rollback: _,
-        permit_unsettled_fused_service_fields: _,
         settled_check_reuse,
     } = child;
     let build_execution_profile = build.profile;
