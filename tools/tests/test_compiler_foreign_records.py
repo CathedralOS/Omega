@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import sys
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import Mock, patch
@@ -62,6 +63,46 @@ class OwnedForeignCohortTests(unittest.TestCase):
             (fact / "main.omg").write_text("machine run_main() {}\n")
             with self.assertRaisesRegex(ValueError, "zero-exit oracle"):
                 rows.fixtures(root, fact, "example")
+
+    def test_preparation_and_measurement_never_add_evidence_to_accepted_source(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fact = self.fact(root)
+            output = root / "evidence"
+            producer = Mock(cli=root / "producer/omega", target="linux_x86_64")
+            producer.record.return_value = dict(revision="a" * 40)
+            accepted = {}
+
+            def review(cli, project, target, timeout):
+                project = Path(project)
+                (project / "omega.lock").write_text("exact reviewed lock\n")
+                accepted[project] = {p.name for p in project.iterdir()}
+                return None, "accepted package source inventory\n"
+
+            def execute(arguments, recording, stem, supplied=b""):
+                recording.mkdir(parents=True, exist_ok=True)
+                if stem == "run":
+                    kept = root / "kept" / recording.name
+                    kept.mkdir(parents=True)
+                    (kept / "program.oterm").write_bytes(b"canonical artifact")
+                    stderr = f"native exit 0\ninterp exit: 0\nbuild dir kept: {kept}\n".encode()
+                else:
+                    stderr = b""
+                (recording / (stem + ".stdout")).write_bytes(b"")
+                (recording / (stem + ".stderr")).write_bytes(stderr)
+                return subprocess.CompletedProcess(arguments, 0, b"", stderr)
+
+            with patch.object(rows.sample_native_gate, "accept_review", side_effect=review), \
+                 patch.object(rows, "execute", side_effect=execute):
+                inventory = rows.prepare(output, fact, producer)
+                self.assertEqual(len(accepted), 10)
+                self.assertTrue(all({p.name for p in project.iterdir()} == names
+                                    for project, names in accepted.items()))
+                report = rows.measure(output, inventory, producer)
+            self.assertTrue(report["passed"])
+            self.assertTrue(all({p.name for p in project.iterdir()} == names
+                                for project, names in accepted.items()))
+            self.assertEqual(len(list((output / "sample-logs").glob("*/products/program.oterm"))), 10)
 
     def test_mutating_frozen_source_or_lock_refuses(self):
         with tempfile.TemporaryDirectory() as temporary:

@@ -81,7 +81,12 @@ def prepare(output, fact, producer):
             sources[str(source)] = digest(source)
         failure, text = sample_native_gate.accept_review(
             str(producer.cli), str(project), producer.target, 180)
-        (project / "preparation.log").write_text(text, encoding="utf-8")
+        # Admission owns the complete replay source inventory. Logs and
+        # products are evidence, so adding them inside that inventory would
+        # invalidate the lock immediately after approving it.
+        recording = output / "sample-logs" / place
+        recording.mkdir(parents=True, exist_ok=False)
+        (recording / "preparation.log").write_text(text, encoding="utf-8")
         record = dict(place=place, project=str(project), authored_inputs=sources,
                       preparation=failure,
                       inputs={str(path): digest(path) for path in authored_files(project)})
@@ -102,7 +107,7 @@ def validate_inputs(row):
             raise ValueError(f"frozen authored/replay input changed: {path}")
 
 
-def execute(arguments, project, stem, supplied=b""):
+def execute(arguments, recording, stem, supplied=b""):
     """Retain raw streams even on timeout, and drain the complete child tree."""
     with subprocess.Popen(arguments, cwd=compiler_pilot.ROOT, stdin=subprocess.PIPE,
                           stdout=subprocess.PIPE, stderr=subprocess.PIPE,
@@ -114,8 +119,8 @@ def execute(arguments, project, stem, supplied=b""):
             timed_out = True
             sample_native_gate.kill_process_tree(process)
             stdout, stderr = process.communicate()
-        (project / (stem + ".stdout")).write_bytes(stdout)
-        (project / (stem + ".stderr")).write_bytes(stderr)
+        (recording / (stem + ".stdout")).write_bytes(stdout)
+        (recording / (stem + ".stderr")).write_bytes(stderr)
         if timed_out:
             raise ValueError(f"{stem}: process tree exceeded 180 seconds")
         return subprocess.CompletedProcess(arguments, process.returncode, stdout, stderr)
@@ -134,11 +139,12 @@ def measure(output, inventory, producer):
                 continue
             validate_inputs(row)
             project = Path(row["project"])
+            recording = output / "sample-logs" / row["place"]
             arguments = [str(producer.cli), "run", "--both", "--keep", str(project / "main.omg")]
             started = time.monotonic()
             try:
                 supplied = project / "input.txt"
-                result = execute(arguments, project, "run", supplied.read_bytes() if supplied.is_file() else b"")
+                result = execute(arguments, recording, "run", supplied.read_bytes() if supplied.is_file() else b"")
                 text = (result.stdout + result.stderr).decode("utf-8", errors="replace").replace("\r\n", "\n")
                 observation.update(argv=arguments, exit=result.returncode,
                                    seconds=time.monotonic() - started,
@@ -146,23 +152,23 @@ def measure(output, inventory, producer):
                                    terminal_zero=re.search(r"^interp exit: 0$", text, re.M) is not None)
                 kept = re.search(r"^build dir kept: (.+)$", text, re.M)
                 if kept:
-                    shutil.copytree(Path(kept.group(1).strip()), project / "products")
+                    shutil.copytree(Path(kept.group(1).strip()), recording / "products")
                 if result.returncode or not observation["native_zero"] or not observation["terminal_zero"] or not kept:
                     raise ValueError("missing native/Terminal zero exits or retained products")
                 for stream in ("stdout", "stderr"):
                     oracle = project / ("expected_" + stream + ".txt")
                     if oracle.is_file():
                         actual = result.stdout if stream == "stdout" else sample_native_gate.program_stderr(result.stderr.decode("utf-8")).encode("utf-8")
-                        terminal = project / "products" / ("terminal." + stream)
+                        terminal = recording / "products" / ("terminal." + stream)
                         if actual != oracle.read_bytes() or terminal.read_bytes() != oracle.read_bytes():
                             raise ValueError(f"{stream}: public CLI output capture needs exact native/Terminal oracle agreement")
-                canonical_arguments = [str(producer.cli), "inspect-terminal", "--artifact", str(project / "products/program.oterm")]
-                canonical = execute(canonical_arguments, project, "canonical")
+                canonical_arguments = [str(producer.cli), "inspect-terminal", "--artifact", str(recording / "products/program.oterm")]
+                canonical = execute(canonical_arguments, recording, "canonical")
                 observation.update(canonical_argv=canonical_arguments, canonical_exit=canonical.returncode)
                 if canonical.returncode:
                     raise ValueError("canonical Terminal artifact inspection failed")
-                observation["products"] = {str(path.relative_to(project)): digest(path)
-                                           for path in project.rglob("*") if path.is_file()}
+                observation["products"] = {str(path.relative_to(recording)): digest(path)
+                                           for path in recording.rglob("*") if path.is_file()}
                 observation["passed"] = True
             except (OSError, ValueError, subprocess.SubprocessError) as error:
                 observation["error"] = str(error)
