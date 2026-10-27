@@ -35,12 +35,17 @@ pub(super) fn copy(
     else {
         return Err(invalid());
     };
+    let slot = builder.transport.push_structural_local_slot(
+        row.operation,
+        result.place,
+        shape.byte_size.max(1),
+        shape.alignment,
+    );
+    let pointer = local_storage::address(builder, row, slot, 0, shape.byte_size.max(1), true)?;
+    // A zero-byte copy still produces a borrowable owned value. Its private
+    // address anchor carries no payload and performs no source memory access.
     if shape.byte_size == 0 {
-        builder.pending_provenance.operations.push(row.operation);
-        builder
-            .pending_provenance
-            .fuel
-            .extend(row.fuel.iter().cloned());
+        builder.transport.pointers.push((result.place, pointer));
         return Ok(());
     }
     let input = builder
@@ -49,13 +54,6 @@ pub(super) fn copy(
         .iter()
         .find(|(place, _)| *place == *source)
         .map(|(_, pointer)| *pointer);
-    let slot = builder.transport.push_structural_local_slot(
-        row.operation,
-        result.place,
-        shape.byte_size,
-        shape.alignment,
-    );
-    let pointer = local_storage::address(builder, row, slot, 0, shape.byte_size, true)?;
     let geometry = match path {
         abstract_operations::StructuralCopyPath::Ordinary(path) if !path.is_empty() => {
             let signature = function.structural.as_ref().ok_or(invalid())?;

@@ -29,11 +29,6 @@ pub(in crate::selection::construction) fn block_entry(
             crate::selection::aggregate_result_input::block_parameter_shape(source, parameter)
                 .ok_or(SelectedInstructionError::custody())?
         };
-        if shape.byte_size == 0 {
-            // Custody is still bound by the semantic edge; no payload address
-            // or slot exists for an empty owned arrival.
-            continue;
-        }
         let slot = LocalStorageSlotId::StructuralBlockParameter {
             block: block.id,
             place: parameter.place,
@@ -43,7 +38,7 @@ pub(in crate::selection::construction) fn block_entry(
             .local_slots
             .push(SelectedLocalStorageSlot {
                 id: slot,
-                byte_size: shape.byte_size,
+                byte_size: shape.byte_size.max(1),
                 alignment: shape.alignment,
             });
         let pointer = transport_register(builder, parameter.place, 0)?;
@@ -52,7 +47,7 @@ pub(in crate::selection::construction) fn block_entry(
             SelectedMemoryAccessOrigin::Block(block.id),
             parameter.place,
             0,
-            shape.byte_size,
+            shape.byte_size.max(1),
             SelectedMemoryAccessRole::AddressLocal { slot },
         )?;
         builder.emit_local_frame_address(

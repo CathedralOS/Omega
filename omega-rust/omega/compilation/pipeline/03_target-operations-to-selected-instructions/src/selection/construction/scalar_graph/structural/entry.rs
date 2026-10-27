@@ -240,18 +240,13 @@ fn retain_owned_home(
         return Ok(());
     }
     let shape = parameter.target.shape;
-    if shape.byte_size == 0 {
-        // Custody is still bound by the semantic edge; no payload address
-        // or slot exists for an empty owned arrival.
-        return Ok(());
-    }
     let slot = selected_instructions::LocalStorageSlotId::StructuralParameter { place };
     builder
         .transport
         .local_slots
         .push(selected_instructions::SelectedLocalStorageSlot {
             id: slot,
-            byte_size: shape.byte_size,
+            byte_size: shape.byte_size.max(1),
             alignment: shape.alignment,
         });
     let pointer = transport_register(builder, place, 0)?;
@@ -260,7 +255,7 @@ fn retain_owned_home(
         source.entry_block,
         place,
         0,
-        shape.byte_size,
+        shape.byte_size.max(1),
         selected_instructions::SelectedMemoryAccessRole::AddressLocal { slot },
     )?;
     builder.emit_local_frame_address(slot, pointer, Default::default())?;
