@@ -306,17 +306,10 @@ impl SourceContinuation {
         previous: &Self,
         selected: symbols::SymbolHandle,
     ) -> Result<symbols::SymbolHandle, Vec<Diagnostic>> {
-        self.rejoin_declared_machine(previous.typed(), selected)
-    }
-
-    fn rejoin_declared_machine(
-        &self,
-        previous: &typed_trees::TypedTrees,
-        selected: symbols::SymbolHandle,
-    ) -> Result<symbols::SymbolHandle, Vec<Diagnostic>> {
         let refuse = |reason| vec![Diagnostic::error(reason)];
         let declaration =
-            symbols::RetainedDeclaration::capture(&previous.symbols, selected).map_err(refuse)?;
+            symbols::RetainedDeclaration::capture(&previous.typed().symbols, selected)
+                .map_err(refuse)?;
         declaration
             .rejoin(
                 &self.typed().symbols,

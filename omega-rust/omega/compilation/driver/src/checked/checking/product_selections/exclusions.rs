@@ -38,7 +38,7 @@ pub(super) fn resolve(
                 .map_err(Diagnostic::error)?;
         let row = AuthoredBehaviorExclusion {
             kind,
-            source_span,
+            source_span: typed.symbols.rejoin_product_occurrence(source_span),
             selecting_machine,
         };
         if !exclusions.contains(&row) {

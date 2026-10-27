@@ -258,9 +258,12 @@ pub fn collect_opaque_representation_selections(
             ]);
         }
         selections.push(
-            declaration
-                .clone()
-                .activate(activation, event.request.source_span),
+            declaration.clone().activate(
+                activation,
+                typed
+                    .symbols
+                    .rejoin_product_occurrence(event.request.source_span),
+            ),
         );
     }
     Ok(selections)

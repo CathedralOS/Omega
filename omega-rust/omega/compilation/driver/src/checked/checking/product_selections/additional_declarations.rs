@@ -119,7 +119,7 @@ pub(super) fn admit(
                         required: subject,
                         supplied: operand(typed, request, 1).map_err(|error| vec![error])?,
                         selecting_machine: author,
-                        source_span: request.source_span,
+                        source_span: typed.symbols.rejoin_product_occurrence(request.source_span),
                     },
                 );
             }
