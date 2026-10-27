@@ -1,6 +1,4 @@
-use super::{
-    Optimization, OptimizationExecutionPhase, OptimizationSelectionIdentity, OptimizationSelections,
-};
+use super::{Optimization, OptimizationSelectionIdentity, OptimizationSelections};
 use std::fmt;
 
 /// Canonical selection vocabulary accepted after sealed Terminal Psi.
@@ -39,12 +37,12 @@ impl PostTerminalOptimizationSelectionProjection {
 
 impl PostTerminalOptimizationSelections {
     pub fn new(selected: OptimizationSelections) -> Result<Self, PreTerminalOptimizationSelection> {
-        if let Some(optimization) = selected.as_slice().iter().copied().find(|optimization| {
-            matches!(
-                optimization.execution_phase(),
-                OptimizationExecutionPhase::CheckedTrees | OptimizationExecutionPhase::Psi
-            )
-        }) {
+        if let Some(optimization) = selected
+            .as_slice()
+            .iter()
+            .copied()
+            .find(|optimization| !optimization.execution_phase().is_post_terminal())
+        {
             return Err(PreTerminalOptimizationSelection(optimization));
         }
         Ok(Self { selected })
