@@ -12,9 +12,9 @@
 // Each callee records the length it received. A wrong length exits 71-73;
 // every leg agreeing exits 70.
 
-domain [u8]::Path(bytes)
+domain [u8]::Path
 requires
-    no_nul(bytes);
+    no_nul(self);
 use omega_language_std::console;
 
 data Main {

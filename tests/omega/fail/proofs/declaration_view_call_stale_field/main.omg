@@ -1,5 +1,5 @@
 data Counter { value: u64; }
-domain Counter::Nonnegative(counter) requires counter.value >= 0;
+domain Counter::Nonnegative requires self.value >= 0;
 machine consume(counter: &Counter) -> u64
 requires counter.value >= 1 && addr::Bound == 18446744073709551616
 { counter.value - 1 }

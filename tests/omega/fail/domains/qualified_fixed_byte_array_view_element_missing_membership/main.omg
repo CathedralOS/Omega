@@ -1,5 +1,5 @@
 // An unqualified source view cannot manufacture its elements' byte domain.
-domain [u8; 8]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8; 8]::Ascii requires ascii_only(self);
 data Name [copy] { storage: [u8; 8]; }
 data Item [copy] { name: Name; }
 machine copy(items: &[Item]) -> [u8; 8] in Ascii

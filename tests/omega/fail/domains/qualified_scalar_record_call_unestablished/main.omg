@@ -1,4 +1,4 @@
-domain i32::NotFive(value) requires value != 5;
+domain i32::NotFive requires self != 5;
 data Marker [copy] { }
 data Gauge { level: i32 in NotFive; }
 

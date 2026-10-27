@@ -29,8 +29,8 @@
 //
 // Expected exit: 70.
 
-domain [u8; 32]::Ascii(bytes) requires ascii_only(bytes);
-domain [u8]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8; 32]::Ascii requires ascii_only(self);
+domain [u8]::Ascii requires ascii_only(self);
 data TextBuffer where used <= 32 { storage: [u8; 32] in Ascii; used: u64; }
 machine live(buffer: &TextBuffer) -> &[u8] in Ascii { &buffer.storage[..buffer.used] }
 machine copy(buffer: &mut [u8; 32] in Ascii, bytes: &[u8] in Ascii, start: u64)
@@ -59,7 +59,7 @@ use omega_language_std::console;
 // Bounded so `entry1.score + entry2.score` is verifiably at most 200: Exact
 // arithmetic on nested fields carries the overflow obligation, and the `where`
 // bound discharges it by proof -- no overflow domain needed.
-domain [u8; 5]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8; 5]::Ascii requires ascii_only(self);
 data NameBuffer where used <= 5 { storage: [u8; 5] in Ascii; used: u64; }
 machine name_view(name: &NameBuffer) -> &[u8] in Ascii { &name.storage[..name.used] }
 

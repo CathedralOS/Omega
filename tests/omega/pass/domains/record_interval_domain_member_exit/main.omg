@@ -8,7 +8,7 @@
 // bounded carrier and its independently checked member range obligation.
 use omega_language_std::console;
 
-domain i32::Ten(value) requires 0 <= value && value <= 10;
+domain i32::Ten requires 0 <= self && self <= 10;
 
 data Gauge { level: i32 in Ten; }
 

@@ -1,7 +1,7 @@
 // Expected exit: 0
 // Exact array geometry, qualified loans, indexed mutation and owned erasure.
-domain [u8; 8]::Ascii(bytes) requires ascii_only(bytes);
-domain [u8; 0]::EmptyAscii(bytes) requires ascii_only(bytes);
+domain [u8; 8]::Ascii requires ascii_only(self);
+domain [u8; 0]::EmptyAscii requires ascii_only(self);
 data Qualified { first: u8; bytes: [u8; 8] in Ascii; last: u8; }
 data Plain { first: u8; bytes: [u8; 8]; last: u8; }
 machine plain_length(bytes: &[u8; 8]) -> u64 { bytes.len }

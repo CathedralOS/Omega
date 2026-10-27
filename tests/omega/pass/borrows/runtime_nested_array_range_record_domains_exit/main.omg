@@ -1,4 +1,4 @@
-domain [u8; 5]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8; 5]::Utf8 requires valid_utf8(self);
 data Room [copy] { label: [u8; 5] in Utf8; value: u64; }
 data Group [copy] { room: Room; }
 data Main { groups: [[Group; 2]; 2]; }

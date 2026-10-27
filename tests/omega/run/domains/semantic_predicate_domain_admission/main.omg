@@ -7,7 +7,7 @@
 // a literal, a local, a requires-bounded parameter, a later state's
 // parameter, an explicit qualification, and a record literal and local whose
 // field satisfies the record predicate.
-public domain u64::Distance(value) requires value > 0;
+public domain u64::Distance requires self > 0;
 
 public operator + u64::Distance::add(left: u64 in u64::Distance, right: u64 in u64::Distance)
     -> u64 in u64::Distance;
@@ -18,7 +18,7 @@ public operator + u64::Km::add(left: u64 in u64::Km, right: u64 in u64::Km) -> u
 
 data Quantity [copy] { value: i32; }
 
-domain Quantity::Additive(quantity) requires quantity.value >= 0;
+domain Quantity::Additive requires self.value >= 0;
 
 machine + Quantity::Additive::add(left: Quantity, right: Quantity) -> Quantity
 requires right in Quantity::Additive

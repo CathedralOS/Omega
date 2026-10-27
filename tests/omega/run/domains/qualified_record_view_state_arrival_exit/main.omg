@@ -1,6 +1,6 @@
 // Expected exit: 0
 // Qualified child copy from a state parameter with a later borrowed whole store.
-domain [u8; 8]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8; 8]::Ascii requires ascii_only(self);
 data Label [copy] { storage: [u8; 8] in Ascii; }
 data Room [copy] { label: Label; marker: u64; }
 data Level [copy] { rooms: [Room; 16]; }

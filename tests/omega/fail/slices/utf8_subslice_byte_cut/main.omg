@@ -1,5 +1,5 @@
 // A UTF-8 source does not authorize cutting inside a multibyte code point.
-domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8]::Utf8 requires valid_utf8(self);
 machine inspect(bytes: &[u8] in Utf8) {}
 machine relay(bytes: &[u8] in Utf8) {
     transition bytes.len > 0 {

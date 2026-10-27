@@ -1,6 +1,6 @@
 // A call's input snapshot cannot be replaced by its later storage contents.
 data Resource [copy] { identity: u64; }
-domain Resource::Open(resource) requires resource.identity != 0;
+domain Resource::Open requires self.identity != 0;
 
 machine acquire(identity: u64) -> Resource
 ensures result.identity == identity {

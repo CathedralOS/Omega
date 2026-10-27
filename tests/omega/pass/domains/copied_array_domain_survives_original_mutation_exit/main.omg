@@ -1,6 +1,6 @@
 // Expected exit: 0
 // An owned unrestricted capture is independent of later writes to its source.
-domain [u16; 4]::ZeroTail(values) requires values[3] == 0;
+domain [u16; 4]::ZeroTail requires self[3] == 0;
 machine read_tail(values: [u16; 4] in ZeroTail) -> u16 { values[3] }
 machine main() crashes Trap {
     let mut original: [u16; 4] = [37, 0, 0, 0];

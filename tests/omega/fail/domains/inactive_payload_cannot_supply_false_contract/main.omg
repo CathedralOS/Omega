@@ -1,4 +1,4 @@
-domain u64::Impossible(value) requires false;
+domain u64::Impossible requires false;
 
 data Choice [copy] {
     case Empty;

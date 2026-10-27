@@ -385,7 +385,6 @@ enum ConstSubjectBinding<'a> {
 #[derive(Clone, Copy)]
 enum ConstFactSubject<'a> {
     Value {
-        name: &'a str,
         binding: Option<ConstSubjectBinding<'a>>,
     },
     /// Bare lexical fields in a data or active-case predicate. The complete
@@ -395,16 +394,13 @@ enum ConstFactSubject<'a> {
 
 impl<'a> ConstFactSubject<'a> {
     fn matches(self, syntax: &SyntaxTrees, expression: ExpressionHandle) -> bool {
-        let Self::Value {
-            name: subject_name, ..
-        } = self
-        else {
+        let Self::Value { .. } = self else {
             return false;
         };
         let ExpressionNode::Name(path) = syntax.expressions.expression(expression) else {
             return false;
         };
-        matches!(syntax.expressions.identifier_path_members(*path), [name] if name.as_str(syntax) == subject_name)
+        matches!(syntax.expressions.identifier_path_members(*path), [name] if name.as_str(syntax) == "self")
     }
 
     fn binding(self) -> Option<ConstSubjectBinding<'a>> {
@@ -1020,10 +1016,11 @@ fn evaluate_selected_domain_facts(
         }
         Some(subject_binding)
     };
-    let subject = domain.subject.as_ref().map(|name| ConstFactSubject::Value {
-        name: name.as_str(syntax),
-        binding,
-    });
+    // Syntax-level constant replay and typed predicate checking bind the same
+    // logical subject, including the parent fact of a refinement chain. The
+    // spelling is fixed by the language; an absent authored binder cannot
+    // erase the exact value being qualified or expose an outer constant.
+    let subject = Some(ConstFactSubject::Value { binding });
     let warning_start = warnings.len();
     visiting.push((domain.name.source_span(), domain_key));
     let result = (|| {

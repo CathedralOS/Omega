@@ -1,4 +1,4 @@
-domain u32::Small(value) requires value <= 10;
+domain u32::Small requires self <= 10;
 data Original { value: u32 in Small; }
 data Viewed { value: u32; }
 machine overwrite(storage: &write Original) {

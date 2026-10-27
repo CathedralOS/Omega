@@ -1,6 +1,6 @@
 // A predicate domain: `domain i32::Step(value) requires 0 <= value && value <= 50`
 // — the declaration's own binder names the candidate for its requires clause.
-domain i32::Step(value) requires 0 <= value && value <= 50;
+domain i32::Step requires 0 <= self && self <= 50;
 
 machine nudge(value: i32 in Step) -> i32 {
     // 0 <= value <= 50 bounds the operand: `value + 40` lands in 40..=90 —

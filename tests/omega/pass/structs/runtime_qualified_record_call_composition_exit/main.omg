@@ -2,7 +2,7 @@
 // The structural argument preceding value must not shift its scalar slot.
 use omega_language_std::console;
 
-domain i32::NotFive(value) requires value != 5;
+domain i32::NotFive requires self != 5;
 data Marker [copy] { }
 data Gauge { level: i32 in NotFive; }
 data Holder { gauge: Gauge; }

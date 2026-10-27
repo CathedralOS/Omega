@@ -2,7 +2,7 @@
 // initializer. Observe both its extent and bytes before the local is discarded.
 use omega_language_std::console;
 
-domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8]::Utf8 requires valid_utf8(self);
 data Slot { out: &[u8] in Utf8; }
 data Main { }
 

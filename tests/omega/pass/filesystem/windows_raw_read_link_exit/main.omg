@@ -7,8 +7,8 @@ use omega_language_std::console;
 use omega::language::core::external_binding;
 use omega::language::core::filesystem_authority;
 
-domain [u16; 19]::FixtureLink(path) requires path[18] == 0;
-domain [u16; 64]::FixtureTarget(path) requires path[63] == 0;
+domain [u16; 19]::FixtureLink requires self[18] == 0;
+domain [u16; 64]::FixtureTarget requires self[63] == 0;
 
 // Independent, fixture-only setup. Windows requires file/directory intent;
 // the portable generic symlink operation cannot infer that intent. BOOLEAN is

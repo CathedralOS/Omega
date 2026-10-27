@@ -1,7 +1,7 @@
-domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8]::Utf8 requires valid_utf8(self);
 use omega_language_std::console;
 
-domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8; 8]::Utf8 requires valid_utf8(self);
 data Tag [copy] { case First; case Second; }
 data Cell [copy] { label: TextBuffer; tag: Tag; value: u64; }
 data Main { cells: [Cell; 2]; }

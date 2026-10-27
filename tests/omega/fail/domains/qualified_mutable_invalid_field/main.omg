@@ -1,6 +1,6 @@
 // Exact positive-length arrays are always nonempty. NoNul supplies the
 // zero-excluding field invariant exercised by this establishment control.
-domain [u8; 8]::NoNul(bytes) requires no_nul(bytes);
+domain [u8; 8]::NoNul requires no_nul(self);
 data Label { text: [u8; 8] in NoNul; }
 data Packet { label: Label; }
 machine Packet::consume(packet: &mut Packet) {}

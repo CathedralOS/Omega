@@ -13,7 +13,7 @@
 //
 // Compile-checked only: no standard-library dependency, no ProcessExit
 // provider.
-domain i32::Step(value) requires 0 <= value && value <= 60;
+domain i32::Step requires 0 <= self && self <= 60;
 
 data Signal {
     case Hop(dx: i32 in Step, dy: i32 in Step);

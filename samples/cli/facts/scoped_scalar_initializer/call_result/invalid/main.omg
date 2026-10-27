@@ -1,6 +1,6 @@
 // A const-generic scoped domain family proves a literal initializer against the exact instance it was declared with, and the consumed value is 3.
 // Expected rejection: initializer out of domain BelowIndex.
-domain<const Bound: u64> u64::BelowIndex<Bound>(value) requires value < Bound;
+domain<const Bound: u64> u64::BelowIndex<Bound> requires self < Bound;
 // Place: call result. The scoped initializer completes inside the callee and returns.
 machine verify(observed: u64 in BelowIndex<4>, flag: bool) crashes Trap {
     transition (flag && (observed as u64) == 3) || (!flag && (observed as u64) == 3) {

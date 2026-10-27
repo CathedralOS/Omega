@@ -3,8 +3,8 @@
 
 data Cell [copy] { value: u64; }
 data Other [copy] { value: u64; }
-domain Other::Ready(cell)
-requires cell.value >= 73u64;
+domain Other::Ready
+requires self.value >= 73u64;
 
 machine identity<Value>(value: Value) -> Value { value }
 

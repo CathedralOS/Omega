@@ -1,6 +1,6 @@
 // Expected exit: 0. A case guard borrows established routed payload storage.
 data Owner { value: u64; }
-domain Owner::Open(owner) requires owner.value != 0 established by issue;
+domain Owner::Open requires self.value != 0 established by issue;
 data Attempt { case Error; case Ok(owner: Owner in Open); }
 machine issue() -> Owner in Open { Owner { value: 41 } }
 machine acquire() -> Attempt { Attempt::Ok { owner: issue() } }

@@ -1,5 +1,5 @@
 // Valid bounds do not authorize breaking the borrowed owner's ASCII domain.
-domain [u8; 2]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8; 2]::Ascii requires ascii_only(self);
 
 machine main() {
     let mut bytes: [u8; 2] in Ascii = "ab";

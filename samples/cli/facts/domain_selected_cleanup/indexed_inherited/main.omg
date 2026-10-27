@@ -4,8 +4,8 @@
 data Seed [copy] { code: u64; }
 data Counter { value: u64; invocations: u64 in Wrapping; }
 data Keeper { output: &mut Counter; code: u64; }
-domain<const Code: u64> Keeper::Held<Code>(keeper) dropped by release_keeper<Code> requires keeper.code == Code;
-domain Keeper::Label(keeper) requires keeper in Held<7>;
+domain<const Code: u64> Keeper::Held<Code> dropped by release_keeper<Code> requires self.code == Code;
+domain Keeper::Label requires self in Held<7>;
 machine release_keeper<const Code: u64>(keeper: &mut Keeper) requires keeper.code == Code {
     keeper.output.value = Code;
     keeper.output.invocations = keeper.output.invocations + 1;

@@ -2,7 +2,7 @@
 // through parameter requirements, guards, projected fields and state arrivals.
 data Amount [copy] { number: i32; neighbor: i32; }
 data Envelope [copy] { amount: Amount; }
-domain Amount::Nonnegative(amount) requires amount.number >= 0;
+domain Amount::Nonnegative requires self.number >= 0;
 
 machine number(amount: Amount in Amount::Nonnegative) -> i32 { amount.number }
 

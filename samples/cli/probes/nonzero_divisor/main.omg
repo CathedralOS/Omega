@@ -12,7 +12,7 @@
 // Compile-checked only: no standard-library dependency, no ProcessExit
 // provider.
 
-domain i32::NonZero(value) requires value != 0;
+domain i32::NonZero requires self != 0;
 
 data Divisor {
     case Unset;

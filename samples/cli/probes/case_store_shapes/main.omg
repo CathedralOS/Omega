@@ -13,7 +13,7 @@
 // Compile-checked only: no standard-library dependency, no ProcessExit
 // provider.
 
-domain i32::Ten(value) requires value >= 0 && value <= 10;
+domain i32::Ten requires self >= 0 && self <= 10;
 
 data Slot {
     stamp: u32;

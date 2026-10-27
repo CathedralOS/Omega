@@ -1,15 +1,15 @@
-domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8]::Utf8 requires valid_utf8(self);
 // Runtime concatenation copies the literal and the label's live bytes into
 // bound, not readable content: label has capacity 4 but contains only 2 bytes.
 // The separate receiving proof establishes that the result fits text's capacity
 // 16. Equality observes the resulting length 7 and every byte; only Room A1
 // reaches exit 70.
-domain [u8; 4]::Utf8(bytes)
+domain [u8; 4]::Utf8
 requires
-    valid_utf8(bytes);
-domain [u8; 16]::Utf8(bytes)
+    valid_utf8(self);
+domain [u8; 16]::Utf8
 requires
-    valid_utf8(bytes);
+    valid_utf8(self);
 use omega_language_std::console;
 
 data Main {

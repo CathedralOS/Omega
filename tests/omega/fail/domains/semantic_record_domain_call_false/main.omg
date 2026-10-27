@@ -2,7 +2,7 @@
 // admission: a negative quantity cannot reach `combine`.
 data Quantity { value: i32; }
 
-domain Quantity::Additive(quantity) requires quantity.value >= 0;
+domain Quantity::Additive requires self.value >= 0;
 
 machine + Quantity::Additive::add(left: Quantity, right: Quantity) -> Quantity
 requires right in Quantity::Additive

@@ -1,4 +1,4 @@
-domain u64::Small(value) requires 1 <= value && value <= 100;
+domain u64::Small requires 1 <= self && self <= 100;
 data Packet { value: u64 in Small; }
 
 machine make() -> Packet { Packet { value: 41 } }

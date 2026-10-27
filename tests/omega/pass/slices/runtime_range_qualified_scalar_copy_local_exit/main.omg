@@ -1,4 +1,4 @@
-domain i32::Small(value) requires 0<=value && value<=100;
+domain i32::Small requires 0<=self && self<=100;
 machine copy(items:&[i32 in Small],index:u64) -> i32 in Small requires index<items.len {
  let chosen:i32 in Small=items[index]; chosen
 }

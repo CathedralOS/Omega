@@ -3,14 +3,14 @@
 // input. Matching observes its tag, borrowing observes its live value, and
 // release consumes it. No runtime tag is added by the routed qualification.
 data Resource { identity: u64; }
-domain Resource::Open(resource)
-requires resource.identity != 0
+domain Resource::Open
+requires self.identity != 0
 established by issue;
 data Acquisition { case Error; case Ok(resource: Resource in Open); }
 
 data RawResource { identity: u64; }
-domain RawResource::RawOpen(resource)
-requires resource.identity != 0
+domain RawResource::RawOpen
+requires self.identity != 0
 established by issue_raw;
 
 machine issue_raw(input: i32) -> RawResource in RawOpen requires input >= 0 {

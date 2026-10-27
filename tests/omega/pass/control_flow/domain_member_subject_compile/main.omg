@@ -1,9 +1,9 @@
 // A `transition` subject may read a domain-qualified member:
 // `main.pair.n` is `u64 in Tiny` — the bounded field dispatches like a
 // plain scalar while its qualification rides along.
-domain u64::Tiny(value)
+domain u64::Tiny
 requires
-    value <= 4;
+    self <= 4;
 
 data Pair {
     n: u64 in Tiny;

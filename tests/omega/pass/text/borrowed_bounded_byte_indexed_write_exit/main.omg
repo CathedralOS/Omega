@@ -2,7 +2,7 @@
 // It preserves live length and ASCII while changing only the caller's home.
 use omega_language_std::console;
 
-domain [u8; 8]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8; 8]::Ascii requires ascii_only(self);
 
 machine replace(at: u64, bytes: &mut Buffer, value: u8) -> bool {
     transition at < bytes.used && at < 8 && value < 128 {

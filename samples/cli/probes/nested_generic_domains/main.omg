@@ -16,15 +16,15 @@
 // Compile-checked only: no standard-library dependency, no ProcessExit
 // provider.
 
-domain u64::Small(value) requires value < 5;
-domain u64::Nested(value) requires value in Small;
-domain<const Bound: u64> u64::Below<Bound>(value) requires value < Bound;
+domain u64::Small requires self < 5;
+domain u64::Nested requires self in Small;
+domain<const Bound: u64> u64::Below<Bound> requires self < Bound;
 
 data Packet [copy] {
     count: u64;
 }
 
-domain Packet::SmallCount(packet) requires packet.count in Nested;
+domain Packet::SmallCount requires self.count in Nested;
 
 const SCALAR: u64 in Nested = 3;
 const RECORD: Packet in SmallCount = Packet { count: 3 };

@@ -1,7 +1,7 @@
 // Subslice descriptors retain their established byte classes through local
 // copies and repeated slicing, even after the original descriptor is rebound.
-domain [u8]::Ascii(bytes) requires ascii_only(bytes);
-domain [u8]::NoNul(bytes) requires no_nul(bytes);
+domain [u8]::Ascii requires ascii_only(self);
+domain [u8]::NoNul requires no_nul(self);
 
 machine ascii_matches(bytes: &[u8] in Ascii, expected: &[u8]) -> bool {
     bytes == expected

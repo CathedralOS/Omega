@@ -2,9 +2,9 @@
 // lends read access to the `u64 in Tiny` slot — shared loans preserve
 // the field's proof, unlike `&mut` loans whose opaque writes leave the
 // domain unprovable at the record boundary.
-domain u64::Tiny(value)
+domain u64::Tiny
 requires
-    value <= 4;
+    self <= 4;
 
 data Pair {
     n: u64 in Tiny;

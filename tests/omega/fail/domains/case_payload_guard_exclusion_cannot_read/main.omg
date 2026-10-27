@@ -1,5 +1,5 @@
 // Excluding a case never permits access to its payload.
-domain i32::NonZero(value) requires value != 0;
+domain i32::NonZero requires self != 0;
 data Divisor [copy] { case Unset; case By(amount: i32 in NonZero); }
 
 machine quotient(divisor: Divisor) -> i32 {

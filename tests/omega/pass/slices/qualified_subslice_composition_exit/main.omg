@@ -1,6 +1,6 @@
 // Primitive byte domains survive runtime subslices, another subslice through a
 // helper parameter and a named local. Empty views remain valid ASCII views.
-domain [u8]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8]::Ascii requires ascii_only(self);
 use omega_language_std::console;
 
 data Main { end: u64; }

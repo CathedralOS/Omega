@@ -2,9 +2,9 @@
 // Place: other machine. Another machine receives and forwards the initialized slot value before exact subtraction.
 // Expected diagnostic: exact subtraction underflow
 
-domain u64::SlotDomain(v)
+domain u64::SlotDomain
 requires
-    v >= 99u64 && v <= 100u64;
+    self >= 99u64 && self <= 100u64;
 
 data BoxedSlot {
     value: u64 in SlotDomain;

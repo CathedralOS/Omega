@@ -1,5 +1,5 @@
 // A nonempty source can yield an empty view, so its domain is not inherited.
-domain [u8]::Nonempty(bytes) requires non_empty(bytes);
+domain [u8]::Nonempty requires non_empty(self);
 machine inspect(bytes: &[u8] in Nonempty) {}
 machine relay(bytes: &[u8] in Nonempty) { inspect(bytes[0..0]); }
 data Main {}

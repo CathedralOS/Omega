@@ -10,7 +10,7 @@
 // Compile-checked only: no standard-library dependency, no ProcessExit
 // provider.
 
-domain<const Bound: u64> u64::AtMost<Bound>(value) requires value <= Bound;
+domain<const Bound: u64> u64::AtMost<Bound> requires self <= Bound;
 
 machine capacity<Length, const Capacity: u64>() -> u64
 where Length == u64::AtMost<Capacity>

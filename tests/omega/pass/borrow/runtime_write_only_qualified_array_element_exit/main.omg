@@ -1,7 +1,7 @@
 // Expected exit: 0. Qualified array elements retain their complete referee
 // contract through indexed write-only calls, captures, fields and state arrivals.
 // Qualification retains the exact eight-byte carrier, never a live-length owner.
-domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8; 8]::Utf8 requires valid_utf8(self);
 data Container { entries: [[u8; 8] in Utf8; 2]; }
 
 machine initialize(bytes: &write [u8; 8] in Utf8) { bytes = "éééé"; }

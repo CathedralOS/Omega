@@ -1,6 +1,6 @@
 data Wide { value: u64; }
 data Narrow [copy] { value: u64; }
-domain Narrow::Seven(value) requires value.value == 7;
+domain Narrow::Seven requires self.value == 7;
 machine widen(value: &mut Wide) -> u64
 ensures value.value == 256 && result <= 255;
 {

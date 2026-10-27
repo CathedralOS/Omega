@@ -2,8 +2,8 @@
 // does not establish the predicate.
 use omega_language_std::console;
 
-domain f64::NonnegativeMass(value)
-requires value >= 0.0;
+domain f64::NonnegativeMass
+requires self >= 0.0;
 
 data Main { }
 

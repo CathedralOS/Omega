@@ -1,6 +1,6 @@
 // Expected exit: 0
 // Exact owned bytes, qualified fields and borrowed views share content meaning.
-domain [u8; 4]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8; 4]::Utf8 requires valid_utf8(self);
 data Row { before: u8; bytes: [u8; 4] in Utf8; after: u8; }
 machine borrowed(bytes: &[u8; 4] in Utf8) -> bool {
     bytes.len == 4 && bytes == "Gate" && bytes != "Ga" && bytes != "Gate!"

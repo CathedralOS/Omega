@@ -2,9 +2,9 @@
 // establishes that descriptor without inventing a zero reference or
 // copying its backing — `room.label = source` writes the
 // `&[u8] in Utf8` view into the declared member.
-domain [u8]::Utf8(bytes)
+domain [u8]::Utf8
 requires
-    valid_utf8(bytes);
+    valid_utf8(self);
 data Room [copy] { label: &[u8] in Utf8; }
 data Main {
     source: Room;

@@ -1,7 +1,7 @@
 // Reject both direct and chained views: erasure cannot establish a stronger bound.
 data Counter { value: u64; }
-domain Counter::One(counter) requires counter.value == 1;
-domain Counter::Nonnegative(counter) requires counter.value >= 0;
+domain Counter::One requires self.value == 1;
+domain Counter::Nonnegative requires self.value >= 0;
 data Bundle { counter: Counter in One & Nonnegative; }
 
 machine consume(counter: &Counter) -> u64

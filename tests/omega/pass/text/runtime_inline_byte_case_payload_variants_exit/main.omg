@@ -2,7 +2,7 @@
 // its comparison and live length read the selected case's own storage. The
 // payload arrives as a parameter, a local copy, a record field holding the
 // sum, and a call result delivered to another state.
-domain [u8; 5]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8; 5]::Utf8 requires valid_utf8(self);
 data Reply [copy] {
     sequence: u64;
     case Empty;

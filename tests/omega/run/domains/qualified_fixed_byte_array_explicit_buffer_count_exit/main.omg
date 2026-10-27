@@ -1,5 +1,5 @@
 // Expected exit: 0.
-domain [u8; 8]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8; 8]::Ascii requires ascii_only(self);
 data TextBuffer [copy] where used <= 8 { storage: [u8; 8] in Ascii; used: u64; }
 machine set_count(buffer: &mut TextBuffer, count: u64) requires count <= 8 { buffer.used = count; }
 machine main() crashes Trap {

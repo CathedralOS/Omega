@@ -4,7 +4,7 @@
 // matrix[0][0] = 11; reading matrix[1][0] = 22 instead exits 71.
 use omega_language_std::console;
 
-domain u64::Index(value) requires value < 2;
+domain u64::Index requires self < 2;
 
 machine advance(row: &mut u64 in Index) -> u64 in Index {
     row = 1;

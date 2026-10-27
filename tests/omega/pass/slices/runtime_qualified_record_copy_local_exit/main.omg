@@ -1,10 +1,10 @@
-domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8]::Utf8 requires valid_utf8(self);
 // Copy a slice element into an independent local before lending it onward.
 // Byte-owner metadata and enum fields belong to the copy just as scalar fields
 // do; the copied value must survive a subsequent replacement of its source.
 use omega_language_std::console;
 
-domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8; 8]::Utf8 requires valid_utf8(self);
 data Tag [copy] { case First; case Second; }
 data Cell [copy] { label: TextBuffer; tag: Tag; value: u64; }
 data Bag { cells: [Cell; 2]; }

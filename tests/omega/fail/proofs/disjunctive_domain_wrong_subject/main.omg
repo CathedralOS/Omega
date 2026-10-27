@@ -1,6 +1,6 @@
 data Pair [copy] { left: u64; right: u64; }
-domain Pair::Small(value)
-requires embed(value.left) < 10 || embed(value.right) < 10;
+domain Pair::Small
+requires embed(self.left) < 10 || embed(self.right) < 10;
 data Checked { case Rejected; case Ready(value: Pair in Small); }
 machine invalid(observed: Pair, unobserved: Pair) -> Checked {
     transition observed.left < 10 || observed.right < 10 {
