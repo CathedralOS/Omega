@@ -13048,6 +13048,41 @@ fail/facts/saved_observation_snapshot_through_target_body_rejected rejected 2088
 	cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/saved_symbolic_observation_correlated_pair_invalid_rejected rejected 1549ms expected @b800c26bd214
+	cannot prove requires contract for call same from probe: pair.observed == pair.expected (needs fact `observed == expected` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/saved_symbolic_observation_stale_expected_rejected rejected 1041ms expected @b800c26bd214
+	cannot prove requires contract for call same from probe: saved == expected (needs fact `observed == expected` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/saved_symbolic_observation_through_call_result_rejected rejected 1695ms expected @b800c26bd214
+	cannot prove ensures contract for exit from read_kept at statement 0: result == value
+fail/facts/saved_symbolic_observation_through_const_name_rejected rejected 1470ms expected @b800c26bd214
+	cannot prove requires contract for call same from probe: saved == value (needs fact `observed == expected` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/saved_symbolic_observation_through_field_rejected rejected 1599ms expected @b800c26bd214
+	cannot prove requires contract for call same from probe: note.observed == value (needs fact `observed == expected` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/saved_symbolic_observation_through_local_rejected rejected 1524ms expected @b800c26bd214
+	cannot prove requires contract for call same from probe: saved == value (needs fact `observed == expected` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/saved_symbolic_observation_through_match_join_rejected rejected 1464ms expected @b800c26bd214
+	cannot prove requires contract for call same from probe: selected.observed == value (needs fact `observed == expected` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/saved_symbolic_observation_through_other_machine_rejected rejected 1271ms expected @b800c26bd214
+	cannot prove ensures contract for exit from read_kept at statement 2: result == value
+fail/facts/saved_symbolic_observation_through_other_state_rejected rejected 1411ms expected @b800c26bd214
+	cannot prove requires contract for call finish from probe: saved == value (needs fact `observed == expected` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/saved_symbolic_observation_through_parameter_rejected rejected 1230ms expected @b800c26bd214
+	cannot prove requires contract for call forward from probe: saved == value (needs fact `observed == expected` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/saved_symbolic_observation_through_target_body_rejected rejected 1091ms expected @b800c26bd214
+	cannot prove requires contract for call same from probe: saved == value (needs fact `observed == expected` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call same from probe: saved == value (needs fact `observed == expected` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call same from probe: saved == value (needs fact `observed == expected` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call same from probe: saved == value (needs fact `observed == expected` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/saved_symbolic_observation_uncorrelated_choices_rejected rejected 1013ms expected @b800c26bd214
+	cannot prove requires contract for call same from probe: saved == expected (needs fact `observed == expected` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/saved_symbolic_observation_unreadable_delivery_rejected rejected 464ms expected @b800c26bd214
+	machine `invalid` state `entry` observes write-only referent through a selected value; `&write` permits replacement or exact `&write` forwarding, never observation
+	machine `invalid` state `entry` observes write-only referent through a selected value; `&write` permits replacement or exact `&write` forwarding, never observation
+	machine `invalid` state `entry` terminal expression expects `u64`, got `match expression`
+fail/facts/saved_symbolic_observation_wrong_primitive_delivery_rejected rejected 455ms expected @b800c26bd214
+	machine `invalid` state `entry` terminal expression expects `u64`, got `match expression`
+fail/facts/saved_symbolic_observation_wrong_reference_delivery_rejected rejected 446ms expected @b800c26bd214
+	machine `invalid` state `entry` terminal expression expects `&mut u64`, got `match expression`
 fail/facts/scalar_boundary_parameter_through_call_result_rejected rejected 780ms expected @a92f16431042
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
@@ -27694,6 +27729,17 @@ pass/facts/saved_observation_snapshot_through_other_machine_exit checked 2740ms 
 pass/facts/saved_observation_snapshot_through_other_state_exit checked 2771ms check-target:macos_arm64 @386a5e718459+wt
 pass/facts/saved_observation_snapshot_through_parameter_exit checked 2817ms check-target:macos_arm64 @386a5e718459+wt
 pass/facts/saved_observation_snapshot_through_target_body_exit checked 2475ms check-target:macos_arm64 @386a5e718459+wt
+pass/facts/saved_symbolic_observation_correlated_pair_exit checked 2035ms check-target:macos_arm64 @b800c26bd214
+pass/facts/saved_symbolic_observation_reverse_guarantee_exit checked 2006ms check-target:macos_arm64 @b800c26bd214
+pass/facts/saved_symbolic_observation_through_call_result_exit checked 1904ms check-target:macos_arm64 @b800c26bd214
+pass/facts/saved_symbolic_observation_through_const_name_exit checked 1919ms check-target:macos_arm64 @b800c26bd214
+pass/facts/saved_symbolic_observation_through_field_exit checked 1894ms check-target:macos_arm64 @b800c26bd214
+pass/facts/saved_symbolic_observation_through_local_exit checked 1868ms check-target:macos_arm64 @b800c26bd214
+pass/facts/saved_symbolic_observation_through_match_join_exit checked 1867ms check-target:macos_arm64 @b800c26bd214
+pass/facts/saved_symbolic_observation_through_other_machine_exit checked 2036ms check-target:macos_arm64 @b800c26bd214
+pass/facts/saved_symbolic_observation_through_other_state_exit checked 2049ms check-target:macos_arm64 @b800c26bd214
+pass/facts/saved_symbolic_observation_through_parameter_exit checked 2003ms check-target:macos_arm64 @b800c26bd214
+pass/facts/saved_symbolic_observation_through_target_body_exit checked 2198ms check-target:macos_arm64 @b800c26bd214
 pass/facts/scalar_boundary_parameter_through_call_result_exit checked 5953ms check-target:macos_arm64 @a92f16431042
 pass/facts/scalar_boundary_parameter_through_const_name_exit checked 5620ms check-target:macos_arm64 @a92f16431042
 pass/facts/scalar_boundary_parameter_through_field_exit checked 3873ms check-target:macos_arm64 @a92f16431042
