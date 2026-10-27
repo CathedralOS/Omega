@@ -138,7 +138,7 @@ pub(crate) fn emit_pe_x86_64(
     let sections = plan_pe_sections(&image, rdata_bytes.len());
     let layout = sections.final_image_layout();
 
-    patch_import_thunks(&mut image, &layout, &import_thunks, &import_table.iat_rvas)?;
+    patch_import_thunks(&mut image, &layout, &import_thunks, &import_table)?;
     apply_relocations(&mut image, &layout, "PE direct executable")?;
     validate_import_thunk_footprints(&mut image, &import_thunks)?;
     let executable_regions = place_executable_regions(&image, layout)?;
