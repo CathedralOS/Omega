@@ -49,6 +49,34 @@ pub(super) struct StatementOutputs<'a> {
     pub(super) diagnostics: &'a mut Vec<Diagnostic>,
 }
 
+impl<'a> StatementScope<'a> {
+    /// The read-side fields every statement kind's entry binds: the program,
+    /// the machine and state under validation, and the caller's symbol,
+    /// writable-root and transition environments. A module chooses the binding
+    /// name for each position, and the kinds that need `machine_symbols`,
+    /// `statement_index` or the write-origin tables read them off the scope
+    /// instead of re-spelling this list.
+    pub(super) fn reads(
+        &self,
+    ) -> (
+        &'a dyn crate::CheckingInput,
+        &'a typed_trees::machine::Machine,
+        &'a str,
+        Option<&'a typed_trees::state::State>,
+        &'a TopLevelSymbols<'a>,
+        &'a WritableRoots<'a, 'a>,
+    ) {
+        (
+            self.program,
+            self.machine,
+            self.state_name,
+            self.current_state,
+            self.symbols,
+            self.writable_roots,
+        )
+    }
+}
+
 pub(super) fn validate_state_statement_node<'p>(
     program: &'p dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,

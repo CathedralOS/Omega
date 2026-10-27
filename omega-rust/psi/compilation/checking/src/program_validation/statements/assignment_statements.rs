@@ -23,14 +23,7 @@ pub(super) fn validate<'a, 'p>(
     let Some(assignment) = statement.as_assignment() else {
         unreachable!("dispatched assignment_statements")
     };
-    let StatementScope {
-        program,
-        machine,
-        state_name,
-        current_state,
-        writable_roots,
-        ..
-    } = *scope;
+    let (program, machine, state_name, current_state, _, writable_roots) = scope.reads();
     let value_environment = &mut *outputs.value_environment;
     let arithmetic_decisions = &mut *outputs.arithmetic_decisions;
     let diagnostics = &mut *outputs.diagnostics;

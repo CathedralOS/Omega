@@ -21,13 +21,7 @@ pub(super) fn validate(
     let Some(expression) = statement.as_expression() else {
         unreachable!("dispatched expression_statements")
     };
-    let StatementScope {
-        program,
-        machine,
-        state_name,
-        current_state,
-        ..
-    } = *scope;
+    let (program, machine, state_name, current_state, _, _) = scope.reads();
     let value_environment = &mut *outputs.value_environment;
     let arithmetic_decisions = &mut *outputs.arithmetic_decisions;
     let diagnostics = &mut *outputs.diagnostics;
