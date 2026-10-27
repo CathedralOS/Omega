@@ -16,14 +16,9 @@ psi_rule_contract!(
     ),
 );
 
-impl PsiOptimizationRule for SameBlockProofCertifiedCompatiblePolicyScalarCseRule {
-    psi_rule_contract!(@adapter);
-
-    fn propose(
-        &self,
-        unit: &PsiOptimizationUnit,
-        analyses: RuleAnalysisView<'_>,
-    ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
+psi_rule_impl!(
+    SameBlockProofCertifiedCompatiblePolicyScalarCseRule,
+    |unit, analyses| {
         super::propose_same_block_scalar_cse(
             unit,
             analyses,
@@ -57,4 +52,4 @@ impl PsiOptimizationRule for SameBlockProofCertifiedCompatiblePolicyScalarCseRul
             },
         )
     }
-}
+);
