@@ -245,7 +245,7 @@ lifetime control do not establish general projected reference-lifetime support.
 The repair prepares the ordinary occurrence-owned provider view for retained
 constant recipes. It preserves the authored arguments for replay and consumes
 the selected roster only in executable occurrences. Full tuple formation and
-callable refinement remain separate checking obligations. Current host public
+callable refinement remain separate checking obligations. Pre-integration host public
 acceptance records 41 positive executions and 48 intended refusals, while the
 explicit both-engine capture records 41 native/Terminal exit-0 pairs and retains
 287 products plus all 41 approved locks. The 89-fixture source corpus preserves
@@ -254,6 +254,19 @@ preserves raw exit 1 for three inherited timing flags. Every such flag is an
 existing I1 row, strictly faster now, with unchanged execution and oracle fields;
 new fixtures permit no movement. The ledger retains those raw failures rather
 than weakening their goldens.
+
+GitHub reported an actual merge conflict for PR 293, requiring integration of
+main `e30c4a48ed7fa75d18636474ff74e60116d1bc52`. The owned compiler delta stayed
+unchanged, and every incoming golden record and all authored witness/oracle
+files were preserved. Optimized integrated producer
+`c00365388d873e8c54b084d9a14778009ae4465f` re-established all 41 native/Terminal
+exit-0 pairs and all 48 intended refusals. Its 89-fixture source corpus retains
+raw exit 1 for 16 known I1 timing flags; its 41-fixture both-engine corpus retains
+raw exit 1 for two. Every flag is strictly faster than I1, with unchanged
+execution fields and oracles. The existing 38 contextual fixtures still retain
+the exact fixed-37 raw exit 3 boundary below. Integrated receipts, 287 products
+and 41 approved replay locks are retained separately from the earlier producer;
+exact integrated review is a separate qualification gate.
 
 Further valid-positive refusals are retained against fixed baseline 37
 and the historical first candidate `f2dcd8f`: a provider tuple containing a Machine argument refuses
