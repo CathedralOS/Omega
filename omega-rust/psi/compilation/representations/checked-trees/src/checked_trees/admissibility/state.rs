@@ -26,12 +26,7 @@ impl CheckedTrees {
         self.facts
             .flow
             .control
-            .states
-            .iter()
-            .map(|(_, state)| state)
-            .find(|state| {
-                state.machine_symbol == machine_symbol && state.state_symbol == state_symbol
-            })
+            .state(machine_symbol, state_symbol)
             .map(|state| StateAcceptance {
                 facts: &self.facts,
                 state,
