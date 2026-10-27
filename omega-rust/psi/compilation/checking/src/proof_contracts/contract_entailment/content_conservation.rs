@@ -154,16 +154,15 @@ pub fn completed_value_content_conservation_dependencies(
     if plan.owner != machine.symbol || plan.callable != state.symbol {
         return None;
     }
-    let mut complete = true;
-    let mut dependencies = Vec::new();
-    let observed = super::completed_observations::observe_completed_values(
+    let result = super::completed_observations::fold_completed_values(
         program,
         machine,
         state,
         statement_index,
         expression,
         reference,
-        |judge, value| {
+        (true, Vec::new()),
+        |(complete, dependencies), judge, value| {
             let (judgment, conditional) = judge_content_conservation_with_dependencies(
                 program,
                 judge,
@@ -174,11 +173,12 @@ pub fn completed_value_content_conservation_dependencies(
             match (judgment, conditional) {
                 (StructuralJudgment::Proven, _) => {}
                 (_, Some(proof)) => dependencies.push(proof),
-                _ => complete = false,
+                _ => *complete = false,
             }
         },
     );
-    (observed == Some(true) && complete).then_some(dependencies)
+    let result = result?;
+    (result.complete && result.state.0).then_some(result.state.1)
 }
 
 /// Provisional numeric bindings carry possible law dependencies; they do not
@@ -262,27 +262,27 @@ pub fn completed_value_preserves_entry_projection(
     ) else {
         return false;
     };
-    let mut proven = true;
-    let coverage = super::completed_observations::observe_completed_values(
+    let result = super::completed_observations::fold_completed_values(
         program,
         machine,
         state,
         statement_index,
         expression,
         reference,
-        |judge, _| {
+        true,
+        |proven, judge, _| {
             let (Some(current), Some(entry)) = (
                 judge.captured_place_projection(current, ContentPlaceVersion::Current),
                 judge.captured_place_projection(entry, ContentPlaceVersion::Entry),
             ) else {
-                proven = false;
+                *proven = false;
                 return;
             };
             let embed = |value, reference| StructuralTerm::IntegerEmbedding {
                 reference,
                 value: Box::new(judge.resolve(value)),
             };
-            proven &= matches!(
+            *proven &= matches!(
                 judge.judge_observed_predicate(
                     mathematical(
                         BinaryOperator::Equal,
@@ -295,7 +295,7 @@ pub fn completed_value_preserves_entry_projection(
             );
         },
     );
-    coverage == Some(true) && proven
+    result.is_some_and(|result| result.complete && result.state)
 }
 
 /// One typed address transport demanded by a boundary implementation's custody
@@ -355,17 +355,17 @@ pub fn completed_value_proves_backing_addresses(
             Ok((entry, current))
         })
         .collect::<Result<Vec<_>, &'static str>>()?;
-    let mut proven = vec![true; goals.len()];
-    let coverage = super::completed_observations::observe_completed_values(
+    let result = super::completed_observations::fold_completed_values(
         program,
         machine,
         state,
         statement_index,
         expression,
         reference,
-        |judge, value| {
+        vec![true; goals.len()],
+        |proven, judge, value| {
             for ((goal, (entry_reference, current_reference)), proven) in
-                goals.iter().zip(&references).zip(&mut proven)
+                goals.iter().zip(&references).zip(proven)
             {
                 let (Some(entry), Some(current), Some((result_reference, result))) = (
                     judge.captured_place_projection(&goal.entry, ContentPlaceVersion::Entry),
@@ -409,10 +409,10 @@ pub fn completed_value_proves_backing_addresses(
             }
         },
     );
-    if coverage != Some(true) {
-        return Err("backing correspondence lacks complete value observation coverage");
-    }
-    Ok(proven)
+    let result = result
+        .filter(|result| result.complete)
+        .ok_or("backing correspondence lacks complete value observation coverage")?;
+    Ok(result.state)
 }
 
 struct ContentValues<'judge, 'program> {
