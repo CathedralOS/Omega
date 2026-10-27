@@ -85,6 +85,12 @@ impl<'engine, 'program> LowerBoundQueries<'engine, 'program> {
         self.engine
     }
 
+    pub(super) fn prepared_exact_bounds(&self) -> &[(&'engine Polynomial, &'engine BigInt)] {
+        self.prepared
+            .as_ref()
+            .map_or(&[], |prepared| prepared.exact.as_slice())
+    }
+
     fn exact_bound_at_least(&self, value: &Polynomial, bound: &BigInt) -> bool {
         if let Some(prepared) = &self.prepared {
             prepared
