@@ -4,7 +4,6 @@
 //! distinct source custody; each constructs its homes and manifest once.
 
 mod construction;
-mod custody;
 mod projection;
 
 use crate::{

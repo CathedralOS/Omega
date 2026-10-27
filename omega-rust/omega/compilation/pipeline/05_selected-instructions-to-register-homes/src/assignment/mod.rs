@@ -38,6 +38,24 @@ pub struct PostHomeCustodyReceipt<Source> {
 }
 
 impl<Source> PostHomeCustodyReceipt<Source> {
+    /// The one constructor every staging route publishes through: the source
+    /// receipt that route retained, the homes built over it, the manifest that
+    /// admitted them, and the two counts. Routes delegate here instead of
+    /// restating the same five-field shape beside their own type alias.
+    pub(crate) fn new(
+        source: Source,
+        homes: crate::RegisterHomeValidationReceipt,
+        post_allocation_manifest: optimization_core::PostAllocationOptimizationManifestIdentity,
+    ) -> Self {
+        Self {
+            source,
+            homes: homes.identity(),
+            post_allocation_manifest,
+            function_count: homes.function_count(),
+            assignment_count: homes.assignment_count(),
+        }
+    }
+
     receipt_accessor_rows!(borrow PostHomeCustodyReceipt {
         source: &Source,
     });
