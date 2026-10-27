@@ -2031,8 +2031,8 @@ fail/build/product_entry_forged_description rejected 885ms expected @a92f1643104
 	build-time evaluation of `build` failed: root binding operand is not a compiler-issued product entry description
 fail/build/product_entry_query_ambiguous_leaf rejected 791ms expected @a92f16431042
 	build-time evaluation of `build` failed: product entry `launch` is ambiguous: more than one visible declaration is compatible with slot `windows_x86_64::ProgramEntry`
-fail/build/product_entry_query_build_scope_alias rejected 1665ms expected @a92f16431042
-	build-time evaluation of `build` failed: product entry `support::setup::launch` is not a product declaration visible from this build occurrence's package
+fail/build/product_entry_query_build_scope_alias rejected 132ms expected @07ad7c55cebd
+	product entry `support::setup::launch` names no machine in this build occurrence's package
 fail/build/product_entry_query_discarded_unknown_target rejected 899ms expected @a92f16431042
 	build-time evaluation of `build` failed: product entry `launch` is incompatible with slot `unknown_target::ProgramEntry`: root slot `unknown_target::ProgramEntry` belongs to unknown target profile `unknown_target`
 fail/build/product_entry_query_foreign_helper_private_entry rejected 1688ms expected @a92f16431042
@@ -23376,6 +23376,7 @@ pass/build/package_batch_distinct_builds checked 2291ms check-target:macos_arm64
 pass/build/policy_array_entry_context_exit checked 2274ms check-target:macos_arm64 @a92f16431042
 pass/build/product_description_paths_exit checked 2258ms check-target:macos_arm64 @a92f16431042
 pass/build/product_entry_named_user_machine_exit checked 2112ms check-target:macos_arm64 @a92f16431042
+pass/build/product_entry_query_product_scope_alias checked 2090ms check-target:macos_arm64 @07ad7c55cebd
 pass/build/product_selection_conditional_exit checked 686ms check-target:macos_arm64 @7530b1177ef5+wt
 pass/build/product_selection_helper_exit checked 686ms check-target:macos_arm64 @7530b1177ef5+wt
 pass/build/receiver_view_writeback_exit checked 4122ms check-target:macos_arm64 terminal-runtime.configure_build_boundary:unrequested terminal-inspections:match @5f1191d43438+wt
