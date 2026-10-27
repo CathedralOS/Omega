@@ -1,7 +1,7 @@
 //! Join an untrusted selected scalar schema to its independently admitted
 //! Terminal declaration. A digest of the supplied schema cannot make this join.
 
-use effects::provider_plan::ProviderPlan;
+use effects::provider_plan::{ProviderPlan, ServiceSchema};
 use semantic_vocabulary::{IeeeFloatFormat, IntegerSign, ScalarType};
 use terminal_psi::{
     BoundaryMachineDeclaration, StructuralAccess, TerminalModule, TerminalPlacedAccessorKind,
@@ -12,23 +12,12 @@ pub(super) fn validate(
     module: &TerminalModule,
     boundary: &BoundaryMachineDeclaration,
     plan: &ProviderPlan,
+    schema: &ServiceSchema,
     demand: &PlacedScalarBoundaryDemand,
 ) -> Result<(), String> {
-    if std::env::var_os("OMEGA_PLACED_SCHEMA_TRACE").is_some() {
-        eprintln!(
-            "PLACED_SCHEMA_BEGIN demand={demand:#?} schema={:#?} boundary={boundary:#?} origin_package={:?} requirement_lookup={:?} accessor_lookup={:?}",
-            plan.schema,
-            plan.origin_package_identity,
-            module.identities.text(boundary.identity),
-            module
-                .structural_type(demand.accessor)
-                .map(|declaration| module.identities.text(declaration.identity))
-        );
-    }
     let invalid = || {
         "placed scalar selected schema does not match its Terminal signature and effects".to_owned()
     };
-    let schema = &plan.schema;
     let [method] = schema.methods.as_slice() else {
         return Err(invalid());
     };
@@ -60,63 +49,6 @@ pub(super) fn validate(
     // These declarations are the closed, synchronous, caller-RAM operations.
     // Extra effect/claim/calling surfaces need a different authenticated catalog;
     // an equal byte codec does not license treating them as this implementation.
-    if std::env::var_os("OMEGA_PLACED_SCHEMA_TRACE").is_some() {
-        macro_rules! failed {
-            ($condition:expr) => {
-                if $condition {
-                    eprintln!("PLACED_SCHEMA_FAILED {}", stringify!($condition));
-                }
-            };
-        }
-        failed!(schema.identities.text(method.requirement_identity) != requirement);
-        failed!(method.name != name);
-        failed!(
-            schema.identities.text(schema.trait_name)
-                != format!("{}::{name}", method.requirement_owner)
-        );
-        failed!(schema.trait_package_identity != plan.origin_package_identity);
-        failed!(method.requirement_owner_package_identity != schema.trait_package_identity);
-        failed!(!schema.receiver_applications.is_empty());
-        failed!(method.parameter_count != parameters.len());
-        failed!(method.parameter_type_identities.len() != parameters.len());
-        failed!(
-            !method
-                .parameter_type_identities
-                .iter()
-                .zip(&parameters)
-                .all(|(actual, expected)| schema.identities.text(*actual) == expected)
-        );
-        failed!(method.has_result != has_result);
-        failed!(if has_result {
-            schema.identities.text(method.result_type_identity) != scalar
-        } else {
-            method.result_type_identity != Default::default()
-        });
-        failed!(method.completion != boundary.completion);
-        failed!(method.terminates_guarantee != boundary.unconditional_termination);
-        failed!(!method.termination_premises.is_empty());
-        failed!(!method.entry_claims.is_empty());
-        failed!(!method.result_claims.is_empty());
-        failed!(!method.service_reach.is_empty());
-        failed!(!method.synchronous_invocations.is_empty());
-        failed!(!boundary.requires.is_empty());
-        failed!(!boundary.scalar_requires.is_empty());
-        failed!(!boundary.scalar_ensures.is_empty());
-        failed!(!boundary.normal_qualifications.is_empty());
-        failed!(!boundary.program_local_root_introductions.is_empty());
-        failed!(!boundary.content_guarantees.is_empty());
-        failed!(!boundary.crash_routes.is_empty());
-        failed!(!boundary.fixed_service_reach.is_empty());
-        failed!(!boundary.published_service_ceiling.is_empty());
-        failed!(boundary.owning_service.is_some());
-        failed!(method.may_suspend);
-        failed!(method.may_block);
-        failed!(method.calling_plan_report_fingerprint.is_some());
-        failed!(method.calling_plan_commitment.is_some());
-        eprintln!(
-            "PLACED_SCHEMA_EXPECTED requirement={requirement:?} accessor={accessor:?} parameters={parameters:?} scalar={scalar:?} has_result={has_result:?}"
-        );
-    }
     if schema.identities.text(method.requirement_identity) != requirement
         || method.name != name
         || schema.identities.text(schema.trait_name)
