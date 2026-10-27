@@ -1,0 +1,26 @@
+[
+  {
+    "producer": "base",
+    "seconds": 3.637324417,
+    "exit": 0,
+    "stderr": ""
+  },
+  {
+    "producer": "candidate",
+    "seconds": 3.490287958,
+    "exit": 0,
+    "stderr": ""
+  },
+  {
+    "producer": "base",
+    "seconds": 3.333361625000001,
+    "exit": 0,
+    "stderr": ""
+  },
+  {
+    "producer": "candidate",
+    "seconds": 3.3604660840000005,
+    "exit": 0,
+    "stderr": ""
+  }
+]

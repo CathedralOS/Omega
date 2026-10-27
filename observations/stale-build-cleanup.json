@@ -1,0 +1,9 @@
+{
+  "reason": "Remove only superseded libraries outside current CLI and failed runner artifact closures, while no build is running. Frozen qualified executables retained.",
+  "files": [
+    {
+      "path": "target/debug/build/omega/67a212f0971e8e92/out/libomega-67a212f0971e8e92.rlib",
+      "bytes": 546856
+    }
+  ]
+}

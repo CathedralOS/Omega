@@ -1,0 +1,195 @@
+{
+  "submitted_head": "45ece93c10b70e945b479a24122c5390df5aa94a",
+  "starting_source": "e522fcf48168330f1d47f16b938a89d9adc3c104",
+  "fixed_base": "baf1b6ea0633681bcc2cf34d563d748a47fadb36",
+  "producer": "494b66e5807946c1bcca3d20654a2b9025f4e7ad",
+  "baseline_producer": "9f2d790a91c3d5a7e4961e329c60ed5fa3710fea",
+  "baseline_evidence": "https://github.com/CathedralOS/Omega/tree/cde239fed513638103c5d8024e9af6f660f30615",
+  "applicability": "All compiler inputs equal submitted source. Final source and both-engine fixture observations were captured on clean45ece, actual runner e504 and CLI494. Source/fixture changes after CLI494 are authored witness/oracle files only. Initial match source and old-wrapper mismatch records remain historical, not relabeled as final. New both-golden record is explicitly golden-only dirty. Native host was macOS ARM64. Full parent remains unfinished.",
+  "files": [
+    {
+      "path": "qualification/state.json.gz",
+      "sha256": "df1a0e70aaf352fee937faac7d2f5e59cfb794ed195eb3c79e3927967d9f0ed7"
+    },
+    {
+      "path": "qualification/config.json.gz",
+      "sha256": "db050f39c9f9adc70081be6fb190d283580a2e2f6ecf04d902729396f408deff"
+    },
+    {
+      "path": "qualification/receipt.json.gz",
+      "sha256": "517460620cfbd71516f7988d158dc05c16268de05caaed343d9f9de50fc77969"
+    },
+    {
+      "path": "qualification/validator-stdout.txt",
+      "sha256": "ad4de89b48ab8309ef48f454738c48082eef539dc165f63ba5d35ca02dff2737"
+    },
+    {
+      "path": "qualification/validator-stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "observations/validate.py",
+      "sha256": "3f51f09c4a44a02b07b82ed9b27beab0948ef9ed9c7686b3c6219024f2e9410d"
+    },
+    {
+      "path": "observations/acceptance.json",
+      "sha256": "6e608db5978aae8d43a4b2b9f1a69e1809c90e38875e052014232e3f8941d018"
+    },
+    {
+      "path": "observations/producer.json",
+      "sha256": "a8460aed825f15fa6e4c39e5c6c7659da84e76e4b46c1d4ac530e6fa21106143"
+    },
+    {
+      "path": "observations/runner-producer.json",
+      "sha256": "d8c252c9582f26a9ef48b3732b17463ca01c97a5566d95b4e42678d684d338f1"
+    },
+    {
+      "path": "observations/row-baseline-final.json",
+      "sha256": "287fed772cbb9839382ae16b77aba686ad7262b793bda58fa5624675820ea225"
+    },
+    {
+      "path": "observations/row-repaired-final.json",
+      "sha256": "a0540e4a8025af838eb1ac3e33b3ddd296beb6911f9e4f5331d02334edc45ce5"
+    },
+    {
+      "path": "observations/row-baseline.json",
+      "sha256": "bf87f31b7b1254e66ed32a57cce6706c6e1029b4ef999ba83552b4ccc6a09228"
+    },
+    {
+      "path": "observations/row-repaired.json",
+      "sha256": "5100f0afb9d1c9ce033982ae2eb72874d18f5f9da35adf40972f39b1800284e2"
+    },
+    {
+      "path": "observations/controls-baseline.json",
+      "sha256": "186eeeb66700ee11488c7ac08aeb8e43157c6e051631adfed5f64a9930edb2b0"
+    },
+    {
+      "path": "observations/controls-repaired.json",
+      "sha256": "3c30ae047c437080ab9ec106fcc616674d4c6140a5ca5a72437a5c5180677a1e"
+    },
+    {
+      "path": "observations/counterfactual.json",
+      "sha256": "ffd656e2eac78b01e20384e30c8b174ac2c569818a4abf0778a191567dd6fcb3"
+    },
+    {
+      "path": "observations/counterfactual-validation.json",
+      "sha256": "fdd27421ac722827c2db7c72e4d4c352545e3a4b94eb3fc1d040bf743e425ee6"
+    },
+    {
+      "path": "observations/counterfactual.py",
+      "sha256": "c35760705fb8f52c9564da57cd6a617bd32c7f120e6d741f270e01568886404e"
+    },
+    {
+      "path": "observations/counterfactual.log",
+      "sha256": "1c12e0d04051a60caf35747e0894831f209ad56a18328a650e6ab4d5179d640a"
+    },
+    {
+      "path": "observations/implementation-context.json",
+      "sha256": "90ab891295adba797caf19174dc04b3c6e43eed46be24cbbc397cd89a70f3e01"
+    },
+    {
+      "path": "observations/context-config.json",
+      "sha256": "aab52a878ef0c18979b94a5ad7fb5dc98c6cee7258dc96665e273fa6d20b26b2"
+    },
+    {
+      "path": "observations/corpus-source.json",
+      "sha256": "970281c9d2f30ba05b2f35bc8ee55b14d5a5010e77a2afe63730777382f04451"
+    },
+    {
+      "path": "observations/corpus-both.json",
+      "sha256": "2e705b93628fc1a01f9648545939685a0f2d6864030ea3e54478947de6adef99"
+    },
+    {
+      "path": "observations/corpus-new-source.json",
+      "sha256": "103d6d43cfe81ccac2c3a91e204ea8a75a3b20dd39a645708a8c7f4e845625de"
+    },
+    {
+      "path": "observations/corpus-new-both.json",
+      "sha256": "6539a40d242cc9067fb03e946fcb72466e44b69643bf3c1cbfc42ab5b5afba4d"
+    },
+    {
+      "path": "observations/golden-splice.json",
+      "sha256": "820743ebbc5a1171b918a18500d85f2d26fe1b4511f8ad3aa4d17dd547201084"
+    },
+    {
+      "path": "observations/format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "observations/parser-admission.log",
+      "sha256": "ef4d48c4bbb972098587ce999b1234b5a011fb64d9212cef60c16c6c0b945bd5"
+    },
+    {
+      "path": "observations/iteration-timing.json",
+      "sha256": "cc908fcdf8b1e8f9a83aa1122ca235068e62916688a00b3f28f469766d0553a0"
+    },
+    {
+      "path": "observations/frozen-row.json",
+      "sha256": "3aeb6bc5b0bb15426075c18a2aa7e87731f299d7af7eb2d39d9ea23ae2a54eb3"
+    },
+    {
+      "path": "observations/build.jsonl",
+      "sha256": "5615e5499c05e0b3d5c06ca2f483643fc37a57bb4152414e2ec3fac8f4fa8b92"
+    },
+    {
+      "path": "observations/build.log",
+      "sha256": "11dacc913813dc561fe66eed7b1be696e575290c60cd226f8811fa17992220f8"
+    },
+    {
+      "path": "observations/runner-build.jsonl",
+      "sha256": "2b6505b661e4e0b44c37682741fabd4f5839fd108c52daca181ff1eececaf24d"
+    },
+    {
+      "path": "observations/runner-build.log",
+      "sha256": "f63f5edf26b7f8532338c1e320f2adaab859e287d3d15dd9638b05f645868051"
+    },
+    {
+      "path": "observations/runner-build.jsonl.attempt-enospc",
+      "sha256": "2cd2994c8614985755dd5322b0b7ae945efc30ff3fc5b8a8f6775276093a2a80"
+    },
+    {
+      "path": "observations/runner-build.log.attempt-enospc",
+      "sha256": "7786a615244c4405df6d50befb36486667204d940f32ef006d55af8085e719db"
+    },
+    {
+      "path": "observations/runner-build.jsonl.attempt-enospc-2",
+      "sha256": "1f24fff90ed344c1c00452f489ad52b76c52b9a4d25b180dcb7f1182eaa6a3f8"
+    },
+    {
+      "path": "observations/runner-build.log.attempt-enospc-2",
+      "sha256": "5bf40c02c79f060b64e63bb5a6452a94430651d109ce5de741b50196caff5335"
+    },
+    {
+      "path": "observations/obsolete-cargo-copy-cleanup.json",
+      "sha256": "04653376ada1bfe8f298bca99a7d533c3b8376e27caff20a85bdd7139e299a6a"
+    },
+    {
+      "path": "observations/stale-build-cleanup.json",
+      "sha256": "83dfb2da9ac4fbf5469faeaba8a05601dd7ec2cde6008f3de094dfcdd3c7188e"
+    },
+    {
+      "path": "counterfactual/main.omg",
+      "sha256": "3ecbfa06e0de7e9a244b68428c7e73e65e2f00c9984fa5d5117fa298ee6805c8"
+    },
+    {
+      "path": "baseline/parser-after-407.log",
+      "sha256": "125cdb6c6e83dd44c7b6e178732063fa87970b7c1a83cc85d559b409eb787d39"
+    },
+    {
+      "path": "baseline/producer.json",
+      "sha256": "d108408e237cec1b0b9bd615ddcaf59a3406d89823b7183a7978fbf049c231c6"
+    },
+    {
+      "path": "source/494b66e5807946c1bcca3d20654a2b9025f4e7ad.bundle",
+      "sha256": "d4b75bcc8102fc918d70f0a2f20792178aef36c4fe65d959840910fcc7a35616"
+    },
+    {
+      "path": "source/e50407adc2ed51799f26d3255224788d948f56cb.bundle",
+      "sha256": "a6b73c6334d6f9b96ea7b3b14e2991d29d8c15eeafbfda44278384a3a484511e"
+    },
+    {
+      "path": "source/45ece93c10b70e945b479a24122c5390df5aa94a.bundle",
+      "sha256": "ee910c6bd7065a589af2f3892247ef5f5bec634b4dd9a9b1b8770d8aeb267de4"
+    }
+  ]
+}

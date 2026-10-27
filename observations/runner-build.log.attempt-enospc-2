@@ -1,0 +1,2 @@
+   Compiling compiler v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/omega/compilation/driver)
+error: could not compile `compiler` (test "corpus_runner") due to 1 previous error

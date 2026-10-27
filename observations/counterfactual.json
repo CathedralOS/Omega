@@ -1,0 +1,12 @@
+{
+  "command": [
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-feasible/producer/omega",
+    "run",
+    "--both",
+    "build/private-feasible/counterfactual/main.omg"
+  ],
+  "sha256": "3ecbfa06e0de7e9a244b68428c7e73e65e2f00c9984fa5d5117fa298ee6805c8",
+  "exit": 255,
+  "stdout": "",
+  "stderr": "native signal 5\ninterp crash: Trap (host presentation agrees)\n"
+}

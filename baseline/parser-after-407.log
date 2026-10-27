@@ -1,0 +1,15 @@
+package candidate checking failed: checked compilation failed for package `omega_language_std` with 7 diagnostic(s)
+  error: terminal call `mkall_walk` does not select a declared machine entry or callable requirement
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/posix_filesystem_adapter.omg:943:17
+  error: terminal call `mkall_copy` does not select a declared machine entry or callable requirement
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/posix_filesystem_adapter.omg:1001:17
+  error: terminal call `rda_drain` does not select a declared machine entry or callable requirement
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/posix_filesystem_adapter.omg:1594:58
+  error: terminal call `release_directory_stack` does not select a declared machine entry or callable requirement
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/posix_filesystem_adapter.omg:1758:27
+  error: exact arithmetic in machine `second` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_paths.omg:114:18
+  error: exact arithmetic in machine `third` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_paths.omg:130:18
+  error: exact arithmetic in machine `fourth` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_paths.omg:157:18

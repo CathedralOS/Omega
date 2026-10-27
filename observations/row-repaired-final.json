@@ -1,0 +1,245 @@
+[
+  {
+    "place": "local",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-feasible/producer/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/feasible/local/main.omg"
+    ],
+    "source_sha256": "c405d3cbc9bfd048db24064ac45ab51b8540797792e9474bfcad5435c212e8f5",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "local",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-feasible/producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/feasible/local/invalid/main.omg"
+    ],
+    "source_sha256": "942172aceffe312f7cf95a3cface721a99b0faef53bef11a6b90b2de15a152b1",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `private_arithmetic_feasible_local_invalid` with 1 diagnostic(s)\n  error: exact arithmetic in machine `second` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `private_arithmetic_feasible_local_invalid`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/private_arithmetic/feasible/local/invalid/main.omg:22:61\n"
+  },
+  {
+    "place": "field",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-feasible/producer/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/feasible/field/main.omg"
+    ],
+    "source_sha256": "28c0ca4adce8c2df1a86d2d56a7098e3b82cf3d51da6b821af4aabc768a2f14a",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "field",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-feasible/producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/feasible/field/invalid/main.omg"
+    ],
+    "source_sha256": "6207d73f11f4a559b80da39bf2abe8c9e83c8e81ee59d3d12797407f8bacc803",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `private_arithmetic_feasible_field_invalid` with 1 diagnostic(s)\n  error: exact arithmetic in machine `second` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `private_arithmetic_feasible_field_invalid`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/private_arithmetic/feasible/field/invalid/main.omg:23:61\n"
+  },
+  {
+    "place": "parameter",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-feasible/producer/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/feasible/parameter/main.omg"
+    ],
+    "source_sha256": "cf9554f481e6f8ef64edcdea3f761e5925713a67536cb678a7f0496f842ae143",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "parameter",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-feasible/producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/feasible/parameter/invalid/main.omg"
+    ],
+    "source_sha256": "61f2da00555f94a6c14f20e4fb0ec5ddd95ff10ee98939b0ca060f68db99aed5",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `private_arithmetic_feasible_parameter_invalid` with 1 diagnostic(s)\n  error: exact arithmetic in machine `second` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `private_arithmetic_feasible_parameter_invalid`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/private_arithmetic/feasible/parameter/invalid/main.omg:21:61\n"
+  },
+  {
+    "place": "call_result",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-feasible/producer/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/feasible/call_result/main.omg"
+    ],
+    "source_sha256": "0d1b69e2c0ceb44e4c7f1d55f3834496f8b452503a674d261ad5e079b7837b97",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "call_result",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-feasible/producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/feasible/call_result/invalid/main.omg"
+    ],
+    "source_sha256": "2bfb106bc426055cacf4d3f2aefb2b25f49025704cf951249b50f2739eb56ae2",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `private_arithmetic_feasible_call_result_invalid` with 1 diagnostic(s)\n  error: exact arithmetic in machine `second` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `private_arithmetic_feasible_call_result_invalid`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/private_arithmetic/feasible/call_result/invalid/main.omg:22:61\n"
+  },
+  {
+    "place": "match_join",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-feasible/producer/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/feasible/match_join/main.omg"
+    ],
+    "source_sha256": "e5c89d66a26f66312293a2b0b363e2b96b69e6d2c74a4b7379b9ce18fe8fbf9a",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "match_join",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-feasible/producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/feasible/match_join/invalid/main.omg"
+    ],
+    "source_sha256": "c37e20ed1d0ce1bd0dd22a9efbe13b439010fb6f334cbf885c10ec6bca98eb54",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `private_arithmetic_feasible_match_join_invalid` with 1 diagnostic(s)\n  error: exact arithmetic in machine `second` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `private_arithmetic_feasible_match_join_invalid`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/private_arithmetic/feasible/match_join/invalid/main.omg:22:61\n"
+  },
+  {
+    "place": "const_name",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-feasible/producer/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/feasible/const_name/main.omg"
+    ],
+    "source_sha256": "9cf7d31999c72c4e7a034e3dfba06340060f18e8769a8a315bd0f6652ac95bd9",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "const_name",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-feasible/producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/feasible/const_name/invalid/main.omg"
+    ],
+    "source_sha256": "66ed5242c3ebdb4218e8e79af65fe1611522e465319c7bec8daa21a6426cb720",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `private_arithmetic_feasible_const_name_invalid` with 1 diagnostic(s)\n  error: exact arithmetic in machine `second` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `private_arithmetic_feasible_const_name_invalid`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/private_arithmetic/feasible/const_name/invalid/main.omg:24:61\n"
+  },
+  {
+    "place": "other_state",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-feasible/producer/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/feasible/other_state/main.omg"
+    ],
+    "source_sha256": "d894c68a1523acc94f6eb5851905cc8c01d37d7b613bacdc325372c637de0daa",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "other_state",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-feasible/producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/feasible/other_state/invalid/main.omg"
+    ],
+    "source_sha256": "d4147db6a9beb2db58798f72620d1c2af583bb0a4d54aea7ead11e018107c0f4",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `private_arithmetic_feasible_other_state_invalid` with 1 diagnostic(s)\n  error: exact arithmetic in machine `second` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `private_arithmetic_feasible_other_state_invalid`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/private_arithmetic/feasible/other_state/invalid/main.omg:23:65\n"
+  },
+  {
+    "place": "other_machine",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-feasible/producer/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/feasible/other_machine/main.omg"
+    ],
+    "source_sha256": "b883083bbddef2965df72bca02b6cd895b9fde1798d272f2b1e8a714883e4159",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "other_machine",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-feasible/producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/feasible/other_machine/invalid/main.omg"
+    ],
+    "source_sha256": "a036fe9adfc5597870f9d65311a0b8311367db857694e9de5c2ee3bb4193709d",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `private_arithmetic_feasible_other_machine_invalid` with 1 diagnostic(s)\n  error: exact arithmetic in machine `second` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `private_arithmetic_feasible_other_machine_invalid`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/private_arithmetic/feasible/other_machine/invalid/main.omg:21:61\n"
+  },
+  {
+    "place": "target_body",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-feasible/producer/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/feasible/target_body/main.omg"
+    ],
+    "source_sha256": "16a9678d24b01e98db40f578e71096a0abf266ba5770a3126d33caa7a6b072f9",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "target_body",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-feasible/producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/feasible/target_body/invalid/main.omg"
+    ],
+    "source_sha256": "d757a909717a57c112e0ede5b1b6bff35991f162c96d089ef437e30ebeba48e2",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `private_arithmetic_feasible_target_body_invalid` with 4 diagnostic(s)\n  error: exact arithmetic in machine `second` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `private_arithmetic_feasible_target_body_invalid`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/private_arithmetic/feasible/target_body/invalid/main.omg:21:61\n  error: exact arithmetic in machine `second` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `private_arithmetic_feasible_target_body_invalid`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/private_arithmetic/feasible/target_body/invalid/main.omg:42:61\n  error: exact arithmetic in machine `second` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `private_arithmetic_feasible_target_body_invalid`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/private_arithmetic/feasible/target_body/invalid/main.omg:63:61\n  error: exact arithmetic in machine `second` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `private_arithmetic_feasible_target_body_invalid`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/private_arithmetic/feasible/target_body/invalid/main.omg:84:61\n"
+  }
+]

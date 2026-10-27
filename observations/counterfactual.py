@@ -1,0 +1,3 @@
+from pathlib import Path
+import subprocess,json,hashlib
+p=Path('build/private-feasible/counterfactual/main.omg');command=[str(Path('build/private-feasible/producer/omega').resolve()),'run','--both',str(p)];q=subprocess.run(command,input='',capture_output=True,text=True,timeout=180);row=dict(command=command,sha256=hashlib.sha256(p.read_bytes()).hexdigest(),exit=q.returncode,stdout=q.stdout,stderr=q.stderr);Path('build/private-feasible/counterfactual.json').write_text(json.dumps(row,indent=2)+'\n');print(json.dumps(row));assert q.returncode!=0 and 'native signal' in q.stderr and 'interp trapped' in q.stderr

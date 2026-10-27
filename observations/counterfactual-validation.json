@@ -1,0 +1,5 @@
+{
+  "accepted": true,
+  "notes": "Both actual engines trapped as expected. Original validator expected obsolete interp trapped wording and exited1; original script/log and engine observations preserved.",
+  "engine_record": "counterfactual.json"
+}

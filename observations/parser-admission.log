@@ -1,0 +1,9 @@
+package candidate checking failed: checked compilation failed for package `omega_language_std` with 4 diagnostic(s)
+  error: terminal call `mkall_walk` does not select a declared machine entry or callable requirement
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/posix_filesystem_adapter.omg:943:17
+  error: terminal call `mkall_copy` does not select a declared machine entry or callable requirement
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/posix_filesystem_adapter.omg:1001:17
+  error: terminal call `rda_drain` does not select a declared machine entry or callable requirement
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/posix_filesystem_adapter.omg:1594:58
+  error: terminal call `release_directory_stack` does not select a declared machine entry or callable requirement
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/posix_filesystem_adapter.omg:1758:27

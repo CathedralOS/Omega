@@ -1,0 +1,43 @@
+{
+  "semantic_contracts": [
+    {
+      "contract": "wiki/spec/language/state_contracts.md",
+      "implementation": [
+        "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_prefix.rs",
+        "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/integer_predicates.rs"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Private-arrival all-path observation may discard only independently proven infeasible paths under current exact captured premises. Arithmetic formation and unknown/unsupported observations supply no contradiction; no goal or result is installed to justify itself. Preserve closed arrival coverage, write invalidation, and local invocation identity.",
+      "passages": [
+        "Arrival substitution is simultaneous and identity-based. Scalar arguments retain\ntheir evaluation snapshots; facts about referenced storage must survive writes\nfrom later arguments. A same-named formal cannot alias an unrelated caller value.\nEvery reachable predecessor participates in a join. Unknown input cannot be\nomitted to preserve a convenient invariant. A minimum collection length is not\nan exact extent, and declaration initializers are not recurring loop invariants.",
+        "Exit proof consumes live facts, not the conclusion being proved. Reference-subject\ntransport across calls or loop edges does not transport the truth of an expired\nentry assumption. Declaration contexts cannot receive a sibling invocation's facts.",
+        "Source proof search may be incomplete. Failure to infer an invariant, normalize\na term, or prove a supported implication grants no fact and is not a refutation."
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "context",
+      "kind": "tests",
+      "command": [
+        "python3",
+        "-c",
+        "pass"
+      ],
+      "inputs": [
+        "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_prefix.rs",
+        "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/integer_predicates.rs"
+      ],
+      "artifacts": [],
+      "closure_reason": "Canonical context for numeric infeasibility at the shared ordered prefix owner.",
+      "final": false,
+      "expected_exit": 0,
+      "timeout_seconds": 30
+    }
+  ],
+  "context": {
+    "host": "macOS ARM64",
+    "target": "macos_arm64",
+    "toolchain": "[toolchain]\nchannel = \"nightly-2026-09-04\"\nprofile = \"minimal\"\ncomponents = [\"clippy\", \"rustfmt\"]\n"
+  }
+}

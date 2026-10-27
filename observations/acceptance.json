@@ -1,0 +1,18 @@
+{
+  "parent": "NESTED-MACHINE-UNIFICATION",
+  "starting_source": "e522fcf48168330f1d47f16b938a89d9adc3c104",
+  "producer": "494b66e5807946c1bcca3d20654a2b9025f4e7ad",
+  "source_fixtures": 212,
+  "native_terminal_outcomes": 94,
+  "zero_agreements": 93,
+  "authored_traps": 1,
+  "positive_places": 9,
+  "reject_twins": 9,
+  "extra_reject_controls": 3,
+  "counterfactual": "Both engines trap for corrupted match-result oracle; initial wrapper expected obsolete wording and its failure is preserved.",
+  "standard_library_diagnostics_before": 7,
+  "standard_library_diagnostics_after": 4,
+  "host": "macOS ARM64",
+  "remaining": "Qualified ancestor-call admission, Omega-written frontend migration, remaining custody/restoration and bounded-stack acceptance, downstream source migration. No other-host native observations.",
+  "qualification": "Authenticates retained actual engine observations and exact producer/input relationships, not a new engine execution."
+}
