@@ -1,10 +1,9 @@
 //! Optimizer module role: executable entrance. Exact countdown constant-placement coordination.
 
 use abstract_operations::AbstractOperation as O;
-use optimization_core::OptimizationUnitIdentity;
 use optimization_unit::{
     NodeLocation, OptimizationNode, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
-    ValueDefinitionSite, ValueUse, recompute_psi_optimization_unit_identity,
+    ValueDefinitionSite, ValueUse,
 };
 
 use crate::validation::ValidatedOptimizerCycleComponents;
@@ -14,10 +13,10 @@ use optimization_unit::{
 use semantic_vocabulary::{BlockId, MachineId, OperationId, ScalarType, ValueId};
 
 use super::{
-    CountdownInvariantConstantAnalysisError, CountdownInvariantConstantRole,
-    CountdownInvariantIntegerConstant, CountedLoopAnalysisError, UnsignedCountdownLoopSummary,
-    ValidatedCountdownInvariantConstantAnalysis, ValidatedCountedLoopAnalysis,
-    validate_moved_constant_locations,
+    AnalysisRoot, AnalysisRootError, CountdownInvariantConstantAnalysisError,
+    CountdownInvariantConstantRole, CountdownInvariantIntegerConstant, CountedLoopAnalysisError,
+    UnsignedCountdownLoopSummary, ValidatedCountdownInvariantConstantAnalysis,
+    ValidatedCountedLoopAnalysis, validate_analysis_root, validate_moved_constant_locations,
 };
 
 mod compute;
@@ -71,8 +70,7 @@ pub(crate) struct UnsignedCountdownInvariantConstantPlacements {
 /// Replayable placement facts without mutation or execution authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CountdownInvariantConstantPlacementAnalysisSnapshot {
-    pub revision: OptimizationUnitIdentity,
-    pub terminal_psi: terminal_psi::TerminalPsiIdentity,
+    pub root: AnalysisRoot,
     pub loops: Vec<UnsignedCountdownInvariantConstantPlacements>,
 }
 
@@ -91,16 +89,7 @@ impl ValidatedCountdownInvariantConstantPlacementAnalysis {
 pub enum CountdownInvariantConstantPlacementAnalysisError {
     CountedLoop(CountedLoopAnalysisError),
     InvariantConstant(CountdownInvariantConstantAnalysisError),
-    StaleUnitIdentity {
-        stored: OptimizationUnitIdentity,
-        recomputed: OptimizationUnitIdentity,
-    },
-    TerminalIdentityMismatch,
-    AnalysisRevisionMismatch,
-    CandidateRevisionMismatch {
-        candidate: OptimizationUnitIdentity,
-        current: OptimizationUnitIdentity,
-    },
+    Root(AnalysisRootError),
     ComponentRosterMismatch,
     UnsupportedPlacement {
         machine: MachineId,

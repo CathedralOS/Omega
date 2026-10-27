@@ -1,5 +1,6 @@
 //! Optimizer module role: stage group. Control-flow analyses, cataloged by the exact graph question they answer.
 use semantic_vocabulary::{BlockId, MachineId};
+mod analysis_root;
 mod call_graph;
 mod components;
 mod countdown_induction;
@@ -8,6 +9,10 @@ mod countdown_invariant_constants;
 mod dominance;
 mod graph;
 mod loops;
+pub(crate) use analysis_root::AnalysisRootError;
+pub(in crate::analyses) use analysis_root::{
+    AnalysisRoot, validate_analysis_root, validate_unit_identity,
+};
 pub(super) use call_graph::call_graph;
 pub(super) use components::block_components;
 
