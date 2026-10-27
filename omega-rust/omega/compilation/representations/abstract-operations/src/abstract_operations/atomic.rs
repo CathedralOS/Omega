@@ -804,19 +804,7 @@ fn invalidates_location(
     {
         return true;
     }
-    let called_arguments = match operation {
-        crate::boundary_or_structural_call_pair_pattern!(structural_arguments, ..)
-        | AbstractOperation::InvokeNoNormal {
-            structural_arguments,
-            ..
-        }
-        | AbstractOperation::ExternalCompletion {
-            structural_arguments,
-            ..
-        } => structural_arguments.as_slice(),
-        _ => &[],
-    };
-    if called_arguments.iter().any(|argument| {
+    if operation.invocation_arguments().iter().any(|argument| {
         argument.place == location.root
             || projections_may_alias(
                 argument.place,
