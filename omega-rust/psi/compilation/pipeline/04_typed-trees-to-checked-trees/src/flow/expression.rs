@@ -101,6 +101,12 @@ struct InvocationInputs<'evaluated> {
     arguments: &'evaluated [checked_trees::FlowOperandFact],
 }
 
+#[derive(Default)]
+struct CompletedInvocation {
+    stores: Vec<stored_call_values::CallStore>,
+    operands: HandleSpan<checked_trees::FlowOperandFact>,
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum InvocationSite {
     Expression(ExpressionHandle),
@@ -316,7 +322,7 @@ pub(super) fn append_statement_calls<'plans>(
                         .capture,
                 );
             }
-            let stores = execution.invoke(
+            let completed = execution.invoke(
                 InvocationSite::Statement,
                 InvocationInputs {
                     operands: &captured,
@@ -341,7 +347,7 @@ pub(super) fn append_statement_calls<'plans>(
                     observations: writes,
                 });
             }
-            execution.install_call_stores(stores);
+            execution.install_call_stores(completed.stores);
         }
         StatementNode::AssemblyFact(_) | StatementNode::Transition(_) => {}
     }
@@ -517,13 +523,13 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         inputs: InvocationInputs<'_>,
         contexts: &mut HandleSpan<FlowSemanticContextRef>,
         constraints: &mut HandleSpan<FlowConstraintRef>,
-    ) -> Vec<stored_call_values::CallStore> {
+    ) -> CompletedInvocation {
         let Some(invocation) = self
             .invocations
             .iter_mut()
             .find(|invocation| !invocation.visited && invocation.site == site)
         else {
-            return Vec::new();
+            return CompletedInvocation::default();
         };
         invocation.visited = true;
         let captured_operands = inputs.operands;
@@ -618,11 +624,12 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         // evaluated operands and must survive independently of their snapshots.
         call.exit_semantic_contexts = *contexts;
         call.exit_constraints = *constraints;
+        let operands = call.operands;
         self.context
             .control
             .calls
             .append_to_span(self.state_calls, call);
-        stores
+        CompletedInvocation { stores, operands }
     }
 
     pub(super) fn expression(
@@ -1692,16 +1699,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     .iter()
                     .map(|(_, operand)| *operand)
                     .collect::<Vec<_>>();
-                // The completed result retains the strict evaluation graph,
-                // independently of its returned lifetime or descriptor links.
-                // Nested normal completions cannot be recovered from syntax
-                // or the statement's joined loan roster afterwards.
-                *evaluated_inputs = self
-                    .context
-                    .control
-                    .operands
-                    .insert_many(operands.iter().copied());
-                let stores = self.invoke(
+                let completed = self.invoke(
                     InvocationSite::Expression(expression),
                     InvocationInputs {
                         operands: &operands,
@@ -1710,6 +1708,10 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     contexts,
                     constraints,
                 );
+                // Share the invocation's exact captured operands. Cloning
+                // them would manufacture second evaluation occurrences and
+                // make retained-loan correspondence ambiguous.
+                *evaluated_inputs = completed.operands;
                 // A callee that returns one constructor installs that case on
                 // this call expression. The binding transport then keeps the
                 // tag; the call is not replayed at the payload projection.
@@ -1761,7 +1763,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                         observations: writes,
                     });
                 }
-                self.install_call_stores(stores);
+                self.install_call_stores(completed.stores);
                 self.capture_returned_retention(
                     expression,
                     destination,
