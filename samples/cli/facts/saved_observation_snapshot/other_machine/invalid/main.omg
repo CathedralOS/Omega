@@ -1,10 +1,12 @@
 // A saved observation of an unwritten array element stays equal to 7 across a write to a disjoint element.
-// This twin writes the observed element, so the observation is no longer valid.
-machine read_kept(items: &mut [u64; 2]) -> u64
+// Expected exit: 0
+machine capture<'source, View>(source: View, marker: &mut u64, event: u64) -> View where View == &'source u64 { marker = event; source }
+
+machine read_kept(items: &mut [u64; 2], marker: &mut u64) -> u64
 requires items[0] == 7
 ensures result == items[0] && result == 7
 {
-    let saved: u64 = items[0];
+    let saved: u64 = capture<&u64>(&items[0], marker, 11);
     items[0] = 4;
     saved
 }
@@ -16,9 +18,10 @@ requires observed == current && observed == 7
 }
 
 machine main() crashes Trap {
+    let mut marker: u64 = 0;
     let mut items: [u64; 2] = [7, 1];
-    let saved: u64 = read_kept(&mut items);
-    transition agree(saved, items[0]) == 7 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    let saved: u64 = read_kept(&mut items, &mut marker);
+    transition agree(saved, items[0]) == 7 && items[1] == 4 && marker == 11 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
