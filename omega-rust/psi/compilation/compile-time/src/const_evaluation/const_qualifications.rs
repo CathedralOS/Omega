@@ -153,21 +153,7 @@ pub(crate) fn prove_ready(
     // Reuse the shared demanded-closure fence, including returned type owners;
     // unrelated pending declarations remain outside each exact probe root.
     for (owner, (_, definition)) in owners.iter().zip(&pending) {
-        if checked.typed.machine_by_symbol(*owner).is_none() {
-            return Err(vec![
-                Diagnostic::error("constant qualification lost its exact checked probe root")
-                    .with_source_span(definition.name.source_span()),
-            ]);
-        }
-        crate::machine_execution::admission::require_complete_checked_conditions(&checked, *owner)
-            .map_err(|reason| {
-                vec![
-                    Diagnostic::error(format!(
-                        "constant destination qualification remains conditional: {reason}",
-                    ))
-                    .with_source_span(definition.name.source_span()),
-                ]
-            })?;
+        require_complete_destination_judgment(&checked, *owner, definition.name.source_span())?;
     }
 
     for (item, mut definition) in pending {
@@ -179,6 +165,31 @@ pub(crate) fn prove_ready(
         syntax.items.replace_item(item, Item::Const(definition));
     }
     Ok(syntax)
+}
+
+/// This is the publication boundary for a completed destination probe. Keeping
+/// it separate from receipt mutation makes conditional checked products directly
+/// testable without inventing a second proof or completeness implementation.
+fn require_complete_destination_judgment(
+    checked: &checked_trees::CheckedTrees,
+    owner: symbols::SymbolHandle,
+    declaration: source::SourceSpan,
+) -> Result<(), Vec<Diagnostic>> {
+    if checked.typed.machine_by_symbol(owner).is_none() {
+        return Err(vec![
+            Diagnostic::error("constant qualification lost its exact checked probe root")
+                .with_source_span(declaration),
+        ]);
+    }
+    crate::machine_execution::admission::require_complete_checked_conditions(checked, owner)
+        .map_err(|reason| {
+            vec![
+                Diagnostic::error(format!(
+                    "constant destination qualification remains conditional: {reason}",
+                ))
+                .with_source_span(declaration),
+            ]
+        })
 }
 
 /// An unfinished declaration contributes its carrier to private typing, never
@@ -207,5 +218,63 @@ pub(crate) fn defer_unproved(syntax: &mut SyntaxTrees) {
             definition.type_reference = *base_type;
         }
         syntax.items.replace_item(item, Item::Const(definition));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::require_complete_destination_judgment;
+    use checked_trees::{CheckFacts, CheckedTrees, IntegerRangeObligation, IntegerRangeRecipe};
+    use numerics::bignum::BigInt;
+    use symbols::SymbolHandle;
+    use typed_trees::TypedTrees;
+    use typed_trees::expression::ExpressionHandle;
+    use typed_trees::machine::Machine;
+
+    #[test]
+    fn destination_receipt_requires_its_exact_complete_checked_probe() {
+        let probe = SymbolHandle::from_parts(1, 1);
+        let unrelated = SymbolHandle::from_parts(2, 1);
+        let missing = SymbolHandle::from_parts(3, 1);
+        let mut program = TypedTrees::default();
+        for symbol in [probe, unrelated] {
+            program.push_machine(Machine {
+                symbol,
+                ..Default::default()
+            });
+        }
+        let mut checked = CheckedTrees::with_roots(program, CheckFacts::default());
+        let declaration = source::SourceSpan::default();
+        assert!(require_complete_destination_judgment(&checked, probe, declaration).is_ok());
+        assert!(require_complete_destination_judgment(&checked, missing, declaration).is_err());
+
+        // Both owners are real retained declarations. An unrelated conditional
+        // judgment supplies no premise and does not block this exact probe.
+        checked
+            .facts
+            .integer_range_obligations
+            .push(IntegerRangeObligation::retain(
+                ExpressionHandle::invalid(),
+                unrelated,
+                IntegerRangeRecipe::bounds(BigInt::from_i64(0), BigInt::from_i64(1)),
+                BigInt::from_i64(0),
+                BigInt::from_i64(1),
+                "unrelated retained target condition".to_owned(),
+            ));
+        assert!(require_complete_destination_judgment(&checked, probe, declaration).is_ok());
+        // The same checked condition owned by the destination probe makes the
+        // product conditional. It cannot reach the caller's drain/stamp block.
+        checked
+            .facts
+            .integer_range_obligations
+            .push(IntegerRangeObligation::retain(
+                ExpressionHandle::invalid(),
+                probe,
+                IntegerRangeRecipe::bounds(BigInt::from_i64(0), BigInt::from_i64(1)),
+                BigInt::from_i64(0),
+                BigInt::from_i64(1),
+                "destination retained target condition".to_owned(),
+            ));
+        assert!(require_complete_destination_judgment(&checked, probe, declaration).is_err());
     }
 }
