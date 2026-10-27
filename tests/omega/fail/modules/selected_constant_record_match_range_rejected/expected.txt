@@ -1,1 +1,1 @@
-data constant `Token` violates its default-domain predicate
+data `Token` literal violates the default domain
