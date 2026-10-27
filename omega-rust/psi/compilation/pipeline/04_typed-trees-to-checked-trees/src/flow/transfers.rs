@@ -445,44 +445,50 @@ pub(super) fn publish_statement_contexts(
         state_symbol,
         statement_index,
     };
-    let mut groups: Vec<(
-        FactPlace,
-        bool,
-        Option<(SymbolHandle, language_semantics::SemanticDomainId)>,
-        Vec<facts::FactRef>,
-    )> = Vec::new();
-    for reference in semantic.refs.span_or_empty(refs) {
-        let fact = semantic.facts.get(reference.fact);
-        let place = fact.place;
-        let observes_tag = matches!(fact.payload, FactPayload::CaseValue { .. });
-        let domain = fact
-            .payload
-            .domain_membership()
-            .map(|(_, _, symbol, identity)| (symbol, identity));
-        if let Some((_, _, _, group)) =
-            groups
-                .iter_mut()
-                .find(|(candidate, candidate_observes_tag, candidate_domain, _)| {
-                    *candidate_domain == domain
-                        && *candidate_observes_tag == observes_tag
-                        && match (*candidate, place) {
-                            (FactPlace::Place(left), FactPlace::Place(right)) => {
-                                semantic.places_equal(left, right)
-                            }
-                            _ => *candidate == place,
-                        }
-                })
-        {
-            group.push(*reference);
-        } else {
-            groups.push((place, observes_tag, domain, vec![*reference]));
-        }
+    let references = semantic.refs.span_or_empty(refs);
+    let subjects: Vec<_> = references
+        .iter()
+        .map(|reference| {
+            let fact = semantic.facts.get(reference.fact);
+            (
+                fact.place,
+                matches!(fact.payload, FactPayload::CaseValue { .. }),
+                fact.payload
+                    .domain_membership()
+                    .map(|(_, _, symbol, identity)| (symbol, identity)),
+            )
+        })
+        .collect();
+    // Only compare subjects in the same scratch bucket. Full equality below
+    // retains independent place/domain/tag epochs even when hashes collide.
+    let buckets = facts::places::PlaceBucketIndex::new(subjects.iter().map(
+        |(place, observes_tag, domain)| {
+            use std::hash::{Hash, Hasher};
+            let mut hash = std::collections::hash_map::DefaultHasher::new();
+            semantic.fact_place_bucket_hash(*place).hash(&mut hash);
+            observes_tag.hash(&mut hash);
+            domain.hash(&mut hash);
+            hash.finish()
+        },
+    ));
+    let first = buckets.group_equal_positions(|left, right| {
+        let (left_place, left_tag, left_domain) = subjects[left];
+        let (right_place, right_tag, right_domain) = subjects[right];
+        left_tag == right_tag
+            && left_domain == right_domain
+            && semantic.fact_places_equal(left_place, right_place)
+    });
+    // Publish in first-encounter order, preserving reference order and
+    // multiplicity within each context exactly as the sequential scan did.
+    let mut groups: Vec<Vec<facts::FactRef>> = (0..references.len()).map(|_| Vec::new()).collect();
+    for (position, reference) in references.iter().enumerate() {
+        groups[first[position]].push(*reference);
     }
     let mut next_contexts =
         retained_flow_contexts(&build.contexts.semantic_context_refs, *active_contexts);
     let mut next_constraints =
         retained_constraint_refs(&build.contexts.constraint_refs, *active_constraints);
-    for (_, _, _, group) in groups {
+    for group in groups.into_iter().filter(|group| !group.is_empty()) {
         let mut group_refs = HandleSpan::empty();
         for reference in group {
             semantic.refs.append_to_span(&mut group_refs, reference);
