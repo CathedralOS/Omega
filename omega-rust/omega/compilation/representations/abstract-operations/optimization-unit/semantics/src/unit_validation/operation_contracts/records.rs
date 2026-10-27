@@ -421,14 +421,8 @@ fn constructed_field_predicates(
 }
 
 fn source_has_claims(function: &PsiOptimizationFunction, place: PlaceId) -> bool {
-    function
-        .entry_claim_declarations
-        .iter()
-        .any(|claim| claim.input == place)
-        || function
-            .content_entry_claims
-            .iter()
-            .any(|claim| claim.input.root == place)
+    function.entry_claim_declared(place)
+        || function.content_entry_claim_declared(place)
         || function.block_nodes().any(|node| {
             let result = match &node.operation {
                 O::EstablishScalarArray { result, .. }

@@ -454,14 +454,8 @@ pub(crate) fn validate_structural_root_operations(
                             || (!path.is_empty()
                                 && destination.multiplicity()
                                     == terminal_psi::StructuralMultiplicity::Affine))
-                        && function
-                            .entry_claim_declarations
-                            .iter()
-                            .all(|claim| claim.input != destination.place())
-                        && function
-                            .content_entry_claims
-                            .iter()
-                            .all(|claim| claim.input.root != destination.place())
+                        && !function.entry_claim_declared(destination.place())
+                        && !function.content_entry_claim_declared(destination.place())
                         && terminal_semantics::primitive_projection_type(
                             structural_types.values().copied(),
                             destination.structural_type(),
@@ -971,9 +965,7 @@ pub(crate) fn validate_structural_root_operations(
                                                 .chain(&function.block_entry_claims)
                                                 .any(|claim| claim.input == value.place)
                                                 || function
-                                                    .content_entry_claims
-                                                    .iter()
-                                                    .any(|claim| claim.input.root == value.place)
+                                                    .content_entry_claim_declared(value.place)
                                                 || signature.operation_result().is_some_and(
                                                     |result| !result.claims.is_empty(),
                                                 ),
@@ -1516,10 +1508,7 @@ fn readable_field_type(
         || (!signature.is_unqualified()
             && !structural_types.get(&signature.structural_type)
                 .is_some_and(|declaration| declaration.shape.is_composite_shape()))
-        || function
-            .content_entry_claims
-            .iter()
-            .any(|claim| claim.input.root == place)
+        || function.content_entry_claim_declared(place)
     {
         return None;
     }
@@ -1534,10 +1523,7 @@ fn readable_field_type(
         return Some((signature.structural_type, signature.access));
     }
     if signature.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-        || function
-            .entry_claim_declarations
-            .iter()
-            .any(|claim| claim.input == place)
+        || function.entry_claim_declared(place)
         || function.block_nodes().any(|node| {
             let result = match &node.operation {
                 O::EstablishRecord { result, .. }
@@ -1602,14 +1588,8 @@ fn borrowed_window_root(
                     terminal_psi::StructuralMultiplicity::Unrestricted
                         | terminal_psi::StructuralMultiplicity::Affine
                 )
-                && function
-                    .entry_claim_declarations
-                    .iter()
-                    .all(|claim| claim.input != parameter.place)
-                && function
-                    .content_entry_claims
-                    .iter()
-                    .all(|claim| claim.input.root != parameter.place)
+                && !function.entry_claim_declared(parameter.place)
+                && !function.content_entry_claim_declared(parameter.place)
                 && match place_kinds.get(&parameter.place) {
                     Some(StructuralPlaceKind::Parameter { position }) => {
                         *position == parameter.position

@@ -17,14 +17,7 @@ pub(super) fn validate(
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
 ) -> Result<(), OptimizationUnitValidationError> {
     let claim_free = |place| {
-        function
-            .entry_claim_declarations
-            .iter()
-            .all(|claim| claim.input != place)
-            && function
-                .content_entry_claims
-                .iter()
-                .all(|claim| claim.input.root != place)
+        !function.entry_claim_declared(place) && !function.content_entry_claim_declared(place)
     };
     let primitive = |structural_type, scalar_type| {
         types.get(&structural_type).is_some_and(|declaration| {

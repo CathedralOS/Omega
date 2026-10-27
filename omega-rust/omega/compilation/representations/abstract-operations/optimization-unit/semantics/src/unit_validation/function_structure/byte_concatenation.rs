@@ -51,14 +51,8 @@ pub(super) fn validate(
             }
             for operand in [left, right] {
                 if operand.source() == result.place
-                    || function
-                        .entry_claim_declarations
-                        .iter()
-                        .any(|claim| claim.input == operand.source())
-                    || function
-                        .content_entry_claims
-                        .iter()
-                        .any(|claim| claim.input.root == operand.source())
+                    || function.entry_claim_declared(operand.source())
+                    || function.content_entry_claim_declared(operand.source())
                 {
                     return Err(invalid());
                 }
