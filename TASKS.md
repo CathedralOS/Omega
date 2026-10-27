@@ -1334,8 +1334,6 @@ decision (`SourceChecked`) into stage 05 and stage 00.
     independently qualified descendants and tagged/qualified owned results)
     through stage 05 `retention/retained_borrow_custody.rs` and the selected
     provider.
-  - Qualify bounded [nested zero-leaf array storage](samples/cli/facts/nested_zero_leaf_array_storage/README.md)
-    on Windows and both Linux hosts with the authored runtime/rejection oracles.
   Acceptance: `samples/cli/facts/opaque_closed_carrier_exchange`,
   `samples/cli/facts/foreign_retained_shared_borrow`,
   `samples/cli/facts/foreign_retained_mutable_borrow`,

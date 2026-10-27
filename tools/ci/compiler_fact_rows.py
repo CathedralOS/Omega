@@ -32,13 +32,25 @@ def authored_files(project):
                       "expected_interpreter_exit.txt", "expected_stdout.txt", "expected_stderr.txt"}))
 
 
-def fixtures(root, fact, prefix):
+def project_fixtures(prefix, additional_projects=()):
+    """The nine places plus explicitly named producers of the same fact."""
+    projects = tuple((place, f"{prefix}_through_{place}") for place in PLACES) + tuple(additional_projects)
+    names = [name for name, _ in projects]
+    if len(set(names)) != len(names) or "root" in names:
+        raise ValueError("fact projects must have distinct names outside root")
+    if any(Path(name).name != name or name in (".", "..") for name in names):
+        raise ValueError("fact project names must be direct child folders")
+    return projects
+
+
+def fixtures(root, fact, prefix, *, additional_projects=()):
     """Pin every authored place/twin before any compiler build or measurement."""
     positive, negative = [], []
-    for place in PLACES:
+    projects = project_fixtures(prefix, additional_projects)
+    for place, fixture_stem in projects:
         for tier, suffix, source in (("pass", "exit", fact / place),
                                      ("fail", "rejected", fact / place / "invalid")):
-            name = f"{tier}/facts/{prefix}_through_{place}_{suffix}"
+            name = f"{tier}/facts/{fixture_stem}_{suffix}"
             pinned = root / "tests/omega" / name
             required = ["main.omg", "build.omg"] + (["expected.txt"] if tier == "fail" else [])
             for filename in required:
@@ -57,7 +69,7 @@ def fixtures(root, fact, prefix):
                 negative.append(name)
     if not (fact / "main.omg").is_file() or not (fact / "build.omg").is_file():
         raise ValueError("fact root has no authored executable entry")
-    for source in [fact] + [fact / place for place in PLACES]:
+    for source in [fact] + [fact / place for place, _ in projects]:
         if "Expected exit: 0" not in (source / "main.omg").read_text(encoding="utf-8"):
             raise ValueError(f"{source}: fact has no authored zero-exit oracle")
         for name in ("expected_native_exit.txt", "expected_interpreter_exit.txt"):
@@ -67,11 +79,12 @@ def fixtures(root, fact, prefix):
     return tuple(positive), tuple(negative)
 
 
-def prepare(output, fact, producer):
+def prepare(output, fact, producer, *, additional_projects=()):
     """Retain successful and failed preparation separately from frozen runs."""
     producer.verify()
     records = []
-    for place in ("root",) + PLACES:
+    projects = project_fixtures("", additional_projects)
+    for place in ("root",) + tuple(name for name, _ in projects):
         authored = fact if place == "root" else fact / place
         project = output / "samples" / place
         project.mkdir(parents=True, exist_ok=False)
@@ -167,8 +180,11 @@ def measure_cases(project, recording, producer):
                 canonical_exit=canonical.returncode, passed=True)
 
 
-def measure(output, inventory, producer):
+def measure(output, inventory, producer, *, additional_projects=()):
     producer.verify()
+    expected_places = ("root",) + tuple(name for name, _ in project_fixtures("", additional_projects))
+    if tuple(row["place"] for row in inventory["rows"]) != expected_places:
+        raise ValueError("prepared project roster differs from the complete fact and producer roster")
     observations = []
     report = dict(producer=producer.record(), observations=observations, passed=False)
     try:
@@ -220,7 +236,7 @@ def measure(output, inventory, producer):
                 observation["error"] = str(error)
             validate_inputs(row)
         producer.verify()
-        report["passed"] = len(observations) == 10 and all(row["passed"] for row in observations)
+        report["passed"] = len(observations) == len(expected_places) and all(row["passed"] for row in observations)
     finally:
         (output / "sample-observations.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     if not report["passed"]:
