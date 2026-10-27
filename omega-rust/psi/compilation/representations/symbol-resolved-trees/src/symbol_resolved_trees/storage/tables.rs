@@ -1,9 +1,10 @@
-use crate::data::DataMember;
+use crate::data::{DataField, DataMember};
 use crate::expression::{ExpressionSource, ExpressionTable};
 use crate::machine::{Machine, OwnedData};
+use crate::name::DiagnosticName;
 use crate::signature::{StateParameter, StateSignature};
 use crate::state::State;
-use crate::statement::{Statement, StatementTable};
+use crate::statement::{Statement, StatementNode, StatementTable};
 use crate::types::{TypeConstraint, TypeReference, TypeReferenceTable};
 use crate::{SymbolResolvedDeclarationStorage, SymbolResolvedTrees};
 use arena::{Arena, HandleSpan};
@@ -23,6 +24,22 @@ pub struct ResolvedBodyTables {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ResolvedTypeTables {
     pub references: TypeReferenceTable,
+}
+
+/// The source coordinates every declaration walker transplants rows through:
+/// the child type-reference and constraint rows, the expression table the
+/// copies read, and the three declaration rosters a nested statement or
+/// signature reads. Each walker used to thread these as separate parameters;
+/// one value now carries them.
+#[derive(Clone, Copy)]
+struct Transplant<'tree> {
+    child_type_references: &'tree Arena<TypeReference>,
+    type_constraints: &'tree Arena<TypeConstraint>,
+    source_expressions: ExpressionSource<'tree>,
+    data_payload_fields: &'tree Arena<DataField>,
+    state_parameters: &'tree Arena<StateParameter>,
+    statement_path_members: &'tree Arena<DiagnosticName>,
+    state_statements: &'tree Arena<Statement>,
 }
 
 impl SymbolResolvedTreeTables {
@@ -83,7 +100,6 @@ impl SymbolResolvedTreeTables {
             tables: source_tables,
             ..
         } = symbol_resolved_trees;
-        let type_constraints = &source_tables.types.constraints;
         // The expressions already have their final identities. Transfer the arena
         // and append normalized type-expression copies beside their originals;
         // a whole-table snapshot would only be discarded after normalization.
@@ -106,6 +122,15 @@ impl SymbolResolvedTreeTables {
             child_type_references,
             ..
         } = &mut source_tables.declarations;
+        let transplant = Transplant {
+            child_type_references,
+            type_constraints: &source_tables.types.constraints,
+            source_expressions,
+            data_payload_fields,
+            state_parameters,
+            statement_path_members,
+            state_statements,
+        };
 
         // Assembly scopes use the same statement normalization as machine
         // states. Only appended blocks are new during deferred completion;
@@ -116,21 +141,10 @@ impl SymbolResolvedTreeTables {
             .map(|(handle, block)| (handle, block.instructions))
             .collect();
         for (handle, instructions) in blocks {
-            let mut nodes = HandleSpan::empty();
-            for statement in state_statements.span_or_empty(instructions) {
-                let node = tables.bodies.statements.insert_tree_from_source(
-                    statement,
-                    source_expressions,
-                    &mut tables.bodies.expressions,
-                    &mut tables.types.references,
-                    child_type_references,
-                    type_constraints,
-                    source_expressions,
-                    statement_path_members,
-                    false,
-                );
-                nodes.push_contiguous(node);
-            }
+            let nodes = tables.normalize_statements(
+                &transplant,
+                transplant.state_statements.span_or_empty(instructions),
+            );
             assembly_blocks.get_mut(handle).statement_nodes = nodes;
         }
 
@@ -140,11 +154,8 @@ impl SymbolResolvedTreeTables {
             .skip(frontier.data_definitions.len())
         {
             tables.insert_data_definition(
+                &transplant,
                 data_members.span_or_empty(data_definition.members),
-                data_payload_fields,
-                child_type_references,
-                type_constraints,
-                source_expressions,
             );
         }
 
@@ -153,20 +164,9 @@ impl SymbolResolvedTreeTables {
             .iter()
             .skip(frontier.domain_definitions.len())
         {
-            tables.insert_type_reference(
-                &domain_definition.target_type,
-                child_type_references,
-                type_constraints,
-                source_expressions,
-            );
+            tables.insert_type_reference(&transplant, &domain_definition.target_type);
             for operator in operator_definitions.span_or_empty(domain_definition.operators) {
-                tables.insert_operator(
-                    operator,
-                    state_parameters,
-                    child_type_references,
-                    type_constraints,
-                    source_expressions,
-                );
+                tables.insert_operator(&transplant, operator);
             }
         }
 
@@ -175,39 +175,21 @@ impl SymbolResolvedTreeTables {
                 if let crate::proposition::PropositionBinderKind::Const { type_reference } =
                     &binder.kind
                 {
-                    tables.insert_type_reference(
-                        type_reference,
-                        child_type_references,
-                        type_constraints,
-                        source_expressions,
-                    );
+                    tables.insert_type_reference(&transplant, type_reference);
                 }
             }
             for parameter in state_parameters.span_or_empty(proposition.parameters) {
-                tables.insert_type_reference(
-                    &parameter.type_reference,
-                    child_type_references,
-                    type_constraints,
-                    source_expressions,
-                );
+                tables.insert_type_reference(&transplant, &parameter.type_reference);
             }
             if let crate::proposition::PropositionBody::Witness { evidence } = &proposition.body {
-                tables.insert_type_reference(
-                    evidence,
-                    child_type_references,
-                    type_constraints,
-                    source_expressions,
-                );
+                tables.insert_type_reference(&transplant, evidence);
             }
         }
 
         for trait_definition in roots.traits.iter().skip(frontier.traits.len()) {
             tables.insert_platform(
+                &transplant,
                 trait_machine_signatures.span_or_empty(trait_definition.machines),
-                state_parameters,
-                child_type_references,
-                type_constraints,
-                source_expressions,
             );
         }
 
@@ -220,175 +202,130 @@ impl SymbolResolvedTreeTables {
             })
         {
             tables.insert_machine_with_state_spans(
+                &transplant,
                 machine,
                 declared_type_equations,
                 machine_owned_data,
                 machine_state_handles,
                 machine_states,
-                state_parameters,
-                statement_path_members,
-                state_statements,
-                child_type_references,
-                type_constraints,
-                source_expressions,
             );
         }
 
         for operator in roots.operators.iter().skip(frontier.operators.len()) {
-            tables.insert_operator(
-                operator,
-                state_parameters,
-                child_type_references,
-                type_constraints,
-                source_expressions,
-            );
+            tables.insert_operator(&transplant, operator);
         }
 
         for measure in roots.measures.iter().skip(frontier.measures.len()) {
             if let Some(parameter) = &measure.parameter {
-                tables.insert_type_reference(
-                    &parameter.type_reference,
-                    child_type_references,
-                    type_constraints,
-                    source_expressions,
-                );
+                tables.insert_type_reference(&transplant, &parameter.type_reference);
             }
             if let Some(return_type) = &measure.return_type {
-                tables.insert_type_reference(
-                    return_type,
-                    child_type_references,
-                    type_constraints,
-                    source_expressions,
-                );
+                tables.insert_type_reference(&transplant, return_type);
             }
         }
     }
 
+    /// Normalize one tree statement span into table statements, in order. Both
+    /// machine states and assembly blocks read their statements this way.
+    fn normalize_statements(
+        &mut self,
+        transplant: &Transplant<'_>,
+        statements: &[Statement],
+    ) -> HandleSpan<StatementNode> {
+        let statement_transplant = crate::statement::StatementTransplant {
+            source_expressions: transplant.source_expressions,
+            source_expression_table: transplant.source_expressions,
+            source_child_type_references: transplant.child_type_references,
+            source_constraints: transplant.type_constraints,
+            source_statement_path_members: transplant.statement_path_members,
+            copy_expression_handles: false,
+        };
+        let mut nodes = HandleSpan::empty();
+        for statement in statements {
+            let node = self.bodies.statements.insert_tree_from_source(
+                statement,
+                &statement_transplant,
+                &mut self.bodies.expressions,
+                &mut self.types.references,
+            );
+            nodes.push_contiguous(node);
+        }
+        nodes
+    }
+
     fn insert_parameter_and_return_types<'tree>(
         &mut self,
+        transplant: &Transplant<'_>,
         parameters: impl Iterator<Item = &'tree StateParameter>,
         return_type: &Option<TypeReference>,
-        child_type_references: &Arena<TypeReference>,
-        type_constraints: &Arena<TypeConstraint>,
-        source_expressions: ExpressionSource<'_>,
     ) {
         for parameter in parameters {
-            self.insert_type_reference(
-                &parameter.type_reference,
-                child_type_references,
-                type_constraints,
-                source_expressions,
-            );
+            self.insert_type_reference(transplant, &parameter.type_reference);
         }
         if let Some(return_type) = return_type {
-            self.insert_type_reference(
-                return_type,
-                child_type_references,
-                type_constraints,
-                source_expressions,
-            );
+            self.insert_type_reference(transplant, return_type);
         }
     }
 
     fn insert_operator(
         &mut self,
+        transplant: &Transplant<'_>,
         operator: &crate::operator::OperatorDefinition,
-        state_parameters: &Arena<StateParameter>,
-        child_type_references: &Arena<TypeReference>,
-        type_constraints: &Arena<TypeConstraint>,
-        source_expressions: ExpressionSource<'_>,
     ) {
         self.insert_parameter_and_return_types(
-            state_parameters.span_or_empty(operator.parameters).iter(),
+            transplant,
+            transplant
+                .state_parameters
+                .span_or_empty(operator.parameters)
+                .iter(),
             &operator.return_type,
-            child_type_references,
-            type_constraints,
-            source_expressions,
         );
     }
 
-    fn insert_data_definition(
-        &mut self,
-        members: &[DataMember],
-        data_payload_fields: &Arena<crate::data::DataField>,
-        child_type_references: &Arena<TypeReference>,
-        type_constraints: &Arena<TypeConstraint>,
-        source_expressions: ExpressionSource<'_>,
-    ) {
+    fn insert_data_definition(&mut self, transplant: &Transplant<'_>, members: &[DataMember]) {
         for member in members {
             match member {
                 DataMember::Field(field) => {
-                    self.insert_type_reference(
-                        &field.type_reference,
-                        child_type_references,
-                        type_constraints,
-                        source_expressions,
-                    );
+                    self.insert_type_reference(transplant, &field.type_reference);
                 }
                 DataMember::Variant(variant) => {
-                    for field in data_payload_fields.span_or_empty(variant.payload) {
-                        self.insert_type_reference(
-                            &field.type_reference,
-                            child_type_references,
-                            type_constraints,
-                            source_expressions,
-                        );
+                    for field in transplant
+                        .data_payload_fields
+                        .span_or_empty(variant.payload)
+                    {
+                        self.insert_type_reference(transplant, &field.type_reference);
                     }
                 }
             }
         }
     }
 
-    fn insert_platform(
-        &mut self,
-        states: &[StateSignature],
-        state_parameters: &Arena<StateParameter>,
-        child_type_references: &Arena<TypeReference>,
-        type_constraints: &Arena<TypeConstraint>,
-        source_expressions: ExpressionSource<'_>,
-    ) {
+    fn insert_platform(&mut self, transplant: &Transplant<'_>, states: &[StateSignature]) {
         for state in states {
             self.insert_state_signature(
-                state_parameters.span_or_empty(state.parameters),
+                transplant,
+                transplant.state_parameters.span_or_empty(state.parameters),
                 state,
-                child_type_references,
-                type_constraints,
-                source_expressions,
             );
         }
     }
 
     fn insert_machine_with_state_spans(
         &mut self,
+        transplant: &Transplant<'_>,
         machine: &Machine,
         declared_type_equations: &Arena<crate::machine::DeclaredTypeEquation>,
         machine_owned_data: &Arena<OwnedData>,
         machine_state_handles: &Arena<arena::Handle<State>>,
         machine_states: &mut Arena<State>,
-        state_parameters: &Arena<StateParameter>,
-        statement_path_members: &Arena<crate::name::DiagnosticName>,
-        state_statements: &Arena<Statement>,
-        child_type_references: &Arena<TypeReference>,
-        type_constraints: &Arena<TypeConstraint>,
-        source_expressions: ExpressionSource<'_>,
     ) {
         for equation in declared_type_equations.span_or_empty(machine.declared_type_equations) {
             for reference in [&equation.parameter, &equation.definition] {
-                self.insert_type_reference(
-                    reference,
-                    child_type_references,
-                    type_constraints,
-                    source_expressions,
-                );
+                self.insert_type_reference(transplant, reference);
             }
         }
         for owned_data in machine_owned_data.span_or_empty(machine.owned_data) {
-            self.insert_owned_data(
-                owned_data,
-                child_type_references,
-                type_constraints,
-                source_expressions,
-            );
+            self.insert_owned_data(transplant, owned_data);
         }
 
         for state in machine_state_handles
@@ -396,111 +333,53 @@ impl SymbolResolvedTreeTables {
             .iter()
             .copied()
         {
-            let state = machine_states.get_mut(state);
-            self.insert_state_with_statement_span(
-                state,
-                state_parameters,
-                statement_path_members,
-                state_statements,
-                child_type_references,
-                type_constraints,
-                source_expressions,
-            );
+            self.insert_state_with_statement_span(transplant, machine_states.get_mut(state));
         }
     }
 
-    fn insert_owned_data(
-        &mut self,
-        owned_data: &OwnedData,
-        child_type_references: &Arena<TypeReference>,
-        type_constraints: &Arena<TypeConstraint>,
-        source_expressions: ExpressionSource<'_>,
-    ) {
-        self.insert_type_reference(
-            &owned_data.type_reference,
-            child_type_references,
-            type_constraints,
-            source_expressions,
-        );
+    fn insert_owned_data(&mut self, transplant: &Transplant<'_>, owned_data: &OwnedData) {
+        self.insert_type_reference(transplant, &owned_data.type_reference);
     }
 
-    fn insert_state_with_statement_span(
-        &mut self,
-        state: &mut State,
-        state_parameters: &Arena<StateParameter>,
-        statement_path_members: &Arena<crate::name::DiagnosticName>,
-        state_statements: &Arena<Statement>,
-        child_type_references: &Arena<TypeReference>,
-        type_constraints: &Arena<TypeConstraint>,
-        source_expressions: ExpressionSource<'_>,
-    ) {
-        for parameter in state_parameters.span_or_empty(state.parameters) {
-            self.insert_type_reference(
-                &parameter.type_reference,
-                child_type_references,
-                type_constraints,
-                source_expressions,
-            );
+    fn insert_state_with_statement_span(&mut self, transplant: &Transplant<'_>, state: &mut State) {
+        for parameter in transplant.state_parameters.span_or_empty(state.parameters) {
+            self.insert_type_reference(transplant, &parameter.type_reference);
         }
 
         if let Some(return_type) = &state.return_type {
-            self.insert_type_reference(
-                return_type,
-                child_type_references,
-                type_constraints,
-                source_expressions,
-            );
+            self.insert_type_reference(transplant, return_type);
         }
 
-        let mut statement_nodes = HandleSpan::empty();
-        for statement in state_statements.span_or_empty(state.statements) {
-            let statement = self.bodies.statements.insert_tree_from_source(
-                statement,
-                source_expressions,
-                &mut self.bodies.expressions,
-                &mut self.types.references,
-                child_type_references,
-                type_constraints,
-                source_expressions,
-                statement_path_members,
-                false,
-            );
-            statement_nodes.push_contiguous(statement);
-        }
-
-        state.statement_nodes = statement_nodes;
+        state.statement_nodes = self.normalize_statements(
+            transplant,
+            transplant.state_statements.span_or_empty(state.statements),
+        );
     }
 
     fn insert_state_signature(
         &mut self,
+        transplant: &Transplant<'_>,
         parameters: &[StateParameter],
         signature: &StateSignature,
-        child_type_references: &Arena<TypeReference>,
-        type_constraints: &Arena<TypeConstraint>,
-        source_expressions: ExpressionSource<'_>,
     ) {
         self.insert_parameter_and_return_types(
+            transplant,
             parameters.iter(),
             &signature.return_type,
-            child_type_references,
-            type_constraints,
-            source_expressions,
         );
     }
 
     fn insert_type_reference(
         &mut self,
+        transplant: &Transplant<'_>,
         type_reference: &TypeReference,
-        child_type_references: &Arena<TypeReference>,
-        type_constraints: &Arena<TypeConstraint>,
-        source_expressions: ExpressionSource<'_>,
     ) {
         self.types.references.insert_tree_from_source(
             type_reference,
             &mut self.bodies.expressions,
-            child_type_references,
-            type_constraints,
-            source_expressions,
+            transplant.child_type_references,
+            transplant.type_constraints,
+            transplant.source_expressions,
         );
     }
 }
