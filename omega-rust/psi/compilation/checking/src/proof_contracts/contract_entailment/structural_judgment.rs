@@ -478,6 +478,7 @@ impl<'program> StructuralJudge<'program> {
             && self.invalidated_storage.len() == base.invalidated_storage.len()
             && self.storage_exposures == base.storage_exposures
             && self.captured_result_equations.len() == base.captured_result_equations.len()
+            && self.returned_field_owners.len() == base.returned_field_owners.len()
             && self.normal_memberships.len() == base.normal_memberships.len()
             && self.normal_content_guarantees.len() == base.normal_content_guarantees.len()
             && self.case_facts.len() == base.case_facts.len()

@@ -43,20 +43,18 @@ pub(crate) fn no_code_type_ids(
         semantic_vocabulary::StructuralTypeId,
     )],
 ) -> Vec<semantic_vocabulary::StructuralTypeId> {
+    let no_code: std::collections::HashSet<typed_trees::type_identity::TypeIdentityId> = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .structural_types
+        .iter()
+        .filter(|declaration| declaration.no_code_affine_cleanup)
+        .map(|declaration| declaration.identity)
+        .collect();
     type_ids
         .iter()
-        .filter_map(|(identity, id)| {
-            checked
-                .facts
-                .flow
-                .terminal_unit_effects
-                .structural_types
-                .iter()
-                .any(|declaration| {
-                    declaration.identity == *identity && declaration.no_code_affine_cleanup
-                })
-                .then_some(*id)
-        })
+        .filter_map(|(identity, id)| no_code.contains(identity).then_some(*id))
         .collect()
 }
 

@@ -662,12 +662,14 @@ fn validate<'program>(
         let is_proof_machine = proof_only.is_proof_machine(program, machine);
         let _states_guard = phase_profile::guard("05.d.2.a.2b.state_statements");
         for (state_index, state) in program.machine_states(machine).iter().enumerate() {
-            crate::value_custody::reference_local_establishment::validate(
-                program,
-                machine,
-                state,
-                &mut diagnostics,
-            );
+            phase_profile::scope("05.d.2.a.2b.0a.ref_local_est", || {
+                crate::value_custody::reference_local_establishment::validate(
+                    program,
+                    machine,
+                    state,
+                    &mut diagnostics,
+                );
+            });
             // A state that DECLARES a return type but has an EMPTY body can
             // never produce the value -- callers would silently bind 0 (ZII),
             // and native/interp diverge on what that zero reads as. GENERIC
@@ -720,28 +722,30 @@ fn validate<'program>(
             // machine's `requires` bounds on its parameters (`requires amount <=
             // 100`), so bounded param arithmetic stays exact. Statements are
             // validated in order so the environment is current at each use.
-            let mut value_environment = if state_index == 0 {
-                arithmetic_domains::requires_value_environment(program, machine, state)
-            } else {
-                // A non-entry state may assume the facts established by every
-                // incoming guarded transition. Multiple predecessors join at
-                // their common facts and widest admitted interval; call,
-                // continuation, and self-loop entries remain conservative
-                // fences.
-                incoming_environments
-                    .get_or_insert_with(|| {
-                        arithmetic_domains::incoming_guard_environments(
-                            program,
-                            machine,
-                            call_frames.as_ref(),
-                        )
-                    })
-                    .iter()
-                    .find_map(|(symbol, environment)| {
-                        (*symbol == state.symbol).then(|| environment.clone())
-                    })
-                    .unwrap_or_default()
-            };
+            let mut value_environment = phase_profile::scope("05.d.2.a.2b.0b.value_env_init", || {
+                if state_index == 0 {
+                    arithmetic_domains::requires_value_environment(program, machine, state)
+                } else {
+                    // A non-entry state may assume the facts established by every
+                    // incoming guarded transition. Multiple predecessors join at
+                    // their common facts and widest admitted interval; call,
+                    // continuation, and self-loop entries remain conservative
+                    // fences.
+                    incoming_environments
+                        .get_or_insert_with(|| {
+                            arithmetic_domains::incoming_guard_environments(
+                                program,
+                                machine,
+                                call_frames.as_ref(),
+                            )
+                        })
+                        .iter()
+                        .find_map(|(symbol, environment)| {
+                            (*symbol == state.symbol).then(|| environment.clone())
+                        })
+                        .unwrap_or_default()
+                }
+            });
             // Value facts follow control edges, not source order. Still check
             // every authored statement: unreachable instructions are validated
             // separately with no predecessor facts and cannot affect the live
@@ -777,13 +781,18 @@ fn validate<'program>(
                         [..statement_index],
                     parameters: program.state_parameters(state),
                 };
-                let transition_values = transitions::TransitionValueEnvironments::collect(
-                    program,
-                    machine,
-                    state,
-                    statement,
-                    &value_environment,
-                    call_frames.as_ref(),
+                let transition_values = phase_profile::scope(
+                    "05.d.2.a.2b.1.transition_values",
+                    || {
+                        transitions::TransitionValueEnvironments::collect(
+                            program,
+                            machine,
+                            state,
+                            statement,
+                            &value_environment,
+                            call_frames.as_ref(),
+                        )
+                    },
                 );
                 if let Some(local) = statement.as_local_data()
                     && local.role == language_core::LocalBindingRole::Value
@@ -802,13 +811,15 @@ fn validate<'program>(
                         &mut arithmetic_decisions.integer_range_obligations,
                     );
                 }
-                value_environment.prepare_numeric_observations(
-                    program,
-                    machine,
-                    state,
-                    statement_index,
-                    statement,
-                );
+                phase_profile::scope("05.d.2.a.2b.2.prepare_numeric_observations", || {
+                    value_environment.prepare_numeric_observations(
+                        program,
+                        machine,
+                        state,
+                        statement_index,
+                        statement,
+                    );
+                });
                 // R5 value-call frame: conservatively apply the aggregate
                 // may-write set of every call nested in this statement before
                 // checking general value uses. Transition arguments retain
@@ -818,13 +829,18 @@ fn validate<'program>(
                 // call-free expression reports an empty frame; any unresolved
                 // call retires mutable-storage facts; copied immutable scalars
                 // retain their already established value snapshots.
-                let value_written = call_frames.as_ref().and_then(|frames| {
-                    frames.statement_value_may_write_paths_for_symbols(
-                        machine,
-                        &machine_symbols,
-                        statement,
-                    )
-                });
+                let value_written = phase_profile::scope(
+                    "05.d.2.a.2b.3.value_call_frames",
+                    || {
+                        call_frames.as_ref().and_then(|frames| {
+                            frames.statement_value_may_write_paths_for_symbols(
+                                machine,
+                                &machine_symbols,
+                                statement,
+                            )
+                        })
+                    },
+                );
                 // Conflicting top-level declarations can prevent creating a
                 // resolver at all. That does not give a call-free statement
                 // unknown effects: preserve its incoming facts, as the
@@ -848,19 +864,21 @@ fn validate<'program>(
                 // crossed every nested value-call frame above, so no argument can
                 // rely on a fact an earlier or opaque call may invalidate.
                 if !is_content_projection_machine {
-                    validate_value_position_calls(
-                        program,
-                        machine,
-                        state,
-                        statement,
-                        &symbols,
-                        &writable_roots,
-                        &value_environment,
-                        &transition_values,
-                        &mut boundary_operator_applications,
-                        &mut diagnostics,
-                        &mut formation_obligations,
-                    );
+                    phase_profile::scope("05.d.2.a.2b.4.value_position_calls", || {
+                        validate_value_position_calls(
+                            program,
+                            machine,
+                            state,
+                            statement,
+                            &symbols,
+                            &writable_roots,
+                            &value_environment,
+                            &transition_values,
+                            &mut boundary_operator_applications,
+                            &mut diagnostics,
+                            &mut formation_obligations,
+                        );
+                    });
                 }
                 // PROOF MACHINES (free machines over proof-only data) are
                 // exempt from the tail-only rule: they emit no runtime code,
@@ -887,48 +905,54 @@ fn validate<'program>(
                         &mut diagnostics,
                     );
                 }
-                let direct_written = match statement {
-                    StatementNode::Call(call) => call_frames
-                        .as_ref()
-                        .and_then(|frames| frames.may_write_paths(machine, call)),
-                    StatementNode::Assignment(_) => call_frames.as_ref().and_then(|frames| {
-                        frames
-                            .assignment_write_frame(machine, statement)
-                            .into_complete_paths()
-                    }),
-                    _ => None,
-                };
-                let local_write_origins = if matches!(statement, StatementNode::Assignment(_))
-                    && has_plan_laid_integer_fields
-                {
-                    call_frames.as_ref().and_then(|frames| {
-                        frames.local_write_origins_before_statement(machine, statement)
-                    })
-                } else {
-                    Some(Vec::new())
-                };
-                validate_state_statement_node(
-                    program,
-                    machine,
-                    &state.name,
-                    Some(state),
-                    &machine_symbols,
-                    &symbols,
-                    &writable_roots,
-                    statement_handle,
-                    statement_index,
-                    statement,
-                    &mut value_environment,
-                    &transition_values,
-                    direct_written,
-                    local_write_origins.as_deref(),
-                    call_frames.as_ref(),
-                    &mut arithmetic_decisions,
-                    &mut stored_integer_writes,
-                    &mut boundary_operator_applications,
-                    bound_lookup,
-                    &mut diagnostics,
-                );
+                let (direct_written, local_write_origins) =
+                    phase_profile::scope("05.d.2.a.2b.4b.direct_written", || {
+                        let direct_written = match statement {
+                            StatementNode::Call(call) => call_frames
+                                .as_ref()
+                                .and_then(|frames| frames.may_write_paths(machine, call)),
+                            StatementNode::Assignment(_) => call_frames.as_ref().and_then(|frames| {
+                                frames
+                                    .assignment_write_frame(machine, statement)
+                                    .into_complete_paths()
+                            }),
+                            _ => None,
+                        };
+                        let local_write_origins = if matches!(statement, StatementNode::Assignment(_))
+                            && has_plan_laid_integer_fields
+                        {
+                            call_frames.as_ref().and_then(|frames| {
+                                frames.local_write_origins_before_statement(machine, statement)
+                            })
+                        } else {
+                            Some(Vec::new())
+                        };
+                        (direct_written, local_write_origins)
+                    });
+                phase_profile::scope("05.d.2.a.2b.5.validate_statement_node", || {
+                    validate_state_statement_node(
+                        program,
+                        machine,
+                        &state.name,
+                        Some(state),
+                        &machine_symbols,
+                        &symbols,
+                        &writable_roots,
+                        statement_handle,
+                        statement_index,
+                        statement,
+                        &mut value_environment,
+                        &transition_values,
+                        direct_written,
+                        local_write_origins.as_deref(),
+                        call_frames.as_ref(),
+                        &mut arithmetic_decisions,
+                        &mut stored_integer_writes,
+                        &mut boundary_operator_applications,
+                        bound_lookup,
+                        &mut diagnostics,
+                    );
+                });
                 // Statement-adjacent checks above this point mint only
                 // message text; the statement under validation owns the
                 // authored position every consumer attributes them to.
