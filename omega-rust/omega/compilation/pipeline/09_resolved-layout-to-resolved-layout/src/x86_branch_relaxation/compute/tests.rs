@@ -18,7 +18,8 @@ use machine_code::{
 };
 
 use super::{
-    branch_inspection::inspect_production_branch, reflow::reflow_production_functions, work::charge,
+    branch_inspection::inspect_production_branch, lane, reflow::reflow_production_functions,
+    work::charge,
 };
 
 use super::super::{
@@ -67,37 +68,8 @@ fn conditional_function(
 ) -> ResolvedSelectedFunctionLayout {
     let physical = physical();
     let displacement = i64::try_from(fallthrough_arm_bytes).unwrap();
-    let branch_alternative = match predicate {
-        ResolvedConditionalBranchPredicate::NonZeroV1 => alternative(),
-        ResolvedConditionalBranchPredicate::U64LessThanV1 => MachineAlternativeKey {
-            family: MachineAlternativeFamily::ConditionalBranchU64LessThan,
-            variant: 0,
-        },
-        ResolvedConditionalBranchPredicate::I64LessThanV1 => MachineAlternativeKey {
-            family: MachineAlternativeFamily::ConditionalBranchI64LessThan,
-            variant: 0,
-        },
-    };
-    let near = match predicate {
-        ResolvedConditionalBranchPredicate::NonZeroV1 => {
-            encode_x86_64_selected_nonzero_branch_form(&physical, branch_alternative, displacement)
-        }
-        ResolvedConditionalBranchPredicate::U64LessThanV1 => {
-            encode_x86_64_selected_u64_less_than_branch_form(
-                &physical,
-                branch_alternative,
-                displacement,
-            )
-        }
-        ResolvedConditionalBranchPredicate::I64LessThanV1 => {
-            encode_x86_64_selected_i64_less_than_branch_form(
-                &physical,
-                branch_alternative,
-                displacement,
-            )
-        }
-    }
-    .unwrap();
+    let branch_alternative = lane::selected_alternative(predicate, alternative(), true);
+    let near = lane::encode(predicate, true, &physical, branch_alternative, displacement).unwrap();
     let entry = SelectedBlockId(0);
     let fallthrough = SelectedBlockId(1);
     let taken = SelectedBlockId(2);
