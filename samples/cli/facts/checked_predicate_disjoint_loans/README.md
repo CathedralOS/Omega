@@ -326,3 +326,80 @@ predicate carriers. The parent structured-callee/domain, runtime-projection and
 same-statement/theorem acceptance remains open. Arbitrary runtime-length
 collections, stored-reference crossings and unsupported predicate/control or
 static-environment forms are not established by this production.
+
+## Composed checked helpers
+
+The `*/composed_runtime_predicate/` production discharges the same
+`BORROW-PROOF-CONVERGENCE` requirement through an ordinary checked helper:
+`ordered(left, right)` returns `left < right || right < left`. The enclosing
+predicate retains its runtime-selector bounds. Every place keeps the same fact,
+two-element bound, original caller loans and writes of 17 and 53. The weak twin
+changes only the helper's first `<` to `<=`.
+
+| Place | Positive | Reject twin |
+| --- | --- | --- |
+| local | [program](local/composed_runtime_predicate/main.omg) | [weakened helper](local/composed_runtime_predicate/invalid/main.omg) |
+| field | [program](field/composed_runtime_predicate/main.omg) | [weakened helper](field/composed_runtime_predicate/invalid/main.omg) |
+| parameter | [program](parameter/composed_runtime_predicate/main.omg) | [weakened helper](parameter/composed_runtime_predicate/invalid/main.omg) |
+| call_result | [program](call_result/composed_runtime_predicate/main.omg) | [weakened helper](call_result/composed_runtime_predicate/invalid/main.omg) |
+| match_join | [program](match_join/composed_runtime_predicate/main.omg) | [weakened helper](match_join/composed_runtime_predicate/invalid/main.omg) |
+| const_name | [program](const_name/composed_runtime_predicate/main.omg) | [weakened helper](const_name/composed_runtime_predicate/invalid/main.omg) |
+| other_state | [program](other_state/composed_runtime_predicate/main.omg) | [weakened helper](other_state/composed_runtime_predicate/invalid/main.omg) |
+| other_machine | [program](other_machine/composed_runtime_predicate/main.omg) | [weakened helper](other_machine/composed_runtime_predicate/invalid/main.omg) |
+| target_body | [program](target_body/composed_runtime_predicate/main.omg) | [weakened helper](target_body/composed_runtime_predicate/invalid/main.omg) |
+
+Establishment preserves exact immutable record/collection observations when a
+helper receives scalar reads from an enclosing predicate. Freshening its scalar
+formals cannot disconnect the requested relation from those observed values.
+Eligible terminal helper calls use the ordinary checked call topology and the
+same completed operand environment; source selection, formation, effects and
+termination remain separate obligations.
+
+Composition retains a complete equivalent condition. Each authored or derived
+comparison must be independently necessary in the same full-carrier frame;
+ordinary reads must then form under earlier retained guards, and the complete
+conjunction must prove its converse without assuming the original predicate.
+A returned match value carries bounds and disequality without choosing an order.
+The observed Boolean judgment therefore proves the complete integer disjunction
+from admitted captured premises, with every operand operation formed before any
+counterfactual branch. Unsupported leaves and bounded search exhaustion grant
+no evidence.
+
+The [abstract stronger-helper control](controls/composed_runtime_hidden_guard/main.omg)
+provides only bounds and disequality before requesting a helper with an extra
+positive-left condition; it still rejects from `invoke`. The
+[helper-formation control](controls/composed_runtime_requires_formation/main.omg)
+cannot use the enclosing predicate's desired truth to establish the helper's
+own precondition. Existing stale-value, snapshot, stored-reference, false-bound,
+selected-operator and partial-operation controls retain their separate duties.
+No proof or private observation identity supplies storage/access authority.
+
+Both selected orders write different runtime results, surrounded by nonzero
+caller canaries. The match arms return opposite orders. Late predicate calls
+exercise true, equal-false and out-of-range-false outcomes after the loans;
+those observations cannot establish earlier static facts. Complete target
+requirements pass through Terminal Psi and the existing provider, layout, call,
+encoding and native-image owners.
+
+Fresh optimized producer `4238e68472a0269009c22e0a4d3a9c3a74c7e60a`
+on `macos_arm64` records 178 public observations: 79 native/Terminal Psi
+agreement runs and 99 fact-sensitive rejects. The retained corpus records
+177 checking outcomes (78 accepted, 99 rejected) and 78 native/Terminal
+agreements, with no wrong-reason or infrastructure failures. The scoped
+addition is 20 checking records and nine native records; existing records
+are unchanged. Five historical comparison consumers have no losses or gains;
+the current disjoint/overlapping-window pair, ranked theorem, stored-reference
+and partial-division controls preserve their intended outcomes.
+
+The frozen current-main `3bef0d0cbda4cc41115bdeef27168cdefa7cd976`
+local and target programs originally refused both the loans and enclosing
+predicate application. Intermediate fixes retain their original producer
+identities; complete acceptance above belongs to the final producer. Actual
+checking/native source bundles are retained with qualification evidence.
+
+This establishes the measured composed-helper production over these owned
+fixed-array observations. The broad structured-callee/domain, runtime-projection
+and same-statement/theorem acceptance remains open. It does not establish
+arbitrary helper-internal operands, generic/static/evidence applications,
+stored-reference crossings or arbitrary runtime-length collection predicates.
+All four hosted entry bindings are present; actual execution here is macOS ARM64.
