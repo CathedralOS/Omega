@@ -1843,7 +1843,10 @@ fn recognize_structural_state_leaves_from<'a>(
                             Some(if let Some(expression) = call_expression {
                                 frames.operation_write_frame(invocation, expression)
                             } else {
-                                frames.statement_value_write_frame(invocation, statement)
+                                frames.statement_value_write_frame(
+                                    invocation,
+                                    &statements[statement_index],
+                                )
                             })
                         } else {
                             None
