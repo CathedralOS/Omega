@@ -51,8 +51,20 @@ impl<'program> StructuralJudge<'program> {
                 program.state_parameters(entry),
             )
             .unwrap_or_default();
+        // Public completion evidence and executed-body observations describe
+        // the same occurrence. Capture its contract against incoming actuals,
+        // then refine that occurrence with the independently observed body.
+        let mut caller = self.clone();
+        let post_storage =
+            caller.capture_normal_call(expression, actuals, environment, scope, writes);
+        let result = caller
+            .normal_results
+            .iter()
+            .find(|(source, _)| *source == expression)
+            .map(|(_, value)| value.clone());
         let (incoming, captured) =
-            self.clone()
+            caller
+                .clone()
                 .bind_invocation(entry, actuals?, &subjects, environment, scope)?;
         let theorem = program.machine(self.machine_symbol)?;
         let parameter_names = self
@@ -87,7 +99,13 @@ impl<'program> StructuralJudge<'program> {
             .map(|arm| {
                 let mut judge = arm
                     .normal_judge
-                    .complete_invocation(self, scope.1, &subjects, writes)?;
+                    .complete_invocation(&caller, scope.1, &subjects, writes)?;
+                if let Some(result) = &result {
+                    judge.assume_normal_equation(result.clone(), arm.value.clone());
+                }
+                for (coordinate, value) in post_storage.iter().flatten() {
+                    judge.retain_storage_value(coordinate.clone(), value.clone(), false);
+                }
                 std::sync::Arc::make_mut(&mut judge.normal_results)
                     .push((expression, arm.value.clone()));
                 Some(NormalReturnPath::observed(arm.value, judge))

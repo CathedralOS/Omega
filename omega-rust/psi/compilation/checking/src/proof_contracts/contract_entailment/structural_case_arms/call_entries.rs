@@ -136,7 +136,7 @@ pub(super) fn observe_statement<'program>(
 /// Observing an executed prefix or normal completion does not treat the callee
 /// as a repeatable mathematical function. Runtime observation retains ordered
 /// storage effects; theorem and case-only traversal keep their existing policy.
-pub(super) fn body_can_be_observed(
+pub(in crate::proof_contracts::contract_entailment) fn body_can_be_observed(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     classification: &typed_trees::proof_only::ProofOnlyClassification,
