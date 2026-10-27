@@ -1,5 +1,6 @@
 //! Independently apply an admitted total scalar identity.
 use crate::candidates::accept_region_rewrite;
+use crate::candidates::retire_node_custody;
 use crate::candidates::rewrite_accounting::preserve_edge_custody;
 use crate::candidates::rewrite_accounting::substitutions::rewrite_scalar_value_uses;
 use crate::candidates::set_node_effect_link;
@@ -42,13 +43,7 @@ pub(super) fn independently_apply_total_scalar_identity(
             let output_block = output_function
                 .block_mut(patch.location.block)
                 .expect("validated candidate block exists");
-            let removed = output_block.nodes.remove(node_index);
-            let receiver = output_block
-                .nodes
-                .get_mut(node_index)
-                .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-            receiver.provenance.extend_from_slice(&removed.provenance);
-            receiver.fuel.extend_from_slice(&removed.fuel);
+            retire_node_custody(output_block, node_index)?;
 
             let mut effect = 0_u64;
             for block in &mut output_function.blocks {

@@ -258,6 +258,105 @@ pub(crate) fn candidate_block(
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)
 }
 
+/// Record every provenance-bearing node of `nodes` — one block's `(index,
+/// node)` pairs — as a rewrite realizing its own custody at its own site.
+/// A node carrying no provenance has nothing to realize and is skipped, and
+/// the caller chooses the iterator, including whatever region filter its
+/// accounting needs. Every accounting that leaves a block's nodes where they
+/// already are spells this ledger through here instead of walking the block
+/// again.
+pub(crate) fn realize_node_provenance<'node>(
+    machine: semantic_vocabulary::MachineId,
+    block: semantic_vocabulary::BlockId,
+    nodes: impl Iterator<Item = (usize, &'node optimization_unit::OptimizationNode)>,
+    realized: &mut Vec<ProvenanceRewrite>,
+) -> Option<()> {
+    for (node_index, node) in nodes {
+        if node.provenance.is_empty() {
+            continue;
+        }
+        let site = optimization_unit::PsiRealizationSite::Node(optimization_unit::NodeLocation {
+            machine,
+            block,
+            node: u32::try_from(node_index).ok()?,
+        });
+        realized.push(provenance_realized_at(
+            site,
+            site,
+            &node.provenance,
+            &node.fuel,
+        ));
+    }
+    Some(())
+}
+
+/// The shape a scalar-node retirement requires at its own coordinate: the node
+/// carries exactly the one result definition the patch names, no successors,
+/// no ownership events, and a following node to absorb the vacated custody.
+/// The caller keeps its own evidence reconstruction and its own rejection
+/// class, so the three families that remove one scalar node and substitute its
+/// live result decide admissibility here instead of re-deriving it.
+pub(crate) fn retirable_scalar_node(
+    block: &optimization_unit::OptimizationBlock,
+    node_index: usize,
+    node: &optimization_unit::OptimizationNode,
+    result: semantic_vocabulary::ValueId,
+    scalar_type: semantic_vocabulary::ScalarType,
+) -> bool {
+    let Ok(coordinate) = u32::try_from(node_index) else {
+        return false;
+    };
+    let definition = optimization_unit::ValueDefinition {
+        value: result,
+        scalar_type,
+        site: optimization_unit::ValueDefinitionSite::Node {
+            block: block.id,
+            node: coordinate,
+        },
+    };
+    node.definitions == [definition]
+        && node.successors.is_empty()
+        && node.ownership.is_empty()
+        && node_index
+            .checked_add(1)
+            .is_some_and(|next| block.nodes.get(next).is_some())
+}
+
+/// The receiver of a vacated coordinate must not already carry any of the
+/// retired node's provenance sources, or the fuse counts one occurrence twice.
+pub(crate) fn receiver_custody_distinct(
+    block: &optimization_unit::OptimizationBlock,
+    node_index: usize,
+    node: &optimization_unit::OptimizationNode,
+) -> bool {
+    node_index.checked_add(1).is_some_and(|next| {
+        block.nodes.get(next).is_some_and(|receiver| {
+            !receiver
+                .provenance
+                .iter()
+                .any(|source| node.provenance.contains(source))
+        })
+    })
+}
+
+/// Retire one node of an accepted block and fuse its custody into the node
+/// that inherits the vacated coordinate. The caller's replay already
+/// accounted for every later coordinate and the function's effect chain; this
+/// owns only the removal and the fuse.
+pub(crate) fn retire_node_custody(
+    block: &mut optimization_unit::OptimizationBlock,
+    node_index: usize,
+) -> Result<(), OptimizationUnitValidationError> {
+    let retired = block.nodes.remove(node_index);
+    let receiver = block
+        .nodes
+        .get_mut(node_index)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    receiver.provenance.extend_from_slice(&retired.provenance);
+    receiver.fuel.extend_from_slice(&retired.fuel);
+    Ok(())
+}
+
 /// The canonical provenance order every accepted roster leaves in: input
 /// realization site, then the disposition's canonical tag and site. The
 /// order is part of the candidate contract, so every family sorts through

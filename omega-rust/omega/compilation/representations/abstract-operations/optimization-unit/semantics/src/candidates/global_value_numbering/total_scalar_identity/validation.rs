@@ -8,14 +8,16 @@ use optimization_core::{
 };
 use optimization_unit::{
     OptimizationFact, PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch,
-    ScalarSubstitution, TotalScalarIdentityKind, ValueDefinition, ValueDefinitionSite,
+    ScalarSubstitution, TotalScalarIdentityKind,
 };
 use semantic_vocabulary::ScalarType;
 
 use super::application::independently_apply_total_scalar_identity;
 use super::classification::independently_classify_total_scalar_identity;
 use super::evidence::independently_validate_law_literal;
-use crate::candidates::{candidate_block, candidate_function};
+use crate::candidates::{
+    candidate_block, candidate_function, receiver_custody_distinct, retirable_scalar_node,
+};
 
 const NEUTRAL_ARITHMETIC_RULE_DOMAIN: &[u8] =
     b"omega.psi-rule.live-obligation-free-wrapping-integer-neutral-arithmetic-identity-elimination.v1";
@@ -76,24 +78,14 @@ pub(crate) fn validate_total_scalar_identity_candidate(
     let node_index = usize::try_from(patch.location.node)
         .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
     let node = crate::candidates::candidate_node(block, patch.location.node)?;
+    let scalar_type = ScalarType::Integer(patch.scalar_type);
     let shape = independently_classify_total_scalar_identity(&node.operation, patch.identity)
         .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
     if shape.source_operation != patch.source_operation
         || shape.result != patch.result
         || shape.replacement != patch.replacement
         || shape.scalar_type != patch.scalar_type
-        || node.definitions
-            != [ValueDefinition {
-                value: patch.result,
-                scalar_type: ScalarType::Integer(patch.scalar_type),
-                site: ValueDefinitionSite::Node {
-                    block: block.id,
-                    node: patch.location.node,
-                },
-            }]
-        || !node.successors.is_empty()
-        || !node.ownership.is_empty()
-        || block.nodes.get(node_index + 1).is_none()
+        || !retirable_scalar_node(block, node_index, node, patch.result, scalar_type)
         || !function
             .node_uses()
             .any(|use_site| use_site.value == patch.result)
@@ -108,12 +100,7 @@ pub(crate) fn validate_total_scalar_identity_candidate(
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
     independently_validate_law_literal(input, function, shape, candidate)?;
-    let receiver = &block.nodes[node_index + 1];
-    if receiver
-        .provenance
-        .iter()
-        .any(|source| node.provenance.contains(source))
-    {
+    if !receiver_custody_distinct(block, node_index, node) {
         return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
     }
     let (affected_blocks, provenance) =

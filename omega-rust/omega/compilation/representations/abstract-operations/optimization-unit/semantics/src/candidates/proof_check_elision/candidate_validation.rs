@@ -10,7 +10,7 @@ use optimization_core::{
 };
 use optimization_unit::{
     OptimizationFact, ProofCertifiedScalarIdentityKind, PsiOptimizationUnit, PsiRewriteCandidate,
-    PsiRewritePatch, ScalarConstantValue, ScalarSubstitution, ValueDefinition, ValueDefinitionSite,
+    PsiRewritePatch, ScalarConstantValue, ScalarSubstitution, ValueDefinitionSite,
     literal_scalar_constant_fact_identity,
 };
 use semantic_vocabulary::ScalarType;
@@ -18,7 +18,7 @@ use semantic_vocabulary::ScalarType;
 use super::identity_classification::independent_proof_certified_scalar_identity;
 use crate::candidates::{
     accept_region_rewrite, candidate_block, candidate_function, rebuild_node_metadata,
-    set_node_effect_link,
+    receiver_custody_distinct, retirable_scalar_node, retire_node_custody, set_node_effect_link,
 };
 
 /// Independently remove one live proof-certified integer identity.
@@ -162,24 +162,14 @@ pub(crate) fn validate_proof_certified_scalar_identity_candidate(
     let node_index = usize::try_from(patch.location.node)
         .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
     let node = crate::candidates::candidate_node(block, patch.location.node)?;
+    let scalar_type = ScalarType::Integer(patch.scalar_type);
     let shape = independent_proof_certified_scalar_identity(&node.operation, patch.identity)
         .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
     if shape.source_operation != patch.source_operation
         || shape.result != patch.result
         || shape.replacement != patch.replacement
         || shape.result_type != patch.scalar_type
-        || node.definitions
-            != [ValueDefinition {
-                value: patch.result,
-                scalar_type: ScalarType::Integer(patch.scalar_type),
-                site: ValueDefinitionSite::Node {
-                    block: block.id,
-                    node: patch.location.node,
-                },
-            }]
-        || !node.successors.is_empty()
-        || !node.ownership.is_empty()
-        || block.nodes.get(node_index + 1).is_none()
+        || !retirable_scalar_node(block, node_index, node, patch.result, scalar_type)
         || !function
             .node_uses()
             .any(|use_site| use_site.value == patch.result)
@@ -261,12 +251,7 @@ pub(crate) fn validate_proof_certified_scalar_identity_candidate(
     {
         return Err(OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch);
     }
-    let receiver = &block.nodes[node_index + 1];
-    if receiver
-        .provenance
-        .iter()
-        .any(|source| node.provenance.contains(source))
-    {
+    if !receiver_custody_distinct(block, node_index, node) {
         return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
     }
     let (expected_blocks, accepted_provenance) =
@@ -292,13 +277,7 @@ pub(crate) fn validate_proof_certified_scalar_identity_candidate(
             let output_block = output_function
                 .block_mut(patch.location.block)
                 .expect("candidate block exists");
-            let removed = output_block.nodes.remove(node_index);
-            let receiver = output_block
-                .nodes
-                .get_mut(node_index)
-                .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-            receiver.provenance.extend_from_slice(&removed.provenance);
-            receiver.fuel.extend_from_slice(&removed.fuel);
+            retire_node_custody(output_block, node_index)?;
             let mut effect = 0u64;
             for block in &mut output_function.blocks {
                 for (node_index, node) in block.nodes.iter_mut().enumerate() {
