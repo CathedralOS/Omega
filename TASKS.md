@@ -364,10 +364,9 @@ defines the complete product bar.
     ARM64, macOS ARM64, and Windows x86-64.
   - Complete remaining runtime aggregate construction and opaque-provider
     result replacement through opaque incoming referents.
-  - Complete generic/reference saved numeric observations from post-return
-    write guarantees (the completed read must name the guaranteed storage
-    version), generic body-checking compositions, byte-predicate observations,
-    and single-evaluation pattern destructuring. Coordinate early exact-arithmetic
+  - Complete symbolic saved numeric predicates through selected-value joins,
+    generic body-checking compositions, byte-predicate observations, and
+    single-evaluation pattern destructuring. Coordinate early exact-arithmetic
     formation with `ONE-INTEGER-BOUNDS-ENGINE`; a saved nonconstant bound must
     justify the operation before it is formed.
   Acceptance: a composed caller tolerates renamed/reordered states and inserted

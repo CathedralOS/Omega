@@ -1,0 +1,10 @@
+// Expected exit: 0
+machine observe<'source>(source: &'source mut u64, value: u64) -> &'source mut u64 ensures source == value { source = value; source }
+machine seven(value: u64) -> u64 requires value == 7 { value }
+machine main() crashes Trap {
+ let mut items: [u64; 2] = [3, 1];
+ let saved: u64 = observe(&mut items[0], 7);
+ items[0] = 4;
+ transition seven(saved) == 7 && items[0] == 4 && items[1] == 1 { true -> done() false -> bad() }
+ machine done() {} machine bad() crashes Trap { crash Trap; }
+}
