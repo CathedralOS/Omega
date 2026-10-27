@@ -23,6 +23,11 @@ on:
         description: Comma-separated scalar-opaque,nested,arrays (or all); applies to foreign_records
         type: string
         default: scalar-opaque
+      foreign_record_target:
+        description: Native host for foreign_records; default preserves the existing host selection
+        type: choice
+        options: [default, linux_x86_64, windows_x86_64, linux_arm64]
+        default: default
       runtime_value_generics:
         description: Qualify runtime Value indices on all four existing hosted targets
         type: boolean
@@ -38,7 +43,7 @@ permissions:
 # Finish the active observation. GitHub keeps only the newest pending run, so
 # a busy main does not start one cold executable build for every queued PR.
 concurrency:
-  group: compiler-regression-${{ github.ref }}-${{ inputs.cleanup }}-${{ inputs.foreign_records }}-${{ inputs.linux_arm64 }}-${{ inputs.runtime_value_generics }}-${{ inputs.foreign_records_only }}-${{ inputs.foreign_record_cohorts }}
+  group: compiler-regression-${{ github.ref }}-${{ inputs.cleanup }}-${{ inputs.foreign_records }}-${{ inputs.linux_arm64 }}-${{ inputs.runtime_value_generics }}-${{ inputs.foreign_records_only }}-${{ inputs.foreign_record_cohorts }}-${{ inputs.foreign_record_target }}
   cancel-in-progress: false
 
 jobs:
@@ -46,7 +51,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner: ${{ fromJSON(inputs.runtime_value_generics && '["ubuntu-24.04", "windows-2025", "macos-14", "ubuntu-24.04-arm"]' || inputs.linux_arm64 && '["ubuntu-24.04-arm"]' || (inputs.cleanup || inputs.foreign_records) && '["ubuntu-24.04", "windows-2025"]' || '["ubuntu-24.04"]') }}
+        # An explicit foreign host selects runner data for the same pipeline.
+        # It lets a corrected Linux observation proceed while a cold Windows
+        # build finishes, without starting another Windows build or canceling it.
+        runner: >-
+          ${{ inputs.runtime_value_generics && fromJSON('["ubuntu-24.04", "windows-2025", "macos-14", "ubuntu-24.04-arm"]')
+              || inputs.foreign_records && inputs.foreign_record_target && inputs.foreign_record_target != 'default'
+                 && (fromJSON('{"linux_x86_64":["ubuntu-24.04"],"windows_x86_64":["windows-2025"],"linux_arm64":["ubuntu-24.04-arm"]}')[inputs.foreign_record_target] || fromJSON('[]'))
+              || fromJSON(inputs.linux_arm64 && '["ubuntu-24.04-arm"]' || (inputs.cleanup || inputs.foreign_records) && '["ubuntu-24.04", "windows-2025"]' || '["ubuntu-24.04"]') }}
     runs-on: ${{ matrix.runner }}
     # Windows used 30 minutes building, completed both corpus legs, then hit
     # 45 minutes during public CLI controls. Keep time for those and cache upload.
