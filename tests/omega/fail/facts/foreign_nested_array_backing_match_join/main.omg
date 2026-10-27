@@ -134,16 +134,21 @@ satisfies Writer::register via windows_x86_64_register_binding();
 windows_x86_64 machine complete<'source>(pending: Pending<'source> in Pending::Retained, observed: &mut u64) -> Capacity
 satisfies Writer::complete via windows_x86_64_complete_binding();
 windows_x86_64 machine release(capacity: Capacity in Capacity::Available) satisfies Writer::release via windows_x86_64_release_binding();
-data Routed<'a> { pending: Pending<'a> in Pending::Retained; route: u64; }
+data Route { value: u64; }
+machine forward<'a>(pending: Pending<'a> in Pending::Retained, route: &mut Route, tag: u64) -> Pending<'a> in Pending::Retained
+ensures result in Pending::Retained {
+    route.value = tag;
+    pending
+}
 data Main {}
 machine run_main(main: &mut Main, choose: bool) reaches Writer crashes Trap {
     let capacity: Capacity in Capacity::Available = Writer::acquire();
     let mut buffer: Buffer in Buffer::Owned = Buffer { marker: 91, cells: [Cell { value: 305419896 }, Cell { value: 37 }, Cell { value: 1515863100 }] };
     let original: u64 = buffer.cells[1].value;
     let pending: Pending in Pending::Retained = Writer::register(capacity, &mut buffer);
-    let joined: Routed = match choose { true -> Routed { pending: pending, route: 66051 }, false -> Routed { pending: pending, route: 513 } };
-    let route: u64 = joined.route;
-    let routed: Pending in Pending::Retained = joined.pending;
+    let mut observed_route: Route = Route { value: 0 };
+    let routed: Pending in Pending::Retained = match choose { true -> forward(pending, &mut observed_route, 66051), false -> forward(pending, &mut observed_route, 513) };
+    let route: u64 = observed_route.value;
     let forbidden: u64 = buffer.cells[1].value;
     let mut observed: u64 = 0;
     let returned: Capacity in Capacity::Available = Writer::complete(routed, &mut observed);
