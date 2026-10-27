@@ -185,6 +185,21 @@ fn components_use_the_shared_product_sequence() {
     assert!(!component.contains("TerminalProductionRequest"));
     assert!(component.contains("finish_terminal_application("));
     assert!(component.contains("accepted_terminal_authority_permission_policy("));
+    let (preparation, completion) = component
+        .split_once("pub(crate) fn finish(")
+        .expect("component preparation precedes completion");
+    assert!(preparation.contains("component_calling_applications("));
+    assert!(!completion.contains("component_calling_applications("));
+    let terminal = include_str!("terminal/terminal_artifact.rs");
+    let completion = terminal
+        .split_once("pub(crate) fn finish_terminal_application(")
+        .expect("retained application completion")
+        .1
+        .split_once("fn publish_target_providers(")
+        .expect("provider publication")
+        .0;
+    assert!(!completion.contains("program.typed"));
+    assert!(!completion.contains("component_calling_applications("));
     assert!(!include_str!("lib.rs").contains("publish_checked_component"));
     assert!(!include_str!("compiler.rs").contains("mod package"));
 }
