@@ -7,9 +7,9 @@ machine establish() -> u64 in Small {
     value = 6;
     value
 }
-machine probe() -> u64 { let value: u64 in Small = establish(); transition { _ -> consume(value) } state consume(value: u64 in Small) -> u64 { 5u64 - value } }
+machine probe() -> u64 { let value: u64 in Small = establish(); transition { _ -> consume(value) } machine consume(value: u64 in Small) -> u64 { 5u64 - value } }
 machine main() crashes Trap {
     transition probe() == 2 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

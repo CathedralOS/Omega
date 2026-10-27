@@ -9,6 +9,7 @@ pub(crate) mod equatable;
 pub(crate) mod exhaustiveness;
 pub(crate) mod expression;
 pub(crate) mod fixed_byte_array_literals;
+pub(crate) mod product_queries;
 pub(crate) mod product_selections;
 pub(crate) mod proposition;
 pub(crate) mod qualification_casts;

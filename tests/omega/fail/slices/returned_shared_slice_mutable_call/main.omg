@@ -5,5 +5,5 @@ machine main() crashes Trap {
  let selected: &[i32] = middle(&mut items);
  write(selected);
  transition items[0]==11 && items[1]==27 && items[2]==13 { true -> done() _ -> bad() }
- state done() {} state bad() { crash Trap; }
+ machine done() {} machine bad() { crash Trap; }
 }

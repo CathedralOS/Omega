@@ -93,6 +93,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> incorrect()
     }
-    state done() {}
-    state incorrect() { crash Trap; }
+    machine done() {}
+    machine incorrect() { crash Trap; }
 }

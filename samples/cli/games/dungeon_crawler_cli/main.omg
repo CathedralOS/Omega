@@ -18,7 +18,7 @@ machine Main::main(main: &mut Main) {
     }
 
 
-    state running(main: &mut Main) {
+    machine running(main: &mut Main) {
         block Game::run_game_loop(&mut main.game);
 
         transition {
@@ -26,7 +26,7 @@ machine Main::main(main: &mut Main) {
         }
     }
 
-    state shutdown(main: &mut Main) {
+    machine shutdown(main: &mut Main) {
     }
 }
 

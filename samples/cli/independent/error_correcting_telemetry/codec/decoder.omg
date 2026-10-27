@@ -5,14 +5,14 @@ use codec::field;
 public data Recovery { matches: i32 in Wrapping; intercept: i32 in Wrapping; slope: i32 in Wrapping; }
 public machine recover(frame: &Frame) -> Recovery {
     transition { _ -> search(frame, 0, 0, 0, 0) }
-    state search(frame: &Frame, candidate: i32 in Wrapping, matches: i32 in Wrapping,
+    machine search(frame: &Frame, candidate: i32 in Wrapping, matches: i32 in Wrapping,
         intercept: i32 in Wrapping, slope: i32 in Wrapping) -> Recovery {
         transition candidate < 25 {
             true -> examine(frame, candidate, matches, intercept, slope)
             false -> (Recovery { matches: matches, intercept: intercept, slope: slope })
         }
     }
-    state examine(frame: &Frame, candidate: i32 in Wrapping, matches: i32 in Wrapping,
+    machine examine(frame: &Frame, candidate: i32 in Wrapping, matches: i32 in Wrapping,
         intercept: i32 in Wrapping, slope: i32 in Wrapping) -> Recovery {
         let encoded: Frame = encode(candidate / 5, candidate % 5);
         let weight: i32 in Wrapping = discrepancy(frame.first, encoded.first)

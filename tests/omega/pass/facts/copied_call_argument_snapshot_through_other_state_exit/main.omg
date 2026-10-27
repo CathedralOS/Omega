@@ -18,7 +18,7 @@ requires first == 7
 ensures result == 7
 {
     transition { _ -> arrive(first) }
-    state arrive(value: u64) -> u64
+    machine arrive(value: u64) -> u64
     requires value == 7
     { seven(value) }
 }
@@ -31,6 +31,6 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

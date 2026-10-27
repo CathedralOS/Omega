@@ -7,7 +7,7 @@ requires ascii_only(bytes) && bytes.len >= 1
 machine probe(bytes: &mut [u8], other: &mut [u8]) -> u8
 requires bytes.len >= 1 && other.len >= 1 {
     transition { _ -> observe(bytes, other) }
-    state observe(bytes: &mut [u8], other: &mut [u8]) -> u8
+    machine observe(bytes: &mut [u8], other: &mut [u8]) -> u8
     requires bytes.len >= 1 && other.len >= 1 {
     let view: &mut [u8] = &mut bytes[0..1];
     let saved: bool = ascii_only(view);
@@ -21,6 +21,6 @@ machine main() crashes Trap {
     transition probe(&mut bytes[..], &mut other[..]) == 65u8 && other[0] == 255u8 {
         true -> done() false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

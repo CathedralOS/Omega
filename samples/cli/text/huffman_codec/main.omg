@@ -61,13 +61,13 @@ data Main {
 
 machine lookup_symbol(alphabet: &[u8; 5], target: u8 in HuffmanSymbol) -> u64 {
     transition { _ -> check(alphabet, target, 0) }
-    state check(alphabet: &[u8; 5], target: u8 in HuffmanSymbol, idx: u64) -> u64 {
+    machine check(alphabet: &[u8; 5], target: u8 in HuffmanSymbol, idx: u64) -> u64 {
         transition idx < 5 {
             true -> compare(alphabet, target, idx)
             _ -> 5
         }
     }
-    state compare(alphabet: &[u8; 5], target: u8 in HuffmanSymbol, idx: u64) -> u64
+    machine compare(alphabet: &[u8; 5], target: u8 in HuffmanSymbol, idx: u64) -> u64
     requires idx < 5 {
         transition alphabet[idx] == (target as u8) {
             true -> idx
@@ -124,21 +124,21 @@ machine Main::main(main: &mut Main) reaches Console {
     main.cursor = 0;
     transition { _ -> clear_freq(main) }
 
-    state clear_freq(main: &mut Main) {
+    machine clear_freq(main: &mut Main) {
         transition main.cursor < 5 {
             true -> clear_freq_slot(main)
             _ -> start_count(main)
         }
     }
 
-    state clear_freq_slot(main: &mut Main) {
+    machine clear_freq_slot(main: &mut Main) {
         transition main.cursor < 5 {
             true -> write_zero_freq(main)
             _ -> start_count(main)
         }
     }
 
-    state write_zero_freq(main: &mut Main)
+    machine write_zero_freq(main: &mut Main)
     requires main.cursor < 5 {
         main.frequencies[main.cursor] = 0;
         main.code_lengths[main.cursor] = 0;
@@ -147,19 +147,19 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     // --- Step 1: Build frequency table ---
-    state start_count(main: &mut Main) {
+    machine start_count(main: &mut Main) {
         main.cursor = 0;
         transition { _ -> count_loop(main) }
     }
 
-    state count_loop(main: &mut Main) {
+    machine count_loop(main: &mut Main) {
         transition main.cursor < 16 {
             true -> count_byte(main)
             _ -> init_leaves_start(main)
         }
     }
 
-    state count_byte(main: &mut Main)
+    machine count_byte(main: &mut Main)
     requires main.cursor < 16 {
         let byte: u8 = main.input[main.cursor];
         transition byte == 65 || byte == 66 || byte == 67 || byte == 68 || byte == 82 {
@@ -168,7 +168,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state count_valid_symbol(main: &mut Main, byte: u8)
+    machine count_valid_symbol(main: &mut Main, byte: u8)
     requires byte == 65 || byte == 66 || byte == 67 || byte == 68 || byte == 82 {
         let slot: u64 = lookup_symbol(&main.alphabet, byte);
         transition slot < 5 {
@@ -177,7 +177,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state bump_slot(main: &mut Main, slot: u64)
+    machine bump_slot(main: &mut Main, slot: u64)
     requires slot < 5 {
         record_frequency(&mut main.frequencies, slot);
         main.cursor = main.cursor + 1;
@@ -185,19 +185,19 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     // --- Step 2: Initialize leaf nodes 0..5 and empty branch slots 5..9 ---
-    state init_leaves_start(main: &mut Main) {
+    machine init_leaves_start(main: &mut Main) {
         main.cursor = 0;
         transition { _ -> init_leaves_loop(main) }
     }
 
-    state init_leaves_loop(main: &mut Main) {
+    machine init_leaves_loop(main: &mut Main) {
         transition main.cursor < 5 {
             true -> write_leaf(main)
             _ -> init_branches_loop(main)
         }
     }
 
-    state write_leaf(main: &mut Main)
+    machine write_leaf(main: &mut Main)
     requires main.cursor < 5 {
         main.nodes[main.cursor] = TreeNode::Leaf {
             weight: main.frequencies[main.cursor],
@@ -210,14 +210,14 @@ machine Main::main(main: &mut Main) reaches Console {
         transition { _ -> init_leaves_loop(main) }
     }
 
-    state init_branches_loop(main: &mut Main) {
+    machine init_branches_loop(main: &mut Main) {
         transition main.cursor < 9 {
             true -> write_empty_branch(main)
             _ -> build_tree_start(main)
         }
     }
 
-    state write_empty_branch(main: &mut Main)
+    machine write_empty_branch(main: &mut Main)
     requires main.cursor < 9 {
         main.nodes[main.cursor] = TreeNode::Empty {
             weight: 0,
@@ -230,26 +230,26 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     // --- Step 3: Bottom-up Huffman tree construction (merges into slots 5..9) ---
-    state build_tree_start(main: &mut Main) {
+    machine build_tree_start(main: &mut Main) {
         main.step = 0;
         transition { _ -> merge_loop(main) }
     }
 
-    state merge_loop(main: &mut Main) {
+    machine merge_loop(main: &mut Main) {
         transition main.step < 4 {
             true -> start_find_first(main)
             _ -> derive_codes_start(main)
         }
     }
 
-    state start_find_first(main: &mut Main) {
+    machine start_find_first(main: &mut Main) {
         main.first_min = 9;
         main.best_weight = 1000;
         main.scan = 0;
         transition { _ -> find_first_loop(main) }
     }
 
-    state find_first_loop(main: &mut Main) {
+    machine find_first_loop(main: &mut Main) {
         let limit: u64 in Wrapping = (5 as u64 in Wrapping) + (main.step as u64 in Wrapping);
         transition main.scan < (limit as u64) && main.scan < 9 {
             true -> check_first_candidate(main)
@@ -257,7 +257,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state check_first_candidate(main: &mut Main)
+    machine check_first_candidate(main: &mut Main)
     requires main.scan < 9 {
         let active: bool = main.nodes[main.scan].active;
         let w: u32 in Wrapping = main.nodes[main.scan].weight;
@@ -267,26 +267,26 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state take_first_candidate(main: &mut Main, w: u32 in Wrapping) {
+    machine take_first_candidate(main: &mut Main, w: u32 in Wrapping) {
         main.first_min = main.scan;
         main.best_weight = w;
         main.scan = main.scan + 1;
         transition { _ -> find_first_loop(main) }
     }
 
-    state next_first_candidate(main: &mut Main) {
+    machine next_first_candidate(main: &mut Main) {
         main.scan = main.scan + 1;
         transition { _ -> find_first_loop(main) }
     }
 
-    state after_find_first(main: &mut Main) {
+    machine after_find_first(main: &mut Main) {
         transition main.first_min < 9 {
             true -> deactivate_first(main)
             _ -> fail(main)
         }
     }
 
-    state deactivate_first(main: &mut Main)
+    machine deactivate_first(main: &mut Main)
     requires main.first_min < 9 {
         main.nodes[main.first_min].active = false;
         main.second_min = 9;
@@ -295,7 +295,7 @@ machine Main::main(main: &mut Main) reaches Console {
         transition { _ -> find_second_loop(main) }
     }
 
-    state find_second_loop(main: &mut Main) {
+    machine find_second_loop(main: &mut Main) {
         let limit: u64 in Wrapping = (5 as u64 in Wrapping) + (main.step as u64 in Wrapping);
         transition main.scan < (limit as u64) && main.scan < 9 {
             true -> check_second_candidate(main)
@@ -303,7 +303,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state check_second_candidate(main: &mut Main)
+    machine check_second_candidate(main: &mut Main)
     requires main.scan < 9 {
         let active: bool = main.nodes[main.scan].active;
         let w: u32 in Wrapping = main.nodes[main.scan].weight;
@@ -313,19 +313,19 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state take_second_candidate(main: &mut Main, w: u32 in Wrapping) {
+    machine take_second_candidate(main: &mut Main, w: u32 in Wrapping) {
         main.second_min = main.scan;
         main.best_weight = w;
         main.scan = main.scan + 1;
         transition { _ -> find_second_loop(main) }
     }
 
-    state next_second_candidate(main: &mut Main) {
+    machine next_second_candidate(main: &mut Main) {
         main.scan = main.scan + 1;
         transition { _ -> find_second_loop(main) }
     }
 
-    state after_find_second(main: &mut Main) {
+    machine after_find_second(main: &mut Main) {
         let branch_wrap: u64 in Wrapping = (5 as u64 in Wrapping) + (main.step as u64 in Wrapping);
         let branch_idx: u64 = branch_wrap as u64;
         transition main.first_min < 9 && main.second_min < 9 && branch_idx < 9 {
@@ -334,7 +334,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state create_branch(main: &mut Main, branch_idx: u64)
+    machine create_branch(main: &mut Main, branch_idx: u64)
     requires main.first_min < 9 && main.second_min < 9 && branch_idx < 9 {
         main.nodes[main.second_min].active = false;
         main.nodes[main.first_min].parent = branch_idx as u64 in Wrapping;
@@ -356,52 +356,52 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     // --- Step 4: Derive per-symbol code lengths and prefix bits ---
-    state derive_codes_start(main: &mut Main) {
+    machine derive_codes_start(main: &mut Main) {
         main.cursor = 0;
         transition { _ -> clear_code_bits(main) }
     }
 
-    state clear_code_bits(main: &mut Main) {
+    machine clear_code_bits(main: &mut Main) {
         transition main.cursor < 40 {
             true -> zero_code_bit(main)
             _ -> derive_symbol_start(main)
         }
     }
 
-    state zero_code_bit(main: &mut Main)
+    machine zero_code_bit(main: &mut Main)
     requires main.cursor < 40 {
         main.code_bits[main.cursor] = 0;
         main.cursor = main.cursor + 1;
         transition { _ -> clear_code_bits(main) }
     }
 
-    state derive_symbol_start(main: &mut Main) {
+    machine derive_symbol_start(main: &mut Main) {
         main.cursor = 0;
         transition { _ -> derive_symbol_loop(main) }
     }
 
-    state derive_symbol_loop(main: &mut Main) {
+    machine derive_symbol_loop(main: &mut Main) {
         transition main.cursor < 5 {
             true -> start_walk_depth(main)
             _ -> encode_start(main)
         }
     }
 
-    state start_walk_depth(main: &mut Main)
+    machine start_walk_depth(main: &mut Main)
     requires main.cursor < 5 {
         main.walk_node = main.cursor;
         main.walk_depth = 0;
         transition { _ -> walk_depth_loop(main) }
     }
 
-    state walk_depth_loop(main: &mut Main) {
+    machine walk_depth_loop(main: &mut Main) {
         transition main.walk_node < 8 && main.walk_depth < 8 {
             true -> step_walk_depth(main)
             _ -> store_code_length(main)
         }
     }
 
-    state step_walk_depth(main: &mut Main)
+    machine step_walk_depth(main: &mut Main)
     requires main.walk_node < 8 && main.walk_depth < 8 {
         let p: u64 in Wrapping = main.nodes[main.walk_node].parent;
         main.walk_node = p as u64;
@@ -409,14 +409,14 @@ machine Main::main(main: &mut Main) reaches Console {
         transition { _ -> walk_depth_loop(main) }
     }
 
-    state store_code_length(main: &mut Main) {
+    machine store_code_length(main: &mut Main) {
         transition main.cursor < 5 && main.walk_node == 8 && main.walk_depth >= 1 && main.walk_depth <= 8 {
             true -> fill_symbol_bits_init(main)
             _ -> fail(main)
         }
     }
 
-    state fill_symbol_bits_init(main: &mut Main)
+    machine fill_symbol_bits_init(main: &mut Main)
     requires main.cursor < 5 && main.walk_depth >= 1 && main.walk_depth <= 8 {
         main.code_lengths[main.cursor] = main.walk_depth;
         main.walk_node = main.cursor;
@@ -424,14 +424,14 @@ machine Main::main(main: &mut Main) reaches Console {
         transition { _ -> fill_symbol_bits_loop(main) }
     }
 
-    state fill_symbol_bits_loop(main: &mut Main) {
+    machine fill_symbol_bits_loop(main: &mut Main) {
         transition main.rev_index > 0 && main.rev_index <= 8 && main.walk_node < 8 && main.cursor < 5 {
             true -> write_symbol_bit(main)
             _ -> next_derive_symbol(main)
         }
     }
 
-    state write_symbol_bit(main: &mut Main)
+    machine write_symbol_bit(main: &mut Main)
     requires main.rev_index > 0 && main.rev_index <= 8 && main.walk_node < 8 && main.cursor < 5 {
         let bit_pos: u64 = main.rev_index - 1;
         let table_idx: u64 = main.cursor * 8 + bit_pos;
@@ -441,7 +441,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state commit_symbol_bit(main: &mut Main, table_idx: u64)
+    machine commit_symbol_bit(main: &mut Main, table_idx: u64)
     requires table_idx < 40 && main.walk_node < 8 && main.rev_index > 0 {
         let b: u8 in Wrapping = main.nodes[main.walk_node].parent_bit;
         main.code_bits[table_idx] = b as u8;
@@ -451,13 +451,13 @@ machine Main::main(main: &mut Main) reaches Console {
         transition { _ -> fill_symbol_bits_loop(main) }
     }
 
-    state next_derive_symbol(main: &mut Main) {
+    machine next_derive_symbol(main: &mut Main) {
         main.cursor = main.cursor + 1;
         transition { _ -> derive_symbol_loop(main) }
     }
 
     // --- Step 5: Encode input bytes into packed bitstream ---
-    state encode_start(main: &mut Main) {
+    machine encode_start(main: &mut Main) {
         main.packed[0] = 0;
         main.packed[1] = 0;
         main.packed[2] = 0;
@@ -467,14 +467,14 @@ machine Main::main(main: &mut Main) reaches Console {
         transition { _ -> encode_byte_loop(main) }
     }
 
-    state encode_byte_loop(main: &mut Main) {
+    machine encode_byte_loop(main: &mut Main) {
         transition main.cursor < 16 {
             true -> encode_lookup(main)
             _ -> encode_done(main)
         }
     }
 
-    state encode_lookup(main: &mut Main)
+    machine encode_lookup(main: &mut Main)
     requires main.cursor < 16 {
         let sym: u8 = main.input[main.cursor];
         transition sym == 65 || sym == 66 || sym == 67 || sym == 68 || sym == 82 {
@@ -483,7 +483,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state encode_valid_symbol(main: &mut Main, sym: u8)
+    machine encode_valid_symbol(main: &mut Main, sym: u8)
     requires sym == 65 || sym == 66 || sym == 67 || sym == 68 || sym == 82 {
         let slot: u64 = lookup_symbol(&main.alphabet, sym);
         transition slot < 5 {
@@ -492,21 +492,21 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state encode_symbol_init(main: &mut Main, slot: u64)
+    machine encode_symbol_init(main: &mut Main, slot: u64)
     requires slot < 5 {
         main.scan = 0;
         main.step = slot;
         transition { _ -> encode_bit_loop(main) }
     }
 
-    state encode_bit_loop(main: &mut Main) {
+    machine encode_bit_loop(main: &mut Main) {
         transition main.step < 5 {
             true -> encode_bit_check(main)
             _ -> fail(main)
         }
     }
 
-    state encode_bit_check(main: &mut Main)
+    machine encode_bit_check(main: &mut Main)
     requires main.step < 5 {
         let len: u64 = main.code_lengths[main.step];
         transition main.scan < len && main.scan < 8 {
@@ -515,7 +515,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state emit_one_bit(main: &mut Main)
+    machine emit_one_bit(main: &mut Main)
     requires main.step < 5 && main.scan < 8 {
         let table_idx: u64 = main.step * 8 + main.scan;
         let byte_idx: u64 = main.bit_cursor / 8;
@@ -526,7 +526,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state pack_bit(main: &mut Main, table_idx: u64, byte_idx: u64, bit_offset: u64)
+    machine pack_bit(main: &mut Main, table_idx: u64, byte_idx: u64, bit_offset: u64)
     requires table_idx < 40 && byte_idx < 4 && bit_offset < 8 {
         let bit: u8 = main.code_bits[table_idx];
         transition bit == 1 {
@@ -535,7 +535,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state set_packed_bit(main: &mut Main, byte_idx: u64, bit_offset: u64)
+    machine set_packed_bit(main: &mut Main, byte_idx: u64, bit_offset: u64)
     requires byte_idx < 4 && bit_offset < 8 {
         let shift_amt: u8 in Wrapping = (7 - bit_offset) as u8 in Wrapping;
         let mask: u8 in Wrapping = (1 as u8 in Wrapping) << shift_amt;
@@ -543,32 +543,32 @@ machine Main::main(main: &mut Main) reaches Console {
         transition { _ -> advance_bit_cursor(main) }
     }
 
-    state advance_bit_cursor(main: &mut Main) {
+    machine advance_bit_cursor(main: &mut Main) {
         main.bit_cursor = main.bit_cursor + 1;
         main.scan = main.scan + 1;
         transition { _ -> encode_bit_loop(main) }
     }
 
-    state next_encode_byte(main: &mut Main) {
+    machine next_encode_byte(main: &mut Main) {
         let next_cur: u64 in Wrapping = (main.cursor as u64 in Wrapping) + 1;
         main.cursor = next_cur as u64;
         transition { _ -> encode_byte_loop(main) }
     }
 
-    state encode_done(main: &mut Main) {
+    machine encode_done(main: &mut Main) {
         main.total_bits = main.bit_cursor;
         transition { _ -> decode_start(main) }
     }
 
     // --- Step 6: Decode packed bitstream back via TreeNode case dispatch ---
-    state decode_start(main: &mut Main) {
+    machine decode_start(main: &mut Main) {
         main.bit_cursor = 0;
         main.out_cursor = 0;
         main.walk_node = 8;
         transition { _ -> decode_inspect_node(main) }
     }
 
-    state decode_inspect_node(main: &mut Main)
+    machine decode_inspect_node(main: &mut Main)
     requires main.walk_node < 9 {
         let current: TreeNode = main.nodes[main.walk_node];
         transition current {
@@ -578,14 +578,14 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state decode_emit_symbol(main: &mut Main, symbol: u8) {
+    machine decode_emit_symbol(main: &mut Main, symbol: u8) {
         transition main.out_cursor < 16 {
             true -> store_decoded_symbol(main, symbol)
             _ -> fail(main)
         }
     }
 
-    state store_decoded_symbol(main: &mut Main, symbol: u8)
+    machine store_decoded_symbol(main: &mut Main, symbol: u8)
     requires main.out_cursor < 16 {
         main.decoded[main.out_cursor] = symbol;
         main.out_cursor = main.out_cursor + 1;
@@ -596,7 +596,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state decode_step_branch(main: &mut Main, left: u64, right: u64)
+    machine decode_step_branch(main: &mut Main, left: u64, right: u64)
     requires left < 9 && right < 9 {
         let byte_idx: u64 = main.bit_cursor / 8;
         let bit_offset: u64 = main.bit_cursor % 8;
@@ -606,7 +606,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state read_stream_bit(main: &mut Main, left: u64, right: u64, byte_idx: u64, bit_offset: u64)
+    machine read_stream_bit(main: &mut Main, left: u64, right: u64, byte_idx: u64, bit_offset: u64)
     requires left < 9 && right < 9 && byte_idx < 4 && bit_offset < 8 {
         let shift_amt: u8 in Wrapping = (7 - bit_offset) as u8 in Wrapping;
         let byte_val: u8 in Wrapping = main.packed[byte_idx];
@@ -618,21 +618,21 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state move_to_child(main: &mut Main, child: u64)
+    machine move_to_child(main: &mut Main, child: u64)
     requires child < 9 {
         main.walk_node = child;
         transition { _ -> decode_inspect_node(main) }
     }
 
     // --- Step 7: Self-verify frequencies, code lengths, bit count, packed bytes, and round-trip ---
-    state verify_start(main: &mut Main) {
+    machine verify_start(main: &mut Main) {
         transition main.total_bits == 29 && main.bit_cursor == 29 && main.out_cursor == 16 && main.nodes[8].weight == 16 {
             true -> verify_frequencies(main)
             _ -> fail(main)
         }
     }
 
-    state verify_frequencies(main: &mut Main) {
+    machine verify_frequencies(main: &mut Main) {
         transition main.frequencies[0] == 9
             && main.frequencies[1] == 3
             && main.frequencies[2] == 1
@@ -643,19 +643,19 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state verify_lengths_init(main: &mut Main) {
+    machine verify_lengths_init(main: &mut Main) {
         main.cursor = 0;
         transition { _ -> verify_lengths_loop(main) }
     }
 
-    state verify_lengths_loop(main: &mut Main) {
+    machine verify_lengths_loop(main: &mut Main) {
         transition main.cursor < 5 {
             true -> check_one_length(main)
             _ -> verify_packed_init(main)
         }
     }
 
-    state check_one_length(main: &mut Main)
+    machine check_one_length(main: &mut Main)
     requires main.cursor < 5 {
         transition main.code_lengths[main.cursor] == main.expected_lengths[main.cursor] {
             true -> next_length_check(main)
@@ -663,24 +663,24 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state next_length_check(main: &mut Main) {
+    machine next_length_check(main: &mut Main) {
         main.cursor = main.cursor + 1;
         transition { _ -> verify_lengths_loop(main) }
     }
 
-    state verify_packed_init(main: &mut Main) {
+    machine verify_packed_init(main: &mut Main) {
         main.cursor = 0;
         transition { _ -> verify_packed_loop(main) }
     }
 
-    state verify_packed_loop(main: &mut Main) {
+    machine verify_packed_loop(main: &mut Main) {
         transition main.cursor < 4 {
             true -> check_one_packed(main)
             _ -> verify_roundtrip_init(main)
         }
     }
 
-    state check_one_packed(main: &mut Main)
+    machine check_one_packed(main: &mut Main)
     requires main.cursor < 4 {
         transition main.packed[main.cursor] == main.expected_packed[main.cursor] {
             true -> next_packed_check(main)
@@ -688,24 +688,24 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state next_packed_check(main: &mut Main) {
+    machine next_packed_check(main: &mut Main) {
         main.cursor = main.cursor + 1;
         transition { _ -> verify_packed_loop(main) }
     }
 
-    state verify_roundtrip_init(main: &mut Main) {
+    machine verify_roundtrip_init(main: &mut Main) {
         main.cursor = 0;
         transition { _ -> verify_roundtrip_loop(main) }
     }
 
-    state verify_roundtrip_loop(main: &mut Main) {
+    machine verify_roundtrip_loop(main: &mut Main) {
         transition main.cursor < 16 {
             true -> check_one_decoded(main)
             _ -> pass(main)
         }
     }
 
-    state check_one_decoded(main: &mut Main)
+    machine check_one_decoded(main: &mut Main)
     requires main.cursor < 16 {
         transition main.decoded[main.cursor] == main.input[main.cursor] {
             true -> next_decoded_check(main)
@@ -713,19 +713,19 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state next_decoded_check(main: &mut Main) {
+    machine next_decoded_check(main: &mut Main) {
         main.cursor = main.cursor + 1;
         transition { _ -> verify_roundtrip_loop(main) }
     }
 
-    state pass(main: &mut Main) {
+    machine pass(main: &mut Main) {
         Console::write_line("PASS: 16 bytes encoded to 29 bits [138, 215, 139, 56] and decoded back (exit 0)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(0);
     }
 
-    state fail(main: &mut Main) {
+    machine fail(main: &mut Main) {
         Console::write_line("FAIL: Huffman codec verification mismatch (exit 1)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);

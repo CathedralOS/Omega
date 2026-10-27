@@ -22,8 +22,8 @@ ensures result >= 350i16 && result <= 600i16
         true -> pass(sum)
         _ -> bad()
     }
-    state pass(s: i16) -> i16 { s }
-    state bad() { crash Trap; }
+    machine pass(s: i16) -> i16 { s }
+    machine bad() -> i16 { crash Trap; }
 }
 
 machine exercise(lhs: i16 in Saturating, rhs: i16 in Saturating) -> i32 crashes Trap {
@@ -37,6 +37,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

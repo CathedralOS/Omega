@@ -15,6 +15,6 @@ machine main() crashes Trap {
     let result: bool = observe(shelf);
     let observed: bool = result && backing[0] == 19;
     transition observed { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

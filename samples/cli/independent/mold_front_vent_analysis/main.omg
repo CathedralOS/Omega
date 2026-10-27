@@ -17,13 +17,13 @@ machine Main::main(main: &mut Main) reaches Console {
         LineReadResult::EndOfInput { count } -> prefix(main, &input, count)
         _ -> invalid(main)
     }
-    state prefix(main: &mut Main, input: &[u8; 32], count: u64) {
+    machine prefix(main: &mut Main, input: &[u8; 32], count: u64) {
         transition count <= 32 {
             true -> parse(main, &input[0..count])
             _ -> invalid(main)
         }
     }
-    state parse(main: &mut Main, text: &[u8]) {
+    machine parse(main: &mut Main, text: &[u8]) {
         let mut cavity: Cavity;
         let valid: bool = parse_input(text, &mut cavity);
         transition valid {
@@ -31,28 +31,28 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> invalid(main)
         }
     }
-    state simulate(main: &mut Main, cavity: &mut Cavity) {
+    machine simulate(main: &mut Main, cavity: &mut Cavity) {
         transition arrival_row_holds() {
             true -> advance(main, cavity)
             _ -> unbalanced(main)
         }
     }
-    state advance(main: &mut Main, cavity: &mut Cavity) {
+    machine advance(main: &mut Main, cavity: &mut Cavity) {
         Cavity::simulate(cavity);
         transition Cavity::balanced(cavity) {
             true -> publish(main, cavity)
             _ -> unbalanced(main)
         }
     }
-    state publish(main: &mut Main, cavity: &Cavity) {
+    machine publish(main: &mut Main, cavity: &Cavity) {
         report(cavity);
         Console::exit_process(0);
     }
-    state invalid(main: &mut Main) {
+    machine invalid(main: &mut Main) {
         Console::write_line("INVALID_INPUT");
         Console::exit_process(64);
     }
-    state unbalanced(main: &mut Main) {
+    machine unbalanced(main: &mut Main) {
         Console::write_line("INTERNAL_BALANCE_ERROR");
         Console::exit_process(70);
     }

@@ -21,7 +21,7 @@ machine valid(report: Report) -> bool {
         true -> inspect(report)
         _ -> false
     }
-    state inspect(report: Report) -> bool requires report.events.len == 1 {
+    machine inspect(report: Report) -> bool requires report.events.len == 1 {
         report.changed == 2 && report.events[0] == 7
     }
 }
@@ -32,6 +32,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

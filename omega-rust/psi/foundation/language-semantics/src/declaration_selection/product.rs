@@ -307,9 +307,9 @@ pub enum RootBindingOperand {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DescribedProductEntry {
     /// Exact product machine the description selected in its query's lexical
-    /// package scope. Final admission rejoins this symbol; it never reselects
-    /// by spelling.
-    pub machine_symbol: symbols::SymbolHandle,
+    /// package scope. Final admission rejoins this source occurrence, never an
+    /// arena handle from another context or a newly resolved display name.
+    pub declaration: symbols::RetainedDeclaration,
     /// The selected machine's authored name, retained for diagnostics only.
     pub machine_name: String,
     /// The root slot spelling the description was selected for. A later
@@ -326,7 +326,7 @@ pub struct DescribedProductEntry {
 pub struct DescribedProductSchema {
     /// Exact product data declaration the description selected in its
     /// query's lexical package scope.
-    pub schema_symbol: symbols::SymbolHandle,
+    pub declaration: symbols::RetainedDeclaration,
     /// The selected declaration's canonical path, retained for `path()`
     /// inspection and diagnostics.
     pub canonical_path: String,
@@ -339,10 +339,9 @@ pub struct DescribedProductSchema {
 /// evaluated code carries only an opaque index into it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DescribedProductProvider {
-    /// Exact provider data declaration the description selected in its
-    /// query's lexical package scope. A provider declaration is the nominal
-    /// data type owning at least one `satisfies` machine.
-    pub provider_symbol: symbols::SymbolHandle,
+    /// Exact named implementation selected in the query's lexical scope.
+    /// Data declarations never establish implementation identity.
+    pub declaration: symbols::RetainedDeclaration,
     /// The selected declaration's canonical path, retained for `path()`
     /// inspection and diagnostics.
     pub canonical_path: String,

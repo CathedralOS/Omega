@@ -8,5 +8,5 @@ machine main() crashes Trap {
  items[1] = 27;
  transition chosen == 39 && items[0] == 11 && items[1] == 27 && items[2] == 13 {
  true -> done() _ -> bad() }
- state done() {} state bad() { crash Trap; }
+ machine done() {} machine bad() { crash Trap; }
 }

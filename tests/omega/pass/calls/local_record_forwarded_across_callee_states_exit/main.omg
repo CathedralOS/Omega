@@ -28,7 +28,7 @@ machine Tally::total(tally: &mut Tally, pick: i32) -> i32 in Wrapping {
         _ -> later(tally, pick)
     }
 
-    state later(tally: &mut Tally, pick: i32) {
+    machine later(tally: &mut Tally, pick: i32) -> i32 in Wrapping {
         transition pick == 1 {
             true -> (tally.misses)
             _ -> (tally.hits + tally.misses)
@@ -42,7 +42,7 @@ machine Tally::report(tally: &mut Tally, pick: i32) -> Report {
         _ -> later(tally, pick)
     }
 
-    state later(tally: &mut Tally, pick: i32) {
+    machine later(tally: &mut Tally, pick: i32) -> Report {
         transition pick == 1 {
             true -> (Report { total: tally.misses })
             _ -> (Report { total: tally.hits + tally.misses })
@@ -56,7 +56,7 @@ machine Ledger::height(ledger: &mut Ledger, pick: i32) -> i32 in Wrapping {
         _ -> later(ledger, pick)
     }
 
-    state later(ledger: &mut Ledger, pick: i32) {
+    machine later(ledger: &mut Ledger, pick: i32) -> i32 in Wrapping {
         transition pick == 1 {
             true -> (ledger.height)
             _ -> (ledger.tally.misses)
@@ -76,21 +76,21 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> done(71)
     }
 
-    state check_report(total: i32 in Wrapping, height: i32 in Wrapping) {
+    machine check_report(total: i32 in Wrapping, height: i32 in Wrapping) {
         transition total == 10 {
             true -> check_height(height)
             _ -> done(72)
         }
     }
 
-    state check_height(height: i32 in Wrapping) {
+    machine check_height(height: i32 in Wrapping) {
         transition height == 0 {
             true -> done(70)
             _ -> done(73)
         }
     }
 
-    state done(code: i32) {
+    machine done(code: i32) {
         Console::exit_process(code);
     }
 }

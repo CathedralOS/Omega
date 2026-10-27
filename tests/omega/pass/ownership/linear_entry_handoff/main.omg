@@ -15,6 +15,6 @@ boundary machine Main::main(handle: ImageHandle) -> i32 {
         true -> zero()
         false -> present()
     }
-    state zero() -> i32 { 4 }
-    state present() -> i32 { 5 }
+    machine zero() -> i32 { 4 }
+    machine present() -> i32 { 5 }
 }

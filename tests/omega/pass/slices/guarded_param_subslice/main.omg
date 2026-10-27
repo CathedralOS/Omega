@@ -15,7 +15,7 @@ machine choose(entries: &[Entry], start: u64, end: u64) -> u64 {
         true -> length(entries[start..end])
         false -> 0
     }
-    state length(entries: &[Entry]) -> u64 {
+    machine length(entries: &[Entry]) -> u64 {
         transition {
             _ -> entries.len
         }

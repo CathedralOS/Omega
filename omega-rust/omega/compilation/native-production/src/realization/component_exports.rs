@@ -170,7 +170,6 @@ pub fn emit_component_exports<'input>(
             crate::request::native_optimization_budget(),
             artifact,
             entry,
-            &proposal.boundary_applications().calling,
         )?;
         let runtime = projection.runtime;
         let authority = projection.authority;

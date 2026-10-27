@@ -7,8 +7,8 @@ machine truncate() -> i32 ensures result == 3 { I32::from_f64(fraction()) }
 
 machine guarded(value: f64) -> i32 {
     transition value == 3.0 { true -> convert(value) false -> unused() }
-    state convert(value: f64) { value as i32 }
-    state unused() { 0 }
+    machine convert(value: f64) -> i32 { value as i32 }
+    machine unused() -> i32 { 0 }
 }
 
 // Every binary64 value in this interval is integral, not just its endpoints.
@@ -25,6 +25,6 @@ machine main() crashes Trap {
     let large: i64 = large_integer(4503599627370496.0);
     transition value == 3 && truncated == 3 && observed == 3
         && large == 4503599627370496i64 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

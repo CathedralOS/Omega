@@ -26,6 +26,6 @@ machine main() crashes Trap {
     let value: u64 = direct(row);
     let matched: u64 = same(row);
     transition counted.count == 3 && value == 3 && matched == 3 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

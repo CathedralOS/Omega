@@ -13,7 +13,7 @@ machine compute_other_state(lhs: i8, rhs: i8) -> i32
 {
     let prod: i8 = lhs * rhs;
     transition { _ -> step(prod) }
-    state step(p: i8) -> i32 {
+    machine step(p: i8) -> i32 {
         verify_prod(p)
     }
 }
@@ -28,6 +28,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

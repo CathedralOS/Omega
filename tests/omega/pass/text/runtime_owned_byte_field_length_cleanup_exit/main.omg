@@ -6,6 +6,6 @@ machine main() crashes Trap {
     let view: View = View { bytes: "ok" };
     let result: u64 = receive(view);
     transition result == 2 {true -> done() false -> bad()}
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

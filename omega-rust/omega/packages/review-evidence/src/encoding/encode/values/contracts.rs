@@ -21,12 +21,8 @@ pub(crate) fn encode_callable_contract(
             (PackageReviewContractKind::Ensures, None) => encoder.tag("ensures", 1),
             (PackageReviewContractKind::Ensures, Some(result_case)) => {
                 encoder.tag("ensures_case", 2);
-                encoder.field("result_data", |encoder| {
-                    encode_nominal(encoder, &result_case.result_data)
-                })?;
-                encoder.field("result_case", |encoder| {
-                    encode_nominal(encoder, &result_case.result_case)
-                })?;
+                encoder.field_by("result_data", &result_case.result_data, encode_nominal)?;
+                encoder.field_by("result_case", &result_case.result_case, encode_nominal)?;
             }
             (PackageReviewContractKind::Requires, Some(_)) => {
                 return Err(PackageReviewEncodingError::new(
@@ -45,17 +41,12 @@ pub(crate) fn encode_callable_contract(
         encoder.option(
             contract.evidence_lane_position.as_ref(),
             |encoder, position| {
-                encoder.field("position", |encoder| {
-                    encoder.u32(*position);
-                    Ok(())
-                })?;
+                encoder.u32_field("position", *position)?;
                 Ok(())
             },
         )
     })?;
-    encoder.field("fact", |encoder| {
-        encode_contract_fact(encoder, &contract.fact)
-    })
+    encoder.field_by("fact", &contract.fact, encode_contract_fact)
 }
 
 pub(crate) fn encode_contract_fact(
@@ -65,15 +56,11 @@ pub(crate) fn encode_contract_fact(
     match fact {
         PackageReviewContractFact::Expression(expression) => {
             encoder.tag("expression", 0);
-            encoder.field("expression", |encoder| {
-                encode_contract_expression(encoder, expression)
-            })
+            encoder.field_by("expression", expression, encode_contract_expression)
         }
         PackageReviewContractFact::CarryMembership { value, permission } => {
             encoder.tag("carry_membership", 4);
-            encoder.field("value", |encoder| {
-                encode_contract_expression(encoder, value)
-            })?;
+            encoder.field_by("value", value, encode_contract_expression)?;
             encoder.field("permission", |encoder| {
                 encode_carry_permission(encoder, *permission);
                 Ok(())
@@ -81,23 +68,16 @@ pub(crate) fn encode_contract_fact(
         }
         PackageReviewContractFact::Membership { value, domain } => {
             encoder.tag("membership", 1);
-            encoder.field("value", |encoder| {
-                encode_contract_expression(encoder, value)
-            })?;
+            encoder.field_by("value", value, encode_contract_expression)?;
             encoder.field("domain", |encoder| encode_nominal(encoder, domain))
         }
         PackageReviewContractFact::Proposition(application) => {
             encoder.tag("proposition", 2);
-            encoder.field("application", |encoder| {
-                encode_proposition_application(encoder, application)
-            })
+            encoder.field_by("application", application, encode_proposition_application)
         }
         PackageReviewContractFact::PropositionParameter(application) => {
             encoder.tag("proposition_parameter", 3);
-            encoder.field("binder_ordinal", |encoder| {
-                encoder.u32(application.binder_ordinal);
-                Ok(())
-            })?;
+            encoder.u32_field("binder_ordinal", application.binder_ordinal)?;
             encoder.field("arguments", |encoder| {
                 encoder.sequence(&application.arguments, encode_contract_expression)
             })
@@ -109,9 +89,7 @@ pub(crate) fn encode_proposition_application(
     encoder: &mut Encoder,
     application: &PackageReviewPropositionApplication,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("declaration", |encoder| {
-        encode_nominal(encoder, &application.declaration)
-    })?;
+    encoder.field_by("declaration", &application.declaration, encode_nominal)?;
     encoder.field("binders", |encoder| {
         encoder.sequence(&application.binders, encode_proposition_binder)
     })?;
@@ -134,9 +112,7 @@ pub(crate) fn encode_proposition_application(
                 match &argument.value {
                     PackageReviewPropositionBinderValue::Type(identity) => {
                         encoder.tag("type", 0);
-                        encoder.field("identity", |encoder| {
-                            encode_type_identity(encoder, identity)
-                        })?;
+                        encoder.field_by("identity", identity, encode_type_identity)?;
                     }
                     PackageReviewPropositionBinderValue::Machine(identity) => {
                         encoder.tag("machine", 4);
@@ -144,10 +120,7 @@ pub(crate) fn encode_proposition_application(
                     }
                     PackageReviewPropositionBinderValue::GenericBinder(position) => {
                         encoder.tag("generic_binder", 1);
-                        encoder.field("position", |encoder| {
-                            encoder.u32(*position);
-                            Ok(())
-                        })?;
+                        encoder.u32_field("position", *position)?;
                     }
                     PackageReviewPropositionBinderValue::Integer(value) => {
                         encoder.tag("integer", 2);
@@ -168,19 +141,12 @@ pub(crate) fn encode_proposition_application(
                             };
                             Ok(())
                         })?;
-                        encoder.field("source_lane_position", |encoder| {
-                            encoder.u32(*source_lane_position);
-                            Ok(())
-                        })?;
-                        encoder.field("declaring_trait", |encoder| {
-                            encode_nominal(encoder, declaring_trait)
-                        })?;
+                        encoder.u32_field("source_lane_position", *source_lane_position)?;
+                        encoder.field_by("declaring_trait", declaring_trait, encode_nominal)?;
                         encoder.field("declaring_trait_arguments", |encoder| {
                             encoder.sequence(declaring_trait_arguments, encode_type_identity)
                         })?;
-                        encoder.field("requirement", |encoder| {
-                            encode_nominal(encoder, requirement)
-                        })?;
+                        encoder.field_by("requirement", requirement, encode_nominal)?;
                     }
                 };
                 Ok(())
@@ -196,9 +162,7 @@ pub(crate) fn encode_proposition_application(
             PackageReviewPropositionEvidence::FactOnly => encoder.tag("fact_only", 0),
             PackageReviewPropositionEvidence::Witness(interface) => {
                 encoder.tag("witness", 1);
-                encoder.field("interface", |encoder| {
-                    encode_evidence_interface(encoder, interface)
-                })?;
+                encoder.field_by("interface", interface, encode_evidence_interface)?;
             }
         };
         Ok(())

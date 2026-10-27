@@ -23,6 +23,6 @@ machine entry_start() reaches Probe blocks; crashes Trap {
     let mut value: u64 = 0;
     let count: i64 = block Probe::read(0, &mut value, 1);
     transition count == 1 && value == 65 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

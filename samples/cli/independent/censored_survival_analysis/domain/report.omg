@@ -22,27 +22,27 @@ invokes Console;
         true -> negative(reader, widened)
         _ -> digits(reader, widened)
     }
-    state negative(reader: &mut Reader, value: i64) {
+    machine negative(reader: &mut Reader, value: i64) {
         Console::write_byte(45);
         let absolute: i64 in Wrapping = 0 - (value as i64 in Wrapping);
         transition { _ -> digits(reader, absolute as i64) }
     }
-    state digits(reader: &mut Reader, value: i64) {
+    machine digits(reader: &mut Reader, value: i64) {
         transition { _ -> seek(reader, value as i64 in Wrapping, 1) }
     }
-    state seek(reader: &mut Reader, value: i64 in Wrapping, divisor: i64 in Wrapping) {
+    machine seek(reader: &mut Reader, value: i64 in Wrapping, divisor: i64 in Wrapping) {
         transition divisor > 0 && divisor <= value / 10 {
             true -> seek(reader, value, divisor * 10)
             _ -> ready(reader, value, divisor)
         }
     }
-    state ready(reader: &mut Reader, value: i64 in Wrapping, divisor: i64 in Wrapping) {
+    machine ready(reader: &mut Reader, value: i64 in Wrapping, divisor: i64 in Wrapping) {
         transition divisor > 0 {
             true -> emit(reader, value, divisor)
             _ -> {}
         }
     }
-    state emit(reader: &mut Reader, value: i64 in Wrapping, divisor: i64 in Wrapping)
+    machine emit(reader: &mut Reader, value: i64 in Wrapping, divisor: i64 in Wrapping)
     requires divisor > 0
     {
         let byte: i64 in Wrapping = (value / divisor) % 10 + 48;
@@ -59,10 +59,10 @@ machine real(reader: &mut Reader, value: f64) reaches Console {
     integer(reader, (amount / 1000000000000) as i64);
     Console::write_byte(46);
     transition { _ -> fraction(reader, amount % 1000000000000, 100000000000) }
-    state fraction(reader: &mut Reader, amount: i64 in Wrapping, divisor: i64 in Wrapping) {
+    machine fraction(reader: &mut Reader, amount: i64 in Wrapping, divisor: i64 in Wrapping) {
         transition divisor > 0 { true -> digit(reader, amount, divisor) false -> {} }
     }
-    state digit(reader: &mut Reader, amount: i64 in Wrapping, divisor: i64 in Wrapping)
+    machine digit(reader: &mut Reader, amount: i64 in Wrapping, divisor: i64 in Wrapping)
     requires divisor > 0
     {
         Console::write_byte(narrow_i64_to_i32_wrapping(((amount / divisor) % 10 + 48) as i64));
@@ -74,13 +74,13 @@ invokes Console;
 {
     Console::write("TABLE "); integer(reader, group as i64); Console::write_line("");
     transition { _ -> row(reader, table, 0) }
-    state row(reader: &mut Reader, table: &Table, index: i32 in Wrapping) {
+    machine row(reader: &mut Reader, table: &Table, index: i32 in Wrapping) {
         transition index >= 0 && index < 32 && index < table.count {
             true -> emit(reader, table, index)
             false -> median(reader, table)
         }
     }
-    state emit(reader: &mut Reader, table: &Table, index: i32 in Wrapping)
+    machine emit(reader: &mut Reader, table: &Table, index: i32 in Wrapping)
     requires index >= 0 && index < 32
     {
         let position: u32 = narrow_i32_to_u32_wrapping(index as i32) as u32;
@@ -93,7 +93,7 @@ invokes Console;
         integer(reader, table.zero[index] as i64); Console::write_line("");
         transition { _ -> row(reader, table, index + 1) }
     }
-    state median(reader: &mut Reader, table: &Table) {
+    machine median(reader: &mut Reader, table: &Table) {
         Console::write("MEDIAN "); integer(reader, table.median_status as i64); Console::write(" "); real(reader, table.median); Console::write(" "); integer(reader, table.count as i64); Console::write_line("");
     }
 }

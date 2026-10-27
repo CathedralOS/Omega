@@ -5,6 +5,6 @@ machine inspect(outer: Outer) -> u64 { outer.header }
 machine main() crashes Trap {
     let seen: u64 = inspect(Outer { inner: make(), header: 10 });
     transition seen == 10 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

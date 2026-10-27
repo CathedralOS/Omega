@@ -3,11 +3,11 @@ machine replace(values: &mut [u8]) -> u64 {
         true -> write(values)
         false -> empty()
     }
-    state write(values: &mut [u8]) -> u64 {
+    machine write(values: &mut [u8]) -> u64 {
         values[0] = 7;
         values.len
     }
-    state empty() -> u64 { 0 }
+    machine empty() -> u64 { 0 }
 }
 
 machine main() crashes Trap {
@@ -20,6 +20,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

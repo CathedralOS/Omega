@@ -86,8 +86,9 @@ establish execution on macOS ARM64 only.
 ## Remaining acceptance
 
 This repair establishes generic reference reads of existing scalar/bound facts;
-the parent capability remains open. Symbolic saved numeric predicates through selected-value joins, generic-body
-checking compositions, byte observations and pattern destructuring remain open.
+the parent capability remains open. Generic-body checking compositions, byte observations and pattern destructuring
+remain open. [Symbolic selected values](symbolic/README.md) retain arbitrary-input
+predicates through all nine places.
 The post-call production below discharges exact scalar guarantees from a
 receiver write; it does not claim every symbolic implication at a join.
 

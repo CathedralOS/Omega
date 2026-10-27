@@ -21,21 +21,21 @@ machine Main::dispatch(main: &mut Main) reaches Console {
         Msg::Ping { x } -> bad(main)
         _ -> bad(main)
     }
-    state chk(main: &mut Main, y: i32, z: i32) {
+    machine chk(main: &mut Main, y: i32, z: i32) {
         transition y == 10 {
             true -> chk2(main, z)
             _ -> wrong(main)
         }
     }
-    state chk2(main: &mut Main, z: i32) {
+    machine chk2(main: &mut Main, z: i32) {
         transition z == 20 {
             true -> good(main)
             _ -> wrong(main)
         }
     }
-    state good(main: &mut Main)  { Console::exit_process(70); }
-    state wrong(main: &mut Main) { Console::exit_process(72); }
-    state bad(main: &mut Main)   { Console::exit_process(71); }
+    machine good(main: &mut Main)  { Console::exit_process(70); }
+    machine wrong(main: &mut Main) { Console::exit_process(72); }
+    machine bad(main: &mut Main)   { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

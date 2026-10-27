@@ -11,7 +11,7 @@ machine selected(values: &[i64 in Wrapping; 2], index: u64) -> i64 in Wrapping
 requires index < 2
 requires values[index] != 0 {
     transition { _ -> divided(values, index) }
-    state divided(renamed: &[i64 in Wrapping; 2], selected: u64) -> i64 in Wrapping
+    machine divided(renamed: &[i64 in Wrapping; 2], selected: u64) -> i64 in Wrapping
     requires selected < 2
     requires renamed[selected] != 0 {
         let numerator: i64 in Wrapping = 20;

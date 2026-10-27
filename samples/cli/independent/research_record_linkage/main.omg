@@ -21,7 +21,7 @@ machine Main::main(main: &mut Main) reaches Console blocks; crashes Trap {
         true -> load(main)
         false -> invalid(main)
     }
-    state load(main: &mut Main) {
+    machine load(main: &mut Main) {
         main.linkage.threshold = main.input.tokens[0];
         main.linkage.left[0] = Record { identifier: main.input.tokens[1], title: main.input.tokens[2], author: main.input.tokens[3], year: main.input.tokens[4] };
         main.linkage.left[1] = Record { identifier: main.input.tokens[5], title: main.input.tokens[6], author: main.input.tokens[7], year: main.input.tokens[8] };
@@ -39,7 +39,7 @@ machine Main::main(main: &mut Main) reaches Console blocks; crashes Trap {
         // separately against the full frozen oracle by validate.py.
         Console::exit_process(((main.linkage.best % 100 * 2 + main.linkage.optima % 100 * 3 + main.linkage.edges % 100 * 5 + main.linkage.conflicts % 100 * 7 + main.linkage.linked % 100 * 11 + main.linkage.ambiguous % 100 * 13 + main.linkage.unmatched % 100 * 17 + main.linkage.true_positive % 100 * 19 + main.linkage.false_positive % 100 * 23 + main.linkage.false_negative % 100 * 29 + main.linkage.consensus[0] % 100 * 31 + main.linkage.consensus[1] % 100 * 37 + main.linkage.consensus[2] % 100 * 41) % 191 + 1) as i32);
     }
-    state invalid(main: &mut Main) {
+    machine invalid(main: &mut Main) {
         Console::write_line("INVALID input");
         Console::exit_process(64);
     }

@@ -1574,6 +1574,13 @@ id and ordinal, and each call's outputs are positional by output position.
 | tag | Proof ranking relation |
 | --- | --- |
 | 1 | StructuralSubterm |
+| 2 | StructuralSubtermCycles |
+
+`StructuralSubterm` requires a nonempty structural member path on every edge.
+`StructuralSubtermCycles` also permits an empty path, meaning the exact ranked
+value is preserved. Its rank-preserving edges must form an acyclic graph;
+every complete recursive cycle therefore contains a strict structural descent.
+Both forms require every exact internal call occurrence and one common rank type.
 
 <!-- recursive-call-site-tags -->
 

@@ -22,5 +22,5 @@ machine main() crashes Trap {
         && size_of<Name>() == 16 {
         true -> {} _ -> bad()
     }
-    state bad() { crash Trap; }
+    machine bad() { crash Trap; }
 }

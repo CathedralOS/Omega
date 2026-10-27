@@ -2,6 +2,7 @@
 //! of the selected kind; the one explicit operand is an allocated 64-bit GPR.
 //! Architectural encodings follow Arm's system-register instruction fields,
 //! independently pinned by llvm-mc vectors for all nine reads and seven writes.
+use crate::machine_effects::form_alternative;
 
 use super::Aarch64SelectedFormEncodingError;
 use register_model::RegisterConstraintKey;
@@ -59,20 +60,15 @@ pub(crate) fn declaration(
         barrier: MachineBarrier::ExternalEffect,
         call: MachineCallEffect::NoneV1,
         cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey {
-                family: if read {
-                    MachineAlternativeFamily::SystemRegisterRead
-                } else {
-                    MachineAlternativeFamily::SystemRegisterWrite
-                },
-                variant: 0,
+        alternatives: form_alternative!(
+            if read {
+                MachineAlternativeFamily::SystemRegisterRead
+            } else {
+                MachineAlternativeFamily::SystemRegisterWrite
             },
-            applicability: MachineAlternativeApplicability::Always,
-            size: MachineSizeKnowledge::ExactBytes(4),
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded: effects(read),
-        }],
+            MachineSizeKnowledge::ExactBytes(4),
+            effects(read)
+        ),
     }
 }
 

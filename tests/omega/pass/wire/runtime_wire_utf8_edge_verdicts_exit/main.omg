@@ -45,7 +45,7 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> overlong(main)
         false -> bad_euro(main)
     }
-    state overlong(main: &mut Main) {
+    machine overlong(main: &mut Main) {
         main.buffer[5] = 224;
         main.buffer[6] = 128;
         main.buffer[7] = 128;
@@ -58,7 +58,7 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> bad_overlong(main)
         }
     }
-    state surrogate(main: &mut Main) {
+    machine surrogate(main: &mut Main) {
         main.buffer[5] = 237;
         main.buffer[6] = 160;
         main.buffer[7] = 128;
@@ -71,7 +71,7 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> bad_surrogate(main)
         }
     }
-    state beyond(main: &mut Main) {
+    machine beyond(main: &mut Main) {
         main.buffer[5] = 244;
         main.buffer[6] = 144;
         main.buffer[7] = 128;
@@ -84,7 +84,7 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> bad_beyond(main)
         }
     }
-    state truncated(main: &mut Main) {
+    machine truncated(main: &mut Main) {
         main.buffer[4] = 2;
         main.buffer[5] = 240;
         main.buffer[6] = 144;
@@ -97,12 +97,12 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> bad_truncated(main)
         }
     }
-    state good(main: &mut Main)          { Console::exit_process(70); }
-    state bad_euro(main: &mut Main)      { Console::exit_process(71); }
-    state bad_overlong(main: &mut Main)  { Console::exit_process(72); }
-    state bad_surrogate(main: &mut Main) { Console::exit_process(73); }
-    state bad_beyond(main: &mut Main)    { Console::exit_process(74); }
-    state bad_truncated(main: &mut Main) { Console::exit_process(75); }
+    machine good(main: &mut Main)          { Console::exit_process(70); }
+    machine bad_euro(main: &mut Main)      { Console::exit_process(71); }
+    machine bad_overlong(main: &mut Main)  { Console::exit_process(72); }
+    machine bad_surrogate(main: &mut Main) { Console::exit_process(73); }
+    machine bad_beyond(main: &mut Main)    { Console::exit_process(74); }
+    machine bad_truncated(main: &mut Main) { Console::exit_process(75); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

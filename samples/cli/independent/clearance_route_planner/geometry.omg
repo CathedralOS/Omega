@@ -15,7 +15,7 @@ public machine distance(ax: i64 in Wrapping, ay: i64 in Wrapping,
         true -> Fraction { numerator: px * px + py * py, denominator: 1 }
         false -> other(dx, dy, px, py, length, projection)
     }
-    state other(dx: i64 in Wrapping, dy: i64 in Wrapping,
+    machine other(dx: i64 in Wrapping, dy: i64 in Wrapping,
                 px: i64 in Wrapping, py: i64 in Wrapping,
                 length: i64 in Wrapping, projection: i64 in Wrapping) -> Fraction {
         transition projection >= length {
@@ -23,7 +23,7 @@ public machine distance(ax: i64 in Wrapping, ay: i64 in Wrapping,
             false -> interior(dx, dy, px, py, length)
         }
     }
-    state interior(dx: i64 in Wrapping, dy: i64 in Wrapping,
+    machine interior(dx: i64 in Wrapping, dy: i64 in Wrapping,
                    px: i64 in Wrapping, py: i64 in Wrapping, length: i64 in Wrapping) -> Fraction {
         let cross: i64 in Wrapping = px * dy - py * dx;
         Fraction { numerator: cross * cross, denominator: length }
@@ -36,14 +36,14 @@ public machine root_milli(numerator: i64 in Wrapping, denominator: i64 in Wrappi
         true -> search(numerator, denominator, 0, 30001)
         false -> 0
     }
-    state search(numerator: i64 in Wrapping, denominator: i64 in Wrapping,
+    machine search(numerator: i64 in Wrapping, denominator: i64 in Wrapping,
                  low: i64 in Wrapping, high: i64 in Wrapping) -> i64 in Wrapping {
         transition high - low > 1 {
             true -> test(numerator, denominator, low, high, (low + high) / 2)
             false -> low
         }
     }
-    state test(numerator: i64 in Wrapping, denominator: i64 in Wrapping,
+    machine test(numerator: i64 in Wrapping, denominator: i64 in Wrapping,
                low: i64 in Wrapping, high: i64 in Wrapping, middle: i64 in Wrapping) -> i64 in Wrapping {
         transition middle * middle * denominator <= numerator * 1000000 {
             true -> search(numerator, denominator, middle, high)

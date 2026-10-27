@@ -8,24 +8,24 @@ machine modular_power(base: i32, exponent: i32) -> i32 {
         true -> (0)
         _ -> step(1, base % 100, exponent)
     }
-    state step(result: i32, base: i32, exponent: i32) -> i32 {
+    machine step(result: i32, base: i32, exponent: i32) -> i32 {
         transition exponent == 0 {
             true -> (result)
             _ -> classify(result, base, exponent)
         }
     }
-    state classify(result: i32, base: i32, exponent: i32) -> i32 {
+    machine classify(result: i32, base: i32, exponent: i32) -> i32 {
         let bit: i32 = exponent % 2;
         transition bit == 1 {
             true -> accumulate(result, base, exponent)
             _ -> square(result, base, exponent)
         }
     }
-    state accumulate(result: i32, base: i32, exponent: i32) -> i32 {
+    machine accumulate(result: i32, base: i32, exponent: i32) -> i32 {
         let next_result: i32 = ((result % 100) * (base % 100)) % 100;
         transition { _ -> square(next_result, base, exponent) }
     }
-    state square(result: i32, base: i32, exponent: i32) -> i32 {
+    machine square(result: i32, base: i32, exponent: i32) -> i32 {
         let next_base: i32 = ((base % 100) * (base % 100)) % 100;
         let next_exponent: i32 = exponent / 2;
         transition { _ -> step(result, next_base, next_exponent) }
@@ -40,6 +40,6 @@ machine Main::main(main: &mut Main) {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() {}
+    machine done() {}
+    machine bad() {}
 }

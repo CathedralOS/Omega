@@ -149,6 +149,10 @@ pub struct CheckedScalarComputationPlans {
 }
 
 impl CheckedScalarComputationPlans {
+    pub fn seal(&mut self) {
+        self.roots_by_state.seal(&self.roots, |root| root.state);
+    }
+
     pub fn projection_selectors_at(
         &self,
         machine: SymbolHandle,
@@ -240,6 +244,20 @@ impl CheckedScalarComputationPlans {
                 .iter()
                 .map(|handle| self.roots.get(*handle))
                 .filter(|root| root.state == state && root.statement_ordinal == statement_ordinal)
+                .collect()
+        })
+    }
+
+    /// Root records retain statement ownership and roles beside their nodes.
+    pub fn root_records_for_state(
+        &self,
+        state: SymbolHandle,
+    ) -> Vec<&CheckedScalarComputationRoot> {
+        self.with_state_roots(state, |handles| {
+            handles
+                .iter()
+                .map(|handle| self.roots.get(*handle))
+                .filter(|root| root.state == state)
                 .collect()
         })
     }

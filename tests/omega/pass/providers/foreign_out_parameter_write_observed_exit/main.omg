@@ -56,15 +56,15 @@ machine Main::main(main: &mut Main) reaches ForeignOutParameter + Console {
         _ -> bad(71)
     }
 
-    state check_written(seconds: i64) {
+    machine check_written(seconds: i64) {
         transition seconds > 1767225600 {
             true -> good()
             _ -> bad(72)
         }
     }
 
-    state good() { Console::exit_process(70); }
-    state bad(code: i32) { Console::exit_process(code); }
+    machine good() { Console::exit_process(70); }
+    machine bad(code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

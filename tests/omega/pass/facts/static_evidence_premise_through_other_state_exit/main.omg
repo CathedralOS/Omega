@@ -38,13 +38,13 @@ requires direct == true
 machine main() crashes Trap {
     let kept: bool = true;
     transition { _ -> check(kept) }
-    state check(kept: bool) {
+    machine check(kept: bool) {
         let direct: bool = project<YesKept>(kept);
         transition hold(direct) {
             true -> done()
             _ -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

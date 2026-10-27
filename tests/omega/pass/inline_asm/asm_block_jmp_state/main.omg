@@ -8,6 +8,6 @@ machine main() {
         jmp other()
     }
 
-    state other() {
+    machine other() {
     }
 }

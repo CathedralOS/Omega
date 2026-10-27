@@ -9,7 +9,7 @@ machine probe(dividend: u8, divisor: u8) -> u8
         _ -> consume(rem)
     }
 
-    state consume(forwarded_rem: u8) -> u8
+    machine consume(forwarded_rem: u8) -> u8
     requires
         forwarded_rem <= 15u8
     {
@@ -23,6 +23,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

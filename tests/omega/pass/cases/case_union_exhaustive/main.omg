@@ -19,7 +19,7 @@ machine Main::main(main: &mut Main) {
         Command::None -> none_state()
         Command::Quit -> quit_state()
     }
-    state interactive() { }
-    state none_state() { }
-    state quit_state() { }
+    machine interactive() { }
+    machine none_state() { }
+    machine quit_state() { }
 }

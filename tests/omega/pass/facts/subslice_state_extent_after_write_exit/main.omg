@@ -10,10 +10,10 @@ machine write_first(buffer: &mut [u8]) requires buffer.len >= 1024 {
 machine trial(buffer: &mut [u8], count: u64) -> u8 {
     let capacity: u64 = minimum(count, buffer.len);
     transition { _ -> transfer(&mut buffer[0..capacity]) }
-    state transfer(buffer: &mut [u8]) -> u8 {
+    machine transfer(buffer: &mut [u8]) -> u8 {
         transition buffer.len >= 1024 { true -> extended(buffer) _ -> 0 }
     }
-    state extended(buffer: &mut [u8]) -> u8
+    machine extended(buffer: &mut [u8]) -> u8
     requires buffer.len >= 1024;
     {
         let position: u64 = buffer.len - 4;
@@ -31,6 +31,6 @@ machine main() crashes Trap {
     let saved: u8 = trial(&mut bytes[1..1025], 18446744073709551615);
     transition saved == 84 && bytes[0] == 91 && bytes[1] == 17
         && bytes[1021] == 84 && bytes[1025] == 92 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -31,32 +31,32 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> failed(main, 71)
     }
 
-    state check_before(main: &mut Main, before: bool, after: bool, mixed: bool) {
+    machine check_before(main: &mut Main, before: bool, after: bool, mixed: bool) {
         transition before {
             true -> failed(main, 72)
             _ -> check_after(main, after, mixed)
         }
     }
 
-    state check_after(main: &mut Main, after: bool, mixed: bool) {
+    machine check_after(main: &mut Main, after: bool, mixed: bool) {
         transition after {
             true -> check_mixed(main, mixed)
             _ -> failed(main, 73)
         }
     }
 
-    state check_mixed(main: &mut Main, mixed: bool) {
+    machine check_mixed(main: &mut Main, mixed: bool) {
         transition mixed {
             true -> done(main)
             _ -> failed(main, 74)
         }
     }
 
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         Console::exit_process(70);
     }
 
-    state failed(main: &mut Main, code: i32) {
+    machine failed(main: &mut Main, code: i32) {
         Console::exit_process(code);
     }
 }

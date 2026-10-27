@@ -21,8 +21,8 @@ machine Main::apply(main: &mut Main, m: Msg) {
         Msg::Move { dx as step, dy as _ } if step == 30 -> good(step)
         _ -> bad()
     }
-    state good(step: i32 in Step) {}
-    state bad() {}
+    machine good(step: i32 in Step) {}
+    machine bad() {}
 }
 
 machine Main::rest(main: &mut Main, m: Msg) {
@@ -30,6 +30,6 @@ machine Main::rest(main: &mut Main, m: Msg) {
         Msg::Move { dx as step, .. } if step == 10 -> good(step)
         _ -> bad()
     }
-    state good(step: i32 in Step) {}
-    state bad() {}
+    machine good(step: i32 in Step) {}
+    machine bad() {}
 }

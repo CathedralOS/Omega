@@ -10,7 +10,7 @@ machine select(stop: bool, output: &mut Output) {
         true -> {}
         false -> write(output, payload)
     }
-    state write(output: &mut Output, payload: Payload) {
+    machine write(output: &mut Output, payload: Payload) {
         output.value = payload.value;
     }
 }
@@ -24,6 +24,6 @@ machine Main::main(main: &mut Main) {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() {}
+    machine done() {}
+    machine bad() {}
 }

@@ -8,7 +8,7 @@ machine clamp(val: u64) -> u64
         true -> 10u64
         _ -> check_high(val)
     }
-    state check_high(v: u64)
+    machine check_high(v: u64) -> u64
         requires v >= 10u64
     {
         transition v > 100u64 {
@@ -34,6 +34,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

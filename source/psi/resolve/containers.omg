@@ -22,14 +22,14 @@ crashes Trap
 {
     transition { _ -> root(resolver, syntax, 0) }
 
-    state root(resolver: &mut Resolver, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine root(resolver: &mut Resolver, syntax: &SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.machine_count {
             true -> root_owner(resolver, syntax, index)
             _ -> traits(resolver, syntax, 0)
         }
     }
 
-    state root_owner(resolver: &mut Resolver, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine root_owner(resolver: &mut Resolver, syntax: &SyntaxTrees, index: u64 in Trapping) {
         let item: MachineItem = SyntaxTrees::machine_item(syntax, index);
         Resolver::set_machine_owner(resolver, index, MachineOwner {
             container: item.container,
@@ -40,14 +40,14 @@ crashes Trap
         transition { _ -> root(resolver, syntax, index + 1) }
     }
 
-    state traits(resolver: &mut Resolver, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine traits(resolver: &mut Resolver, syntax: &SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.trait_count {
             true -> trait_members(resolver, syntax, index)
             _ -> conformances(resolver, syntax, 0)
         }
     }
 
-    state trait_members(resolver: &mut Resolver, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine trait_members(resolver: &mut Resolver, syntax: &SyntaxTrees, index: u64 in Trapping) {
         let item: TraitItem = SyntaxTrees::trait_item(syntax, index);
         let container: MachineContainer = Resolver::trait_container(item.is_refinement);
         let owner: MachineOwner = MachineOwner {
@@ -60,14 +60,14 @@ crashes Trap
         transition { _ -> traits(resolver, syntax, index + 1) }
     }
 
-    state conformances(resolver: &mut Resolver, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine conformances(resolver: &mut Resolver, syntax: &SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.conformance_count {
             true -> conformance_members(resolver, syntax, index)
             _ -> done(resolver, syntax)
         }
     }
 
-    state conformance_members(resolver: &mut Resolver, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine conformance_members(resolver: &mut Resolver, syntax: &SyntaxTrees, index: u64 in Trapping) {
         let item: ConformanceItem = SyntaxTrees::conformance_item(syntax, index);
         let owner: MachineOwner = MachineOwner {
             container: MachineContainer::Conformance,
@@ -79,7 +79,7 @@ crashes Trap
         transition { _ -> conformances(resolver, syntax, index + 1) }
     }
 
-    state done(resolver: &mut Resolver, syntax: &SyntaxTrees) {
+    machine done(resolver: &mut Resolver, syntax: &SyntaxTrees) {
         resolver.output.machine_owner_count = syntax.machine_count;
     }
 }
@@ -92,7 +92,7 @@ machine Resolver::trait_container(is_refinement: bool) -> MachineContainer {
         _ -> found(MachineContainer::Trait)
     }
 
-    state found(container: MachineContainer) -> MachineContainer {
+    machine found(container: MachineContainer) -> MachineContainer {
         container
     }
 }
@@ -102,19 +102,19 @@ crashes Trap
 {
     transition { _ -> next(resolver, first, count, owner, 0) }
 
-    state next(resolver: &mut Resolver, first: u64 in Trapping, count: u64 in Trapping, owner: MachineOwner, offset: u64 in Trapping) {
+    machine next(resolver: &mut Resolver, first: u64 in Trapping, count: u64 in Trapping, owner: MachineOwner, offset: u64 in Trapping) {
         transition offset < count {
             true -> place(resolver, first, count, owner, offset)
             _ -> done()
         }
     }
 
-    state place(resolver: &mut Resolver, first: u64 in Trapping, count: u64 in Trapping, owner: MachineOwner, offset: u64 in Trapping) {
+    machine place(resolver: &mut Resolver, first: u64 in Trapping, count: u64 in Trapping, owner: MachineOwner, offset: u64 in Trapping) {
         Resolver::set_machine_owner(resolver, first + offset, owner);
         transition { _ -> next(resolver, first, count, owner, offset + 1) }
     }
 
-    state done() {}
+    machine done() {}
 }
 
 machine Resolver::set_machine_owner(resolver: &mut Resolver, handle: u64 in Trapping, owner: MachineOwner)
@@ -125,11 +125,11 @@ crashes Trap
         _ -> invalid()
     }
 
-    state store(resolver: &mut Resolver, handle: u64 in Trapping, owner: MachineOwner) {
+    machine store(resolver: &mut Resolver, handle: u64 in Trapping, owner: MachineOwner) {
         resolver.output.machine_owners[handle] = owner;
     }
 
-    state invalid() {
+    machine invalid() {
         crash Trap;
     }
 }
@@ -161,16 +161,16 @@ crashes Trap
         MachineContainer::Refinement -> trait_scope(syntax, owner.item)
     }
 
-    state none() -> TypeScope {
+    machine none() -> TypeScope {
         Resolver::empty_scope()
     }
 
-    state trait_scope(syntax: &SyntaxTrees, index: u64 in Trapping) -> TypeScope {
+    machine trait_scope(syntax: &SyntaxTrees, index: u64 in Trapping) -> TypeScope {
         let item: TraitItem = SyntaxTrees::trait_item(syntax, index);
         Resolver::scope(item.first_generic_parameter, item.generic_parameter_count)
     }
 
-    state conformance_scope(syntax: &SyntaxTrees, index: u64 in Trapping) -> TypeScope {
+    machine conformance_scope(syntax: &SyntaxTrees, index: u64 in Trapping) -> TypeScope {
         let item: ConformanceItem = SyntaxTrees::conformance_item(syntax, index);
         Resolver::scope(item.first_generic_parameter, item.generic_parameter_count)
     }
@@ -185,14 +185,14 @@ crashes Trap
 {
     transition { _ -> next_conformance(resolver, sources, syntax, 0) }
 
-    state next_conformance(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine next_conformance(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.conformance_count && resolver.output.accepted {
             true -> rows(resolver, sources, syntax, index, 0)
             _ -> done()
         }
     }
 
-    state rows(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping) {
+    machine rows(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping) {
         let item: ConformanceItem = SyntaxTrees::conformance_item(syntax, index);
         transition offset < item.row_count && resolver.output.accepted {
             true -> row(resolver, sources, syntax, index, offset, item.first_row + offset)
@@ -200,7 +200,7 @@ crashes Trap
         }
     }
 
-    state row(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping, row_handle: u64 in Trapping) {
+    machine row(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping, row_handle: u64 in Trapping) {
         let conformance_row: ConformanceRow = SyntaxTrees::conformance_row(syntax, row_handle);
         let requirement: PathBinding = Resolver::requirement_path(&resolver.output, sources, syntax, index, conformance_row.requirement);
         transition requirement {
@@ -209,7 +209,7 @@ crashes Trap
         }
     }
 
-    state requirement_found(
+    machine requirement_found(
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -225,7 +225,7 @@ crashes Trap
         }
     }
 
-    state requirement_bound(
+    machine requirement_bound(
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -239,17 +239,17 @@ crashes Trap
         transition { _ -> rows(resolver, sources, syntax, index, offset + 1) }
     }
 
-    state unknown(resolver: &mut Resolver, syntax: &SyntaxTrees, path: u64 in Trapping) {
+    machine unknown(resolver: &mut Resolver, syntax: &SyntaxTrees, path: u64 in Trapping) {
         let name_path: NamePath = SyntaxTrees::name_path(syntax, path);
         NameResolution::reject(&mut resolver.output, ResolveDiagnosticCode::UnknownName, name_path.source_span);
     }
 
-    state not_requirement(resolver: &mut Resolver, syntax: &SyntaxTrees, path: u64 in Trapping) {
+    machine not_requirement(resolver: &mut Resolver, syntax: &SyntaxTrees, path: u64 in Trapping) {
         let name_path: NamePath = SyntaxTrees::name_path(syntax, path);
         NameResolution::reject(&mut resolver.output, ResolveDiagnosticCode::NotARequirement, name_path.source_span);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // A reference row's requirement path: `Owner::name` as a machine path, or a
@@ -270,7 +270,7 @@ crashes Trap
         _ -> qualified(resolution, sources, syntax, name_path)
     }
 
-    state bare(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, conformance: u64 in Trapping, name_path: NamePath) -> PathBinding {
+    machine bare(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, conformance: u64 in Trapping, name_path: NamePath) -> PathBinding {
         let declared: ConformanceItem = SyntaxTrees::conformance_item(syntax, conformance);
         let name: IdentifierSpan = SyntaxTrees::member(syntax, name_path.first_member);
         let binding: TypeBinding = NameResolution::type_binding_at(resolution, declared.trait_type);
@@ -280,7 +280,7 @@ crashes Trap
         }
     }
 
-    state member(syntax: &SyntaxTrees, sources: &SourceSet, trait_index: u64 in Trapping, name: IdentifierSpan) -> PathBinding {
+    machine member(syntax: &SyntaxTrees, sources: &SourceSet, trait_index: u64 in Trapping, name: IdentifierSpan) -> PathBinding {
         let found: Lookup = Resolver::trait_member_named(sources, syntax, trait_index, name.source_span);
         transition found {
             Lookup::Found { handle } -> machine_found(handle)
@@ -288,15 +288,15 @@ crashes Trap
         }
     }
 
-    state qualified(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, name_path: NamePath) -> PathBinding {
+    machine qualified(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, name_path: NamePath) -> PathBinding {
         Resolver::machine_path_binding(resolution, sources, syntax, name_path)
     }
 
-    state machine_found(handle: u64 in Trapping) -> PathBinding {
+    machine machine_found(handle: u64 in Trapping) -> PathBinding {
         PathBinding::Machine { handle: handle }
     }
 
-    state unresolved() -> PathBinding {
+    machine unresolved() -> PathBinding {
         PathBinding::Unresolved
     }
 }
@@ -314,15 +314,15 @@ crashes Trap
         Lookup::Absent -> unknown(resolver, name_path)
     }
 
-    state bound(resolver: &mut Resolver, path: u64 in Trapping, handle: u64 in Trapping) {
+    machine bound(resolver: &mut Resolver, path: u64 in Trapping, handle: u64 in Trapping) {
         Resolver::set_path_binding(resolver, path, PathBinding::Machine { handle: handle });
     }
 
-    state ambiguous(resolver: &mut Resolver, name_path: NamePath) {
+    machine ambiguous(resolver: &mut Resolver, name_path: NamePath) {
         NameResolution::reject(&mut resolver.output, ResolveDiagnosticCode::AmbiguousName, name_path.source_span);
     }
 
-    state unknown(resolver: &mut Resolver, name_path: NamePath) {
+    machine unknown(resolver: &mut Resolver, name_path: NamePath) {
         NameResolution::reject(&mut resolver.output, ResolveDiagnosticCode::UnknownName, name_path.source_span);
     }
 }
@@ -339,18 +339,18 @@ crashes Trap
         _ -> absent()
     }
 
-    state free(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, name_path: NamePath) -> Lookup {
+    machine free(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, name_path: NamePath) -> Lookup {
         let name: IdentifierSpan = SyntaxTrees::member(syntax, name_path.first_member);
         Resolver::machine_named(resolution, sources, syntax, false, name.source_span, name.source_span)
     }
 
-    state owned(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, name_path: NamePath) -> Lookup {
+    machine owned(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, name_path: NamePath) -> Lookup {
         let owner: IdentifierSpan = SyntaxTrees::member(syntax, name_path.first_member);
         let name: IdentifierSpan = SyntaxTrees::member(syntax, name_path.first_member + 1);
         Resolver::machine_named(resolution, sources, syntax, true, owner.source_span, name.source_span)
     }
 
-    state absent() -> Lookup {
+    machine absent() -> Lookup {
         Lookup::Absent
     }
 }
@@ -364,11 +364,11 @@ crashes Trap
         _ -> unresolved()
     }
 
-    state machine_found(handle: u64 in Trapping) -> PathBinding {
+    machine machine_found(handle: u64 in Trapping) -> PathBinding {
         PathBinding::Machine { handle: handle }
     }
 
-    state unresolved() -> PathBinding {
+    machine unresolved() -> PathBinding {
         PathBinding::Unresolved
     }
 }
@@ -381,14 +381,14 @@ crashes Trap
     let item: TraitItem = SyntaxTrees::trait_item(syntax, trait_index);
     transition { _ -> next(sources, syntax, item, name, 0) }
 
-    state next(sources: &SourceSet, syntax: &SyntaxTrees, item: TraitItem, name: SourceSpan, offset: u64 in Trapping) -> Lookup {
+    machine next(sources: &SourceSet, syntax: &SyntaxTrees, item: TraitItem, name: SourceSpan, offset: u64 in Trapping) -> Lookup {
         transition offset < item.machine_count {
             true -> candidate(sources, syntax, item, name, offset)
             _ -> absent()
         }
     }
 
-    state candidate(sources: &SourceSet, syntax: &SyntaxTrees, item: TraitItem, name: SourceSpan, offset: u64 in Trapping) -> Lookup {
+    machine candidate(sources: &SourceSet, syntax: &SyntaxTrees, item: TraitItem, name: SourceSpan, offset: u64 in Trapping) -> Lookup {
         let member: MachineItem = SyntaxTrees::machine_item(syntax, item.first_machine + offset);
         let named: bool = SourceSet::spans_equal(sources, member.name.source_span, name);
         transition named {
@@ -397,11 +397,11 @@ crashes Trap
         }
     }
 
-    state found(handle: u64 in Trapping) -> Lookup {
+    machine found(handle: u64 in Trapping) -> Lookup {
         Lookup::Found { handle: handle }
     }
 
-    state absent() -> Lookup {
+    machine absent() -> Lookup {
         Lookup::Absent
     }
 }
@@ -426,7 +426,7 @@ crashes Trap
         Lookup::Absent -> found(ValueBinding::Unresolved)
     }
 
-    state rows(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, conformance: u64 in Trapping, name: SourceSpan, offset: u64 in Trapping) -> ValueBinding {
+    machine rows(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, conformance: u64 in Trapping, name: SourceSpan, offset: u64 in Trapping) -> ValueBinding {
         let item: ConformanceItem = SyntaxTrees::conformance_item(syntax, conformance);
         transition offset < item.row_count {
             true -> row(resolution, sources, syntax, conformance, name, offset, item.first_row + offset)
@@ -434,7 +434,7 @@ crashes Trap
         }
     }
 
-    state row(
+    machine row(
         resolution: &NameResolution,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -453,7 +453,7 @@ crashes Trap
         }
     }
 
-    state row_target(resolution: &NameResolution, path: u64 in Trapping) -> ValueBinding {
+    machine row_target(resolution: &NameResolution, path: u64 in Trapping) -> ValueBinding {
         let target: PathBinding = NameResolution::path_binding_at(resolution, path);
         transition target {
             PathBinding::Machine { handle } -> found(ValueBinding::Machine { handle: handle })
@@ -461,7 +461,7 @@ crashes Trap
         }
     }
 
-    state trait_requirement(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, declared: ConformanceItem, name: SourceSpan) -> ValueBinding {
+    machine trait_requirement(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, declared: ConformanceItem, name: SourceSpan) -> ValueBinding {
         let binding: TypeBinding = NameResolution::type_binding_at(resolution, declared.trait_type);
         transition binding {
             TypeBinding::Trait { item } -> requirement(sources, syntax, item, name)
@@ -469,7 +469,7 @@ crashes Trap
         }
     }
 
-    state requirement(sources: &SourceSet, syntax: &SyntaxTrees, trait_index: u64 in Trapping, name: SourceSpan) -> ValueBinding {
+    machine requirement(sources: &SourceSet, syntax: &SyntaxTrees, trait_index: u64 in Trapping, name: SourceSpan) -> ValueBinding {
         let member: Lookup = Resolver::trait_member_named(sources, syntax, trait_index, name);
         transition member {
             Lookup::Found { handle } -> found(ValueBinding::Machine { handle: handle })
@@ -477,7 +477,7 @@ crashes Trap
         }
     }
 
-    state found(binding: ValueBinding) -> ValueBinding {
+    machine found(binding: ValueBinding) -> ValueBinding {
         binding
     }
 }
@@ -490,11 +490,11 @@ crashes Trap
         _ -> invalid()
     }
 
-    state store(resolver: &mut Resolver, path: u64 in Trapping, binding: PathBinding) {
+    machine store(resolver: &mut Resolver, path: u64 in Trapping, binding: PathBinding) {
         resolver.output.path_bindings[path] = binding;
     }
 
-    state invalid() {
+    machine invalid() {
         crash Trap;
     }
 }

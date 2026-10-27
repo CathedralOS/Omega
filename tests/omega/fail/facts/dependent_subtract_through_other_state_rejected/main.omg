@@ -6,7 +6,7 @@ data Main where count <= 11 { count: u32; j: u32; out: i32; }
 machine Main::main(main: &mut Main)
 {
     transition { _ -> finish(main, main.count, main.j) }
-    state finish(main: &mut Main, count: u32, used: u32)
+    machine finish(main: &mut Main, count: u32, used: u32)
         requires count <= 11
     {
         let remaining: u32 = count - used;

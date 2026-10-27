@@ -32,8 +32,8 @@ machine Main::main<'entry>(main: &'entry mut Main) reaches Reading crashes Trap 
     main.value = 37;
     let result: i32 = observed(&main.value);
     transition result == 37 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The root owns ordinary local storage and supplies its borrow explicitly.

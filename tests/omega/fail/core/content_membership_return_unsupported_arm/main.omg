@@ -9,7 +9,7 @@ ensures result in Owned {
         true -> (ticket)
         _ -> replace(ticket)
     }
-    state replace(ticket: Ticket in Owned) -> Ticket {
+    machine replace(ticket: Ticket in Owned) -> Ticket {
         drop(ticket);
         Ticket { amount: 64 }
     }

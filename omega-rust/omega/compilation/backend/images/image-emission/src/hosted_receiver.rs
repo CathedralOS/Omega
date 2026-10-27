@@ -5,8 +5,8 @@
 //! and observes the same allocations after normal loan retirement. Its stack
 //! is a separate disjoint partition whose demand comes from the whole callee.
 
+mod aarch64;
 mod instructions;
-mod macos_arm64;
 mod windows_x86_64;
 
 use diagnostics::Diagnostic;
@@ -251,12 +251,14 @@ pub(crate) fn prepare(
     let binding = artifact.hosted_receiver_binding().ok_or_else(invalid)?;
     validate_binding(artifact, binding)?;
     let (object, _partitions, storage) = provision_receiver_storage(artifact, binding)?;
-    if artifact.target == target::NativeTarget::macos_arm64() {
-        macos_arm64::prepare(artifact, binding, object, storage)
+    if artifact.target.architecture == target::Architecture::Aarch64 {
+        aarch64::prepare(artifact, binding, object, storage)
     } else if artifact.target == target::NativeTarget::windows_x64() {
         windows_x86_64::prepare(artifact, binding, object, storage)
-    } else {
+    } else if artifact.target == target::NativeTarget::linux_x64() {
         prepare_linux_x86_64(artifact, binding, object, storage)
+    } else {
+        Err(invalid())
     }
 }
 
@@ -578,6 +580,7 @@ fn validate_entry_arguments(
     let invalid = || invalid(artifact.target);
     if ![
         target::NativeTarget::linux_x64(),
+        target::NativeTarget::linux_arm64(),
         target::NativeTarget::macos_arm64(),
         target::NativeTarget::windows_x64(),
     ]
@@ -613,7 +616,7 @@ fn validate_entry_arguments(
         || !source.visible_parameters().is_empty()
         || function.attachment.is_some()
         || target.graph.call_plan.policy
-            != if artifact.target == target::NativeTarget::macos_arm64() {
+            != if artifact.target.architecture == target::Architecture::Aarch64 {
                 CallingPolicy::Aapcs64
             } else if artifact.target == target::NativeTarget::windows_x64() {
                 CallingPolicy::MicrosoftX64
@@ -681,7 +684,7 @@ fn validate_entry_arguments(
                     }
                 } else {
                     calling_conventions::IndirectPointerLocation::Register(
-                        if artifact.target == target::NativeTarget::macos_arm64() {
+                        if artifact.target.architecture == target::Architecture::Aarch64 {
                             (ordinal < 8).then_some(calling_conventions::MachineRegister::Aarch64X(
                                 ordinal as u8,
                             ))
@@ -802,19 +805,26 @@ pub(crate) fn validate_image(
             &binding.private_entry_ram,
         );
     }
-    let validate = if artifact.target == target::NativeTarget::macos_arm64() {
-        instructions::validate_macos_arm64
+    if artifact.target.architecture == target::Architecture::Aarch64 {
+        instructions::validate_aarch64(
+            artifact.target,
+            shim_bytes,
+            shim_address,
+            selected_entry,
+            output.final_image_layout.bss_address,
+            partitions,
+            &binding.private_entry_ram,
+        )
     } else {
-        instructions::validate_x86_64
-    };
-    validate(
-        shim_bytes,
-        shim_address,
-        selected_entry,
-        output.final_image_layout.bss_address,
-        partitions,
-        &binding.private_entry_ram,
-    )
+        instructions::validate_x86_64(
+            shim_bytes,
+            shim_address,
+            selected_entry,
+            output.final_image_layout.bss_address,
+            partitions,
+            &binding.private_entry_ram,
+        )
+    }
 }
 
 /// ELF64 `e_entry` must select the emitted bridge inside `.text`; the scalar

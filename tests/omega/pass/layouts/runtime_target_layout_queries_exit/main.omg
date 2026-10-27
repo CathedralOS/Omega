@@ -71,13 +71,13 @@ machine program() crashes Trap {
     let mut view: View;
     view.observed = query_size();
     transition { _ -> inspect(&view, size_of<Policy<Payload>>()) }
-    state inspect(view: &View, extent: u64) {
+    machine inspect(view: &View, extent: u64) {
         transition view.observed == expected_size() && extent == expected_size()
             && BYTES == expected_size() && align_of<Policy<Payload>>() == 4 {
             true -> done()
             false -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

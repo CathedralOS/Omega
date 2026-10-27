@@ -23,14 +23,14 @@ machine Main::main(main: &mut Main) {
         _ -> dark(main)
     }
 
-    state bright(main: &mut Main, level: u64) {
+    machine bright(main: &mut Main, level: u64) {
         transition level {
             5 -> good(main)
             _ -> dim(main)
         }
     }
 
-    state good(main: &mut Main) { main.answer = 70; }
-    state dim(main: &mut Main) { main.answer = 71; }
-    state dark(main: &mut Main) { main.answer = 72; }
+    machine good(main: &mut Main) { main.answer = 70; }
+    machine dim(main: &mut Main) { main.answer = 71; }
+    machine dark(main: &mut Main) { main.answer = 72; }
 }

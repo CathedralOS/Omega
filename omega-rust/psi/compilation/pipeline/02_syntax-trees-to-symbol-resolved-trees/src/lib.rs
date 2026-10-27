@@ -72,7 +72,7 @@ pub mod pre_resolution {
     };
     pub use crate::preparation::trait_defaults::synthesize_trait_defaults;
     pub use crate::resolution::{
-        ConstInitializerSelection, prepare_const_initializer_selection,
+        ConstArgumentSelection, ConstInitializerSelection, prepare_const_initializer_selection,
         resolve_call_result_selection, resolve_const_argument_selection,
         resolve_deferred_initializer_probe, resolve_deferred_numeric_probe, resolve_numeric_probe,
     };

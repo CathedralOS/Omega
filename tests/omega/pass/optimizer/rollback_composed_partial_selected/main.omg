@@ -19,12 +19,12 @@ machine main() {
         _ -> merge(produced)
     }
 
-    state merge(carried: i32) {
+    machine merge(carried: i32) {
         transition carried == 7 {
             true -> done()
             _ -> done()
         }
     }
 
-    state done() { }
+    machine done() { }
 }

@@ -3,7 +3,7 @@ data Control { count: i32; observed: i32; }
 data Carrier { body: &mut Control; }
 machine snapshot(control: &mut Control) -> i32 {
     transition { _ -> done(control, control.count) }
-    state done(control: &mut Control, value: i32) -> i32 {
+    machine done(control: &mut Control, value: i32) -> i32 {
         control.count = 9;
         transition { _ -> value }
     }
@@ -13,7 +13,7 @@ machine Control::main(control: &mut Control) crashes Trap {
     let observed: i32 = snapshot(&mut control);
     control.observed = observed;
     transition control.count == 9 && control.observed == 4 { true -> variants(control) _ -> bad() }
-    state variants(control: &mut Control) {
+    machine variants(control: &mut Control) {
         control.count = 5;
         let first: i32 = local_snapshot(&mut control);
         control.count = 6;
@@ -27,25 +27,25 @@ machine Control::main(control: &mut Control) crashes Trap {
         control.observed = third;
         transition first == 5 && second == 6 && third == 7 && fourth == 8 && fifth == 9 && control.count == 14 { true -> {} _ -> bad() }
     }
-    state bad() { crash Trap; }
+    machine bad() { crash Trap; }
 }
 
 machine local_snapshot(control: &mut Control) -> i32 {
     let reference: &mut Control = &mut control;
     transition { _ -> done(reference, reference.count) }
-    state done(reference: &mut Control, value: i32) -> i32 { reference.count = 10; transition { _ -> value } }
+    machine done(reference: &mut Control, value: i32) -> i32 { reference.count = 10; transition { _ -> value } }
 }
 machine field_snapshot(control: &mut Control) -> i32 {
     let carrier: Carrier = Carrier { body: &mut control };
     transition { _ -> done(carrier.body, carrier.body.count) }
-    state done(reference: &mut Control, value: i32) -> i32 { reference.count = 11; transition { _ -> value } }
+    machine done(reference: &mut Control, value: i32) -> i32 { reference.count = 11; transition { _ -> value } }
 }
 machine count(control: &Control) -> i32 { transition { _ -> control.count } }
 machine identity(control: &mut Control) -> &mut Control { transition { _ -> control } }
 machine result_snapshot(control: &mut Control) -> i32 {
     let reference: &mut Control = identity(&mut control);
     transition { _ -> done(count(reference), reference) }
-    state done(value: i32, reference: &mut Control) -> i32 { reference.count = 12; transition { _ -> value } }
+    machine done(value: i32, reference: &mut Control) -> i32 { reference.count = 12; transition { _ -> value } }
 }
 
 machine owned_field_snapshot(control: &mut Control) -> i32 {
@@ -55,7 +55,7 @@ machine owned_field_snapshot(control: &mut Control) -> i32 {
 }
 machine owning_carrier(carrier: Carrier) -> i32 {
     transition { _ -> done(carrier.body, carrier.body.count) }
-    state done(reference: &mut Control, value: i32) -> i32 { reference.count = 13; transition { _ -> value } }
+    machine done(reference: &mut Control, value: i32) -> i32 { reference.count = 13; transition { _ -> value } }
 }
 machine borrowed_field_snapshot(control: &mut Control) -> i32 {
     let mut carrier: Carrier = Carrier { body: &mut control };
@@ -64,7 +64,7 @@ machine borrowed_field_snapshot(control: &mut Control) -> i32 {
 }
 machine borrowing_carrier(carrier: &mut Carrier) -> i32 {
     transition { _ -> done(carrier.body, carrier.body.count) }
-    state done(reference: &mut Control, value: i32) -> i32 { reference.count = 14; transition { _ -> value } }
+    machine done(reference: &mut Control, value: i32) -> i32 { reference.count = 14; transition { _ -> value } }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

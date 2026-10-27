@@ -6,7 +6,7 @@ machine accumulate(sink: &mut Checksum, digit: i32 in Saturating) {
 
 machine digits(sink: &mut Checksum, value: i64 in Saturating) {
     transition { _ -> step(sink, value, 100000000000) }
-    state step(sink: &mut Checksum, value: i64 in Saturating, divisor: i64 in Saturating)
+    machine step(sink: &mut Checksum, value: i64 in Saturating, divisor: i64 in Saturating)
     requires divisor >= 1
     {
         let digit: i64 in Saturating = (value / divisor) % 10;
@@ -16,7 +16,7 @@ machine digits(sink: &mut Checksum, value: i64 in Saturating) {
             false -> done()
         }
     }
-    state done() {}
+    machine done() {}
 }
 
 machine main() crashes Trap {
@@ -26,6 +26,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

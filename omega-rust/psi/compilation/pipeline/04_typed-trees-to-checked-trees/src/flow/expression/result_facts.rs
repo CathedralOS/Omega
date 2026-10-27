@@ -147,9 +147,7 @@ impl Execution<'_, '_, '_> {
         // carrier. Keep only predicate-only observations from the evaluated
         // operand; erased semantic tags and routed authority never follow.
         for observed in self.cast_predicate_observations(expression, reference, *contexts) {
-            if !domains.contains(&observed) {
-                domains.push(observed);
-            }
+            crate::collections::push_unique(&mut domains, observed);
         }
         let mut predicates = Vec::new();
         crate::values::float_predicates::declared_type_predicates(

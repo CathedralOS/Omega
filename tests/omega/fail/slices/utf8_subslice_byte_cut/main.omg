@@ -6,7 +6,7 @@ machine relay(bytes: &[u8] in Utf8) {
         true -> inspect(bytes[0..1])
         false -> empty()
     }
-    state empty() {}
+    machine empty() {}
 }
 data Main {}
 machine Main::main(main: &mut Main) { relay("é"); }

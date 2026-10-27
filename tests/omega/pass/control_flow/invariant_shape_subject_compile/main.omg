@@ -21,6 +21,6 @@ machine Main::main(main: &mut Main) {
         _ -> narrow(main)
     }
 
-    state wide(main: &mut Main) { main.answer = 70; }
-    state narrow(main: &mut Main) { main.answer = 71; }
+    machine wide(main: &mut Main) { main.answer = 70; }
+    machine narrow(main: &mut Main) { main.answer = 71; }
 }

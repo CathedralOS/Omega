@@ -21,11 +21,11 @@ machine ordered_second(counter: &mut Counter, expected: u32) -> i32 ensures resu
         true -> increment(counter)
         false -> bad()
     }
-    state increment(counter: &mut Counter) -> i32 {
+    machine increment(counter: &mut Counter) -> i32 {
         counter.calls = counter.calls + 1u32;
         1i32
     }
-    state bad() -> i32 { crash Trap; }
+    machine bad() -> i32 { crash Trap; }
 }
 
 machine main() crashes Trap {
@@ -46,6 +46,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

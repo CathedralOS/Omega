@@ -86,11 +86,11 @@ reaches TimeHost
         _ -> degraded()
     }
 
-    state measured(seconds: i64, nanoseconds: i64) -> u64 {
+    machine measured(seconds: i64, nanoseconds: i64) -> u64 {
         linux_x86_64_time_host_ticks(seconds, nanoseconds)
     }
 
-    state degraded() -> u64 { 0 }
+    machine degraded() -> u64 { 0 }
 }
 
 linux_x86_64 machine TimeHostNativeProvider::monotonic_ticks_per_second() -> u64
@@ -110,11 +110,11 @@ reaches TimeHost
         _ -> degraded()
     }
 
-    state measured(seconds: i64, nanoseconds: i64) -> u64 {
+    machine measured(seconds: i64, nanoseconds: i64) -> u64 {
         linux_x86_64_time_host_ticks(seconds, nanoseconds)
     }
 
-    state degraded() -> u64 { 0 }
+    machine degraded() -> u64 { 0 }
 }
 
 // CLOCK_REALTIME is already Unix-epoch nanoseconds, so the units are 10^9 and
@@ -144,11 +144,11 @@ blocks;
         _ -> at_once(milliseconds)
     }
 
-    state at_once(milliseconds: u32) {
+    machine at_once(milliseconds: u32) {
         block TimeHostNativeProvider::wait_part_linux_x86_64(narrow_u32_to_i32_wrapping(milliseconds));
     }
 
-    state in_parts(milliseconds: u32) {
+    machine in_parts(milliseconds: u32) {
         let third: i32 = narrow_u32_to_i32_wrapping(milliseconds / 3);
         block TimeHostNativeProvider::wait_part_linux_x86_64(third);
         block TimeHostNativeProvider::wait_part_linux_x86_64(third);
@@ -166,7 +166,7 @@ blocks;
 {
     transition { _ -> wait(timeout_milliseconds) }
 
-    state wait(timeout_milliseconds: i32) {
+    machine wait(timeout_milliseconds: i32) {
         let outcome: i32 = block LinuxX64TimeRead::poll(0, 0, timeout_milliseconds);
         transition outcome == 0 {
             true -> done()
@@ -174,7 +174,7 @@ blocks;
         }
     }
 
-    state done() { }
+    machine done() { }
 }
 
 linux_x86_64 machine TimeHostNativeProvider::provider_defaults(defaults: &mut TimeHostNativeProvider) {

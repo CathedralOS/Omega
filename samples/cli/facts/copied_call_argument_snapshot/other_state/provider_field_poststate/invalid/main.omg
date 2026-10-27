@@ -19,7 +19,7 @@ machine seven(value: u64) -> u64 requires value == 7 ensures result == 7 { value
 machine receive(selected: Counted<7>, ignored: u64) -> u64
 ensures result == 7
 { transition { _ -> arrive(selected) }
-    state arrive(value: Counted<7>) -> u64 requires value.value == 7 { seven(value.value) } }
+    machine arrive(value: Counted<7>) -> u64 requires value.value == 7 { seven(value.value) } }
 machine receive_ordered(earlier: u64, selected: Counted<7>, ignored: u64) -> u64
 ensures result == 7
 { receive(selected, ignored) }
@@ -29,5 +29,5 @@ machine main() crashes Trap {
     let observed: u64 = receive_ordered(Installing::install(Installer as dyn Installing, &mut source, 6), snapshot(source.value, &mut counter), overwrite(&mut source.value));
     let difference: u64 = observed - 7;
     transition counter.value && difference == 0 && source.value == 9 { true -> done() false -> wrong() }
-    state done() {} state wrong() { crash Trap; }
+    machine done() {} machine wrong() { crash Trap; }
 }

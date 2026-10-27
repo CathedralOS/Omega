@@ -746,7 +746,12 @@ fn instantiate_partition_result_subject(
     // a directly completed call establishes its own result at the same place.
     let joined_result = invocation.completed_value != outgoing.returned_value;
     let mut identities = Vec::new();
-    for (_, event) in facts.flow.ownership.permissions.iter() {
+    let state_permissions = facts
+        .flow
+        .ownership
+        .with_state_permissions(caller_state.symbol, |handles| handles.to_vec());
+    for handle in state_permissions {
+        let event = facts.flow.ownership.permissions.get(handle);
         if !permission_event_at_invocation(
             event,
             caller_state.symbol,

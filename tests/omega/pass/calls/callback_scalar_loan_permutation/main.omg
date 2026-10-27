@@ -17,7 +17,7 @@ satisfies CallingPolicy::plan
         true -> accept()
         _ -> reject()
     }
-    state accept() -> BoundaryPlanResult {
+    machine accept() -> BoundaryPlanResult {
         let mut plan: BoundaryEntryPlan;
         plan.call.parameter_count = 3;
         plan.call.parameters[0] = SortPolicies::word(8, 1);
@@ -27,7 +27,7 @@ satisfies CallingPolicy::plan
         plan.call.result = SortPolicies::result_word(4);
         SortPolicies::finish(plan)
     }
-    state reject() -> BoundaryPlanResult {
+    machine reject() -> BoundaryPlanResult {
         BoundaryPlanResult::Rejected {
             reason: CallingPolicyRejection { reason: "comparator requires two references and an integer result" },
         }
@@ -43,7 +43,7 @@ satisfies CallingPolicy::plan
         true -> accept(signature)
         _ -> reject()
     }
-    state accept(signature: BoundarySignature) -> BoundaryPlanResult {
+    machine accept(signature: BoundarySignature) -> BoundaryPlanResult {
         let mut plan: BoundaryEntryPlan;
         plan.call.parameter_count = signature.native_parameter_count;
         plan.call.parameters[0] = SortPolicies::word(8, 0);
@@ -56,7 +56,7 @@ satisfies CallingPolicy::plan
         plan.call.callback_materializations[0].destination = signature.callback_demands[0].destination;
         SortPolicies::finish(plan)
     }
-    state reject() -> BoundaryPlanResult {
+    machine reject() -> BoundaryPlanResult {
         BoundaryPlanResult::Rejected {
             reason: CallingPolicyRejection { reason: "invalid qsort telescope" },
         }
@@ -159,7 +159,7 @@ machine compare_values(first: &u64, second: &u64) -> i32 {
         true -> -1
         _ -> not_less(first, second)
     }
-    state not_less(first: &u64, second: &u64) -> i32 {
+    machine not_less(first: &u64, second: &u64) -> i32 {
         transition first > second {
             true -> 1
             _ -> 0
@@ -174,10 +174,10 @@ satisfies Comparator::compare
         true -> ascending(first, second)
         _ -> descending(first, second)
     }
-    state ascending(first: &u64, second: &u64) -> i32 {
+    machine ascending(first: &u64, second: &u64) -> i32 {
         compare_values(first, second)
     }
-    state descending(first: &u64, second: &u64) -> i32 {
+    machine descending(first: &u64, second: &u64) -> i32 {
         compare_values(second, first)
     }
 }
@@ -211,7 +211,7 @@ invokes Console;
         true -> descending(main)
         _ -> failed()
     }
-    state descending(main: &mut Main) {
+    machine descending(main: &mut Main) {
         main.direction = 0;
         SortRegistrar::sort<Ordering::compare>(&mut main.elements, 2, 8, &main.direction);
         transition main.elements.first == 91 && main.elements.second == 17 {
@@ -219,8 +219,8 @@ invokes Console;
             _ -> failed()
         }
     }
-    state done() { Console::exit_process(0); }
-    state failed() { Console::exit_process(71); }
+    machine done() { Console::exit_process(0); }
+    machine failed() { Console::exit_process(71); }
 }
 
 
@@ -293,7 +293,7 @@ linux_x86_64 machine SortPolicies::comparator(signature: BoundarySignature) -> B
         true -> accept()
         _ -> reject()
     }
-    state accept() -> BoundaryPlanResult {
+    machine accept() -> BoundaryPlanResult {
         let mut plan: BoundaryEntryPlan;
         plan.call.parameter_count = 3;
         plan.call.parameters[0] = LinuxSortPolicies::word(8, 0);
@@ -303,7 +303,7 @@ linux_x86_64 machine SortPolicies::comparator(signature: BoundarySignature) -> B
         plan.call.result = LinuxSortPolicies::result_word(4);
         LinuxSortPolicies::finish(plan)
     }
-    state reject() -> BoundaryPlanResult {
+    machine reject() -> BoundaryPlanResult {
         BoundaryPlanResult::Rejected {
             reason: CallingPolicyRejection { reason: "comparator requires two references and an integer result" },
         }
@@ -319,7 +319,7 @@ linux_x86_64 machine SortPolicies::sort(signature: BoundarySignature) -> Boundar
         true -> accept(signature)
         _ -> reject()
     }
-    state accept(signature: BoundarySignature) -> BoundaryPlanResult {
+    machine accept(signature: BoundarySignature) -> BoundaryPlanResult {
         let mut plan: BoundaryEntryPlan;
         plan.call.parameter_count = signature.native_parameter_count;
         plan.call.parameters[0] = LinuxSortPolicies::word(8, 0);
@@ -332,7 +332,7 @@ linux_x86_64 machine SortPolicies::sort(signature: BoundarySignature) -> Boundar
         plan.call.callback_materializations[0].destination = signature.callback_demands[0].destination;
         LinuxSortPolicies::finish(plan)
     }
-    state reject() -> BoundaryPlanResult {
+    machine reject() -> BoundaryPlanResult {
         BoundaryPlanResult::Rejected {
             reason: CallingPolicyRejection { reason: "invalid qsort telescope" },
         }

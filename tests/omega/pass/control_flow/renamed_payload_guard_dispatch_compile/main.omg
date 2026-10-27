@@ -19,7 +19,7 @@ machine Main::main(main: &mut Main) {
         _ -> small(main)
     }
 
-    state big(main: &mut Main, captured: u64) { main.answer = captured; }
-    state idle(main: &mut Main) { main.answer = 70; }
-    state small(main: &mut Main) { main.answer = 71; }
+    machine big(main: &mut Main, captured: u64) { main.answer = captured; }
+    machine idle(main: &mut Main) { main.answer = 70; }
+    machine small(main: &mut Main) { main.answer = 71; }
 }

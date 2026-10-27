@@ -18,7 +18,7 @@ machine Main::build(main: &mut Main, count: u32) reaches Console {
         true -> leg2(main, count)
         _ -> wrong_shl(main)
     }
-    state leg2(main: &mut Main, count: u32) {
+    machine leg2(main: &mut Main, count: u32) {
         let b: u32 in Wrapping = (64 as u32 in Wrapping);
         let s: u32 in Wrapping = b >> count;
         transition s == 8 {
@@ -31,7 +31,7 @@ machine Main::build(main: &mut Main, count: u32) reaches Console {
     // modular reading, and what the hardware computes anyway. 1 << 40 at u32
     // is 1 << 8 = 256; 1 << 70 at u64 is 1 << 6 = 64. (Supersedes the
     // retired modular-VALUE semantics where at-width counts collapsed to 0.)
-    state atwidth32(main: &mut Main) {
+    machine atwidth32(main: &mut Main) {
         let a: u32 in Wrapping = (1 as u32 in Wrapping);
         let c: u32 in Wrapping = (40 as u32 in Wrapping);
         let r: u32 in Wrapping = a << c;
@@ -40,7 +40,7 @@ machine Main::build(main: &mut Main, count: u32) reaches Console {
             _ -> wrong_atwidth32(main)
         }
     }
-    state atwidth64(main: &mut Main) {
+    machine atwidth64(main: &mut Main) {
         let a: u64 in Wrapping = (1 as u64 in Wrapping);
         let c: u64 in Wrapping = (70 as u64 in Wrapping);
         let r: u64 in Wrapping = a << c;
@@ -49,11 +49,11 @@ machine Main::build(main: &mut Main, count: u32) reaches Console {
             _ -> wrong_atwidth64(main)
         }
     }
-    state good(main: &mut Main)           { Console::exit_process(70); }
-    state wrong_shl(main: &mut Main)      { Console::exit_process(71); }
-    state wrong_shr(main: &mut Main)      { Console::exit_process(72); }
-    state wrong_atwidth32(main: &mut Main){ Console::exit_process(73); }
-    state wrong_atwidth64(main: &mut Main){ Console::exit_process(74); }
+    machine good(main: &mut Main)           { Console::exit_process(70); }
+    machine wrong_shl(main: &mut Main)      { Console::exit_process(71); }
+    machine wrong_shr(main: &mut Main)      { Console::exit_process(72); }
+    machine wrong_atwidth32(main: &mut Main){ Console::exit_process(73); }
+    machine wrong_atwidth64(main: &mut Main){ Console::exit_process(74); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

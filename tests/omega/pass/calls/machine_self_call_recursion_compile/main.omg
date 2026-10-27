@@ -16,6 +16,6 @@ machine Main::main() crashes Trap {
         true -> yes()
         false -> no()
     }
-    state yes() { }
-    state no() { crash Trap; }
+    machine yes() { }
+    machine no() { crash Trap; }
 }

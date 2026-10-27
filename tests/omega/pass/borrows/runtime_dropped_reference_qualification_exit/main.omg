@@ -10,7 +10,7 @@ requires ticket in Issued
 ensures ticket in Issued
 {
     transition { _ -> finish() }
-    state finish() -> bool {
+    machine finish() -> bool {
         let mut scratch: u64 = 0;
         scratch = 1;
         scratch == 1
@@ -22,11 +22,11 @@ requires ticket in Issued
 ensures ticket in Issued
 {
     transition { _ -> replace(ticket) }
-    state replace(renamed: &mut Ticket) -> bool {
+    machine replace(renamed: &mut Ticket) -> bool {
         renamed = issue(43);
         transition { _ -> finish() }
     }
-    state finish() -> bool { true }
+    machine finish() -> bool { true }
 }
 
 machine read(ticket: &Ticket) -> u64
@@ -41,6 +41,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

@@ -32,7 +32,7 @@ terminates by remaining;
         true -> windows_path_encode(path, output, step.next_input, step.next_output, remaining - 1)
         false -> settle(step)
     }
-    state settle(step: WindowsPathStep) -> i64 {
+    machine settle(step: WindowsPathStep) -> i64 {
         transition step.status == 1 {
             true -> (narrow_u64_to_i64_wrapping(step.next_output))
             false -> (-1)
@@ -45,47 +45,47 @@ machine windows_path_step(path: &[u8], output: &mut [u16; 4096], input_offset: u
         true -> position(path, output, input_offset, output_offset)
         false -> bad()
     }
-    state position(path: &[u8], output: &mut [u16; 4096], input_offset: u64, output_offset: u64) -> WindowsPathStep {
+    machine position(path: &[u8], output: &mut [u16; 4096], input_offset: u64, output_offset: u64) -> WindowsPathStep {
         transition input_offset < path.len {
             true -> decode(path, output, input_offset, output_offset)
             false -> terminate(output, output_offset)
         }
     }
-    state decode(path: &[u8], output: &mut [u16; 4096], input_offset: u64, output_offset: u64) -> WindowsPathStep {
+    machine decode(path: &[u8], output: &mut [u16; 4096], input_offset: u64, output_offset: u64) -> WindowsPathStep {
         let character: WindowsPathCharacter = windows_path_character(path, input_offset);
         transition character.valid {
             true -> emit(output, character, output_offset)
             false -> bad()
         }
     }
-    state emit(output: &mut [u16; 4096], character: WindowsPathCharacter, output_offset: u64) -> WindowsPathStep {
+    machine emit(output: &mut [u16; 4096], character: WindowsPathCharacter, output_offset: u64) -> WindowsPathStep {
         transition character.point < 65536 {
             true -> single(output, character, output_offset)
             false -> pair(output, character, output_offset)
         }
     }
-    state single(output: &mut [u16; 4096], character: WindowsPathCharacter, output_offset: u64) -> WindowsPathStep {
+    machine single(output: &mut [u16; 4096], character: WindowsPathCharacter, output_offset: u64) -> WindowsPathStep {
         output[output_offset] = narrow_u32_to_u16_wrapping(character.point);
         WindowsPathStep { status: 0, next_input: character.next_input, next_output: output_offset + 1 }
     }
-    state pair(output: &mut [u16; 4096], character: WindowsPathCharacter, output_offset: u64) -> WindowsPathStep {
+    machine pair(output: &mut [u16; 4096], character: WindowsPathCharacter, output_offset: u64) -> WindowsPathStep {
         let next_output: u64 = output_offset + 1;
         transition next_output < output.len {
             true -> emit_pair(output, character, output_offset, next_output)
             false -> bad()
         }
     }
-    state emit_pair(output: &mut [u16; 4096], character: WindowsPathCharacter, output_offset: u64, next_output: u64) -> WindowsPathStep {
+    machine emit_pair(output: &mut [u16; 4096], character: WindowsPathCharacter, output_offset: u64, next_output: u64) -> WindowsPathStep {
         let above: u32 = character.point - 65536;
         output[output_offset] = narrow_u32_to_u16_wrapping(55296 + (above / 1024));
         output[next_output] = narrow_u32_to_u16_wrapping(56320 + (above % 1024));
         WindowsPathStep { status: 0, next_input: character.next_input, next_output: next_output + 1 }
     }
-    state terminate(output: &mut [u16; 4096], output_offset: u64) -> WindowsPathStep {
+    machine terminate(output: &mut [u16; 4096], output_offset: u64) -> WindowsPathStep {
         output[output_offset] = 0;
         WindowsPathStep { status: 1, next_input: 0, next_output: output_offset + 1 }
     }
-    state bad() -> WindowsPathStep {
+    machine bad() -> WindowsPathStep {
         WindowsPathStep { status: -1, next_input: 0, next_output: 0 }
     }
 }
@@ -94,50 +94,50 @@ machine windows_path_step(path: &[u8], output: &mut [u16; 4096], input_offset: u
 // scalars and embedded NUL before returning a character to the encoder.
 machine windows_path_character(path: &[u8], offset: u64) -> WindowsPathCharacter {
     transition offset < path.len { true -> lead(path, offset) false -> bad() }
-    state lead(path: &[u8], offset: u64) -> WindowsPathCharacter {
+    machine lead(path: &[u8], offset: u64) -> WindowsPathCharacter {
         let first: u8 = path[offset];
         transition first > 0 && first < 128 {
             true -> valid(widen_u8_to_u32(first), offset + 1)
             false -> multibyte(path, offset, first)
         }
     }
-    state multibyte(path: &[u8], offset: u64, first: u8) -> WindowsPathCharacter {
+    machine multibyte(path: &[u8], offset: u64, first: u8) -> WindowsPathCharacter {
         let second_offset: u64 = offset + 1;
         transition first >= 194 && first <= 244 && second_offset < path.len {
             true -> second(path, first, second_offset)
             false -> bad()
         }
     }
-    state second(path: &[u8], first: u8, offset: u64) -> WindowsPathCharacter {
+    machine second(path: &[u8], first: u8, offset: u64) -> WindowsPathCharacter {
         let second: u8 = path[offset];
         transition second >= 128 && second < 192 {
             true -> width(path, first, second, offset + 1)
             false -> bad()
         }
     }
-    state width(path: &[u8], first: u8, second: u8, next: u64) -> WindowsPathCharacter {
+    machine width(path: &[u8], first: u8, second: u8, next: u64) -> WindowsPathCharacter {
         transition first < 224 {
             true -> valid((widen_u8_to_u32(first & 31) << 6) | widen_u8_to_u32(second & 63), next)
             false -> third_room(path, first, second, next)
         }
     }
-    state third_room(path: &[u8], first: u8, second: u8, offset: u64) -> WindowsPathCharacter {
+    machine third_room(path: &[u8], first: u8, second: u8, offset: u64) -> WindowsPathCharacter {
         transition offset < path.len { true -> third(path, first, second, offset) false -> bad() }
     }
-    state third(path: &[u8], first: u8, second: u8, offset: u64) -> WindowsPathCharacter {
+    machine third(path: &[u8], first: u8, second: u8, offset: u64) -> WindowsPathCharacter {
         let third: u8 = path[offset];
         transition third >= 128 && third < 192 {
             true -> third_width(path, first, second, third, offset + 1)
             false -> bad()
         }
     }
-    state third_width(path: &[u8], first: u8, second: u8, third: u8, next: u64) -> WindowsPathCharacter {
+    machine third_width(path: &[u8], first: u8, second: u8, third: u8, next: u64) -> WindowsPathCharacter {
         transition first < 240 {
             true -> three(first, second, third, next)
             false -> fourth_room(path, first, second, third, next)
         }
     }
-    state three(first: u8, second: u8, third: u8, next: u64) -> WindowsPathCharacter {
+    machine three(first: u8, second: u8, third: u8, next: u64) -> WindowsPathCharacter {
         let point: u32 = (widen_u8_to_u32(first & 15) << 12)
             | (widen_u8_to_u32(second & 63) << 6) | widen_u8_to_u32(third & 63);
         transition point >= 2048 && (point < 55296 || point > 57343) {
@@ -145,10 +145,10 @@ machine windows_path_character(path: &[u8], offset: u64) -> WindowsPathCharacter
             false -> bad()
         }
     }
-    state fourth_room(path: &[u8], first: u8, second: u8, third: u8, offset: u64) -> WindowsPathCharacter {
+    machine fourth_room(path: &[u8], first: u8, second: u8, third: u8, offset: u64) -> WindowsPathCharacter {
         transition offset < path.len { true -> fourth(path, first, second, third, offset) false -> bad() }
     }
-    state fourth(path: &[u8], first: u8, second: u8, third: u8, offset: u64) -> WindowsPathCharacter {
+    machine fourth(path: &[u8], first: u8, second: u8, third: u8, offset: u64) -> WindowsPathCharacter {
         let fourth: u8 = path[offset];
         let point: u32 = (widen_u8_to_u32(first & 7) << 18)
             | (widen_u8_to_u32(second & 63) << 12)
@@ -158,10 +158,10 @@ machine windows_path_character(path: &[u8], offset: u64) -> WindowsPathCharacter
             false -> bad()
         }
     }
-    state valid(point: u32, next: u64) -> WindowsPathCharacter {
+    machine valid(point: u32, next: u64) -> WindowsPathCharacter {
         WindowsPathCharacter { valid: true, point: point, next_input: next }
     }
-    state bad() -> WindowsPathCharacter {
+    machine bad() -> WindowsPathCharacter {
         WindowsPathCharacter { valid: false, point: 0, next_input: 0 }
     }
 }

@@ -14,12 +14,12 @@ machine main() {
     let issued: Receipt = Receipt { code: 1 };
     transition { _ -> holding(issued) }
 
-    state holding(held: Receipt) {
+    machine holding(held: Receipt) {
         let observed: i32 = consume(held);
         transition { _ -> again(held) }
     }
 
-    state again(last: Receipt) {
+    machine again(last: Receipt) {
         Receipt::ack(last);
     }
 }

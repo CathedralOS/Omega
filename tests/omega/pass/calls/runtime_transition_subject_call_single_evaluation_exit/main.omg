@@ -41,14 +41,14 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
 
-    state decide(main: &mut Main) {
+    machine decide(main: &mut Main) {
         transition Main::roll(&mut main.tally) {
             true -> report(main)
             false -> report(main)
         }
     }
 
-    state report(main: &mut Main) {
+    machine report(main: &mut Main) {
         transition {
             main.tally.calls == 40 -> exit_never_ran(main)
             main.tally.calls == 41 -> exit_once(main)
@@ -57,10 +57,10 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state exit_never_ran(main: &mut Main) { Console::exit_process(10); }
-    state exit_once(main: &mut Main) { Console::exit_process(70); }
-    state exit_twice(main: &mut Main) { Console::exit_process(2); }
-    state exit_other(main: &mut Main) { Console::exit_process(77); }
+    machine exit_never_ran(main: &mut Main) { Console::exit_process(10); }
+    machine exit_once(main: &mut Main) { Console::exit_process(70); }
+    machine exit_twice(main: &mut Main) { Console::exit_process(2); }
+    machine exit_other(main: &mut Main) { Console::exit_process(77); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

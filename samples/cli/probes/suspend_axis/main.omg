@@ -47,10 +47,10 @@ machine Main::main(main: &mut Main) suspends; reaches Scheduler {
         true -> park_last(main)
         _ -> fail(main)
     }
-    state park_last(main: &mut Main) {
+    machine park_last(main: &mut Main) {
         suspend Scheduler::park();
     }
-    state fail(main: &mut Main) { main.hits = -1; }
+    machine fail(main: &mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

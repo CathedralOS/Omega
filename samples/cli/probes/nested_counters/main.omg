@@ -121,61 +121,61 @@ machine Main::main(main: &mut Main) reaches Console {
     Main::increment_count(main);
 
     // Verify nested field main.state.inner.value == 40.
-    transition main.state.inner.value == 40 {
+    transition main.machine.inner.value == 40 {
         true -> check_bonus(main)
         _ -> bad_value(main)
     }
 
-    state bad_value(main: &mut Main) {
+    machine bad_value(main: &mut Main) {
         Console::write_line("FAIL: wrong nested value field (exit 71)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(71);
     }
 
-    state check_bonus(main: &mut Main) {
-        transition main.state.inner.bonus == 20 {
+    machine check_bonus(main: &mut Main) {
+        transition main.machine.inner.bonus == 20 {
             true -> check_count(main)
             _ -> bad_bonus(main)
         }
     }
 
-    state bad_bonus(main: &mut Main) {
+    machine bad_bonus(main: &mut Main) {
         Console::write_line("FAIL: wrong nested bonus field (exit 72)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(72);
     }
 
-    state check_count(main: &mut Main) {
+    machine check_count(main: &mut Main) {
         transition main.state.count == 2 {
             true -> check_multiplier(main)
             _ -> bad_count(main)
         }
     }
 
-    state bad_count(main: &mut Main) {
+    machine bad_count(main: &mut Main) {
         Console::write_line("FAIL: wrong counter value (exit 73)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(73);
     }
 
-    state check_multiplier(main: &mut Main) {
+    machine check_multiplier(main: &mut Main) {
         transition main.state.multiplier == 5 {
             true -> compute_result(main)
             _ -> bad_multiplier(main)
         }
     }
 
-    state bad_multiplier(main: &mut Main) {
+    machine bad_multiplier(main: &mut Main) {
         Console::write_line("FAIL: wrong nested multiplier field (exit 75)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(75);
     }
 
-    state compute_result(main: &mut Main) {
+    machine compute_result(main: &mut Main) {
         // result = inner.value + inner.bonus + count * multiplier
         //        = 40 + 20 + 2 * 5 = 70
         let result: i32 = main.state.inner.value + main.state.inner.bonus
@@ -186,14 +186,14 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state bad_result(main: &mut Main) {
+    machine bad_result(main: &mut Main) {
         Console::write_line("FAIL: wrong combined result (exit 74)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(74);
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::write_line("PASS: 40 + 20 + 2*5 = 70 from nested fields (exit 70)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);

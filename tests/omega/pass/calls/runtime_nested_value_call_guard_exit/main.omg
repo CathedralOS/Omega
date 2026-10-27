@@ -31,46 +31,46 @@ machine Main::main(context: &mut Main) reaches Console {
         true -> check_sub_nanos(context, first, second, elapsed.subsecond_nanoseconds)
         false -> fail_sub_seconds(context)
     }
-    state check_sub_nanos(context: &mut Main, first: Duration, second: Duration, nanoseconds: u32) {
+    machine check_sub_nanos(context: &mut Main, first: Duration, second: Duration, nanoseconds: u32) {
         transition nanoseconds == 300000000 {
             true -> check_greater(context, first, second)
             false -> fail_sub_nanos(context)
         }
     }
-    state check_greater(context: &mut Main, first: Duration, second: Duration) {
+    machine check_greater(context: &mut Main, first: Duration, second: Duration) {
         let greater: bool = Duration::is_greater_than(&first, second);
         transition greater {
             true -> check_less(context, first, second)
             false -> fail_greater(context)
         }
     }
-    state check_less(context: &mut Main, first: Duration, second: Duration) {
+    machine check_less(context: &mut Main, first: Duration, second: Duration) {
         let less: bool = Duration::is_less_than(&first, second);
         transition less {
             true -> fail_less(context)
             false -> check_add(context, first, second)
         }
     }
-    state check_add(context: &mut Main, first: Duration, second: Duration) {
+    machine check_add(context: &mut Main, first: Duration, second: Duration) {
         let total: Duration = Duration::saturating_add(&first, second);
         transition total.seconds == 7 {
             true -> check_add_nanos(context, total.subsecond_nanoseconds)
             false -> fail_add_seconds(context)
         }
     }
-    state check_add_nanos(context: &mut Main, nanoseconds: u32) {
+    machine check_add_nanos(context: &mut Main, nanoseconds: u32) {
         transition nanoseconds == 500000000 {
             true -> good(context)
             false -> fail_add_nanos(context)
         }
     }
-    state good(context: &mut Main) { Console::exit_process(70); }
-    state fail_sub_seconds(context: &mut Main) { Console::exit_process(1); }
-    state fail_sub_nanos(context: &mut Main) { Console::exit_process(2); }
-    state fail_greater(context: &mut Main) { Console::exit_process(3); }
-    state fail_less(context: &mut Main) { Console::exit_process(4); }
-    state fail_add_seconds(context: &mut Main) { Console::exit_process(5); }
-    state fail_add_nanos(context: &mut Main) { Console::exit_process(6); }
+    machine good(context: &mut Main) { Console::exit_process(70); }
+    machine fail_sub_seconds(context: &mut Main) { Console::exit_process(1); }
+    machine fail_sub_nanos(context: &mut Main) { Console::exit_process(2); }
+    machine fail_greater(context: &mut Main) { Console::exit_process(3); }
+    machine fail_less(context: &mut Main) { Console::exit_process(4); }
+    machine fail_add_seconds(context: &mut Main) { Console::exit_process(5); }
+    machine fail_add_nanos(context: &mut Main) { Console::exit_process(6); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

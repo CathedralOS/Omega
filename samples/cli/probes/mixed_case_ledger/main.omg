@@ -41,14 +41,14 @@ machine mixed_case_ledger() {
         _ -> done(71)
     }
 
-    state check_default(event: Event) {
+    machine check_default(event: Event) {
         transition event.bonus == 0 {
             true -> destructure()
             _ -> done(72)
         }
     }
 
-    state destructure() {
+    machine destructure() {
         let point: Point = Point { x: 30, y: 40, z: 5 };
         let { x, y as vertical, z as _ } = point;
         transition x + vertical == 70 {
@@ -57,5 +57,5 @@ machine mixed_case_ledger() {
         }
     }
 
-    state done(code: i32) {}
+    machine done(code: i32) {}
 }

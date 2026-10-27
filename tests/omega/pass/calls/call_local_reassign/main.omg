@@ -17,6 +17,6 @@ machine Main::main(main: &mut Main) {
         true -> good(main, total)
         false -> bad(main)
     }
-    state good(main: &mut Main, total: i32) { main.total = total; }
-    state bad(main: &mut Main) { main.total = 0; }
+    machine good(main: &mut Main, total: i32) { main.total = total; }
+    machine bad(main: &mut Main) { main.total = 0; }
 }

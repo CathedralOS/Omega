@@ -16,7 +16,7 @@ machine variants(ticket: Ticket in Ticket::Installed) -> Ticket in Ticket::Held 
  let second: Ticket in Ticket::Held = holder.ticket as Ticket in Ticket::Held;
  let third: Ticket in Ticket::Held = activate(issue()) as Ticket in Ticket::Held;
  transition true { true -> carried(first, second, third, ticket) }
- state carried(first: Ticket in Ticket::Held, second: Ticket in Ticket::Held,
+ machine carried(first: Ticket in Ticket::Held, second: Ticket in Ticket::Held,
   third: Ticket in Ticket::Held, remaining: Ticket in Ticket::Installed) -> Ticket in Ticket::Held {
   remaining as Ticket in Ticket::Held
  }

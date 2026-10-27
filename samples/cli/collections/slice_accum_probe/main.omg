@@ -83,28 +83,28 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> bad_a(main)
     }
 
-    state bad_a(main: &mut Main) {
+    machine bad_a(main: &mut Main) {
         Console::write_line("FAIL: probe A (i32 slice) sum did not equal 70 (exit 71)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(71);
     }
 
-    state check_b(main: &mut Main, b: i32) {
+    machine check_b(main: &mut Main, b: i32) {
         transition b == 70 {
             true -> good(main)
             _ -> bad_b(main)
         }
     }
 
-    state bad_b(main: &mut Main) {
+    machine bad_b(main: &mut Main) {
         Console::write_line("FAIL: probe B (struct slice) sum did not equal 70 (exit 72)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(72);
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::write_line("PASS: both slice accumulations summed to 70 (exit 70)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);

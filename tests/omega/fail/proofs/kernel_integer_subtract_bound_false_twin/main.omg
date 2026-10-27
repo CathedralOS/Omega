@@ -5,5 +5,5 @@ requires remaining <= 5;
         true -> finish(remaining - 2)
         false -> remaining
     }
-    state finish(value: u64) -> u64 { value }
+    machine finish(value: u64) -> u64 { value }
 }

@@ -12,8 +12,8 @@ crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 machine copy_float(value: f64, limit: f64) crashes Trap {
@@ -29,8 +29,8 @@ crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 machine copy_boolean(value: bool) crashes Trap {
@@ -54,8 +54,8 @@ crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 machine exercise(initial: i32, replacement: i32) crashes Trap {

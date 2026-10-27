@@ -40,12 +40,12 @@ windows_x86_64 machine windows_raw_write(descriptor: i32, word: &u32, count: u32
     satisfies WindowsWords::write via windows_write();
 machine demand(result: bool) crashes Trap {
     transition result { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 macos_arm64 machine main() crashes Trap {
     transition { _ -> receive(Cell { prefix: 1650614882, word: WORD, suffix: 1684300900 }) }
-    state receive(cell: Cell) {
+    machine receive(cell: Cell) {
         let mut backing: Cell = cell;
     let selected: &u32 = &backing.word;
     let written: i64 = Words::write(1, selected, 4);
@@ -54,7 +54,7 @@ macos_arm64 machine main() crashes Trap {
 }
 linux_x86_64 machine main() crashes Trap {
     transition { _ -> receive(Cell { prefix: 1650614882, word: WORD, suffix: 1684300900 }) }
-    state receive(cell: Cell) {
+    machine receive(cell: Cell) {
         let mut backing: Cell = cell;
     let selected: &u32 = &backing.word;
     let written: i64 = Words::write(1, selected, 4);
@@ -63,7 +63,7 @@ linux_x86_64 machine main() crashes Trap {
 }
 linux_arm64 machine main() crashes Trap {
     transition { _ -> receive(Cell { prefix: 1650614882, word: WORD, suffix: 1684300900 }) }
-    state receive(cell: Cell) {
+    machine receive(cell: Cell) {
         let mut backing: Cell = cell;
     let selected: &u32 = &backing.word;
     let written: i64 = Words::write(1, selected, 4);
@@ -72,7 +72,7 @@ linux_arm64 machine main() crashes Trap {
 }
 windows_x86_64 machine main() crashes Trap {
     transition { _ -> receive(Cell { prefix: 1650614882, word: WORD, suffix: 1684300900 }) }
-    state receive(cell: Cell) {
+    machine receive(cell: Cell) {
         let mut backing: Cell = cell;
     let selected: &u32 = &backing.word;
     let written: i32 = WindowsWords::write(1, selected, 4);

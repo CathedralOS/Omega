@@ -10,6 +10,7 @@ use crate::layout_reports::{
     ConventionalSumLayoutReport, LayoutPlanReport,
 };
 use crate::materialization::MaterializationDiagnostic;
+use crate::materialization::field_values::validate_authored_width;
 
 /// Compiler-issued identity of an inbound entry stub. The numeric identity is
 /// never a callable address and cannot be used for arithmetic or control flow.
@@ -92,14 +93,11 @@ impl SymbolicFieldPathSegment {
         }
     }
 
-    /// `new` carrying the compiler-retained stable member identity. The field
-    /// spelling remains diagnostic presentation.
-    pub fn new_numbered(field: impl Into<String>, member_identity: u64) -> Self {
-        Self {
-            member_identity: Some(member_identity),
-            ..Self::new(field)
-        }
-    }
+    numbered_variant!(
+        /// `new` carrying the compiler-retained stable member identity. The field
+        /// spelling remains diagnostic presentation.
+        new_numbered(field) -> new
+    );
 
     /// `new` addressed to the `element_index`-th element of a repeated inner
     /// field. The bound is checked against the inner layout's element
@@ -111,18 +109,10 @@ impl SymbolicFieldPathSegment {
         }
     }
 
-    /// `new_indexed` carrying the compiler-retained stable member identity.
-    pub fn new_indexed_numbered(
-        field: impl Into<String>,
-        member_identity: u64,
-        element_index: u64,
-    ) -> Self {
-        Self {
-            member_identity: Some(member_identity),
-            element_index: Some(element_index),
-            ..Self::new(field)
-        }
-    }
+    numbered_variant!(
+        /// `new_indexed` carrying the compiler-retained stable member identity.
+        new_indexed_numbered(field, element_index: u64) -> new_indexed
+    );
 
     /// The exact element index preserved on this segment, if any. `None` means
     /// the segment covers every placement the inner layout retains.
@@ -168,11 +158,7 @@ impl SymbolicFieldValue {
         width_bits: u16,
         target: RelocationTarget,
     ) -> Result<Self, MaterializationDiagnostic> {
-        if width_bits == 0 || width_bits > 64 {
-            return Err(MaterializationDiagnostic(format!(
-                "symbolic field width {width_bits} is outside 1..=64 bits"
-            )));
-        }
+        validate_authored_width("symbolic", width_bits)?;
         Ok(Self {
             field: field.into(),
             member_identity: None,
@@ -183,18 +169,11 @@ impl SymbolicFieldValue {
         })
     }
 
-    /// Constructs a symbolic value carrying its compiler-retained stable
-    /// member identity. The field spelling remains diagnostic presentation.
-    pub fn new_numbered(
-        field: impl Into<String>,
-        member_identity: u64,
-        width_bits: u16,
-        target: RelocationTarget,
-    ) -> Result<Self, MaterializationDiagnostic> {
-        let mut value = Self::new(field, width_bits, target)?;
-        value.member_identity = Some(member_identity);
-        Ok(value)
-    }
+    numbered_constructor!(
+        /// Constructs a symbolic value carrying its compiler-retained stable
+        /// member identity. The field spelling remains diagnostic presentation.
+        new_numbered(field, width_bits: u16, target: RelocationTarget) -> new
+    );
 
     /// Constructs a symbolic value addressed to the `element_index`-th element
     /// of a repeated field. The exact index is preserved symbolically until
@@ -213,18 +192,10 @@ impl SymbolicFieldValue {
         Ok(value)
     }
 
-    /// `new_indexed` carrying the compiler-retained stable member identity.
-    pub fn new_indexed_numbered(
-        field: impl Into<String>,
-        member_identity: u64,
-        element_index: u64,
-        width_bits: u16,
-        target: RelocationTarget,
-    ) -> Result<Self, MaterializationDiagnostic> {
-        let mut value = Self::new_indexed(field, element_index, width_bits, target)?;
-        value.member_identity = Some(member_identity);
-        Ok(value)
-    }
+    numbered_constructor!(
+        /// `new_indexed` carrying the compiler-retained stable member identity.
+        new_indexed_numbered(field, element_index: u64, width_bits: u16, target: RelocationTarget) -> new_indexed
+    );
 
     /// The exact element index preserved on this symbolic field/index path, if
     /// any. `None` means the symbolic value covers every placement of the field.
@@ -367,18 +338,11 @@ impl SymbolicFieldInnerLayout {
         }
     }
 
-    /// `new` carrying the outer field's compiler-retained stable member
-    /// identity, so a renamed outer schema still joins the carrier.
-    pub fn new_numbered(
-        field: impl Into<String>,
-        member_identity: u64,
-        inner_layout: LayoutPlanReport,
-    ) -> Self {
-        Self {
-            member_identity: Some(member_identity),
-            ..Self::new(field, inner_layout)
-        }
-    }
+    numbered_variant!(
+        /// `new` carrying the outer field's compiler-retained stable member
+        /// identity, so a renamed outer schema still joins the carrier.
+        new_numbered(field, inner_layout: LayoutPlanReport) -> new
+    );
 
     /// Binds one direct conventional sum interior to the outer field named
     /// `field`. A symbolic path crossing the boundary spells the selected
@@ -395,18 +359,11 @@ impl SymbolicFieldInnerLayout {
         }
     }
 
-    /// `new_sum` carrying the outer field's compiler-retained stable member
-    /// identity.
-    pub fn new_sum_numbered(
-        field: impl Into<String>,
-        member_identity: u64,
-        sum_layout: ConventionalSumLayoutReport,
-    ) -> Self {
-        Self {
-            member_identity: Some(member_identity),
-            ..Self::new_sum(field, sum_layout)
-        }
-    }
+    numbered_variant!(
+        /// `new_sum` carrying the outer field's compiler-retained stable member
+        /// identity.
+        new_sum_numbered(field, sum_layout: ConventionalSumLayoutReport) -> new_sum
+    );
 
     /// Binds a repeated conventional sum interior to the outer field named
     /// `field`. The outer plan retains the field's array extent either as
@@ -434,20 +391,11 @@ impl SymbolicFieldInnerLayout {
         }
     }
 
-    /// `new_sum_array` carrying the outer field's compiler-retained stable
-    /// member identity.
-    pub fn new_sum_array_numbered(
-        field: impl Into<String>,
-        member_identity: u64,
-        element_layout: ConventionalSumLayoutReport,
-        element_count: u64,
-        element_stride: u64,
-    ) -> Self {
-        Self {
-            member_identity: Some(member_identity),
-            ..Self::new_sum_array(field, element_layout, element_count, element_stride)
-        }
-    }
+    numbered_variant!(
+        /// `new_sum_array` carrying the outer field's compiler-retained stable
+        /// member identity.
+        new_sum_array_numbered(field, element_layout: ConventionalSumLayoutReport, element_count: u64, element_stride: u64) -> new_sum_array
+    );
 
     /// Binds a repeated record interior to the outer field named `field`.
     /// The outer plan retains the field's array extent either as one whole
@@ -477,20 +425,11 @@ impl SymbolicFieldInnerLayout {
         }
     }
 
-    /// `new_record_array` carrying the outer field's compiler-retained stable
-    /// member identity.
-    pub fn new_record_array_numbered(
-        field: impl Into<String>,
-        member_identity: u64,
-        element_layout: LayoutPlanReport,
-        element_count: u64,
-        element_stride: u64,
-    ) -> Self {
-        Self {
-            member_identity: Some(member_identity),
-            ..Self::new_record_array(field, element_layout, element_count, element_stride)
-        }
-    }
+    numbered_variant!(
+        /// `new_record_array` carrying the outer field's compiler-retained stable
+        /// member identity.
+        new_record_array_numbered(field, element_layout: LayoutPlanReport, element_count: u64, element_stride: u64) -> new_record_array
+    );
 
     /// Folds one record-boundary level of a recursive conventional record/sum
     /// path report into the carriers symbolic derivation binds there.

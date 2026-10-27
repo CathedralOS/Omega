@@ -5,8 +5,8 @@ data Envelope<'storage> { case Active(cell: &'storage mut Cell); case Empty; }
 machine store(cell: &mut Cell) -> bool { cell.value = 41; cell.value == 41 }
 machine main() crashes Trap {
     transition exercise() { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine choose<'storage>(selected: bool, left: &'storage mut Cell, right: &'storage mut Cell) -> Envelope<'storage> {
     match selected {

@@ -16,6 +16,6 @@ machine helper_forward(selected: dyn Family) -> u32 { selected_width(selected) }
 machine main() crashes Trap {
     let observed: u32 = helper_forward(Selected as dyn Family);
     transition observed == 16 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

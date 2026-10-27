@@ -9,7 +9,7 @@ machine replace(at: u64, bytes: &mut Buffer, value: u8) -> bool {
         true -> write(at, bytes, value, true)
         _ -> false
     }
-    state write(at: u64, bytes: &mut Buffer, value: u8, repeat: bool) -> bool
+    machine write(at: u64, bytes: &mut Buffer, value: u8, repeat: bool) -> bool
     requires at < 8; value < 128 {
         bytes.storage[at] = value;
         transition repeat {
@@ -23,7 +23,7 @@ data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     transition { _ -> prepare(0) }
 
-    state prepare(round: u32) {
+    machine prepare(round: u32) {
         let original: Buffer = Buffer { storage: [97u8, 98u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 2 };
         let mut bytes: Buffer = Buffer { storage: [97u8, 98u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 2 };
         let first: bool = replace(0, &mut bytes, 65);
@@ -35,19 +35,19 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     // A later state's local remains the backing of this shared state loan.
     // Re-entering prepare creates the next line only after this loan ends.
-    state inspect(bytes: &Buffer, round: u32, valid: bool) {
+    machine inspect(bytes: &Buffer, round: u32, valid: bool) {
         transition valid && bytes.used == 2 && bytes.storage[0] == 65 && bytes.storage[1] == 66 {
             true -> again(round)
             _ -> finish(71)
         }
     }
-    state again(round: u32) {
+    machine again(round: u32) {
         transition round == 0 {
             true -> prepare(1)
             _ -> finish(70)
         }
     }
-    state finish(code: i32) { Console::exit_process(code); }
+    machine finish(code: i32) { Console::exit_process(code); }
 }
 
 // The fixed array has eight bytes; the explicit owner lends only two live bytes.

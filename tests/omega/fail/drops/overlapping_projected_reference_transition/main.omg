@@ -7,7 +7,7 @@ data Main { value: Leaf; }
 
 machine exercise(input: Outer) -> i32 {
     transition { _ -> finish(input.selected, input.selected) }
-    state finish(first: View, second: View) -> i32 { first.body.value }
+    machine finish(first: View, second: View) -> i32 { first.body.value }
 }
 
 machine Main::main(main: &mut Main) reaches Console {

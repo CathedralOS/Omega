@@ -9,7 +9,7 @@ Provider satisfies Issuer {
 Later satisfies Issuer {
     machine issue(renamed: &mut Token) {
         transition { _ -> finish(renamed) }
-        state finish(output: &mut Token) { output.value = 8; }
+        machine finish(output: &mut Token) { output.value = 8; }
     }
 }
 machine main() {}

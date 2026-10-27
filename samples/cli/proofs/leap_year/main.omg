@@ -24,13 +24,13 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> common(main)
     }
 
-    state leap(main: &mut Main) {
+    machine leap(main: &mut Main) {
         Console::write_line("PASS: 2024 is a leap year (exit 1)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(1);
     }
-    state common(main: &mut Main) {
+    machine common(main: &mut Main) {
         Console::write_line("FAIL: 2024 misclassified as a common year (exit 0)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);

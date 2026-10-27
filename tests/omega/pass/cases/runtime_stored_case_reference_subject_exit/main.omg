@@ -27,6 +27,6 @@ machine exercise() -> bool {
 }
 machine main() crashes Trap {
     transition exercise() { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

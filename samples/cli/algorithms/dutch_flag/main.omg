@@ -63,7 +63,7 @@ machine Partition::sort(context: &mut Partition) reaches Console {
     }
 
     // Loop head: partition until the white cursor meets the blue fence.
-    state head(context: &mut Partition) {
+    machine head(context: &mut Partition) {
         transition context.w < context.b {
             true -> w_guard(context)
             _ -> check0(context)
@@ -72,14 +72,14 @@ machine Partition::sort(context: &mut Partition) reaches Console {
 
     // Literal re-guard: dominates every items[context.w] access downstream
     // (classify and both swaps -- no state between rewrites w).
-    state w_guard(context: &mut Partition) {
+    machine w_guard(context: &mut Partition) {
         transition context.w < 3 {
             true -> classify(context)
             _ -> confused(96)
         }
     }
 
-    state classify(context: &mut Partition) {
+    machine classify(context: &mut Partition) {
         transition context.items[context.w] {
             Color::Red -> r_guard(context)
             Color::White -> w_bump_guard(context)
@@ -87,7 +87,7 @@ machine Partition::sort(context: &mut Partition) reaches Console {
         }
     }
 
-    state r_guard(context: &mut Partition) {
+    machine r_guard(context: &mut Partition) {
         transition context.r < 3 {
             true -> red_swap(context)
             _ -> confused(97)
@@ -97,7 +97,7 @@ machine Partition::sort(context: &mut Partition) reaches Console {
     // Red at the cursor: swap it into the red prefix, grow the prefix
     // (`r + 1` proves on the DIRECT edge from r_guard), then join the
     // white path to bump the cursor.
-    state red_swap(context: &mut Partition) {
+    machine red_swap(context: &mut Partition) {
         context.t = context.items[context.r];
         context.items[context.r] = context.items[context.w];
         context.items[context.w] = context.t;
@@ -110,21 +110,21 @@ machine Partition::sort(context: &mut Partition) reaches Console {
     // Re-guard before the increment: the bound must sit on the DIRECT edge
     // for the `+ 1` to prove (the bubble_sort `advance` idiom). The red and
     // white arms both join here.
-    state w_bump_guard(context: &mut Partition) {
+    machine w_bump_guard(context: &mut Partition) {
         transition context.w < 3 {
             true -> w_bump(context)
             _ -> confused(95)
         }
     }
 
-    state w_bump(context: &mut Partition) {
+    machine w_bump(context: &mut Partition) {
         context.w = context.w + 1;
         transition {
             _ -> head(context)
         }
     }
 
-    state b_guard(context: &mut Partition) {
+    machine b_guard(context: &mut Partition) {
         transition context.b > 0 {
             true -> blue_swap(context)
             _ -> confused(98)
@@ -135,7 +135,7 @@ machine Partition::sort(context: &mut Partition) reaches Console {
     // The decremented fence lands in `bp`; nothing bounds the stored `b`
     // from above, so the literal re-guard `bp < 3` carries the index proof
     // into blue_put (b <= 3 always holds, so the else arm never fires).
-    state blue_swap(context: &mut Partition) {
+    machine blue_swap(context: &mut Partition) {
         context.bp = context.b - 1;
         transition context.bp < 3 {
             true -> blue_put(context)
@@ -143,7 +143,7 @@ machine Partition::sort(context: &mut Partition) reaches Console {
         }
     }
 
-    state blue_put(context: &mut Partition) {
+    machine blue_put(context: &mut Partition) {
         context.t = context.items[context.w];
         context.items[context.w] = context.items[context.bp];
         context.items[context.bp] = context.t;
@@ -154,49 +154,49 @@ machine Partition::sort(context: &mut Partition) reaches Console {
     }
 
     // Verify [Red, White, Blue] element by element via case dispatch.
-    state check0(context: &mut Partition) {
+    machine check0(context: &mut Partition) {
         transition context.items[0] {
             Color::Red -> check1(context)
             _ -> bad(71)
         }
     }
-    state check1(context: &mut Partition) {
+    machine check1(context: &mut Partition) {
         transition context.items[1] {
             Color::White -> check2(context)
             _ -> bad(72)
         }
     }
-    state check2(context: &mut Partition) {
+    machine check2(context: &mut Partition) {
         transition context.items[2] {
             Color::Blue -> good()
             _ -> bad(73)
         }
     }
-    state good() {
+    machine good() {
         Console::write_line("PASS: the flag reads [Red, White, Blue] (exit 70)");
         transition {
             _ -> report(70)
         }
     }
-    state bad(code: i32) {
+    machine bad(code: i32) {
         Console::write_line("FAIL: an element ended up out of order");
         transition {
             _ -> report_bad(code)
         }
     }
-    state confused(code: i32) {
+    machine confused(code: i32) {
         Console::write_line("FAIL: a loop-invariant re-guard tripped");
         transition {
             _ -> report_bad(code)
         }
     }
-    state report(code: i32) {
+    machine report(code: i32) {
         Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
         _ = block Console::read_line(&mut pause);
         Console::exit_process(code);
     }
-    state report_bad(code: i32) {
+    machine report_bad(code: i32) {
         Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
         _ = block Console::read_line(&mut pause);

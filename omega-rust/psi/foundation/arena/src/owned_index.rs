@@ -89,6 +89,37 @@ impl<T, Revision: PartialEq> OwnedIndex<T, Revision> {
         run(&slot.as_ref().expect("index just built").1)
     }
 
+    /// Run `run` against the index, updating an existing entry in-place when
+    /// `update` returns `None` or replacing it when `update` returns `Some`.
+    pub fn with_updated<R>(
+        &self,
+        revision: Revision,
+        update: impl FnOnce(Option<&mut T>) -> Option<T>,
+        run: impl FnOnce(&T) -> R,
+    ) -> R {
+        if let Some((sealed, index)) = &self.sealed
+            && *sealed == revision
+        {
+            return run(index);
+        }
+        let mut slot = self.slot.lock().unwrap_or_else(|error| error.into_inner());
+        match slot.as_mut() {
+            Some((seen, existing)) if *seen == revision => run(existing),
+            Some((seen, existing)) => {
+                if let Some(rebuilt) = update(Some(existing)) {
+                    *existing = rebuilt;
+                }
+                *seen = revision;
+                run(existing)
+            }
+            None => {
+                let built = update(None).expect("fresh index build must return a value");
+                *slot = Some((revision, built));
+                run(&slot.as_ref().expect("index just built").1)
+            }
+        }
+    }
+
     /// Move the built entry out of the lazy slot for an owner that will not
     /// mutate again; queries at its revision then read it without locking.
     /// The owner builds the entry first through an ordinary query.

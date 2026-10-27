@@ -5,5 +5,5 @@ machine main() crashes Trap {
  let mut items: [Cell; 3]; items[0].value=11; items[1].value=39; items[1].flag=true; items[2].value=13;
  let view: &[Cell]=&items[..]; let chosen: Cell=copy(view); items[1].value=27; items[1].flag=false;
  transition chosen.value==39 && chosen.flag && items[0].value==11 && items[1].value==27 && items[2].value==13 { true -> done() _ -> bad() }
- state done() {} state bad() { crash Trap; }
+ machine done() {} machine bad() { crash Trap; }
 }

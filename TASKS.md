@@ -364,8 +364,7 @@ defines the complete product bar.
     ARM64, macOS ARM64, and Windows x86-64.
   - Complete remaining runtime aggregate construction and opaque-provider
     result replacement through opaque incoming referents.
-  - Complete symbolic saved numeric predicates through selected-value joins,
-    generic body-checking compositions, byte-predicate observations, and
+  - Complete generic body-checking compositions, byte-predicate observations, and
     single-evaluation pattern destructuring. Coordinate early exact-arithmetic
     formation with `ONE-INTEGER-BOUNDS-ENGINE`; a saved nonconstant bound must
     justify the operation before it is formed.
@@ -583,11 +582,16 @@ defines the complete product bar.
     result/Unit postconditions, effects/markers, loans, invariant/hole
     restoration, cleanup, linear custody, and joint SCC ranking across
     nested/sibling/ancestor/top-level edges without ambient parent entry facts).
+    Infer arithmetic-formation obligations inside private helpers from every
+    actual arrival too (for example `value - 1` under a predecessor
+    `value > 1` guard), instead of requiring duplicated helper annotations.
   - Update Terminal production, codecs/checking, both interpreters, native
     lowering, and WCSU together so runtime cycles remain constant-stack with all
     live backing accounted for.
   - Migrate affected bundled/product Omega source, samples, and fixtures and
     delete the retired `state` parser/declaration/dispatch paths.
+    The Omega-written parser/resolver and linked application repositories still
+    need the corresponding declaration-model migration.
   Acceptance: source-to-Terminal/native execution agreement (`omega run --both`)
   for three-level nesting, ordinary helper call with continuation,
   sibling/ancestor terminal cycles, generic enclosing declaration context and
@@ -895,9 +899,8 @@ narrows realization only.
   - Implement pre-execution dependency input assignment and shared-node conflict
     checks at dependency activation admission without inheriting the root's
     slots (keeping required-output path byte results refused).
-  - Complete accepted-lock round-trip qualification and demanded
-    Product-description queries while replacing static Build projection in the
-    source-only corpus consumers with executed project discovery.
+  - Carry foreign-helper Product query fixtures through ordinary dependency discovery,
+    not only pre-admitted package contexts.
   - Complete [Build provider readiness](wiki/spec/build/provider_selection.md#build-provider-readiness)
     for applied/inherited multi-slot requirements.
   - **BUILD-EVALUATES-ONCE / ONE-DRIVER-PER-STAGE:** evaluate `build.omg` once
@@ -1315,7 +1318,9 @@ decision (`SourceChecked`) into stage 05 and stage 00.
     and C record-result host/ABI lanes beyond
     [foreign_scalar_record_result](samples/cli/facts/foreign_scalar_record_result/README.md)
     and
-    [foreign_indirect_float_record_result](samples/cli/facts/foreign_indirect_float_record_result/README.md)
+    [foreign_indirect_float_record_result](samples/cli/facts/foreign_indirect_float_record_result/README.md),
+    including matching-host qualification of
+    [recursive owned record input/results](samples/cli/facts/foreign_scalar_record_result/nested/README.md),
     across Windows, macOS, and both Linux targets in Omega stages 02–03 and
     backend call-frame emission.
   - **OPAQUE-BY-VALUE-BOUNDARY-ABI:** connect

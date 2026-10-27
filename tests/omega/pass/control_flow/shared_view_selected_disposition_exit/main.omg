@@ -11,8 +11,8 @@ machine select(bytes: &[u8; 2], choice: Choice) -> u64 {
         Choice::End -> ended(observed)
         Choice::Return -> observed
     }
-    state forwarded(view: &[u8]) -> u64 { view.len }
-    state ended(observed: u64) -> u64 { observed }
+    machine forwarded(view: &[u8]) -> u64 { view.len }
+    machine ended(observed: u64) -> u64 { observed }
 }
 
 machine narrowed(holder: &mut Holder) -> &[u8] {
@@ -28,8 +28,8 @@ machine returned_view(holder: &mut Holder, choice: Choice) -> u64 {
         Choice::End -> ended(observed)
         Choice::Return -> observed
     }
-    state forwarded(view: &[u8]) -> u64 { view.len }
-    state ended(observed: u64) -> u64 { observed }
+    machine forwarded(view: &[u8]) -> u64 { view.len }
+    machine ended(observed: u64) -> u64 { observed }
 }
 
 machine main() crashes Trap {
@@ -47,6 +47,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

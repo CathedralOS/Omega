@@ -22,8 +22,8 @@ machine replied(reply: Reply) -> bool {
 }
 machine verify(correct: bool) crashes Trap {
     transition correct { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine sink(label: Label) crashes Trap { verify(label.text == "Owned"); }
 
@@ -37,8 +37,8 @@ machine main() crashes Trap {
         true -> later(label("Owned"))
         false -> bad()
     }
-    state later(label: Label) {
+    machine later(label: Label) {
         verify(labelled(label) && labelled(relabel(label("Owned"))));
     }
-    state bad() { crash Trap; }
+    machine bad() { crash Trap; }
 }

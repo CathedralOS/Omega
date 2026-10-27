@@ -179,9 +179,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_in_prefix_traced<'a>(
                     // The structural producer owns this authored factory
                     // occurrence once. Execution establishes its captured loan;
                     // it does not also invoke the bodyless declaration.
-                    if !consumed.contains(&handle) {
-                        consumed.push(handle);
-                    }
+                    consumed.record_once(handle);
                 }
                 match node.kind {
                     checked_trees::CheckedStructuralValueKind::NativeCodeLayout { .. } => {}
@@ -211,9 +209,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_in_prefix_traced<'a>(
                         {
                             return None;
                         }
-                        if !consumed.contains(&handle) {
-                            consumed.push(handle);
-                        }
+                        consumed.record_once(handle);
                         pending.extend(arguments.iter().rev().copied());
                     }
                     checked_trees::CheckedStructuralValueKind::Call { source_call } => {

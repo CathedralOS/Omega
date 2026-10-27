@@ -39,11 +39,11 @@ machine emit(main: &mut Main, value: f64) reaches Console {
         true -> negative(main, value)
         false -> positive(main, value)
     }
-    state negative(main: &mut Main, value: f64) {
+    machine negative(main: &mut Main, value: f64) {
         Console::write_byte(45);
         emit_positive(main, 0.0 - value);
     }
-    state positive(main: &mut Main, value: f64) { emit_positive(main, value); }
+    machine positive(main: &mut Main, value: f64) { emit_positive(main, value); }
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -52,43 +52,43 @@ machine Main::main(main: &mut Main) reaches Console {
         LineReadResult::LineComplete { count } -> length(main, count)
         _ -> malformed(main)
     }
-    state length(main: &mut Main, count: u64) {
+    machine length(main: &mut Main, count: u64) {
         transition count == 14 && main.input[13] == 10 {
             true -> units(main)
             false -> malformed(main)
         }
     }
-    state units(main: &mut Main) {
+    machine units(main: &mut Main) {
         transition main.input[0] == main.input[4] && main.input[0] == main.input[8] {
             true -> unit_kind(main)
             false -> bad_units(main)
         }
     }
-    state unit_kind(main: &mut Main) {
+    machine unit_kind(main: &mut Main) {
         transition main.input[0] == 103 || main.input[0] == 109 {
             true -> digits(main)
             false -> bad_units(main)
         }
     }
-    state digits(main: &mut Main) {
+    machine digits(main: &mut Main) {
         transition main.input[1] >= 48 && main.input[1] <= 57 && main.input[2] >= 48 && main.input[2] <= 57 && main.input[3] >= 48 && main.input[3] <= 57 && main.input[5] >= 48 && main.input[5] <= 57 && main.input[6] >= 48 && main.input[6] <= 57 && main.input[7] >= 48 && main.input[7] <= 57 && main.input[9] >= 48 && main.input[9] <= 57 && main.input[10] >= 48 && main.input[10] <= 57 && main.input[11] >= 48 && main.input[11] <= 57 {
             true -> model(main)
             false -> malformed(main)
         }
     }
-    state model(main: &mut Main) {
+    machine model(main: &mut Main) {
         transition main.input[12] == 49 || main.input[12] == 50 {
             true -> scale(main)
             false -> bad_model(main)
         }
     }
-    state scale(main: &mut Main) {
+    machine scale(main: &mut Main) {
         transition main.input[0] == 103 {
             true -> calculate(main, 1.0)
             false -> calculate(main, 0.001)
         }
     }
-    state calculate(main: &mut Main, scale: f64) {
+    machine calculate(main: &mut Main, scale: f64) {
         correct(&mut main.result, reading(main.input[1], main.input[2], main.input[3]),
             reading(main.input[5], main.input[6], main.input[7]),
             reading(main.input[9], main.input[10], main.input[11]), scale, main.input[12] == 49);
@@ -98,7 +98,7 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> report(main)
         }
     }
-    state report(main: &mut Main) {
+    machine report(main: &mut Main) {
         Console::write_line("model: first_order k=2; mass=ug variance=1e-9_g2; fractions=ppm variance=nano");
         let mass_a_ug: f64 = main.result.mass_a * 1000000.0;
         Console::write("mass_a_ug="); emit(main, mass_a_ug);
@@ -131,13 +131,13 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> rejected(main)
         }
     }
-    state accepted(main: &mut Main) { Console::write_line("ACCEPT"); Console::exit_process(0); }
-    state rejected(main: &mut Main) { Console::write_line("REJECT: guard_band"); Console::exit_process(1); }
-    state malformed(main: &mut Main) { Console::write_line("INVALID: record"); Console::exit_process(2); }
-    state negative(main: &mut Main) { Console::write_line("INVALID: negative_corrected_mass"); Console::exit_process(3); }
-    state near_zero(main: &mut Main) { Console::write_line("INVALID: total_below_0.01_g"); Console::exit_process(4); }
-    state bad_units(main: &mut Main) { Console::write_line("INVALID: inconsistent_or_unknown_units"); Console::exit_process(5); }
-    state bad_model(main: &mut Main) { Console::write_line("INVALID: uncertainty_model"); Console::exit_process(6); }
+    machine accepted(main: &mut Main) { Console::write_line("ACCEPT"); Console::exit_process(0); }
+    machine rejected(main: &mut Main) { Console::write_line("REJECT: guard_band"); Console::exit_process(1); }
+    machine malformed(main: &mut Main) { Console::write_line("INVALID: record"); Console::exit_process(2); }
+    machine negative(main: &mut Main) { Console::write_line("INVALID: negative_corrected_mass"); Console::exit_process(3); }
+    machine near_zero(main: &mut Main) { Console::write_line("INVALID: total_below_0.01_g"); Console::exit_process(4); }
+    machine bad_units(main: &mut Main) { Console::write_line("INVALID: inconsistent_or_unknown_units"); Console::exit_process(5); }
+    machine bad_model(main: &mut Main) { Console::write_line("INVALID: uncertainty_model"); Console::exit_process(6); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

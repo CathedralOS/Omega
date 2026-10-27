@@ -4,8 +4,8 @@ use omega::language::core::float_operations;
 data Probe {value:f64;observed:i32;}
 machine Probe::main(probe:&mut Probe) {
  transition abs_f64(probe.value) <= 0.000000001 {true -> good(probe) _ -> fail(probe)}
- state good(probe:&mut Probe) {probe.observed=1;}
- state fail(probe:&mut Probe) {probe.observed=-1;}
+ machine good(probe:&mut Probe) {probe.observed=1;}
+ machine fail(probe:&mut Probe) {probe.observed=-1;}
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -138,9 +138,7 @@ pub(crate) fn call_receiver_read_accesses(
             return whole_receiver();
         };
         for place in places {
-            if !instantiated.contains(&place) {
-                instantiated.push(place);
-            }
+            crate::collections::push_unique(&mut instantiated, place);
         }
     }
     instantiated

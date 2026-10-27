@@ -6,8 +6,8 @@ machine verify(diff: u64) crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 linux_x86_64 machine exercise(masked: u64) requires masked <= 255u64 crashes Trap {

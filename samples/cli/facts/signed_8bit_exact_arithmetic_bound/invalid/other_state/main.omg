@@ -6,7 +6,7 @@ machine compute_other_state(lhs: i8, rhs: i8) -> i8
 {
     let sum: i8 = lhs + rhs;
     transition { _ -> step(sum) }
-    state step(s: i8) -> i8 {
+    machine step(s: i8) -> i8 {
         let headroom: i8 = 80 - s;
         headroom
     }
@@ -23,6 +23,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

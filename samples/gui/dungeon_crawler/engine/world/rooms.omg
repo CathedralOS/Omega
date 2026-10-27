@@ -69,43 +69,43 @@ ensures result >= 0 && result <= 4 {
         true -> (1)
         _ -> boundaries(room, column, row, key)
     }
-    state boundaries(room: &Room<Rooms>, column: i32, row: i32, key: bool) -> i32 {
+    machine boundaries(room: &Room<Rooms>, column: i32, row: i32, key: bool) -> i32 {
         transition row == 0 && column >= DOOR_COLUMN_START && column <= DOOR_COLUMN_END {
             true -> doorway(room.exits[0], key)
             _ -> south(room, column, row, key)
         }
     }
-    state south(room: &Room<Rooms>, column: i32, row: i32, key: bool) -> i32 {
+    machine south(room: &Room<Rooms>, column: i32, row: i32, key: bool) -> i32 {
         transition row == ROOM_LAST_ROW && column >= DOOR_COLUMN_START && column <= DOOR_COLUMN_END {
             true -> doorway(room.exits[2], key)
             _ -> sides(room, column, row, key)
         }
     }
-    state sides(room: &Room<Rooms>, column: i32, row: i32, key: bool) -> i32 {
+    machine sides(room: &Room<Rooms>, column: i32, row: i32, key: bool) -> i32 {
         transition column == 0 && row >= DOOR_ROW_START && row <= DOOR_ROW_END {
             true -> doorway(room.exits[3], key)
             _ -> east(room, column, row, key)
         }
     }
-    state east(room: &Room<Rooms>, column: i32, row: i32, key: bool) -> i32 {
+    machine east(room: &Room<Rooms>, column: i32, row: i32, key: bool) -> i32 {
         transition column == ROOM_LAST_COLUMN && row >= DOOR_ROW_START && row <= DOOR_ROW_END {
             true -> doorway(room.exits[1], key)
             _ -> interior(room, column, row)
         }
     }
-    state doorway(exit: Exit<Rooms>, key: bool) -> i32 {
+    machine doorway(exit: Exit<Rooms>, key: bool) -> i32 {
         transition exit.open { true -> lock(exit.needs_key, key) _ -> (1) }
     }
-    state lock(locked: bool, key: bool) -> i32 {
+    machine lock(locked: bool, key: bool) -> i32 {
         transition locked && !key { true -> (4) _ -> (3) }
     }
-    state interior(room: &Room<Rooms>, column: i32, row: i32) -> i32 {
+    machine interior(room: &Room<Rooms>, column: i32, row: i32) -> i32 {
         transition column == 0 || column == ROOM_LAST_COLUMN || row == 0 || row == ROOM_LAST_ROW {
             true -> (1)
             _ -> layout(room.layout, column, row)
         }
     }
-    state layout(layout: Layout, column: i32, row: i32) -> i32 {
+    machine layout(layout: Layout, column: i32, row: i32) -> i32 {
         transition layout {
             Layout::Pillars -> pillars(column, row)
             Layout::Channel -> channel(column, row)
@@ -114,19 +114,19 @@ ensures result >= 0 && result <= 4 {
             Layout::Forge -> forge(column, row)
         }
     }
-    state pillars(column: i32, row: i32) -> i32 {
+    machine pillars(column: i32, row: i32) -> i32 {
         transition (column == 4 || column == 11) && (row == 3 || row == 6) { true -> (1) _ -> (0) }
     }
-    state channel(column: i32, row: i32) -> i32 {
+    machine channel(column: i32, row: i32) -> i32 {
         transition (column == 7 || column == 8) && row >= 2 && row <= 7 && row != 4 && row != 5 { true -> (2) _ -> (0) }
     }
-    state archive(column: i32, row: i32) -> i32 {
+    machine archive(column: i32, row: i32) -> i32 {
         transition (column == 4 || column == 11) && row >= 3 && row <= 6 { true -> (1) _ -> (0) }
     }
-    state pools(column: i32, row: i32) -> i32 {
+    machine pools(column: i32, row: i32) -> i32 {
         transition ((column >= 3 && column <= 5) || (column >= 10 && column <= 12)) && row >= 3 && row <= 6 { true -> (2) _ -> (0) }
     }
-    state forge(column: i32, row: i32) -> i32 {
+    machine forge(column: i32, row: i32) -> i32 {
         transition (column == 5 || column == 10) && (row == 3 || row == 6) { true -> (1) _ -> (0) }
     }
 }

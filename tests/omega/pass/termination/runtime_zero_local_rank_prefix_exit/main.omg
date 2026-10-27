@@ -10,7 +10,7 @@ terminates by remaining;
     scratch[0] = 7;
     transition { _ -> step(remaining, scratch) }
 
-    state step(remaining: u32, scratch: [u32; 2]) -> u32
+    machine step(remaining: u32, scratch: [u32; 2]) -> u32
     requires remaining <= 9;
     {
         let mut record: Scratch;
@@ -22,7 +22,7 @@ terminates by remaining;
             false -> done(result, scalar)
         }
     }
-    state done(result: u32, scalar: u32) -> u32 {
+    machine done(result: u32, scalar: u32) -> u32 {
         transition scalar == 0 {
             true -> result
             false -> 99
@@ -36,6 +36,6 @@ machine Main::main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

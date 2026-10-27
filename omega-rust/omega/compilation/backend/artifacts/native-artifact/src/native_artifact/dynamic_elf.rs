@@ -1,14 +1,11 @@
 //! Non-installable dynamic-ELF artifact construction and replay.
 
-use super::identity::{
-    NativeArtifactIdentityFields, compiler_identity_evidence, derive_native_artifact_identity,
-    foreign_call_custody_digest,
-};
+use super::identity::derive_native_artifact_identity;
 use super::{
     NativeArtifactParts, NativePhysicalEvidence, NativePhysicalEvidenceDerivation,
     NativePhysicalEvidenceGap, NativeProviderExecution, NativeSelectedProviderPlan,
-    boundary_application_coverage_identity, derive_physical_evidence, mixed_structural_scalar,
-    validate_boundary_application_coverage, validate_ieee_float_fma_occurrences,
+    derive_physical_evidence, mixed_structural_scalar, validate_boundary_application_coverage,
+    validate_ieee_float_fma_occurrences,
 };
 use ::boundary_applications::TerminalBoundaryApplicationCoverage;
 use installation_evidence::ObjectEvidence;
@@ -113,15 +110,8 @@ impl DynamicElfNativeArtifact {
     pub fn from_replayed_parts(parts: DynamicElfNativeArtifactParts) -> Result<Self, &'static str> {
         let final_image_symbol_digest =
             *image::final_image_symbol_digest(parts.image.emission().admitted().image()).as_bytes();
-        // The gap is derivation state, not a retained claim: it is recomputed
-        // from the replayed inputs so a retained candidate can never assert a
-        // blocking subject the derivation would not have produced.
         let physical_evidence_gap =
-            match parts.evidence_derivation(parts.image.output(), final_image_symbol_digest)? {
-                NativePhysicalEvidenceDerivation::Blocked(gap) => Some(gap),
-                NativePhysicalEvidenceDerivation::Unavailable
-                | NativePhysicalEvidenceDerivation::Complete(_) => None,
-            };
+            parts.replayed_gap(parts.image.output(), final_image_symbol_digest)?;
         let artifact = Self::seal(parts, physical_evidence_gap);
         artifact.validate()?;
         Ok(artifact)
@@ -191,14 +181,9 @@ impl DynamicElfNativeArtifact {
         let final_image_symbol_digest =
             *image::final_image_symbol_digest(self.parts.image.emission().admitted().image())
                 .as_bytes();
-        let (expected_physical_evidence, expected_physical_evidence_gap) = match self
+        let (expected_physical_evidence, expected_physical_evidence_gap) = self
             .parts
-            .evidence_derivation(self.parts.image.output(), final_image_symbol_digest)?
-        {
-            NativePhysicalEvidenceDerivation::Unavailable => (None, None),
-            NativePhysicalEvidenceDerivation::Complete(evidence) => (Some(evidence), None),
-            NativePhysicalEvidenceDerivation::Blocked(gap) => (None, Some(gap)),
-        };
+            .replayed_evidence(self.parts.image.output(), final_image_symbol_digest)?;
         if self.parts.physical_evidence != expected_physical_evidence {
             return Err("dynamic native artifact physical children disagree with exact replay");
         }
@@ -214,80 +199,16 @@ impl DynamicElfNativeArtifact {
     }
 
     fn recomputed_identity(&self) -> DynamicElfNativeArtifactIdentity {
-        let output = self.parts.image.output();
-        let (
-            compiler_text_validation_digest,
-            compiler_function_validation,
-            compiler_entry_region_binding,
-            compiler_entry_footprint_binding,
-        ) = compiler_identity_evidence(output);
-        let final_image_symbol_digest =
-            *image::final_image_symbol_digest(self.parts.image.emission().admitted().image())
-                .as_bytes();
-        let base = derive_native_artifact_identity(NativeArtifactIdentityFields {
-            terminal_artifact_identity: *self.parts.psi_artifact.manifest().identity().as_bytes(),
-            target: self.parts.target,
-            object_text_bytes: self.parts.object.text_bytes(),
-            image_bytes: &output.bytes,
-            final_text_bytes: &output.final_text_bytes,
-            image_subsystem: None,
-            output_file_name: &output.file_name,
-            output_format: &output.format,
-            output_counts: [
-                output.text_bytes,
-                output.data_bytes,
-                output.bss_bytes,
-                output.symbols,
-                output.relocations,
-                output.final_image_symbols,
-                output.final_image_imports,
-                output.final_image_relocations,
-            ],
-            callback_placement_identity_report_fingerprint: output
-                .callback_placement_identity_report_fingerprint,
-            final_image_symbol_digest,
-            executable_region_inventory_digest: *output
-                .executable_regions
-                .inventory_digest
-                .as_bytes(),
-            executable_region_inventory_report_fingerprint: output
-                .executable_regions
-                .inventory_report_fingerprint,
-            compiler_text_validation_digest,
-            compiler_function_validation,
-            compiler_entry_region_binding,
-            compiler_entry_footprint_binding,
-            selected_provider_closure_digest: *self
-                .parts
-                .selected_provider_closure_digest
-                .as_bytes(),
-            foreign_call_custody_digest: foreign_call_custody_digest(
+        let base = derive_native_artifact_identity(
+            self.parts.identity_fields(
+                self.parts.image.output(),
+                *image::final_image_symbol_digest(self.parts.image.emission().admitted().image())
+                    .as_bytes(),
                 self.parts.object.foreign_calls(),
+                None,
+                self.physical_evidence_gap.as_ref(),
             ),
-            selected_provider_plans: &self.parts.selected_provider_plans,
-            provider_executions: &self.parts.provider_executions,
-            terminal_authority_policy_identity: self.parts.terminal_authority_policy_identity,
-            terminal_authority_permission_policy_identity: self
-                .parts
-                .terminal_authority_permission_policy_identity,
-            terminal_authority_closure_review_identity: self
-                .parts
-                .terminal_authority_closure_review
-                .identity(),
-            boundary_application_coverage_identity: boundary_application_coverage_identity(
-                self.parts.boundary_application_coverage.as_ref(),
-            ),
-            physical_evidence_scope: &self.parts.physical_evidence_scope,
-            physical_evidence_identity: self
-                .parts
-                .physical_evidence
-                .as_ref()
-                .map(|evidence| *evidence.identity()),
-            physical_evidence_gap_identity: self
-                .physical_evidence_gap
-                .as_ref()
-                .map(|gap| *gap.identity()),
-        });
+        );
         let mut digest = Sha256::new();
         digest.update(DYNAMIC_ELF_NATIVE_ARTIFACT_IDENTITY_DOMAIN);
         digest.update(base.as_bytes());

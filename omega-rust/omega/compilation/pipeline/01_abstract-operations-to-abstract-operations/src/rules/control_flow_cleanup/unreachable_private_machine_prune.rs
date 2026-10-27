@@ -3,8 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use optimization_core::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationRuleContract,
-    OptimizationSafetyClass,
+    AnalysisKind, AnalysisSet, OptimizationRuleContract, OptimizationSafetyClass,
 };
 use optimization_unit::{
     NodeLocation, ProvenanceRewrite, PrunedMachineCustody, PsiOptimizationUnit, PsiRealizationSite,
@@ -12,7 +11,6 @@ use optimization_unit::{
 };
 use semantic_vocabulary::MachineId;
 
-use crate::rules::CONTROL_FLOW_CLEANUP_PASS_NAME;
 use crate::rules::control_flow_cleanup::provenance_proven_unreachable_at;
 use crate::{
     AnalysisProduct, CallGraphAnalysis, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,
@@ -20,18 +18,11 @@ use crate::{
 
 psi_rule_contract!(
     UnreachablePrivateMachinePruneRule,
-    crate::rules::standard_rule_contract(
+    crate::rules::control_flow_cleanup::call_graph_control_flow_cleanup_rule_contract(
         b"omega.psi-rule.unreachable-private-machine-pruning.v1",
-        CONTROL_FLOW_CLEANUP_PASS_NAME,
         1,
         AnalysisSet::new([AnalysisKind::CallGraph]),
-        AnalysisInvalidationSet::new([
-            AnalysisKind::ControlFlowGraph,
-            AnalysisKind::CallGraph,
-            AnalysisKind::UseDefinition,
-            AnalysisKind::EffectSummaries,
-        ]),
-        OptimizationSafetyClass::StructuralIdentity
+        OptimizationSafetyClass::StructuralIdentity,
     ),
 );
 

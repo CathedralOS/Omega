@@ -25,8 +25,8 @@ machine guarded(x: u64) -> u64 {
         true -> small(x)
         false -> large()
     }
-    state small(y: u64) -> u64 { use_small(y) }
-    state large() -> u64 { 0 }
+    machine small(y: u64) -> u64 { use_small(y) }
+    machine large() -> u64 { 0 }
 }
 
 machine main() crashes Trap {
@@ -35,6 +35,6 @@ machine main() crashes Trap {
     let c: u64 = relay_field(Box { size: 11 });
     let d: i32 = relay_signed(-2);
     transition a == 3 && b == 12 && c == 11 && d == -2 { true -> done() false -> wrong() }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

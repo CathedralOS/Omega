@@ -15,7 +15,7 @@ machine dirk(problem: &Problem, initial: &Vector, step: f64) -> Newton {
         true -> second(problem, initial, first, step)
         false -> (first)
     }
-    state second(problem: &Problem, initial: &Vector, first: Newton, step: f64) -> Newton {
+    machine second(problem: &Problem, initial: &Vector, first: Newton, step: f64) -> Newton {
         let ratio: f64 = (1.0 - 0.2928932188134524) / 0.2928932188134524;
         let base: Vector = Vector {
             a: initial.a + ratio * (first.value.a - initial.a),
@@ -27,10 +27,10 @@ machine dirk(problem: &Problem, initial: &Vector, step: f64) -> Newton {
             false -> failed(first)
         }
     }
-    state finish(problem: &Problem, base: Vector, step: f64) -> Newton {
+    machine finish(problem: &Problem, base: Vector, step: f64) -> Newton {
         implicit(problem, &base, 0.2928932188134524 * step)
     }
-    state failed(first: Newton) -> Newton {
+    machine failed(first: Newton) -> Newton {
         let mut failure: Newton = first; failure.success = false; failure
     }
 }
@@ -39,30 +39,30 @@ public machine integrate(problem: &Problem) -> Solution {
     let mut solution: Solution;
     solution.value = problem.initial; solution.step = problem.step;
     transition { _ -> advance(problem, solution) }
-    state advance(problem: &Problem, solution: Solution) -> Solution {
+    machine advance(problem: &Problem, solution: Solution) -> Solution {
         transition solution.time >= problem.end { true -> complete(solution) false -> budget(problem, solution) }
     }
-    state budget(problem: &Problem, solution: Solution) -> Solution {
+    machine budget(problem: &Problem, solution: Solution) -> Solution {
         transition solution.attempts < problem.trials && solution.attempts < 1000000 {
             true -> choose_step(problem, solution)
             false -> (solution)
         }
     }
-    state choose_step(problem: &Problem, solution: Solution) -> Solution {
+    machine choose_step(problem: &Problem, solution: Solution) -> Solution {
         let mut next: Solution = solution;
         transition next.step > problem.end - next.time { true -> cap(problem, next) false -> usable(problem, next) }
     }
-    state cap(problem: &Problem, solution: Solution) -> Solution {
+    machine cap(problem: &Problem, solution: Solution) -> Solution {
         let mut next: Solution = solution; next.step = problem.end - next.time;
         transition { _ -> usable(problem, next) }
     }
-    state usable(problem: &Problem, solution: Solution) -> Solution {
+    machine usable(problem: &Problem, solution: Solution) -> Solution {
         transition solution.step > 1e-15 * (1.0 + solution.time) && solution.time + solution.step > solution.time {
             true -> trial(problem, solution)
             false -> (solution)
         }
     }
-    state trial(problem: &Problem, solution: Solution) -> Solution {
+    machine trial(problem: &Problem, solution: Solution) -> Solution {
         let mut next: Solution = solution;
         next.attempts = next.attempts + 1;
         next.full = dirk(problem, &next.value, next.step);
@@ -70,16 +70,16 @@ public machine integrate(problem: &Problem) -> Solution {
         next.fine = dirk(problem, &next.half.value, 0.5 * next.step);
         transition next.full.success && next.half.success && next.fine.success { true -> estimate(problem, next) false -> reject(problem, next) }
     }
-    state estimate(problem: &Problem, solution: Solution) -> Solution {
+    machine estimate(problem: &Problem, solution: Solution) -> Solution {
         let mut next: Solution = solution;
         let difference: Vector = Vector { a: next.fine.value.a - next.full.value.a, b: next.fine.value.b - next.full.value.b, c: next.fine.value.c - next.full.value.c };
         next.error = norm(&difference, &next.fine.value, problem) / 3.0;
         transition next.error >= 0.0 && next.error <= 1.0 { true -> accept(problem, next) false -> reject(problem, next) }
     }
-    state accept(problem: &Problem, solution: Solution) -> Solution {
+    machine accept(problem: &Problem, solution: Solution) -> Solution {
         transition solution.accepted < 1000000 { true -> commit(problem, solution) false -> (solution) }
     }
-    state commit(problem: &Problem, solution: Solution) -> Solution {
+    machine commit(problem: &Problem, solution: Solution) -> Solution {
         let mut next: Solution = solution;
         next.time = next.time + next.step; next.value = next.fine.value;
         next.accepted = next.accepted + 1;
@@ -88,10 +88,10 @@ public machine integrate(problem: &Problem) -> Solution {
         next.mass_error = maximum(next.mass_error, mass_error);
         transition next.error < 0.1 { true -> grow(problem, next) false -> advance(problem, next) }
     }
-    state grow(problem: &Problem, solution: Solution) -> Solution { let mut next: Solution = solution; next.step = next.step * 2.0; transition { _ -> advance(problem, next) } }
-    state reject(problem: &Problem, solution: Solution) -> Solution {
+    machine grow(problem: &Problem, solution: Solution) -> Solution { let mut next: Solution = solution; next.step = next.step * 2.0; transition { _ -> advance(problem, next) } }
+    machine reject(problem: &Problem, solution: Solution) -> Solution {
         transition solution.rejected < 1000000 { true -> rollback(problem, solution) false -> (solution) }
     }
-    state rollback(problem: &Problem, solution: Solution) -> Solution { let mut next: Solution = solution; next.rejected = next.rejected + 1; next.step = next.step * 0.5; transition { _ -> advance(problem, next) } }
-    state complete(solution: Solution) -> Solution { let mut next: Solution = solution; next.success = true; next }
+    machine rollback(problem: &Problem, solution: Solution) -> Solution { let mut next: Solution = solution; next.rejected = next.rejected + 1; next.step = next.step * 0.5; transition { _ -> advance(problem, next) } }
+    machine complete(solution: Solution) -> Solution { let mut next: Solution = solution; next.success = true; next }
 }

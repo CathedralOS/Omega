@@ -7,8 +7,8 @@ machine verify(observed: u64 in BelowIndex<4>, flag: bool) crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine relay(scoped: u64 in BelowIndex<4>) -> u64 in BelowIndex<4> {
     scoped

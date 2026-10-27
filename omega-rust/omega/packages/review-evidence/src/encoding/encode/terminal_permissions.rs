@@ -25,25 +25,17 @@ pub(super) fn policy(
     encoder: &mut Encoder,
     policy: &PackagePolicyTerminalPermissions,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("package", |encoder| {
-        encoder.package_identity(policy.package);
-        Ok(())
-    })?;
+    encoder.package_identity_field("package", policy.package)?;
     encoder.field("target", |encoder| {
         encoder.string(policy.target.identity().as_str())
     })?;
     encoder.field("services", |encoder| {
         encoder.sequence(&policy.services, |encoder, service| {
-            encoder.field("service", |encoder| {
-                encode_nominal(encoder, &service.service)
-            })?;
+            encoder.field_by("service", &service.service, encode_nominal)?;
             encoder.field("static_parameters", |encoder| {
                 encoder.sequence(&service.static_parameters, encode_type_parameter)
             })?;
-            encoder.field("lifetime_parameter_count", |encoder| {
-                encoder.u32(service.lifetime_parameter_count);
-                Ok(())
-            })?;
+            encoder.u32_field("lifetime_parameter_count", service.lifetime_parameter_count)?;
             encoder.field("methods", |encoder| {
                 encoder.sequence(&service.methods, encode_service_method)
             })?;
@@ -60,9 +52,7 @@ pub(super) fn permission(
     encoder: &mut Encoder,
     permission: &PackagePolicyTerminalPermission,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("requirement", |encoder| {
-        encode_nominal(encoder, &permission.requirement)
-    })?;
+    encoder.field_by("requirement", &permission.requirement, encode_nominal)?;
     encoder.field("permitted", |encoder| {
         encoder.sequence(permission.permitted.classes(), |encoder, class| {
             let name = match class {

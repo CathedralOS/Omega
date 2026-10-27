@@ -14,7 +14,7 @@ machine Main::main(main: &mut Main) crashes Trap {
         true -> put(main)
         _ -> done(main)
     }
-    state put(main: &mut Main) {
+    machine put(main: &mut Main) {
         main.grid[main.b * 20 + main.a] = 7;
         main.hits = 1;
         transition main.hits == 1 && main.grid[75] == 7 {
@@ -22,15 +22,15 @@ machine Main::main(main: &mut Main) crashes Trap {
             _ -> fail(main)
         }
     }
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         main.hits = -1;
         transition false {
             true -> pass(main)
             _ -> fail(main)
         }
     }
-    state pass(main: &mut Main) {}
-    state fail(main: &mut Main) { crash Trap; }
+    machine pass(main: &mut Main) {}
+    machine fail(main: &mut Main) { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

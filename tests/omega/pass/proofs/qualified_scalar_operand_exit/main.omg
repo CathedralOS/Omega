@@ -20,12 +20,12 @@ machine main() crashes Trap {
         _ -> wrong()
     }
 
-    state check(value: i64 in Meters) {
+    machine check(value: i64 in Meters) {
         transition (value as i64) == 29 {
             true -> done()
             _ -> wrong()
         }
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

@@ -15,7 +15,7 @@ terminates by Length;
 ensures embed(Total) <= 10 * embed(Length)
 {
     transition { _ -> spinning() }
-    state spinning() { transition { _ -> spinning() } }
+    machine spinning() { transition { _ -> spinning() } }
 }
 
 machine bounded<Length: u64, Total: u64>(evidence [erased]: Vector<Length, Total>) -> u64
@@ -30,6 +30,6 @@ machine main() crashes Trap {
     let kept [erased]: Vector<1, 7> = retain<1, 7>(one);
     let result: u64 = bounded<1, 7>(kept);
     transition result == 73 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

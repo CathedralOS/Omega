@@ -13,6 +13,7 @@
 
 pub use declarations::traits::conformance_applications;
 pub mod execution_projection;
+pub mod product_queries;
 pub use declarations::operators::{
     OperatorApplicationScope, ScopedOperatorApplication, ScopedOperatorResolution,
     build_operator_facts, derive_checked_operator_crash_contracts,
@@ -174,7 +175,9 @@ pub use value_custody::scalar_case_constructor::{
     scalar_case_constructor, scalar_case_value_source, structural_case_constructor,
 };
 pub use value_custody::scalar_representation_range::scalar_representation_range;
-pub use value_custody::source_liveness::{statement_uses_symbol, transition_target_uses_symbol};
+pub use value_custody::source_liveness::{
+    statement_uses_symbol, transition_target_uses_symbol, transition_target_uses_symbol_except,
+};
 pub use value_custody::storage_contents::{
     ContentsRequirement, data_has_contents, has_contents, has_owned_or_shared_view_fields,
 };
@@ -245,14 +248,14 @@ pub use crate::declarations::selection_authority::{
     DeclarationSelectionAuthority, validate_authored_declaration_selections,
 };
 pub use crate::machine_calls::call_cycles::{
-    RankRelevance, RuntimeRankBodyWitness, RuntimeRankComponents, ValidatedProofRankingRelation,
-    ValidatedProofRecursiveCallSite, ValidatedProofRecursiveComponent, ValidatedProofRecursiveEdge,
-    ValidatedProofRecursiveMember, ValidatedProofRecursiveTransitionLane,
-    ValidatedRuntimeNaturalComponent, ValidatedRuntimeNaturalEdge, ValidatedRuntimeNaturalState,
-    activation_target_state_index, internal_state_index, machine_call_dependency_symbols,
-    prepare_runtime_rank_components, rank_relevance, retain_runtime_rank_component,
-    retained_internal_rank_nonincrease, retained_runtime_natural_components,
-    retained_runtime_recursive_components,
+    RankRelevance, RuntimeRankBodyWitness, RuntimeRankComponents, ValidatedProofCallComponent,
+    ValidatedProofRankInterval, ValidatedProofRankingRelation, ValidatedProofRecursiveCallSite,
+    ValidatedProofRecursiveComponent, ValidatedProofRecursiveEdge, ValidatedProofRecursiveMember,
+    ValidatedProofRecursiveTransitionLane, ValidatedRuntimeNaturalComponent,
+    ValidatedRuntimeNaturalEdge, ValidatedRuntimeNaturalState, activation_target_state_index,
+    internal_state_index, machine_call_dependency_symbols, prepare_runtime_rank_components,
+    rank_relevance, retain_runtime_rank_component, retained_internal_rank_nonincrease,
+    retained_runtime_natural_components, retained_runtime_recursive_components,
 };
 pub use crate::machine_calls::calls::{
     AssignmentStorageOrigins, AssignmentWriteTarget, CallFrameResolver, CallWriteOrigins,

@@ -11,11 +11,11 @@ invokes Console;
         true -> negative(value)
         false -> digits(value, 100000000000)
     }
-    state negative(value: i64 in Saturating) {
+    machine negative(value: i64 in Saturating) {
         Console::write_byte(45);
         transition { _ -> digits(0 - value, 100000000000) }
     }
-    state digits(value: i64 in Saturating, divisor: i64 in Saturating)
+    machine digits(value: i64 in Saturating, divisor: i64 in Saturating)
     requires divisor >= 1
     {
         let digit: i64 in Saturating = (value / divisor) % 10;
@@ -25,7 +25,7 @@ invokes Console;
             false -> done()
         }
     }
-    state done() { }
+    machine done() { }
 }
 
 public machine field(value: f64) reaches Console
@@ -36,7 +36,7 @@ invokes Console;
         true -> bounded(scaled)
         false -> invalid()
     }
-    state bounded(scaled: f64)
+    machine bounded(scaled: f64)
     requires scaled == scaled && scaled >= -99999999999.0 && scaled <= 99999999999.0
     {
         Console::write_byte(44);
@@ -45,7 +45,7 @@ invokes Console;
         let converted: i64 = I64::from_f64(scaled);
         integer(converted as i64 in Saturating);
     }
-    state invalid() { Console::write_line("ERROR numeric output range"); Console::exit_process(70); }
+    machine invalid() { Console::write_line("ERROR numeric output range"); Console::exit_process(70); }
 }
 
 public machine report(tick: u64, tree: &ReflectionTree)

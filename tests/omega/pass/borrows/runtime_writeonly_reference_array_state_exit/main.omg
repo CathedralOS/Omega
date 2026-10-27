@@ -4,7 +4,7 @@ machine update<'storage>(targets: [&'storage write Cell; 2], index: u64)
 requires index <= 1
 {
     transition { _ -> write(targets, index) }
-    state write(targets: [&'storage write Cell; 2], index: u64)
+    machine write(targets: [&'storage write Cell; 2], index: u64)
     requires index <= 1
     {
         targets[index].value = 71;
@@ -23,6 +23,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

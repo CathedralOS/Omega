@@ -16,7 +16,7 @@ machine consume(claim: Claim in Issued & Label) -> u64 {
 machine exercise(select: bool) -> u64 {
     let claim: Claim in Issued = issue(29);
     transition { _ -> label(claim) }
-    state label(claim: Claim in Issued) -> u64 {
+    machine label(claim: Claim in Issued) -> u64 {
         let tagged: Claim in Tagged = claim as Claim in Tagged;
         consume(tagged)
     }
@@ -26,6 +26,6 @@ machine main() crashes Trap {
     let first: u64 = exercise(true);
     let second: u64 = exercise(false);
     transition first == 29 && second == 29 { true -> done() _ -> wrong() }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

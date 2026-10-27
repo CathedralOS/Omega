@@ -37,12 +37,12 @@ machine Main::main(main: &mut Main) reaches Magnitude crashes Trap {
         true -> later(main, -120)
         false -> wrong()
     }
-    state later(main: &mut Main, value: i32 in RepresentableMagnitude) {
+    machine later(main: &mut Main, value: i32 in RepresentableMagnitude) {
         let result: i32 = Magnitude::absolute(value);
         transition result == 120 { true -> done() false -> wrong() }
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

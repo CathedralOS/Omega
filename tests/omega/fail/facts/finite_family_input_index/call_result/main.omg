@@ -17,7 +17,7 @@ requires width == 16 || width == 32;
 }
 machine check(item: Indexed<16>) crashes Trap {
     transition item.value == 7 { true -> done() false -> bad() }
-    state done() {} state bad() { crash Trap; }
+    machine done() {} machine bad() { crash Trap; }
 }
 machine forward(item: Indexed<16>) -> Indexed<16> { item }
 machine transport(selected: dyn Family, width: u32) crashes Trap

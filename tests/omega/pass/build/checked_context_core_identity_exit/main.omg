@@ -10,6 +10,6 @@ requires no_wrap(value, 0)
 machine main() crashes Trap {
     let checked: addr = checked_value(7);
     transition checked == 11 { true -> done() false -> wrong() }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

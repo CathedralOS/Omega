@@ -35,32 +35,32 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> check1(main)
     }
 
-    state check1(main: &mut Main) {
+    machine check1(main: &mut Main) {
         transition main.items[1].name == "Shield" { true -> found1(main) _ -> check2(main) }
     }
-    state check2(main: &mut Main) {
+    machine check2(main: &mut Main) {
         transition main.items[2].name == "Shield" { true -> found2(main) _ -> missing(main) }
     }
 
-    state found0(main: &mut Main) {
+    machine found0(main: &mut Main) {
         Console::write_line("FAIL: matched the wrong slot 0, Sword (exits its id, 10)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(main.items[0].id);
     }
-    state found1(main: &mut Main) {
+    machine found1(main: &mut Main) {
         Console::write_line("PASS: found Shield at slot 1, id 20 (exit 20)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(main.items[1].id);
     }
-    state found2(main: &mut Main) {
+    machine found2(main: &mut Main) {
         Console::write_line("FAIL: matched the wrong slot 2, Potion (exits its id, 30)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(main.items[2].id);
     }
-    state missing(main: &mut Main) {
+    machine missing(main: &mut Main) {
         Console::write_line("FAIL: Shield not found in the table (exit 0)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);

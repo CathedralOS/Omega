@@ -53,7 +53,7 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> bad_count(main)
     }
 
-    state check_winner(main: &mut Main) {
+    machine check_winner(main: &mut Main) {
         // Check top row: cells 0, 1, 2 all == 1 means X won.
         transition main.board.cells[0] == 1 {
             true -> check_row_mid(main)
@@ -61,21 +61,21 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state check_row_mid(main: &mut Main) {
+    machine check_row_mid(main: &mut Main) {
         transition main.board.cells[1] == 1 {
             true -> check_row_right(main)
             _ -> bad_winner(main)
         }
     }
 
-    state check_row_right(main: &mut Main) {
+    machine check_row_right(main: &mut Main) {
         transition main.board.cells[2] == 1 {
             true -> check_o_did_not_win(main)
             _ -> bad_winner(main)
         }
     }
 
-    state check_o_did_not_win(main: &mut Main) {
+    machine check_o_did_not_win(main: &mut Main) {
         // Verify O did not somehow win: board[3] and board[4] are O's but
         // board[5] is empty (0), so O's middle row is incomplete.
         transition main.board.cells[5] == 0 {
@@ -84,21 +84,21 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::write_line("PASS: X owns the top row after 5 moves (exit 70)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(70);
     }
 
-    state bad_count(main: &mut Main) {
+    machine bad_count(main: &mut Main) {
         Console::write_line("FAIL: move count was not 5 after the script (exit 71)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(71);
     }
 
-    state bad_winner(main: &mut Main) {
+    machine bad_winner(main: &mut Main) {
         Console::write_line("FAIL: the board did not show X winning the top row (exit 72)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
@@ -114,55 +114,55 @@ machine Main::play(main: &mut Main, cell: i32, player: i32) {
         _ -> try_cell1(main, cell, player)
     }
 
-    state set0(main: &mut Main, player: i32) {
+    machine set0(main: &mut Main, player: i32) {
         main.board.cells[0] = player;
     }
 
-    state try_cell1(main: &mut Main, cell: i32, player: i32) {
+    machine try_cell1(main: &mut Main, cell: i32, player: i32) {
         transition cell == 1 {
             true -> set1(main, player)
             _ -> try_cell2(main, cell, player)
         }
     }
 
-    state set1(main: &mut Main, player: i32) {
+    machine set1(main: &mut Main, player: i32) {
         main.board.cells[1] = player;
     }
 
-    state try_cell2(main: &mut Main, cell: i32, player: i32) {
+    machine try_cell2(main: &mut Main, cell: i32, player: i32) {
         transition cell == 2 {
             true -> set2(main, player)
             _ -> try_cell3(main, cell, player)
         }
     }
 
-    state set2(main: &mut Main, player: i32) {
+    machine set2(main: &mut Main, player: i32) {
         main.board.cells[2] = player;
     }
 
-    state try_cell3(main: &mut Main, cell: i32, player: i32) {
+    machine try_cell3(main: &mut Main, cell: i32, player: i32) {
         transition cell == 3 {
             true -> set3(main, player)
             _ -> try_cell4(main, cell, player)
         }
     }
 
-    state set3(main: &mut Main, player: i32) {
+    machine set3(main: &mut Main, player: i32) {
         main.board.cells[3] = player;
     }
 
-    state try_cell4(main: &mut Main, cell: i32, player: i32) {
+    machine try_cell4(main: &mut Main, cell: i32, player: i32) {
         transition cell == 4 {
             true -> set4(main, player)
             _ -> done(main)
         }
     }
 
-    state set4(main: &mut Main, player: i32) {
+    machine set4(main: &mut Main, player: i32) {
         main.board.cells[4] = player;
     }
 
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
     }
 }
 

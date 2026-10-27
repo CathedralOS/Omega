@@ -3,13 +3,13 @@
 machine main() crashes Trap {
     let val: u64 = 100u64;
     transition { _ -> evaluate(val & 64u64) }
-    state evaluate(masked: u64) requires masked <= 64u64 {
+    machine evaluate(masked: u64) requires masked <= 64u64 {
         let diff: u64 = 63u64 - masked;
         transition diff == 27u64 {
             true -> done()
             false -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

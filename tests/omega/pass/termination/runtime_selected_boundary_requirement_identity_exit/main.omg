@@ -29,7 +29,7 @@ terminates by remaining in 0..=9;
 reaches BoundaryRankReader
 {
     transition { _ -> scan(remaining) }
-    state scan(remaining: u32) -> u32
+    machine scan(remaining: u32) -> u32
     requires remaining <= 9;
     {
         let observed: u32 = BoundaryRankReader::read(&remaining);
@@ -56,8 +56,8 @@ crashes Trap
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

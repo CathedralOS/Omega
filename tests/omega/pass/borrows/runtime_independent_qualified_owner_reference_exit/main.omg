@@ -12,7 +12,7 @@ machine pair(first: TextBuffer, mut second: TextBuffer) -> bool crashes Trap {
 }
 machine state_pair(first: TextBuffer, second: TextBuffer) -> bool crashes Trap {
     transition { _ -> inspect(first, second) }
-    state inspect(first: TextBuffer, mut second: TextBuffer) -> bool {
+    machine inspect(first: TextBuffer, mut second: TextBuffer) -> bool {
         let held: Held = Held { bytes: &mut second };
         let changed: bool = relay(held);
         changed && TextBuffer::equal(&first, "before") && TextBuffer::equal(&second, "é") && second.used == 2
@@ -26,8 +26,8 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // Variable fill owns storage and live length explicitly; qualification belongs
@@ -39,8 +39,8 @@ machine TextBuffer::view(buffer: &TextBuffer) -> &[u8] in Utf8 crashes Trap {
         true -> checked(bytes)
         false -> bad()
     }
-    state checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
-    state bad() { crash Trap; }
+    machine checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
+    machine bad() -> &[u8] in Utf8 { crash Trap; }
 }
 machine TextBuffer::equal(buffer: &TextBuffer, expected: &[u8]) -> bool crashes Trap {
     let bytes: &[u8] in Utf8 = TextBuffer::view(buffer);

@@ -987,7 +987,12 @@ pub fn reconstruct_structural_parameter_return_claims(
         }
     }
     let mut entries = Vec::with_capacity(paths.len());
-    for (_, event) in facts.flow.ownership.permissions.iter() {
+    let state_permissions = facts
+        .flow
+        .ownership
+        .with_state_permissions(state, |handles| handles.to_vec());
+    for handle in state_permissions {
+        let event = facts.flow.ownership.permissions.get(handle);
         if event.machine_symbol != machine
             || event.state_symbol != state
             || event.source != PermissionEventSource::StateEntry
@@ -1853,7 +1858,12 @@ fn received_result_claims<'facts>(
     call: &FlowCallFact,
 ) -> Result<Vec<ReceivedResultClaim<'facts>>, &'static str> {
     let mut received = Vec::new();
-    for (_, event) in facts.flow.ownership.permissions.iter() {
+    let state_permissions = facts
+        .flow
+        .ownership
+        .with_state_permissions(caller_state, |handles| handles.to_vec());
+    for handle in state_permissions {
+        let event = facts.flow.ownership.permissions.get(handle);
         if event.machine_symbol != caller_machine
             || event.state_symbol != caller_state
             || event.kind != PermissionEventKind::Establish

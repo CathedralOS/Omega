@@ -20,7 +20,7 @@ machine read_parameter(handle: &Handle in Open) -> u64 {
 }
 machine read_state(handle: &Handle in Open) -> u64 {
     transition { _ -> read(handle) }
-    state read(handle: &Handle in Open) -> u64 {
+    machine read(handle: &Handle in Open) -> u64 {
         let view: View in OpenView = borrow(handle);
         observe(view)
     }
@@ -40,6 +40,6 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

@@ -105,14 +105,18 @@ impl TerminalEffectHandler for IntegerDivisionImport {
                 result_case: None,
                 fields: vec![
                     (
-                        self.fields[0],
+                        vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+                            self.fields[0],
+                        )],
                         TerminalScalarValue::Integer {
                             scalar_type: integer,
                             value: IntegerValue::Signed(actual.quotient.into()),
                         },
                     ),
                     (
-                        self.fields[1],
+                        vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+                            self.fields[1],
+                        )],
                         TerminalScalarValue::Integer {
                             scalar_type: integer,
                             value: IntegerValue::Signed(actual.remainder.into()),

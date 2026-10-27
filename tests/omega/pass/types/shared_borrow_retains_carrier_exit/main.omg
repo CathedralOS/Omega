@@ -7,6 +7,6 @@ machine main() crashes Trap {
     let observed: u64 = read(value);
     let address: addr = read_address(raw);
     transition observed == value && address == raw { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

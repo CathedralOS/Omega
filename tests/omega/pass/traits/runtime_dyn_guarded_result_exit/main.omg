@@ -16,7 +16,7 @@ machine consume(choice: Choice) -> u64 {
         Choice::Empty -> 0
         Choice::Held { token } -> finish(token)
     }
-    state finish(token: Token) -> u64 {
+    machine finish(token: Token) -> u64 {
         let value: u64 = token.value;
         drop(token);
         value
@@ -26,6 +26,6 @@ machine main() crashes Trap {
     let absent: u64 = consume(produce(Empty as dyn Factory, 11));
     let present: u64 = consume(produce(Held as dyn Factory, 17));
     transition absent == 0 && present == 17 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

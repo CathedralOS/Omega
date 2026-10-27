@@ -104,12 +104,8 @@ impl StructuralJudge<'_> {
             return template
                 .iter()
                 .filter_map(|(path, value)| {
-                    let subject = project_observed_value(
-                        program,
-                        entry.return_type,
-                        captured.clone(),
-                        path,
-                    )?;
+                    let subject =
+                        project_observed_value(program, entry.return_type, captured.clone(), path)?;
                     Some((subject, Self::substitute_term(value, &substitution)))
                 })
                 .collect();
@@ -220,12 +216,8 @@ impl StructuralJudge<'_> {
         let equations = template
             .iter()
             .filter_map(|(path, value)| {
-                let subject = project_observed_value(
-                    program,
-                    entry.return_type,
-                    captured.clone(),
-                    path,
-                )?;
+                let subject =
+                    project_observed_value(program, entry.return_type, captured.clone(), path)?;
                 Some((subject, Self::substitute_term(value, &substitution)))
             })
             .collect();

@@ -1077,10 +1077,8 @@ impl<'program> StructuralJudge<'program> {
                             .has_no_new_non_boolean_facts_since(&pre_binary_judge)
                     });
                 if can_merge_sc {
-                    let sc_judges: Vec<&Self> = sc_indices
-                        .iter()
-                        .map(|&idx| &outcomes[idx].judge)
-                        .collect();
+                    let sc_judges: Vec<&Self> =
+                        sc_indices.iter().map(|&idx| &outcomes[idx].judge).collect();
                     let rejoined_sc =
                         pre_binary_judge.rejoin_pure_outcomes(&sc_judges, Some(expression));
                     let mut merged_sc = Some(
@@ -1088,7 +1086,8 @@ impl<'program> StructuralJudge<'program> {
                             .at_expression(expression, demand),
                     );
                     let first_sc = sc_indices[0];
-                    let mut merged_outcomes = Vec::with_capacity(outcomes.len() - sc_indices.len() + 1);
+                    let mut merged_outcomes =
+                        Vec::with_capacity(outcomes.len() - sc_indices.len() + 1);
                     for (idx, outcome) in outcomes.into_iter().enumerate() {
                         if idx == first_sc {
                             if let Some(merged) = merged_sc.take() {

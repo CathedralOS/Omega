@@ -83,8 +83,7 @@ pub use reference_subjects::assignment_stored_value_type;
 pub(crate) use stored_calls::provider_completion_covers_writable_slots;
 pub use stored_calls::{ReferenceSlotContract, StoredReferenceCallContext, StoredReferenceEffect};
 pub(crate) use transition_topology::{
-    named_state_may_reach, named_state_transition_subgraph_is_acyclic,
-    named_transition_target_state,
+    named_state_transition_subgraph_is_acyclic, named_transition_target_state,
 };
 
 use super::receiver_member_chain;

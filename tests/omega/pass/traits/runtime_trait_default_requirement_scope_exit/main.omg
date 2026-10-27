@@ -51,12 +51,12 @@ machine Counter::set(counter: &mut Counter, value: i32) {
         _ -> assigned(counter, value)
     }
 
-    state prepared(counter: &mut Counter, value: i32) {
+    machine prepared(counter: &mut Counter, value: i32) {
         counter.prepared = true;
         counter.value = value;
     }
 
-    state assigned(counter: &mut Counter, value: i32) {
+    machine assigned(counter: &mut Counter, value: i32) {
         counter.value = value;
     }
 }
@@ -91,11 +91,11 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> refused(main)
     }
 
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         Console::exit_process(70);
     }
 
-    state refused(main: &mut Main) {
+    machine refused(main: &mut Main) {
         Console::exit_process(71);
     }
 }

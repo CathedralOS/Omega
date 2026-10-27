@@ -15,7 +15,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.source.label = "Gate";
     transition { _ -> observe(main) }
 
-    state observe(main: &mut Main) {
+    machine observe(main: &mut Main) {
         let room: Room;
         room.label = main.source.label;
         transition room.label == "Gate" {
@@ -24,8 +24,8 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main) { Console::exit_process(71); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

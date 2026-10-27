@@ -23,5 +23,5 @@ machine main() reaches Supply crashes Trap {
     let second: Token in Issued<Word, Word> = Supply<Word>::issue<Word>(37);
     let forwarded: Token in Issued<Word, Word> = relay<Word, Word>(second);
     transition result.value == 29 && forwarded.value == 37 { true -> {} false -> bad() }
-    state bad() { crash Trap; }
+    machine bad() { crash Trap; }
 }

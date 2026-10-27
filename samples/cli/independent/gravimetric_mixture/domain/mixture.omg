@@ -32,14 +32,14 @@ public machine correct(result: &mut Mixture, gross_a: f64, gross_b: f64,
         true -> check_total(result, scale, shared)
         false -> {}
     }
-    state check_total(result: &mut Mixture, scale: f64, shared: bool) {
+    machine check_total(result: &mut Mixture, scale: f64, shared: bool) {
         result.status = 4;
         transition result.total >= 0.01 {
             true -> propagate(result, scale, shared)
             false -> {}
         }
     }
-    state propagate(result: &mut Mixture, scale: f64, shared: bool) {
+    machine propagate(result: &mut Mixture, scale: f64, shared: bool) {
         // Declared standard uncertainties: gross 0.1 and tare 0.2 input units.
         // For f=A/(A+B), derivatives are B/T^2 and -A/T^2.
         let gross_variance: f64 = 0.01 * scale * scale;
@@ -50,15 +50,15 @@ public machine correct(result: &mut Mixture, gross_a: f64, gross_b: f64,
             false -> independent(result)
         }
     }
-    state common(result: &mut Mixture, tare_variance: f64) {
+    machine common(result: &mut Mixture, tare_variance: f64) {
         result.covariance = tare_variance;
         transition { _ -> compose(result) }
     }
-    state independent(result: &mut Mixture) {
+    machine independent(result: &mut Mixture) {
         result.covariance = 0.0;
         transition { _ -> compose(result) }
     }
-    state compose(result: &mut Mixture) {
+    machine compose(result: &mut Mixture) {
         result.total_variance = 2.0 * result.mass_variance + 2.0 * result.covariance;
         result.fraction_a = result.mass_a / result.total;
         result.fraction_b = result.mass_b / result.total;
@@ -78,5 +78,5 @@ public machine correct(result: &mut Mixture, gross_a: f64, gross_b: f64,
             false -> {}
         }
     }
-    state accept(result: &mut Mixture) { result.status = 0; }
+    machine accept(result: &mut Mixture) { result.status = 0; }
 }

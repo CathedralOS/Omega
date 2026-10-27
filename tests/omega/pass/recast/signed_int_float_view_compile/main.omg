@@ -14,6 +14,6 @@ machine Main::main(main: &mut Main) {
         _ -> nan(main)
     }
 
-    state seen(main: &mut Main) { main.verdict = 70; }
-    state nan(main: &mut Main) { main.verdict = 71; }
+    machine seen(main: &mut Main) { main.verdict = 70; }
+    machine nan(main: &mut Main) { main.verdict = 71; }
 }

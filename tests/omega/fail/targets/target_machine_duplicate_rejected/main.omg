@@ -19,6 +19,6 @@ data Main { helper: Helper; }
 machine Main::main(main: &mut Main) {
     let a: i32 = Helper::pick();
     transition a == 63 { true -> good(main) _ -> bad(main, 71) }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main, code2: i32) { Console::exit_process(code2); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main, code2: i32) { Console::exit_process(code2); }
 }

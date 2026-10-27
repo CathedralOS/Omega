@@ -22,7 +22,7 @@ machine WordPlacement::plan(schema: Schema) -> PlacementPlan {
 machine snapshot(view: &Placed<WordPlacement, Words>) -> [u64; 512] {
     let entries: [u64; 512];
     transition { _ -> copy(view, 0, entries) }
-    state copy(view: &Placed<WordPlacement, Words>, next: u64, entries: [u64; 512]) -> [u64; 512]
+    machine copy(view: &Placed<WordPlacement, Words>, next: u64, entries: [u64; 512]) -> [u64; 512]
     requires next <= 512
     {
         transition next < 512 {
@@ -30,7 +30,7 @@ machine snapshot(view: &Placed<WordPlacement, Words>) -> [u64; 512] {
             _ -> entries
         }
     }
-    state read(view: &Placed<WordPlacement, Words>, next: u64, entries: [u64; 512]) -> [u64; 512]
+    machine read(view: &Placed<WordPlacement, Words>, next: u64, entries: [u64; 512]) -> [u64; 512]
     requires next < 512
     {
         let mut copied: [u64; 512] = entries;
@@ -52,6 +52,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

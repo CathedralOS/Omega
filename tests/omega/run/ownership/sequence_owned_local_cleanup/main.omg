@@ -71,6 +71,6 @@ machine main() reaches Console crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() { Console::write_byte(10); }
-    state bad() { crash Trap; }
+    machine done() { Console::write_byte(10); }
+    machine bad() { crash Trap; }
 }

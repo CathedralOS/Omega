@@ -1,10 +1,10 @@
-use generator::main;
+use build_support;
 machine build(builder: &mut Build) {
     Build::package(builder, "nested_kernel");
     Build::build_depend_as(builder, "generator", Source::Path { location: "../generator" });
     let answer: i32 = generation_value();
     transition answer == 7 { true -> generate(builder) _ -> wrong() }
-    state generate(builder: &mut Build) {
+    machine generate(builder: &mut Build) {
         let generated: BuildPath = BuildOutput::resolve(&builder.output, "generated.omg");
         let writer: i32 = BuildOutput::create(&mut builder.output, generated, 0);
         let bytes: [u8; 41] = "public machine value() -> i32 { seed() }\n";
@@ -12,5 +12,5 @@ machine build(builder: &mut Build) {
         _ = BuildOutput::close(&mut builder.output, writer);
         BuildOutput::include_source(&mut builder.output, generated);
     }
-    state wrong() {}
+    machine wrong() {}
 }

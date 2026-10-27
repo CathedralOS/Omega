@@ -12,9 +12,9 @@ machine store(buffer: &mut Buffer, byte: u8) {
         true -> write(buffer, byte)
         _ -> keep(buffer)
     }
-    state write(buffer: &mut Buffer, byte: u8) {
+    machine write(buffer: &mut Buffer, byte: u8) {
         buffer.label[1] = byte;
         buffer.label[0] = 200;
     }
-    state keep(buffer: &mut Buffer) { }
+    machine keep(buffer: &mut Buffer) { }
 }

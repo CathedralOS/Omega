@@ -18,7 +18,7 @@ machine receive(line: &mut [u8; 64], end: bool) -> ReadOutcome {
 }
 machine exercise(application: &mut Application, end: bool, lend: bool, choice: bool) -> bool {
     transition { _ -> read(application, end, lend, choice) }
-    state read(application: &mut Application, end: bool, lend: bool, choice: bool) -> bool {
+    machine read(application: &mut Application, end: bool, lend: bool, choice: bool) -> bool {
         let mut holder: Holder;
         let result: ReadOutcome = receive(&mut holder.line, end);
         transition lend {
@@ -26,7 +26,7 @@ machine exercise(application: &mut Application, end: bool, lend: bool, choice: b
             false -> (false)
         }
     }
-    state select(application: &mut Application, line: &[u8; 64], result: ReadOutcome, choice: bool) -> bool {
+    machine select(application: &mut Application, line: &[u8; 64], result: ReadOutcome, choice: bool) -> bool {
         transition result {
             ReadOutcome::Complete { count } -> observe(application, line, count, choice)
             ReadOutcome::End { count } -> observe(application, line, count, choice)
@@ -34,7 +34,7 @@ machine exercise(application: &mut Application, end: bool, lend: bool, choice: b
             ReadOutcome::Invalid -> (false)
         }
     }
-    state observe(application: &mut Application, line: &[u8; 64], count: u64, choice: bool) -> bool {
+    machine observe(application: &mut Application, line: &[u8; 64], count: u64, choice: bool) -> bool {
         let selected: &[u8; 64] = match choice { true -> line, false -> line };
         application.ledger.count = count as u64 in Wrapping;
         (selected[0] as u64 in Wrapping + application.ledger.count) == 42
@@ -53,6 +53,6 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

@@ -17,8 +17,8 @@ requires reading >= 1.0f32 && reading <= 3.0f32
         true -> ok()
         _ -> out_of_window()
     }
-    state ok() -> i32 { 0i32 }
-    state out_of_window() -> i32 { 1i32 }
+    machine ok() -> i32 { 0i32 }
+    machine out_of_window() -> i32 { 1i32 }
 }
 
 machine probe(holder: &Holder) -> i32 {
@@ -32,6 +32,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

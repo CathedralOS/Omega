@@ -1,0 +1,5 @@
+module provider;
+use contract;
+public const LIMIT: u64 = 64;
+machine identity(value: u64) -> u64 requires value <= 64 ensures result <= LIMIT && result >= value { value }
+public machine run() -> u64 { contract::apply<identity>(42) }

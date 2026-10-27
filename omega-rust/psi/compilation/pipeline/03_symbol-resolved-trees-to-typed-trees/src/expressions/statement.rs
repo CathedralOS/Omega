@@ -109,6 +109,7 @@ fn lower_statement_node(
             )?;
             let expression = lowerer.typed_trees.expression_table.insert(
                 typed::expression::ExpressionNode::Call(typed::expression::TableCallExpression {
+                    authored_call_binding: None,
                     authored_machine_application: Default::default(),
                     exact_coercion_target: Default::default(),
                     requirement_application: Default::default(),

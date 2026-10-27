@@ -23,9 +23,9 @@ machine main() crashes Trap {
         true -> later(Quantity { value: 6 } as Quantity in Additive)
         false -> wrong()
     }
-    state later(q: Quantity in Quantity::Additive) {
+    machine later(q: Quantity in Quantity::Additive) {
         transition read(q) == 6 { true -> done() false -> wrong() }
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

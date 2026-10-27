@@ -13,7 +13,7 @@ pub(crate) mod source_resolution;
 
 use build_declarations::DependencyPurpose;
 use compiler::{CheckedCompileRequest, CompileFailure, PackageBuild};
-use compiler::{CompilationSession, PackageCompileFailure};
+use compiler::{CompilationSession, PackageCompileFailure, PackageSourceRequest};
 use diagnostics::Diagnostic;
 use package_compilation::{IndependentComponentDescription, PackageGeneratedSourceBundle};
 use semantic_vocabulary::PackageKeyIdentity;
@@ -51,48 +51,29 @@ pub(super) struct PackagePlan {
     pub join_root: bool,
 }
 
-/// An actual execution demand and a Product demand have different inputs.
-/// A retained-source demand never falls back to executing another Build.
-pub(super) enum PackageSourceRequest {
-    Execute(CheckedCompileRequest),
-    Product(package_manager::operations::PackageProductSourceRequest),
-}
-
-impl PackageSourceRequest {
-    fn package_inputs(&self) -> Option<&package_compilation::PackageCompilationInputs> {
-        match self {
-            Self::Execute(request) => request.package_inputs.as_ref(),
-            Self::Product(request) => Some(&request.inputs),
-        }
-    }
-
-    fn prepare(
-        self,
-        compiler: &mut CompilationSession,
-        completed: &mut [compiler::CompletedBuild],
-    ) -> Result<PackageBuild, CompileFailure> {
-        match self {
-            Self::Execute(request) => execute_package_build(compiler, request),
-            Self::Product(request) => {
-                let source = completed
-                    .iter_mut()
-                    .find(|source| source.package_inputs().root() == request.inputs.root())
-                    .ok_or_else(|| {
-                        vec![Diagnostic::error(
-                            "Product request has no settled source Build",
-                        )]
-                    })?;
-                source.require_execution_contract(&request.execution)?;
-                compiler.prepare_package_product(
-                    source,
-                    request.target,
-                    request.inputs,
-                    compiler::PackageProductOptions {
-                        optimization_rollback: request.optimization_rollback,
-                        ..Default::default()
-                    },
-                )
-            }
+fn prepare_package_source(
+    request: PackageSourceRequest,
+    compiler: &mut CompilationSession,
+    completed: &mut [compiler::CompletedBuild],
+) -> Result<PackageBuild, CompileFailure> {
+    match request {
+        PackageSourceRequest::Execute(request) => execute_package_build(compiler, request),
+        PackageSourceRequest::Product(request) => {
+            let source = completed
+                .iter_mut()
+                .find(|source| source.package_inputs().root() == request.inputs.root())
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "Product request has no settled source Build",
+                    )]
+                })?;
+            source.require_execution_contract(&request.execution)?;
+            compiler.prepare_package_product(
+                source,
+                request.target,
+                request.inputs,
+                request.options,
+            )
         }
     }
 }
@@ -140,7 +121,8 @@ pub(crate) fn execute_returned_build(
     request: CheckedCompileRequest,
 ) -> Result<ReturnedPackageBuild, CompileFailure> {
     let mut invocation = compiler.begin_package_build(request)?;
-    let returned = execute_build(invocation.execution())?;
+    let mut queries = invocation.product_queries();
+    let returned = execute_build(invocation.execution(), Some(&mut queries))?;
     Ok(ReturnedPackageBuild {
         invocation,
         returned,
@@ -151,6 +133,7 @@ pub(crate) fn execute_returned_build(
 /// source and package consumers; its retained ledger still requires final join.
 pub(crate) fn execute_build(
     execution: Option<&mut build_evaluation::PreparedBuildExecution>,
+    mut queries: Option<&mut compiler::ProductQueries>,
 ) -> Result<Option<build_evaluation::ReturnedBuild>, CompileFailure> {
     let returned = if let Some(execution) = execution {
         let mut host = execution.host()?;
@@ -162,6 +145,16 @@ pub(crate) fn execute_build(
         let mut activation = host.start().map_err(refuse)?;
         loop {
             let step = activation.advance(1024).map_err(refuse)?;
+            if let Some(query) = step.awaiting_query {
+                let queries = queries
+                    .as_mut()
+                    .ok_or_else(|| refuse("Build query has no retained source context".into()))?;
+                let description = queries.describe(&query, Vec::new())?;
+                activation
+                    .answer_query(&query, description, &[])
+                    .map_err(refuse)?;
+                continue;
+            }
             if step.awaiting_provider.is_some() {
                 return Err(refuse(
                     "Build provider readiness requires dependency scheduling".into(),
@@ -223,7 +216,7 @@ pub(super) fn prepare_packages<Owner>(
                     )]
                 })?;
                 let occurrence = join_generated_sources(occurrence, &frontier.products)?;
-                let build = occurrence.prepare(compiler, completed)?;
+                let build = prepare_package_source(occurrence, compiler, completed)?;
                 let components = required_components(&build, &frontier.products)?;
                 Ok::<_, CompileFailure>((build, components))
             })();

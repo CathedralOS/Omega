@@ -16,7 +16,7 @@ machine Main::main(main: &mut Main) reaches Console {
         false -> bad(main)
     }
 
-    state sum_entries(
+    machine sum_entries(
         main: &Main,
         entries: &[Entry],
         index: u64 in Wrapping,
@@ -33,18 +33,18 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state check_total(main: &Main, total: i32 in Wrapping) {
+    machine check_total(main: &Main, total: i32 in Wrapping) {
         transition total == 4 {
             true -> good(main)
             false -> bad(main)
         }
     }
 
-    state good(main: &Main) {
+    machine good(main: &Main) {
         Console::exit_process(91);
     }
 
-    state bad(main: &Main) {
+    machine bad(main: &Main) {
         Console::exit_process(92);
     }
 }

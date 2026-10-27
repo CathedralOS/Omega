@@ -12,10 +12,10 @@ machine Main::main(main: &mut Main) -> i32 {
         _ -> leave_live()
     }
 
-    state consume(receipt: Receipt) -> i32 {
+    machine consume(receipt: Receipt) -> i32 {
         Receipt::ack(receipt);
         0
     }
 
-    state leave_live() -> i32 { 0 }
+    machine leave_live() -> i32 { 0 }
 }

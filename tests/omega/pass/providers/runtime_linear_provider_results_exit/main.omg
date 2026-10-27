@@ -26,8 +26,8 @@ machine forward(receipt: Receipt) -> Receipt {
         true -> first(held)
         _ -> other(held)
     }
-    state first(receipt: Receipt) -> Receipt { receipt }
-    state other(receipt: Receipt) -> Receipt { receipt }
+    machine first(receipt: Receipt) -> Receipt { receipt }
+    machine other(receipt: Receipt) -> Receipt { receipt }
 }
 
 machine consume(receipt: Receipt) -> i32 {
@@ -61,8 +61,8 @@ machine Main::main(main: &mut Main) reaches Relay crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

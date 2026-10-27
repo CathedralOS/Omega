@@ -33,15 +33,15 @@ machine main() crashes Trap {
     let valid: bool = local_matches(local) && local_matches(copied)
         && field_matches(&envelope);
     transition valid { true -> other(make("State")) false -> bad() }
-    state other(reply: Reply) {
+    machine other(reply: Reply) {
         transition reply {
             Reply::Message { sequence as _, content } -> check(content == "State" && size(&content) == 5)
             Reply::Empty -> bad()
         }
     }
-    state check(valid: bool) {
+    machine check(valid: bool) {
         transition valid { true -> done() false -> bad() }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

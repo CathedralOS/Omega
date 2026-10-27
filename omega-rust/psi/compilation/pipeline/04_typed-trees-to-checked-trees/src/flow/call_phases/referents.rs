@@ -121,9 +121,7 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
                     && validation::field_domains::domain_requires_provenance(program, *domain)
                 {
                     let row = (Vec::new(), *domain, *identity);
-                    if !paths.contains(&row) {
-                        paths.push(row);
-                    }
+                    crate::collections::push_unique(&mut paths, row);
                 }
             }
         }

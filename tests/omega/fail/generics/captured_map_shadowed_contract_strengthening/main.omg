@@ -14,5 +14,5 @@ machine choose<Operations satisfies Bounded<Counts::SEVEN>>() -> u32 blocks; {
 machine main() blocks; crashes Trap {
  let observed: u32 = block choose<Selected<7>>();
  transition observed == 3u32 { true -> done() _ -> bad() }
- state done() {} state bad() { crash Trap; }
+ machine done() {} machine bad() { crash Trap; }
 }

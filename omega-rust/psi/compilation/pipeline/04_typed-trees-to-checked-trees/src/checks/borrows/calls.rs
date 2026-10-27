@@ -30,79 +30,90 @@ pub(super) use staging::{InvocationBoundary, access_released_in_prefix};
 pub(super) fn check_compatibility<'p>(
     program: &'p dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    state_flows: &[(&FlowStateFact, Option<&checked_trees::StateBorrowFact>)],
     incoming_guards: &IncomingGuardIndex,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     diagnostics: &mut Vec<Diagnostic>,
-    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) {
-    for (_, state_flow) in facts.flow.control.states.iter() {
-        let Some(borrow_state) = super::matching_borrow_state(facts, state_flow) else {
-            continue;
-        };
-        let calls = facts.borrow.calls.span_or_empty(borrow_state.calls);
-        if calls.is_empty() {
-            continue;
-        }
-        let premises = validation::find_state_in_machine(
-            program,
-            state_flow.machine_symbol,
-            state_flow.state_symbol,
-        )
-        .and_then(|state| {
-            program
-                .machine_by_symbol(state_flow.machine_symbol)
-                .map(|machine| (machine, state))
-        })
-        .map(|(machine, state)| {
-            super::overlap::stated_ordering_premises(
-                program,
-                facts,
-                machine,
-                state,
-                incoming_guards,
-                bound_lookup,
-            )
-        })
-        .unwrap_or_default();
-        for call in calls {
-            if !invocation_is_evaluated(program, facts, state_flow, call) {
-                continue;
-            }
-            let mut available_premises = premises.clone();
-            super::overlap::append_statement_premises(
-                program,
-                facts,
-                state_flow,
-                call.statement_index,
-                call_frames,
-                &mut available_premises,
-                bound_lookup,
-            );
-            let target_name = call_target_label(program, call.target_symbol);
-            let entry_constraints = call_borrow_constraints(program, call, state_flow, facts);
-            check_build_selection_receiver(
-                program,
-                facts,
-                state_flow,
-                calls,
-                call,
-                &available_premises,
-                diagnostics,
-                bound_lookup,
-            );
-            check_call_access_conflicts(
-                program,
-                facts,
-                state_flow,
-                call,
-                entry_constraints,
-                &target_name,
-                &available_premises,
-                call_frames,
-                diagnostics,
-                bound_lookup,
-            );
-        }
+    let per_state: Vec<Vec<Diagnostic>> = validation::checking_thread_pool().install(|| {
+        use rayon::prelude::*;
+        state_flows
+            .par_iter()
+            .filter_map(|&(state_flow, borrow_state)| {
+                let borrow_state = borrow_state?;
+                let calls = facts.borrow.calls.span_or_empty(borrow_state.calls);
+                if calls.is_empty() {
+                    return None;
+                }
+                let mut local_diagnostics = Vec::new();
+                let mut local_bound_lookup = None;
+                let premises = validation::find_state_in_machine(
+                    program,
+                    state_flow.machine_symbol,
+                    state_flow.state_symbol,
+                )
+                .and_then(|state| {
+                    program
+                        .machine_by_symbol(state_flow.machine_symbol)
+                        .map(|machine| (machine, state))
+                })
+                .map(|(machine, state)| {
+                    super::overlap::stated_ordering_premises(
+                        program,
+                        facts,
+                        machine,
+                        state,
+                        incoming_guards,
+                        &mut local_bound_lookup,
+                    )
+                })
+                .unwrap_or_default();
+                for call in calls {
+                    if !invocation_is_evaluated(program, facts, state_flow, call) {
+                        continue;
+                    }
+                    let mut available_premises = premises.clone();
+                    super::overlap::append_statement_premises(
+                        program,
+                        facts,
+                        state_flow,
+                        call.statement_index,
+                        call_frames,
+                        &mut available_premises,
+                        &mut local_bound_lookup,
+                    );
+                    let target_name = call_target_label(program, call.target_symbol);
+                    let entry_constraints =
+                        call_borrow_constraints(program, call, state_flow, facts);
+                    check_build_selection_receiver(
+                        program,
+                        facts,
+                        state_flow,
+                        calls,
+                        call,
+                        &available_premises,
+                        &mut local_diagnostics,
+                        &mut local_bound_lookup,
+                    );
+                    check_call_access_conflicts(
+                        program,
+                        facts,
+                        state_flow,
+                        call,
+                        entry_constraints,
+                        &target_name,
+                        &available_premises,
+                        call_frames,
+                        &mut local_diagnostics,
+                        &mut local_bound_lookup,
+                    );
+                }
+                (!local_diagnostics.is_empty()).then_some(local_diagnostics)
+            })
+            .collect()
+    });
+    for local_diagnostics in per_state {
+        diagnostics.extend(local_diagnostics);
     }
 }
 

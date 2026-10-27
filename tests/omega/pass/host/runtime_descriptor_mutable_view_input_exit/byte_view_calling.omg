@@ -15,7 +15,7 @@ public macos_arm64 machine ByteViewCalling::plan(signature: BoundarySignature) -
         true -> accept()
         false -> reject()
     }
-    state accept() -> BoundaryPlanResult {
+    machine accept() -> BoundaryPlanResult {
         let mut plan: BoundaryEntryPlan;
         plan.call.convention = CallingConvention::Aapcs64;
         plan.call.parameter_count = 2;
@@ -97,7 +97,7 @@ public macos_arm64 machine ByteViewCalling::plan(signature: BoundarySignature) -
         plan.state.preemption = Preemption::NotApplicable;
         BoundaryPlanResult::Accepted { plan: plan }
     }
-    state reject() -> BoundaryPlanResult {
+    machine reject() -> BoundaryPlanResult {
         BoundaryPlanResult::Rejected {
             reason: CallingPolicyRejection { reason: "expected descriptor and pointer/length" }
         }
@@ -111,7 +111,7 @@ public linux_x86_64 machine ByteViewCalling::plan(signature: BoundarySignature) 
         true -> accept()
         false -> reject()
     }
-    state accept() -> BoundaryPlanResult {
+    machine accept() -> BoundaryPlanResult {
         let mut plan: BoundaryEntryPlan;
         plan.call.convention = CallingConvention::SystemVAMD64;
         plan.call.parameter_count = 2;
@@ -176,7 +176,7 @@ public linux_x86_64 machine ByteViewCalling::plan(signature: BoundarySignature) 
         plan.state.preemption = Preemption::NotApplicable;
         BoundaryPlanResult::Accepted { plan: plan }
     }
-    state reject() -> BoundaryPlanResult {
+    machine reject() -> BoundaryPlanResult {
         BoundaryPlanResult::Rejected {
             reason: CallingPolicyRejection { reason: "expected descriptor and pointer/length" }
         }

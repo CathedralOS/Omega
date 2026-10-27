@@ -24,6 +24,13 @@ pub(super) fn normal_return_interval(
     declared: Interval,
     actuals: &ArgumentBounds,
 ) -> Interval {
+    if !callee
+        .contracts
+        .iter()
+        .any(|contract| contract.kind == SignatureContractKind::Ensures)
+    {
+        return declared;
+    }
     // Only gated builtin preconditions may refine a formal used in a result
     // relation. The ordinary source guard environment is not selection evidence.
     let mut environment = ValueEnvironment::new();

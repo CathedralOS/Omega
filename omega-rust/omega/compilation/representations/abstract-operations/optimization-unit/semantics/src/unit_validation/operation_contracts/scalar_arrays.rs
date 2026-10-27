@@ -3,8 +3,8 @@
 //! dimensions; current value availability and ownership are checked separately.
 use crate::unit_validation::operation_contracts::plain_calls::plain_structural_call;
 use abstract_operations::AbstractOperation as O;
-use optimization_unit::PsiOptimizationFunction;
-use semantic_vocabulary::{StructuralPlaceKind, StructuralTypeId};
+use optimization_unit::{PsiOptimizationFunction, operation_result_placement};
+use semantic_vocabulary::StructuralTypeId;
 use std::collections::BTreeMap;
 
 pub(crate) fn scalar_array_establishment_matches(
@@ -77,12 +77,7 @@ pub(crate) fn scalar_array_establishment_matches(
         && result.projected_qualifications.is_empty()
         && result.claims.is_empty()
         && u64::try_from(elements.len()).ok() == Some(count)
-        && function.structural_places.iter().any(|place| {
-            place.id == result.place
-                && matches!(place.kind,
-                StructuralPlaceKind::OperationResult { producer, structural_type }
-                    if producer == *psi_operation && structural_type == result.structural_type)
-        })
+        && operation_result_placement(function, result, *psi_operation)
         && elements.iter().all(|element| {
             function
                 .parameters
@@ -177,14 +172,7 @@ pub(crate) fn structural_array_establishment_matches(
         && result.qualification_establishments.is_empty()
         && result.claims.is_empty()
         && u64::try_from(elements.len()).ok() == Some(*length)
-        && function.structural_places.iter().any(|place| {
-            place.id == result.place
-                && place.kind
-                    == StructuralPlaceKind::OperationResult {
-                        producer: *psi_operation,
-                        structural_type: result.structural_type,
-                    }
-        })
+        && operation_result_placement(function, result, *psi_operation)
         && elements.iter().all(|argument| {
             super::records::structural_initializer_matches(
                 function, result, *element, argument, types,

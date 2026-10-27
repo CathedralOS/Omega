@@ -8,8 +8,8 @@ machine build(builder: &mut Build) {
         true -> done()
         _ -> wrong()
     }
-    state done() {
+    machine done() {
     }
-    state wrong() {
+    machine wrong() {
     }
 }

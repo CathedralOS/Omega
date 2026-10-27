@@ -11,7 +11,7 @@ machine advance(cells: &mut Cells, index: u64, delay: f64) requires index < 2 {
 
 machine forward(cells: &mut Cells, index: u64, delay: f64) requires index < 2 {
     transition { _ -> selected(cells, delay, index) }
-    state selected(cells: &mut Cells, elapsed: f64, selected_index: u64) requires selected_index < 2 {
+    machine selected(cells: &mut Cells, elapsed: f64, selected_index: u64) requires selected_index < 2 {
         cells.values[selected_index].position = cells.values[selected_index].position + elapsed * cells.values[selected_index].velocity;
         cells.values[selected_index].count = increment(cells.values[selected_index].count);
     }
@@ -29,6 +29,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

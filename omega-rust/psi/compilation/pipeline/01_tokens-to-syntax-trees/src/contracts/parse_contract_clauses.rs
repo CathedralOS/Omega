@@ -283,7 +283,7 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
             }
             let (binding, fact_input) = input.take_optional_label()?;
             let ((facts, token_count), rest) =
-                crate::contracts::facts::parse_proof_facts_until_with_machine_semicolon(
+                crate::contracts::facts::parse_required_proof_facts_until(
                     syntax_trees,
                     fact_input,
                     |input| {

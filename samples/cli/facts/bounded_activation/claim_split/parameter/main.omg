@@ -9,7 +9,7 @@ machine mark(bytes: &mut [u8]) -> u8 {
         true -> access(bytes)
         false -> (0u8)
     }
-    state access(bytes: &mut [u8]) -> u8
+    machine access(bytes: &mut [u8]) -> u8
     requires bytes.len >= 8 {
         bytes[0] = 11u8;
         bytes[0]
@@ -21,7 +21,7 @@ machine read_mark(bytes: &mut [u8]) -> u8 {
         true -> access(bytes)
         false -> (0u8)
     }
-    state access(bytes: &mut [u8]) -> u8
+    machine access(bytes: &mut [u8]) -> u8
     requires bytes.len >= 8 {
         bytes[0]
     }
@@ -32,7 +32,7 @@ machine exercise(committed_at: u64) -> u8 crashes Trap {
         ActivationClaimAttempt::Established { claim } -> established(claim, committed_at)
         ActivationClaimAttempt::Rejected -> (0u8)
     }
-    state established(claim: ActivationClaim, committed_at: u64) -> u8 {
+    machine established(claim: ActivationClaim, committed_at: u64) -> u8 {
         let mut live: ActivationClaim = claim;
         let bytes: &mut [u8] = ActivationClaim::bytes(&mut live);
         let marked: u8 = mark(bytes);
@@ -41,32 +41,32 @@ machine exercise(committed_at: u64) -> u8 crashes Trap {
             false -> release_bad(live)
         }
     }
-    state release_bad(claim: ActivationClaim) -> u8 {
+    machine release_bad(claim: ActivationClaim) -> u8 {
         ActivationClaim::release(claim);
         crash Trap;
     }
-    state divide(claim: ActivationClaim, committed_at: u64) -> u8 {
+    machine divide(claim: ActivationClaim, committed_at: u64) -> u8 {
         transition ActivationClaim::split<8>(claim, committed_at) {
             ActivationClaimSplit::Covered { lower, upper } -> merge_children(lower, upper)
             ActivationClaimSplit::Rejected { claim } -> return_rejected(claim)
         }
     }
-    state return_rejected(claim: ActivationClaim) -> u8 {
+    machine return_rejected(claim: ActivationClaim) -> u8 {
         ActivationClaim::release(claim);
         crash Trap;
     }
-    state merge_children(lower: ActivationClaim, upper: ActivationClaim) -> u8 {
+    machine merge_children(lower: ActivationClaim, upper: ActivationClaim) -> u8 {
         transition ActivationClaim::merge(lower, upper) {
             ActivationClaimMerge::Covered { claim } -> restored(claim)
             ActivationClaimMerge::Rejected { lower, upper } -> merge_rejected(lower, upper)
         }
     }
-    state merge_rejected(lower: ActivationClaim, upper: ActivationClaim) -> u8 {
+    machine merge_rejected(lower: ActivationClaim, upper: ActivationClaim) -> u8 {
         ActivationClaim::release(upper);
         ActivationClaim::release(lower);
         crash Trap;
     }
-    state restored(claim: ActivationClaim) -> u8 {
+    machine restored(claim: ActivationClaim) -> u8 {
         let mut live: ActivationClaim = claim;
         let bytes: &mut [u8] = ActivationClaim::bytes(&mut live);
         let length: u64 = bytes.len;
@@ -85,6 +85,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

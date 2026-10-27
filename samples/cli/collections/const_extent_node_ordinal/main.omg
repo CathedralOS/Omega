@@ -42,7 +42,7 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> report(main, paired)
         false -> Console::exit_process(1)
     }
-    state report(main: &mut Main, paired: i64 in Wrapping) {
+    machine report(main: &mut Main, paired: i64 in Wrapping) {
         number(main, paired);
         Console::write_line("");
         Console::exit_process(0);
@@ -54,26 +54,26 @@ machine number(main: &mut Main, value: i64 in Wrapping) reaches Console {
         true -> tens(main, value, value / 10)
         false -> Console::exit_process(1)
     }
-    state tens(main: &mut Main, value: i64 in Wrapping, ten: i64 in Wrapping) {
+    machine tens(main: &mut Main, value: i64 in Wrapping, ten: i64 in Wrapping) {
         transition ten > 0 {
             true -> emit(main, value, ten + 48)
             false -> ones(main, value)
         }
     }
-    state emit(main: &mut Main, value: i64 in Wrapping, byte: i64 in Wrapping)
+    machine emit(main: &mut Main, value: i64 in Wrapping, byte: i64 in Wrapping)
     requires byte >= 48 && byte <= 57
     {
         Console::write_byte(byte as i32);
         transition { _ -> ones(main, value) }
     }
-    state ones(main: &mut Main, value: i64 in Wrapping) {
+    machine ones(main: &mut Main, value: i64 in Wrapping) {
         let byte: i64 in Wrapping = value % 10 + 48;
         transition byte >= 48 && byte <= 57 {
             true -> finish(main, byte)
             false -> Console::exit_process(1)
         }
     }
-    state finish(main: &mut Main, byte: i64 in Wrapping)
+    machine finish(main: &mut Main, byte: i64 in Wrapping)
     requires byte >= 48 && byte <= 57
     {
         Console::write_byte(byte as i32);

@@ -26,8 +26,8 @@ machine exercise_return(selected: bool) crashes Trap {
     drop(left);
     drop(right);
     transition correct { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine exercise(selected: bool) crashes Trap {
     let first: Token = Token { value: 17 };
@@ -44,8 +44,8 @@ machine exercise(selected: bool) crashes Trap {
     drop(left);
     drop(right);
     transition correct { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine main() crashes Trap {
     exercise(true);

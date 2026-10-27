@@ -35,12 +35,12 @@ crashes Trap
         _ -> pattern(typer, sources, syntax, resolution, index, expression, subject_type, 0)
     }
 
-    state subject_absent(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression) {
+    machine subject_absent(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression) {
         let subject: Expression = SyntaxTrees::expression(syntax, expression.left);
         Typing::reject(&mut typer.output, TypeDiagnosticCode::NotAValue, subject.source_span);
     }
 
-    state pattern(
+    machine pattern(
         typer: &mut Typer,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -56,7 +56,7 @@ crashes Trap
         }
     }
 
-    state arm_pattern(
+    machine arm_pattern(
         typer: &mut Typer,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -71,7 +71,7 @@ crashes Trap
         transition { _ -> pattern(typer, sources, syntax, resolution, index, expression, subject_type, offset + 1) }
     }
 
-    state patterns_typed(
+    machine patterns_typed(
         typer: &mut Typer,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -88,18 +88,18 @@ crashes Trap
         }
     }
 
-    state coverage(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, covered: bool) {
+    machine coverage(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, covered: bool) {
         transition covered {
             true -> values(typer, syntax, index, expression)
             _ -> uncovered(typer, expression)
         }
     }
 
-    state uncovered(typer: &mut Typer, expression: Expression) {
+    machine uncovered(typer: &mut Typer, expression: Expression) {
         Typing::reject(&mut typer.output, TypeDiagnosticCode::UncoveredDispatch, expression.source_span);
     }
 
-    state values(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression) {
+    machine values(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression) {
         let values: JoinedValues = SyntaxTrees::joined_values(expression);
         let result_type: u64 in Trapping = Typer::fixed_join(typer, syntax, values);
         transition result_type > 0 {
@@ -108,13 +108,13 @@ crashes Trap
         }
     }
 
-    state fixed(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, values: JoinedValues, result_type: u64 in Trapping) {
+    machine fixed(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, values: JoinedValues, result_type: u64 in Trapping) {
         Typing::set_expression_type(&mut typer.output, index, result_type);
         Typer::admit_joined(typer, syntax, values, result_type);
     }
 
     // Arms of `Never` alone make the match `Never` too.
-    state unfixed(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, values: JoinedValues) {
+    machine unfixed(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, values: JoinedValues) {
         let join: UnlandedJoin = Typer::unlanded_join(typer, syntax, values);
         transition join.mismatch > 0 {
             true -> mismatched(typer, syntax, join.mismatch - 1)
@@ -122,14 +122,14 @@ crashes Trap
         }
     }
 
-    state joined(typer: &mut Typer, index: u64 in Trapping, joined: u64 in Trapping) {
+    machine joined(typer: &mut Typer, index: u64 in Trapping, joined: u64 in Trapping) {
         Typing::set_expression_type(&mut typer.output, index, joined);
     }
 
-    state mismatched(typer: &mut Typer, syntax: &SyntaxTrees, value: u64 in Trapping) {
+    machine mismatched(typer: &mut Typer, syntax: &SyntaxTrees, value: u64 in Trapping) {
         let written: Expression = SyntaxTrees::expression(syntax, value);
         Typing::reject(&mut typer.output, TypeDiagnosticCode::MismatchedTypes, written.source_span);
     }
 
-    state done() {}
+    machine done() {}
 }

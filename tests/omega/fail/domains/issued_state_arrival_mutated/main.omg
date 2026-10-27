@@ -7,5 +7,5 @@ machine main() {
     let mut resource: Resource in Open = acquire(41);
     resource.identity = 0;
     transition { _ -> received(resource) }
-    state received(resource: Resource in Open) {}
+    machine received(resource: Resource in Open) {}
 }

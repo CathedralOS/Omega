@@ -11,92 +11,92 @@ machine Main::main(main: &mut Main) reaches Console {
     transition parsed {
  true -> metadata(main, 0, 0)
  false -> syntax(main) }
-    state syntax(main: &mut Main) { Console::write_line("INVALID syntax"); Console::exit_process(64); }
-    state metadata(main: &mut Main, index: i32 in Wrapping, cases: i32 in Wrapping) {
+    machine syntax(main: &mut Main) { Console::write_line("INVALID syntax"); Console::exit_process(64); }
+    machine metadata(main: &mut Main, index: i32 in Wrapping, cases: i32 in Wrapping) {
         transition index >= 0 && index < 6 {
  true -> label(main, index, cases)
  false -> replicates(main, cases) }
     }
-    state label(main: &mut Main, index: i32 in Wrapping, cases: i32 in Wrapping) requires index >= 0 && index < 6 {
+    machine label(main: &mut Main, index: i32 in Wrapping, cases: i32 in Wrapping) requires index >= 0 && index < 6 {
         let value: i32 = main.protocol.fields[index];
         transition value == 0 || value == 1 {
  true -> store_group(main, index, cases, value)
  false -> invalid(main) }
     }
-    state store_group(main: &mut Main, index: i32 in Wrapping, cases: i32 in Wrapping, value: i32) requires index >= 0 && index < 6 {
+    machine store_group(main: &mut Main, index: i32 in Wrapping, cases: i32 in Wrapping, value: i32) requires index >= 0 && index < 6 {
         main.study.groups[index] = value;
         transition { _ -> metadata(main, index + 1, cases + value as i32 in Wrapping) }
     }
-    state replicates(main: &mut Main, cases: i32 in Wrapping) {
+    machine replicates(main: &mut Main, cases: i32 in Wrapping) {
         transition cases >= 2 && cases <= 4 {
  true -> counts(main, 0)
  false -> invalid(main) }
     }
-    state invalid(main: &mut Main) { Console::write_line("INVALID metadata_or_count_range"); Console::exit_process(65); }
-    state counts(main: &mut Main, index: i32 in Wrapping) {
+    machine invalid(main: &mut Main) { Console::write_line("INVALID metadata_or_count_range"); Console::exit_process(65); }
+    machine counts(main: &mut Main, index: i32 in Wrapping) {
         let field: i32 in Wrapping = index + 6;
         transition index >= 0 && index < 48 && field >= 0 && field < 54 {
  true -> count_value(main, index, field)
  false -> normalization(main) }
     }
-    state count_value(main: &mut Main, index: i32 in Wrapping, field: i32 in Wrapping) requires index >= 0 && index < 48 && field >= 0 && field < 54 {
+    machine count_value(main: &mut Main, index: i32 in Wrapping, field: i32 in Wrapping) requires index >= 0 && index < 48 && field >= 0 && field < 54 {
         let value: i32 = main.protocol.fields[field];
         transition value >= 0 && value <= 1000 {
  true -> store_count(main, index, value)
  false -> invalid(main) }
     }
-    state store_count(main: &mut Main, index: i32 in Wrapping, value: i32) requires index >= 0 && index < 48 {
+    machine store_count(main: &mut Main, index: i32 in Wrapping, value: i32) requires index >= 0 && index < 48 {
         main.study.counts[index] = value as f64;
         transition { _ -> counts(main, index + 1) }
     }
-    state normalization(main: &mut Main) {
+    machine normalization(main: &mut Main) {
         let valid: bool = normalize(&mut main.study);
         transition valid {
  true -> factors(main, 0)
  false -> absent(main) }
     }
-    state absent(main: &mut Main) { Console::write_line("EXCLUDED normalization_no_positive_gene"); Console::exit_process(66); }
-    state factors(main: &mut Main, index: i32 in Wrapping) {
+    machine absent(main: &mut Main) { Console::write_line("EXCLUDED normalization_no_positive_gene"); Console::exit_process(66); }
+    machine factors(main: &mut Main, index: i32 in Wrapping) {
         transition index < 6 {
  true -> factor_line(main, index)
  false -> gene(main, 0) }
     }
-    state factor_line(main: &mut Main, index: i32 in Wrapping) {
+    machine factor_line(main: &mut Main, index: i32 in Wrapping) {
         Console::write("factor,"); Protocol::integer(&mut main.protocol, index); Console::write(",");
         Protocol::number(&mut main.protocol, factor(&main.study, index)); Console::write_line("");
         transition { _ -> factors(main, index + 1) }
     }
-    state gene(main: &mut Main, index: i32 in Wrapping) {
+    machine gene(main: &mut Main, index: i32 in Wrapping) {
         transition index >= 0 && index < 8 {
  true -> moments(main, index)
  false -> adjust(main, 0) }
     }
-    state moments(main: &mut Main, index: i32 in Wrapping) requires index >= 0 && index < 8 {
+    machine moments(main: &mut Main, index: i32 in Wrapping) requires index >= 0 && index < 8 {
         let a: f64 = average(&main.study, index, 0); let b: f64 = average(&main.study, index, 1);
         main.study.base[index] = base_mean(&main.study, index);
         transition a + b == 0.0 {
  true -> exclude(main, index, 1)
  false -> low(main, index, a, b) }
     }
-    state low(main: &mut Main, index: i32 in Wrapping, a: f64, b: f64) requires index >= 0 && index < 8 {
+    machine low(main: &mut Main, index: i32 in Wrapping, a: f64, b: f64) requires index >= 0 && index < 8 {
         transition total_count(&main.study, index) < 10.0 {
  true -> exclude(main, index, 2)
  false -> zero_group(main, index, a, b) }
     }
-    state zero_group(main: &mut Main, index: i32 in Wrapping, a: f64, b: f64) requires index >= 0 && index < 8 {
+    machine zero_group(main: &mut Main, index: i32 in Wrapping, a: f64, b: f64) requires index >= 0 && index < 8 {
         transition a == 0.0 || b == 0.0 {
  true -> exclude(main, index, 3)
  false -> disperse(main, index, a, b) }
     }
-    state exclude(main: &mut Main, index: i32 in Wrapping, reason: i32) requires index >= 0 && index < 8 {
+    machine exclude(main: &mut Main, index: i32 in Wrapping, reason: i32) requires index >= 0 && index < 8 {
         main.study.reason[index] = reason;
         transition { _ -> gene(main, index + 1) }
     }
-    state disperse(main: &mut Main, index: i32 in Wrapping, a: f64, b: f64) requires index >= 0 && index < 8 {
+    machine disperse(main: &mut Main, index: i32 in Wrapping, a: f64, b: f64) requires index >= 0 && index < 8 {
         let alpha: f64 = dispersion(&main.study, index, a, b);
         transition { _ -> estimate(main, index, alpha) }
     }
-    state estimate(main: &mut Main, index: i32 in Wrapping, alpha: f64) requires index >= 0 && index < 8 {
+    machine estimate(main: &mut Main, index: i32 in Wrapping, alpha: f64) requires index >= 0 && index < 8 {
         let a: f64 = fit(&main.study, index, 0, alpha); let b: f64 = fit(&main.study, index, 1, alpha);
         let first: f64 = information(&main.study, index, 0, a, alpha); let second: f64 = information(&main.study, index, 1, b, alpha);
         let fold: f64 = logarithm(b / a) / 0.6931471805599453;
@@ -107,40 +107,40 @@ machine Main::main(main: &mut Main) reaches Console {
         main.study.p[index] = probability(fold / error); main.study.reason[index] = 0;
         transition { _ -> gene(main, index + 1) }
     }
-    state adjust(main: &mut Main, index: i32 in Wrapping) {
+    machine adjust(main: &mut Main, index: i32 in Wrapping) {
         transition index >= 0 && index < 8 {
  true -> corrected(main, index)
  false -> report(main, 0) }
     }
-    state corrected(main: &mut Main, index: i32 in Wrapping) requires index >= 0 && index < 8 {
+    machine corrected(main: &mut Main, index: i32 in Wrapping) requires index >= 0 && index < 8 {
         main.study.q[index] = adjustment(&main.study, index);
         transition { _ -> adjust(main, index + 1) }
     }
-    state report(main: &mut Main, index: i32 in Wrapping) {
+    machine report(main: &mut Main, index: i32 in Wrapping) {
         transition index >= 0 && index < 8 {
  true -> row(main, index)
  false -> done(main) }
     }
-    state row(main: &mut Main, index: i32 in Wrapping) requires index >= 0 && index < 8 {
+    machine row(main: &mut Main, index: i32 in Wrapping) requires index >= 0 && index < 8 {
         Console::write("gene,"); Protocol::integer(&mut main.protocol, index); Console::write(",");
         transition main.study.reason[index] == 0 {
  true -> result(main, index)
  false -> reason(main, index) }
     }
-    state reason(main: &mut Main, index: i32 in Wrapping) requires index >= 0 && index < 8 {
+    machine reason(main: &mut Main, index: i32 in Wrapping) requires index >= 0 && index < 8 {
         transition main.study.reason[index] == 1 {
  true -> zero(main, index)
  false -> other(main, index) }
     }
-    state zero(main: &mut Main, index: i32 in Wrapping) { Console::write_line("all_zero"); transition { _ -> report(main, index + 1) } }
-    state other(main: &mut Main, index: i32 in Wrapping) requires index >= 0 && index < 8 {
+    machine zero(main: &mut Main, index: i32 in Wrapping) { Console::write_line("all_zero"); transition { _ -> report(main, index + 1) } }
+    machine other(main: &mut Main, index: i32 in Wrapping) requires index >= 0 && index < 8 {
         transition main.study.reason[index] == 2 {
  true -> low_count(main, index)
  false -> boundary(main, index) }
     }
-    state low_count(main: &mut Main, index: i32 in Wrapping) { Console::write_line("low_total_count"); transition { _ -> report(main, index + 1) } }
-    state boundary(main: &mut Main, index: i32 in Wrapping) { Console::write_line("group_zero_boundary"); transition { _ -> report(main, index + 1) } }
-    state result(main: &mut Main, index: i32 in Wrapping) requires index >= 0 && index < 8 {
+    machine low_count(main: &mut Main, index: i32 in Wrapping) { Console::write_line("low_total_count"); transition { _ -> report(main, index + 1) } }
+    machine boundary(main: &mut Main, index: i32 in Wrapping) { Console::write_line("group_zero_boundary"); transition { _ -> report(main, index + 1) } }
+    machine result(main: &mut Main, index: i32 in Wrapping) requires index >= 0 && index < 8 {
         Console::write("tested,");
         Protocol::number(&mut main.protocol, main.study.base[index]); Console::write(",");
         Protocol::number(&mut main.protocol, main.study.dispersion[index]); Console::write(",");
@@ -153,14 +153,14 @@ machine Main::main(main: &mut Main) reaches Console {
         Protocol::number(&mut main.protocol, main.study.q[index]); Console::write_line("");
         transition { _ -> report(main, index + 1) }
     }
-    state done(main: &mut Main) { Console::exit_process(0); }
+    machine done(main: &mut Main) { Console::exit_process(0); }
 }
 machine total_count(study: &Study, gene: i32 in Wrapping) -> f64 {
     count(study, gene, 0) + count(study, gene, 1) + count(study, gene, 2) + count(study, gene, 3) + count(study, gene, 4) + count(study, gene, 5)
 }
 machine base_mean(study: &Study, gene: i32 in Wrapping) -> f64 {
     transition { _ -> scan(study, gene, 0, 0.0) }
-    state scan(study: &Study, gene: i32 in Wrapping, sample: i32 in Wrapping, total: f64) -> f64 {
+    machine scan(study: &Study, gene: i32 in Wrapping, sample: i32 in Wrapping, total: f64) -> f64 {
         transition sample < 6 {
  true -> scan(study, gene, sample + 1, total + count(study, gene, sample) / factor(study, sample))
  false -> (total / 6.0) }
@@ -170,12 +170,12 @@ machine rank(study: &Study, gene: i32 in Wrapping) -> f64 {
     transition gene >= 0 && gene < 8 {
  true -> scan(study, gene, 0, 1.0)
  false -> 1.0 }
-    state scan(study: &Study, gene: i32 in Wrapping, other: i32 in Wrapping, position: f64) -> f64 requires gene >= 0 && gene < 8 {
+    machine scan(study: &Study, gene: i32 in Wrapping, other: i32 in Wrapping, position: f64) -> f64 requires gene >= 0 && gene < 8 {
         transition other >= 0 && other < 8 {
  true -> compare(study, gene, other, position)
  false -> position }
     }
-    state compare(study: &Study, gene: i32 in Wrapping, other: i32 in Wrapping, position: f64) -> f64 requires gene >= 0 && gene < 8 && other >= 0 && other < 8 {
+    machine compare(study: &Study, gene: i32 in Wrapping, other: i32 in Wrapping, position: f64) -> f64 requires gene >= 0 && gene < 8 && other >= 0 && other < 8 {
         transition study.reason[other] == 0 && (study.p[other] < study.p[gene] || (study.p[other] == study.p[gene] && other < gene)) {
  true -> scan(study, gene, other + 1, position + 1.0)
  false -> scan(study, gene, other + 1, position) }
@@ -183,12 +183,12 @@ machine rank(study: &Study, gene: i32 in Wrapping) -> f64 {
 }
 machine tested(study: &Study) -> f64 {
     transition { _ -> scan(study, 0, 0.0) }
-    state scan(study: &Study, index: i32 in Wrapping, total: f64) -> f64 {
+    machine scan(study: &Study, index: i32 in Wrapping, total: f64) -> f64 {
         transition index >= 0 && index < 8 {
  true -> add(study, index, total)
  false -> total }
     }
-    state add(study: &Study, index: i32 in Wrapping, total: f64) -> f64 requires index >= 0 && index < 8 {
+    machine add(study: &Study, index: i32 in Wrapping, total: f64) -> f64 requires index >= 0 && index < 8 {
         transition study.reason[index] == 0 {
  true -> scan(study, index + 1, total + 1.0)
  false -> scan(study, index + 1, total) }
@@ -196,12 +196,12 @@ machine tested(study: &Study) -> f64 {
 }
 machine adjustment(study: &Study, gene: i32 in Wrapping) -> f64 {
     transition { _ -> scan(study, rank(study, gene), tested(study), 0, 1.0) }
-    state scan(study: &Study, position: f64, size: f64, other: i32 in Wrapping, best: f64) -> f64 {
+    machine scan(study: &Study, position: f64, size: f64, other: i32 in Wrapping, best: f64) -> f64 {
         transition other >= 0 && other < 8 {
  true -> consider(study, position, size, other, best)
  false -> best }
     }
-    state consider(study: &Study, position: f64, size: f64, other: i32 in Wrapping, best: f64) -> f64 requires other >= 0 && other < 8 {
+    machine consider(study: &Study, position: f64, size: f64, other: i32 in Wrapping, best: f64) -> f64 requires other >= 0 && other < 8 {
         let other_rank: f64 = rank(study, other);
         let candidate: f64 = study.p[other] * size / other_rank;
         transition study.reason[other] == 0 && other_rank >= position && candidate < best {

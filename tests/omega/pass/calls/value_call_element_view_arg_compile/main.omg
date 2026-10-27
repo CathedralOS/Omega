@@ -12,21 +12,21 @@ terminates by values -> Slice::Length;
 {
     transition { _ -> scan(values) }
 
-    state scan(values: &[i32 in Wrapping]) -> i32 {
+    machine scan(values: &[i32 in Wrapping]) -> i32 {
         transition values.len > 0 {
             true -> emit(values[0], values[1..])
             false -> done()
         }
     }
 
-    state emit(element: i32 in Wrapping, values: &[i32 in Wrapping]) -> i32 {
+    machine emit(element: i32 in Wrapping, values: &[i32 in Wrapping]) -> i32 {
         transition values.len > 0 {
             true -> emit(values[0], values[1..])
             false -> (element as i32)
         }
     }
 
-    state done() -> i32 { (0) }
+    machine done() -> i32 { (0) }
 }
 
 machine main() crashes Trap {
@@ -45,13 +45,13 @@ machine main() crashes Trap {
         _ -> bad()
     }
 
-    state check_array(result: i32) {
+    machine check_array(result: i32) {
         transition result == 20 {
             true -> good()
             _ -> bad()
         }
     }
 
-    state good() {}
-    state bad() { crash Trap; }
+    machine good() {}
+    machine bad() { crash Trap; }
 }

@@ -27,12 +27,12 @@ machine observe(region: Region in Owned) -> u64 {
 }
 machine exercise(select: bool) -> u64 {
     transition { _ -> retained(retain(Region { amount: 29 })) }
-    state retained(region: Region in Owned) -> u64 { observe(region) }
+    machine retained(region: Region in Owned) -> u64 { observe(region) }
 }
 machine main() crashes Trap {
     let first: u64 = exercise(true);
     let second: u64 = exercise(false);
     transition first == 29 && second == 29 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

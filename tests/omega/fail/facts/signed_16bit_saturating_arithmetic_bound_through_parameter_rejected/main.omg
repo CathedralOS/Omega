@@ -26,10 +26,10 @@ machine exercise(lhs: i16 in Saturating, rhs: i16 in Saturating) -> i32 crashes 
         true -> step(sum)
         _ -> bad()
     }
-    state step(s: i16) -> i32 {
+    machine step(s: i16) -> i32 {
         helper(s)
     }
-    state bad() { crash Trap; }
+    machine bad() -> i32 { crash Trap; }
 }
 
 machine main() crashes Trap {
@@ -38,6 +38,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

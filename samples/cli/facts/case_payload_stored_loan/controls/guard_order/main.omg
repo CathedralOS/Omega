@@ -11,12 +11,12 @@ machine main() crashes Trap {
         true -> bad()
         false -> selected(&mut counter)
     }
-    state selected(counter: &mut Counter) {
+    machine selected(counter: &mut Counter) {
         transition counter.value == 0 && step(&mut counter) && counter.value == 1 {
             true -> done()
             false -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -56,9 +56,7 @@ pub(super) fn disagreeing_call_result_subjects(
             place.root,
             &place.segments,
         )?;
-        if !subjects.contains(&subject) {
-            subjects.push(subject);
-        }
+        crate::collections::push_unique(&mut subjects, subject);
     }
     Some(subjects)
 }
@@ -277,9 +275,7 @@ pub(super) fn call_result_place(
             result_relative,
             depth,
         )?;
-        if !places.contains(&place) {
-            places.push(place);
-        }
+        crate::collections::push_unique(&mut places, place);
     }
     Some(places)
 }

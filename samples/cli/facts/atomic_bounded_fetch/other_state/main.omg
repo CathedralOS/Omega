@@ -10,7 +10,7 @@ machine observe(cell: &Cell) -> u32
 ensures result <= 100
 {
     transition { _ -> read(cell) }
-    state read(cell: &Cell) -> u32 { cell.value.load(NoOrdering) }
+    machine read(cell: &Cell) -> u32 { cell.value.load(NoOrdering) }
 }
 machine main() crashes Trap {
     let cell: Cell;
@@ -19,6 +19,6 @@ machine main() crashes Trap {
     let observed: u32 = observe(&cell);
     let remaining: u32 = 100 - observed;
     transition prior == 99 && observed == 35 && remaining == 65 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

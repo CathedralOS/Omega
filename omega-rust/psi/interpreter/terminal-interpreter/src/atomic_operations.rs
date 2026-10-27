@@ -155,7 +155,12 @@ impl TerminalExecution<'_> {
                 let index = usize::from(replacement.is_some());
                 let result_case = cases[index].id;
                 let fields = if index == 0 {
-                    vec![(cases[0].fields[0].id, prior)]
+                    vec![(
+                        vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+                            cases[0].fields[0].id,
+                        )],
+                        prior,
+                    )]
                 } else {
                     Vec::new()
                 };

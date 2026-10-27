@@ -20,14 +20,14 @@ machine Main::main(main: &mut Main) reaches Console {
         false -> relay(main, "no", false)
     }
 
-    state relay(main: &mut Main, text: &[u8] in Utf8, go: bool) {
+    machine relay(main: &mut Main, text: &[u8] in Utf8, go: bool) {
         transition go {
             true -> consume(main, text)
             false -> consume(main, text)
         }
     }
 
-    state consume(main: &mut Main, text: &[u8] in Utf8) {
+    machine consume(main: &mut Main, text: &[u8] in Utf8) {
         Console::exit_process(70);
     }
 }

@@ -9,7 +9,7 @@ machine clamp(val: u64) -> u64
         true -> 10u64
         _ -> check_high(val)
     }
-    state check_high(v: u64)
+    machine check_high(v: u64) -> u64
         requires v >= 10u64
     {
         transition v > 100u64 {
@@ -23,7 +23,7 @@ machine compute(val: u64) -> u64
     requires val >= 10u64 && val <= 100u64
 {
     transition { _ -> perform(val) }
-    state perform(c: u64)
+    machine perform(c: u64) -> u64
         requires c >= 10u64 && c <= 100u64
     {
         let headroom: u64 = 100u64 - c;
@@ -46,6 +46,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

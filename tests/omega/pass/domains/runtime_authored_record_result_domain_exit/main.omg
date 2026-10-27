@@ -8,5 +8,5 @@ machine Cell::accept()->Cell ensures result in Cell::Admitted {
 machine main() crashes Trap {
  let cell:Cell=Cell::accept();
  transition cell.mantissa == 0.75 && cell.power == -2 { true -> done() false -> bad() }
- state done() {} state bad() { crash Trap; }
+ machine done() {} machine bad() { crash Trap; }
 }

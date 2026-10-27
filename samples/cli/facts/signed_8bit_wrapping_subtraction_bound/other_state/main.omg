@@ -23,10 +23,10 @@ ensures result == 0i8
         true -> ok()
         _ -> bad()
     }
-    state ok() {
+    machine ok() -> i8 {
         0i8
     }
-    state bad() {
+    machine bad() -> i8 {
         crash Trap;
     }
 }
@@ -38,7 +38,7 @@ ensures result == 0i8
     transition {
         _ -> step(diff)
     }
-    state step(diff: i8) -> i8
+    machine step(diff: i8) -> i8
     requires diff >= 40i8 && diff <= 90i8
     {
         verify_diff(diff)
@@ -50,6 +50,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -373,9 +373,7 @@ impl Execution<'_, '_, '_> {
                     break;
                 }
                 for place in projected.places {
-                    if !places.contains(&place) {
-                        places.push(place);
-                    }
+                    crate::collections::push_unique(&mut places, place);
                 }
             }
             let referents = if complete && matched {
@@ -660,9 +658,7 @@ impl Execution<'_, '_, '_> {
             };
             let places = projected.places;
             for place in places {
-                if !origins.contains(&place) {
-                    origins.push(place);
-                }
+                crate::collections::push_unique(&mut origins, place);
             }
         }
         *referents = Some(self.append_captured_references(&origins));

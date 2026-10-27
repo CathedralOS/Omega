@@ -37,7 +37,7 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> different_contents(main)
     }
 
-    state different_contents(main: &mut Main) {
+    machine different_contents(main: &mut Main) {
         // Same length ("amulet" vs "ambush", six bytes each), different
         // content: only the byte loop can tell them apart.
         main.right = Tag { label: "ambush", weight: 3 };
@@ -48,7 +48,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state different_lengths(main: &mut Main) {
+    machine different_lengths(main: &mut Main) {
         // Shared prefix, one byte longer: the length compare must miss
         // before any content is read.
         main.right = Tag { label: "amulets", weight: 3 };
@@ -59,7 +59,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state scalar_sibling(main: &mut Main) {
+    machine scalar_sibling(main: &mut Main) {
         // Equal text, different scalar field: the synthesized conjunction
         // (label AND weight) must miss through the non-&[u8] in Utf8 side.
         main.right = Tag { label: "amulet", weight: 4 };
@@ -70,11 +70,11 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         Console::exit_process(70);
     }
 
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::exit_process(71);
     }
 }

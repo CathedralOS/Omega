@@ -51,19 +51,19 @@ machine dispatch_stream() {
         Stream::Empty -> done(71)
     }
 
-    state check_tail(tail: Stream<succ>) {
+    machine check_tail(tail: Stream<succ>) {
         transition tail {
             Stream::More { sample, tail } -> check_empty(tail)
             Stream::Empty -> done(72)
         }
     }
 
-    state check_empty(tail: Stream<succ>) {
+    machine check_empty(tail: Stream<succ>) {
         transition tail {
             Stream::Empty -> done(70)
             Stream::More { sample, tail } -> done(73)
         }
     }
 
-    state done(code: i32) {}
+    machine done(code: i32) {}
 }

@@ -5,21 +5,21 @@ data Cursor { index: i64; }
 data Main { model: Model; cursor: Cursor; }
 machine selected_value(cursor: &mut Cursor) -> f64 {
     transition cursor.index == 1 { true -> selected(cursor) false -> rejected(cursor) }
-    state selected(cursor: &mut Cursor) -> f64 { cursor.index = 0; 3.0 }
-    state rejected(cursor: &mut Cursor) -> f64 { cursor.index = 0; 4.0 }
+    machine selected(cursor: &mut Cursor) -> f64 { cursor.index = 0; 3.0 }
+    machine rejected(cursor: &mut Cursor) -> f64 { cursor.index = 0; 4.0 }
 }
 machine snapshot_store(cells: &mut [f64; 5], cursor: &mut Cursor) {
     transition cursor.index >= 0 && cursor.index < 5 { true -> at(cells,cursor) false -> done() }
-    state at(cells: &mut [f64; 5], cursor: &mut Cursor)
+    machine at(cells: &mut [f64; 5], cursor: &mut Cursor)
     requires cursor.index >= 0 requires cursor.index < 5 {
         cells[cursor.index] = selected_value(cursor)*2.0;
     }
-    state done() { }
+    machine done() { }
 }
 machine second_index(cursor: &mut Cursor) -> u64 ensures result <= 1 {
     transition cursor.index == 1 { true -> selected(cursor) false -> rejected(cursor) }
-    state selected(cursor: &mut Cursor) -> u64 { cursor.index = 0; 0 }
-    state rejected(cursor: &mut Cursor) -> u64 { cursor.index = 0; 1 }
+    machine selected(cursor: &mut Cursor) -> u64 { cursor.index = 0; 0 }
+    machine rejected(cursor: &mut Cursor) -> u64 { cursor.index = 0; 1 }
 }
 machine selector_store(cells: &mut [[f64; 2]; 2], cursor: &mut Cursor)
 requires cursor.index >= 0 requires cursor.index < 2 {
@@ -27,7 +27,7 @@ requires cursor.index >= 0 requires cursor.index < 2 {
 }
 machine Main::main(main: &mut Main) reaches Console {
     transition { _ -> centered(main, 1.0) }
-    state centered(main: &mut Main, total: f64) {
+    machine centered(main: &mut Main, total: f64) {
         main.model.z[0] = 0.0-total/2.0;
         main.cursor.index = 1;
         snapshot_store(&mut main.model.z,&mut main.cursor);
@@ -35,8 +35,8 @@ machine Main::main(main: &mut Main) reaches Console {
         selector_store(&mut main.model.grid,&mut main.cursor);
         transition main.model.z[0] == -0.5 && main.model.z[1] == 6.0 && main.cursor.index == 0 && main.model.grid[1][0] == 7.0 && main.model.grid[0][0] == 0.0 { true -> good(main) false -> bad(main) }
     }
-    state good(main: &mut Main) { Console::write_line("FLOAT STORE OK"); Console::exit_process(0); }
-    state bad(main: &mut Main) { Console::write_line("FLOAT STORE WRONG"); Console::exit_process(4); }
+    machine good(main: &mut Main) { Console::write_line("FLOAT STORE OK"); Console::exit_process(0); }
+    machine bad(main: &mut Main) { Console::write_line("FLOAT STORE WRONG"); Console::exit_process(4); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

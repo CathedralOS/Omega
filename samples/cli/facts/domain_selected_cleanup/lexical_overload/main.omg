@@ -12,6 +12,6 @@ machine main() crashes Trap {
     let ordinary: u64 = outer(0);
     let wrapped: u64 in Wrapping = outer(0);
     transition ordinary == 7 && wrapped == (11 as u64 in Wrapping) { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

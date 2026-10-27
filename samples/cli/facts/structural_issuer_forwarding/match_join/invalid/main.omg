@@ -17,6 +17,6 @@ machine main() crashes Trap {
     let first: u64 = consume(forward(choose(true)));
     let second: u64 = consume(forward(choose(false)));
     transition first == 17 && second == 17 { true -> done() _ -> wrong() }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

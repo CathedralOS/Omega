@@ -33,10 +33,10 @@ machine Main::main(main: &mut Main) {
         true -> chosen(main, pair)
         _ -> other(main, pair)
     }
-    state chosen(main: &mut Main, pair: Pair) {
+    machine chosen(main: &mut Main, pair: Pair) {
         main.hits = (consume(pair.left) as i32 in Wrapping) + (consume(pair.right) as i32 in Wrapping);
     }
-    state other(main: &mut Main, pair: Pair) {
+    machine other(main: &mut Main, pair: Pair) {
         main.hits = -1;
         drop(pair.left);
         drop(pair.right);

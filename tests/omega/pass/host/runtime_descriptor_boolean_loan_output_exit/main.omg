@@ -32,7 +32,7 @@ linux_x86_64 boundary machine ScalarImports::byte(descriptor: i32, value: &u8, c
 machine set(value: &mut bool) { value = true; }
 machine emit(value: &bool) -> i64 reaches ScalarOutput {
     transition { _ -> write(value) }
-    state write(value: &bool) {
+    machine write(value: &bool) -> i64 {
         ScalarOutput::flag(1, value, 1)
     }
 }
@@ -46,8 +46,8 @@ machine Main::main(main: &mut Main) reaches ScalarOutput crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

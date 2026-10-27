@@ -20,7 +20,7 @@ machine allocate(this: &EfiBootServicesTable, allocate_type: u32, memory_type: u
         true -> (EFI_OUT_OF_RESOURCES)
         _ -> accepted(memory)
     }
-    state accepted(memory: &mut u64) -> u64 {
+    machine accepted(memory: &mut u64) -> u64 {
         memory = ((memory as u64 in Saturating) + 8192) as u64;
         EFI_SUCCESS
     }
@@ -40,31 +40,31 @@ machine acquire(this: &EfiBootServicesTable, map_size: &mut u64, map: u64,
         true -> small(this, map_size)
         _ -> snapshot(this, map_size, key, descriptor_size, descriptor_version)
     }
-    state small(this: &EfiBootServicesTable, map_size: &mut u64) -> u64 {
+    machine small(this: &EfiBootServicesTable, map_size: &mut u64) -> u64 {
         transition this.hdr_reserved == 12 {
             true -> overflow(map_size)
             _ -> required(this, map_size)
         }
     }
-    state required(this: &EfiBootServicesTable, map_size: &mut u64) -> u64 {
+    machine required(this: &EfiBootServicesTable, map_size: &mut u64) -> u64 {
         transition this.hdr_reserved == 15 {
             true -> exact_page(map_size)
             _ -> growth(map_size)
         }
     }
-    state exact_page(map_size: &mut u64) -> u64 {
+    machine exact_page(map_size: &mut u64) -> u64 {
         map_size = 8192;
         EFI_BUFFER_TOO_SMALL
     }
-    state overflow(map_size: &mut u64) -> u64 {
+    machine overflow(map_size: &mut u64) -> u64 {
         map_size = 0xFFFFFFFFFFFFFFFF;
         EFI_BUFFER_TOO_SMALL
     }
-    state growth(map_size: &mut u64) -> u64 {
+    machine growth(map_size: &mut u64) -> u64 {
         map_size = 8080;
         EFI_BUFFER_TOO_SMALL
     }
-    state snapshot(this: &EfiBootServicesTable, map_size: &mut u64, key: &mut u64,
+    machine snapshot(this: &EfiBootServicesTable, map_size: &mut u64, key: &mut u64,
         descriptor_size: &mut u64, descriptor_version: &mut u32) -> u64
     {
         map_size = 8080;
@@ -82,13 +82,13 @@ machine acquire(this: &EfiBootServicesTable, map_size: &mut u64, map: u64,
             _ -> (EFI_SUCCESS)
         }
     }
-    state extended_descriptor(map_size: &mut u64, descriptor_size: &mut u64) -> u64 { map_size = 8064; descriptor_size = 48; EFI_SUCCESS }
-    state short_stride(descriptor_size: &mut u64) -> u64 { descriptor_size = 39; EFI_SUCCESS }
-    state wrong_version(descriptor_version: &mut u32) -> u64 { descriptor_version = 2; EFI_SUCCESS }
-    state partial_descriptor(map_size: &mut u64) -> u64 { map_size = 8081; EFI_SUCCESS }
-    state empty_map(map_size: &mut u64) -> u64 { map_size = 0; EFI_SUCCESS }
-    state oversized_map(map_size: &mut u64) -> u64 { map_size = 9000; EFI_SUCCESS }
-    state zero_stride(descriptor_size: &mut u64) -> u64 { descriptor_size = 0; EFI_SUCCESS }
+    machine extended_descriptor(map_size: &mut u64, descriptor_size: &mut u64) -> u64 { map_size = 8064; descriptor_size = 48; EFI_SUCCESS }
+    machine short_stride(descriptor_size: &mut u64) -> u64 { descriptor_size = 39; EFI_SUCCESS }
+    machine wrong_version(descriptor_version: &mut u32) -> u64 { descriptor_version = 2; EFI_SUCCESS }
+    machine partial_descriptor(map_size: &mut u64) -> u64 { map_size = 8081; EFI_SUCCESS }
+    machine empty_map(map_size: &mut u64) -> u64 { map_size = 0; EFI_SUCCESS }
+    machine oversized_map(map_size: &mut u64) -> u64 { map_size = 9000; EFI_SUCCESS }
+    machine zero_stride(descriptor_size: &mut u64) -> u64 { descriptor_size = 0; EFI_SUCCESS }
 }
 
 machine exit_services(this: &EfiBootServicesTable, image: u64, map_key: u64) -> u64
@@ -106,7 +106,7 @@ reaches UefiBootServices
         11 -> (MODEL_EXIT_FAILURE)
         _ -> (EFI_SUCCESS)
     }
-    state stale(map_key: u64) -> u64 {
+    machine stale(map_key: u64) -> u64 {
         transition map_key < 3 {
             true -> (EFI_INVALID_PARAMETER)
             _ -> (EFI_SUCCESS)
@@ -137,7 +137,7 @@ invokes UefiBootServices;
         UefiOsHandoffDisposition::Rejected { status } -> retained(&cycle, disposition, scenario, status, key, remaining, map, staged)
         _ -> (false)
     }
-    state retained(cycle: &UefiOsHandoffCycle, disposition: UefiOsHandoffDisposition,
+    machine retained(cycle: &UefiOsHandoffCycle, disposition: UefiOsHandoffDisposition,
         scenario: u32, status: u64, key: u64, remaining: u64, map: u64, staged: u64) -> bool
     {
         transition status == EFI_INVALID_PARAMETER && cycle.started && cycle.legs.key == key
@@ -146,13 +146,13 @@ invokes UefiBootServices;
             _ -> (false)
         }
     }
-    state checked(cycle: &UefiOsHandoffCycle, disposition: UefiOsHandoffDisposition, scenario: u32) -> bool {
+    machine checked(cycle: &UefiOsHandoffCycle, disposition: UefiOsHandoffDisposition, scenario: u32) -> bool {
         transition disposition {
             UefiOsHandoffDisposition::Ready -> ready(cycle, scenario)
             UefiOsHandoffDisposition::Rejected { status } -> rejected(cycle, scenario, status)
         }
     }
-    state ready(cycle: &UefiOsHandoffCycle, scenario: u32) -> bool {
+    machine ready(cycle: &UefiOsHandoffCycle, scenario: u32) -> bool {
         (scenario == 0 || scenario == 7 || scenario == 14 || scenario == 15)
             && cycle.legs.map == 8192 && cycle.legs.next_map == 0 && cycle.legs.pages == 0
             && ((scenario == 15 && cycle.legs.map_pages == 3 && cycle.legs.map_capacity == 12288)
@@ -160,7 +160,7 @@ invokes UefiBootServices;
             && (((scenario == 0 || scenario == 14 || scenario == 15) && cycle.legs.key == 1 && cycle.remaining == 4)
                 || (scenario == 7 && cycle.legs.key == 3 && cycle.remaining == 2))
     }
-    state rejected(cycle: &UefiOsHandoffCycle, scenario: u32, status: u64) -> bool {
+    machine rejected(cycle: &UefiOsHandoffCycle, scenario: u32, status: u64) -> bool {
         transition scenario {
             1 -> (status == MODEL_RELEASE_FAILURE && cycle.legs.map == 4096
                 && cycle.legs.map_pages == 1 && cycle.legs.next_map == 8192
@@ -201,8 +201,8 @@ crashes Trap
         true -> done()
         _ -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

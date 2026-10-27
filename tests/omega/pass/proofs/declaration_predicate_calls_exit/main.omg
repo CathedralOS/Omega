@@ -60,14 +60,14 @@ requires value <= 100
 machine changed_bytes_are_ascii() -> bool {
     let text: Text = Text { bytes: "go!", tag: 1 };
     transition { _ -> observe(&mut text, 0) }
-    state observe(text: &mut Text, phase: u8) {
+    machine observe(text: &mut Text, phase: u8) -> bool {
         let ascii: bool = ascii_only(text.bytes);
         transition phase == 0 {
             true -> overwrite(text, ascii)
             _ -> ascii
         }
     }
-    state overwrite(text: &mut Text, before: bool) {
+    machine overwrite(text: &mut Text, before: bool) -> bool {
         text.bytes = [103, 255, 33];
         transition before {
             true -> observe(text, 1)
@@ -101,6 +101,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

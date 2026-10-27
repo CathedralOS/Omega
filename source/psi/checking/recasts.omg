@@ -33,7 +33,7 @@ crashes Trap
         _ -> done()
     }
 
-    state referents(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, row: TypeRow, given: TypeRow) {
+    machine referents(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, row: TypeRow, given: TypeRow) {
         let source: TypeRow = TypeTable::row(&typing.types, given.inner);
         let target: TypeRow = TypeTable::row(&typing.types, row.inner);
         let mutable: bool = row.access != ReferenceAccess::Shared;
@@ -45,28 +45,28 @@ crashes Trap
         }
     }
 
-    state source_domain(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, qualified: bool, mutable: bool, source_boolean: bool, target_boolean: bool) {
+    machine source_domain(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, qualified: bool, mutable: bool, source_boolean: bool, target_boolean: bool) {
         transition qualified && mutable {
             true -> unproven(checker, expression)
             _ -> shapes(checker, syntax, typing, expression, mutable, source_boolean, target_boolean)
         }
     }
 
-    state shapes(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, mutable: bool, source_boolean: bool, target_boolean: bool) {
+    machine shapes(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, mutable: bool, source_boolean: bool, target_boolean: bool) {
         transition source_boolean == target_boolean {
             true -> done()
             _ -> mixed(checker, syntax, typing, expression, mutable, target_boolean)
         }
     }
 
-    state mixed(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, mutable: bool, target_boolean: bool) {
+    machine mixed(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, mutable: bool, target_boolean: bool) {
         transition target_boolean {
             true -> bounded_field(checker, syntax, typing, expression)
             _ -> boolean_source(checker, expression, mutable)
         }
     }
 
-    state boolean_source(checker: &mut Checker, expression: Expression, mutable: bool) {
+    machine boolean_source(checker: &mut Checker, expression: Expression, mutable: bool) {
         transition mutable {
             true -> unproven(checker, expression)
             _ -> done()
@@ -75,7 +75,7 @@ crashes Trap
 
     // The borrowed place must be a field of data carrying `where` facts,
     // and those facts must bound it to zero or one.
-    state bounded_field(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression) {
+    machine bounded_field(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression) {
         let operand: Value = Checker::value_at(checker, expression.left);
         let owner: u64 in Trapping = Checker::window_owner(checker, syntax, typing, operand.place);
         transition owner > 0 {
@@ -84,7 +84,7 @@ crashes Trap
         }
     }
 
-    state proved(checker: &mut Checker, expression: Expression, place: u64 in Trapping) {
+    machine proved(checker: &mut Checker, expression: Expression, place: u64 in Trapping) {
         let referent: Value = Checker::place_value(checker, place);
         let zero: Value = Value::constant(ExactInteger { negative: false, magnitude: 0 });
         let one: Value = Value::constant(ExactInteger { negative: false, magnitude: 1 });
@@ -96,13 +96,13 @@ crashes Trap
         }
     }
 
-    state fenced(checker: &mut Checker, expression: Expression) {
+    machine fenced(checker: &mut Checker, expression: Expression) {
         Checks::reject(&mut checker.output, CheckDiagnosticCode::UnsupportedCheck, expression.source_span);
     }
 
-    state unproven(checker: &mut Checker, expression: Expression) {
+    machine unproven(checker: &mut Checker, expression: Expression) {
         Checks::reject(&mut checker.output, CheckDiagnosticCode::RepresentationUnproven, expression.source_span);
     }
 
-    state done() {}
+    machine done() {}
 }

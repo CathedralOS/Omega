@@ -22,7 +22,7 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> compute(main)
     }
 
-    state compute(main: &mut Main) {
+    machine compute(main: &mut Main) {
         main.i = 0;
         main.a = main.text[main.i]; // 'a' = 97
         main.i = 2;
@@ -33,18 +33,18 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state check_b(main: &mut Main) {
+    machine check_b(main: &mut Main) {
         transition main.b == 99 {
             true -> good(main)
             _ -> bad(main)
         }
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::exit_process(70);
     }
 
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::exit_process(71);
     }
 }

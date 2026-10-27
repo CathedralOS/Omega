@@ -98,6 +98,7 @@ mod tests {
         validate_aarch64_selected_memory_form,
     };
     use super::{MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedMemoryEffect};
+    use crate::test_support::reject_every_bit_flip;
 
     #[test]
     fn indexed_byte_load_decodes_every_bit_and_operand_role() {
@@ -125,22 +126,17 @@ mod tests {
                 byte_count: 1,
             }
         );
-        for bit in 0..encoded.bytes().len() * 8 {
-            let mut corrupt = encoded.bytes().to_vec();
-            corrupt[bit / 8] ^= 1 << (bit % 8);
-            assert!(
-                validate_aarch64_selected_memory_form(
-                    &physical,
-                    kind,
-                    alternative,
-                    &operands,
-                    0,
-                    &corrupt,
-                )
-                .is_err(),
-                "accepted changed encoding bit {bit}"
-            );
-        }
+        reject_every_bit_flip(encoded.bytes(), &format!("{kind:?}"), |corrupt| {
+            validate_aarch64_selected_memory_form(
+                &physical,
+                kind,
+                alternative,
+                &operands,
+                0,
+                &corrupt,
+            )
+            .is_err()
+        });
         for role in 0..3 {
             let mut corrupt = operands;
             corrupt[role] = operands[(role + 1) % 3];

@@ -18,5 +18,5 @@ machine main() crashes Trap {
     transition view.len == 2 && view[0] == 70 && view[1] == 42 && count == 2 {
         true -> done() _ -> bad()
     }
-    state done() {} state bad() { crash Trap; }
+    machine done() {} machine bad() { crash Trap; }
 }

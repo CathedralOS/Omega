@@ -38,16 +38,16 @@ machine Main::main(main: &mut Main) reaches Console {
     main.h = main.r.bottom_right.y - main.r.top_left.y;
 
     transition main.r.top_left.y == 3 { true -> check_w(main) _ -> bad(main) }
-    state check_w(main: &mut Main) {
+    machine check_w(main: &mut Main) {
         transition main.w == 10 { true -> check_h(main) _ -> bad(main) }
     }
-    state check_h(main: &mut Main) {
+    machine check_h(main: &mut Main) {
         transition main.h == 6 { true -> good(main) _ -> bad(main) }
     }
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::exit_process(70);
     }
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::exit_process(71);
     }
 }

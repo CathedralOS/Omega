@@ -39,7 +39,7 @@ machine Main::main(main: &mut Main) {
         true -> overlong(main)
         _ -> bad()
     }
-    state overlong(main: &mut Main) {
+    machine overlong(main: &mut Main) {
         // Overlong zero: E0 80 80 must decode Invalid.
         main.buffer[5] = 224;
         main.buffer[6] = 128;
@@ -55,6 +55,6 @@ machine Main::main(main: &mut Main) {
             _ -> bad()
         }
     }
-    state done() {}
-    state bad() {}
+    machine done() {}
+    machine bad() {}
 }

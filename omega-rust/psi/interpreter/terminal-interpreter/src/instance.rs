@@ -368,7 +368,12 @@ impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
         let deferred = execution.boundary_supplies.get(&boundary)
             == Some(&crate::effects::AdmittedBoundarySupply::DeferredComponent);
         if self.invoked
-            && (!deferred || execution.awaiting_effect.is_none() || execution.failure.is_some())
+            && (!deferred
+                || !execution
+                    .awaiting_effect
+                    .as_ref()
+                    .is_some_and(|pending| pending.awaiting_provider_readiness)
+                || execution.failure.is_some())
         {
             return Err(
                 "component installation requires its reserved slot and a checked readiness pause"
@@ -656,6 +661,13 @@ impl<'a, 'host> ImportDispatch<'a, 'host> {
 }
 
 impl TerminalEffectHandler for ImportDispatch<'_, '_> {
+    fn poll_host_computation(
+        &mut self,
+        effect: &TerminalEffect,
+    ) -> Result<bool, TerminalEffectRejection> {
+        self.adapter_for(effect)?.poll_host_computation(effect)
+    }
+
     fn poll_effect_readiness(
         &mut self,
         effect: &TerminalEffect,

@@ -31,13 +31,13 @@ machine Main::main(context: &mut Main) reaches Source invokes Source; crashes Tr
         Acquisition::Ok { resource } -> received(resource)
         _ -> wrong()
     }
-    state received(resource: Resource in Open) {
+    machine received(resource: Resource in Open) {
         let identity: u64 = observe(&resource);
         close(resource);
         transition identity == 73 { true -> done() false -> wrong() }
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

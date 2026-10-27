@@ -40,7 +40,7 @@ satisfies Value<Helper>::unrealized, Unused::read {
 // execution demand or require a current optimizer body in another deployment.
 archive_target machine Helper::cycle(helper: &Helper) -> u32 {
     transition { _ -> step(helper) }
-    state step(helper: &Helper) -> u32 {
+    machine step(helper: &Helper) -> u32 {
         transition { _ -> step(helper) }
     }
 }

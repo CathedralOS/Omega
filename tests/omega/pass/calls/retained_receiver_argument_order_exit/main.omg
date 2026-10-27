@@ -10,8 +10,8 @@ machine Receiver::observe(receiver: &mut Receiver, tag: Tag) {
         Tag::First -> first(receiver)
         _ -> second(receiver)
     }
-    state first(receiver: &mut Receiver) { receiver.sentinel = 11; }
-    state second(receiver: &mut Receiver) { receiver.sentinel = 41; }
+    machine first(receiver: &mut Receiver) { receiver.sentinel = 11; }
+    machine second(receiver: &mut Receiver) { receiver.sentinel = 41; }
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -24,7 +24,7 @@ machine Main::main(main: &mut Main) reaches Console {
         before == 29 && main.receiver.sentinel == 41 && main.tag == Tag::Second -> finish(main, 70)
         _ -> finish(main, 1)
     }
-    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -25,7 +25,7 @@ machine run() -> i32 {
     transition {
         _ -> step(total)
     }
-    state step(preserved: u64) {
+    machine step(preserved: u64) -> i32 {
         let diff: u64 = preserved - 100u64;
         diff as i32
     }
@@ -37,6 +37,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

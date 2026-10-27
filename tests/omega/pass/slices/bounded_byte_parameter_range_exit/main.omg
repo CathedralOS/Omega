@@ -8,8 +8,8 @@ machine put(out: &mut [u8], byte: u8) {
         true -> store(out, byte)
         false -> done()
     }
-    state store(out: &mut [u8], byte: u8) { out[0] = byte; }
-    state done() {}
+    machine store(out: &mut [u8], byte: u8) { out[0] = byte; }
+    machine done() {}
 }
 
 machine narrow(out: &mut [u8; 3]) {
@@ -29,6 +29,6 @@ machine main() crashes Trap {
         true -> passed()
         false -> failed()
     }
-    state passed() {}
-    state failed() { crash Trap; }
+    machine passed() {}
+    machine failed() { crash Trap; }
 }

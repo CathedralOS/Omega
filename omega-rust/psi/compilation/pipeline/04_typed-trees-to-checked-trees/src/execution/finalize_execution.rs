@@ -10,14 +10,14 @@ pub(crate) fn finalize_execution(
     // One frame resolver answers every planner that still classifies typed
     // call frames.
     let call_frames = validation::CallFrameResolver::new(program);
-    phase_profile::scope("05.d.8_10.a.1.rank_and_terminal_machines", || {
+    let erased_citations = phase_profile::scope("05.d.8_10.a.1.rank_and_terminal_machines", || {
         crate::execution::scalar_computations::record_rank_observations(program, &mut facts);
         facts.flow.terminal_machines =
             crate::execution::terminal_scalar::build_checked_terminal_machine_selections(
                 program,
                 &facts.termination.rank_arrivals,
             );
-        crate::execution::citation_erasure::retire_fact_only_citations(program, &mut facts);
+        crate::execution::citation_erasure::retire_fact_only_citations(program, &mut facts)
     });
     // This plan must be assembled only after multiplicity and carry checking:
     // their ownership events and claim policies are the authority for the
@@ -113,6 +113,11 @@ pub(crate) fn finalize_execution(
             &facts.values.scalar_computations,
             &facts.values.structural_values,
             state,
+            |statement| {
+                !erased_citations.iter().any(|erased| {
+                    erased.state == state && erased.statement_index == statement as usize
+                })
+            },
             &mut construction_shapes,
         )
         .ok_or_else(|| {
@@ -191,9 +196,21 @@ pub fn settle_closed_constant_execution(
             !plan.pending_scalar_requires.is_empty() || !plan.pending_scalar_recipes.is_empty()
         })
     {
-        return Err(vec![Diagnostic::error(
-            "selected execution retains unresolved boundary scalar contract clauses",
-        )]);
+        return Err(vec![Diagnostic::error(format!(
+            "selected execution retains unresolved boundary scalar contract clauses: {:?}",
+            facts
+                .flow
+                .terminal_unit_effects
+                .boundary_machines
+                .iter()
+                .filter(|plan| !plan.pending_scalar_requires.is_empty()
+                    || !plan.pending_scalar_recipes.is_empty())
+                .map(|plan| (
+                    typed.symbols.display_path(plan.machine, "::").to_string(),
+                    typed.symbols.display_path(plan.state, "::").to_string()
+                ))
+                .collect::<Vec<_>>()
+        ))]);
     }
     Ok(checked_trees::CheckedTrees::with_roots(typed, facts))
 }

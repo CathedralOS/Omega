@@ -30,22 +30,22 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> wrong_left(main)
     }
 
-    state right_record(main: &mut Main) {
+    machine right_record(main: &mut Main) {
         transition main.right.label == "ring" && main.right.weight == 4 {
             true -> good(main)
             _ -> wrong_right(main)
         }
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::exit_process(70);
     }
 
-    state wrong_left(main: &mut Main) {
+    machine wrong_left(main: &mut Main) {
         Console::exit_process(71);
     }
 
-    state wrong_right(main: &mut Main) {
+    machine wrong_right(main: &mut Main) {
         Console::exit_process(72);
     }
 }

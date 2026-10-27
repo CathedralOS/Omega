@@ -14,6 +14,6 @@ machine main() crashes Trap {
     let raw: Carrier = Carrier { marker: 41, reference: &backing };
     let observed: i32 = inspect(Holder { carrier: raw });
     transition observed == 42 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

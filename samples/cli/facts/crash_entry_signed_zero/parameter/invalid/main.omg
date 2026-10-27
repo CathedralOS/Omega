@@ -5,7 +5,7 @@ machine maybe_nonzero(value: f32) -> f32
 crashes Trap value != 0.0
 {
     transition value != 0.0 { true -> bad() false -> (value) }
-    state bad() { crash Trap; }
+    machine bad() -> f32 { crash Trap; }
 }
 public machine read_zero(value: f32) -> f32
 requires value == 1.0
@@ -15,5 +15,5 @@ requires value == 1.0
 machine main() crashes Trap {
     let observed: f32 = read_zero(1.0);
     transition observed == 0.0 { true -> done() _ -> bad() }
-    state done() {} state bad() { crash Trap; }
+    machine done() {} machine bad() { crash Trap; }
 }

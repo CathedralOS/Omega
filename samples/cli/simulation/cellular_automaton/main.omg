@@ -55,76 +55,76 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
     transition { _ -> zero_loop(main) }
 
     // --- clear the grid, then light a single centre cell ---
-    state zero_loop(main: &mut Main) {
+    machine zero_loop(main: &mut Main) {
         transition main.x >= 0 && main.x < 64 { true -> zero_cell(main) _ -> seed(main) }
     }
-    state zero_cell(main: &mut Main) {
+    machine zero_cell(main: &mut Main) {
         main.cells[main.x] = 0;
         main.x = main.x + 1;
         transition { _ -> zero_loop(main) }
     }
-    state seed(main: &mut Main) {
+    machine seed(main: &mut Main) {
         main.cells[32] = 1;
         main.gen = 0;
         transition { _ -> gen_loop(main) }
     }
 
-    state gen_loop(main: &mut Main) {
+    machine gen_loop(main: &mut Main) {
         transition main.gen < 32 { true -> render_init(main) _ -> finish(main) }
     }
 
     // --- render the current generation as one row ---
-    state render_init(main: &mut Main) {
+    machine render_init(main: &mut Main) {
         main.x = 0;
         transition { _ -> render_loop(main) }
     }
-    state render_loop(main: &mut Main) {
+    machine render_loop(main: &mut Main) {
         transition main.x >= 0 && main.x < 64 { true -> render_cell(main) _ -> emit(main) }
     }
-    state render_cell(main: &mut Main) {
+    machine render_cell(main: &mut Main) {
         main.cv = main.cells[main.x];
         transition main.cv >= 0 && main.cv < 2 { true -> render_put(main) _ -> bad(main) }
     }
-    state render_put(main: &mut Main) {
+    machine render_put(main: &mut Main) {
         // ramp lookup carries the Utf8-ness into the carrier (the ripple_field pattern)
         main.glyph = main.chars[main.cv];
         transition main.x >= 0 && main.x < 64 { true -> render_emit(main) _ -> bad(main) }
     }
-    state render_emit(main: &mut Main) {
+    machine render_emit(main: &mut Main) {
         main.line[main.x] = main.glyph;
         main.x = main.x + 1;
         transition { _ -> render_loop(main) }
     }
-    state emit(main: &mut Main) {
+    machine emit(main: &mut Main) {
         Console::write_line(main.line);
         transition { _ -> scan_init(main) }
     }
 
     // --- compute the next generation with a sliding 3-cell window ---
-    state scan_init(main: &mut Main) {
+    machine scan_init(main: &mut Main) {
         main.window = 0;
         main.rp = 0;
         main.op = 0 - 1;
         transition { _ -> scan_loop(main) }
     }
-    state scan_loop(main: &mut Main) {
+    machine scan_loop(main: &mut Main) {
         transition main.rp >= 0 && main.rp <= 64 { true -> scan_read(main) _ -> copy_init(main) }
     }
-    state scan_read(main: &mut Main) {
+    machine scan_read(main: &mut Main) {
         transition main.rp < 64 { true -> scan_real(main) _ -> scan_border(main) }
     }
-    state scan_real(main: &mut Main) {
+    machine scan_real(main: &mut Main) {
         transition main.rp >= 0 && main.rp < 64 { true -> scan_got(main) _ -> bad(main) }
     }
-    state scan_got(main: &mut Main) {
+    machine scan_got(main: &mut Main) {
         main.cell = main.cells[main.rp];
         transition { _ -> scan_update(main) }
     }
-    state scan_border(main: &mut Main) {
+    machine scan_border(main: &mut Main) {
         main.cell = 0; // cells outside the grid are dead
         transition { _ -> scan_update(main) }
     }
-    state scan_update(main: &mut Main) {
+    machine scan_update(main: &mut Main) {
         // Shift-in as PROVEN-Exact arithmetic: the window stays in [0,7] and
         // grid cells are always 0/1, so the min/max clamps are the identity
         // while giving both operands a provable bound; the `% 8` then keeps the
@@ -133,10 +133,10 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
         main.window = (min_i32(max_i32(main.window, 0), 7) * 2 + min_i32(max_i32(main.cell, 0), 1)) % 8;
         transition { _ -> scan_write(main) }
     }
-    state scan_write(main: &mut Main) {
+    machine scan_write(main: &mut Main) {
         transition main.op >= 0 && main.op < 64 { true -> scan_do(main) _ -> scan_advance(main) }
     }
-    state scan_do(main: &mut Main) {
+    machine scan_do(main: &mut Main) {
         // The clamp is the identity on the [0,7] window and proves the shift
         // count below 32.
         main.nv = (90i32 >> min_i32(max_i32(main.window, 0), 7)) & 1; // Rule 90: next = left XOR right
@@ -145,50 +145,50 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
     }
     // Re-guard before the head advance: `rp < 65` on the direct edge proves the
     // increment into [0..=65] (the prior `op = rp` write is disjoint).
-    state scan_advance(main: &mut Main) {
+    machine scan_advance(main: &mut Main) {
         main.op = main.rp;
         transition main.rp < 65 { true -> rp_bump(main) _ -> scan_loop(main) }
     }
-    state rp_bump(main: &mut Main) {
+    machine rp_bump(main: &mut Main) {
         main.rp = main.rp + 1;
         transition { _ -> scan_loop(main) }
     }
 
     // --- copy next -> cells (via a field temp; a direct cells[x]=next[x] is refused) ---
-    state copy_init(main: &mut Main) {
+    machine copy_init(main: &mut Main) {
         main.x = 0;
         transition { _ -> copy_loop(main) }
     }
-    state copy_loop(main: &mut Main) {
+    machine copy_loop(main: &mut Main) {
         transition main.x >= 0 && main.x < 64 { true -> copy_cell(main) _ -> gen_next(main) }
     }
-    state copy_cell(main: &mut Main) {
+    machine copy_cell(main: &mut Main) {
         main.cv = main.next[main.x];
         transition main.x >= 0 && main.x < 64 { true -> copy_put(main) _ -> bad(main) }
     }
-    state copy_put(main: &mut Main) {
+    machine copy_put(main: &mut Main) {
         main.cells[main.x] = main.cv;
         main.x = main.x + 1;
         transition { _ -> copy_loop(main) }
     }
     // Sleep first (the host call would kill facts), then re-guard `gen < 32`
     // so the increment proves into [0..=32].
-    state gen_next(main: &mut Main) {
+    machine gen_next(main: &mut Main) {
         Clock::sleep(50);
         transition main.gen < 32 { true -> gen_bump(main) _ -> gen_loop(main) }
     }
-    state gen_bump(main: &mut Main) {
+    machine gen_bump(main: &mut Main) {
         main.gen = main.gen + 1;
         transition { _ -> gen_loop(main) }
     }
 
-    state finish(main: &mut Main) {
+    machine finish(main: &mut Main) {
         Console::write_line("done: 32 generations of Rule 90 rendered (exit 0)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(0);
     }
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::write_line("FAIL: a cell value or index left its guarded range (exit 1)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);

@@ -74,7 +74,7 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> bad(main)
     }
 
-    state guarded_write(main: &mut Main) {
+    machine guarded_write(main: &mut Main) {
         main.packed.value = main.flow_source;
         let view: &mut RawView = &mut main.bytes[0] as &mut RawView;
         view.value.value = main.source;
@@ -88,15 +88,15 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state check_by_value(main: &mut Main) {
+    machine check_by_value(main: &mut Main) {
         transition main.packed.value == 0 {
             true -> good(main)
             _ -> bad(main)
         }
     }
 
-    state good(main: &mut Main) { Console::exit_process(72); }
-    state bad(main: &mut Main) { Console::exit_process(73); }
+    machine good(main: &mut Main) { Console::exit_process(72); }
+    machine bad(main: &mut Main) { Console::exit_process(73); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

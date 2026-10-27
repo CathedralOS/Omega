@@ -386,28 +386,34 @@ pub(crate) fn structural_call_arguments(
             .iter()
             .find(|(_, symbol)| *symbol == source_symbol)
         {
-            let exact_transfer = facts.flow.ownership.permissions.iter().any(|(_, event)| {
-                event.machine_symbol == caller_machine.symbol
-                    && event.state_symbol == caller_state.symbol
-                    && event.source
-                        == PermissionEventSource::Call {
-                            statement_index: call.statement_index,
-                            call_ordinal: call.call_ordinal,
-                            target_symbol: call.target_symbol,
-                        }
-                    && event.kind == PermissionEventKind::Transfer
-                    && event.multiplicity == Multiplicity::Affine
-                    && event.access == PermissionAccess::Owned
-                    && event.claim_identity == PermissionClaimIdentity::Unknown
-                    && !event.obligation_live
-                    && event.root == facts::PlaceRoot::Symbol(source_symbol)
-                    && facts
-                        .flow
-                        .ownership
-                        .segments
-                        .span_or_empty(event.segments)
-                        .is_empty()
-            });
+            let exact_transfer = facts.flow.ownership.with_state_permissions(
+                caller_state.symbol,
+                |handles| {
+                    handles.iter().copied().any(|handle| {
+                        let event = facts.flow.ownership.permissions.get(handle);
+                        event.machine_symbol == caller_machine.symbol
+                            && event.state_symbol == caller_state.symbol
+                            && event.source
+                                == PermissionEventSource::Call {
+                                    statement_index: call.statement_index,
+                                    call_ordinal: call.call_ordinal,
+                                    target_symbol: call.target_symbol,
+                                }
+                            && event.kind == PermissionEventKind::Transfer
+                            && event.multiplicity == Multiplicity::Affine
+                            && event.access == PermissionAccess::Owned
+                            && event.claim_identity == PermissionClaimIdentity::Unknown
+                            && !event.obligation_live
+                            && event.root == facts::PlaceRoot::Symbol(source_symbol)
+                            && facts
+                                .flow
+                                .ownership
+                                .segments
+                                .span_or_empty(event.segments)
+                                .is_empty()
+                    })
+                },
+            );
             if !place.segments.is_empty()
                 || local.type_identity != target_identity
                 || structural_access_for_type_reference(program, target.type_reference)?

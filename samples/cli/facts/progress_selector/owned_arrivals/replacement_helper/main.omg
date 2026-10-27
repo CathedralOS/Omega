@@ -25,7 +25,7 @@ terminates;
     holder.value = &local_left;
     let forwarded: Holder = forward_holder(holder);
     transition { _ -> arrive(forwarded, calls) }
-    state arrive(held: Holder, calls: &mut u64) -> u64 {
+    machine arrive(held: Holder, calls: &mut u64) -> u64 {
         consume(held.value, calls)
     }
 }
@@ -38,6 +38,6 @@ machine main() reaches Grants crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

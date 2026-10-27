@@ -4,17 +4,17 @@ data Main { items: [u8; 64]; saved: u8; other: u64; }
 machine Main::main(main: &mut Main) reaches Console {
     let read: LineReadResult = block Console::read_line(&mut main.items);
     transition read { LineReadResult::LineComplete { count } -> inspect(main, 0) _ -> done(main) }
-    state inspect(main: &mut Main, selector: u64) requires selector < 64 {
+    machine inspect(main: &mut Main, selector: u64) requires selector < 64 {
         let copied: u8 = main.items[selector];
         let saved: u8 = main.items[selector];
         main.items[selector] = 0;
         main.items[selector] = saved;
         transition copied >= 48 && copied <= 49 { true -> bounded(main, selector) false -> done(main) }
     }
-    state bounded(main: &mut Main, selector: u64) requires selector < 64 requires main.items[selector] >= 48 requires main.items[selector] <= 49 {
+    machine bounded(main: &mut Main, selector: u64) requires selector < 64 requires main.items[selector] >= 48 requires main.items[selector] <= 49 {
         Console::exit_process(42);
     }
-    state done(main: &mut Main) { Console::exit_process(0); }
+    machine done(main: &mut Main) { Console::exit_process(0); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

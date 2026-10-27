@@ -1243,9 +1243,7 @@ fn append_observation_context(
         }
         let place =
             crate::semantic::places::append_place(semantic, observed.root, &observed.segments);
-        if !places.contains(&place) {
-            places.push(place);
-        }
+        crate::collections::push_unique(&mut places, place);
     }
     let mut refs = HandleSpan::empty();
     let mut dependent = Handle::invalid();

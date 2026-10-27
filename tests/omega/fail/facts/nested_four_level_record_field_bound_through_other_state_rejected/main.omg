@@ -24,7 +24,7 @@ requires r.outer.mid.inner.val >= 40u64 && r.outer.mid.inner.val <= 81u64
     transition {
         _ -> step(r)
     }
-    state step(root: RootRec) -> i32
+    machine step(root: RootRec) -> i32
     requires root.outer.mid.inner.val >= 40u64 && root.outer.mid.inner.val <= 81u64
     {
         let res: u64 = root.outer.mid.inner.val;
@@ -52,6 +52,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

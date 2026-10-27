@@ -14,25 +14,25 @@ blocks;
 crashes Trap
 {
     transition { _ -> begin(application) }
-    state begin(application: &mut Spectrometer) -> IntegerRead {
+    machine begin(application: &mut Spectrometer) -> IntegerRead {
         transition block Console::read_byte() {
             ByteRead::Eof -> (IntegerRead::End)
             ByteRead::Byte { value } -> first(application, value)
         }
     }
-    state first(application: &mut Spectrometer, byte: i32) -> IntegerRead {
+    machine first(application: &mut Spectrometer, byte: i32) -> IntegerRead {
         transition byte == 32 || byte == 10 || byte == 13 || byte == 9 {
             true -> begin(application)
             false -> sign(application, byte)
         }
     }
-    state sign(application: &mut Spectrometer, byte: i32) -> IntegerRead {
+    machine sign(application: &mut Spectrometer, byte: i32) -> IntegerRead {
         transition byte == 45 {
             true -> following(application, 0, -1, false)
             false -> digit(application, byte, 0, 1, false)
         }
     }
-    state digit(application: &mut Spectrometer, byte: i32,
+    machine digit(application: &mut Spectrometer, byte: i32,
                 magnitude: i32 in Wrapping, sign: i32 in Wrapping,
                 seen: bool) -> IntegerRead {
         transition byte >= 48 && byte <= 57 {
@@ -40,14 +40,14 @@ crashes Trap
             false -> delimiter(application, byte, magnitude, sign, seen)
         }
     }
-    state accumulate(application: &mut Spectrometer, byte: i32,
+    machine accumulate(application: &mut Spectrometer, byte: i32,
                      magnitude: i32 in Wrapping, sign: i32 in Wrapping) -> IntegerRead {
         transition magnitude <= 100000 {
             true -> append(application, byte, magnitude, sign)
             false -> (IntegerRead::Invalid)
         }
     }
-    state append(application: &mut Spectrometer, byte: i32,
+    machine append(application: &mut Spectrometer, byte: i32,
                  magnitude: i32 in Wrapping, sign: i32 in Wrapping) -> IntegerRead {
         let value: i32 in Wrapping = magnitude * 10 + (byte as i32 in Wrapping) - 48;
         transition value <= 1000000 {
@@ -55,14 +55,14 @@ crashes Trap
             false -> (IntegerRead::Invalid)
         }
     }
-    state following(application: &mut Spectrometer, magnitude: i32 in Wrapping,
+    machine following(application: &mut Spectrometer, magnitude: i32 in Wrapping,
                     sign: i32 in Wrapping, seen: bool) -> IntegerRead {
         transition block Console::read_byte() {
             ByteRead::Eof -> finish(magnitude, sign, seen)
             ByteRead::Byte { value } -> digit(application, value, magnitude, sign, seen)
         }
     }
-    state delimiter(application: &mut Spectrometer, byte: i32,
+    machine delimiter(application: &mut Spectrometer, byte: i32,
                     magnitude: i32 in Wrapping, sign: i32 in Wrapping,
                     seen: bool) -> IntegerRead {
         transition byte == 32 || byte == 10 || byte == 13 || byte == 9 {
@@ -70,7 +70,7 @@ crashes Trap
             false -> (IntegerRead::Invalid)
         }
     }
-    state finish(magnitude: i32 in Wrapping, sign: i32 in Wrapping,
+    machine finish(magnitude: i32 in Wrapping, sign: i32 in Wrapping,
                  seen: bool) -> IntegerRead {
         transition seen {
             true -> (IntegerRead::Value { value: magnitude * sign })
@@ -83,25 +83,25 @@ crashes Trap
 // Baseline endpoints are supplied calibration data, not estimated from peaks.
 public machine load_spectrum(application: &mut Spectrometer) -> bool {
     transition { _ -> samples(application, 0) }
-    state samples(application: &mut Spectrometer, index: i32 in Wrapping) -> bool {
+    machine samples(application: &mut Spectrometer, index: i32 in Wrapping) -> bool {
         transition index >= 0 && index < 16 {
             true -> sample(application, index)
             false -> configuration(application)
         }
     }
-    state sample(application: &mut Spectrometer, index: i32 in Wrapping) -> bool {
+    machine sample(application: &mut Spectrometer, index: i32 in Wrapping) -> bool {
         let value: i32 in Wrapping = application.raw[index];
         transition value >= 0 && value <= 1000 {
             true -> save(application, index, value)
             false -> false
         }
     }
-    state save(application: &mut Spectrometer, index: i32 in Wrapping,
+    machine save(application: &mut Spectrometer, index: i32 in Wrapping,
                value: i32 in Wrapping) -> bool {
         application.spectrum.samples[index] = F64::from_i32(value as i32);
         transition { _ -> samples(application, index + 1) }
     }
-    state configuration(application: &mut Spectrometer) -> bool {
+    machine configuration(application: &mut Spectrometer) -> bool {
         transition application.raw[16] >= 0 && application.raw[16] <= 1000 &&
                    application.raw[17] >= 0 && application.raw[17] <= 1000 &&
                    application.raw[18] > 0 && application.raw[18] <= 1000 &&
@@ -113,7 +113,7 @@ public machine load_spectrum(application: &mut Spectrometer) -> bool {
             false -> false
         }
     }
-    state settings(application: &mut Spectrometer) -> bool {
+    machine settings(application: &mut Spectrometer) -> bool {
         application.spectrum.baseline_start = F64::from_i32(application.raw[16] as i32);
         application.spectrum.baseline_end = F64::from_i32(application.raw[17] as i32);
         application.spectrum.threshold = F64::from_i32(application.raw[18] as i32);
@@ -123,20 +123,20 @@ public machine load_spectrum(application: &mut Spectrometer) -> bool {
         application.spectrum.tolerance = F64::from_i32(application.raw[22] as i32);
         transition { _ -> catalog(application, 0) }
     }
-    state catalog(application: &mut Spectrometer, index: i32 in Wrapping) -> bool {
+    machine catalog(application: &mut Spectrometer, index: i32 in Wrapping) -> bool {
         transition index >= 0 && index < 4 {
             true -> line(application, index)
             false -> true
         }
     }
-    state line(application: &mut Spectrometer, index: i32 in Wrapping) -> bool {
+    machine line(application: &mut Spectrometer, index: i32 in Wrapping) -> bool {
         let offset: i32 in Wrapping = index + 23;
         transition offset >= 23 && offset < 27 {
             true -> read_line(application, index, offset)
             false -> false
         }
     }
-    state read_line(application: &mut Spectrometer, index: i32 in Wrapping,
+    machine read_line(application: &mut Spectrometer, index: i32 in Wrapping,
                     offset: i32 in Wrapping) -> bool {
         let value: i32 in Wrapping = application.raw[offset];
         transition value >= 0 && value <= 1000000 {
@@ -144,7 +144,7 @@ public machine load_spectrum(application: &mut Spectrometer) -> bool {
             false -> false
         }
     }
-    state save_line(application: &mut Spectrometer, index: i32 in Wrapping,
+    machine save_line(application: &mut Spectrometer, index: i32 in Wrapping,
                     value: i32 in Wrapping) -> bool {
         application.spectrum.lines[index] = F64::from_i32(value as i32);
         transition { _ -> catalog(application, index + 1) }

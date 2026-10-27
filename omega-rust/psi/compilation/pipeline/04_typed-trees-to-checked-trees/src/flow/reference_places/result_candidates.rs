@@ -89,9 +89,7 @@ fn call_result_candidates(
             include_shared,
         )? {
             storage.segments.extend_from_slice(&source.segments);
-            if !candidates.contains(&storage) {
-                candidates.push(storage);
-            }
+            crate::collections::push_unique(&mut candidates, storage);
         }
     }
     (!candidates.is_empty()).then_some(candidates)

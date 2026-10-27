@@ -15,6 +15,7 @@ pub(super) enum Root<'program> {
     Type(TypeReferenceHandle),
     Expression(ExpressionHandle),
     Machine(&'program Machine),
+    Contracts(arena::HandleSpan<typed_trees::signature::SignatureContract>),
 }
 
 impl<'program> Collector<'program> {
@@ -27,6 +28,8 @@ impl<'program> Collector<'program> {
         let mut inventory = TypeDependencies {
             program,
             root_expression: ExpressionHandle::invalid(),
+            lexical_owner: context.lexical_owner,
+            contract_owner: None,
             expressions: Vec::new(),
             types: Vec::new(),
             pending_data: Vec::new(),
@@ -44,6 +47,7 @@ impl<'program> Collector<'program> {
                 references::visit_expression(program, &mut inventory, expression);
             }
             Root::Machine(machine) => references::visit_machine(program, &mut inventory, machine),
+            Root::Contracts(contracts) => inventory.contracts(contracts, context.lexical_owner),
         }
         while let Some(symbol) = inventory.pending_data.pop() {
             if inventory.visited_data.contains(&symbol) {
@@ -73,12 +77,21 @@ impl<'program> Collector<'program> {
                 context,
             )?;
         }
-        self.expressions.extend(
-            inventory
-                .expressions
-                .into_iter()
-                .map(|expression| (expression, context)),
-        );
+        self.expressions
+            .extend(
+                inventory
+                    .expressions
+                    .into_iter()
+                    .map(|(expression, lexical_owner)| {
+                        (
+                            expression,
+                            Context {
+                                lexical_owner,
+                                ..context
+                            },
+                        )
+                    }),
+            );
         Ok(())
     }
 }
@@ -86,13 +99,51 @@ impl<'program> Collector<'program> {
 struct TypeDependencies<'program> {
     program: &'program TypedTrees,
     root_expression: ExpressionHandle,
-    expressions: Vec<ExpressionHandle>,
+    lexical_owner: SymbolHandle,
+    contract_owner: Option<SymbolHandle>,
+    expressions: Vec<(ExpressionHandle, SymbolHandle)>,
     types: Vec<TypeReferenceHandle>,
     pending_data: Vec<SymbolHandle>,
     visited_data: Vec<SymbolHandle>,
     current_data: SymbolHandle,
     origins: Vec<TypeConstantOrigin>,
     error: Option<&'static str>,
+}
+
+impl TypeDependencies<'_> {
+    fn contracts(
+        &mut self,
+        contracts: arena::HandleSpan<typed_trees::signature::SignatureContract>,
+        owner: SymbolHandle,
+    ) {
+        let program = self.program;
+        let clauses = program.tables.signature_contracts.span_or_empty(contracts);
+        if clauses.len() != contracts.len() {
+            self.error = Some("constant custody has stale signature clauses");
+            return;
+        }
+        for clause in clauses {
+            self.contract_facts(clause.facts, owner);
+        }
+    }
+
+    fn contract_facts(
+        &mut self,
+        facts: arena::HandleSpan<typed_trees::domain::ProofFact>,
+        owner: SymbolHandle,
+    ) {
+        let program = self.program;
+        let clauses = program.proof_facts.span_or_empty(facts);
+        if clauses.len() != facts.len() {
+            self.error = Some("constant custody has stale contract facts");
+            return;
+        }
+        let previous = self.contract_owner.replace(owner);
+        for fact in clauses {
+            references::visit_proof_fact(program, self, fact);
+        }
+        self.contract_owner = previous;
+    }
 }
 
 impl Extend<SymbolHandle> for TypeDependencies<'_> {
@@ -111,6 +162,11 @@ impl Extend<SymbolHandle> for TypeDependencies<'_> {
 }
 
 impl TypedReferences for TypeDependencies<'_> {
+    fn callable_signature(&mut self, signature: &typed_trees::signature::StateSignature) {
+        self.contract_facts(signature.where_facts, signature.symbol);
+        self.contracts(signature.contracts, signature.symbol);
+    }
+
     fn declaration(&mut self, symbol: SymbolHandle) -> bool {
         symbol == self.current_data
     }
@@ -141,6 +197,10 @@ impl TypedReferences for TypeDependencies<'_> {
     }
 
     fn expression(&mut self, expression: ExpressionHandle) -> bool {
+        if let Some(owner) = self.contract_owner {
+            self.expressions.push((expression, owner));
+            return false;
+        }
         if expression == self.root_expression {
             self.root_expression = ExpressionHandle::invalid();
             return true;
@@ -154,7 +214,10 @@ impl TypedReferences for TypeDependencies<'_> {
         // traversal. Machine inventory must not promote proof/ranking roots
         // or walk runtime children a second time under the entry state's scope.
         if expression.is_valid() {
-            self.expressions.push(expression);
+            self.expressions.push((
+                expression,
+                self.contract_owner.unwrap_or(self.lexical_owner),
+            ));
         }
         false
     }

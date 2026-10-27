@@ -22,17 +22,17 @@ machine main() crashes Trap {
         true -> shift_step(val)
         _ -> bad()
     }
-    state shift_step(v: i64) {
+    machine shift_step(v: i64) {
         let shifted: i64 = forward_param(v);
         transition shifted >= 100i64 && shifted <= 100i64 {
             true -> done(shifted)
             _ -> bad()
         }
     }
-    state done(s: i64) {
+    machine done(s: i64) {
         let diff: i64 = s - 100i64;
     }
-    state bad() {
+    machine bad() {
         crash Trap;
     }
 }

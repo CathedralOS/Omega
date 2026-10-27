@@ -19,15 +19,15 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> fused(main)
         _ -> bad(main)
     }
-    state fused(main: &mut Main) {
+    machine fused(main: &mut Main) {
         // The retag must also reach arithmetic FUSED under a guard compare
         // (no landing seam): the interpreter's cast witness used to hardcode
         // Exact and compare the wide 300 while native read the retag and
         // clamped.
         transition ((main.a as u8 in Saturating) + main.b == 255) { true -> good(main) _ -> bad(main) }
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main) { Console::exit_process(71); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

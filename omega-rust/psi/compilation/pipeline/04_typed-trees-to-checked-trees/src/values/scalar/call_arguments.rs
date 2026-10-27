@@ -176,6 +176,7 @@ pub(crate) fn retain_nested_call_arguments(
             }
         }
     }
+    plans.seal_expressions();
 }
 
 /// Read captured occurrences directly. In particular, skipped syntax does not

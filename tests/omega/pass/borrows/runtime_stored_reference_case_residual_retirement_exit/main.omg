@@ -19,7 +19,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Choice::Selected { value } -> selected(main, observed, stamp, value, pair.second.value)
         Choice::Empty -> bad(main)
     }
-    state selected(main: &mut Main, observed: i32, stamp: i32, payload: i32, second: i32)
+    machine selected(main: &mut Main, observed: i32, stamp: i32, payload: i32, second: i32)
     requires observed >= 0 && observed <= 100
     requires second >= 0 && second <= 100
     {
@@ -28,8 +28,8 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> bad(main)
         }
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main) { Console::exit_process(71); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(71); }
 }
 
 machine require_cell_value(value: i32)

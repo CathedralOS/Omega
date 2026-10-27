@@ -10,14 +10,14 @@ machine Main::main(main: &mut Main) {
         false -> done()
     }
 
-    state positive(value: i32)
+    machine positive(value: i32)
     requires
         value > 0
     {
         consume(value);
     }
 
-    state done() { }
+    machine done() { }
 }
 
 machine consume(value: i32)

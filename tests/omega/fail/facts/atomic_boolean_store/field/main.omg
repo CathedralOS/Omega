@@ -11,6 +11,6 @@ machine main() crashes Trap {
     let held: Held = Held { observed: cell.value.load(Receive) };
     let observed: bool = held.observed;
     transition observed { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

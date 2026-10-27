@@ -12,14 +12,14 @@ machine read32(context: &Context32) -> bool {
         Sample32::Reading { value } -> check(value)
         Sample32::Empty -> (false)
     }
-    state check(value: f32) -> bool { value == 2.5 }
+    machine check(value: f32) -> bool { value == 2.5 }
 }
 machine read64(context: &Context64) -> bool {
     transition context.sample {
         Sample64::Reading { value } -> check(value)
         Sample64::Empty -> (false)
     }
-    state check(value: f64) -> bool { value == -3.75 }
+    machine check(value: f64) -> bool { value == -3.75 }
 }
 machine Main::main(main: &mut Main) reaches Console {
     let first_context: Context32 = Context32 { sample: Sample32::Reading { value: 2.5 } };
@@ -30,8 +30,8 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> good(main)
         false -> bad(main)
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main) { Console::exit_process(1); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(1); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

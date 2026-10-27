@@ -1,4 +1,5 @@
 //! Exact narrow pointer reads reject opcode, operand and displacement substitutions.
+use crate::test_support::reject_every_bit_flip;
 
 use super::{
     MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedMemoryEffect,
@@ -66,22 +67,21 @@ fn narrow_loads_decode_exact_width_full_result_and_every_encoded_bit() {
                     .unwrap(),
                     encoded
                 );
-                for bit in 0..encoded.bytes().len() * 8 {
-                    let mut changed = encoded.bytes().to_vec();
-                    changed[bit / 8] ^= 1 << (bit % 8);
-                    assert!(
+                reject_every_bit_flip(
+                    encoded.bytes(),
+                    &format!("{kind:?}, {base_name}"),
+                    |changed| {
                         validate_aarch64_selected_memory_form(
                             &physical,
                             kind,
                             alternative,
                             &operands,
                             displacement,
-                            &changed
+                            &changed,
                         )
-                        .is_err(),
-                        "{kind:?}, {base_name}, bit {bit}"
-                    );
-                }
+                        .is_err()
+                    },
+                );
                 for changed_operands in [
                     [destination, base],
                     [destination, destination],

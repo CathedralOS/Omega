@@ -27,10 +27,10 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> wrong(main, distance)
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::exit_process(70);
     }
-    state wrong(main: &mut Main, distance: i32) {
+    machine wrong(main: &mut Main, distance: i32) {
         Console::exit_process(distance);
     }
 }
@@ -51,32 +51,32 @@ machine MazeSearch::distance(search: &mut MazeSearch) -> i32 {
     search.count = 1;
     transition { _ -> dequeue(search) }
 
-    state dequeue(search: &mut MazeSearch) -> i32 {
+    machine dequeue(search: &mut MazeSearch) -> i32 {
         transition search.count > 0 {
             true -> check_head(search)
             _ -> (search.distances[24])
         }
     }
-    state check_head(search: &mut MazeSearch) -> i32 {
+    machine check_head(search: &mut MazeSearch) -> i32 {
         transition search.head >= 0 && search.head < 32 {
             true -> read_cell(search)
             _ -> 1
         }
     }
-    state read_cell(search: &mut MazeSearch) -> i32 {
+    machine read_cell(search: &mut MazeSearch) -> i32 {
         let cell: i32 in Wrapping = search.queue[search.head] as i32 in Wrapping;
         search.head = search.head + 1;
         search.count = search.count - 1;
         transition { _ -> direction(search, cell, 0) }
     }
-    state direction(search: &mut MazeSearch, cell: i32 in Wrapping,
+    machine direction(search: &mut MazeSearch, cell: i32 in Wrapping,
                     direction_index: i32 in Wrapping) -> i32 {
         transition direction_index >= 0 && direction_index < 4 {
             true -> neighbour(search, cell, direction_index)
             _ -> dequeue(search)
         }
     }
-    state neighbour(search: &mut MazeSearch, cell: i32 in Wrapping,
+    machine neighbour(search: &mut MazeSearch, cell: i32 in Wrapping,
                     direction_index: i32 in Wrapping) -> i32 {
         let row_offset: i32 in Wrapping = search.row_offsets[direction_index] as i32 in Wrapping;
         let column_offset: i32 in Wrapping = search.column_offsets[direction_index] as i32 in Wrapping;
@@ -87,14 +87,14 @@ machine MazeSearch::distance(search: &mut MazeSearch) -> i32 {
             _ -> direction(search, cell, direction_index + 1)
         }
     }
-    state neighbour_cell(search: &mut MazeSearch, cell: i32 in Wrapping,
+    machine neighbour_cell(search: &mut MazeSearch, cell: i32 in Wrapping,
                          direction_index: i32 in Wrapping, neighbour_index: i32 in Wrapping) -> i32 {
         transition neighbour_index >= 0 && neighbour_index < 25 {
             true -> wall(search, cell, direction_index, neighbour_index)
             _ -> 1
         }
     }
-    state wall(search: &mut MazeSearch, cell: i32 in Wrapping,
+    machine wall(search: &mut MazeSearch, cell: i32 in Wrapping,
                direction_index: i32 in Wrapping, neighbour_index: i32 in Wrapping) -> i32 {
         let blocked: i32 = search.walls[neighbour_index];
         transition blocked == 0 {
@@ -102,7 +102,7 @@ machine MazeSearch::distance(search: &mut MazeSearch) -> i32 {
             _ -> direction(search, cell, direction_index + 1)
         }
     }
-    state visited(search: &mut MazeSearch, cell: i32 in Wrapping,
+    machine visited(search: &mut MazeSearch, cell: i32 in Wrapping,
                   direction_index: i32 in Wrapping, neighbour_index: i32 in Wrapping) -> i32 {
         let distance: i32 = search.distances[neighbour_index];
         transition distance < 0 {
@@ -110,7 +110,7 @@ machine MazeSearch::distance(search: &mut MazeSearch) -> i32 {
             _ -> direction(search, cell, direction_index + 1)
         }
     }
-    state check_visit(search: &mut MazeSearch, cell: i32 in Wrapping,
+    machine check_visit(search: &mut MazeSearch, cell: i32 in Wrapping,
                       direction_index: i32 in Wrapping, neighbour_index: i32 in Wrapping) -> i32 {
         transition cell >= 0 && cell < 25 && neighbour_index >= 0 && neighbour_index < 25
             && search.tail >= 0 && search.tail < 32 {
@@ -118,7 +118,7 @@ machine MazeSearch::distance(search: &mut MazeSearch) -> i32 {
             _ -> 1
         }
     }
-    state visit(search: &mut MazeSearch, cell: i32 in Wrapping,
+    machine visit(search: &mut MazeSearch, cell: i32 in Wrapping,
                 direction_index: i32 in Wrapping, neighbour_index: i32 in Wrapping) -> i32 {
         let distance: i32 in Wrapping = search.distances[cell] as i32 in Wrapping;
         search.distances[neighbour_index] = (distance + 1) as i32;

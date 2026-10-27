@@ -111,28 +111,28 @@ machine Main::main(main: &mut Main) reaches Console {
         false -> bad_f32_negative_payload(main)
     }
 
-    state check_f32_negative_nan(main: &mut Main, ok: bool, b: bool, c: bool, d: bool, f64_ok: bool) {
+    machine check_f32_negative_nan(main: &mut Main, ok: bool, b: bool, c: bool, d: bool, f64_ok: bool) {
         transition ok { true -> check_f32_zero(main, b, c, d, f64_ok) false -> bad_f32_negative_nan(main) }
     }
-    state check_f32_zero(main: &mut Main, ok: bool, c: bool, d: bool, f64_ok: bool) {
+    machine check_f32_zero(main: &mut Main, ok: bool, c: bool, d: bool, f64_ok: bool) {
         transition ok { true -> check_f32_positive_nan(main, c, d, f64_ok) false -> bad_f32_zero(main) }
     }
-    state check_f32_positive_nan(main: &mut Main, ok: bool, d: bool, f64_ok: bool) {
+    machine check_f32_positive_nan(main: &mut Main, ok: bool, d: bool, f64_ok: bool) {
         transition ok { true -> check_f32_positive_payload(main, d, f64_ok) false -> bad_f32_positive_nan(main) }
     }
-    state check_f32_positive_payload(main: &mut Main, ok: bool, f64_ok: bool) {
+    machine check_f32_positive_payload(main: &mut Main, ok: bool, f64_ok: bool) {
         transition ok { true -> check_f64(main, f64_ok) false -> bad_f32_positive_payload(main) }
     }
-    state check_f64(main: &mut Main, ok: bool) {
+    machine check_f64(main: &mut Main, ok: bool) {
         transition ok { true -> good(main) false -> bad_f64(main) }
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad_f32_negative_payload(main: &mut Main) { Console::exit_process(71); }
-    state bad_f32_negative_nan(main: &mut Main) { Console::exit_process(72); }
-    state bad_f32_zero(main: &mut Main) { Console::exit_process(73); }
-    state bad_f32_positive_nan(main: &mut Main) { Console::exit_process(74); }
-    state bad_f32_positive_payload(main: &mut Main) { Console::exit_process(75); }
-    state bad_f64(main: &mut Main) { Console::exit_process(77); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad_f32_negative_payload(main: &mut Main) { Console::exit_process(71); }
+    machine bad_f32_negative_nan(main: &mut Main) { Console::exit_process(72); }
+    machine bad_f32_zero(main: &mut Main) { Console::exit_process(73); }
+    machine bad_f32_positive_nan(main: &mut Main) { Console::exit_process(74); }
+    machine bad_f32_positive_payload(main: &mut Main) { Console::exit_process(75); }
+    machine bad_f64(main: &mut Main) { Console::exit_process(77); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

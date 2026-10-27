@@ -104,6 +104,27 @@ pub(crate) fn parse_proof_facts_until_with_machine_semicolon<'tokens, 'source>(
         is_terminator,
         machine_final_semicolon,
         false,
+        false,
+    )
+}
+
+/// A requires/ensures clause has a first proposition. Contextual clause names
+/// remain ordinary operand names there (`requires blocks >= 0;`); only after
+/// the first proposition can a following header terminate this list. Crash
+/// guards and other explicitly optional lists retain their empty-list grammar.
+pub(crate) fn parse_required_proof_facts_until<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+    is_terminator: impl FnMut(Input<'tokens, 'source>) -> bool,
+    machine_final_semicolon: bool,
+) -> Result<((HandleSpan<ProofFact>, usize), Input<'tokens, 'source>), ParseError> {
+    parse_fact_list(
+        syntax_trees,
+        input,
+        is_terminator,
+        machine_final_semicolon,
+        false,
+        true,
     )
 }
 
@@ -112,7 +133,7 @@ pub(crate) fn parse_logical_proof_facts_until<'tokens, 'source>(
     input: Input<'tokens, 'source>,
     is_terminator: impl FnMut(Input<'tokens, 'source>) -> bool,
 ) -> Result<((HandleSpan<ProofFact>, usize), Input<'tokens, 'source>), ParseError> {
-    parse_fact_list(syntax_trees, input, is_terminator, false, true)
+    parse_fact_list(syntax_trees, input, is_terminator, false, true, false)
 }
 
 fn parse_fact_list<'tokens, 'source>(
@@ -121,12 +142,13 @@ fn parse_fact_list<'tokens, 'source>(
     mut is_terminator: impl FnMut(Input<'tokens, 'source>) -> bool,
     machine_final_semicolon: bool,
     logical_subject: bool,
+    requires_first_fact: bool,
 ) -> Result<((HandleSpan<ProofFact>, usize), Input<'tokens, 'source>), ParseError> {
     let mut input = input;
     let body_start_tokens = input.tokens.len();
     let mut facts = crate::handle_spans::HandleSpanBuilder::new();
 
-    while !is_terminator(input) {
+    while (requires_first_fact && facts.is_empty()) || !is_terminator(input) {
         if input.tokens.is_empty() {
             return Err(input.error_here("expected proof fact terminator"));
         }

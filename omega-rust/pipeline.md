@@ -257,6 +257,19 @@ Build return joins all requests before product completion. Product bindings are
 inert during Build. Generated source cannot change admitted authored meaning.
 Ordinary Build helpers need Psi execution, not native product compilation.
 
+Demanded Product descriptions pause that same activation while the
+application acquires and settles its issued Product dependencies. The compiler's
+opaque query context shares the captured source prefix, loads authored Product
+declarations through the source-assembly owner and answers under the query
+author's lexical scope. It neither assigns an unfinished root its final package
+identity nor executes Product bodies. Final binding rejoins the selected source
+declaration rather than reusing an old arena handle or looking up its name.
+Query dependencies join the same demanded-source ledger as executed helpers,
+including purpose-qualified workspace-catalog records. Entry, data-schema and
+named-implementation provider descriptions share lexical resolution; role-specific
+inspection authenticates the activation's issued description and returns an
+accounted immutable byte view. It does not reopen source or execute Product code.
+
 Execution preparation and Product completion carry different inputs. Source
 inventories, named inputs, required outputs, resource sponsors and restricted
 grants must join the activation before its effects. A returned Build does not
@@ -318,7 +331,11 @@ then installs that exact implementation before resuming. The final source join
 also reconciles helper graphs retained with workspace declaration observations;
 unselected members' pending Product requests stay inert. Package locks retain
 catalog execution custody separately from Product routing. Applied/inherited
-multi-slot readiness and source-only corpus discovery remain open.
+multi-slot readiness remains open. Corpus consumers use this same executed
+discovery and retain settled Builds through target selection and Product
+admission. Their explicit fixture consent does not construct a second source
+graph or grant late execution inputs; named inspection consumes retained
+products as well.
 
 Each compiler entrance shows named representations and actual stage calls in
 execution order. A separate `pipeline.rs` is justified only if it owns meaningful

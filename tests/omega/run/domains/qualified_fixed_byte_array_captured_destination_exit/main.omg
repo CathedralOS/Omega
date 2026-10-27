@@ -20,5 +20,5 @@ machine main() crashes Trap {
         && first.bytes.len == 8 && second.len == 8 && size_of<Owner>() == 10 {
         true -> {} _ -> bad()
     }
-    state bad() { crash Trap; }
+    machine bad() { crash Trap; }
 }

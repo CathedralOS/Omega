@@ -13,14 +13,14 @@ public machine find_regions(spectrum: &Spectrum, regions: &mut Regions) -> bool 
     regions.count = 0;
     regions.open = false;
     transition { _ -> scan(spectrum, regions, 0) }
-    state scan(spectrum: &Spectrum, regions: &mut Regions,
+    machine scan(spectrum: &Spectrum, regions: &mut Regions,
                index: i32 in Wrapping) -> bool {
         transition index >= 0 && index < 16 {
             true -> residual(spectrum, regions, index)
             false -> flush(spectrum, regions)
         }
     }
-    state residual(spectrum: &Spectrum, regions: &mut Regions,
+    machine residual(spectrum: &Spectrum, regions: &mut Regions,
                    index: i32 in Wrapping) -> bool {
         // All accepted values are integers. Multiplying by fifteen keeps
         // linear-baseline residuals exact, including an inclusive threshold.
@@ -32,7 +32,7 @@ public machine find_regions(spectrum: &Spectrum, regions: &mut Regions) -> bool 
             false -> gap(spectrum, regions, index)
         }
     }
-    state retained(spectrum: &Spectrum, regions: &mut Regions,
+    machine retained(spectrum: &Spectrum, regions: &mut Regions,
                    index: i32 in Wrapping, weight: f64) -> bool {
         let region: i32 in Wrapping = regions.count;
         transition region >= 0 && region < 8 {
@@ -40,7 +40,7 @@ public machine find_regions(spectrum: &Spectrum, regions: &mut Regions) -> bool 
             false -> false
         }
     }
-    state integrate(spectrum: &Spectrum, regions: &mut Regions,
+    machine integrate(spectrum: &Spectrum, regions: &mut Regions,
                     index: i32 in Wrapping, weight: f64,
                     region: i32 in Wrapping) -> bool {
         transition regions.open {
@@ -48,7 +48,7 @@ public machine find_regions(spectrum: &Spectrum, regions: &mut Regions) -> bool 
             false -> start(spectrum, regions, index, weight, region)
         }
     }
-    state start(spectrum: &Spectrum, regions: &mut Regions,
+    machine start(spectrum: &Spectrum, regions: &mut Regions,
                 index: i32 in Wrapping, weight: f64,
                 region: i32 in Wrapping) -> bool {
         regions.starts[region] = index;
@@ -57,7 +57,7 @@ public machine find_regions(spectrum: &Spectrum, regions: &mut Regions) -> bool 
         regions.open = true;
         transition { _ -> add(spectrum, regions, index, weight, region) }
     }
-    state add(spectrum: &Spectrum, regions: &mut Regions,
+    machine add(spectrum: &Spectrum, regions: &mut Regions,
               index: i32 in Wrapping, weight: f64,
               region: i32 in Wrapping) -> bool {
         let coordinate: f64 = spectrum.origin + spectrum.spacing * F64::from_i32(index as i32);
@@ -66,14 +66,14 @@ public machine find_regions(spectrum: &Spectrum, regions: &mut Regions) -> bool 
         regions.moment_fifteenths[region] = regions.moment_fifteenths[region] + weight * coordinate;
         transition { _ -> scan(spectrum, regions, index + 1) }
     }
-    state gap(spectrum: &Spectrum, regions: &mut Regions,
+    machine gap(spectrum: &Spectrum, regions: &mut Regions,
               index: i32 in Wrapping) -> bool {
         transition regions.open {
             true -> close(spectrum, regions, index)
             false -> scan(spectrum, regions, index + 1)
         }
     }
-    state close(spectrum: &Spectrum, regions: &mut Regions,
+    machine close(spectrum: &Spectrum, regions: &mut Regions,
                 index: i32 in Wrapping) -> bool {
         let region: i32 in Wrapping = regions.count;
         transition region >= 0 && region < 8 {
@@ -81,7 +81,7 @@ public machine find_regions(spectrum: &Spectrum, regions: &mut Regions) -> bool 
             false -> false
         }
     }
-    state centroid(spectrum: &Spectrum, regions: &mut Regions,
+    machine centroid(spectrum: &Spectrum, regions: &mut Regions,
                    index: i32 in Wrapping, region: i32 in Wrapping) -> bool {
         // Every open region contains a bin with weight >= positive threshold.
         regions.centroids[region] = regions.moment_fifteenths[region] / regions.area_fifteenths[region] + spectrum.calibration;
@@ -92,7 +92,7 @@ public machine find_regions(spectrum: &Spectrum, regions: &mut Regions) -> bool 
             false -> true
         }
     }
-    state flush(spectrum: &Spectrum, regions: &mut Regions) -> bool {
+    machine flush(spectrum: &Spectrum, regions: &mut Regions) -> bool {
         transition regions.open {
             true -> close(spectrum, regions, 16)
             false -> true

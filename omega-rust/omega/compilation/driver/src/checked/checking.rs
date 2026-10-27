@@ -2,7 +2,9 @@
 
 pub(crate) mod build_continuation;
 pub(crate) mod compile_thread;
+mod product_queries;
 mod product_selections;
+pub use product_queries::ProductQueries;
 mod source_checking;
 pub(crate) use source_checking::check_product_source;
 
@@ -106,6 +108,9 @@ pub(super) struct PreparedPackageInvocation {
 }
 
 impl PreparedPackageInvocation {
+    pub(super) fn product_queries(&self) -> ProductQueries {
+        self.source.product_queries()
+    }
     pub(super) fn settle_catalog(
         self,
         returned: build_evaluation::ReturnedBuild,
@@ -270,6 +275,9 @@ pub struct SourceCompilation {
 }
 
 impl SourceCompilation {
+    pub fn product_queries(&self) -> ProductQueries {
+        self.source.product_queries()
+    }
     pub fn execution(&mut self) -> Option<&mut build_evaluation::PreparedBuildExecution> {
         self.source.execution()
     }

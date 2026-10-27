@@ -3,10 +3,10 @@ machine replace(values: &mut [u64]) {
         true -> write(values)
         false -> done()
     }
-    state write(values: &mut [u64]) {
+    machine write(values: &mut [u64]) {
         values[0] = 7;
     }
-    state done() {}
+    machine done() {}
 }
 
 machine main() crashes Trap {
@@ -16,6 +16,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

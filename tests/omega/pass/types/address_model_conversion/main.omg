@@ -26,7 +26,7 @@ machine via_state(value: addr) -> u64
 requires addr::Bound == 18446744073709551616
 {
     transition { _ -> convert(value) }
-    state convert(value: addr) -> u64
+    machine convert(value: addr) -> u64
     requires addr::Bound == 18446744073709551616
     { value as u64 }
 }
@@ -102,6 +102,6 @@ requires addr::Bound == 18446744073709551616
         true -> done()
         _ -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

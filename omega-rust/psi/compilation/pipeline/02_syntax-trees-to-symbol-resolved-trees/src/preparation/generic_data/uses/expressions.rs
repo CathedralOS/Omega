@@ -170,9 +170,32 @@ pub(in crate::preparation::generic_data) fn concrete_machine_declarations<'synta
                 .is_some_and(|attached| generic_data.contains(attached.as_str(syntax)))
     };
     let mut machines = Vec::new();
-    for declaration in declarations {
-        match syntax.root_item(*declaration) {
-            Item::Machine(machine) if is_concrete(machine) => machines.push(machine),
+    // Start from lexical roots even when only a nested declaration owns work.
+    // An open enclosing machine or implementation keeps its children open;
+    // selecting a child handle cannot detach it from that generic scope.
+    let mut pending = syntax
+        .root_item_handles()
+        .iter()
+        .rev()
+        .map(|handle| (*handle, false))
+        .collect::<Vec<_>>();
+    while let Some((declaration, enclosing_work)) = pending.pop() {
+        let owned = enclosing_work || declarations.contains(&declaration);
+        let mut enter_machine = |machine: &'syntax syntax_trees::item::Machine| {
+            if !is_concrete(machine) {
+                return;
+            }
+            if owned {
+                machines.push(machine);
+            }
+            pending.extend(
+                (0..machine.nested_machines.count())
+                    .rev()
+                    .map(|offset| (machine.nested_machines.handle_at(offset), owned)),
+            );
+        };
+        match syntax.root_item(declaration) {
+            Item::Machine(machine) => enter_machine(machine),
             Item::Conformance(conformance) if conformance.type_parameters.is_empty() => {
                 for member in syntax.items.conformance_members(conformance.members) {
                     use syntax_trees::item::ConformanceMember;
@@ -182,9 +205,7 @@ pub(in crate::preparation::generic_data) fn concrete_machine_declarations<'synta
                         | ConformanceMember::TraitDefault { machine, .. } => machine,
                         ConformanceMember::Reference { .. } => continue,
                     };
-                    if is_concrete(machine) {
-                        machines.push(machine);
-                    }
+                    enter_machine(machine);
                 }
             }
             _ => {}

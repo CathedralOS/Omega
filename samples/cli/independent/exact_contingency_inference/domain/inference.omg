@@ -8,36 +8,36 @@ public machine analyze(model: &Model) -> Inference {
         true -> prepare(model, result)
         false -> rejected(result, 1)
     }
-    state rejected(mut result: Inference, status: i32) -> Inference {
+    machine rejected(mut result: Inference, status: i32) -> Inference {
         result.status = status;
         result
     }
-    state prepare(model: &Model, result: Inference) -> Inference {
+    machine prepare(model: &Model, result: Inference) -> Inference {
         transition table_valid(model, &model.observed) {
             true -> seed(model, result)
             false -> outer(model, result, 0)
         }
     }
-    state seed(model: &Model, mut result: Inference) -> Inference {
+    machine seed(model: &Model, mut result: Inference) -> Inference {
         result.observed_weight = table_weight(&model.observed, model.rows[0] + model.rows[1]);
         result.score = association_score(model, &model.observed);
         result.denominator = score_denominator(model);
         transition { _ -> outer(model, result, 0) }
     }
-    state outer(model: &Model, result: Inference, first: u64) -> Inference {
+    machine outer(model: &Model, result: Inference, first: u64) -> Inference {
         transition first < 9 {
             true -> inner(model, result, first, 0)
             false -> finish(model, result)
         }
     }
-    state inner(model: &Model, result: Inference, first: u64, second: u64) -> Inference
+    machine inner(model: &Model, result: Inference, first: u64, second: u64) -> Inference
     requires first < 9 {
         transition second < 9 {
             true -> candidate(model, result, first, second)
             false -> outer(model, result, first + 1)
         }
     }
-    state candidate(model: &Model, result: Inference, first: u64, second: u64) -> Inference
+    machine candidate(model: &Model, result: Inference, first: u64, second: u64) -> Inference
     requires first < 9 && second < 9 {
         let a: u64 in Wrapping = first as u64 in Wrapping;
         let b: u64 in Wrapping = second as u64 in Wrapping;
@@ -46,7 +46,7 @@ public machine analyze(model: &Model) -> Inference {
             false -> inner(model, result, first, second + 1)
         }
     }
-    state construct(model: &Model, result: Inference, first: u64, second: u64,
+    machine construct(model: &Model, result: Inference, first: u64, second: u64,
         a: u64 in Wrapping, b: u64 in Wrapping) -> Inference
     requires first < 9 && second < 9 {
         let c: u64 in Wrapping = model.rows[0] - a - b;
@@ -56,14 +56,14 @@ public machine analyze(model: &Model) -> Inference {
             false -> inner(model, result, first, second + 1)
         }
     }
-    state evaluate(model: &Model, result: Inference, first: u64, second: u64, table: Table) -> Inference
+    machine evaluate(model: &Model, result: Inference, first: u64, second: u64, table: Table) -> Inference
     requires first < 9 && second < 9 {
         transition table_valid(model, &table) {
             true -> accumulate(model, result, first, second, table)
             false -> inner(model, result, first, second + 1)
         }
     }
-    state accumulate(model: &Model, mut result: Inference, first: u64, second: u64, table: Table) -> Inference
+    machine accumulate(model: &Model, mut result: Inference, first: u64, second: u64, table: Table) -> Inference
     requires first < 9 && second < 9 {
         let weight: u64 in Wrapping = table_weight(&table, model.rows[0] + model.rows[1]);
         let score: u64 in Wrapping = association_score(model, &table);
@@ -74,13 +74,13 @@ public machine analyze(model: &Model) -> Inference {
             false -> association(model, result, first, second, weight, score)
         }
     }
-    state probability(model: &Model, mut result: Inference, first: u64, second: u64,
+    machine probability(model: &Model, mut result: Inference, first: u64, second: u64,
         weight: u64 in Wrapping, score: u64 in Wrapping) -> Inference
     requires first < 9 && second < 9 {
         result.probability_tail = result.probability_tail + weight;
         transition { _ -> association(model, result, first, second, weight, score) }
     }
-    state association(model: &Model, result: Inference, first: u64, second: u64,
+    machine association(model: &Model, result: Inference, first: u64, second: u64,
         weight: u64 in Wrapping, score: u64 in Wrapping) -> Inference
     requires first < 9 && second < 9 {
         transition score >= result.score {
@@ -88,7 +88,7 @@ public machine analyze(model: &Model) -> Inference {
             false -> inner(model, result, first, second + 1)
         }
     }
-    state tail(model: &Model, mut result: Inference, first: u64, second: u64,
+    machine tail(model: &Model, mut result: Inference, first: u64, second: u64,
         weight: u64 in Wrapping, score: u64 in Wrapping) -> Inference
     requires first < 9 && second < 9 {
         result.association_tail = result.association_tail + weight;
@@ -97,24 +97,24 @@ public machine analyze(model: &Model) -> Inference {
             false -> inner(model, result, first, second + 1)
         }
     }
-    state tie(model: &Model, mut result: Inference, first: u64, second: u64) -> Inference
+    machine tie(model: &Model, mut result: Inference, first: u64, second: u64) -> Inference
     requires first < 9 && second < 9 {
         result.ties = result.ties + 1;
         transition { _ -> inner(model, result, first, second + 1) }
     }
-    state finish(model: &Model, result: Inference) -> Inference {
+    machine finish(model: &Model, result: Inference) -> Inference {
         transition result.count == 0 {
             true -> rejected(result, 2)
             false -> observation(model, result)
         }
     }
-    state observation(model: &Model, result: Inference) -> Inference {
+    machine observation(model: &Model, result: Inference) -> Inference {
         transition table_valid(model, &model.observed) {
             true -> invariant(result)
             false -> rejected(result, 3)
         }
     }
-    state invariant(result: Inference) -> Inference {
+    machine invariant(result: Inference) -> Inference {
         transition result.observed_weight > 0 && result.partition > 0 && result.denominator > 0 {
             true -> (result)
             false -> rejected(result, 4)

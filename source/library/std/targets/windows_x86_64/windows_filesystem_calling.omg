@@ -25,7 +25,7 @@ machine windows_filesystem_transfer_signature(signature: &BoundarySignature) -> 
         true -> indices(signature)
         _ -> false
     }
-    state indices(signature: &BoundarySignature) -> bool {
+    machine indices(signature: &BoundarySignature) -> bool {
         transition signature.parameters[0] < 256 && signature.parameters[0] < signature.shape_count
             && signature.parameters[1] < 256 && signature.parameters[1] < signature.shape_count
             && signature.parameters[2] < 256 && signature.parameters[2] < signature.shape_count
@@ -39,7 +39,7 @@ machine windows_filesystem_transfer_signature(signature: &BoundarySignature) -> 
             _ -> false
         }
     }
-    state shapes(handle: &ValueShape, bytes: &ValueShape, transferred: &ValueShape,
+    machine shapes(handle: &ValueShape, bytes: &ValueShape, transferred: &ValueShape,
         overlapped: &ValueShape, result: &ValueShape) -> bool {
         transition windows_transfer_integer_shape(handle, 8)
             && windows_transfer_reference_shape(bytes, 16)

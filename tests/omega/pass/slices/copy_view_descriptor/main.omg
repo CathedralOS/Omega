@@ -17,17 +17,17 @@ machine Main::main(main: &mut Main) {
     main.badge.label = "north";
     main.badge.rank = 9;
     transition { _ -> inspect(main, main.badge) }
-    state inspect(main: &mut Main, badge: Badge) {
+    machine inspect(main: &mut Main, badge: Badge) {
         transition badge.label.len == 5 && badge.rank == 9 {
             true -> confirm(main, badge)
             _ -> done(main)
         }
     }
-    state confirm(main: &mut Main, badge: Badge) {
+    machine confirm(main: &mut Main, badge: Badge) {
         transition badge.label == "north" {
             true -> done(main)
             _ -> done(main)
         }
     }
-    state done(main: &mut Main) { }
+    machine done(main: &mut Main) { }
 }

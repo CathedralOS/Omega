@@ -1,4 +1,5 @@
 //! Source-free ISA readers reject pointer, width, polarity and address substitutions.
+use crate::test_support::reject_every_bit_flip;
 use selected_instructions::{
     MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier, MachineEncodedMemoryEffect,
     MachineSemanticKind, PlacedScalarForm, SelectedInstructionKind,
@@ -119,13 +120,8 @@ fn placed_scalar_forms_decode_one_exact_width_transfer() {
             variant: 1,
         };
         assert!(verify(kind, undeclared, &[base, data], 8, encoded.bytes()).is_err());
-        for bit in 0..encoded.bytes().len() * 8 {
-            let mut changed = encoded.bytes().to_vec();
-            changed[bit / 8] ^= 1 << (bit % 8);
-            assert!(
-                verify(kind, alternative, &[base, data], 8, &changed).is_err(),
-                "{form:?} bit{bit}"
-            );
-        }
+        reject_every_bit_flip(encoded.bytes(), &format!("{form:?}"), |changed| {
+            verify(kind, alternative, &[base, data], 8, &changed).is_err()
+        });
     }
 }

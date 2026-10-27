@@ -8,14 +8,14 @@ machine append_chain<'storage>(partitions: &mut [Partition<'storage>], selected:
         true -> capacity(partitions, selected, record)
         false -> false
     }
-    state capacity(partitions: &mut [Partition<'storage>], selected: u64, record: Match) -> bool
+    machine capacity(partitions: &mut [Partition<'storage>], selected: u64, record: Match) -> bool
     requires selected < partitions.len {
         transition partitions[selected].count < partitions[selected].records.len {
             true -> store(partitions, selected, record)
             false -> false
         }
     }
-    state store(partitions: &mut [Partition<'storage>], selected: u64, record: Match) -> bool
+    machine store(partitions: &mut [Partition<'storage>], selected: u64, record: Match) -> bool
     requires selected < partitions.len
         && partitions[selected].count < partitions[selected].records.len {
         let intermediate: &mut [Partition<'storage>] = &mut partitions;
@@ -31,14 +31,14 @@ machine append_element<'storage>(partitions: &mut [Partition<'storage>], selecte
         true -> capacity(partitions, selected, record)
         false -> false
     }
-    state capacity(partitions: &mut [Partition<'storage>], selected: u64, record: Match) -> bool
+    machine capacity(partitions: &mut [Partition<'storage>], selected: u64, record: Match) -> bool
     requires selected < partitions.len {
         transition partitions[selected].count < partitions[selected].records.len {
             true -> store(partitions, selected, record)
             false -> false
         }
     }
-    state store(partitions: &mut [Partition<'storage>], selected: u64, record: Match) -> bool
+    machine store(partitions: &mut [Partition<'storage>], selected: u64, record: Match) -> bool
     requires selected < partitions.len
         && partitions[selected].count < partitions[selected].records.len {
         let output: &mut Partition<'storage> = &mut partitions[selected];
@@ -72,6 +72,6 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

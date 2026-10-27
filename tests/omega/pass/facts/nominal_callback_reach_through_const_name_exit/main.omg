@@ -15,8 +15,8 @@ satisfies StepContract::step
         true -> hit()
         _ -> miss()
     }
-    state hit() -> u64 { 42 }
-    state miss() -> u64 { 0 }
+    machine hit() -> u64 { 42 }
+    machine miss() -> u64 { 0 }
 }
 
 machine walk<machine Step>(value: u64) -> u64
@@ -30,6 +30,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

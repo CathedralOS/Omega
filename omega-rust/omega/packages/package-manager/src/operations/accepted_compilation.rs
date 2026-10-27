@@ -18,6 +18,7 @@ use crate::resolution::graph::{
 use crate::review::{CompileResolvedPackageReviewsError, RestrictedBuildCheckpoint};
 use compiler::{
     CheckedCompileRequest, CompilationOutput, CompilationProduct, PackageCompilationRequest,
+    PackageProductSourceRequest, PackageSourceRequest,
 };
 use diagnostics::Diagnostic;
 use std::path::Path;
@@ -110,27 +111,11 @@ pub struct ProjectCompilationOutcome {
 }
 
 /// Requests and their package-owned reconciliation. The application retains
-/// its package session while compiling, then transfers it into completion for
-/// disposal. Neither admission nor reconciliation invokes a compiler.
-pub struct AdmittedProjectCompilation<Request = PackageCompilationRequest> {
-    pub requests: Vec<Request>,
+/// its package session while compiling, then lends it to completion for
+/// closure. Neither admission nor reconciliation invokes a compiler.
+pub struct AdmittedProjectCompilation {
+    pub requests: Vec<PackageCompilationRequest>,
     pub completion: ProjectCompilationCompletion,
-}
-
-/// Product preparation after source discovery already executed Build. This
-/// carries an execution requirement, not another activation or fresh grants.
-pub struct PackageProductSourceRequest {
-    pub target: target::TargetProfile,
-    pub inputs: package_compilation::PackageCompilationInputs,
-    pub execution: package_compilation::build_execution::BuildExecutionContract,
-    pub optimization_rollback: optimization_core::OptimizationRollback,
-}
-
-pub struct PackageProductCompilationRequest {
-    pub occurrences: Vec<PackageProductSourceRequest>,
-    pub product: CompilationProduct,
-    pub terminal_permissions:
-        Option<package_evidence::permission_acceptance::TerminalPermissionAcceptance>,
 }
 
 struct TargetCompletion {
@@ -170,20 +155,20 @@ pub fn admit_project_products(
     request: ProjectCompilationAdmissionRequest<'_>,
     session: &mut PackageBuildSession,
     execution_profile: target::TargetProfile,
-) -> AdmittedProjectCompilation<PackageProductCompilationRequest> {
+) -> AdmittedProjectCompilation {
     admit_project(request, session, |request, session| {
         prepare_accepted_products(request, session, execution_profile)
     })
 }
 
-fn admit_project<Request>(
+fn admit_project(
     request: ProjectCompilationAdmissionRequest<'_>,
     session: &mut PackageBuildSession,
     prepare: impl Fn(
         AcceptedCompilationRequest<'_>,
         &mut PackageBuildSession,
-    ) -> Result<(Request, Vec<PackageKey>, [u8; 32]), Error>,
-) -> AdmittedProjectCompilation<Request> {
+    ) -> Result<(PackageCompilationRequest, Vec<PackageKey>, [u8; 32]), Error>,
+) -> AdmittedProjectCompilation {
     let (entry, closure, prepared_targets) = request.prepared.into_target_review_parts();
     let root = closure.graph().root().clone();
     let targets: Vec<_> = prepared_targets
@@ -254,13 +239,27 @@ fn admit_project<Request>(
 }
 
 impl ProjectCompilationCompletion {
+    /// Admission refusals remain attributed to their requested target even
+    /// when a caller inspects the admitted plans before executing products.
+    pub fn failures(
+        &self,
+    ) -> impl Iterator<Item = (target::TargetProfile, &ProjectCompilationError)> {
+        self.targets.iter().filter_map(|target| {
+            target
+                .receipt
+                .as_ref()
+                .err()
+                .map(|error| (target.target, error))
+        })
+    }
+
     /// Reconcile occurrence diagnostics and recheck the external compiler library
     /// once after execution. This is not an admission claim for a native image.
     /// Disposal failure is reported rather than silently dropping a failed close.
     pub fn complete(
         self,
         outputs: Vec<Result<CompilationOutput, compiler::PackageCompileFailure>>,
-        mut session: PackageBuildSession,
+        session: &mut PackageBuildSession,
     ) -> Vec<ProjectCompilationOutcome> {
         let expected = self
             .targets
@@ -342,7 +341,10 @@ fn prepare_accepted_project(
     let (terminal_permissions, compiler_identity) = admit_accepted_contexts(&request)?;
     let (occurrences, packages) = prepare_occurrences(&request, session)?;
     let plan = PackageCompilationRequest {
-        occurrences,
+        occurrences: occurrences
+            .into_iter()
+            .map(PackageSourceRequest::Execute)
+            .collect(),
         product: request.product,
         terminal_permissions,
     };
@@ -386,24 +388,27 @@ fn prepare_accepted_products(
     request: AcceptedCompilationRequest<'_>,
     _session: &mut PackageBuildSession,
     execution_profile: target::TargetProfile,
-) -> Result<(PackageProductCompilationRequest, Vec<PackageKey>, [u8; 32]), Error> {
+) -> Result<(PackageCompilationRequest, Vec<PackageKey>, [u8; 32]), Error> {
     let (terminal_permissions, compiler_identity) = admit_accepted_contexts(&request)?;
     let mut occurrences = Vec::new();
     let mut packages = Vec::new();
     for occurrence in prepare_occurrence_contexts(&request, Some(execution_profile))? {
         packages.push(occurrence.key);
-        occurrences.push(PackageProductSourceRequest {
+        occurrences.push(PackageSourceRequest::Product(PackageProductSourceRequest {
             target: occurrence.context.target(),
             inputs: occurrence.inputs,
             execution: package_compilation::build_execution::BuildExecutionContract {
                 profile: occurrence.context.build_execution_profile(),
                 snapshot: Some(occurrence.snapshot),
             },
-            optimization_rollback: request.product.optimization_rollback(),
-        });
+            options: compiler::PackageProductOptions {
+                optimization_rollback: request.product.optimization_rollback(),
+                ..Default::default()
+            },
+        }));
     }
     Ok((
-        PackageProductCompilationRequest {
+        PackageCompilationRequest {
             occurrences,
             product: request.product,
             terminal_permissions,

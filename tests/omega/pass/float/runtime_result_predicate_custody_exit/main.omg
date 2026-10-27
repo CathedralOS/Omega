@@ -11,7 +11,7 @@ ensures result == 3.75f32
 machine through_state() -> f32 ensures result == 3.75f32 {
     let captured: f64 = source();
     transition { _ -> complete(captured) }
-    state complete(value: f64) -> f32 requires value == 3.75
+    machine complete(value: f64) -> f32 requires value == 3.75
     { accept(value) }
 }
 
@@ -34,6 +34,6 @@ machine main() crashes Trap {
     transition state_value == 3.75f32 && field_value == 3.75f32 && saved_value == 3.75f32 {
         true -> done() false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

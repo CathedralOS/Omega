@@ -25,6 +25,6 @@ machine exercise() -> bool {
 machine main() crashes Trap {
     let correct: bool = exercise();
     transition correct { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

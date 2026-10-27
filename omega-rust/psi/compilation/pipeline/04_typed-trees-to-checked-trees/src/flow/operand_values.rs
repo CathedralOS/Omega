@@ -120,9 +120,7 @@ pub(crate) fn captured_observation_roots(
         if !referent.root.is_valid() {
             return None;
         }
-        if !roots.contains(&referent.root) {
-            roots.push(referent.root);
-        }
+        crate::collections::push_unique(&mut roots, referent.root);
     }
     Some(roots)
 }
@@ -352,6 +350,21 @@ pub(crate) fn captured_operand_values<'capture>(
             };
             for value in &mut selected {
                 value.choices.push(choice);
+                // A selected primitive copy is one completed observation;
+                // its producer and conditions remain per arm. Live descriptors
+                // keep their per-arm observation geometry and loan evidence.
+                if validation::project_type_reference_from_segments(program, type_reference, path)
+                    .and_then(|reference| program.primitive_type_reference(reference))
+                    .is_some()
+                {
+                    value.observation = operand;
+                    value.observation_type = type_reference;
+                    value.observation_projection = super::LiteralExpressionProjection {
+                        expression: operand.expression,
+                        remaining: path.to_vec(),
+                        destination: Vec::new(),
+                    };
+                }
             }
             values.extend(selected);
         }

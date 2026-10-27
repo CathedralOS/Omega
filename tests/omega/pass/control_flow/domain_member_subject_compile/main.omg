@@ -22,6 +22,6 @@ machine Main::main(main: &mut Main) {
         _ -> miss(main)
     }
 
-    state hit(main: &mut Main) { main.answer = 70; }
-    state miss(main: &mut Main) { main.answer = 71; }
+    machine hit(main: &mut Main) { main.answer = 70; }
+    machine miss(main: &mut Main) { main.answer = 71; }
 }

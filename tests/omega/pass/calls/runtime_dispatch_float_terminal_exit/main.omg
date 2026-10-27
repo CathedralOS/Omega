@@ -14,13 +14,13 @@ terminates by n -> Nat::Descending;
 -> f64
 {
     transition n > 0 { true -> pick(main, n - 1, acc) false -> leaf(main, acc) }
-    state leaf(main: &mut Main, acc: f64) -> f64 { acc }
+    machine leaf(main: &mut Main, acc: f64) -> f64 { acc }
 }
 machine Main::main(main: &mut Main) reaches Console {
     let x: f64 = Main::pick(main, 2, 1.5);
     transition x > 1.0 { true -> good(main) _ -> bad(main) }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main) { Console::exit_process(71); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

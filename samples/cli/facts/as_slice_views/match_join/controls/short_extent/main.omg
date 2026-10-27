@@ -12,6 +12,6 @@ machine extent(entries: &[Entry; 3], flag: bool) -> u64 {
 machine main() crashes Trap {
     let entries: [Entry; 3] = [Entry { value: 7 }, Entry { value: 8 }, Entry { value: 9 }];
     transition extent(&entries, true) == 4 && extent(&entries, false) == 4 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

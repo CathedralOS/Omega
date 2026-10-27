@@ -106,6 +106,7 @@ pub(crate) fn lower(
                     operational_acknowledgement| {
         let arguments = table.insert_expression_handles(arguments);
         let expression = table.insert(ExpressionNode::Call(TableCallExpression {
+            authored_call_binding: None,
             authored_machine_application: Default::default(),
             exact_coercion_target: Default::default(),
             requirement_application: Default::default(),

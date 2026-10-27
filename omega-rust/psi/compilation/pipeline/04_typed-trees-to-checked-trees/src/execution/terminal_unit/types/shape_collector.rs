@@ -1498,9 +1498,7 @@ impl<'program> ShapeCollector<'program> {
                 CheckedUnitStructuralFieldType::Structural { .. }
             ) {
                 for (_, carrier) in carriers {
-                    if !qualification_carriers.contains(&carrier) {
-                        qualification_carriers.push(carrier);
-                    }
+                    crate::collections::push_unique(&mut qualification_carriers, carrier);
                 }
             }
         }

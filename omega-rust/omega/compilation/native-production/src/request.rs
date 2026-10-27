@@ -8,7 +8,6 @@ use terminal_psi_to_abstract_operations::provider_admission::{
 /// Stage 00 owns admission vocabulary and checks; this request supplies policy
 /// and retains the exact image custody if realization fails.
 pub(crate) struct NativeRealizationRequest<'request> {
-    pub calling_applications: &'request [calling_conventions::BoundaryCallingApplication],
     /// Application-entry custody is consumed only by receiver/image production,
     /// not by ordinary provider admission of private canonical bodies.
     pub program_entry: terminal_psi_to_abstract_operations::NativeProgramEntrySettlement<'request>,

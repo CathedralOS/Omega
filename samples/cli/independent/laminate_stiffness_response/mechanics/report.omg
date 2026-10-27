@@ -9,25 +9,25 @@ public machine number(reporter: &mut Reporter,value: f64) reaches Console invoke
         true -> sign(reporter,scaled)
         false -> out_of_range(reporter)
     }
-    state sign(reporter: &mut Reporter,value: i32)
+    machine sign(reporter: &mut Reporter,value: i32)
     requires value >= -1000000000 && value <= 1000000000 {
         transition value < 0 { true -> negative(reporter,value) false -> positive(reporter,value) }
     }
-    state out_of_range(reporter: &mut Reporter) {
+    machine out_of_range(reporter: &mut Reporter) {
         Console::write_line("REPORT RANGE ERROR"); Console::exit_process(4);
     }
-    state negative(reporter: &mut Reporter,value: i32)
+    machine negative(reporter: &mut Reporter,value: i32)
     requires value >= -1000000000 && value < 0 {
         Console::write_byte(45);
         let magnitude: i32 = 0-value;
         transition { _ -> positive(reporter,magnitude) }
     }
-    state positive(reporter: &mut Reporter,value: i32)
+    machine positive(reporter: &mut Reporter,value: i32)
     requires value >= 0 && value <= 1000000000 {
         let mut digits: [i32; 10];
         transition { _ -> collect(reporter,&mut digits,value,0) }
     }
-    state collect(reporter: &mut Reporter,digits: &mut [i32;10],value: i32,position: u64)
+    machine collect(reporter: &mut Reporter,digits: &mut [i32;10],value: i32,position: u64)
     requires position <= 9 requires value >= 0 && value <= 1000000000 {
         digits[position] = value%10+48;
         let quotient: i32 = value/10;
@@ -37,29 +37,29 @@ public machine number(reporter: &mut Reporter,value: f64) reaches Console invoke
             false -> emit(reporter,digits,position)
         }
     }
-    state emit(reporter: &mut Reporter,digits: &[i32;10],position: u64)
+    machine emit(reporter: &mut Reporter,digits: &[i32;10],position: u64)
     requires position <= 9 {
         Console::write_byte(digits[position]);
         transition position > 0 { true -> previous(reporter,digits,position) false -> done(reporter) }
     }
-    state previous(reporter: &mut Reporter,digits: &[i32;10],position: u64)
+    machine previous(reporter: &mut Reporter,digits: &[i32;10],position: u64)
     requires position > 0 && position <= 9 {
         transition { _ -> emit(reporter,digits,position-1) }
     }
-    state done(reporter: &mut Reporter) { Console::write_byte(10); }
+    machine done(reporter: &mut Reporter) { Console::write_byte(10); }
 }
 public machine matrix(reporter: &mut Reporter,values: &[[f64;3];3]) reaches Console invokes Console; crashes Trap {
     transition { _ -> cell(reporter,values,0,0) }
-    state cell(reporter: &mut Reporter,values: &[[f64;3];3],row: u64,column: u64)
+    machine cell(reporter: &mut Reporter,values: &[[f64;3];3],row: u64,column: u64)
     requires row <= 2 requires column <= 2 {
         number(reporter,values[row][column]);
         let next: u64 = column+1;
         transition next <= 2 { true -> cell(reporter,values,row,next) false -> next_row(reporter,values,row) }
     }
-    state next_row(reporter: &mut Reporter,values: &[[f64;3];3],row: u64)
+    machine next_row(reporter: &mut Reporter,values: &[[f64;3];3],row: u64)
     requires row <= 2 {
         let next: u64 = row+1;
         transition next <= 2 { true -> cell(reporter,values,next,0) false -> done() }
     }
-    state done() { }
+    machine done() { }
 }

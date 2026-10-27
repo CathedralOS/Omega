@@ -71,11 +71,8 @@ access-plans = { path = "../../../psi/foundation/access-plans" }
 extents = { path = "../../../psi/foundation/extents" }
 platform-custody = { path = "../../foundation/platform-custody" }
 checked-interpreter = { path = "../../../psi/interpreter/checked-interpreter" }
-syntax-trees = { path = "../../../psi/compilation/representations/syntax-trees" }
 task-plans = { path = "../backend/runtime/task-plans" }
-source-files-to-tokens = { path = "../../../psi/compilation/pipeline/00_source-files-to-tokens" }
 installation-evidence = { path = "../backend/runtime/installation-evidence" }
-tokens-to-syntax-trees = { path = "../../../psi/compilation/pipeline/01_tokens-to-syntax-trees" }
 object-file = { path = "../backend/object/object-file" }
 mimalloc = { version = "0.1", default-features = false }
 package-compilation = { path = "../../packages/compilation-inputs", features = ["test-support"] }
@@ -120,6 +117,10 @@ path = "tests/terminal_behavior_exclusions.rs"
 name = "terminal_effect_readiness"
 path = "tests/terminal_effect_readiness.rs"
 
+[[test]]
+name = "product_query_suspension"
+path = "tests/product_query_suspension.rs"
+
 # Loose roots intentionally have no fixture-supplied package owner. This
 # boundary test derives that owner, reloads its artifact and runs consumers
 # against the exact supplied identity; ordinary corpus setup masks this path.
@@ -130,3 +131,7 @@ path = "tests/anonymous_module_owner.rs"
 [[test]]
 name = "package_review"
 path = "tests/package_review.rs"
+
+[[test]]
+name = "executed_fixture_discovery"
+path = "tests/executed_fixture_discovery.rs"

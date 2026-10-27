@@ -53,7 +53,7 @@ pub(super) fn collect_call_proposals(
     scope_limit: usize,
     proposals: &mut StaticProposals,
 ) -> ExplicitArgumentCapacity {
-    let Some(callee) = resolve_callee(callee_states, target_symbol) else {
+    let Some(callee) = resolve_callee(program, callee_states, target_symbol) else {
         return ExplicitArgumentCapacity::WithinBounds;
     };
     let explicit_arguments = collect_machine_proposals_for_callee(
@@ -420,7 +420,7 @@ pub(super) fn collect_call_selections(
         if typed_trees::operator::resolve_named_expression_call(program, call).is_some() {
             continue;
         }
-        let Some(callee) = resolve_callee(callee_states, call.target_symbol) else {
+        let Some(callee) = resolve_callee(program, callee_states, call.target_symbol) else {
             continue;
         };
         let candidate = &candidates[callee.candidate_index];

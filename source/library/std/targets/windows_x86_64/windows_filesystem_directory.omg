@@ -35,7 +35,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
     // Anonymous SQOS; no inheritance, overlap, callbacks or public aliases.
     let handle: u64 = block WindowsFilesystemNativeProvider::create_file(path, 1048577, 7, 3, 34603008);
     transition handle != 0 { true -> mode(handle) false -> 0 }
-    state mode(handle: u64) -> i64 {
+    machine mode(handle: u64) -> i64 {
         let raw: i64 = narrow_u64_to_i64_wrapping(handle);
         let mut completion: WindowsFilesystemIoStatus;
         let mut mode: u32 = 0;
@@ -45,18 +45,18 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
             false -> failed_query(handle, status)
         }
     }
-    state checked(handle: u64, mode: u32, returned: u64) -> i64 {
+    machine checked(handle: u64, mode: u32, returned: u64) -> i64 {
         let raw: i64 = narrow_u64_to_i64_wrapping(handle);
         transition (mode & 32) != 0 && returned == 4 && raw != 0 && raw != -1 {
             true -> (raw)
             false -> refuse(handle, 87)
         }
     }
-    state failed_query(handle: u64, status: i32) -> i64 {
+    machine failed_query(handle: u64, status: i32) -> i64 {
         let code: u32 = WindowsFilesystemIo::c_status_to_error(status);
         transition { _ -> refuse(handle, code) }
     }
-    state refuse(handle: u64, code: u32) -> i64 {
+    machine refuse(handle: u64, code: u32) -> i64 {
         let released: i32 = block WindowsFilesystemNativeProvider::close_handle(handle);
         WindowsFilesystemIo::c_set_last_error(code);
         0
@@ -73,7 +73,7 @@ reaches DirectoryEnumeration {
         true -> (windows_directory_decode(output, completion.information))
         false -> other(status)
     }
-    state other(status: i32) -> WindowsDirectoryStep {
+    machine other(status: i32) -> WindowsDirectoryStep {
         // STATUS_NO_MORE_FILES, or STATUS_NO_SUCH_FILE for an empty volume
         // root. This is only the query on an already-acquired directory;
         // a missing pathname still fails acquisition, never becomes empty.
@@ -84,7 +84,7 @@ reaches DirectoryEnumeration {
             false -> failed(status)
         }
     }
-    state failed(status: i32) -> WindowsDirectoryStep {
+    machine failed(status: i32) -> WindowsDirectoryStep {
         let code: u32 = WindowsFilesystemIo::c_status_to_error(status);
         WindowsDirectoryStep::Error { code: code }
     }
@@ -95,7 +95,7 @@ machine windows_directory_decode(output: &WindowsNativeDirectoryNameInfo, return
         true -> record(output, returned)
         false -> (WindowsDirectoryStep::Error { code: 122 })
     }
-    state record(output: &WindowsNativeDirectoryNameInfo, returned: u64) -> WindowsDirectoryStep
+    machine record(output: &WindowsNativeDirectoryNameInfo, returned: u64) -> WindowsDirectoryStep
     requires returned >= 12 && returned <= 8208 {
         let bytes: u64 = widen_u32_to_u64(output.name_bytes);
         transition (output.control & 4294967295) == 0 && bytes > 0 && bytes <= 8192
@@ -108,10 +108,10 @@ machine windows_directory_decode(output: &WindowsNativeDirectoryNameInfo, return
 
 machine windows_directory_dot(output: &WindowsNativeDirectoryNameInfo, length: u64) -> bool {
     transition length == 1 || length == 2 { true -> first(output, length) false -> false }
-    state first(output: &WindowsNativeDirectoryNameInfo, length: u64) -> bool {
+    machine first(output: &WindowsNativeDirectoryNameInfo, length: u64) -> bool {
         transition output.characters[0] == 46 { true -> second(output, length) false -> false }
     }
-    state second(output: &WindowsNativeDirectoryNameInfo, length: u64) -> bool {
+    machine second(output: &WindowsNativeDirectoryNameInfo, length: u64) -> bool {
         length == 1 || output.characters[1] == 46
     }
 }
@@ -121,11 +121,11 @@ satisfies WindowsFilesystemHost::directory_count
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration {
     let handle: i64 in WindowsPrivateNonalertFileOrAbsent = block windows_directory_open(path);
     transition handle != 0 { true -> start(handle) false -> (WindowsFilesystemNativeProvider::failure_i64()) }
-    state start(handle: i64 in WindowsPrivateNonalertFileOrAbsent) -> i64 requires handle != 0 {
+    machine start(handle: i64 in WindowsPrivateNonalertFileOrAbsent) -> i64 requires handle != 0 {
         let mut output: WindowsNativeDirectoryNameInfo;
         transition { _ -> next(handle, &mut output, 0) }
     }
-    state next(handle: i64 in WindowsPrivateNonalertFileOrAbsent, output: &mut WindowsNativeDirectoryNameInfo, count: u64) -> i64
+    machine next(handle: i64 in WindowsPrivateNonalertFileOrAbsent, output: &mut WindowsNativeDirectoryNameInfo, count: u64) -> i64
     requires handle != 0 && count <= 9223372036854775807 {
         let step: WindowsDirectoryStep = block windows_directory_next(handle, output);
         transition step {
@@ -134,21 +134,21 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
             WindowsDirectoryStep::Name { length } -> entry(handle, output, count, length)
         }
     }
-    state entry(handle: i64 in WindowsPrivateNonalertFileOrAbsent, output: &mut WindowsNativeDirectoryNameInfo, count: u64, length: u64) -> i64
+    machine entry(handle: i64 in WindowsPrivateNonalertFileOrAbsent, output: &mut WindowsNativeDirectoryNameInfo, count: u64, length: u64) -> i64
     requires handle != 0 && count <= 9223372036854775807 {
         transition windows_directory_dot(output, length) {
             true -> next(handle, output, count)
             false -> increment(handle, output, count)
         }
     }
-    state increment(handle: i64 in WindowsPrivateNonalertFileOrAbsent, output: &mut WindowsNativeDirectoryNameInfo, count: u64) -> i64
+    machine increment(handle: i64 in WindowsPrivateNonalertFileOrAbsent, output: &mut WindowsNativeDirectoryNameInfo, count: u64) -> i64
     requires handle != 0 && count <= 9223372036854775807 {
         transition count < 9223372036854775807 {
             true -> next(handle, output, count + 1)
             false -> finish(handle, -534)
         }
     }
-    state finish(handle: i64 in WindowsPrivateNonalertFileOrAbsent, result: i64) -> i64 {
+    machine finish(handle: i64 in WindowsPrivateNonalertFileOrAbsent, result: i64) -> i64 {
         let released: i32 = block WindowsFilesystemNativeProvider::close_handle(narrow_i64_to_u64_wrapping(handle as i64));
         transition result < 0 || released == 0 {
             true -> (result)

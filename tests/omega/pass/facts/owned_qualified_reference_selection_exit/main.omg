@@ -17,8 +17,8 @@ machine qualified_same_source(choice: bool) crashes Trap {
     } });
     let observed: i32 = qualified.reference;
     transition observed == 42 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 machine plain_same_source(choice: bool) crashes Trap {
@@ -30,8 +30,8 @@ machine plain_same_source(choice: bool) crashes Trap {
     } });
     let observed: i32 = qualified.reference;
     transition observed == 42 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 machine distinct_sources(choice: bool) crashes Trap {
@@ -45,8 +45,8 @@ machine distinct_sources(choice: bool) crashes Trap {
     } });
     let observed: i32 = qualified.reference;
     transition observed == (match choice { true -> 42 false -> 43 }) { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 machine main() crashes Trap {

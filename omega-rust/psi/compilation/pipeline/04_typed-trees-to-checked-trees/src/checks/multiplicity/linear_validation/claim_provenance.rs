@@ -75,9 +75,7 @@ pub(crate) fn completed_receiving_values(
             stored.expression,
             checked_trees::FlowPermissionEvaluation::Statement,
         );
-        if !values.contains(&completed) {
-            values.push(completed);
-        }
+        crate::collections::push_unique(&mut values, completed);
     }
     values
 }

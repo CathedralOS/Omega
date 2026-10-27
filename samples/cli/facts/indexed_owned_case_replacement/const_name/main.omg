@@ -10,7 +10,7 @@ machine replace(frames: &mut [Frame; 4096], position: u64,
 requires position < 4096 {
     frames[position] = Frame::Ready { value: payload };
     transition { _ -> read(frames, position) }
-    state read(frames: &mut [Frame; 4096], position: u64) -> u64
+    machine read(frames: &mut [Frame; 4096], position: u64) -> u64
     requires position < 4096 {
         transition frames[position] {
             Frame::Empty -> 99
@@ -26,6 +26,6 @@ const PAYLOAD: u64 in PositiveSmall = 3;
 machine witness() -> u64 { run(PAYLOAD) }
 machine main() crashes Trap {
     transition witness() == 2 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

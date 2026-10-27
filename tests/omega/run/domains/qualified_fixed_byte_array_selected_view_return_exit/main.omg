@@ -21,5 +21,5 @@ machine main() crashes Trap {
         && level.rooms[0].text.len == 8 && level.rooms[1].text.len == 8 {
         true -> done() false -> wrong()
     }
-    state done() {} state wrong() { crash Trap; }
+    machine done() {} machine wrong() { crash Trap; }
 }

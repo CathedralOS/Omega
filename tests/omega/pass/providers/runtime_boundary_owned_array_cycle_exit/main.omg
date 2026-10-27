@@ -16,7 +16,7 @@ machine Main::main(main: &mut Main) reaches ArrayValue + Console {
     main.count = 0;
     main.total = 0;
     transition { _ -> step(main) }
-    state step(main: &mut Main) {
+    machine step(main: &mut Main) {
         let values: [i32; 2] = [35, 7];
         let observed: i32 = ArrayValue::read(values);
         main.total += observed as i32 in Wrapping;
@@ -26,7 +26,7 @@ machine Main::main(main: &mut Main) reaches ArrayValue + Console {
             _ -> done(main)
         }
     }
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         Console::exit_process(main.total as i32);
     }
 }

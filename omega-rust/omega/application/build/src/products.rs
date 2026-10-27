@@ -15,6 +15,9 @@ pub(crate) fn compile(
     if let Some((resolved, session)) = prepared {
         let product = match &request.product {
             ProjectProduct::Check => compiler::CompilationProduct::Check,
+            ProjectProduct::Terminal => {
+                compiler::CompilationProduct::Terminal(request.optimization_rollback.clone())
+            }
             ProjectProduct::Inspection { machine } => {
                 compiler::CompilationProduct::Inspection(machine.clone())
             }
@@ -83,6 +86,15 @@ pub(crate) fn compile(
                 &[],
             );
         }
+        ProjectProduct::Terminal => {
+            return compile_standalone_reports(
+                request,
+                directory,
+                targets,
+                RequestedCompileProduct::TerminalArtifact,
+                &[],
+            );
+        }
         ProjectProduct::Native {
             private_entry_ram, ..
         } => {
@@ -98,7 +110,7 @@ pub(crate) fn compile(
     Ok(reports)
 }
 
-/// Standalone check/native reports use the batch compiler facade. Inspection
+/// Standalone check/Terminal/native reports use the batch compiler facade. Inspection
 /// has a different terminal product, selected above rather than flattened here.
 fn compile_standalone_reports(
     request: &BuildRequest,

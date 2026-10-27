@@ -256,9 +256,7 @@ impl Denotations<'_> {
                 root: facts::PlaceRoot::Symbol(root),
                 segments,
             };
-            if !storages.contains(&place) {
-                storages.push(place);
-            }
+            crate::collections::push_unique(&mut storages, place);
         }
         match storages.len() {
             0 => LoanStorage::Unknown,

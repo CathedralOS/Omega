@@ -13,15 +13,15 @@ machine Main::main(main: &mut Main) crashes Trap {
     let name: Name = Name { words: &words };
     let attributes: Attributes = Attributes { name: &name };
     transition { _ -> inspect(attributes) }
-    state inspect(attributes: Attributes) {
+    machine inspect(attributes: Attributes) {
         transition { _ -> consume_moved(attributes) }
     }
-    state consume_moved(attributes: Attributes) {
+    machine consume_moved(attributes: Attributes) {
         let result: u16 = consume(&attributes);
         transition result == 0 { true -> done() false -> failed() }
     }
-    state done() {}
-    state failed() { crash Trap; }
+    machine done() {}
+    machine failed() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

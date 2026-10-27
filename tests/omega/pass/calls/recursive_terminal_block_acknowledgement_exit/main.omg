@@ -33,7 +33,7 @@ machine main(context: &mut Context) crashes Trap {
     let second: bool = block parenthesized(context, 2);
     let third: bool = block Context::qualified(context, 1);
     transition first && second && third && context.visits == 9 { true -> {} _ -> bad() }
-    state bad() { crash Trap; }
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

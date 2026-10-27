@@ -23,16 +23,10 @@ pub enum BaselineDecisionRecordError {
     UnsupportedSkipReason(OptimizationReasonCode),
 }
 
-impl std::fmt::Display for BaselineDecisionRecordError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "invalid recorded optimization decision: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for BaselineDecisionRecordError {}
+crate::invalid_error_display!(
+    BaselineDecisionRecordError,
+    "recorded optimization decision"
+);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BaselineDecisionRecord {
@@ -59,13 +53,7 @@ pub enum BaselineDecisionLogDecodeError {
     TrailingBytes,
 }
 
-impl std::fmt::Display for BaselineDecisionLogDecodeError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "invalid baseline decision log: {self:?}")
-    }
-}
-
-impl std::error::Error for BaselineDecisionLogDecodeError {}
+crate::invalid_error_display!(BaselineDecisionLogDecodeError, "baseline decision log");
 
 impl BaselineDecisionLog {
     /// Concatenate independently replayable pass-local logs in exact execution

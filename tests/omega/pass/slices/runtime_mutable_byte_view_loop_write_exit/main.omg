@@ -16,38 +16,38 @@ data Main {
 machine put(out: &mut [u8], written: &mut u64, value: u64) {
     transition { _ -> step(out, written, 0, value) }
 
-    state step(out: &mut [u8], written: &mut u64, at: u64, bits: u64) {
+    machine step(out: &mut [u8], written: &mut u64, at: u64, bits: u64) {
         transition bits < 128 {
             true -> last(out, written, at, bits)
             _ -> more(out, written, at, bits)
         }
     }
 
-    state more(out: &mut [u8], written: &mut u64, at: u64, bits: u64) {
+    machine more(out: &mut [u8], written: &mut u64, at: u64, bits: u64) {
         transition at < out.len {
             true -> put_more(out, written, at, bits)
             _ -> overflow(out, written, at)
         }
     }
 
-    state put_more(out: &mut [u8], written: &mut u64, at: u64, bits: u64) {
+    machine put_more(out: &mut [u8], written: &mut u64, at: u64, bits: u64) {
         out[at] = ((bits & 127) | 128) as u8;
         transition { _ -> step(out, written, at + 1, bits >> 7) }
     }
 
-    state last(out: &mut [u8], written: &mut u64, at: u64, bits: u64) {
+    machine last(out: &mut [u8], written: &mut u64, at: u64, bits: u64) {
         transition at < out.len {
             true -> put_last(out, written, at, bits)
             _ -> overflow(out, written, at)
         }
     }
 
-    state put_last(out: &mut [u8], written: &mut u64, at: u64, bits: u64) {
+    machine put_last(out: &mut [u8], written: &mut u64, at: u64, bits: u64) {
         out[at] = bits as u8;
         written = at + 1;
     }
 
-    state overflow(out: &mut [u8], written: &mut u64, at: u64) {
+    machine overflow(out: &mut [u8], written: &mut u64, at: u64) {
         written = 0;
     }
 }
@@ -58,10 +58,10 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> good(main)
         false -> bad(main)
     }
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::exit_process(70);
     }
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::exit_process(71);
     }
 }

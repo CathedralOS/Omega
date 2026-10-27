@@ -27,10 +27,10 @@ terminates;
     let outer: & &Envelope = &view;
     let values: [&Token; 2] = outer.values;
     transition { _ -> arrive(values[index], calls) }
-    state arrive(selected: &Token, calls: &mut u64) -> u64 {
+    machine arrive(selected: &Token, calls: &mut u64) -> u64 {
         transition { _ -> finish(selected, calls) }
     }
-    state finish(selected: &Token, calls: &mut u64) -> u64 {
+    machine finish(selected: &Token, calls: &mut u64) -> u64 {
         consume(selected, calls)
     }
 }
@@ -44,6 +44,6 @@ machine main() reaches Grants crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

@@ -37,5 +37,5 @@ machine arm_rest_guards() {
         _ -> done(71)
     }
 
-    state done(code: i32) {}
+    machine done(code: i32) {}
 }

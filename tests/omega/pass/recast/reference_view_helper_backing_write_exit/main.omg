@@ -33,8 +33,8 @@ machine Main::main(main: &mut Main) reaches Child + Parent crashes Trap {
     let view: &mut Counter = &mut main.source as &mut Counter;
     relay(view);
     transition observed == 0 && main.source.first == 5u64 && main.source.count == 8u64 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

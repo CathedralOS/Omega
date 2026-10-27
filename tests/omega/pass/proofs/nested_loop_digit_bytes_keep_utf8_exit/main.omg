@@ -36,45 +36,45 @@ machine Main::main(main: &mut Main) reaches Console {
     main.i = 1;
     transition { _ -> row_loop(main) }
 
-    state row_loop(main: &mut Main) {
+    machine row_loop(main: &mut Main) {
         transition main.i >= 1 && main.i <= 9 { true -> clear_init(main) _ -> finish(main) }
     }
     // clear the row buffer to spaces
-    state clear_init(main: &mut Main) {
+    machine clear_init(main: &mut Main) {
         main.k = 0;
         transition { _ -> clear(main) }
     }
-    state clear(main: &mut Main) {
+    machine clear(main: &mut Main) {
         transition main.k >= 0 && main.k < 28 { true -> clear_cell(main) _ -> col_init(main) }
     }
-    state clear_cell(main: &mut Main) {
+    machine clear_cell(main: &mut Main) {
         main.line[main.k] = 32; // ' '
         main.k = main.k + 1;
         transition { _ -> clear(main) }
     }
-    state col_init(main: &mut Main) {
+    machine col_init(main: &mut Main) {
         main.j = 1;
         transition { _ -> col_loop(main) }
     }
-    state col_loop(main: &mut Main) {
+    machine col_loop(main: &mut Main) {
         transition main.j >= 1 && main.j <= 9 { true -> cell(main) _ -> emit_row(main) }
     }
-    state cell(main: &mut Main) {
+    machine cell(main: &mut Main) {
         main.p = main.i * main.j;
         main.tens = main.p / 10;
         main.ones = main.p % 10;
         main.oc = narrow_i32_to_u8_trapping((main.ones + 48) as i32);
         transition main.tens > 0 { true -> cell_tens(main) _ -> cell_space(main) }
     }
-    state cell_tens(main: &mut Main) {
+    machine cell_tens(main: &mut Main) {
         main.tc = narrow_i32_to_u8_trapping((main.tens + 48) as i32);
         transition { _ -> cell_write(main) }
     }
-    state cell_space(main: &mut Main) {
+    machine cell_space(main: &mut Main) {
         main.tc = 32; // leading space for single-digit products
         transition { _ -> cell_write(main) }
     }
-    state cell_write(main: &mut Main) {
+    machine cell_write(main: &mut Main) {
         main.o0 = (main.j - 1) * 3;
         main.o1 = main.o0 + 1;
         transition main.o0 >= 0 && main.o0 < 28 && main.o1 >= 0 && main.o1 < 28 {
@@ -82,22 +82,22 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> bad(main)
         }
     }
-    state cell_store(main: &mut Main) {
+    machine cell_store(main: &mut Main) {
         main.line[main.o0] = main.tc;
         main.line[main.o1] = main.oc;
         main.j = main.j + 1;
         transition { _ -> col_loop(main) }
     }
-    state emit_row(main: &mut Main) {
+    machine emit_row(main: &mut Main) {
         Console::write_line(main.line);
         main.i = main.i + 1;
         transition { _ -> row_loop(main) }
     }
 
-    state finish(main: &mut Main) {
+    machine finish(main: &mut Main) {
         Console::exit_process(70);
     }
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::exit_process(71);
     }
 }

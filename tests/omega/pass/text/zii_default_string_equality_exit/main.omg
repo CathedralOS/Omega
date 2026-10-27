@@ -18,24 +18,24 @@ machine Main::build(main: &mut Main) reaches Console crashes Trap {
         true -> leg2(main)
         _ -> wrong_zii_empty(main)
     }
-    state leg2(main: &mut Main) {
+    machine leg2(main: &mut Main) {
         let ne: bool = TextBuffer::equal(&main.never, "omega");
         transition ne {
             true -> wrong_zii_nonempty(main)
             _ -> leg3(main)
         }
     }
-    state leg3(main: &mut Main) {
+    machine leg3(main: &mut Main) {
         let both: bool = TextBuffer::equal(&main.never, TextBuffer::view(&main.also_never));
         transition both {
             true -> good(main)
             _ -> wrong_zii_pair(main)
         }
     }
-    state good(main: &mut Main)              { Console::exit_process(70); }
-    state wrong_zii_empty(main: &mut Main)   { Console::exit_process(71); }
-    state wrong_zii_nonempty(main: &mut Main){ Console::exit_process(72); }
-    state wrong_zii_pair(main: &mut Main)    { Console::exit_process(73); }
+    machine good(main: &mut Main)              { Console::exit_process(70); }
+    machine wrong_zii_empty(main: &mut Main)   { Console::exit_process(71); }
+    machine wrong_zii_nonempty(main: &mut Main){ Console::exit_process(72); }
+    machine wrong_zii_pair(main: &mut Main)    { Console::exit_process(73); }
 }
 
 // A variable-fill value explicitly owns its fixed storage and live length.
@@ -47,8 +47,8 @@ machine TextBuffer::view(buffer: &TextBuffer) -> &[u8] in Utf8 crashes Trap {
         true -> checked(bytes)
         false -> bad()
     }
-    state checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
-    state bad() { crash Trap; }
+    machine checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
+    machine bad() -> &[u8] in Utf8 { crash Trap; }
 }
 machine TextBuffer::equal(buffer: &TextBuffer, expected: &[u8]) -> bool crashes Trap {
     let bytes: &[u8] in Utf8 = TextBuffer::view(buffer);

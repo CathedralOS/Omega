@@ -3,7 +3,7 @@ use omega_language_std::console;
 data Cells { values: [i32; 3]; checksum: i32; }
 machine update(cells: Cells, value: i32) -> Cells {
     transition { _ -> change(cells, value) }
-    state change(cells: Cells, value: i32) -> Cells {
+    machine change(cells: Cells, value: i32) -> Cells {
         let mut completed: Cells = cells;
         completed.values[2] = value;
         completed.checksum = value;
@@ -18,8 +18,8 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> done()
         _ -> failed()
     }
-    state done() { Console::exit_process(70); }
-    state failed() { Console::exit_process(71); }
+    machine done() { Console::exit_process(70); }
+    machine failed() { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

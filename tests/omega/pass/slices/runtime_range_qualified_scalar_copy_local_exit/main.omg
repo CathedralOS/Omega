@@ -6,5 +6,5 @@ machine main() crashes Trap {
  let mut items:[i32 in Small;3]; items[0]=11; items[1]=39; items[2]=13;
  let view:&[i32 in Small]=&items[..]; let chosen:i32 in Small=copy(view,1);items[1]=27;
  transition chosen==39 && items[0]==11 && items[1]==27 && items[2]==13 {true->done() _->bad()}
- state done(){} state bad(){crash Trap;}
+ machine done(){} machine bad(){crash Trap;}
 }

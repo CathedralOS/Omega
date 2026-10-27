@@ -21,7 +21,7 @@ machine replaced(values: &[Cell]) -> bool {
         true -> inspect(values)
         false -> false
     }
-    state inspect(values: &[Cell]) -> bool requires values.len == 2 {
+    machine inspect(values: &[Cell]) -> bool requires values.len == 2 {
         values[0].value == 42 && values[0].tag == 7 && values[1].value == 19 && values[1].tag == 29
     }
 }
@@ -31,7 +31,7 @@ machine unchanged(values: &[Cell]) -> bool {
         true -> inspect(values)
         false -> false
     }
-    state inspect(values: &[Cell]) -> bool requires values.len == 1 {
+    machine inspect(values: &[Cell]) -> bool requires values.len == 1 {
         values[0].value == 31 && values[0].tag == 41
     }
 }
@@ -55,8 +55,8 @@ machine exercise() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 machine main() crashes Trap { exercise(); }

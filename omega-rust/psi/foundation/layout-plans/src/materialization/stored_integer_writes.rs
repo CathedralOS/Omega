@@ -108,6 +108,33 @@ pub(crate) fn validate_stored_integer_value(
     validate_stored_integer_bits(entry, value.width_bits, value.value, "scalar")
 }
 
+/// Whether an authored scalar carrier width is well formed: a nonzero byte
+/// multiple of at most 64 bits. The materializer's own containers, an authored
+/// stored-integer width, and a decode schema's carrier all read this one
+/// vocabulary.
+pub(crate) const fn byte_sized_width(width_bits: u16) -> bool {
+    width_bits != 0 && width_bits <= 64 && width_bits % 8 == 0
+}
+
+/// Whether `source_value` — masked to its own carrier — lands inside the
+/// authored stored-integer storage. The interval comes from the
+/// interpretation's own [`IntegerInterpretation::stored_bounds`]; recomputing
+/// it as bit arithmetic here is how the materializer, the replay validator and
+/// the decoder drifted apart.
+pub(crate) fn stored_value_fits(
+    interpretation: IntegerInterpretation,
+    stored_width_bits: u16,
+    source_width_bits: u16,
+    source_value: u64,
+) -> bool {
+    let (minimum, maximum) = interpretation.stored_bounds(u64::from(stored_width_bits));
+    let semantic = match interpretation {
+        IntegerInterpretation::Signed => signed_bits(source_value, source_width_bits),
+        IntegerInterpretation::Unsigned => i128::from(source_value),
+    };
+    semantic >= minimum && semantic <= maximum
+}
+
 fn validate_stored_integer_bits(
     entry: &LayoutFieldEntryReport,
     source_width_bits: u16,
@@ -128,7 +155,7 @@ fn validate_stored_integer_bits(
             entry.field,
         ))
     })?;
-    if stored_width == 0 || stored_width > 64 || !stored_width.is_multiple_of(8) {
+    if !byte_sized_width(stored_width) {
         return Err(MaterializationDiagnostic(format!(
             "{value_kind} field `{}` has an invalid {stored_width}-bit stored-integer width",
             entry.field
@@ -141,15 +168,12 @@ fn validate_stored_integer_bits(
         )));
     }
 
-    let fits = match interpretation {
-        IntegerInterpretation::Signed => {
-            let semantic = signed_bits(source_value, source_width_bits);
-            let magnitude = 1_i128 << (stored_width - 1);
-            semantic >= -magnitude && semantic < magnitude
-        }
-        IntegerInterpretation::Unsigned => source_value <= low_mask(stored_width),
-    };
-    if !fits {
+    if !stored_value_fits(
+        interpretation,
+        stored_width,
+        source_width_bits,
+        source_value,
+    ) {
         return Err(MaterializationDiagnostic(format!(
             "{value_kind} field `{}` value {source_value:#x} does not fit its {stored_width}-bit {} storage",
             entry.field,
@@ -186,15 +210,12 @@ pub fn validate_stored_integer_fit(
         interpretation,
     } = fit;
 
-    let fits = match interpretation {
-        IntegerInterpretation::Signed => {
-            let semantic = signed_bits(source_value, source_width_bits);
-            let magnitude = 1_i128 << (stored_width_bits - 1);
-            semantic >= -magnitude && semantic < magnitude
-        }
-        IntegerInterpretation::Unsigned => source_value <= low_mask(stored_width_bits),
-    };
-    if !fits {
+    if !stored_value_fits(
+        interpretation,
+        stored_width_bits,
+        source_width_bits,
+        source_value,
+    ) {
         return Err(MaterializationDiagnostic(format!(
             "{value_kind} field `{field}` value {source_value:#x} does not fit its {stored_width_bits}-bit {} storage",
             match interpretation {
@@ -221,11 +242,7 @@ pub fn validate_stored_integer_fit_shape(
             "{value_kind} field `{field}` has an invalid {source_width_bits}-bit source width"
         )));
     }
-    if stored_width_bits == 0
-        || stored_width_bits > 64
-        || !stored_width_bits.is_multiple_of(8)
-        || source_width_bits < stored_width_bits
-    {
+    if !byte_sized_width(stored_width_bits) || source_width_bits < stored_width_bits {
         return Err(MaterializationDiagnostic(format!(
             "{value_kind} field `{field}` has an invalid {stored_width_bits}-bit stored-integer fit constraint"
         )));

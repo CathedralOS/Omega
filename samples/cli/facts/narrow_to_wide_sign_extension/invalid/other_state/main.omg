@@ -8,7 +8,7 @@ machine evaluate() -> i32 {
     let sum: i64 = s8 + s16 + s32;
     let val: u64 = sum as u64;
     transition { _ -> compute(val) }
-    state compute(extended: u64) -> i32 {
+    machine compute(extended: u64) -> i32 {
         let sub: u64 = extended - 100u64;
         sub as i32
     }
@@ -20,6 +20,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

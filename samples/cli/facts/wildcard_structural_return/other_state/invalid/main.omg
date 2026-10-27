@@ -20,7 +20,7 @@ machine consume(packet: Packet) -> u64 {
 }
 machine evaluate(packet: Packet) -> u64 {
     transition { _ -> next(packet) }
-    state next(packet: Packet) -> u64 { consume(packet) }
+    machine next(packet: Packet) -> u64 { consume(packet) }
 }
 machine main() crashes Trap {
     let mut counter: u64 = 0;
@@ -31,6 +31,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

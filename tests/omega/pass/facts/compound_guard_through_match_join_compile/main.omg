@@ -11,10 +11,10 @@ machine Main::main(main: &mut Main) {
         true -> put(main)
         _ -> done(main)
     }
-    state put(main: &mut Main) {
+    machine put(main: &mut Main) {
         let a: i32 in Wrapping = match main.hits == 0 { true -> main.a, false -> main.a };
         main.grid[main.b * 20 + a] = 7;
         main.hits = 1;
     }
-    state done(main: &mut Main) { main.hits = -1; }
+    machine done(main: &mut Main) { main.hits = -1; }
 }

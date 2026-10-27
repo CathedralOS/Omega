@@ -22,16 +22,18 @@ pub(crate) fn encode_application(
     encoder: &mut Encoder,
     application: &PackagePolicyCallingPlan,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("boundary_trait", |encoder| {
-        encode_nominal(encoder, &application.boundary_trait)
-    })?;
+    encoder.field_by(
+        "boundary_trait",
+        &application.boundary_trait,
+        encode_nominal,
+    )?;
     encoder.field("boundary_arguments", |encoder| {
         encoder.sequence(&application.boundary_arguments, type_identity)
     })?;
-    encoder.field("boundary_lifetime_parameter_count", |encoder| {
-        encoder.u32(application.boundary_lifetime_parameter_count);
-        Ok(())
-    })?;
+    encoder.u32_field(
+        "boundary_lifetime_parameter_count",
+        application.boundary_lifetime_parameter_count,
+    )?;
     encoder.field("boundary_lifetime_arguments", |encoder| {
         encoder.sequence(
             &application.boundary_lifetime_arguments,
@@ -41,26 +43,26 @@ pub(crate) fn encode_application(
             },
         )
     })?;
-    encoder.field("application_lifetime_parameter_count", |encoder| {
-        encoder.u32(application.application_lifetime_parameter_count);
-        Ok(())
-    })?;
-    encoder.field("requirement", |encoder| {
-        encode_nominal(encoder, &application.requirement)
-    })?;
-    encoder.field("requirement_trait", |encoder| {
-        encode_nominal(encoder, &application.requirement_trait)
-    })?;
+    encoder.u32_field(
+        "application_lifetime_parameter_count",
+        application.application_lifetime_parameter_count,
+    )?;
+    encoder.field_by("requirement", &application.requirement, encode_nominal)?;
+    encoder.field_by(
+        "requirement_trait",
+        &application.requirement_trait,
+        encode_nominal,
+    )?;
     encoder.field("requirement_arguments", |encoder| {
         encoder.sequence(&application.requirement_arguments, type_identity)
     })?;
     encoder.field("requirement_lifetime_arguments", |encoder| {
         encoder.sequence(&application.requirement_lifetime_arguments, ordinal)
     })?;
-    encoder.field("requirement_lifetime_parameter_count", |encoder| {
-        encoder.u32(application.requirement_lifetime_parameter_count);
-        Ok(())
-    })?;
+    encoder.u32_field(
+        "requirement_lifetime_parameter_count",
+        application.requirement_lifetime_parameter_count,
+    )?;
     encoder.field("static_parameters", |encoder| {
         encoder.sequence(&application.static_parameters, encode_type_parameter)
     })?;
@@ -68,27 +70,18 @@ pub(crate) fn encode_application(
         encode_representation_target(encoder, application.target);
         Ok(())
     })?;
-    encoder.field("shape_graph", |encoder| {
-        encode_boundary_shape_graph(encoder, &application.shape_graph)
-    })?;
+    encoder.field_by(
+        "shape_graph",
+        &application.shape_graph,
+        encode_boundary_shape_graph,
+    )?;
     encoder.field("semantic_parameters", |encoder| {
         encoder.sequence(&application.semantic_parameters, |encoder, parameter| {
             encoder.field("name", |encoder| encoder.string(&parameter.name))?;
-            encoder.field("value_type", |encoder| {
-                type_identity(encoder, &parameter.value_type)
-            })?;
-            encoder.field("is_mutable", |encoder| {
-                encoder.boolean(parameter.is_mutable);
-                Ok(())
-            })?;
-            encoder.field("is_const", |encoder| {
-                encoder.boolean(parameter.is_const);
-                Ok(())
-            })?;
-            encoder.field("shape_root", |encoder| {
-                encoder.u16(parameter.shape_root);
-                Ok(())
-            })?;
+            encoder.field_by("value_type", &parameter.value_type, type_identity)?;
+            encoder.boolean_field("is_mutable", parameter.is_mutable)?;
+            encoder.boolean_field("is_const", parameter.is_const)?;
+            encoder.u16_field("shape_root", parameter.shape_root)?;
             Ok(())
         })
     })?;
@@ -105,14 +98,8 @@ pub(crate) fn encode_application(
                         shape_root,
                     } => {
                         encoder.tag("semantic_formal", 0);
-                        encoder.field("formal_ordinal", |encoder| {
-                            encoder.u32(formal_ordinal);
-                            Ok(())
-                        })?;
-                        encoder.field("shape_root", |encoder| {
-                            encoder.u16(shape_root);
-                            Ok(())
-                        })?;
+                        encoder.u32_field("formal_ordinal", formal_ordinal)?;
+                        encoder.u16_field("shape_root", shape_root)?;
                     }
                     PackagePolicyNativeParameterOrigin::PrivateCallback {
                         binder_index,
@@ -120,18 +107,9 @@ pub(crate) fn encode_application(
                         alignment,
                     } => {
                         encoder.tag("private_callback", 1);
-                        encoder.field("binder_index", |encoder| {
-                            encoder.u32(binder_index);
-                            Ok(())
-                        })?;
-                        encoder.field("byte_size", |encoder| {
-                            encoder.u16(byte_size);
-                            Ok(())
-                        })?;
-                        encoder.field("alignment", |encoder| {
-                            encoder.u16(alignment);
-                            Ok(())
-                        })?;
+                        encoder.u32_field("binder_index", binder_index)?;
+                        encoder.u16_field("byte_size", byte_size)?;
+                        encoder.u16_field("alignment", alignment)?;
                     }
                 };
                 Ok(())
@@ -139,13 +117,9 @@ pub(crate) fn encode_application(
             Ok(())
         })
     })?;
-    encoder.field("callbacks", |encoder| {
-        callbacks::encode(encoder, &application.callbacks)
-    })?;
+    encoder.field_by("callbacks", &application.callbacks, callbacks::encode)?;
     encoder.field("opaque_uses", |encoder| {
         encoder.sequence(&application.opaque_uses, opaque::encode)
     })?;
-    encoder.field("physical", |encoder| {
-        encode_physical(encoder, &application.physical)
-    })
+    encoder.field_by("physical", &application.physical, encode_physical)
 }

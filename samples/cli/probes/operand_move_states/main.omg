@@ -26,15 +26,15 @@ machine Main::main(main: &mut Main) {
     let carried: Token = Token { code: first };
     transition { _ -> holding(main, carried) }
 
-    state holding(main: &mut Main, held: Token) {
+    machine holding(main: &mut Main, held: Token) {
         let total: i32 = settle(Pair { left: held, right: Token { code: 4 } });
         transition total == 7 {
             true -> pass(main)
             _ -> fail(main)
         }
     }
-    state pass(main: &mut Main) { main.hits = 1; }
-    state fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: &mut Main) { main.hits = 1; }
+    machine fail(main: &mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

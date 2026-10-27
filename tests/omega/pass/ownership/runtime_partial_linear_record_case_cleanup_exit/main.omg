@@ -44,7 +44,7 @@ machine consume(value: Holder) -> u32 {
         Slot::Empty -> 0
         Slot::Held { token } -> finish(token)
     }
-    state finish(token: Token) -> u32 {
+    machine finish(token: Token) -> u32 {
         let value: u32 = token.value;
         drop(token);
         value
@@ -65,8 +65,8 @@ machine consume_mixed(value: Mixed) -> u64 {
         Slot::Empty -> empty_value(required)
         Slot::Held { token } -> finish(required, token)
     }
-    state empty_value(required: u32) -> u64 { required as u64 }
-    state finish(required: u32, token: Token) -> u64 {
+    machine empty_value(required: u32) -> u64 { required as u64 }
+    machine finish(required: u32, token: Token) -> u64 {
         let payload: u32 = token.value;
         drop(token);
         (required as u64) + (payload as u64)
@@ -102,6 +102,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

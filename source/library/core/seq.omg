@@ -63,7 +63,7 @@ terminates by items;
         )
     }
 
-    state choose(keep: bool, head: T, tail: Seq<T>) -> Seq<T> {
+    machine choose(keep: bool, head: T, tail: Seq<T>) -> Seq<T> {
         transition keep {
             true -> Seq::Cons { head: head, tail: tail }
             false -> tail
@@ -185,7 +185,7 @@ ensures
         Seq::Cons { head, tail } -> lr_step(head, tail)
     }
 
-    state lr_step(head: u64, tail: Seq<u64>) -> Nat {
+    machine lr_step(head: u64, tail: Seq<u64>) -> Nat {
         _ = length_append(reverse(tail), Seq::Cons { head: head, tail: Seq::Empty });
         _ = add_succ_law(length(tail), Nat::Zero);
         add_zero_right(length(tail));
@@ -213,12 +213,12 @@ ensures
         Seq::Cons { head, tail } -> ra_step(head, tail, t)
     }
 
-    state ra_base(t: Seq<u64>) -> Seq<u64> {
+    machine ra_base(t: Seq<u64>) -> Seq<u64> {
         _ = append_empty_right(reverse(t));
         transition { _ -> (reverse(t)) }
     }
 
-    state ra_step(head: u64, tail: Seq<u64>, t: Seq<u64>) -> Seq<u64> {
+    machine ra_step(head: u64, tail: Seq<u64>, t: Seq<u64>) -> Seq<u64> {
         let ih: Seq<u64> = reverse_append(tail, t);
         _ = append_assoc(reverse(t), reverse(tail), Seq::Cons { head: head, tail: Seq::Empty });
         transition { _ -> (append(ih, Seq::Cons { head: head, tail: Seq::Empty })) }
@@ -241,7 +241,7 @@ ensures
         Seq::Cons { head, tail } -> rr_step(head, tail)
     }
 
-    state rr_step(head: u64, tail: Seq<u64>) -> Seq<u64> {
+    machine rr_step(head: u64, tail: Seq<u64>) -> Seq<u64> {
         _ = reverse_append(reverse(tail), Seq::Cons { head: head, tail: Seq::Empty });
         transition { _ -> Seq::Cons { head: head, tail: reverse_reverse(tail) } }
     }

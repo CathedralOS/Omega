@@ -18,5 +18,5 @@ invokes Sink;
     Sink::emit(3);
     let seen: i32 = Sink::last();
     transition { _ -> done(main, seen) }
-    state done(main: &mut Main, kept: i32) { }
+    machine done(main: &mut Main, kept: i32) { }
 }

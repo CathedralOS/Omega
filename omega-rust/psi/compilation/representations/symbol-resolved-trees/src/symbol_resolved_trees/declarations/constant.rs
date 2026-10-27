@@ -20,6 +20,9 @@ pub struct ConstDeclaration {
     pub authored_initializer: crate::expression::ExpressionHandle,
     /// Declaration-side source occurrence, independent of each use-site copy.
     pub initializer_source_span: source::SourceSpan,
+    /// The initializer depends on target-selected meaning and cannot be folded
+    /// before the selected realization is available.
+    pub pending_target_observation: bool,
     /// Completed semantic value. An encoding is available only when its bits
     /// are determined; generic-index eligibility remains a separate judgment.
     pub evaluated_value: Option<language_core::constant_value::EvaluatedConstant>,

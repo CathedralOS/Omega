@@ -413,9 +413,7 @@ fn grouped_carrier_loans(mut loans: Vec<StatementBorrowLoan>) -> Vec<StatementBo
             // Equal current alternatives share their immediate predecessor
             // edges. Keep a DAG rather than copying every route's history.
             for supplier in loan.supplying_loans {
-                if !previous.supplying_loans.contains(&supplier) {
-                    previous.supplying_loans.push(supplier);
-                }
+                crate::collections::push_unique(&mut previous.supplying_loans, supplier);
             }
         } else {
             grouped.push(loan);

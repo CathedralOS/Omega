@@ -7,7 +7,7 @@ machine inspect(main: &Main, position: u64) -> u8 {
         true -> selected(main, position)
         _ -> 0
     }
-    state selected(main: &Main, position: u64) -> u8 {
+    machine selected(main: &Main, position: u64) -> u8 {
         take(&main.bytes[position].value)
     }
 }
@@ -20,8 +20,8 @@ machine Main::main(main: &mut Main) crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

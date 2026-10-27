@@ -202,6 +202,7 @@ impl ExpressionTable {
                 let receiver = self.copy_optional_subtree(source, call.receiver, copies);
                 let arguments = self.copy_expression_span(source, call.arguments, copies);
                 self.insert(ExpressionNode::Call(TableCallExpression {
+                    authored_call_binding: call.authored_call_binding,
                     receiver,
                     target_symbol: call.target_symbol,
                     target: call.target,

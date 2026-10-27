@@ -31,7 +31,7 @@ reaches
         true -> create(class_name, title, style, x, y, outer_width, outer_height)
         _ -> empty_window()
     }
-    state create(class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i64, height: i64) -> Window
+    machine create(class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i64, height: i64) -> Window
     requires width > 0 && width <= 2147483647 && height > 0 && height <= 2147483647 {
         macos_window_create(class_name, &title[0], style, x, y, width as i32, height as i32)
     }
@@ -46,11 +46,11 @@ reaches
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
     ProcessOutput + ProcessExit invokes WindowsGuiHost; {
     transition device != 0 { true -> release(window, device) _ -> destroy(window, true) }
-    state release(window: Window, device: u64) -> bool {
+    machine release(window: Window, device: u64) -> bool {
         let released: i32 = WindowsGuiHost::release_dc(window.window, device);
         transition { _ -> destroy(window, released == 1) }
     }
-    state destroy(window: Window, released: bool) -> bool {
+    machine destroy(window: Window, released: bool) -> bool {
         let destroyed: bool = WindowsGuiHost::window_destroy(window.window);
         let alive: bool = WindowsGuiHost::is_window(window.window);
         released && destroyed && !alive
@@ -65,7 +65,7 @@ reaches
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
     ProcessOutput + ProcessExit invokes CoreGraphics; invokes ObjectiveC; {
     transition window.pool != 0 { true -> close(window) _ -> (true) }
-    state close(window: Window) -> bool {
+    machine close(window: Window) -> bool {
         macos_window_destroy(window);
         true
     }
@@ -93,7 +93,7 @@ reaches
     ProcessOutput + ProcessExit invokes WindowsGuiHost; {
     let present: bool = WindowsGuiHost::pump_message(message);
     transition present { true -> inspect(window_state, message, close_requested) _ -> (0) }
-    state inspect(window_state: &Window, message: &WindowsMessage, close_requested: &mut bool) -> u32 {
+    machine inspect(window_state: &Window, message: &WindowsMessage, close_requested: &mut bool) -> u32 {
         let target: u64 = WindowsMessage::window(message);
         let kind: u64 = WindowsMessage::kind(message);
         let command: u64 = WindowsMessage::word_parameter(message) & 65535;
@@ -104,7 +104,7 @@ reaches
             _ -> (1)
         }
     }
-    state cancel(close_requested: &mut bool) -> u32 {
+    machine cancel(close_requested: &mut bool) -> u32 {
         close_requested = true;
         1
     }
@@ -120,7 +120,7 @@ reaches
     let scratch: [u64; 6] = [0, 0, 0, 0, 0, 0];
     let present: u32 = macos_window_msg_peek(window_state, scratch);
     transition present != 0 { true -> dispatch(window_state, scratch) _ -> (0) }
-    state dispatch(window_state: &Window, scratch: [u64; 6]) -> u32 {
+    machine dispatch(window_state: &Window, scratch: [u64; 6]) -> u32 {
         let translated: u32 = macos_window_msg_translate(window_state, scratch);
         let dispatched: u64 = macos_window_msg_dispatch(window_state, scratch);
         1
@@ -160,13 +160,13 @@ reaches
         true -> copy(device, dest_width, dest_height, source_width, source_height, pixels, info)
         _ -> (0)
     }
-    state copy(device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32
+    machine copy(device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32
     requires dest_width <= 2147483647 && dest_height <= 2147483647 && source_width <= 2147483647 && source_height <= 2147483647 {
         let copied: i32 = WindowsGuiHost::stretch_dibits(device, 0, 0, dest_width as i32, dest_height as i32,
             0, 0, source_width as i32, source_height as i32, &pixels[0], &info[0], 0, 13369376);
         transition copied > 0 { true -> result(copied) _ -> (0) }
     }
-    state result(copied: i32) -> u32 requires copied > 0 { copied as u32 }
+    machine result(copied: i32) -> u32 requires copied > 0 { copied as u32 }
 }
 public macos_arm64 machine demo_blit(window_state: &Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32
 reaches

@@ -29,7 +29,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Reading::Missing -> bad_literal(main)
     }
 
-    state copied(main: &mut Main, amount: u32) {
+    machine copied(main: &mut Main, amount: u32) {
         adopt(&mut main.reading, Reading::Missing);
         transition amount == 41 {
             true -> check_copy(main)
@@ -37,22 +37,22 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state check_copy(main: &mut Main) {
+    machine check_copy(main: &mut Main) {
         transition main.reading {
             Reading::Missing -> good(main)
             Reading::Level { amount } -> bad_copy(main)
         }
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::exit_process(70);
     }
 
-    state bad_literal(main: &mut Main) {
+    machine bad_literal(main: &mut Main) {
         Console::exit_process(71);
     }
 
-    state bad_copy(main: &mut Main) {
+    machine bad_copy(main: &mut Main) {
         Console::exit_process(72);
     }
 }

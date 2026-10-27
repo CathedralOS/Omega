@@ -55,18 +55,18 @@ machine Main::main(main: &mut Main) reaches Console {
     // mix_a(1): arm _ -> supply.second -> left=249 expected
     let a: u64 = mix_a(1);
     transition a == 249 { true -> a_ok(main) _ -> exit(main, 81) }
-    state a_ok(main: &mut Main) {
+    machine a_ok(main: &mut Main) {
         // mix_b(1): arm _ -> pair.second -> left=8 expected
         let b: u64 = mix_b(1);
         transition b == 8 { true -> b_ok(main) _ -> exit(main, 82) }
     }
-    state b_ok(main: &mut Main) {
+    machine b_ok(main: &mut Main) {
         // mix_c(1): arm _ -> pair.second -> left=8 expected
         let c: u64 = mix_c(1);
         transition c == 8 { true -> c_ok(main) _ -> exit(main, 83) }
     }
-    state c_ok(main: &mut Main) { Console::exit_process(70); }
-    state exit(main: &mut Main, code: u64) { Console::exit_process(code as i32); }
+    machine c_ok(main: &mut Main) { Console::exit_process(70); }
+    machine exit(main: &mut Main, code: u64) { Console::exit_process(code as i32); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

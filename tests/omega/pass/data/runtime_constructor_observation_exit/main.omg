@@ -7,7 +7,7 @@ data Main { value: Bounded; }
 
 machine Main::main(context: &mut Main) reaches Console {
     transition { _ -> prepare(context, 6) }
-    state prepare(context: &mut Main, remaining: u64)
+    machine prepare(context: &mut Main, remaining: u64)
         requires remaining <= 6
     {
         transition remaining > 0 {
@@ -15,7 +15,7 @@ machine Main::main(context: &mut Main) reaches Console {
             false -> failed(context)
         }
     }
-    state finish(context: &mut Main, supplied: Bounded) {
+    machine finish(context: &mut Main, supplied: Bounded) {
         let mut current: u64 = 9;
         current = 5;
         context.value = Bounded { value: current };
@@ -24,8 +24,8 @@ machine Main::main(context: &mut Main) reaches Console {
             false -> failed(context)
         }
     }
-    state passed(context: &mut Main) { Console::exit_process(70); }
-    state failed(context: &mut Main) { Console::exit_process(1); }
+    machine passed(context: &mut Main) { Console::exit_process(70); }
+    machine failed(context: &mut Main) { Console::exit_process(1); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

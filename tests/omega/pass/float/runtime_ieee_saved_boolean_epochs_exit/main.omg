@@ -12,8 +12,8 @@ machine disjoint(value: f64) -> i32 {
         false -> finish(I32::from_f64(reading.value))
         true -> zero()
     }
-    state finish(observed: i32) -> i32 { observed }
-    state zero() -> i32 { 0 }
+    machine finish(observed: i32) -> i32 { observed }
+    machine zero() -> i32 { 0 }
 }
 
 // A copied scalar retains its old value after the original storage is written.
@@ -26,22 +26,22 @@ machine snapshot(value: f64) -> i32 {
         true -> finish(I32::from_f64(copied))
         false -> zero()
     }
-    state finish(observed: i32) -> i32 { observed }
-    state zero() -> i32 { 0 }
+    machine finish(observed: i32) -> i32 { observed }
+    machine zero() -> i32 { 0 }
 }
 
 // The Boolean and its observed subject cross the same explicit state edge.
 machine forwarded(value: f64) -> i32 {
     let accepted: bool = value == value && value >= 0.0 && value < 1000000000.0;
     transition { _ -> decide(accepted, value) }
-    state decide(accepted: bool, value: f64) -> i32 {
+    machine decide(accepted: bool, value: f64) -> i32 {
         transition accepted {
             true -> finish(I32::from_f64(value))
             false -> zero()
         }
     }
-    state finish(observed: i32) -> i32 { observed }
-    state zero() -> i32 { 0 }
+    machine finish(observed: i32) -> i32 { observed }
+    machine zero() -> i32 { 0 }
 }
 
 machine main() crashes Trap {
@@ -53,6 +53,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

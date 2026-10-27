@@ -17,7 +17,7 @@ machine observe_flag() -> bool {
 
 machine observe() -> u64 {
     transition { _ -> next(word()) }
-    state next(selected: Choice<u64>) {
+    machine next(selected: Choice<u64>) -> u64 {
     transition selected {
         Choice::Value { value } -> value
         Choice::Empty -> 0
@@ -33,8 +33,8 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine observe_empty() -> u64 {
     transition empty() {

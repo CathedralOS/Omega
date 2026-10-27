@@ -79,13 +79,13 @@ machine scope() reaches Console crashes Trap {
  let room: Room = Room { count: 10 };
  let younger: Marker = Marker { byte: 66 };
  transition { _ -> observe(&mut room) }
- state observe(room: &mut Room) {
+ machine observe(room: &mut Room) {
   let newest: Marker = Marker { byte: 67 };
   Console::write_byte(79);
   crash Trap;
  }
- state again(room: &mut Room) { Console::write_byte(82); }
- state bad() { crash Trap; }
+ machine again(room: &mut Room) { Console::write_byte(82); }
+ machine bad() { crash Trap; }
 }
 data Main {} machine Main::main(main: &mut Main) reaches Console crashes Trap { scope(); }
 

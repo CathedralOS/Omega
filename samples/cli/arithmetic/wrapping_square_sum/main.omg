@@ -20,11 +20,11 @@
 machine main() {
     transition { _ -> loop_(0, 1) }
 
-    state loop_(acc: u64 in Wrapping, i: u64 in Wrapping) {
+    machine loop_(acc: u64 in Wrapping, i: u64 in Wrapping) {
         transition i <= 2000000 { true -> step(acc, i) _ -> done() }
     }
-    state step(acc: u64 in Wrapping, i: u64 in Wrapping) {
+    machine step(acc: u64 in Wrapping, i: u64 in Wrapping) {
         transition { _ -> loop_(acc + i * i, i + 1) }
     }
-    state done() {}
+    machine done() {}
 }

@@ -13,5 +13,5 @@ machine Main::main(main: &mut Main) {
     main.interval.hi = 0;
     transition { _ -> finish() }
 
-    state finish() { }
+    machine finish() { }
 }

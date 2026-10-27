@@ -87,28 +87,28 @@ machine Main::check_common_fields(main: &mut Main) reaches Console {
         false -> fail(main, 1)
     }
 
-    state unnamed_common_zero(main: &mut Main) {
+    machine unnamed_common_zero(main: &mut Main) {
         transition main.event.bonus == 0 {
             true -> payload_beside_common(main)
             false -> fail(main, 2)
         }
     }
 
-    state payload_beside_common(main: &mut Main) {
+    machine payload_beside_common(main: &mut Main) {
         transition main.event {
             Event::Treasure { consumed as _, bonus as _, gold } -> treasure_gold(main, gold)
             _ -> fail(main, 3)
         }
     }
 
-    state treasure_gold(main: &mut Main, gold: i32) {
+    machine treasure_gold(main: &mut Main, gold: i32) {
         transition gold == 50 {
             true -> store_common(main)
             false -> fail(main, 4)
         }
     }
 
-    state store_common(main: &mut Main) {
+    machine store_common(main: &mut Main) {
         main.event.bonus = 9;
         transition main.event {
             Event::Treasure { consumed as _, bonus as _, gold } -> stored_common(main, gold)
@@ -116,7 +116,7 @@ machine Main::check_common_fields(main: &mut Main) reaches Console {
         }
     }
 
-    state stored_common(main: &mut Main, gold: i32) {
+    machine stored_common(main: &mut Main, gold: i32) {
         transition gold == 50 && main.event.bonus == 9 && main.event.consumed {
             true -> replace_case(main)
             false -> fail(main, 6)
@@ -124,7 +124,7 @@ machine Main::check_common_fields(main: &mut Main) reaches Console {
     }
 
     // The replacement names no common field: both read zero afterwards.
-    state replace_case(main: &mut Main) {
+    machine replace_case(main: &mut Main) {
         main.event = Event::Fight { strength: 3, speed: 4 };
         transition main.event.bonus == 0 && !main.event.consumed {
             true -> fight_payload(main)
@@ -132,21 +132,21 @@ machine Main::check_common_fields(main: &mut Main) reaches Console {
         }
     }
 
-    state fight_payload(main: &mut Main) {
+    machine fight_payload(main: &mut Main) {
         transition main.event {
             Event::Fight { consumed as _, bonus as _, strength, speed } -> fight_values(main, strength, speed)
             _ -> fail(main, 8)
         }
     }
 
-    state fight_values(main: &mut Main, strength: i32, speed: i32) {
+    machine fight_values(main: &mut Main, strength: i32, speed: i32) {
         transition strength == 3 && speed == 4 {
             true -> payload_free_bare(main)
             false -> fail(main, 8)
         }
     }
 
-    state payload_free_bare(main: &mut Main) {
+    machine payload_free_bare(main: &mut Main) {
         main.event = Event::Nothing;
         transition main.event {
             Event::Nothing -> payload_free_named(main)
@@ -154,7 +154,7 @@ machine Main::check_common_fields(main: &mut Main) reaches Console {
         }
     }
 
-    state payload_free_named(main: &mut Main) {
+    machine payload_free_named(main: &mut Main) {
         main.event = Event::Nothing { bonus: 12 };
         transition main.event {
             Event::Nothing -> payload_free_common(main, main.event.bonus)
@@ -162,15 +162,15 @@ machine Main::check_common_fields(main: &mut Main) reaches Console {
         }
     }
 
-    state payload_free_common(main: &mut Main, bonus: i32) {
+    machine payload_free_common(main: &mut Main, bonus: i32) {
         transition bonus == 12 {
             true -> done()
             false -> fail(main, 10)
         }
     }
 
-    state done() {}
-    state fail(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine done() {}
+    machine fail(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 machine Main::check_closed_payloads(main: &mut Main) reaches Console {
@@ -180,14 +180,14 @@ machine Main::check_closed_payloads(main: &mut Main) reaches Console {
         _ -> fail(main, 11)
     }
 
-    state scalar_value(main: &mut Main, amount: i32) {
+    machine scalar_value(main: &mut Main, amount: i32) {
         transition amount == 7 {
             true -> payload_free(main)
             false -> fail(main, 11)
         }
     }
 
-    state payload_free(main: &mut Main) {
+    machine payload_free(main: &mut Main) {
         main.command = Command::Off;
         transition main.command {
             Command::Off -> multiple(main)
@@ -195,7 +195,7 @@ machine Main::check_closed_payloads(main: &mut Main) reaches Console {
         }
     }
 
-    state multiple(main: &mut Main) {
+    machine multiple(main: &mut Main) {
         main.command = Command::Pair { low: 1, high: 2 };
         transition main.command {
             Command::Pair { low, high } -> multiple_values(main, low, high)
@@ -203,14 +203,14 @@ machine Main::check_closed_payloads(main: &mut Main) reaches Console {
         }
     }
 
-    state multiple_values(main: &mut Main, low: i32, high: i32) {
+    machine multiple_values(main: &mut Main, low: i32, high: i32) {
         transition low == 1 && high == 2 {
             true -> record(main)
             false -> fail(main, 13)
         }
     }
 
-    state record(main: &mut Main) {
+    machine record(main: &mut Main) {
         main.command = Command::Place { at: Point { x: 5, y: 6 } };
         transition main.command {
             Command::Place { at } -> record_values(main, at)
@@ -218,15 +218,15 @@ machine Main::check_closed_payloads(main: &mut Main) reaches Console {
         }
     }
 
-    state record_values(main: &mut Main, at: Point) {
+    machine record_values(main: &mut Main, at: Point) {
         transition at.x == 5 && at.y == 6 {
             true -> done()
             false -> fail(main, 15)
         }
     }
 
-    state done() {}
-    state fail(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine done() {}
+    machine fail(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 machine Main::store_local_event(main: &mut Main) {
@@ -256,14 +256,14 @@ machine Main::check_local_stores(main: &mut Main) reaches Console {
         _ -> fail(main, 16)
     }
 
-    state mixed_values(main: &mut Main, gold: i32) {
+    machine mixed_values(main: &mut Main, gold: i32) {
         transition gold == 8 && main.event.bonus == 3 && main.event.consumed {
             true -> closed_scalar(main)
             false -> fail(main, 17)
         }
     }
 
-    state closed_scalar(main: &mut Main) {
+    machine closed_scalar(main: &mut Main) {
         Main::store_local_dim(main);
         transition main.command {
             Command::Dim { amount } -> closed_value(main, amount)
@@ -271,14 +271,14 @@ machine Main::check_local_stores(main: &mut Main) reaches Console {
         }
     }
 
-    state closed_value(main: &mut Main, amount: i32) {
+    machine closed_value(main: &mut Main, amount: i32) {
         transition amount == 21 {
             true -> closed_multiple(main)
             false -> fail(main, 18)
         }
     }
 
-    state closed_multiple(main: &mut Main) {
+    machine closed_multiple(main: &mut Main) {
         Main::store_local_pair(main);
         transition main.command {
             Command::Pair { low, high } -> multiple_values(main, low, high)
@@ -286,15 +286,15 @@ machine Main::check_local_stores(main: &mut Main) reaches Console {
         }
     }
 
-    state multiple_values(main: &mut Main, low: i32, high: i32) {
+    machine multiple_values(main: &mut Main, low: i32, high: i32) {
         transition low == 30 && high == 40 {
             true -> done()
             false -> fail(main, 19)
         }
     }
 
-    state done() {}
-    state fail(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine done() {}
+    machine fail(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 machine Main::check_erased_member(main: &mut Main) reaches Console {
@@ -304,15 +304,15 @@ machine Main::check_erased_member(main: &mut Main) reaches Console {
         Certified::Pending -> fail(main, 20)
     }
 
-    state erased_value(main: &mut Main, value: i32) {
+    machine erased_value(main: &mut Main, value: i32) {
         transition value == 44 {
             true -> done()
             false -> fail(main, 20)
         }
     }
 
-    state done() {}
-    state fail(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine done() {}
+    machine fail(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 machine Main::check_interval_member(main: &mut Main) reaches Console {
@@ -324,7 +324,7 @@ machine Main::check_interval_member(main: &mut Main) reaches Console {
 
     // `amount` reaches `scale` through its payload domain alone: no guard
     // bounds it, so the requires is discharged by `Ten` membership.
-    state scale(main: &mut Main, amount: i32) requires amount >= 0 && amount <= 10 {
+    machine scale(main: &mut Main, amount: i32) requires amount >= 0 && amount <= 10 {
         let scaled: i32 = amount * 10;
         transition scaled == 70 {
             true -> through_local(main)
@@ -332,7 +332,7 @@ machine Main::check_interval_member(main: &mut Main) reaches Console {
         }
     }
 
-    state through_local(main: &mut Main) {
+    machine through_local(main: &mut Main) {
         Main::store_local_level(main);
         transition main.level {
             Level::Lit { amount } -> local_value(main, amount)
@@ -340,15 +340,15 @@ machine Main::check_interval_member(main: &mut Main) reaches Console {
         }
     }
 
-    state local_value(main: &mut Main, amount: i32) {
+    machine local_value(main: &mut Main, amount: i32) {
         transition amount == 4 {
             true -> done()
             false -> fail(main, 23)
         }
     }
 
-    state done() {}
-    state fail(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine done() {}
+    machine fail(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

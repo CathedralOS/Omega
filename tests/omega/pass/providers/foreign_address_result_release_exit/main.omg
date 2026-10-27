@@ -58,8 +58,8 @@ machine relay(statistics: AllocationStatistics, token: u64) -> AllocationStatist
         true -> complete(statistics)
         _ -> replace()
     }
-    state complete(statistics: AllocationStatistics) -> AllocationStatistics { statistics }
-    state replace() -> AllocationStatistics { AllocationProbe::statistics() }
+    machine complete(statistics: AllocationStatistics) -> AllocationStatistics { statistics }
+    machine replace() -> AllocationStatistics { AllocationProbe::statistics() }
 }
 
 machine collect(token: u64) -> AllocationStatistics {

@@ -10,11 +10,11 @@ machine write_selected<'storage>(home: Bundle<'storage>, replacement: &'storage 
         true -> ready(home, replacement)
         false -> done()
     }
-    state ready(mut home: Bundle<'storage>, replacement: &'storage mut [u8])
+    machine ready(mut home: Bundle<'storage>, replacement: &'storage mut [u8])
     requires home.raw.len > 0 {
         home.raw[0] = replace_carrier(&write home, replacement);
     }
-    state done() {}
+    machine done() {}
 }
 machine main() crashes Trap {
     let mut first: [u8; 4] = [10, 11, 12, 13];
@@ -25,6 +25,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

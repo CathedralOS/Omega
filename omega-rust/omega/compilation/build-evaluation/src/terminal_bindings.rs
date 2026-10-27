@@ -20,12 +20,18 @@ use terminal_interpreter::{
     TerminalImportAdapter, TerminalImportSignature, TerminalScalarValue, TerminalStructuralValue,
 };
 
+mod product_queries;
+pub use product_queries::{BuildProductDescription, BuildProductQuery};
+
 /// One activation shared by its prepare/commit imports, never across builds.
 /// The interpreter owns each adapter; the host retains this common state and
 /// takes completed requests after dropping those adapters. A lock makes that
 /// sharing explicit without granting either adapter mutable aliasing.
 pub struct TerminalBuildBindingHost<'context> {
     calls: &'context [TerminalBuildBindingCall],
+    queries: &'context [psi_compiler::TerminalBuildQueryCall],
+    product_facet: Option<TerminalStructuralValue>,
+    account: Option<&'context evaluation_accounting::EvaluationInvocationAccount>,
     declarations: &'context [std::sync::Arc<ProductDeclarationRequest>],
     original: TerminalStructuralValue,
     state: Mutex<BindingState>,
@@ -37,6 +43,8 @@ struct BindingState {
     executed: Vec<ExecutedBuildSelection>,
     awaiting_provider: Option<usize>,
     installed_providers: Vec<InstalledBuildProvider>,
+    query: Option<product_queries::PendingQuery>,
+    descriptions: Vec<product_queries::IssuedDescription>,
 }
 
 struct InstalledBuildProvider {
@@ -71,7 +79,7 @@ impl BindingState {
 
 impl BindingState {
     fn take_executed(&mut self) -> Result<Vec<ExecutedBuildSelection>, String> {
-        if self.pending.iter().any(Option::is_some) {
+        if self.pending.iter().any(Option::is_some) || self.query.is_some() {
             return Err("Build binding activation ended with an uncommitted request".to_owned());
         }
         Ok(std::mem::take(&mut self.executed))
@@ -83,6 +91,7 @@ impl<'context> TerminalBuildBindingHost<'context> {
         artifact: terminal_codec::TerminalExecutionView<'_>,
         bindings: &'context TerminalBuildBindings,
         original: TerminalStructuralValue,
+        account: Option<&'context evaluation_accounting::EvaluationInvocationAccount>,
     ) -> Result<Self, String> {
         let calls = bindings
             .calls_for(artifact)
@@ -90,8 +99,21 @@ impl<'context> TerminalBuildBindingHost<'context> {
         let declarations = bindings.declarations_for(artifact).ok_or_else(|| {
             "Build declaration formation belongs to another Terminal artifact".to_owned()
         })?;
+        let queries = bindings
+            .queries_for(artifact)
+            .ok_or("Build queries belong to another Terminal artifact")?;
+        let product_facet = if queries.is_empty() {
+            None
+        } else {
+            Some(crate::terminal_requests::build_facet(
+                artifact, &original, "product",
+            )?)
+        };
         Ok(Self {
             calls,
+            queries,
+            product_facet,
+            account,
             declarations,
             original,
             state: Mutex::new(BindingState::default()),
@@ -196,6 +218,29 @@ impl TerminalImportAdapter for TerminalBuildBindingAdapter<'_, '_> {
 }
 
 impl TerminalEffectHandler for TerminalBuildBindingAdapter<'_, '_> {
+    fn poll_host_computation(
+        &mut self,
+        effect: &TerminalEffect,
+    ) -> Result<bool, TerminalEffectRejection> {
+        let TerminalEffect::BoundaryCall {
+            operation,
+            boundary,
+            ..
+        } = effect
+        else {
+            return Err(TerminalEffectRejection::new("not a Build binding effect"));
+        };
+        match self
+            .host
+            .queries
+            .iter()
+            .find(|query| query.operation == *operation && query.boundary == *boundary)
+        {
+            Some(query) => self.host.poll_query(query, effect),
+            None => Ok(true),
+        }
+    }
+
     fn poll_effect_readiness(
         &mut self,
         effect: &TerminalEffect,
@@ -211,6 +256,14 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter<'_, '_> {
         else {
             return Err(refuse("not a Build binding effect"));
         };
+        if self
+            .host
+            .queries
+            .iter()
+            .any(|query| query.operation == *operation && query.boundary == *boundary)
+        {
+            return Ok(true);
+        }
         let call = self
             .host
             .calls
@@ -274,6 +327,14 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter<'_, '_> {
         else {
             return Err(refuse("not a Build binding effect"));
         };
+        if let Some(query) = self
+            .host
+            .queries
+            .iter()
+            .find(|query| query.operation == *operation && query.boundary == *boundary)
+        {
+            return self.host.complete_query(query, effect);
+        }
         let call = self
             .host
             .calls
@@ -312,8 +373,24 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter<'_, '_> {
 
         // Every commit consumes one exact preparation. Decoding the selected
         // value differs; authentication, retirement and publication do not.
+        let description = match &call.request {
+            BuildSelectionRequest::Entry(binding)
+                if binding.implementation == RootBindingOperand::Description =>
+            {
+                let [value] = structural_arguments.as_slice() else {
+                    return Err(refuse("delegated root binding requires one description"));
+                };
+                Some(state.entry_description(value)?)
+            }
+            _ => None,
+        };
+        let structural_operands = if description.is_some() {
+            &[][..]
+        } else {
+            structural_arguments.as_slice()
+        };
         let (ticket, values) =
-            activation_ticket(arguments, structural_arguments, &state, &call.request)?;
+            activation_ticket(arguments, structural_operands, &state, &call.request)?;
         if let (
             BuildSelectionRequest::ProviderReadiness(request),
             TerminalBuildBindingOperation::AwaitProvider,
@@ -330,15 +407,23 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter<'_, '_> {
         }
         let selection = match (&call.request, call.action, values) {
             (BuildSelectionRequest::Entry(binding), TerminalBuildBindingOperation::Bind, []) => {
-                let RootBindingOperand::AuthoredPath(path) = &binding.implementation else {
-                    return Err(refuse(
-                        "Terminal Build descriptions require an issued product-query value",
-                    ));
+                let implementation = match (&binding.implementation, description) {
+                    (RootBindingOperand::AuthoredPath(path), None) => {
+                        RootBindingSelection::AuthoredPath(path.clone())
+                    }
+                    (RootBindingOperand::Description, Some(description)) => {
+                        RootBindingSelection::Described(description)
+                    }
+                    _ => {
+                        return Err(refuse(
+                            "root binding operand is not a compiler-issued product entry description",
+                        ));
+                    }
                 };
                 ExecutedBuildSelection::Entry(ExecutedRootBinding {
                     source_span: binding.source_span,
                     slot: binding.slot.clone(),
-                    implementation: RootBindingSelection::AuthoredPath(path.clone()),
+                    implementation,
                 })
             }
             (BuildSelectionRequest::Declaration(request), action, values) => {

@@ -14,6 +14,6 @@ machine main() crashes Trap {
     let observed: f64 = probe(reading, Reading { value: 0.125 }, true);
     let other: f64 = probe(reading, Reading { value: 0.125 }, false);
     transition observed == 0.25 && other == 0.125 { true -> done() _ -> bad() }
-    state done() { }
-    state bad() { crash Trap; }
+    machine done() { }
+    machine bad() { crash Trap; }
 }

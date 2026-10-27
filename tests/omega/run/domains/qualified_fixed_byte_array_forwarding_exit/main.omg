@@ -19,18 +19,18 @@ machine select_qualified(bytes: &mut [[u8; 8] in Ascii; 2]) -> &mut [u8; 8] in A
 machine mutable_state_loan() -> bool {
     let mut bytes: [u8; 8] in Ascii = "omega600";
     transition { _ -> replace(&mut bytes) }
-    state replace(bytes: &mut [u8; 8] in Ascii) -> bool {
+    machine replace(bytes: &mut [u8; 8] in Ascii) -> bool {
         bytes[0] = 65u8;
         transition { _ -> observe(bytes) }
     }
-    state observe(bytes: &mut [u8; 8] in Ascii) -> bool {
+    machine observe(bytes: &mut [u8; 8] in Ascii) -> bool {
         bytes.len == 8 && bytes == "Amega600"
     }
 }
 machine write_only_state_loan() -> u64 {
     let mut bytes: [u8; 8] in Ascii = "omega600";
     transition { _ -> fill(&write bytes) }
-    state fill(bytes: &write [u8; 8] in Ascii) -> u64 {
+    machine fill(bytes: &write [u8; 8] in Ascii) -> u64 {
         let before: u64 = bytes.len;
         bytes[0] = 65u8;
         before + bytes.len
@@ -39,7 +39,7 @@ machine write_only_state_loan() -> u64 {
 machine plain_write_only_state_loan() -> u64 {
     let mut bytes: [u8; 8] = "omega600";
     transition { _ -> fill(&write bytes) }
-    state fill(bytes: &write [u8; 8]) -> u64 {
+    machine fill(bytes: &write [u8; 8]) -> u64 {
         let before: u64 = bytes.len;
         bytes[0] = 65u8;
         before + bytes.len
@@ -88,6 +88,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

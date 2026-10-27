@@ -26,8 +26,8 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
     let units: i64 = windows_wide_path(path, &mut wide);
     wide[4095] = 0;
     transition units > 0 { true -> open(wide) false -> invalid() }
-    state invalid() -> i64 { WindowsFilesystemIo::c_set_last_error(87); 0 }
-    state open(path: [u16; 4096] in WindowsNativePath) -> i64 {
+    machine invalid() -> i64 { WindowsFilesystemIo::c_set_last_error(87); 0 }
+    machine open(path: [u16; 4096] in WindowsNativePath) -> i64 {
         // SYNCHRONIZE|DELETE|READ_ATTRIBUTES|LIST_DIRECTORY; shared delete;
         // OPEN_EXISTING; BACKUP_SEMANTICS|OPEN_REPARSE_POINT; no inheritance,
         // overlap or DELETE_ON_CLOSE. Anonymous SQOS does not grant a server
@@ -40,20 +40,20 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
 machine windows_removal_component(name: &[u16; 4096], length: u64) -> bool
 requires length > 0 && length < 4096 {
     transition length <= 2 { true -> dot(name, length) false -> scan(name, length, 0) }
-    state dot(name: &[u16; 4096], length: u64) -> bool requires length > 0 && length < 4096 {
+    machine dot(name: &[u16; 4096], length: u64) -> bool requires length > 0 && length < 4096 {
         transition name[0] == 46 { true -> second(name, length) false -> scan(name, length, 0) }
     }
-    state second(name: &[u16; 4096], length: u64) -> bool requires length > 0 && length < 4096 {
+    machine second(name: &[u16; 4096], length: u64) -> bool requires length > 0 && length < 4096 {
         transition length == 1 { true -> false false -> pair(name, length) }
     }
-    state pair(name: &[u16; 4096], length: u64) -> bool requires length > 1 && length < 4096 {
+    machine pair(name: &[u16; 4096], length: u64) -> bool requires length > 1 && length < 4096 {
         transition name[1] == 46 { true -> false false -> scan(name, length, 0) }
     }
-    state scan(name: &[u16; 4096], length: u64, position: u64) -> bool
+    machine scan(name: &[u16; 4096], length: u64, position: u64) -> bool
     requires length > 0 && length < 4096 {
         transition position < length { true -> character(name, length, position) false -> true }
     }
-    state character(name: &[u16; 4096], length: u64, position: u64) -> bool
+    machine character(name: &[u16; 4096], length: u64, position: u64) -> bool
     requires length > 0 && length < 4096 && position < length {
         let unit: u16 = name[position];
         // Preserve native UTF-16 spelling, including unpaired surrogates;
@@ -82,8 +82,8 @@ reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration {
         true -> access(parent, entry, length)
         false -> invalid()
     }
-    state invalid() -> i64 { WindowsFilesystemIo::c_set_last_error(87); 0 }
-    state access(parent: i64 in WindowsPrivateNonalertFileOrAbsent,
+    machine invalid() -> i64 { WindowsFilesystemIo::c_set_last_error(87); 0 }
+    machine access(parent: i64 in WindowsPrivateNonalertFileOrAbsent,
         entry: &mut WindowsNativeDirectoryEntryInfo, length: u64) -> i64
     requires parent != 0 && length > 0 && length < 4096 {
         transition (entry.attributes & 16) != 0 {
@@ -91,7 +91,7 @@ reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration {
             false -> open(parent, entry, length, 1114240)
         }
     }
-    state open(parent: i64 in WindowsPrivateNonalertFileOrAbsent,
+    machine open(parent: i64 in WindowsPrivateNonalertFileOrAbsent,
         entry: &mut WindowsNativeDirectoryEntryInfo, length: u64, access: u32) -> i64
     requires parent != 0 && length > 0 && length < 4096
         && (access == 1114240 || access == 1114241) {
@@ -118,11 +118,11 @@ reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration {
             false -> failed(status)
         }
     }
-    state opened(handle: i64) -> i64 {
+    machine opened(handle: i64) -> i64 {
         transition handle != 0 && handle != -1 { true -> (handle) false -> corrupt() }
     }
-    state corrupt() -> i64 { WindowsFilesystemIo::c_set_last_error(31); 0 }
-    state failed(status: i32) -> i64 {
+    machine corrupt() -> i64 { WindowsFilesystemIo::c_set_last_error(31); 0 }
+    machine failed(status: i32) -> i64 {
         WindowsFilesystemIo::c_set_last_error(windows_removal_error(WindowsFilesystemIo::c_status_to_error(status)));
         0
     }

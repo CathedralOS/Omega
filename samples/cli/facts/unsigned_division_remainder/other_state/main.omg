@@ -15,7 +15,7 @@ requires r >= 100 && r <= 100
     transition {
         _ -> step(r)
     }
-    state step(rem: u64) -> i32
+    machine step(rem: u64) -> i32
     requires rem >= 100 && rem <= 100
     {
         let diff: u64 = rem - 100u64;
@@ -33,6 +33,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

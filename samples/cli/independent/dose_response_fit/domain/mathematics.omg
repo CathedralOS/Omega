@@ -5,7 +5,7 @@ use omega::language::core::float_operations;
 public machine exponential(value: f64) -> f64 {
     let reduced: f64 = value / 128.0;
     transition { _ -> term(reduced, 1.0, 1.0, 1.0, 1) }
-    state term(reduced: f64, sum: f64, previous: f64, denominator: f64,
+    machine term(reduced: f64, sum: f64, previous: f64, denominator: f64,
                count: i32 in Wrapping) -> f64 {
         let next: f64 = previous * reduced / denominator;
         transition count < 16 {
@@ -13,7 +13,7 @@ public machine exponential(value: f64) -> f64 {
             _ -> square(sum + next)
         }
     }
-    state square(value: f64) -> f64 {
+    machine square(value: f64) -> f64 {
         let power2: f64 = value * value;
         let power4: f64 = power2 * power2;
         let power8: f64 = power4 * power4;
@@ -25,17 +25,17 @@ public machine exponential(value: f64) -> f64 {
 }
 public machine logarithm(value: f64) -> f64 {
     transition { _ -> normalize(value, 0.0) }
-    state normalize(value: f64, exponent: f64) -> f64 {
+    machine normalize(value: f64, exponent: f64) -> f64 {
         transition value >= 2.0 {
             true -> normalize(value / 2.0, exponent + 1.0)
             _ -> begin(value, exponent)
         }
     }
-    state begin(value: f64, exponent: f64) -> f64 {
+    machine begin(value: f64, exponent: f64) -> f64 {
         let ratio: f64 = (value - 1.0) / (value + 1.0);
         transition { _ -> series(ratio * ratio, ratio, 0.0, 1.0, exponent, 0) }
     }
-    state series(square: f64, term: f64, sum: f64, denominator: f64,
+    machine series(square: f64, term: f64, sum: f64, denominator: f64,
                  exponent: f64, count: i32 in Wrapping) -> f64 {
         transition count < 24 {
             true -> series(square, term * square, sum + term / denominator,
@@ -46,7 +46,7 @@ public machine logarithm(value: f64) -> f64 {
 }
 public machine clamp(value: f64, lower: f64, upper: f64) -> f64 {
     transition value < lower { true -> lower _ -> maximum(value, upper) }
-    state maximum(value: f64, upper: f64) -> f64 {
+    machine maximum(value: f64, upper: f64) -> f64 {
         transition value > upper { true -> upper _ -> value }
     }
 }

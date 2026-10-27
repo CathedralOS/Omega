@@ -69,7 +69,7 @@ machine Main::main(main: &mut Main) reaches Compare {
         true -> compare(narrow, &wide)
         _ -> compare(&wide, &wide)
     }
-    state compare(left: &i64, right: &i64) {
+    machine compare(left: &i64, right: &i64) {
         let result: i32 = Compare::compare(left, right, 8);
     }
 }

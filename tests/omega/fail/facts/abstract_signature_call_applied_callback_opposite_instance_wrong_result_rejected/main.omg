@@ -9,7 +9,7 @@ machine premise(kept: bool) -> bool {
 machine hold(direct: bool) -> bool
 requires direct == true
 {
-    true
+    direct
 }
 
 machine witness<const Marker: u64>(kept: bool) -> bool
@@ -29,7 +29,7 @@ requires premise(kept)
 machine hold_false(direct: bool) -> bool
 requires direct == false
 {
-    true
+    !direct
 }
 
 const DIRECT: bool = apply<witness<1>>(true);
@@ -38,7 +38,7 @@ const OTHER: bool = apply<witness<1>>(true);
 machine main() crashes Trap {
     let kept: bool = hold_false(OTHER);
     let direct: bool = DIRECT;
-    transition hold(direct) {
+    transition kept && hold(direct) {
         true -> done()
         _ -> bad()
     }

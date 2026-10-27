@@ -9,12 +9,12 @@ ensures result.ready == seed.ready { Token { ready: seed.ready, value: 7 } }
 machine read(token: &Token) -> u64 { token.value }
 machine carry() -> u64 {
     transition { _ -> onward(Seed { ready: true }) }
-    state onward(seed: Seed) -> u64
+    machine onward(seed: Seed) -> u64
     requires seed.ready { read(&make_token(&seed)) }
 }
 machine main() crashes Trap {
     let answer: u64 = carry();
     transition answer == 7 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

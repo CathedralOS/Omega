@@ -20,5 +20,5 @@ machine main() crashes Trap {
         && selected.head.value.len == 7 && selected.tail.value.len == 4 {
         true -> done() false -> wrong()
     }
-    state done() {} state wrong() { crash Trap; }
+    machine done() {} machine wrong() { crash Trap; }
 }

@@ -5,10 +5,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use abstract_operations::AbstractOperation as O;
-use optimization_core::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationRuleContract,
-    OptimizationSafetyClass,
-};
+use optimization_core::{AnalysisKind, AnalysisSet, OptimizationRuleContract};
 use optimization_unit::{
     NodeLocation, NonAdjacentBlockMergeRewrite, OptimizationBlock, ProvenanceRewrite,
     PsiOptimizationFunction, PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
@@ -17,7 +14,6 @@ use optimization_unit::{
 use semantic_vocabulary::BlockId;
 
 use crate::analyses::block_dominates;
-use crate::rules::CONTROL_FLOW_CLEANUP_PASS_NAME;
 use crate::rules::control_flow_cleanup::block_merge_substitutions::merge_substitutions;
 use crate::rules::control_flow_cleanup::descriptor_telescope_free;
 use crate::rules::control_flow_cleanup::merge_boundary_ownership::merge_boundary_ownership_is_identity;
@@ -26,9 +22,8 @@ use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposal
 
 psi_rule_contract!(
     NonAdjacentBlockMergeRule,
-    crate::rules::standard_rule_contract(
+    crate::rules::control_flow_cleanup::control_flow_cleanup_rule_contract(
         b"omega.psi-rule.non-adjacent-unique-predecessor-block-merge.v1",
-        CONTROL_FLOW_CLEANUP_PASS_NAME,
         1,
         AnalysisSet::new([
             AnalysisKind::ControlFlowGraph,
@@ -36,12 +31,6 @@ psi_rule_contract!(
             AnalysisKind::UseDefinition,
             AnalysisKind::OwnershipFrontiers,
         ]),
-        AnalysisInvalidationSet::new([
-            AnalysisKind::ControlFlowGraph,
-            AnalysisKind::UseDefinition,
-            AnalysisKind::EffectSummaries,
-        ]),
-        OptimizationSafetyClass::StructuralIdentity
     ),
 );
 

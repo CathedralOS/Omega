@@ -5,6 +5,6 @@ machine main() crashes Trap {
     let snapshot: i32 in Selected = selected;
     selected = 1;
     transition snapshot == 38 && selected == 1 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -362,22 +362,31 @@ fn captured_claims(
             && facts
                 .flow
                 .ownership
-                .permissions
-                .iter()
-                .any(|(_, event)| consumer.consumes(operand, event) && event.root == anonymous);
+                .with_state_permissions(consumer.state, |handles| {
+                    handles.iter().copied().any(|handle| {
+                        let event = facts.flow.ownership.permissions.get(handle);
+                        consumer.consumes(operand, event) && event.root == anonymous
+                    })
+                });
         if consumed_owner {
             if let Some(place) = &source_place
                 && place.root != anonymous
-                && facts.flow.ownership.permissions.iter().any(|(_, event)| {
-                    consumer.consumes(operand, event)
-                        && event.root == place.root
-                        && facts
-                            .flow
-                            .ownership
-                            .segments
-                            .span_or_empty(event.segments)
-                            .starts_with(&place.segments)
-                })
+                && facts
+                    .flow
+                    .ownership
+                    .with_state_permissions(consumer.state, |handles| {
+                        handles.iter().copied().any(|handle| {
+                            let event = facts.flow.ownership.permissions.get(handle);
+                            consumer.consumes(operand, event)
+                                && event.root == place.root
+                                && facts
+                                    .flow
+                                    .ownership
+                                    .segments
+                                    .span_or_empty(event.segments)
+                                    .starts_with(&place.segments)
+                        })
+                    })
             {
                 return Err("completed operand has competing consuming owners");
             }
@@ -391,15 +400,15 @@ fn captured_claims(
     if let Some(place) = &source_place {
         match observation {
             ClaimObservation::Consumed => {
-                for (_, event) in facts
+                let state_permissions = facts
                     .flow
                     .ownership
-                    .permissions
-                    .iter()
-                    .filter(|(_, event)| {
-                        consumer.consumes(operand, event) && event.root == place.root
-                    })
-                {
+                    .with_state_permissions(consumer.state, |handles| handles.to_vec());
+                for handle in state_permissions {
+                    let event = facts.flow.ownership.permissions.get(handle);
+                    if !(consumer.consumes(operand, event) && event.root == place.root) {
+                        continue;
+                    }
                     let path = facts.flow.ownership.segments.span_or_empty(event.segments);
                     let Some(suffix) = path.strip_prefix(place.segments.as_slice()) else {
                         continue;
@@ -671,18 +680,24 @@ fn stored_claims(
     // discovery also retains absent payloads, for which production deliberately
     // emits no leaf Transfer. That coordinate may request positive absence from
     // the actual stored completion, but can never authorize a live claim.
-    let consumed = facts.flow.ownership.permissions.iter().any(|(_, event)| {
-        event.machine_symbol == consumer.machine
-            && event.state_symbol == operand.state_symbol
-            && event.evaluation == evaluation
-            && event.expression == operand.expression
-            && event.source == consumer.source
-            && event.kind == PermissionEventKind::Transfer
-            && event.access == PermissionAccess::Owned
-            && event.obligation_live
-            && event.root == source.root
-            && facts.flow.ownership.segments.span_or_empty(event.segments) == source.segments
-    });
+    let consumed = facts
+        .flow
+        .ownership
+        .with_state_permissions(operand.state_symbol, |handles| {
+            handles.iter().copied().any(|handle| {
+                let event = facts.flow.ownership.permissions.get(handle);
+                event.machine_symbol == consumer.machine
+                    && event.state_symbol == operand.state_symbol
+                    && event.evaluation == evaluation
+                    && event.expression == operand.expression
+                    && event.source == consumer.source
+                    && event.kind == PermissionEventKind::Transfer
+                    && event.access == PermissionAccess::Owned
+                    && event.obligation_live
+                    && event.root == source.root
+                    && facts.flow.ownership.segments.span_or_empty(event.segments) == source.segments
+            })
+        });
     if !consumed && !has_carrier_transfer {
         return Ok(None);
     }
@@ -885,7 +900,12 @@ fn completed_call_claims(
         return Err("completed invocation has no permission evaluation");
     }
     let mut claims = Vec::new();
-    for (_, event) in facts.flow.ownership.permissions.iter() {
+    let state_permissions = facts
+        .flow
+        .ownership
+        .with_state_permissions(operand.state_symbol, |handles| handles.to_vec());
+    for handle in state_permissions {
+        let event = facts.flow.ownership.permissions.get(handle);
         if event.machine_symbol != consumer.machine
             || event.state_symbol != operand.state_symbol
             || event.evaluation != evaluation
@@ -918,9 +938,7 @@ fn completed_call_claims(
             source: ReturnedClaimSource::Live(event.claim_identity),
             condition: conditions.always(),
         };
-        if !claims.contains(&claim) {
-            claims.push(claim);
-        }
+        crate::collections::push_unique(&mut claims, claim);
     }
     Ok(claims)
 }

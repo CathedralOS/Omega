@@ -30,7 +30,7 @@ machine Main::main(main: &mut Main) reaches Console {
 
     // Every non-ASCII byte has its high bit set: as an i8 it is negative. A CAST
     // in a guard subject confirms the branch we are on before classifying further.
-    state high_bit_set(main: &mut Main) {
+    machine high_bit_set(main: &mut Main) {
         transition narrow_u8_to_i8_wrapping(main.byte as u8) < 0 {
             true -> multibyte(main)
             _ -> unreachable(main)
@@ -38,49 +38,49 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     // 10xxxxxx is a continuation byte; otherwise it is a sequence lead.
-    state multibyte(main: &mut Main) {
+    machine multibyte(main: &mut Main) {
         transition main.byte >> 6 == 2 { true -> continuation(main) _ -> lead(main) }
     }
 
     // 1110xxxx leads a 3-byte sequence; otherwise 110xxxxx leads a 2-byte one.
-    state lead(main: &mut Main) {
+    machine lead(main: &mut Main) {
         transition main.byte >> 4 == 14 { true -> lead3(main) _ -> lead2(main) }
     }
 
-    state ascii(main: &mut Main) {
+    machine ascii(main: &mut Main) {
         Console::write_line("class: ASCII (0xxxxxxx) -- exit 1");
         transition { _ -> done1(main) }
     }
-    state continuation(main: &mut Main) {
+    machine continuation(main: &mut Main) {
         Console::write_line("class: continuation byte (10xxxxxx) -- exit 4");
         transition { _ -> done4(main) }
     }
-    state lead2(main: &mut Main) {
+    machine lead2(main: &mut Main) {
         Console::write_line("class: 2-byte sequence lead (110xxxxx) -- exit 2");
         transition { _ -> done2(main) }
     }
-    state lead3(main: &mut Main) {
+    machine lead3(main: &mut Main) {
         Console::write_line("class: 3-byte sequence lead (1110xxxx) -- exit 3");
         transition { _ -> done3(main) }
     }
-    state unreachable(main: &mut Main) {
+    machine unreachable(main: &mut Main) {
         // A high-bit-set byte that is non-negative as i8 is impossible; guard the
         // dispatch anyway (no silent fall-through) and report the contradiction.
         Console::write_line("class: IMPOSSIBLE -- high bit set but non-negative as i8 -- exit 99");
         transition { _ -> done99(main) }
     }
 
-    state done1(main: &mut Main) { transition { _ -> finish1(main) } }
-    state done2(main: &mut Main) { transition { _ -> finish2(main) } }
-    state done3(main: &mut Main) { transition { _ -> finish3(main) } }
-    state done4(main: &mut Main) { transition { _ -> finish4(main) } }
-    state done99(main: &mut Main) { transition { _ -> finish99(main) } }
+    machine done1(main: &mut Main) { transition { _ -> finish1(main) } }
+    machine done2(main: &mut Main) { transition { _ -> finish2(main) } }
+    machine done3(main: &mut Main) { transition { _ -> finish3(main) } }
+    machine done4(main: &mut Main) { transition { _ -> finish4(main) } }
+    machine done99(main: &mut Main) { transition { _ -> finish99(main) } }
 
-    state finish1(main: &mut Main) { Console::write_line("[press Enter to close]"); _ = block Console::read_line(&mut main.pause); Console::exit_process(1); }
-    state finish2(main: &mut Main) { Console::write_line("[press Enter to close]"); _ = block Console::read_line(&mut main.pause); Console::exit_process(2); }
-    state finish3(main: &mut Main) { Console::write_line("[press Enter to close]"); _ = block Console::read_line(&mut main.pause); Console::exit_process(3); }
-    state finish4(main: &mut Main) { Console::write_line("[press Enter to close]"); _ = block Console::read_line(&mut main.pause); Console::exit_process(4); }
-    state finish99(main: &mut Main) { Console::write_line("[press Enter to close]"); _ = block Console::read_line(&mut main.pause); Console::exit_process(99); }
+    machine finish1(main: &mut Main) { Console::write_line("[press Enter to close]"); _ = block Console::read_line(&mut main.pause); Console::exit_process(1); }
+    machine finish2(main: &mut Main) { Console::write_line("[press Enter to close]"); _ = block Console::read_line(&mut main.pause); Console::exit_process(2); }
+    machine finish3(main: &mut Main) { Console::write_line("[press Enter to close]"); _ = block Console::read_line(&mut main.pause); Console::exit_process(3); }
+    machine finish4(main: &mut Main) { Console::write_line("[press Enter to close]"); _ = block Console::read_line(&mut main.pause); Console::exit_process(4); }
+    machine finish99(main: &mut Main) { Console::write_line("[press Enter to close]"); _ = block Console::read_line(&mut main.pause); Console::exit_process(99); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

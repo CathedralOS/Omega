@@ -65,8 +65,8 @@ machine Main::main(main: &mut Main) reaches Console {
     let s: i32 in Wrapping = add32(2, 1);
     let p: i32 in Wrapping = mul32(s, 2);
     transition p == 6 { true -> good(main) _ -> bad(main, 71) }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

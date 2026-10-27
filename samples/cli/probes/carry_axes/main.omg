@@ -44,14 +44,14 @@ machine Main::main(main: &mut Main) {
         Packet::Burst { count, .. } -> burst(count, main)
         Packet::Empty -> fail(main)
     }
-    state burst(count: i32, main: &mut Main) {
+    machine burst(count: i32, main: &mut Main) {
         transition count == 2 {
             true -> pass(main)
             _ -> fail(main)
         }
     }
-    state pass(main: &mut Main) { main.hits = 1; }
-    state fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: &mut Main) { main.hits = 1; }
+    machine fail(main: &mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

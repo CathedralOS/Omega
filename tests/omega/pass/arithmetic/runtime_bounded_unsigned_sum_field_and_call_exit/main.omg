@@ -18,7 +18,7 @@ machine Main::main(main: &mut Main) reaches Console {
     let local: u64 = main.ledger.value;
     let local_result: u64 = fingerprint(local);
     transition { _ -> compare(main, local_result) }
-    state compare(main: &mut Main, local_result: u64) {
+    machine compare(main: &mut Main, local_result: u64) {
         let field_result: u64 = field_fingerprint(&main.ledger);
         let call_result: u64 = call_fingerprint(main.ledger.value);
         transition local_result == 48 && field_result == 48 && call_result == 48 {
@@ -26,8 +26,8 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> rejected(main)
         }
     }
-    state accepted(main: &mut Main) { Console::exit_process(48); }
-    state rejected(main: &mut Main) { Console::exit_process(1); }
+    machine accepted(main: &mut Main) { Console::exit_process(48); }
+    machine rejected(main: &mut Main) { Console::exit_process(1); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -7,8 +7,8 @@ machine verify(observed: i32, first: i32, flag: bool) crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine exercise(flag: bool) crashes Trap {
     let supplied: [i32 in Selected; 2] = [1, 2];

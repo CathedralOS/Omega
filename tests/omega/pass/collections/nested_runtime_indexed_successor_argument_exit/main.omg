@@ -24,7 +24,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.a = [[0, 0, 0], [2147483647, 8, 0], [0, 0, 0]];
     main.b = [[0, 0, 2], [0, 0, 9], [0, 0, 5]];
     transition { _ -> dot(main, 1, 2, 0, 0) }
-    state dot(main: &mut Main, i: u64, j: u64, k: u64, acc: i32 in Wrapping)
+    machine dot(main: &mut Main, i: u64, j: u64, k: u64, acc: i32 in Wrapping)
     requires i <= 2
     requires j <= 2
     requires k <= 2 {
@@ -34,7 +34,7 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> done(main, acc + main.a[i][k] * main.b[k][j])
         }
     }
-    state done(main: &mut Main, acc: i32 in Wrapping) {
+    machine done(main: &mut Main, acc: i32 in Wrapping) {
         Console::exit_process(acc as i32);
     }
 }

@@ -4,7 +4,7 @@ data Cells { values: [u32; 2]; }
 machine main() crashes Trap {
     let cells: Cells = Cells { values: [7, 9] };
     transition { _ -> write(cells) }
-    state write(cells: Cells) {
+    machine write(cells: Cells) {
         let mut live: Cells = cells;
         asm {
             mov eax, 37;
@@ -15,6 +15,6 @@ machine main() crashes Trap {
             false -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

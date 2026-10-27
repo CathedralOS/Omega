@@ -16,20 +16,20 @@ machine Choice::probe(choice: &Choice, position: u64) -> bool {
         true -> dispatch(choice, position)
         false -> (false)
     }
-    state dispatch(choice: &Choice, position: u64) -> bool {
+    machine dispatch(choice: &Choice, position: u64) -> bool {
         transition choice {
             Choice::Full { cells } -> select(cells, position)
             Choice::Scalar { value } -> (value == 69)
             _ -> (false)
         }
     }
-    state select(cells: &Cells, position: u64) -> bool {
+    machine select(cells: &Cells, position: u64) -> bool {
         transition position < 4 {
             true -> read(cells, position)
             false -> (false)
         }
     }
-    state read(cells: &Cells, position: u64) -> bool {
+    machine read(cells: &Cells, position: u64) -> bool {
         let receiver: u64 in Wrapping = Cell::read(&cells.values[position]) + 1;
         let argument: u64 in Wrapping = read_cell(&cells.values[position]) + 1;
         receiver == 70 && argument == 70
@@ -54,6 +54,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -17,13 +17,13 @@ requires before in Slot::Present
 machine main() crashes Trap {
     let chosen: Slot = Slot::Present { value: 7 };
     transition { _ -> inspect(chosen) }
-    state inspect(mut chosen: Slot) {
+    machine inspect(mut chosen: Slot) {
         let observed: u64 = read_payload(chosen, set_to_absent(&mut chosen));
         transition observed == 7 {
             true -> done()
             false -> wrong()
         }
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

@@ -30,7 +30,7 @@ requires
 {
     let mut copy: Player = main.player;
     transition { _ -> arrived(main, copy) }
-    state arrived(main: &mut Main, player: Player in Player::Alive) {
+    machine arrived(main: &mut Main, player: Player in Player::Alive) {
         main.observed = Main::inspect(player);
     }
 }
@@ -44,8 +44,8 @@ machine entry() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() {
+    machine done() {}
+    machine bad() {
         crash Trap;
     }
 }

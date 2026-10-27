@@ -20,7 +20,7 @@ machine calculate() -> u64 in Wrapping {
         ReadOutcome::Full { count } -> (0)
         ReadOutcome::Invalid -> (0)
     }
-    state observe(line: &[u8; 64], count: u64) -> u64 in Wrapping {
+    machine observe(line: &[u8; 64], count: u64) -> u64 in Wrapping {
         (line[0] as u64 in Wrapping + count as u64 in Wrapping)
     }
 }
@@ -32,7 +32,7 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> exit(main, 42)
         _ -> exit(main, 43)
     }
-    state exit(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine exit(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

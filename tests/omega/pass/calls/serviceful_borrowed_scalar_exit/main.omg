@@ -20,14 +20,14 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> check_empty(main, second)
         false -> failed(main)
     }
-    state check_empty(main: &mut Main, length: u64) {
+    machine check_empty(main: &mut Main, length: u64) {
         transition length == 0 {
             true -> passed(main)
             false -> failed(main)
         }
     }
-    state passed(main: &mut Main) { Console::exit_process(70); }
-    state failed(main: &mut Main) { Console::exit_process(71); }
+    machine passed(main: &mut Main) { Console::exit_process(70); }
+    machine failed(main: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

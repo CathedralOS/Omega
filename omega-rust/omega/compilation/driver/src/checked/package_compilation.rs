@@ -11,12 +11,46 @@ use diagnostics::Diagnostic;
 /// One dependency-ordered source closure. The last request is its Product root;
 /// earlier requests are dependency occurrences, including separate Build roles.
 pub struct PackageCompilationRequest {
-    pub occurrences: Vec<CheckedCompileRequest>,
+    pub occurrences: Vec<PackageSourceRequest>,
     pub product: crate::CompilationProduct,
     /// Present only for a locked root Product. No lock supplies no permissions;
     /// a missing occurrence inside an existing lock must reject at admission.
     pub terminal_permissions:
         Option<package_evidence::permission_acceptance::TerminalPermissionAcceptance>,
+}
+
+/// Execution and Product admission are distinct inputs to one package plan.
+/// A Product request borrows an already settled Build; missing custody is an
+/// error, never a request to execute the source again.
+pub enum PackageSourceRequest {
+    Execute(CheckedCompileRequest),
+    Product(PackageProductSourceRequest),
+}
+
+impl PackageSourceRequest {
+    pub fn package_inputs(&self) -> Option<&package_compilation::PackageCompilationInputs> {
+        match self {
+            Self::Execute(request) => request.package_inputs.as_ref(),
+            Self::Product(request) => Some(&request.inputs),
+        }
+    }
+
+    pub fn set_optimization_rollback(&mut self, rollback: optimization_core::OptimizationRollback) {
+        match self {
+            Self::Execute(request) => request.optimization_rollback = rollback,
+            Self::Product(request) => request.options.optimization_rollback = rollback,
+        }
+    }
+}
+
+/// Product context and the exact pre-effect obligations its retained Build
+/// must have satisfied. Product checking options cannot grant Build effects.
+#[derive(Clone)]
+pub struct PackageProductSourceRequest {
+    pub target: target::TargetProfile,
+    pub inputs: package_compilation::PackageCompilationInputs,
+    pub execution: package_compilation::build_execution::BuildExecutionContract,
+    pub options: PackageProductOptions,
 }
 
 /// The occurrence responsible for a rejected package request.
@@ -96,7 +130,7 @@ pub struct CompletedBuild {
 /// Product judgment policy, distinct from the already settled Build execution.
 /// Discovery may leave service fields unsettled; a bound Product must check
 /// them under its own admission and cannot reuse that relaxed judgment.
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct PackageProductOptions {
     pub optimization_rollback: optimization_core::OptimizationRollback,
     pub permit_unsettled_fused_service_fields: bool,
@@ -105,6 +139,40 @@ pub struct PackageProductOptions {
 impl CompletedBuild {
     pub fn package_inputs(&self) -> &package_compilation::PackageCompilationInputs {
         &self.source.inputs
+    }
+
+    /// Targets whose entry slots this activation actually bound, in execution
+    /// order. This observation does not admit the selected implementation or
+    /// replace target-specific Product checking.
+    pub fn bound_program_targets(&self) -> Result<Vec<target::TargetProfile>, Vec<Diagnostic>> {
+        let mut targets = Vec::new();
+        for binding in &self
+            .source
+            .source
+            .evaluated
+            .configuration
+            .root_binding_requests
+        {
+            let Some((owner, name)) = binding.slot.rsplit_once("::") else {
+                return Err(vec![Diagnostic::error(format!(
+                    "root slot `{}` is not target-qualified",
+                    binding.slot
+                ))]);
+            };
+            let profile =
+                target::TargetProfile::from_root_slot_owner(owner).map_err(|error| vec![error])?;
+            let required = profile.required_root_slot(name).ok_or_else(|| {
+                vec![Diagnostic::error(format!(
+                    "target profile `{}` declares no required root slot `{}`",
+                    profile.target_name(),
+                    binding.slot
+                ))]
+            })?;
+            if required.program_entry().is_some() && !targets.contains(&profile) {
+                targets.push(profile);
+            }
+        }
+        Ok(targets)
     }
 
     /// A Product demand cannot retroactively add inputs or required outputs to
@@ -123,6 +191,9 @@ impl CompletedBuild {
 }
 
 impl PackageBuildInvocation {
+    pub fn product_queries(&self) -> super::checking::ProductQueries {
+        self.source.product_queries()
+    }
     pub fn observe_declaration(
         &self,
         returned: &build_evaluation::ReturnedBuild,

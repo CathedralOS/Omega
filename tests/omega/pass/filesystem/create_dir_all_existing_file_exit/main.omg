@@ -8,33 +8,33 @@ data Main { filesystem: Filesystem; }
 machine Main::main(main: &mut Main) reaches Console {
     let result: UnitResult = block Filesystem::write_all(&mut main.filesystem, "leaf.txt", "keep");
     transition result { UnitResult::Ok -> existing_file(main) _ -> cleanup(main, 10) }
-    state existing_file(main: &mut Main) {
+    machine existing_file(main: &mut Main) {
         let result: UnitResult = block Filesystem::create_dir_all(&mut main.filesystem, "leaf.txt");
         transition result {
             UnitResult::Error { kind } -> file_error(main, kind)
             _ -> cleanup(main, 11)
         }
     }
-    state file_error(main: &mut Main, kind: ErrorKind) {
+    machine file_error(main: &mut Main, kind: ErrorKind) {
         transition kind { ErrorKind::AlreadyExists -> create(main) _ -> cleanup(main, 12) }
     }
-    state create(main: &mut Main) {
+    machine create(main: &mut Main) {
         let result: UnitResult = block Filesystem::create_dir_all(&mut main.filesystem, "good/nested");
         transition result { UnitResult::Ok -> existing_directory(main) _ -> cleanup(main, 13) }
     }
-    state existing_directory(main: &mut Main) {
+    machine existing_directory(main: &mut Main) {
         let result: UnitResult = block Filesystem::create_dir_all(&mut main.filesystem, "good/nested");
         transition result { UnitResult::Ok -> remove_directory(main) _ -> cleanup(main, 14) }
     }
-    state remove_directory(main: &mut Main) {
+    machine remove_directory(main: &mut Main) {
         let result: UnitResult = block Filesystem::remove_dir_all(&mut main.filesystem, "good");
         transition result { UnitResult::Ok -> cleanup(main, 0) _ -> cleanup(main, 15) }
     }
-    state cleanup(main: &mut Main, status: i32) {
+    machine cleanup(main: &mut Main, status: i32) {
         let result: UnitResult = block Filesystem::remove(&mut main.filesystem, "leaf.txt");
         transition result { UnitResult::Ok -> exit(status) _ -> exit(16) }
     }
-    state exit(status: i32) { Console::exit_process(status); }
+    machine exit(status: i32) { Console::exit_process(status); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

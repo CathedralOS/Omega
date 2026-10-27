@@ -19,13 +19,13 @@ crashes Trap
     reader.status = 0;
     reader.digits = 0;
     transition { _ -> scan(reader) }
-    state scan(reader: &mut Reader) {
+    machine scan(reader: &mut Reader) {
         transition reader.consumed < 4096 {
             true -> read(reader)
             false -> invalid(reader)
         }
     }
-    state read(reader: &mut Reader) {
+    machine read(reader: &mut Reader) {
         let observed: ByteRead = block Console::read_byte();
         reader.consumed = reader.consumed + 1;
         transition observed {
@@ -33,36 +33,36 @@ crashes Trap
             ByteRead::Byte { value } -> classify(reader, value)
         }
     }
-    state classify(reader: &mut Reader, value: i32) {
+    machine classify(reader: &mut Reader, value: i32) {
         transition value == 32 || value == 9 || value == 10 || value == 13 {
             true -> delimiter(reader)
             false -> numeral(reader, value)
         }
     }
-    state delimiter(reader: &mut Reader) {
+    machine delimiter(reader: &mut Reader) {
         transition reader.digits > 0 {
             true -> finish(reader)
             false -> scan(reader)
         }
     }
-    state numeral(reader: &mut Reader, value: i32) {
+    machine numeral(reader: &mut Reader, value: i32) {
         transition value >= 48 && value <= 57 && reader.digits < 6 {
             true -> append(reader, value)
             false -> invalid(reader)
         }
     }
-    state append(reader: &mut Reader, value: i32) {
+    machine append(reader: &mut Reader, value: i32) {
         reader.value = reader.value * 10 + ((value as i64 in Wrapping) - 48);
         reader.digits = reader.digits + 1;
         transition { _ -> scan(reader) }
     }
-    state finish(reader: &mut Reader) {
+    machine finish(reader: &mut Reader) {
         transition reader.digits > 0 {
             true -> valid(reader)
             false -> end(reader)
         }
     }
-    state valid(reader: &mut Reader) { reader.status = 1; }
-    state end(reader: &mut Reader) { reader.status = 0; }
-    state invalid(reader: &mut Reader) { reader.status = -1; }
+    machine valid(reader: &mut Reader) { reader.status = 1; }
+    machine end(reader: &mut Reader) { reader.status = 0; }
+    machine invalid(reader: &mut Reader) { reader.status = -1; }
 }

@@ -17,7 +17,7 @@ terminates;
         _ -> (false)
     }
 
-    state header(bytes: &[u8], signature: u64, minimum_revision: u32, minimum_size: u32) -> bool
+    machine header(bytes: &[u8], signature: u64, minimum_revision: u32, minimum_size: u32) -> bool
     requires bytes.len >= 24;
     {
         let signature_low: u32 = read_u32(bytes);
@@ -35,7 +35,7 @@ terminates;
         }
     }
 
-    state checksum(bytes: &[u8], header_size: u64, expected_crc: u32) -> bool
+    machine checksum(bytes: &[u8], header_size: u64, expected_crc: u32) -> bool
     requires header_size <= bytes.len;
     {
         let computed: u32 = table_crc(bytes[..header_size], 0, 0xFFFFFFFF);
@@ -79,7 +79,7 @@ terminates by remaining;
         _ -> (checksum)
     }
 
-    state bit(checksum: u32, remaining: u64) -> u32
+    machine bit(checksum: u32, remaining: u64) -> u32
     requires remaining > 0;
     {
         transition (checksum & 1) == 1 {

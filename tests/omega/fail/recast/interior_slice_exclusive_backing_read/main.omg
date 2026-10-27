@@ -5,12 +5,12 @@ machine Main::main(main: &mut Main) {
     main.k = 2;
     let words: &mut [u16] = &mut main.bytes[main.k * 2] as &mut [u16];
     transition { _ -> write_words(main, words) }
-    state write_words(main: &mut Main, words: &mut [u16]) {
+    machine write_words(main: &mut Main, words: &mut [u16]) {
         transition words.len > 0 { true -> read_backing(main, words) _ -> done(main) }
     }
-    state read_backing(main: &mut Main, words: &mut [u16]) {
+    machine read_backing(main: &mut Main, words: &mut [u16]) {
         words[0] = 0x0201;
         let observed: u8 = main.bytes[4];
     }
-    state done(main: &mut Main) {}
+    machine done(main: &mut Main) {}
 }

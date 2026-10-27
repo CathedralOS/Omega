@@ -5,7 +5,7 @@ machine read_element(values: [u64; 8], index: u64) -> u64
 requires index < 8
 {
     transition { _ -> element(values, index) }
-    state element(passed_values: [u64; 8], passed_index: u64) -> u64
+    machine element(passed_values: [u64; 8], passed_index: u64) -> u64
     requires passed_index < 8
     {
         passed_values[passed_index]
@@ -19,6 +19,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

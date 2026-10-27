@@ -84,8 +84,8 @@ machine verify(correct: bool) crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 machine Main::main(main: &mut Main) reaches Acknowledgement crashes Trap {
@@ -97,13 +97,13 @@ machine Main::main(main: &mut Main) reaches Acknowledgement crashes Trap {
         _ -> consume_second(main, receipt)
     }
 
-    state consume_first(main: &mut Main, receipt: Receipt) {
+    machine consume_first(main: &mut Main, receipt: Receipt) {
         let code: i32 = Acknowledgement::ack(receipt);
         main.hits = 1;
         verify(code == 7);
     }
 
-    state consume_second(main: &mut Main, receipt: Receipt) {
+    machine consume_second(main: &mut Main, receipt: Receipt) {
         let code: i32 = Acknowledgement::ack(receipt);
         main.hits = 2;
         verify(false);

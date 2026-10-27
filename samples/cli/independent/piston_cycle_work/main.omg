@@ -33,13 +33,13 @@ crashes Trap
         ByteRead::Byte { value } -> select(&mut application, value)
         _ -> invalid()
     }
-    state select(application: &mut Application, value: i32) {
+    machine select(application: &mut Application, value: i32) {
         transition value >= 48 && value <= 57 {
             true -> delimiter(application, value)
             _ -> invalid()
         }
     }
-    state delimiter(application: &mut Application, value: i32) {
+    machine delimiter(application: &mut Application, value: i32) {
         let wrapped: i32 in Wrapping = value as i32 in Wrapping;
         application.selection = (wrapped - 48) as i32;
         let tail: ByteRead = block Console::read_byte();
@@ -49,39 +49,39 @@ crashes Trap
             _ -> invalid()
         }
     }
-    state finish_input(application: &mut Application) {
+    machine finish_input(application: &mut Application) {
         let tail: ByteRead = block Console::read_byte();
         transition tail { ByteRead::Eof -> start(application) _ -> invalid() }
     }
-    state start(application: &mut Application) {
+    machine start(application: &mut Application) {
         Console::write_line("piston_cycle_work: kPa,L,J; work by piston");
         Console::write_line("stage,point,volume,pressure");
         transition { _ -> stage(application, 0) }
     }
-    state stage(application: &mut Application, index: u32) requires index <= 3 {
+    machine stage(application: &mut Application, index: u32) requires index <= 3 {
         load(application.selection, index, &mut application.stage);
         let valid: bool = evaluate(&mut application.stage);
         transition valid { true -> boundary(application, index) _ -> invalid_stage() }
     }
-    state boundary(application: &mut Application, index: u32) requires index <= 3 {
+    machine boundary(application: &mut Application, index: u32) requires index <= 3 {
         transition index == 0 {
             true -> first(application, index)
             _ -> continuity(application, index)
         }
     }
-    state first(application: &mut Application, index: u32) requires index <= 3 {
+    machine first(application: &mut Application, index: u32) requires index <= 3 {
         application.first_volume = application.stage.volume;
         application.first_pressure = application.stage.pressure;
         transition { _ -> history(application, index) }
     }
-    state continuity(application: &mut Application, index: u32) requires index <= 3 {
+    machine continuity(application: &mut Application, index: u32) requires index <= 3 {
         transition near(application.previous_volume, application.stage.volume)
             && near(application.previous_pressure, application.stage.pressure) {
             true -> history(application, index)
             _ -> discontinuity()
         }
     }
-    state history(application: &mut Application, index: u32) requires index <= 3 {
+    machine history(application: &mut Application, index: u32) requires index <= 3 {
         row(index as i32, 0, application.stage.volume, application.stage.pressure);
         let volume: f64 = (application.stage.volume + application.stage.end_volume) / 2.0;
         transition application.stage.isochoric {
@@ -89,15 +89,15 @@ crashes Trap
             _ -> model_middle(application, index, volume)
         }
     }
-    state hold_middle(application: &mut Application, index: u32, volume: f64) requires index <= 3 {
+    machine hold_middle(application: &mut Application, index: u32, volume: f64) requires index <= 3 {
         row(index as i32, 1, volume, (application.stage.pressure + application.stage.end_pressure) / 2.0);
         transition { _ -> endpoint(application, index) }
     }
-    state model_middle(application: &mut Application, index: u32, volume: f64) requires index <= 3 {
+    machine model_middle(application: &mut Application, index: u32, volume: f64) requires index <= 3 {
         row(index as i32, 1, volume, pressure_at(&application.stage, volume));
         transition { _ -> endpoint(application, index) }
     }
-    state endpoint(application: &mut Application, index: u32) requires index <= 3 {
+    machine endpoint(application: &mut Application, index: u32) requires index <= 3 {
         row(index as i32, 2, application.stage.end_volume, application.stage.end_pressure);
         Console::write("work,"); integer(index as i32); Console::write(",");
         number(application.stage.work); Console::write_line("");
@@ -109,22 +109,22 @@ crashes Trap
             _ -> compression(application, index)
         }
     }
-    state expansion(application: &mut Application, index: u32) requires index <= 3 {
+    machine expansion(application: &mut Application, index: u32) requires index <= 3 {
         application.expansion = application.expansion + application.stage.work;
         transition { _ -> next(application, index) }
     }
-    state compression(application: &mut Application, index: u32) requires index <= 3 {
+    machine compression(application: &mut Application, index: u32) requires index <= 3 {
         application.compression = application.compression + application.stage.work;
         transition { _ -> next(application, index) }
     }
-    state next(application: &mut Application, index: u32) requires index <= 3 {
+    machine next(application: &mut Application, index: u32) requires index <= 3 {
         let count: u32 = count(application.selection);
         transition index + 1 < count && index < 3 {
             true -> stage(application, index + 1)
             _ -> balance(application)
         }
     }
-    state balance(application: &mut Application) {
+    machine balance(application: &mut Application) {
         Console::write("balance,"); number(application.expansion); Console::write(",");
         number(application.compression); Console::write(","); number(application.total);
         Console::write_line("");
@@ -133,25 +133,25 @@ crashes Trap
             _ -> bad_balance()
         }
     }
-    state closure(application: &mut Application) {
+    machine closure(application: &mut Application) {
         transition application.selection == 0 || application.selection == 1 {
             true -> closed(application)
             _ -> open()
         }
     }
-    state closed(application: &mut Application) {
+    machine closed(application: &mut Application) {
         transition near(application.previous_volume, application.first_volume)
             && near(application.previous_pressure, application.first_pressure) {
             true -> complete()
             _ -> bad_balance()
         }
     }
-    state complete() { Console::write_line("closed_cycle"); Console::exit_process(0); }
-    state open() { Console::write_line("open_stage"); Console::exit_process(0); }
-    state invalid() { Console::write_line("invalid_input"); Console::exit_process(64); }
-    state invalid_stage() { Console::write_line("invalid_stage"); Console::exit_process(65); }
-    state discontinuity() { Console::write_line("discontinuous_boundary"); Console::exit_process(66); }
-    state bad_balance() { Console::write_line("invalid_cycle_balance"); Console::exit_process(67); }
+    machine complete() { Console::write_line("closed_cycle"); Console::exit_process(0); }
+    machine open() { Console::write_line("open_stage"); Console::exit_process(0); }
+    machine invalid() { Console::write_line("invalid_input"); Console::exit_process(64); }
+    machine invalid_stage() { Console::write_line("invalid_stage"); Console::exit_process(65); }
+    machine discontinuity() { Console::write_line("discontinuous_boundary"); Console::exit_process(66); }
+    machine bad_balance() { Console::write_line("invalid_cycle_balance"); Console::exit_process(67); }
 }
 
 machine row(stage: i32, point: i32, volume: f64, pressure: f64) reaches Console

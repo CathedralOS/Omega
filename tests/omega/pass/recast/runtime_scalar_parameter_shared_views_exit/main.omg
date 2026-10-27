@@ -30,7 +30,7 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, 70)
         _ -> finish(main, 71)
     }
-    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

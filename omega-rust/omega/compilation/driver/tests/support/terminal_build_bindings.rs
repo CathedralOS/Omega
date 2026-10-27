@@ -52,9 +52,13 @@ fn exercise(
             Vec::new(),
         );
         for foreign in [false, true] {
-            let host =
-                TerminalBuildBindingHost::new(artifact.view().into(), bindings, original.clone())
-                    .unwrap();
+            let host = TerminalBuildBindingHost::new(
+                artifact.view().into(),
+                bindings,
+                original.clone(),
+                None,
+            )
+            .unwrap();
             let project = TerminalBuildRequestHost::new(
                 artifact.view().into(),
                 requests,

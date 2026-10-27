@@ -7,5 +7,5 @@ machine main() crashes Trap {
  let destination: &write i32 = lend_write(&write value);
  destination = 42;
  transition value == 42 && neighbor == 19 { true -> done() false -> wrong() }
- state done() {} state wrong() { crash Trap; }
+ machine done() {} machine wrong() { crash Trap; }
 }

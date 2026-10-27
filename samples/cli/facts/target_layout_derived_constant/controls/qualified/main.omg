@@ -28,7 +28,7 @@ machine main() crashes Trap {
     let observed: u64 = OBSERVED_SIZE;
     let slack: u64 = observed - 5u64;
     transition observed == expected() + 1u64 && slack == expected() - 4u64 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 const BAD: u64 [0..=3] = size_of<Main>() + 1u64;

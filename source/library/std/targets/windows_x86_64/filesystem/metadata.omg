@@ -18,13 +18,13 @@ machine windows_filesystem_kind(attributes: u32, reparse_tag: u32) -> FileKind {
         true -> reparse(reparse_tag)
         false -> ordinary(attributes)
     }
-    state reparse(tag: u32) -> FileKind {
+    machine reparse(tag: u32) -> FileKind {
         transition tag == 2684354572 || tag == 2684354563 {
             true -> FileKind::Symlink
             false -> FileKind::Other
         }
     }
-    state ordinary(attributes: u32) -> FileKind {
+    machine ordinary(attributes: u32) -> FileKind {
         transition (attributes & 16) != 0 { true -> FileKind::Directory false -> FileKind::File }
     }
 }
@@ -34,13 +34,13 @@ machine windows_filesystem_metadata_result(outcome: WindowsMetadataResult) -> Me
         WindowsMetadataResult::Error { code } -> (MetadataResult::Error { kind: windows_filesystem_error(code) })
         WindowsMetadataResult::Value { metadata } -> value(metadata)
     }
-    state value(metadata: WindowsFileMetadata) -> MetadataResult {
+    machine value(metadata: WindowsFileMetadata) -> MetadataResult {
         transition metadata.length >= 0 {
             true -> valid(metadata)
             false -> (MetadataResult::Error { kind: ErrorKind::Other })
         }
     }
-    state valid(metadata: WindowsFileMetadata) -> MetadataResult {
+    machine valid(metadata: WindowsFileMetadata) -> MetadataResult {
         MetadataResult::Ok { meta: Metadata {
             len: metadata.length,
             kind: windows_filesystem_kind(metadata.attributes, metadata.reparse_tag),
@@ -63,7 +63,7 @@ invokes WindowsFilesystemHost;
         true -> query(file)
         false -> (MetadataResult::Error { kind: ErrorKind::BadDescriptor })
     }
-    state query(file: File) -> MetadataResult {
+    machine query(file: File) -> MetadataResult {
         let outcome: WindowsMetadataResult = block WindowsFilesystemHost::metadata(file.handle);
         windows_filesystem_metadata_result(outcome)
     }
@@ -94,7 +94,7 @@ invokes WindowsFilesystemHost;
         MetadataResult::Ok { meta } -> ExistsResult::Yes
         MetadataResult::Error { kind } -> failed(kind)
     }
-    state failed(kind: ErrorKind) -> ExistsResult {
+    machine failed(kind: ErrorKind) -> ExistsResult {
         transition kind {
             ErrorKind::NotFound -> ExistsResult::No
             _ -> (ExistsResult::Error { kind: kind })
@@ -116,13 +116,13 @@ machine windows_filesystem_encode_timestamp(seconds: i64) -> WindowsTimestampEnc
         true -> (WindowsTimestampEncoding::Error { kind: ErrorKind::Unsupported })
         false -> range(seconds)
     }
-    state range(seconds: i64) -> WindowsTimestampEncoding {
+    machine range(seconds: i64) -> WindowsTimestampEncoding {
         transition seconds > -11644473600 && seconds <= 1833029933770 {
             true -> encode(seconds)
             false -> (WindowsTimestampEncoding::Error { kind: ErrorKind::InvalidInput })
         }
     }
-    state encode(seconds: i64) -> WindowsTimestampEncoding
+    machine encode(seconds: i64) -> WindowsTimestampEncoding
     requires seconds > -11644473600 && seconds <= 1833029933770 {
         let shifted: i64 = seconds + 11644473600;
         let ticks: u64 = narrow_i64_to_u64_exact(shifted) * 10000000;
@@ -138,21 +138,21 @@ invokes WindowsFilesystemHost;
         true -> access_time(file, accessed, modified)
         false -> (UnitResult::Error { kind: ErrorKind::BadDescriptor })
     }
-    state access_time(file: File, accessed: i64, modified: i64) -> UnitResult {
+    machine access_time(file: File, accessed: i64, modified: i64) -> UnitResult {
         let encoded: WindowsTimestampEncoding = windows_filesystem_encode_timestamp(accessed);
         transition encoded {
             WindowsTimestampEncoding::Error { kind } -> (UnitResult::Error { kind: kind })
             WindowsTimestampEncoding::Ticks { value } -> write_time(file, value, modified)
         }
     }
-    state write_time(file: File, accessed: u64, modified: i64) -> UnitResult {
+    machine write_time(file: File, accessed: u64, modified: i64) -> UnitResult {
         let encoded: WindowsTimestampEncoding = windows_filesystem_encode_timestamp(modified);
         transition encoded {
             WindowsTimestampEncoding::Error { kind } -> (UnitResult::Error { kind: kind })
             WindowsTimestampEncoding::Ticks { value } -> update(file, accessed, value)
         }
     }
-    state update(file: File, accessed: u64, modified: u64) -> UnitResult {
+    machine update(file: File, accessed: u64, modified: u64) -> UnitResult {
         let status: i32 = block WindowsFilesystemHost::set_file_time(file.handle, accessed, modified);
         windows_filesystem_unit(status)
     }
@@ -169,7 +169,7 @@ invokes WindowsFilesystemHost;
         Permissions::Readonly { value } -> update(path, value)
         Permissions::Posix { mode } -> (UnitResult::Error { kind: ErrorKind::Unsupported })
     }
-    state update(path: &[u8] in Path, readonly: bool) -> UnitResult {
+    machine update(path: &[u8] in Path, readonly: bool) -> UnitResult {
         let status: i32 = block WindowsFilesystemHost::set_path_readonly(path, readonly);
         windows_filesystem_unit(status)
     }
@@ -183,14 +183,14 @@ invokes WindowsFilesystemHost;
         true -> select(file, permissions)
         false -> (UnitResult::Error { kind: ErrorKind::BadDescriptor })
     }
-    state select(file: File, permissions: Permissions) -> UnitResult {
+    machine select(file: File, permissions: Permissions) -> UnitResult {
         transition permissions {
             Permissions::Default -> update(file, false)
             Permissions::Readonly { value } -> update(file, value)
             Permissions::Posix { mode } -> (UnitResult::Error { kind: ErrorKind::Unsupported })
         }
     }
-    state update(file: File, readonly: bool) -> UnitResult {
+    machine update(file: File, readonly: bool) -> UnitResult {
         let status: i32 = block WindowsFilesystemHost::set_handle_readonly(file.handle, readonly);
         windows_filesystem_unit(status)
     }

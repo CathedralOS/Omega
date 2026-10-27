@@ -22,7 +22,7 @@ linux_x86_64 machine TargetProviders::provider_defaults(defaults: &mut TargetPro
 data Main { source: Source; values: [i32; 8]; }
 machine Main::main(main: &mut Main) reaches Child + Parent crashes Trap {
     transition { _ -> observe(main) }
-    state observe(main: &mut Main) {
+    machine observe(main: &mut Main) {
         main.source.first = 12u64;
         main.source.count = 8u64;
         Parent::reset(&mut main.source as &mut Counter);
@@ -31,8 +31,8 @@ machine Main::main(main: &mut Main) reaches Child + Parent crashes Trap {
         let observed: i32 = main.values[main.source.first];
         transition observed == 0 { true -> done() _ -> bad() }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

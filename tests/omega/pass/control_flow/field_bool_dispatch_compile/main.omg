@@ -13,6 +13,6 @@ machine Main::main(main: &mut Main) {
         false -> stop(main)
     }
 
-    state go(main: &mut Main) { main.answer = 70; }
-    state stop(main: &mut Main) { main.answer = 71; }
+    machine go(main: &mut Main) { main.answer = 70; }
+    machine stop(main: &mut Main) { main.answer = 71; }
 }

@@ -6,8 +6,8 @@ data Main { label: TextBuffer; }
 machine TextBuffer::view(buffer: &TextBuffer) -> &[u8] in Utf8 crashes Trap {
     let bytes: &[u8] = &buffer.storage[..buffer.used];
     transition valid_utf8(bytes) { true -> checked(bytes) false -> bad() }
-    state checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
-    state bad() { crash Trap; }
+    machine checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
+    machine bad() -> &[u8] in Utf8 { crash Trap; }
 }
 machine matches(buffer: &TextBuffer, expected: &[u8] in Utf8, used: u64) -> bool crashes Trap {
     let bytes: &[u8] in Utf8 = TextBuffer::view(buffer);
@@ -19,18 +19,18 @@ machine Main::main(main: &mut Main) crashes Trap {
     let observed: bool = matches(&main.label, "hello", 5);
     let local: bool = local_replacement();
     transition observed && local { true -> verify(main) false -> bad() }
-    state verify(main: &mut Main) {
+    machine verify(main: &mut Main) {
         let observed: bool = matches(&main.label, "hello", 5);
         transition observed { true -> replace_again(main) false -> bad() }
     }
-    state replace_again(main: &mut Main) {
+    machine replace_again(main: &mut Main) {
         let another: &mut TextBuffer = &mut main.label;
         another = TextBuffer { storage: [195u8, 169u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 2 };
         let observed: bool = matches(&main.label, "é", 2);
         transition observed { true -> done() false -> bad() }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 // The same replacement through a reference to a frame-local explicit owner.
 machine local_replacement() -> bool crashes Trap {

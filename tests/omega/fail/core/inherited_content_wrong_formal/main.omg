@@ -29,6 +29,6 @@ machine main() crashes Trap {
     let returned: Region in Owned = retain(first, second);
     let amount: u64 = observe(returned);
     transition amount == 29 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

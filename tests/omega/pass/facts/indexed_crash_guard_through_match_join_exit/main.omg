@@ -6,7 +6,7 @@ requires index < 2
 crashes Trap items[index] == 0
 {
     transition items[index] == 0 { true -> bad() false -> (items[index]) }
-    state bad() { crash Trap; }
+    machine bad() -> u64 { crash Trap; }
 }
 public machine read_seven(items: &[u64; 2], index: u64, flag: bool) -> u64
 requires index < 2
@@ -18,8 +18,8 @@ requires items[index] == 7
 machine main() crashes Trap {
     let items: [u64; 2] = [7, 11];
     transition items[0] == 7 { true -> finish(read_seven(&items, 0, true), &items) _ -> bad() }
-    state finish(observed: u64, items: &[u64; 2]) {
+    machine finish(observed: u64, items: &[u64; 2]) {
         transition observed == 7 && read_seven(items, 0, false) == 7 { true -> done() _ -> bad() }
     }
-    state done() {} state bad() { crash Trap; }
+    machine done() {} machine bad() { crash Trap; }
 }

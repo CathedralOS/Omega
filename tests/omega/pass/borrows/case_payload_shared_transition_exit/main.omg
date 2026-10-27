@@ -10,7 +10,7 @@ machine inspect(response: &Optional<Token>) -> i32 {
         Optional::Some { value } -> observe(&value)
         Optional::None -> (0)
     }
-    state observe(token: &Token) -> i32 { token.value }
+    machine observe(token: &Token) -> i32 { token.value }
 }
 
 machine inspect_nested(response: &Optional<Token>) -> i32 {
@@ -18,7 +18,7 @@ machine inspect_nested(response: &Optional<Token>) -> i32 {
         Optional::Some { value } -> observe(&value.leaf)
         Optional::None -> (0)
     }
-    state observe(leaf: &Leaf) -> i32 { leaf.value }
+    machine observe(leaf: &Leaf) -> i32 { leaf.value }
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -33,7 +33,7 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, 70)
         false -> finish(main, 71)
     }
-    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

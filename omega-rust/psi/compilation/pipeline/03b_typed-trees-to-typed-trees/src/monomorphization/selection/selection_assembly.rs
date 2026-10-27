@@ -95,7 +95,7 @@ pub(crate) fn selection_for_call_with_local_prefix(
     } else {
         (target_symbol, machine_arguments, arguments, expected_return)
     };
-    let callee = resolve_callee(callee_states, target_symbol)?;
+    let callee = resolve_callee(program, callee_states, target_symbol)?;
     let candidate = &candidates[callee.candidate_index];
     let mut proposals = StaticProposals::default();
     let explicit_arguments = collect_call_proposals(

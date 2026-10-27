@@ -19,14 +19,14 @@ machine Main::main(main: &mut Main) reaches Console {
         Cmd::Dim { amount } -> scale(main, amount)
         Cmd::Off            -> apply(main, 0)
     }
-    state scale(main: &mut Main, a: i32) requires a >= 0 && a <= 10 {
+    machine scale(main: &mut Main, a: i32) requires a >= 0 && a <= 10 {
         let scaled: i32 = a * 10;
         transition { _ -> apply(main, scaled) }
     }
-    state apply(main: &mut Main, target: i32) requires 0 <= target && target <= 100 {
+    machine apply(main: &mut Main, target: i32) requires 0 <= target && target <= 100 {
         Console::exit_process(target);
     }
-    state bad(main: &mut Main) { Console::exit_process(1); }
+    machine bad(main: &mut Main) { Console::exit_process(1); }
 }
 machine Main::run(main: &mut Main) { Main::main(main); }
 

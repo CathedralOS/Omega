@@ -10,8 +10,8 @@ machine first(values: &[u32], ignored: u32) -> u32 {
         true -> present(values)
         _ -> empty()
     }
-    state present(values: &[u32]) -> u32 { values[0] }
-    state empty() -> u32 { 0 }
+    machine present(values: &[u32]) -> u32 { values[0] }
+    machine empty() -> u32 { 0 }
 }
 
 machine verify(values: &[u32], expected: u32) crashes Trap {
@@ -19,14 +19,14 @@ machine verify(values: &[u32], expected: u32) crashes Trap {
         true -> present(values, expected)
         _ -> bad()
     }
-    state present(values: &[u32], expected: u32) {
+    machine present(values: &[u32], expected: u32) {
         transition values[0] == expected {
             true -> done()
             _ -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 machine exercise(matrix: &[[u32; 3]; 2], cursor: &mut Cursor) crashes Trap
@@ -40,8 +40,8 @@ requires cursor.row < 2 {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 machine main() crashes Trap {

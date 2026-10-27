@@ -50,8 +50,8 @@ machine main() crashes Trap {
     let interior: bool = exercise(16);
     let full: bool = exercise(48);
     transition empty && interior && full { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 machine counterfeit(whole: Region in Owned, requested: u64) -> Parts
@@ -66,10 +66,10 @@ ensures
         true -> original(whole, requested)
         _ -> replacement(whole, requested)
     }
-    state original(whole: Region in Owned, requested: u64) -> Parts
+    machine original(whole: Region in Owned, requested: u64) -> Parts
     requires whole.base == 10 && whole.length == 48 && requested <= whole.length
     { partition(whole, requested) }
-    state replacement(whole: Region in Owned, requested: u64) -> Parts
+    machine replacement(whole: Region in Owned, requested: u64) -> Parts
     requires whole.base == 10 && whole.length == 48 && requested <= whole.length
     {
         let original_base: u64 = whole.base;

@@ -13,9 +13,9 @@ machine main() crashes Trap {
     initialize(&mut values);
     values[3] = 1;
     transition true { true -> accept(values) false -> bad() }
-    state accept(captured: [u16; 4] in ZeroTail) {
+    machine accept(captured: [u16; 4] in ZeroTail) {
         transition consume(captured) == 65535u16 { true -> done() false -> bad() }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

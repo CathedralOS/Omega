@@ -37,7 +37,7 @@ terminates by items;
         )
     }
 
-    state choose(keep: bool, head: T, tail: Seq<T>) -> Seq<T> {
+    machine choose(keep: bool, head: T, tail: Seq<T>) -> Seq<T> {
         transition keep {
             true -> Seq::Cons { head: head, tail: tail }
             false -> tail

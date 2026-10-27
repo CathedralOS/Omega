@@ -24,47 +24,47 @@ machine Main::main(main: &mut Main) reaches Console + FilesystemContentRead + Fi
     main.result = block Filesystem::create_dir(&mut main.filesystem, "/tmp/omega_journal_dir");
     transition main.result { UnitResult::Ok -> made_directory(main) _ -> done(main) }
 
-    state made_directory(main: &mut Main) {
+    machine made_directory(main: &mut Main) {
         main.passed = main.passed + 1;
         main.opened = block Filesystem::create(&mut main.filesystem, "/tmp/omega_journal_dir/note.txt");
         transition main.opened { OpenResult::Ok { file } -> write(main, file) _ -> done(main) }
     }
-    state write(main: &mut Main, file: File) {
+    machine write(main: &mut Main, file: File) {
         main.transferred = block Filesystem::write(&mut main.filesystem, file, "omega fs journal\n");
         main.result = block Filesystem::close(&mut main.filesystem, file);
         transition main.result { UnitResult::Ok -> written(main) _ -> done(main) }
     }
-    state written(main: &mut Main) {
+    machine written(main: &mut Main) {
         transition main.transferred { IoResult::Ok { count } -> count_written(main, count) _ -> done(main) }
     }
-    state count_written(main: &mut Main, count: u64) {
+    machine count_written(main: &mut Main, count: u64) {
         transition count == 17 { true -> inspect(main) false -> done(main) }
     }
-    state inspect(main: &mut Main) {
+    machine inspect(main: &mut Main) {
         main.passed = main.passed + 1;
         main.metadata = block Filesystem::metadata_path(&mut main.filesystem, "/tmp/omega_journal_dir/note.txt");
         transition main.metadata { MetadataResult::Ok { meta } -> inspected(main, meta) _ -> done(main) }
     }
-    state inspected(main: &mut Main, metadata: Metadata) {
+    machine inspected(main: &mut Main, metadata: Metadata) {
         transition metadata.len == 17 { true -> open_for_read(main) false -> done(main) }
     }
-    state open_for_read(main: &mut Main) {
+    machine open_for_read(main: &mut Main) {
         main.passed = main.passed + 1;
         main.opened = block Filesystem::open(&mut main.filesystem, "/tmp/omega_journal_dir/note.txt");
         transition main.opened { OpenResult::Ok { file } -> read(main, file) _ -> done(main) }
     }
-    state read(main: &mut Main, file: File) {
+    machine read(main: &mut Main, file: File) {
         main.transferred = block Filesystem::read(&mut main.filesystem, file, &mut main.buffer, 17);
         main.result = block Filesystem::close(&mut main.filesystem, file);
         transition main.result { UnitResult::Ok -> read_complete(main) _ -> done(main) }
     }
-    state read_complete(main: &mut Main) {
+    machine read_complete(main: &mut Main) {
         transition main.transferred { IoResult::Ok { count } -> count_read(main, count) _ -> done(main) }
     }
-    state count_read(main: &mut Main, count: u64) {
+    machine count_read(main: &mut Main, count: u64) {
         transition count == 17 { true -> bytes_read(main) false -> done(main) }
     }
-    state bytes_read(main: &mut Main) {
+    machine bytes_read(main: &mut Main) {
         transition main.buffer[0] == 111 && main.buffer[1] == 109 && main.buffer[2] == 101
             && main.buffer[3] == 103 && main.buffer[4] == 97 && main.buffer[5] == 32
             && main.buffer[6] == 102 && main.buffer[7] == 115 && main.buffer[8] == 32
@@ -75,26 +75,26 @@ machine Main::main(main: &mut Main) reaches Console + FilesystemContentRead + Fi
             false -> done(main)
         }
     }
-    state rename(main: &mut Main) {
+    machine rename(main: &mut Main) {
         main.passed = main.passed + 1;
         main.result = block Filesystem::rename(&mut main.filesystem, "/tmp/omega_journal_dir/note.txt", "/tmp/omega_journal_dir/renamed.txt");
         transition main.result { UnitResult::Ok -> renamed(main) _ -> done(main) }
     }
-    state renamed(main: &mut Main) {
+    machine renamed(main: &mut Main) {
         main.passed = main.passed + 1;
         main.result = block Filesystem::remove(&mut main.filesystem, "/tmp/omega_journal_dir/renamed.txt");
         transition main.result { UnitResult::Ok -> removed_file(main) _ -> done(main) }
     }
-    state removed_file(main: &mut Main) {
+    machine removed_file(main: &mut Main) {
         main.passed = main.passed + 1;
         main.result = block Filesystem::remove_dir(&mut main.filesystem, "/tmp/omega_journal_dir");
         transition main.result { UnitResult::Ok -> removed_directory(main) _ -> done(main) }
     }
-    state removed_directory(main: &mut Main) {
+    machine removed_directory(main: &mut Main) {
         main.passed = main.passed + 1;
         transition { _ -> done(main) }
     }
-    state done(main: &mut Main) { Console::exit_process(main.passed as i32); }
+    machine done(main: &mut Main) { Console::exit_process(main.passed as i32); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

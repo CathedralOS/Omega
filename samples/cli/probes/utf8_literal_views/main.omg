@@ -20,10 +20,10 @@ machine Main::classify(text: &[u8] in Utf8) -> u64 in Wrapping {
         true -> Main::matched(text)
         _ -> Main::other(text)
     }
-    state matched(text: &[u8] in Utf8) -> u64 in Wrapping {
+    machine matched(text: &[u8] in Utf8) -> u64 in Wrapping {
         70
     }
-    state other(text: &[u8] in Utf8) -> u64 in Wrapping {
+    machine other(text: &[u8] in Utf8) -> u64 in Wrapping {
         71
     }
 }
@@ -38,8 +38,8 @@ machine Main::main(main: &mut Main) {
         true -> Main::pass(main)
         _ -> Main::fail(main)
     }
-    state pass(main: &mut Main) { main.hits = 1; }
-    state fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: &mut Main) { main.hits = 1; }
+    machine fail(main: &mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

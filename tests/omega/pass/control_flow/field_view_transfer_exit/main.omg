@@ -26,7 +26,7 @@ machine Store::probe<'ext>(store: &mut Store) -> u64 {
     }
 
     // Shared and mutable field views forwarded into `&` / `&mut` parameters.
-    state write(names: &'ext [u8], cells: &'ext mut [u8]) -> u64
+    machine write(names: &'ext [u8], cells: &'ext mut [u8]) -> u64
         requires cells.len > 0
     {
         cells[0] = 70;
@@ -37,7 +37,7 @@ machine Store::probe<'ext>(store: &mut Store) -> u64 {
     }
 
     // The shared view parameter forwarded again across the next edge.
-    state share(names: &'ext [u8]) -> u64
+    machine share(names: &'ext [u8]) -> u64
         requires names.len > 0
     {
         transition names[0] == 7 {
@@ -46,11 +46,11 @@ machine Store::probe<'ext>(store: &mut Store) -> u64 {
         }
     }
 
-    state done() -> u64 {
+    machine done() -> u64 {
         transition { _ -> (70) }
     }
 
-    state missed() -> u64 {
+    machine missed() -> u64 {
         transition { _ -> (9) }
     }
 }

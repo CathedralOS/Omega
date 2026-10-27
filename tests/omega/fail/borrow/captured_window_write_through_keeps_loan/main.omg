@@ -7,6 +7,6 @@ machine main() crashes Trap {
     held.value.value = 9;
     original.value = 3;
     transition held.value.value == 9 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

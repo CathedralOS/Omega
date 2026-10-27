@@ -4,8 +4,8 @@ domain i64::Nonnegative(value) requires value >= 0 established by seed, issue, c
 machine seed() -> i64 in Nonnegative { 17 }
 machine issue(old: bool, existing: i64 in Nonnegative) -> i64 in Nonnegative {
     transition old { true -> saved(existing) _ -> fresh() }
-    state saved(value: i64 in Nonnegative) -> i64 in Nonnegative { value }
-    state fresh() -> i64 in Nonnegative { 17 }
+    machine saved(value: i64 in Nonnegative) -> i64 in Nonnegative { value }
+    machine fresh() -> i64 in Nonnegative { 17 }
 }
 machine choose(old: bool, existing: i64 in Nonnegative) -> i64 in Nonnegative {
     transition old { true -> (existing) _ -> (17) }
@@ -24,6 +24,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

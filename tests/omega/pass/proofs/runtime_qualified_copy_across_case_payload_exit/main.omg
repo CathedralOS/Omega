@@ -15,16 +15,16 @@ machine measure(filesystem: &mut Filesystem, outcome: Outcome) -> u64 {
         Outcome::Signed { value } -> signed(value, before)
         Outcome::Flag { value } -> flag(value, before)
     }
-    state count(value: u64, before: u64) -> u64 {
+    machine count(value: u64, before: u64) -> u64 {
         transition value == 0 || value == 17 { true -> finish(before) _ -> 0 }
     }
-    state signed(value: i32, before: u64) -> u64 {
+    machine signed(value: i32, before: u64) -> u64 {
         transition value == -7 { true -> finish(before) _ -> 0 }
     }
-    state flag(value: bool, before: u64) -> u64 {
+    machine flag(value: bool, before: u64) -> u64 {
         transition value { true -> finish(before) _ -> 0 }
     }
-    state finish(before: u64) -> u64 {
+    machine finish(before: u64) -> u64 {
         let after: u64 = inspect("after");
         transition before == 3 && after == 5 { true -> 9 _ -> 0 }
     }
@@ -39,8 +39,8 @@ machine Main::main(main: &mut Main) crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -28,28 +28,28 @@ crashes Trap
         _ -> digits(sources, span, span.span.start, 10, 0, false)
     }
 
-    state prefix(sources: &SourceSet, span: SourceSpan, second: u8) -> LiteralValue {
+    machine prefix(sources: &SourceSet, span: SourceSpan, second: u8) -> LiteralValue {
         transition second == 98 || second == 66 {
             true -> digits(sources, span, span.span.start + 2, 2, 0, false)
             _ -> octal(sources, span, second)
         }
     }
 
-    state octal(sources: &SourceSet, span: SourceSpan, second: u8) -> LiteralValue {
+    machine octal(sources: &SourceSet, span: SourceSpan, second: u8) -> LiteralValue {
         transition second == 111 || second == 79 {
             true -> digits(sources, span, span.span.start + 2, 8, 0, false)
             _ -> hexadecimal(sources, span, second)
         }
     }
 
-    state hexadecimal(sources: &SourceSet, span: SourceSpan, second: u8) -> LiteralValue {
+    machine hexadecimal(sources: &SourceSet, span: SourceSpan, second: u8) -> LiteralValue {
         transition second == 120 || second == 88 {
             true -> digits(sources, span, span.span.start + 2, 16, 0, false)
             _ -> digits(sources, span, span.span.start, 10, 0, false)
         }
     }
 
-    state digits(
+    machine digits(
         sources: &SourceSet,
         span: SourceSpan,
         index: u64 in Trapping,
@@ -63,7 +63,7 @@ crashes Trap
         }
     }
 
-    state digit(
+    machine digit(
         sources: &SourceSet,
         span: SourceSpan,
         index: u64 in Trapping,
@@ -79,7 +79,7 @@ crashes Trap
         }
     }
 
-    state digit_in_base(
+    machine digit_in_base(
         sources: &SourceSet,
         span: SourceSpan,
         index: u64 in Trapping,
@@ -94,7 +94,7 @@ crashes Trap
         }
     }
 
-    state accumulate(
+    machine accumulate(
         sources: &SourceSet,
         span: SourceSpan,
         index: u64 in Trapping,
@@ -109,7 +109,7 @@ crashes Trap
         }
     }
 
-    state suffix(sources: &SourceSet, span: SourceSpan, index: u64 in Trapping, seen: bool, magnitude: u64 in Wrapping) -> LiteralValue {
+    machine suffix(sources: &SourceSet, span: SourceSpan, index: u64 in Trapping, seen: bool, magnitude: u64 in Wrapping) -> LiteralValue {
         let rest: SourceSpan = SourceSpan { source: span.source, span: Span { start: index, end: span.span.end } };
         let carrier: SuffixCarrier = Typer::suffix_carrier(sources, rest);
         transition seen && carrier.known {
@@ -118,22 +118,22 @@ crashes Trap
         }
     }
 
-    state finish(seen: bool, magnitude: u64 in Wrapping) -> LiteralValue {
+    machine finish(seen: bool, magnitude: u64 in Wrapping) -> LiteralValue {
         transition seen {
             true -> plain(magnitude)
             _ -> invalid()
         }
     }
 
-    state plain(magnitude: u64 in Wrapping) -> LiteralValue {
+    machine plain(magnitude: u64 in Wrapping) -> LiteralValue {
         LiteralValue { valid: true, has_suffix: false, suffix: BuiltinType::U64, magnitude: magnitude }
     }
 
-    state suffixed(builtin: BuiltinType, magnitude: u64 in Wrapping) -> LiteralValue {
+    machine suffixed(builtin: BuiltinType, magnitude: u64 in Wrapping) -> LiteralValue {
         LiteralValue { valid: true, has_suffix: true, suffix: builtin, magnitude: magnitude }
     }
 
-    state invalid() -> LiteralValue {
+    machine invalid() -> LiteralValue {
         LiteralValue { valid: false, has_suffix: false, suffix: BuiltinType::U64, magnitude: 0 }
     }
 }
@@ -145,33 +145,33 @@ machine Typer::digit_value(byte: u8) -> u64 in Wrapping {
         _ -> lower(byte)
     }
 
-    state decimal(byte: u8) -> u64 in Wrapping {
+    machine decimal(byte: u8) -> u64 in Wrapping {
         (byte as u64 in Wrapping) - 48
     }
 
-    state lower(byte: u8) -> u64 in Wrapping {
+    machine lower(byte: u8) -> u64 in Wrapping {
         transition byte >= 97 && byte <= 102 {
             true -> lower_value(byte)
             _ -> upper(byte)
         }
     }
 
-    state lower_value(byte: u8) -> u64 in Wrapping {
+    machine lower_value(byte: u8) -> u64 in Wrapping {
         (byte as u64 in Wrapping) - 87
     }
 
-    state upper(byte: u8) -> u64 in Wrapping {
+    machine upper(byte: u8) -> u64 in Wrapping {
         transition byte >= 65 && byte <= 70 {
             true -> upper_value(byte)
             _ -> none()
         }
     }
 
-    state upper_value(byte: u8) -> u64 in Wrapping {
+    machine upper_value(byte: u8) -> u64 in Wrapping {
         (byte as u64 in Wrapping) - 55
     }
 
-    state none() -> u64 in Wrapping {
+    machine none() -> u64 in Wrapping {
         16
     }
 }
@@ -198,60 +198,60 @@ crashes Trap
         _ -> second(u16_suffix, u32_suffix, u64_suffix, i8_suffix, i16_suffix, i32_suffix, i64_suffix)
     }
 
-    state second(u16_suffix: bool, u32_suffix: bool, u64_suffix: bool, i8_suffix: bool, i16_suffix: bool, i32_suffix: bool, i64_suffix: bool) -> SuffixCarrier {
+    machine second(u16_suffix: bool, u32_suffix: bool, u64_suffix: bool, i8_suffix: bool, i16_suffix: bool, i32_suffix: bool, i64_suffix: bool) -> SuffixCarrier {
         transition u16_suffix {
             true -> known(BuiltinType::U16)
             _ -> third(u32_suffix, u64_suffix, i8_suffix, i16_suffix, i32_suffix, i64_suffix)
         }
     }
 
-    state third(u32_suffix: bool, u64_suffix: bool, i8_suffix: bool, i16_suffix: bool, i32_suffix: bool, i64_suffix: bool) -> SuffixCarrier {
+    machine third(u32_suffix: bool, u64_suffix: bool, i8_suffix: bool, i16_suffix: bool, i32_suffix: bool, i64_suffix: bool) -> SuffixCarrier {
         transition u32_suffix {
             true -> known(BuiltinType::U32)
             _ -> fourth(u64_suffix, i8_suffix, i16_suffix, i32_suffix, i64_suffix)
         }
     }
 
-    state fourth(u64_suffix: bool, i8_suffix: bool, i16_suffix: bool, i32_suffix: bool, i64_suffix: bool) -> SuffixCarrier {
+    machine fourth(u64_suffix: bool, i8_suffix: bool, i16_suffix: bool, i32_suffix: bool, i64_suffix: bool) -> SuffixCarrier {
         transition u64_suffix {
             true -> known(BuiltinType::U64)
             _ -> fifth(i8_suffix, i16_suffix, i32_suffix, i64_suffix)
         }
     }
 
-    state fifth(i8_suffix: bool, i16_suffix: bool, i32_suffix: bool, i64_suffix: bool) -> SuffixCarrier {
+    machine fifth(i8_suffix: bool, i16_suffix: bool, i32_suffix: bool, i64_suffix: bool) -> SuffixCarrier {
         transition i8_suffix {
             true -> known(BuiltinType::I8)
             _ -> sixth(i16_suffix, i32_suffix, i64_suffix)
         }
     }
 
-    state sixth(i16_suffix: bool, i32_suffix: bool, i64_suffix: bool) -> SuffixCarrier {
+    machine sixth(i16_suffix: bool, i32_suffix: bool, i64_suffix: bool) -> SuffixCarrier {
         transition i16_suffix {
             true -> known(BuiltinType::I16)
             _ -> seventh(i32_suffix, i64_suffix)
         }
     }
 
-    state seventh(i32_suffix: bool, i64_suffix: bool) -> SuffixCarrier {
+    machine seventh(i32_suffix: bool, i64_suffix: bool) -> SuffixCarrier {
         transition i32_suffix {
             true -> known(BuiltinType::I32)
             _ -> eighth(i64_suffix)
         }
     }
 
-    state eighth(i64_suffix: bool) -> SuffixCarrier {
+    machine eighth(i64_suffix: bool) -> SuffixCarrier {
         transition i64_suffix {
             true -> known(BuiltinType::I64)
             _ -> unknown()
         }
     }
 
-    state known(builtin: BuiltinType) -> SuffixCarrier {
+    machine known(builtin: BuiltinType) -> SuffixCarrier {
         SuffixCarrier { known: true, builtin: builtin }
     }
 
-    state unknown() -> SuffixCarrier {
+    machine unknown() -> SuffixCarrier {
         SuffixCarrier { known: false, builtin: BuiltinType::U64 }
     }
 }
@@ -273,7 +273,7 @@ crashes Trap
         _ -> finished(0, true, true, true, false)
     }
 
-    state next(
+    machine next(
         sources: &SourceSet,
         span: SourceSpan,
         index: u64 in Trapping,
@@ -292,7 +292,7 @@ crashes Trap
         }
     }
 
-    state byte(
+    machine byte(
         sources: &SourceSet,
         span: SourceSpan,
         index: u64 in Trapping,
@@ -313,7 +313,7 @@ crashes Trap
         }
     }
 
-    state escaped(
+    machine escaped(
         sources: &SourceSet,
         span: SourceSpan,
         index: u64 in Trapping,
@@ -337,7 +337,7 @@ crashes Trap
         }
     }
 
-    state decoded(
+    machine decoded(
         sources: &SourceSet,
         span: SourceSpan,
         index: u64 in Trapping,
@@ -359,7 +359,7 @@ crashes Trap
         }
     }
 
-    state continuation(
+    machine continuation(
         sources: &SourceSet,
         span: SourceSpan,
         index: u64 in Trapping,
@@ -376,63 +376,63 @@ crashes Trap
         transition { _ -> next(sources, span, index, end, pending - 1, 128, 191, utf8 && fits, nul_free, ascii, true) }
     }
 
-    state lead(sources: &SourceSet, span: SourceSpan, index: u64 in Trapping, end: u64 in Trapping, value: u64 in Trapping, utf8: bool, nul_free: bool, ascii: bool) -> u64 in Trapping {
+    machine lead(sources: &SourceSet, span: SourceSpan, index: u64 in Trapping, end: u64 in Trapping, value: u64 in Trapping, utf8: bool, nul_free: bool, ascii: bool) -> u64 in Trapping {
         transition value < 128 {
             true -> next(sources, span, index, end, 0, 128, 191, utf8, nul_free, ascii, true)
             _ -> two(sources, span, index, end, value, utf8, nul_free, ascii)
         }
     }
 
-    state two(sources: &SourceSet, span: SourceSpan, index: u64 in Trapping, end: u64 in Trapping, value: u64 in Trapping, utf8: bool, nul_free: bool, ascii: bool) -> u64 in Trapping {
+    machine two(sources: &SourceSet, span: SourceSpan, index: u64 in Trapping, end: u64 in Trapping, value: u64 in Trapping, utf8: bool, nul_free: bool, ascii: bool) -> u64 in Trapping {
         transition value >= 194 && value <= 223 {
             true -> next(sources, span, index, end, 1, 128, 191, utf8, nul_free, ascii, true)
             _ -> three(sources, span, index, end, value, utf8, nul_free, ascii)
         }
     }
 
-    state three(sources: &SourceSet, span: SourceSpan, index: u64 in Trapping, end: u64 in Trapping, value: u64 in Trapping, utf8: bool, nul_free: bool, ascii: bool) -> u64 in Trapping {
+    machine three(sources: &SourceSet, span: SourceSpan, index: u64 in Trapping, end: u64 in Trapping, value: u64 in Trapping, utf8: bool, nul_free: bool, ascii: bool) -> u64 in Trapping {
         transition value == 224 {
             true -> next(sources, span, index, end, 2, 160, 191, utf8, nul_free, ascii, true)
             _ -> three_plain(sources, span, index, end, value, utf8, nul_free, ascii)
         }
     }
 
-    state three_plain(sources: &SourceSet, span: SourceSpan, index: u64 in Trapping, end: u64 in Trapping, value: u64 in Trapping, utf8: bool, nul_free: bool, ascii: bool) -> u64 in Trapping {
+    machine three_plain(sources: &SourceSet, span: SourceSpan, index: u64 in Trapping, end: u64 in Trapping, value: u64 in Trapping, utf8: bool, nul_free: bool, ascii: bool) -> u64 in Trapping {
         transition (value >= 225 && value <= 236) || value == 238 || value == 239 {
             true -> next(sources, span, index, end, 2, 128, 191, utf8, nul_free, ascii, true)
             _ -> three_surrogate(sources, span, index, end, value, utf8, nul_free, ascii)
         }
     }
 
-    state three_surrogate(sources: &SourceSet, span: SourceSpan, index: u64 in Trapping, end: u64 in Trapping, value: u64 in Trapping, utf8: bool, nul_free: bool, ascii: bool) -> u64 in Trapping {
+    machine three_surrogate(sources: &SourceSet, span: SourceSpan, index: u64 in Trapping, end: u64 in Trapping, value: u64 in Trapping, utf8: bool, nul_free: bool, ascii: bool) -> u64 in Trapping {
         transition value == 237 {
             true -> next(sources, span, index, end, 2, 128, 159, utf8, nul_free, ascii, true)
             _ -> four(sources, span, index, end, value, utf8, nul_free, ascii)
         }
     }
 
-    state four(sources: &SourceSet, span: SourceSpan, index: u64 in Trapping, end: u64 in Trapping, value: u64 in Trapping, utf8: bool, nul_free: bool, ascii: bool) -> u64 in Trapping {
+    machine four(sources: &SourceSet, span: SourceSpan, index: u64 in Trapping, end: u64 in Trapping, value: u64 in Trapping, utf8: bool, nul_free: bool, ascii: bool) -> u64 in Trapping {
         transition value == 240 {
             true -> next(sources, span, index, end, 3, 144, 191, utf8, nul_free, ascii, true)
             _ -> four_plain(sources, span, index, end, value, utf8, nul_free, ascii)
         }
     }
 
-    state four_plain(sources: &SourceSet, span: SourceSpan, index: u64 in Trapping, end: u64 in Trapping, value: u64 in Trapping, utf8: bool, nul_free: bool, ascii: bool) -> u64 in Trapping {
+    machine four_plain(sources: &SourceSet, span: SourceSpan, index: u64 in Trapping, end: u64 in Trapping, value: u64 in Trapping, utf8: bool, nul_free: bool, ascii: bool) -> u64 in Trapping {
         transition value >= 241 && value <= 243 {
             true -> next(sources, span, index, end, 3, 128, 191, utf8, nul_free, ascii, true)
             _ -> four_last(sources, span, index, end, value, utf8, nul_free, ascii)
         }
     }
 
-    state four_last(sources: &SourceSet, span: SourceSpan, index: u64 in Trapping, end: u64 in Trapping, value: u64 in Trapping, utf8: bool, nul_free: bool, ascii: bool) -> u64 in Trapping {
+    machine four_last(sources: &SourceSet, span: SourceSpan, index: u64 in Trapping, end: u64 in Trapping, value: u64 in Trapping, utf8: bool, nul_free: bool, ascii: bool) -> u64 in Trapping {
         transition value == 244 {
             true -> next(sources, span, index, end, 3, 128, 143, utf8, nul_free, ascii, true)
             _ -> next(sources, span, index, end, 0, 128, 191, false, nul_free, ascii, true)
         }
     }
 
-    state finished(pending: u64 in Trapping, utf8: bool, nul_free: bool, ascii: bool, any: bool) -> u64 in Trapping {
+    machine finished(pending: u64 in Trapping, utf8: bool, nul_free: bool, ascii: bool, any: bool) -> u64 in Trapping {
         let roster: u64 in Trapping = Typer::roster_bits(utf8 && pending == 0, nul_free, ascii, any);
         roster
     }
@@ -447,28 +447,28 @@ crashes Trap
         _ -> nul(0, nul_free, ascii, any)
     }
 
-    state nul(bits: u64 in Trapping, nul_free: bool, ascii: bool, any: bool) -> u64 in Trapping {
+    machine nul(bits: u64 in Trapping, nul_free: bool, ascii: bool, any: bool) -> u64 in Trapping {
         transition nul_free {
             true -> ascii_bit(bits + 2, ascii, any)
             _ -> ascii_bit(bits, ascii, any)
         }
     }
 
-    state ascii_bit(bits: u64 in Trapping, ascii: bool, any: bool) -> u64 in Trapping {
+    machine ascii_bit(bits: u64 in Trapping, ascii: bool, any: bool) -> u64 in Trapping {
         transition ascii {
             true -> any_bit(bits + 4, any)
             _ -> any_bit(bits, any)
         }
     }
 
-    state any_bit(bits: u64 in Trapping, any: bool) -> u64 in Trapping {
+    machine any_bit(bits: u64 in Trapping, any: bool) -> u64 in Trapping {
         transition any {
             true -> answer(bits + 8)
             _ -> answer(bits)
         }
     }
 
-    state answer(bits: u64 in Trapping) -> u64 in Trapping {
+    machine answer(bits: u64 in Trapping) -> u64 in Trapping {
         bits
     }
 }
@@ -485,7 +485,7 @@ crashes Trap
         _ -> answer(kind as u64 in Trapping)
     }
 
-    state answer(byte: u64 in Trapping) -> u64 in Trapping {
+    machine answer(byte: u64 in Trapping) -> u64 in Trapping {
         byte
     }
 }
@@ -500,21 +500,21 @@ crashes Trap
         _ -> letter(value)
     }
 
-    state letter(value: u64 in Trapping) -> u64 in Trapping {
+    machine letter(value: u64 in Trapping) -> u64 in Trapping {
         transition value >= 97 && value <= 102 {
             true -> answer(value - 87)
             _ -> upper(value)
         }
     }
 
-    state upper(value: u64 in Trapping) -> u64 in Trapping {
+    machine upper(value: u64 in Trapping) -> u64 in Trapping {
         transition value >= 65 && value <= 70 {
             true -> answer(value - 55)
             _ -> answer(0)
         }
     }
 
-    state answer(value: u64 in Trapping) -> u64 in Trapping {
+    machine answer(value: u64 in Trapping) -> u64 in Trapping {
         value
     }
 }
@@ -527,14 +527,14 @@ crashes Trap
         _ -> answer(0)
     }
 
-    state next(sources: &SourceSet, span: SourceSpan, index: u64 in Trapping, end: u64 in Trapping, count: u64 in Trapping) -> u64 in Trapping {
+    machine next(sources: &SourceSet, span: SourceSpan, index: u64 in Trapping, end: u64 in Trapping, count: u64 in Trapping) -> u64 in Trapping {
         transition index < end {
             true -> byte(sources, span, index, end, count)
             _ -> answer(count)
         }
     }
 
-    state byte(sources: &SourceSet, span: SourceSpan, index: u64 in Trapping, end: u64 in Trapping, count: u64 in Trapping) -> u64 in Trapping {
+    machine byte(sources: &SourceSet, span: SourceSpan, index: u64 in Trapping, end: u64 in Trapping, count: u64 in Trapping) -> u64 in Trapping {
         let byte: u8 = SourceSet::byte_or_nul(sources, span.source, index);
         transition byte == 92 {
             true -> escape(sources, span, index, end, count)
@@ -542,7 +542,7 @@ crashes Trap
         }
     }
 
-    state escape(sources: &SourceSet, span: SourceSpan, index: u64 in Trapping, end: u64 in Trapping, count: u64 in Trapping) -> u64 in Trapping {
+    machine escape(sources: &SourceSet, span: SourceSpan, index: u64 in Trapping, end: u64 in Trapping, count: u64 in Trapping) -> u64 in Trapping {
         let kind: u8 = SourceSet::byte_or_nul(sources, span.source, index + 1);
         transition kind == 120 {
             true -> next(sources, span, index + 4, end, count + 1)
@@ -550,7 +550,7 @@ crashes Trap
         }
     }
 
-    state answer(count: u64 in Trapping) -> u64 in Trapping {
+    machine answer(count: u64 in Trapping) -> u64 in Trapping {
         count
     }
 }

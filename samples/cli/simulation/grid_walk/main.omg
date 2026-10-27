@@ -60,7 +60,7 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> report(main)
     }
 
-    state report(main: &mut Main) {
+    machine report(main: &mut Main) {
         main.px = main.px * 10 + main.py;
         Console::write_line("result: x*10+y, 32 for this walk (the exit code)");
         Console::write_line("[press Enter to close]");

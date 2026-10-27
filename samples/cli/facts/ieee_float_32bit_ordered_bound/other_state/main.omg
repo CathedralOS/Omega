@@ -13,15 +13,15 @@ requires reading >= 1.0f32 && reading <= 3.0f32
         true -> ok()
         _ -> out_of_window()
     }
-    state ok() -> i32 { 0i32 }
-    state out_of_window() -> i32 { 1i32 }
+    machine ok() -> i32 { 0i32 }
+    machine out_of_window() -> i32 { 1i32 }
 }
 
 machine probe(reading: Reading) -> i32 {
     transition {
         _ -> deliver(reading.value)
     }
-    state deliver(value: f32) -> i32
+    machine deliver(value: f32) -> i32
     requires value >= 1.25f32 && value <= 2.75f32
     {
         verify_f32_window(value)
@@ -34,6 +34,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

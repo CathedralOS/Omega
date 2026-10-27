@@ -15,7 +15,7 @@ linux_x86_64 machine eval(packet: Packet) -> u64
         true -> inspect(packet)
         _ -> 0u64
     }
-    state inspect(p: Packet) {
+    machine inspect(p: Packet) -> u64 {
         transition p {
             Packet::Bounded { payload } -> (64u64 - payload)
             Packet::Empty {} -> 0u64
@@ -33,7 +33,7 @@ linux_arm64 machine eval(packet: Packet) -> u64
         true -> inspect(packet)
         _ -> 0u64
     }
-    state inspect(p: Packet) {
+    machine inspect(p: Packet) -> u64 {
         transition p {
             Packet::Bounded { payload } -> (64u64 - payload)
             Packet::Empty {} -> 0u64
@@ -51,7 +51,7 @@ macos_arm64 machine eval(packet: Packet) -> u64
         true -> inspect(packet)
         _ -> 0u64
     }
-    state inspect(p: Packet) {
+    machine inspect(p: Packet) -> u64 {
         transition p {
             Packet::Bounded { payload } -> (64u64 - payload)
             Packet::Empty {} -> 0u64
@@ -69,7 +69,7 @@ windows_x86_64 machine eval(packet: Packet) -> u64
         true -> inspect(packet)
         _ -> 0u64
     }
-    state inspect(p: Packet) {
+    machine inspect(p: Packet) -> u64 {
         transition p {
             Packet::Bounded { payload } -> (64u64 - payload)
             Packet::Empty {} -> 0u64
@@ -84,6 +84,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

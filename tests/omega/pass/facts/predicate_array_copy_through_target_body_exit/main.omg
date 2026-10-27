@@ -35,6 +35,6 @@ machine main() crashes Trap {
     values[3] = 0;
     let answer: u16 = evaluate(values);
     transition answer == 65535u16 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -19,15 +19,15 @@ machine Main::main(main: &mut Main) reaches Console {
     main.buf[7] = 4;
     main.k = 4;
     transition main.k <= 8 { true -> read(main, main.k) _ -> bad(main) }
-    state read(main: &mut Main, off: u32) {
+    machine read(main: &mut Main, off: u32) {
         let v: &u32 = &main.buf[off] as &u32;
         transition v == 67305985 {
             true -> good(main)
             _ -> bad(main)
         }
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main)  { Console::exit_process(71); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main)  { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

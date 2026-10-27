@@ -70,9 +70,7 @@ pub(crate) fn store_destination_places<'loan>(
             root: source,
             segments,
         };
-        if !destinations.contains(&destination) {
-            destinations.push(destination);
-        }
+        crate::collections::push_unique(&mut destinations, destination);
     }
     if destinations.is_empty() {
         destinations.push(target);

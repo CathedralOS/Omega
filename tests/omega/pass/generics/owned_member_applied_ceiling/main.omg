@@ -21,5 +21,5 @@ machine main() reaches ExtentRootProvider + ProcessExit {
     let storage: Extent in Granted = ExtentRootProvider::grant(Extent { base: 4096, length: 16 });
     let retained: Extent in Granted = forward<u8>(storage);
     transition retained.length == 16 { true -> finish(retained, 0) _ -> finish(retained, 1) }
-    state finish(retained: Extent in Granted, status: i32) { ProcessExit::exit_process(status); }
+    machine finish(retained: Extent in Granted, status: i32) { ProcessExit::exit_process(status); }
 }

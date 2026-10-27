@@ -47,20 +47,20 @@ machine Main::main(main: &mut Main) reaches Console {
         && first_norm == 1.0 && second_norm == 1.0 && third_norm == 1.0 && fourth_norm == 1.0 {
         true -> large(main) _ -> bad(main)
     }
-    state large(main: &mut Main) {
+    machine large(main: &mut Main) {
         main.large = Complex { real: 3.0e20, imaginary: 4.0e20 };
         let direct: f32 = ComplexF32::norm_squared(&main.large);
         let direct_finite: bool = F32::is_finite(direct);
         let outcome: ComplexMagnitude<f32> = ComplexF32::try_magnitude(&main.large);
         transition direct_finite { false -> magnitude(main, outcome) _ -> bad(main) }
     }
-    state magnitude(main: &mut Main, outcome: ComplexMagnitude<f32>) {
+    machine magnitude(main: &mut Main, outcome: ComplexMagnitude<f32>) {
         transition outcome {
             ComplexMagnitude::Value { value } -> check_magnitude(main, value)
             _ -> bad(main)
         }
     }
-    state check_magnitude(main: &mut Main, value: f32) {
+    machine check_magnitude(main: &mut Main, value: f32) {
         let comparison: AccuracyComparison = compare_reference_additive_f32(value, 5.0e20,
             ReferenceAdditiveTolerance32 { atol: 0.0, rtol: 2.0e-7 });
         transition comparison {
@@ -69,35 +69,35 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     // Retain the originally frozen interval as well as the canonical policy.
-    state frozen_interval(main: &mut Main, value: f32) {
+    machine frozen_interval(main: &mut Main, value: f32) {
         transition value >= 4.999999e20 && value <= 5.000001e20 { true -> zero(main) _ -> bad(main) }
     }
-    state zero(main: &mut Main) {
+    machine zero(main: &mut Main) {
         main.zero = Complex { real: 0.0, imaginary: 0.0 };
         let outcome: ComplexMagnitude<f32> = ComplexF32::try_magnitude(&main.zero);
         transition outcome { ComplexMagnitude::Value { value } -> check_zero(main, value) _ -> bad(main) }
     }
-    state check_zero(main: &mut Main, value: f32) {
+    machine check_zero(main: &mut Main, value: f32) {
         transition value == 0.0 { true -> nonfinite(main, 0.0) _ -> bad(main) }
     }
-    state nonfinite(main: &mut Main, zero: f32) {
+    machine nonfinite(main: &mut Main, zero: f32) {
         main.exceptional.real = 1.0 / zero;
         main.exceptional.imaginary = 0.0;
         let outcome: ComplexMagnitude<f32> = ComplexF32::try_magnitude(&main.exceptional);
         transition outcome { ComplexMagnitude::NonFiniteInput -> nan(main, zero) _ -> bad(main) }
     }
-    state nan(main: &mut Main, zero: f32) {
+    machine nan(main: &mut Main, zero: f32) {
         main.exceptional.real = zero / zero;
         let outcome: ComplexMagnitude<f32> = ComplexF32::try_magnitude(&main.exceptional);
         transition outcome { ComplexMagnitude::NonFiniteInput -> overflow(main) _ -> bad(main) }
     }
-    state overflow(main: &mut Main) {
+    machine overflow(main: &mut Main) {
         main.exceptional = Complex { real: 3.4028234663852886e38, imaginary: 3.4028234663852886e38 };
         let outcome: ComplexMagnitude<f32> = ComplexF32::try_magnitude(&main.exceptional);
         transition outcome { ComplexMagnitude::Overflow -> good(main) _ -> bad(main) }
     }
-    state good(main: &mut Main) { Console::exit_process(0); }
-    state bad(main: &mut Main) { Console::exit_process(1); }
+    machine good(main: &mut Main) { Console::exit_process(0); }
+    machine bad(main: &mut Main) { Console::exit_process(1); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -6,5 +6,5 @@ machine inspect(choice: &Choice) -> bool {
         Choice::Present { value } -> observe(value)
         _ -> (false)
     }
-    state observe(value: Token) -> bool { value.value == 42 }
+    machine observe(value: Token) -> bool { value.value == 42 }
 }

@@ -139,15 +139,22 @@ from two real source roots through application Build, interleaved
 with a rejected empty package plan. The exact rejection stays at its submitted
 position without affecting the three products. Equal
 consumers share one checked/Terminal cohort; the different root retains another.
-The batch requires two Builds, four checks, two source completions and two
-Terminal productions, with shared storage only for the equal-source pair.
-This control uses the documented repository fixture acceptance, not a production
-package audit. Its fixture preparation legitimately performs another two Builds
-and four checks in its own sessions, so the whole measurement asserts four
-Builds/eight checks rather than hiding setup cost. These workflow measurements
+Executed project discovery supplies the two retained Builds. The whole
+measurement, including discovery, requires two Builds, four checks, two source
+completions and two Terminal productions, with shared storage only for the
+equal-source pair. Product preparation executes no additional Builds. Missing
+retained custody and a late-added required output both reject without work.
+This control uses package-owned source resolution and Product admission; its built-in entry bindings require
+no fixture-supplied acceptance. These workflow measurements
 advance `BUILD-EVALUATES-ONCE`; they do not close its remaining target-row work.
 The application request enters one compiler-stack worker; preparing Builds and
 checking source cohorts do not spawn additional workers.
+
+Fresh execution and retained-source Product inputs enter the same
+`omega_build::compile_packages` scheduler as explicit `PackageSourceRequest`
+variants. `prepare_package` uses that same input model for review consumers
+that stop before Product checking. Retained requests never fall back to
+execution when their source custody or pre-effect contract is missing.
 
 Ordinary package operations return admitted requests and retain custody for
 result reconciliation; they do not invoke compilation. Application Build
@@ -412,7 +419,9 @@ Physical, dependency-generated and activation-generated parsing all belong to
 [package source preparation](../../packages/compilation-inputs/src/source_assembly.rs).
 The coordinator forwards its complete syntax products into resolution and
 typing. Loading, lexing, parsing and syntax construction are not compiler-private
-continuation work; parser dependencies are needed only by corpus fixtures.
+continuation work. Corpus discovery executes Build through the application owner
+and observes its retained entry bindings; it has no separate parser dependencies
+or static dependency/target projection.
 
 Psi owns [source checking](../../../../wiki/spec/language/state_contracts.md).
 Its checking stage also owns exact boundary-call and source-authority validation;

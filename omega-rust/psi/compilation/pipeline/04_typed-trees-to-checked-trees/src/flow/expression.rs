@@ -531,32 +531,37 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         else {
             return CompletedInvocation::default();
         };
+        let _invoke_guard = phase_profile::guard("05.d.3.b.flow.expr.invoke");
         invocation.visited = true;
         let captured_operands = inputs.operands;
         let borrowed_call = invocation.call;
-        let writes = super::call_phases::call_storage_writes(
-            self.program,
-            self.borrow,
-            self.context,
-            self.machine,
-            self.state,
-            borrowed_call,
-        );
-        let mut call = build_call_flow_fact(
-            self.program,
-            self.borrow,
-            self.proof,
-            self.semantic,
-            self.domains,
-            self.context,
-            self.machine,
-            self.state,
-            contexts,
-            constraints,
-            borrowed_call,
-            captured_operands,
-            writes.as_deref(),
-        );
+        let writes = phase_profile::scope("05.d.3.b.flow.invoke.1_storage_writes", || {
+            super::call_phases::call_storage_writes(
+                self.program,
+                self.borrow,
+                self.context,
+                self.machine,
+                self.state,
+                borrowed_call,
+            )
+        });
+        let mut call = phase_profile::scope("05.d.3.b.flow.invoke.2_build_call", || {
+            build_call_flow_fact(
+                self.program,
+                self.borrow,
+                self.proof,
+                self.semantic,
+                self.domains,
+                self.context,
+                self.machine,
+                self.state,
+                contexts,
+                constraints,
+                borrowed_call,
+                captured_operands,
+                writes.as_deref(),
+            )
+        });
         // Evaluation consumers need this occurrence before the later package
         // source-custody binding pass. The authored ordinal identifies a call;
         // this coordinate places it after its evaluated operands.
@@ -570,24 +575,28 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         let binding_writes = writes
             .as_deref()
             .and_then(|writes| writes.descriptor_stores());
-        let stores = self.capture_call_stores(
-            site,
-            borrowed_call,
-            inputs.arguments,
-            binding_writes.as_deref(),
-        );
+        let stores = phase_profile::scope("05.d.3.b.flow.invoke.3_capture_stores", || {
+            self.capture_call_stores(
+                site,
+                borrowed_call,
+                inputs.arguments,
+                binding_writes.as_deref(),
+            )
+        });
         // Exact binding writes retire replaced reference resources independently
         // of value-history association and pointee observation invalidation.
-        super::call_phases::install_returned_reference_custody(
-            self.program,
-            self.borrow,
-            self.context,
-            self.machine.symbol,
-            self.state.symbol,
-            borrowed_call,
-            binding_writes.as_deref(),
-            constraints,
-        );
+        phase_profile::scope("05.d.3.b.flow.invoke.4_reference_custody", || {
+            super::call_phases::install_returned_reference_custody(
+                self.program,
+                self.borrow,
+                self.context,
+                self.machine.symbol,
+                self.state.symbol,
+                borrowed_call,
+                binding_writes.as_deref(),
+                constraints,
+            )
+        });
         let observations = call
             .normal_return_writes_complete
             .then(|| {
@@ -1582,14 +1591,10 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     self.evaluated_operand(binary.left, contexts, constraints)
                 };
                 if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
-                    let (value, completion) = self.logical_expression(
-                        binary,
-                        evaluated_left.boolean,
-                        evaluated_left.boolean_completion,
-                        contexts,
-                        constraints,
-                    );
+                    let (value, completion, inputs) =
+                        self.logical_expression(binary, evaluated_left, contexts, constraints);
                     *boolean_completion = completion;
+                    *evaluated_inputs = inputs;
                     return value;
                 }
                 let left_operand = evaluated_left.capture;
@@ -2260,9 +2265,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                         } else {
                             place.clone()
                         };
-                        if !changed.contains(&affected) {
-                            changed.push(affected);
-                        }
+                        crate::collections::push_unique(&mut changed, affected);
                     }
                 }
             }

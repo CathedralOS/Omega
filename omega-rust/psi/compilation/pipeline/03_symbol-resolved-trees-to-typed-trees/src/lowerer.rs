@@ -386,6 +386,12 @@ pub(crate) fn close_typed_cohort(
         &mut lowerer.typed_trees,
         cohort.typed_machines,
         cohort.completed_machines,
+        |callee| {
+            crate::signatures::lexical_context::captured_arguments(
+                Some(lowerer.source_trees),
+                callee,
+            )
+        },
     );
     bind_dynamic_call_targets(&mut lowerer.typed_trees)
 }
@@ -519,6 +525,7 @@ impl Lowerer<'_> {
                 is_public: declaration.is_public,
                 declared_type,
                 initializer_source_span: declaration.initializer_source_span,
+                pending_target_observation: declaration.pending_target_observation,
                 evaluated_value: declaration.evaluated_value.clone(),
                 authored_initializer: typed_trees::expression::ExpressionHandle::invalid(),
                 materialized_initializer: typed_trees::expression::ExpressionHandle::invalid(),

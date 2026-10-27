@@ -43,6 +43,6 @@ machine main() crashes Trap {
     drop(second);
     drop(envelope.inner.tail);
     transition correct { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

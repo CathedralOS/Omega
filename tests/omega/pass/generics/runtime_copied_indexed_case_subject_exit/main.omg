@@ -21,7 +21,7 @@ requires N >= 2;
     transition buffer.items[FixedBuffer::select(buffer)] {
         Pair::Both { a, b } -> sum(a + b)
     }
-    state sum(value: u64 in Wrapping) -> u64 in Wrapping {
+    machine sum(value: u64 in Wrapping) -> u64 in Wrapping {
         transition { _ -> value }
     }
 }
@@ -48,7 +48,7 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, small + large)
         false -> finish(main, 1)
     }
-    state finish(main: &mut Main, value: u64 in Wrapping) {
+    machine finish(main: &mut Main, value: u64 in Wrapping) {
         Console::exit_process(value as i32);
     }
 }

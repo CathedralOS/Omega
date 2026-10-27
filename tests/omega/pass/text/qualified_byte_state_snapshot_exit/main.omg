@@ -13,11 +13,11 @@ machine capture(cell: &mut Cell) -> TextBuffer crashes Trap {
 
 machine relay(snapshot: TextBuffer, cell: &mut Cell) crashes Trap {
     transition { _ -> replace(snapshot, cell) }
-    state replace(snapshot: TextBuffer, cell: &mut Cell) {
+    machine replace(snapshot: TextBuffer, cell: &mut Cell) {
         cell.text = TextBuffer { storage: [195u8, 169u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 2 };
         transition { _ -> observe(snapshot, cell) }
     }
-    state observe(snapshot: TextBuffer, cell: &mut Cell) {
+    machine observe(snapshot: TextBuffer, cell: &mut Cell) {
         cell.captured = snapshot;
     }
 }
@@ -32,7 +32,7 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
         true -> finish(main, 70)
         _ -> finish(main, 1)
     }
-    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 
@@ -45,8 +45,8 @@ machine TextBuffer::view(buffer: &TextBuffer) -> &[u8] in Utf8 crashes Trap {
         true -> checked(bytes)
         false -> bad()
     }
-    state checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
-    state bad() { crash Trap; }
+    machine checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
+    machine bad() -> &[u8] in Utf8 { crash Trap; }
 }
 machine TextBuffer::equal(buffer: &TextBuffer, expected: &[u8]) -> bool crashes Trap {
     let bytes: &[u8] in Utf8 = TextBuffer::view(buffer);

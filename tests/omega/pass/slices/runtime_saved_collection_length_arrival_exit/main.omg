@@ -7,14 +7,14 @@ machine bounded(values: &mut [u16], requested: u64) -> u64 {
         true -> limit(values, requested)
         false -> limit(values, captured)
     }
-    state limit(values: &mut [u16], count: u64) -> u64
+    machine limit(values: &mut [u16], count: u64) -> u64
     requires count <= values.len {
         transition count <= 2 {
             true -> selected(&mut values[0..count])
             false -> selected(&mut values[0..2])
         }
     }
-    state selected(values: &mut [u16]) -> u64
+    machine selected(values: &mut [u16]) -> u64
     requires values.len <= 2 { values.len }
 }
 
@@ -52,6 +52,6 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

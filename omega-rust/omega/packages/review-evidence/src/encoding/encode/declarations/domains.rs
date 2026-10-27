@@ -53,12 +53,8 @@ pub(crate) fn encode_domain_establishment_route(
             trait_identity,
             requirement_identity,
         } => {
-            encoder.field("trait_identity", |encoder| {
-                encode_nominal(encoder, trait_identity)
-            })?;
-            encoder.field("requirement_identity", |encoder| {
-                encode_nominal(encoder, requirement_identity)
-            })
+            encoder.field_by("trait_identity", trait_identity, encode_nominal)?;
+            encoder.field_by("requirement_identity", requirement_identity, encode_nominal)
         }
         PackageReviewDomainEstablishmentRoute::ExactMachine { machine_identity } => encoder
             .field("machine_identity", |encoder| {

@@ -6,10 +6,10 @@ machine observed(found: Optional<Found>, expected: u8) -> bool {
         Optional::Some { value } -> inspect(value, expected)
         Optional::None -> false
     }
-    state inspect(found: Found, expected: u8) -> bool {
+    machine inspect(found: Found, expected: u8) -> bool {
         transition found.bytes.len == 1 { true -> contents(found, expected) false -> false }
     }
-    state contents(found: Found, expected: u8) -> bool requires found.bytes.len == 1 {
+    machine contents(found: Found, expected: u8) -> bool requires found.bytes.len == 1 {
         found.bytes[0] == expected
     }
 }
@@ -25,20 +25,20 @@ machine choose<'input>(left: &'input [u8], right: &'input [u8], which: bool) -> 
 }
 machine cycling<'input>(left: &'input [u8], right: &'input [u8], remaining: u64) -> Optional<Found<'input>> {
     transition { _ -> next(left, right, remaining) }
-    state next(left: &'input [u8], right: &'input [u8], remaining: u64) -> Optional<Found<'input>> {
+    machine next(left: &'input [u8], right: &'input [u8], remaining: u64) -> Optional<Found<'input>> {
         transition remaining > 0 {
             true -> compare(right, left, remaining - 1)
             false -> Optional::Some { value: Found { bytes: left } }
         }
     }
-    state compare(left: &'input [u8], right: &'input [u8], remaining: u64) -> Optional<Found<'input>> {
+    machine compare(left: &'input [u8], right: &'input [u8], remaining: u64) -> Optional<Found<'input>> {
         transition { _ -> next(left, right, remaining) }
     }
 }
 // A complete None-only successor contributes no captured reference slot.
 machine only_none<'input>(bytes: &'input [u8]) -> Optional<Found<'input>> {
     transition { _ -> empty(bytes) }
-    state empty(bytes: &'input [u8]) -> Optional<Found<'input>> { Optional::None }
+    machine empty(bytes: &'input [u8]) -> Optional<Found<'input>> { Optional::None }
 }
 
 machine main() crashes Trap {
@@ -50,5 +50,5 @@ machine main() crashes Trap {
 
         true -> done() false -> bad()
     }
-    state done() {} state bad() { crash Trap; }
+    machine done() {} machine bad() { crash Trap; }
 }

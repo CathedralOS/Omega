@@ -16,13 +16,13 @@ requires strategy.tail.length == 48
 ensures strategy.tail.length == 48, strategy.remaining == 48
 {
     transition { _ -> again(strategy, select, count) }
-    state again(strategy: &mut Strategy, select: bool, count: u64) -> bool
+    machine again(strategy: &mut Strategy, select: bool, count: u64) -> bool
     requires strategy.tail.length == 48
     {
         let zero: u64 = match select { true -> refresh(strategy), false -> refresh(strategy) };
         transition count == 0 { true -> complete(strategy, zero) _ -> again(strategy, !select, count - 1) }
     }
-    state complete(strategy: &mut Strategy, zero: u64) -> bool
+    machine complete(strategy: &mut Strategy, zero: u64) -> bool
     requires strategy.tail.length == 48, strategy.remaining == 48, zero == 0
     { strategy.tail.length == 48 && strategy.remaining == 48 && zero == 0 }
 }
@@ -34,6 +34,6 @@ machine exercise(select: bool) -> bool {
 }
 machine main() crashes Trap {
     transition exercise(true) && exercise(false) { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

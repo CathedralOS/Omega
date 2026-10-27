@@ -5,12 +5,12 @@ use omega::language::core::float_operations;
 // every zero and every negative value visible without relying on a format package.
 public machine number(value: i32) reaches Console invokes Console; {
     transition value < 0 { true -> negative(value) false -> positive(value) }
-    state negative(value: i32) {
+    machine negative(value: i32) {
         Console::write_byte(45);
         let magnitude: i32 in Wrapping = 0 - (value as i32 in Wrapping);
         digits(magnitude as i32);
     }
-    state positive(value: i32) {
+    machine positive(value: i32) {
         Console::write_byte(43);
         digits(value);
     }

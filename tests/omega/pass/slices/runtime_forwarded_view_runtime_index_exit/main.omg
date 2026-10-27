@@ -8,7 +8,7 @@ data Main {
 machine read_edge(v: &[u8], i: u64) -> u8 {
     transition i < v.len { true -> inner(v, i) _ -> (0) }
 
-    state inner(v: &[u8], i: u64) -> u8
+    machine inner(v: &[u8], i: u64) -> u8
     requires i < v.len;
     {
         v[i]
@@ -21,13 +21,13 @@ machine Main::main(main: &mut Main) reaches Console {
     main.i = 1;
     transition { _ -> start(main) }
 
-    state start(main: &mut Main) {
+    machine start(main: &mut Main) {
         let observed: u8 = read_edge(&main.source[..], main.i);
         transition observed == 105 { true -> good(main) _ -> bad(main) }
     }
 
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main) { Console::exit_process(71); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

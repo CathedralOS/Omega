@@ -24,20 +24,20 @@ machine Main::main(main: &mut Main) reaches Console {
     main.r = 0;
     main.total = 0;
     transition { _ -> row_loop(main) }
-    state row_loop(main: &mut Main) {
+    machine row_loop(main: &mut Main) {
         transition main.r < 2 { true -> col_start(main) _ -> done(main) }
     }
-    state col_start(main: &mut Main) {
+    machine col_start(main: &mut Main) {
         main.c = 0;
         transition { _ -> col_loop(main) }
     }
-    state col_loop(main: &mut Main) {
+    machine col_loop(main: &mut Main) {
         transition main.c < 3 { true -> cell(main) _ -> next_row(main) }
     }
-    state cell(main: &mut Main) {
+    machine cell(main: &mut Main) {
         transition main.r * 3 + main.c < 6 { true -> classify(main) _ -> next_row(main) }
     }
-    state classify(main: &mut Main) {
+    machine classify(main: &mut Main) {
         transition main.grid[main.r * 3 + main.c] {
             Cell::Wall -> add(main, 1)
             Cell::Floor -> add(main, 2)
@@ -45,16 +45,16 @@ machine Main::main(main: &mut Main) reaches Console {
             Cell::Water -> add(main, 8)
         }
     }
-    state add(main: &mut Main, weight: i32 in Wrapping) {
+    machine add(main: &mut Main, weight: i32 in Wrapping) {
         main.total = main.total + weight;
         main.c = main.c + 1;
         transition { _ -> col_loop(main) }
     }
-    state next_row(main: &mut Main) {
+    machine next_row(main: &mut Main) {
         main.r = main.r + 1;
         transition { _ -> row_loop(main) }
     }
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         Console::exit_process(main.total as i32);
     }
 }

@@ -95,131 +95,147 @@ pub(crate) fn check_indexed_accesses(
 > {
     let field_lengths = fixed_array_field_lengths(program);
     let bound_lookup = validation::ImmutableBoundLookup::new(program);
+    let _ = bound_lookup.immutable_binding_type(symbols::SymbolHandle::invalid());
     let mut diagnostics = Vec::new();
     let mut verdicts = indexes::IndexVerdicts::default();
     // All states and their branch snapshots query the same immutable program
     // and borrow facts through the pass's shared summary table.
 
-    for machine in program.machines() {
-        let machine_states = program.machine_states(machine);
-        let state_has_indexed: Vec<bool> = machine_states
-            .iter()
-            .map(|state| state_contains_indexed_expression(program, state))
-            .collect();
-        if !state_has_indexed
-            .iter()
-            .copied()
-            .any(std::convert::identity)
-        {
-            continue;
-        }
-        let non_entry_has_indexed = state_has_indexed
-            .get(1..)
-            .is_some_and(|rest| rest.iter().copied().any(std::convert::identity));
-        let calls: Vec<_> = phase_profile::scope("05.d.7.9.a.range_call_context", || {
-            let states = if non_entry_has_indexed {
-                machine_states
-            } else {
-                &machine_states[..1]
-            };
-            states
-                .iter()
-                .map(|state| {
-                    facts::RangeCallContext::new(
-                        machine,
-                        state,
-                        borrows,
-                        flow,
-                        semantic,
-                        call_frames,
-                    )
-                })
-                .collect()
-        });
-        let state_argument_facts = if non_entry_has_indexed {
-            phase_profile::scope("05.d.7.9.b.state_argument_facts", || {
-                collect_state_argument_facts(
-                    program,
-                    &field_lengths,
-                    &bound_lookup,
-                    machine,
-                    call_frames,
-                    &calls,
-                    operators,
-                    mutation_summaries,
-                )
+    use rayon::prelude::*;
+    let machine_results: Vec<_> = validation::checking_thread_pool().install(|| {
+        program
+            .machines()
+            .par_iter()
+            .filter_map(|machine| {
+                let machine_states = program.machine_states(machine);
+                let state_has_indexed: Vec<bool> = machine_states
+                    .iter()
+                    .map(|state| state_contains_indexed_expression(program, state))
+                    .collect();
+                if !state_has_indexed
+                    .iter()
+                    .copied()
+                    .any(std::convert::identity)
+                {
+                    return None;
+                }
+                let mut machine_diagnostics = Vec::new();
+                let mut machine_verdicts = indexes::IndexVerdicts::default();
+                let non_entry_has_indexed = state_has_indexed
+                    .get(1..)
+                    .is_some_and(|rest| rest.iter().copied().any(std::convert::identity));
+                let calls: Vec<_> = phase_profile::scope("05.d.7.9.a.range_call_context", || {
+                    let states = if non_entry_has_indexed {
+                        machine_states
+                    } else {
+                        &machine_states[..1]
+                    };
+                    states
+                        .iter()
+                        .map(|state| {
+                            facts::RangeCallContext::new(
+                                machine,
+                                state,
+                                borrows,
+                                flow,
+                                semantic,
+                                call_frames,
+                            )
+                        })
+                        .collect()
+                });
+                let state_argument_facts = if non_entry_has_indexed {
+                    phase_profile::scope("05.d.7.9.b.state_argument_facts", || {
+                        collect_state_argument_facts(
+                            program,
+                            &field_lengths,
+                            &bound_lookup,
+                            machine,
+                            call_frames,
+                            &calls,
+                            operators,
+                            mutation_summaries,
+                        )
+                    })
+                } else {
+                    Vec::new()
+                };
+                let incoming_guard_facts = incoming_guards.for_machine(machine.symbol);
+                let loop_invariant_facts =
+                    phase_profile::scope("05.d.7.9.c.loop_invariant_facts", || {
+                        collect_loop_invariant_facts(program, machine, call_frames)
+                    });
+                for ((state, calls), has_indexed) in
+                    machine_states.iter().zip(&calls).zip(state_has_indexed)
+                {
+                    if !has_indexed {
+                        continue;
+                    }
+                    let collection_bounds =
+                        validation::CollectionBoundsObservations::new(program, machine, state);
+                    let mut facts = RangeFacts::new(machine.symbol, &field_lengths, &bound_lookup);
+                    facts.collection_bounds = Some(&collection_bounds);
+                    facts.mutation_summaries = std::borrow::Cow::Borrowed(mutation_summaries);
+                    facts.checked_operators = Some(operators);
+                    facts.expression_intervals = expression_intervals;
+                    facts.checked_calls = Some(calls);
+                    // State parameters are stable named places for the duration of
+                    // the state, just like locals introduced by `let`. Retain a
+                    // literal fixed-array referee's length even through a reference
+                    // access mode so ordinary index checking—not an access-mode-
+                    // specific gate—owns every dynamic bounds obligation.
+                    for parameter in program.state_parameters(state) {
+                        facts.define_local(
+                            parameter.symbol,
+                            parameter.name.to_string(),
+                            fixed_array_type_length(program, parameter.type_reference),
+                            None,
+                        );
+                    }
+                    phase_profile::scope("05.d.7.9.d.seed_state", || {
+                        seed_state_requires(program, &mut facts, machine, state);
+                        seed_state_argument_facts(&mut facts, state, &state_argument_facts);
+                        seed_dependent_param_orderings(program, &mut facts, machine, state);
+                        seed_incoming_guard_facts(
+                            program,
+                            machine,
+                            &mut facts,
+                            state,
+                            incoming_guard_facts,
+                        );
+                        seed_loop_invariant_facts(
+                            program,
+                            machine,
+                            &mut facts,
+                            state,
+                            &loop_invariant_facts,
+                        );
+                    });
+                    let _s = phase_profile::guard("05.d.7.9.e.check_statements");
+                    for (statement_index, statement) in program
+                        .statement_table
+                        .admitted_execution_statements(state.statement_nodes)
+                    {
+                        facts.statement_index = statement_index;
+                        check_statement(
+                            program,
+                            machine,
+                            state,
+                            call_frames,
+                            &mut facts,
+                            statement,
+                            &mut machine_diagnostics,
+                            &mut machine_verdicts,
+                        );
+                    }
+                }
+                Some((machine_diagnostics, machine_verdicts))
             })
-        } else {
-            Vec::new()
-        };
-        let incoming_guard_facts = incoming_guards.for_machine(machine.symbol);
-        let loop_invariant_facts = phase_profile::scope("05.d.7.9.c.loop_invariant_facts", || {
-            collect_loop_invariant_facts(program, machine, call_frames)
-        });
-        for ((state, calls), has_indexed) in
-            machine_states.iter().zip(&calls).zip(state_has_indexed)
-        {
-            if !has_indexed {
-                continue;
-            }
-            let collection_bounds =
-                validation::CollectionBoundsObservations::new(program, machine, state);
-            let mut facts = RangeFacts::new(machine.symbol, &field_lengths, &bound_lookup);
-            facts.collection_bounds = Some(&collection_bounds);
-            facts.mutation_summaries = std::borrow::Cow::Borrowed(mutation_summaries);
-            facts.checked_operators = Some(operators);
-            facts.expression_intervals = expression_intervals;
-            facts.checked_calls = Some(calls);
-            // State parameters are stable named places for the duration of
-            // the state, just like locals introduced by `let`. Retain a
-            // literal fixed-array referee's length even through a reference
-            // access mode so ordinary index checking—not an access-mode-
-            // specific gate—owns every dynamic bounds obligation.
-            for parameter in program.state_parameters(state) {
-                facts.define_local(
-                    parameter.symbol,
-                    parameter.name.to_string(),
-                    fixed_array_type_length(program, parameter.type_reference),
-                    None,
-                );
-            }
-            phase_profile::scope("05.d.7.9.d.seed_state", || {
-                seed_state_requires(program, &mut facts, machine, state);
-                seed_state_argument_facts(&mut facts, state, &state_argument_facts);
-                seed_dependent_param_orderings(program, &mut facts, machine, state);
-                seed_incoming_guard_facts(
-                    program,
-                    machine,
-                    &mut facts,
-                    state,
-                    incoming_guard_facts,
-                );
-                seed_loop_invariant_facts(
-                    program,
-                    machine,
-                    &mut facts,
-                    state,
-                    &loop_invariant_facts,
-                );
-            });
-            let _s = phase_profile::guard("05.d.7.9.e.check_statements");
-            for (statement_index, statement) in program
-                .statement_table
-                .admitted_execution_statements(state.statement_nodes)
-            {
-                facts.statement_index = statement_index;
-                check_statement(
-                    program,
-                    machine,
-                    state,
-                    call_frames,
-                    &mut facts,
-                    statement,
-                    &mut diagnostics,
-                    &mut verdicts,
-                );
-            }
-        }
+            .collect()
+    });
+    for (machine_diagnostics, machine_verdicts) in machine_results {
+        diagnostics.extend(machine_diagnostics);
+        verdicts.extend(machine_verdicts);
     }
 
     if diagnostics.is_empty() {

@@ -15,6 +15,6 @@ machine main() reaches Required crashes Trap {
     let holder: Holder = Holder { index: Index { value: 1 } };
     let observed: u32 = Required::get(holder.index);
     transition observed == 11 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

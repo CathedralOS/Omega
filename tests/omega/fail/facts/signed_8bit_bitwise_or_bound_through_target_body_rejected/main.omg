@@ -18,10 +18,10 @@ linux_x86_64 machine exercise(base: i8) -> i8 crashes Trap {
         true -> step(combined)
         _ -> bad()
     }
-    state step(c: i8) -> i8 {
+    machine step(c: i8) -> i8 {
         verify_combined(c)
     }
-    state bad() { crash Trap; }
+    machine bad() -> i8 { crash Trap; }
 }
 
 linux_arm64 machine exercise(base: i8) -> i8 crashes Trap {
@@ -30,10 +30,10 @@ linux_arm64 machine exercise(base: i8) -> i8 crashes Trap {
         true -> step(combined)
         _ -> bad()
     }
-    state step(c: i8) -> i8 {
+    machine step(c: i8) -> i8 {
         verify_combined(c)
     }
-    state bad() { crash Trap; }
+    machine bad() -> i8 { crash Trap; }
 }
 
 macos_arm64 machine exercise(base: i8) -> i8 crashes Trap {
@@ -42,10 +42,10 @@ macos_arm64 machine exercise(base: i8) -> i8 crashes Trap {
         true -> step(combined)
         _ -> bad()
     }
-    state step(c: i8) -> i8 {
+    machine step(c: i8) -> i8 {
         verify_combined(c)
     }
-    state bad() { crash Trap; }
+    machine bad() -> i8 { crash Trap; }
 }
 
 windows_x86_64 machine exercise(base: i8) -> i8 crashes Trap {
@@ -54,10 +54,10 @@ windows_x86_64 machine exercise(base: i8) -> i8 crashes Trap {
         true -> step(combined)
         _ -> bad()
     }
-    state step(c: i8) -> i8 {
+    machine step(c: i8) -> i8 {
         verify_combined(c)
     }
-    state bad() { crash Trap; }
+    machine bad() -> i8 { crash Trap; }
 }
 
 machine main() crashes Trap {
@@ -66,6 +66,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -14,6 +14,35 @@ use terminal_psi::OperationResult;
 use terminal_psi::StructuralMultiplicity;
 use terminal_psi::StructuralTypeDeclaration;
 use terminal_psi::StructuralTypeShape;
+
+#[cfg(test)]
+#[path = "results_tests.rs"]
+mod tests;
+
+/// An immutable host result owns accounted storage. It carries no source
+/// identity, qualification or permission to return a mutable reference.
+#[derive(Clone, PartialEq, Eq)]
+pub struct TerminalByteSequenceValue(crate::byte_sequences::ByteSequenceView);
+
+impl std::fmt::Debug for TerminalByteSequenceValue {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("TerminalByteSequenceValue")
+            .field("length", &self.0.bytes().len())
+            .finish()
+    }
+}
+
+impl TerminalByteSequenceValue {
+    /// Copy a stable read-only snapshot, reserving its payload before allocation.
+    pub fn copy(
+        bytes: &[u8],
+        account: Option<&evaluation_accounting::EvaluationInvocationAccount>,
+    ) -> Result<Self, TerminalInterpretError> {
+        let storage = crate::byte_sequences::storage::ByteSequenceStorage::copy(bytes, account)?;
+        Ok(Self(crate::byte_sequences::ByteSequenceView::new(storage)))
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalEffectResult {
     /// A no-successor outcome, permitted only by the boundary's published
@@ -28,6 +57,8 @@ pub enum TerminalEffectResult {
     /// The same opaque, target-neutral value used for structural entry inputs.
     /// This does not provide a sum discriminator or materialized payload fields.
     Structural(TerminalStructuralValue),
+    /// An immutable, storage-backed byte view, not an opaque structural atom.
+    ByteSequence(TerminalByteSequenceValue),
 }
 
 impl TerminalExecution<'_> {
@@ -88,7 +119,8 @@ impl TerminalExecution<'_> {
         }
         if let Some(result) = result.as_structural()
             && ((requires_materialized_host_custody(&self.program.structural_types(), result.structural_type)
-                && !self.supports_scalar_aggregate_result(result))
+                && !self.supports_scalar_aggregate_result(result)
+                && !self.supports_byte_sequence_result(result))
                 || self.structural_values.contains_key(&result.place)
                 || self
                     .live_affine_frontier
@@ -103,6 +135,26 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         Ok(())
+    }
+
+    fn supports_byte_sequence_result(
+        &self,
+        result: &terminal_psi::StructuralOperationResult,
+    ) -> bool {
+        result.qualifications.is_empty()
+            && result.projected_qualifications.is_empty()
+            && result.claims.is_empty()
+            && matches!(
+                self.program
+                    .structural_types()
+                    .get(&result.structural_type)
+                    .map(|definition| &definition.shape),
+                Some(StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView {
+                        access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                    }
+                ))
+            )
     }
 
     fn supports_scalar_aggregate_result(
@@ -122,7 +174,12 @@ impl TerminalExecution<'_> {
                         })
                     };
                     match &declaration.shape {
-                        StructuralTypeShape::Record { fields, .. } => scalar_fields(fields),
+                        StructuralTypeShape::Record { .. } => crate::values::record_scalar_fields(
+                            declaration,
+                            |identity| self.program.structural_types().get(&identity),
+                            |_, _| Ok(()),
+                        )
+                        .is_ok(),
                         StructuralTypeShape::Sum { cases } => {
                             cases.iter().all(|case| scalar_fields(&case.fields))
                         }
@@ -158,7 +215,8 @@ pub(crate) fn requires_materialized_host_custody(
             StructuralTypeShape::Reference { .. } | StructuralTypeShape::BindingCarrier => {
                 return true;
             }
-            StructuralTypeShape::PrimitiveScalar(_) | StructuralTypeShape::ByteSequence(_) => {}
+            StructuralTypeShape::ByteSequence(_) => return true,
+            StructuralTypeShape::PrimitiveScalar(_) => {}
             StructuralTypeShape::FixedArray { element, .. }
             | StructuralTypeShape::ElementView { element, .. } => pending.push(*element),
             StructuralTypeShape::Record {
@@ -184,9 +242,9 @@ pub(crate) fn requires_materialized_host_custody(
                 | terminal_psi::StructuralFieldType::Atomic(_)
                 | terminal_psi::StructuralFieldType::AtomicBoundedInteger(_)
                 | terminal_psi::StructuralFieldType::IeeeFloat(_)
-                | terminal_psi::StructuralFieldType::ByteSequence(_)
-                | terminal_psi::StructuralFieldType::PredicateByteSequence { .. }
                 | terminal_psi::StructuralFieldType::Erased { .. } => {}
+                terminal_psi::StructuralFieldType::ByteSequence(_)
+                | terminal_psi::StructuralFieldType::PredicateByteSequence { .. } => return true,
             }
         }
     }
@@ -201,6 +259,32 @@ impl TerminalExecution<'_> {
         returned: TerminalEffectResult,
     ) -> Result<(), TerminalInterpretError> {
         match (result, expected, returned) {
+            (
+                OperationResult::Structural(declaration),
+                BoundaryMachineResult::Structural(expected),
+                TerminalEffectResult::ByteSequence(bytes),
+            ) if declaration.structural_type == expected.structural_type
+                && declaration.multiplicity == expected.multiplicity
+                && expected.qualifications.is_empty()
+                && expected.projected_qualifications.is_empty()
+                && self.supports_byte_sequence_result(declaration) =>
+            {
+                if self.byte_sequence_values.contains_key(&declaration.place) {
+                    return Err(malformed());
+                }
+                let bytes = bytes.0.into_account(self.account.as_ref())?;
+                let value = TerminalStructuralValue::minted(
+                    self.local_structural_identities.allocate()?,
+                    declaration.structural_type,
+                    Vec::new(),
+                );
+                self.byte_sequence_values.insert(
+                    declaration.place,
+                    crate::byte_sequences::binding::ByteSequenceBinding::Immutable(bytes),
+                )?;
+                self.structural_values.insert(declaration.place, value)?;
+                self.track_affine_result(declaration);
+            }
             (OperationResult::Unit, BoundaryMachineResult::Unit, TerminalEffectResult::Unit) => {}
             (
                 OperationResult::Scalar(declaration),
