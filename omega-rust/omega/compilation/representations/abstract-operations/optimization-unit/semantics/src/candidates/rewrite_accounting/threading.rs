@@ -1,4 +1,7 @@
-use crate::candidates::{canonicalize_provenance, provenance_realized_at, realize_node_provenance};
+use crate::candidates::{
+    canonicalize_provenance, provenance_realized_at, realize_node_provenance,
+    realized_at_own_site,
+};
 use optimization_unit::{
     NodeLocation, OwnershipFrontierSite, PsiOptimizationFunction, PsiOptimizationUnit,
     PsiRealizationSite, ValueDefinition,
@@ -152,12 +155,7 @@ pub(crate) fn reconstruct_path_thread_accounting(
                     machine: function.machine,
                     edge: edge.psi_edge,
                 };
-                realized.push(provenance_realized_at(
-                    site,
-                    site,
-                    &edge.provenance,
-                    &edge.fuel,
-                ));
+                realized.push(realized_at_own_site(site, &edge.provenance, &edge.fuel));
                 realized.push(provenance_realized_at(
                     outgoing_site,
                     site,

@@ -177,8 +177,7 @@ pub(super) fn validate_integer_constant_law_candidate(
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
     let site = PsiRealizationSite::Node(patch.location);
-    let expected_provenance = [crate::candidates::provenance_realized_at(
-        site,
+    let expected_provenance = [crate::candidates::realized_at_own_site(
         site,
         &node.provenance,
         &node.fuel,

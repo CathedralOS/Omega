@@ -1,5 +1,5 @@
 //! Integer constant-evaluation candidate acceptance.
-use crate::candidates::provenance_realized_at;
+use crate::candidates::realized_at_own_site;
 use crate::candidates::sparse_conditional_constant_propagation::observation_at;
 use crate::{
     OptimizationUnitValidationError, ValidatedPsiRewrite, reconstruct_closed_scalar_node_boundary,
@@ -50,12 +50,7 @@ pub(crate) fn validate_integer_evaluation_candidate(
     let input_live = reconstruct_closed_scalar_node_boundary(input, patch.location)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     let site = PsiRealizationSite::Node(patch.location);
-    let accepted_provenance = vec![provenance_realized_at(
-        site,
-        site,
-        &node.provenance,
-        &node.fuel,
-    )];
+    let accepted_provenance = vec![realized_at_own_site(site, &node.provenance, &node.fuel)];
     require_realized_rows(candidate, &accepted_provenance)?;
 
     let (source_operation, result, scalar_type, evaluated, safety_class) =

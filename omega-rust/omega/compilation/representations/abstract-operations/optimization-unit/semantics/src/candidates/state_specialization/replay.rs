@@ -7,6 +7,7 @@
 //! reconstructs the exact edge custody the fused traversals carry.
 
 use crate::candidates::provenance_realized_at;
+use crate::candidates::realized_at_own_site;
 use crate::candidates::sparse_conditional_constant_propagation::validator_scalar_constant_facts;
 use crate::candidates::{
     accept_region_rewrite, candidate_block, candidate_function, canonicalize_provenance,
@@ -614,12 +615,7 @@ fn accepted_provenance(
             machine,
             edge: row.taken_edge,
         };
-        provenance.push(provenance_realized_at(
-            incoming_site,
-            incoming_site,
-            &incoming.provenance,
-            &incoming.fuel,
-        ));
+        provenance.push(realized_at_own_site(incoming_site, &incoming.provenance, &incoming.fuel));
         provenance.push(provenance_realized_at(
             resolved_site,
             incoming_site,
@@ -634,12 +630,7 @@ fn accepted_provenance(
             machine,
             edge: taken_edge,
         };
-        provenance.push(provenance_realized_at(
-            resolved_site,
-            resolved_site,
-            &resolved.provenance,
-            &resolved.fuel,
-        ));
+        provenance.push(realized_at_own_site(resolved_site, &resolved.provenance, &resolved.fuel));
     }
     canonicalize_provenance(&mut provenance);
     Ok(provenance)
