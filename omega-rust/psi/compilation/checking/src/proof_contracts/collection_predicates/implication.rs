@@ -43,6 +43,7 @@ use typed_trees::statement::{
 };
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
+mod read_subjects;
 mod record_observations;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -270,9 +271,28 @@ fn ordering_relations(
             return Vec::new();
         }
     }
+    let frame = Frame {
+        machine: application.machine,
+        state: 0,
+        bindings: parameters
+            .iter()
+            .zip(&arguments)
+            .map(|(parameter, value)| (parameter.symbol, value.clone()))
+            .collect(),
+    };
+    let subjects = subjects
+        .into_iter()
+        .map(|(subject, value)| (super::PredicateIntegerOperand::Argument(subject), value))
+        .collect();
+    let Some(candidates) = proof.runtime_read_subjects(application, &frame, path, subjects) else {
+        return Vec::new();
+    };
+    let Some((_, roster)) = candidates.first() else {
+        return Vec::new();
+    };
     let mut consequences = Vec::new();
-    for (left_position, (left_subject, left)) in subjects.iter().enumerate() {
-        for (right_subject, right) in subjects.iter().skip(left_position + 1) {
+    for left_position in 0..roster.len() {
+        for right_position in (left_position + 1)..roster.len() {
             for operator in [
                 BinaryOperator::NotEqual,
                 BinaryOperator::Equal,
@@ -281,30 +301,36 @@ fn ordering_relations(
                 BinaryOperator::Greater,
                 BinaryOperator::GreaterOrEqual,
             ] {
-                let goal = Boolean::Comparison(compare(operator, left.clone(), right.clone()));
-                // These full-carrier unknowns already are the lemma's formal
-                // frame. Ordinary call activation would freshen them again,
-                // disconnecting the requested relation from the body values.
-                if proof.spend().is_none() {
-                    return consequences;
-                }
-                if proof.generalized_activation(
-                    application.machine,
-                    0,
-                    arguments.clone(),
-                    path.clone(),
-                    &goal,
-                    Judgment::Consequence,
-                    0,
-                ) == Some(true)
-                {
+                let mut proved = true;
+                for (path, subjects) in &candidates {
+                    let goal = Boolean::Comparison(compare(
+                        operator,
+                        subjects[left_position].1.clone(),
+                        subjects[right_position].1.clone(),
+                    ));
+                    // The goal and body share this original full-carrier frame;
+                    // every read-equality branch remains a separate obligation.
+                    if proof.spend().is_none() {
+                        return consequences;
+                    }
+                    if proof.generalized_activation(
+                        application.machine,
+                        0,
+                        arguments.clone(),
+                        path.clone(),
+                        &goal,
+                        Judgment::Consequence,
+                        0,
+                    ) != Some(true)
+                    {
+                        proved = false;
+                        break;
+                    }
                     if meaning == RelationMeaning::Equivalent {
-                        // Public replacement requires the converse on the same
-                        // complete formal carriers, independently of P being
-                        // true. A necessary relation alone may omit requirements.
                         let Some(Some(converse_path)) = proof.assume(path.clone(), &goal, true)
                         else {
-                            continue;
+                            proved = false;
+                            break;
                         };
                         if proof.generalized_activation(
                             application.machine,
@@ -316,22 +342,15 @@ fn ordering_relations(
                             0,
                         ) != Some(true)
                         {
-                            continue;
+                            proved = false;
+                            break;
                         }
                     }
+                }
+                if proved {
                     consequences.push(super::PredicateOrderingConsequence {
-                        left: super::PredicateIntegerOperand::Argument(
-                            super::PredicateIntegerSubject {
-                                expression: left_subject.expression,
-                                projection: left_subject.projection.clone(),
-                            },
-                        ),
-                        right: super::PredicateIntegerOperand::Argument(
-                            super::PredicateIntegerSubject {
-                                expression: right_subject.expression,
-                                projection: right_subject.projection.clone(),
-                            },
-                        ),
+                        left: roster[left_position].0.clone(),
+                        right: roster[right_position].0.clone(),
                         operator,
                     });
                     if meaning == RelationMeaning::Equivalent {

@@ -56,6 +56,79 @@ pub fn immutable_entry_indexed_read_identity(
     })
 }
 
+/// Substitute an inert callee read through its complete declared actual
+/// telescope. Both the collection and selector become caller observations;
+/// no callee-local indexing handle becomes a caller place segment.
+pub fn instantiate_immutable_entry_indexed_read_identity(
+    program: &dyn crate::CheckingInput,
+    predicate: SymbolHandle,
+    expression: ExpressionHandle,
+    arguments: &[ExpressionHandle],
+    caller_machine: &Machine,
+    caller_state: &State,
+) -> Option<ImmutableEntryReadIdentity> {
+    let machine = program.machine(predicate)?;
+    let entry = program.machine_states(machine).first()?;
+    let parameters = program.state_parameters(entry);
+    if parameters.len() != arguments.len() {
+        return None;
+    }
+    program.expression_table.indexed_node(expression)?;
+    let reference = immutable_formal_expression(program, machine, entry, expression, 0)?;
+    if !program
+        .primitive_type_reference(reference)?
+        .is_fixed_integer()
+        || program.arithmetic_domain_for_type_reference(reference)
+            != numerics::arithmetic::ArithmeticDomain::Exact
+    {
+        return None;
+    }
+    let mut actuals = Vec::new();
+    for (parameter, argument) in parameters.iter().zip(arguments) {
+        immutable_formal_expression(program, caller_machine, caller_state, *argument, 0)?;
+        let reference = crate::expression_result_type_reference(
+            program,
+            caller_machine,
+            caller_state,
+            *argument,
+        )?;
+        if !crate::declared_carriers_match(program, parameter.type_reference, reference) {
+            return None;
+        }
+        actuals.push(super::structural_term(
+            program,
+            Some((caller_machine, caller_state, caller_state.return_type)),
+            Some((
+                caller_machine.symbol,
+                program.state_parameters(caller_state),
+            )),
+            *argument,
+            None,
+        )?);
+    }
+    let bindings = |expression| {
+        let ExpressionNode::Name(name) = program.expression_table.expression(expression) else {
+            return None;
+        };
+        let position = parameters
+            .iter()
+            .position(|parameter| parameter.symbol == name.symbol)?;
+        actuals.get(position).cloned()
+    };
+    let term = super::structural_term(
+        program,
+        Some((machine, entry, entry.return_type)),
+        Some((machine.symbol, parameters)),
+        expression,
+        Some(&bindings),
+    )?;
+    Some(ImmutableEntryReadIdentity {
+        machine: caller_machine.symbol,
+        state: caller_state.symbol,
+        value: term.observation_identity_key()?,
+    })
+}
+
 fn immutable_formal_expression(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -142,6 +215,11 @@ fn immutable_formal_expression(
                 return None;
             };
             *element_type
+        }
+        ExpressionNode::Borrow(borrow)
+            if borrow.access == language_core::ReferenceAccess::Shared =>
+        {
+            immutable_formal_expression(program, machine, state, borrow.target, depth + 1)?
         }
         ExpressionNode::Integer(_) => {
             crate::expression_result_type_reference(program, machine, state, expression)?

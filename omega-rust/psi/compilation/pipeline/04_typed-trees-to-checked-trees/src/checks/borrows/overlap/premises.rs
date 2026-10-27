@@ -643,6 +643,22 @@ fn decompose_premise_expression(
                             )
                         })
                         .flatten(),
+                    validation::PredicateIntegerOperand::Read(read) => match &scope {
+                        PremiseScope::State { machine, state } => {
+                            validation::instantiate_immutable_entry_indexed_read_identity(
+                                program,
+                                read.predicate,
+                                read.expression,
+                                &read.arguments,
+                                machine,
+                                state,
+                            )
+                            .map(NormalizedBound::EntryRead)
+                        }
+                        // Completed/local observations need their own exact
+                        // prefix/capture owner, not an entry namespace guess.
+                        _ => None,
+                    },
                     validation::PredicateIntegerOperand::Integer(value) => {
                         i64::try_from(value).ok().map(NormalizedBound::Integer)
                     }

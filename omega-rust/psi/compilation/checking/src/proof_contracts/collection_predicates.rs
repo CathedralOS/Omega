@@ -130,13 +130,26 @@ fn predicate_call(
 }
 
 /// One exact caller actual or a checked mathematical integer bound.
+#[derive(Clone)]
 pub struct PredicateIntegerSubject {
     pub expression: ExpressionHandle,
     pub projection: Vec<facts::PlaceSegment>,
 }
 
+/// An inert observation recipe in the predicate's exact declared telescope.
+/// The source handle stays in that telescope; consumers substitute both the
+/// collection and every selector before comparing caller value identities.
+#[derive(Clone)]
+pub struct PredicateIntegerReadSubject {
+    pub predicate: symbols::SymbolHandle,
+    pub expression: ExpressionHandle,
+    pub arguments: Vec<ExpressionHandle>,
+}
+
+#[derive(Clone)]
 pub enum PredicateIntegerOperand {
     Argument(PredicateIntegerSubject),
+    Read(PredicateIntegerReadSubject),
     Integer(i128),
 }
 
