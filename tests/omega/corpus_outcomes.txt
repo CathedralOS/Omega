@@ -1877,7 +1877,7 @@ fail/build/artifact_only_unsealed_output_refused rejected 145ms expected publish
 	Terminal Build failed: required output `manifest.txt` of `build` failed: staged output never sealed at OperationId(54) in MachineId(12)/BlockId(33) at Some(OperationId(54))
 fail/build/authored_resolution_source_location rejected 22ms expected @a92f16431042
 	machine `selected` is implemented twice for `local_unchecked` -- a target supplies exactly one implementation of a contract machine
-fail/build/behavior_exclusion_forged_protocol rejected 594ms expected @acc568b043eb
+fail/build/behavior_exclusion_forged_protocol rejected 183ms expected @9ac99b4eaa48
 	Build binding protocol requires source-issued designated product operands
 fail/build/boundary_acceptance_fabricated_activation rejected 60ms expected @030cc694c7b9+wt
 	the compiler-owned Build activation cannot be copied into local `counterfeit`
@@ -1971,7 +1971,7 @@ fail/build/native_table_write_only_dispatch rejected 1325ms expected @a92f164310
 	machine `Table::invoke` state `invoke` declares `&write`, but the current milestone proves non-observation only for checked Omega bodies; bodyless boundary, accepted, requirement, and external-provider declarations require an admitted write-only boundary claim
 	machine `main` state `entry` calls `run` with write-only input authority; an opaque selected implementation requires an admitted write-only boundary claim
 	machine `Table::invoke` state `invoke` declares `&write`, but the current milestone proves non-observation only for checked Omega bodies; bodyless boundary, accepted, requirement, and external-provider declarations require an admitted write-only boundary claim
-fail/build/nonreturning_external_service_excluded rejected 4093ms expected @acc568b043eb
+fail/build/nonreturning_external_service_excluded rejected 5322ms expected @9ac99b4eaa48
 	1 authored behavior exclusion(s) could not be satisfied
 	behavior exclusion violated: service `ProcessExit` is reachable in Terminal machine 3 at external completion to boundary `named-callable(path(ProcessExit::exit_process),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` (block 3, edge 3)
 fail/build/opaque_by_value_without_selection rejected 2512ms expected @a92f16431042
@@ -2275,8 +2275,8 @@ fail/calls/foreign_scalar_indirect_result_parameter_overlap_rejected rejected 14
 	native artifact identity physical pipeline failed: common physical staging failed: RegisterAllocation(RuntimeSpill(FixedOccurrences(UnsupportedCarrier)))
 fail/calls/foreign_scalar_indirect_result_wrong_width_rejected rejected 13367ms expected @a92f16431042
 	calling policy accepted an invalid plan: value 2 has an invalid indirect shape
-fail/calls/free_machine_named_transition_rejected rejected 2104ms expected @3c5cd09b7f5d
-	cannot prove requires contract for call scan from Main::main: 40 == 41 (needs fact `value == 41` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
+fail/calls/free_machine_named_transition_rejected rejected 268ms expected @9ac99b4eaa48
+	machine `Main::main` state `main` value call to `scan` violates required fact `value == 41`: the instantiated fact is structurally false (`40 == 41`)
 fail/calls/generic_operator_guard_argument_mismatch rejected 2427ms expected @a92f16431042
 	named operator `identity` static argument for parameter `T` does not equal the type inferred from its operands
 fail/calls/immutable_arg_for_mut_param_rejected rejected 1057ms expected @a92f16431042
@@ -13293,30 +13293,30 @@ fail/facts/selected_native_code_layout_through_parameter_rejected rejected 83ms 
 	late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation
 fail/facts/selected_native_code_layout_through_target_body_rejected rejected 85ms expected @a92f16431042
 	late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation
-fail/facts/selected_provider_issuance_through_call_result_ordinary_call rejected 1364ms expected @acc568b043eb
+fail/facts/selected_provider_issuance_through_call_result_ordinary_call rejected 1094ms expected @9ac99b4eaa48
 	cannot prove default-domain field requirement for return from deliver, state entry, at statement 0: InitialSupplyProvider.acquire() requires Buffer::Owned
-fail/facts/selected_provider_issuance_through_const_name_ordinary_call rejected 1394ms expected @acc568b043eb
+fail/facts/selected_provider_issuance_through_const_name_ordinary_call rejected 1084ms expected @9ac99b4eaa48
 	cannot prove requires contract for call round_trip from Main::main: buffer in Buffer::Owned in state `main`
 	cannot prove initializer of `buffer` in Main::main is in domain `Buffer::Owned`; an annotation cannot establish routed qualification
-fail/facts/selected_provider_issuance_through_field_ordinary_call rejected 1610ms expected @acc568b043eb
+fail/facts/selected_provider_issuance_through_field_ordinary_call rejected 1139ms expected @9ac99b4eaa48
 	cannot prove requires contract for call round_trip from Main::main: envelope.buffer in Buffer::Owned in state `main`
 	cannot prove initializer of `buffer` in Main::main is in domain `Buffer::Owned`; an annotation cannot establish routed qualification
 	construction of `Envelope` field `buffer` is not proven in domain `Buffer::Owned` in Main::main state `main` at statement 1; a construction value must establish the domain's predicates and any required provenance
-fail/facts/selected_provider_issuance_through_local_ordinary_call rejected 1399ms expected @acc568b043eb
+fail/facts/selected_provider_issuance_through_local_ordinary_call rejected 1094ms expected @9ac99b4eaa48
 	cannot prove requires contract for call round_trip from Main::main: buffer in Buffer::Owned in state `main`
 	cannot prove initializer of `buffer` in Main::main is in domain `Buffer::Owned`; an annotation cannot establish routed qualification
-fail/facts/selected_provider_issuance_through_match_join_ordinary_call rejected 1442ms expected @acc568b043eb
+fail/facts/selected_provider_issuance_through_match_join_ordinary_call rejected 1111ms expected @9ac99b4eaa48
 	cannot prove default-domain field requirement for return from choose_initial, state entry, at statement 1: InitialSupplyProvider.acquire() requires Buffer::Owned
 	cannot prove default-domain field requirement for return from choose_initial, state entry, at statement 2: InitialSupplyProvider.acquire() requires Buffer::Owned
-fail/facts/selected_provider_issuance_through_other_machine_ordinary_call rejected 1442ms expected @acc568b043eb
+fail/facts/selected_provider_issuance_through_other_machine_ordinary_call rejected 1096ms expected @9ac99b4eaa48
 	cannot prove requires contract for call transport from Main::main: buffer in Buffer::Owned in state `main`
 	cannot prove initializer of `buffer` in Main::main is in domain `Buffer::Owned`; an annotation cannot establish routed qualification
-fail/facts/selected_provider_issuance_through_other_state_ordinary_call rejected 1453ms expected @acc568b043eb
+fail/facts/selected_provider_issuance_through_other_state_ordinary_call rejected 1104ms expected @9ac99b4eaa48
 	cannot prove requires contract for call supplied from Main::main: buffer in Buffer::Owned in state `main`
 	cannot prove initializer of `buffer` in Main::main is in domain `Buffer::Owned`; an annotation cannot establish routed qualification
-fail/facts/selected_provider_issuance_through_parameter_ordinary_call rejected 1452ms expected @acc568b043eb
+fail/facts/selected_provider_issuance_through_parameter_ordinary_call rejected 1086ms expected @9ac99b4eaa48
 	cannot prove requires contract for call exercise from Main::main: InitialSupplyProvider.acquire() in Buffer::Owned in state `main`
-fail/facts/selected_provider_issuance_through_target_body_ordinary_call rejected 1527ms expected @acc568b043eb
+fail/facts/selected_provider_issuance_through_target_body_ordinary_call rejected 1105ms expected @9ac99b4eaa48
 	cannot prove requires contract for call transport from Main::main: buffer in Buffer::Owned in state `main`
 	cannot prove initializer of `buffer` in Main::main is in domain `Buffer::Owned`; an annotation cannot establish routed qualification
 fail/facts/selected_scalar_initializer_through_call_result_rejected rejected 2003ms expected @a92f16431042
@@ -19559,8 +19559,8 @@ fail/modules/nontransitive_file_imports rejected 614ms expected @a92f16431042
 	data `Holder` field `value` references unknown data type `A`
 fail/modules/nontransitive_file_machine_import rejected 616ms unexpected @a92f16431042
 	call `entry` has an invalid argument correspondence: call has no retained parameter telescope
-fail/modules/packaged_structured_const_wrong_carrier rejected 618ms expected @acc568b043eb
-	index argument for `Tagged::Tag` is invalid: const `WRONG` declares type `ImpostorToken`, but the parameter requires `Token`
+fail/modules/packaged_structured_const_wrong_carrier rejected 235ms expected @9ac99b4eaa48
+	indexed-domain selected constant has canonical type `named(name(ImpostorToken))`, expected `named(name(Token))`
 fail/modules/private_generic_dependency rejected 2228ms expected @a92f16431042
 	package `private_generic_dependency` (0101010101010101010101010101010101010101010101010101010101010101) selects private machine `values::Window::range`
 fail/modules/runtime_fixed_array_index rejected 42ms expected @a92f16431042
@@ -22645,6 +22645,7 @@ pass/borrows/conditional_copied_slot_restores_parent_exit checked 2627ms check-t
 pass/borrows/constant_shared_boundary_exit checked 2812ms check-target:macos_arm64 @a92f16431042
 pass/borrows/constructor_reference_access checked 2529ms @a92f16431042
 pass/borrows/copied_borrowed_slot_restores_parent_exit checked 2979ms check-target:macos_arm64 @a92f16431042
+pass/borrows/copied_dispatch_payload_before_mutating_argument_exit checked 1148ms check-target:macos_arm64 @9ac99b4eaa48
 pass/borrows/copied_empty_case_before_active_replacement_exit checked 2598ms check-target:macos_arm64 @a92f16431042
 pass/borrows/copied_empty_case_does_not_retain_inactive_backing_exit checked 2627ms check-target:macos_arm64 @a92f16431042
 pass/borrows/copied_image_descriptor_unrelated_write incomplete 2538ms check-target:macos_arm64 @a92f16431042
@@ -23027,7 +23028,7 @@ pass/build/component_assumption_user_declaration checked 3018ms @a92f16431042
 pass/build/conditional_root_binding checked 3030ms check-target:windows_x86_64 @a92f16431042
 pass/build/const_index_dependency_order_exit rejected 219ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
 	cleanup effect dependency in `outer` has no exact structural residual disposition in state `entry` at statement 2
-pass/build/crash_exclusion_unexecuted_helper_exit checked 2147ms check-target:macos_arm64 @acc568b043eb
+pass/build/crash_exclusion_unexecuted_helper_exit checked 1280ms check-target:macos_arm64 @9ac99b4eaa48
 pass/build/crash_exclusion_untrapping_provider_exit checked 2206ms check-target:macos_arm64 @a92f16431042
 pass/build/declaration_domain_context checked 1887ms @a92f16431042
 pass/build/dependency_declaration_queries checked 2193ms @a92f16431042
@@ -23085,10 +23086,10 @@ pass/build/uefi_selected_context_target_entry checked 17256ms check-target:uefi_
 pass/build/uefi_selected_physical_entry checked 12102ms check-target:uefi_x86_64 @a92f16431042
 pass/build/uefi_selected_storage_entry checked 15961ms check-target:uefi_x86_64 @a92f16431042
 pass/build/uefi_selected_storage_target_entry checked 16459ms check-target:uefi_x86_64 @a92f16431042
-pass/build/uefi_suspended_context_service_exclusion checked 7095ms check-target:uefi_x86_64 @acc568b043eb
+pass/build/uefi_suspended_context_service_exclusion checked 6536ms check-target:uefi_x86_64 @9ac99b4eaa48
 pass/calling/calling_count_boundaries_exit checked 13662ms check-target:macos_arm64 @a92f16431042
 pass/calls/ambient_receiver_scalar_return_exit checked 7630ms check-target:macos_arm64 @a92f16431042
-pass/calls/attached_context_terminal_machine_call_exit checked 1360ms check-target:macos_arm64 @acc568b043eb
+pass/calls/attached_context_terminal_machine_call_exit checked 1100ms check-target:macos_arm64 @9ac99b4eaa48
 pass/calls/attached_terminal_machine_call_exit checked 2454ms check-target:macos_arm64 @3c5cd09b7f5d
 pass/calls/borrowed_case_dispatch_member_leaf_reads checked 8079ms check-target:macos_arm64 @a92f16431042
 pass/calls/borrowed_float_argument_scalar_result_exit checked 11729ms check-target:macos_arm64 @a92f16431042
@@ -23187,13 +23188,13 @@ pass/calls/nested_subject_call_operand checked 1549ms @a92f16431042
 pass/calls/nested_value_call_arg_compile checked 7093ms check-target:macos_arm64 @a92f16431042
 pass/calls/nested_value_schedule_namespace_exit checked 2036ms check-target:macos_arm64 @a92f16431042
 pass/calls/nested_where_binding checked 3860ms @a92f16431042
-pass/calls/nonreturning_borrowed_argument_indirect_result_exit checked 4026ms check-target:macos_arm64 @acc568b043eb
-pass/calls/nonreturning_large_call_required_argument_exit checked 3929ms check-target:macos_arm64 @acc568b043eb
-pass/calls/nonreturning_record_constructor_prefix_exit checked 4159ms check-target:macos_arm64 @acc568b043eb
-pass/calls/nonreturning_record_match_normal_exit checked 4229ms check-target:macos_arm64 @acc568b043eb
-pass/calls/nonreturning_record_match_stopped_exit checked 4154ms check-target:macos_arm64 @acc568b043eb
-pass/calls/nonreturning_scalar_arithmetic_operand_exit checked 3942ms check-target:macos_arm64 @acc568b043eb
-pass/calls/nonreturning_scalar_call_initialization_exit checked 3912ms check-target:macos_arm64 @acc568b043eb
+pass/calls/nonreturning_borrowed_argument_indirect_result_exit checked 3582ms check-target:macos_arm64 @9ac99b4eaa48
+pass/calls/nonreturning_large_call_required_argument_exit checked 3586ms check-target:macos_arm64 @9ac99b4eaa48
+pass/calls/nonreturning_record_constructor_prefix_exit checked 3900ms check-target:macos_arm64 @9ac99b4eaa48
+pass/calls/nonreturning_record_match_normal_exit checked 3875ms check-target:macos_arm64 @9ac99b4eaa48
+pass/calls/nonreturning_record_match_stopped_exit checked 3858ms check-target:macos_arm64 @9ac99b4eaa48
+pass/calls/nonreturning_scalar_arithmetic_operand_exit checked 3599ms check-target:macos_arm64 @9ac99b4eaa48
+pass/calls/nonreturning_scalar_call_initialization_exit checked 3631ms check-target:macos_arm64 @9ac99b4eaa48
 pass/calls/ordered_field_selector_calls_exit checked 6793ms check-target:macos_arm64 @a92f16431042
 pass/calls/outcome_specific_closed_argument checked 3226ms check-target:macos_arm64 @a92f16431042
 pass/calls/outcome_specific_later_snapshot checked 3011ms @a92f16431042
@@ -27856,15 +27857,15 @@ pass/facts/selected_native_code_layout_through_other_state_exit rejected 5450ms 
 pass/facts/selected_native_code_layout_through_parameter_exit rejected 5656ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
 	native artifact target lowering failed: InvalidOwnedStructuralArgument { source: PlaceId(9), parameter: PlaceId(9), structural_type: StructuralTypeId(1), reason: "source home multiplicity differs from its formal" }
 pass/facts/selected_native_code_layout_through_target_body_exit checked 5517ms check-target:macos_arm64 @a92f16431042
-pass/facts/selected_provider_issuance_through_call_result_exit checked 1846ms check-target:macos_arm64 @acc568b043eb
-pass/facts/selected_provider_issuance_through_const_name_exit checked 1627ms check-target:macos_arm64 @acc568b043eb
-pass/facts/selected_provider_issuance_through_field_exit checked 1643ms check-target:macos_arm64 @acc568b043eb
-pass/facts/selected_provider_issuance_through_local_exit checked 1642ms check-target:macos_arm64 @acc568b043eb
-pass/facts/selected_provider_issuance_through_match_join_exit checked 1645ms check-target:macos_arm64 @acc568b043eb
-pass/facts/selected_provider_issuance_through_other_machine_exit checked 1658ms check-target:macos_arm64 @acc568b043eb
-pass/facts/selected_provider_issuance_through_other_state_exit checked 1656ms check-target:macos_arm64 @acc568b043eb
-pass/facts/selected_provider_issuance_through_parameter_exit checked 1658ms check-target:macos_arm64 @acc568b043eb
-pass/facts/selected_provider_issuance_through_target_body_exit checked 1640ms check-target:macos_arm64 @acc568b043eb
+pass/facts/selected_provider_issuance_through_call_result_exit checked 1566ms check-target:macos_arm64 @9ac99b4eaa48
+pass/facts/selected_provider_issuance_through_const_name_exit checked 1587ms check-target:macos_arm64 @9ac99b4eaa48
+pass/facts/selected_provider_issuance_through_field_exit checked 1430ms check-target:macos_arm64 @9ac99b4eaa48
+pass/facts/selected_provider_issuance_through_local_exit checked 1429ms check-target:macos_arm64 @9ac99b4eaa48
+pass/facts/selected_provider_issuance_through_match_join_exit checked 1421ms check-target:macos_arm64 @9ac99b4eaa48
+pass/facts/selected_provider_issuance_through_other_machine_exit checked 1418ms check-target:macos_arm64 @9ac99b4eaa48
+pass/facts/selected_provider_issuance_through_other_state_exit checked 1423ms check-target:macos_arm64 @9ac99b4eaa48
+pass/facts/selected_provider_issuance_through_parameter_exit checked 1423ms check-target:macos_arm64 @9ac99b4eaa48
+pass/facts/selected_provider_issuance_through_target_body_exit checked 1433ms check-target:macos_arm64 @9ac99b4eaa48
 pass/facts/selected_scalar_initializer_through_call_result_exit checked 5547ms check-target:macos_arm64 @a92f16431042
 pass/facts/selected_scalar_initializer_through_const_name_exit checked 8554ms check-target:macos_arm64 @a92f16431042
 pass/facts/selected_scalar_initializer_through_field_exit checked 7186ms check-target:macos_arm64 @a92f16431042
@@ -30616,8 +30617,8 @@ pass/modules/open_const_private_implementation_projection_exit checked 9897ms ch
 pass/modules/package_bare_cases checked 2263ms @a92f16431042
 pass/modules/package_declaration checked 1384ms @a92f16431042
 pass/modules/package_sibling_declarations checked 1330ms @a92f16431042
-pass/modules/packaged_structured_const_declared_carrier_exit checked 1773ms check-target:macos_arm64 @acc568b043eb
-pass/modules/packaged_structured_const_generic_composition_exit checked 1773ms check-target:macos_arm64 @acc568b043eb
+pass/modules/packaged_structured_const_declared_carrier_exit checked 1260ms check-target:macos_arm64 @9ac99b4eaa48
+pass/modules/packaged_structured_const_generic_composition_exit checked 1326ms check-target:macos_arm64 @9ac99b4eaa48
 pass/modules/public_constant_array_computed_extent checked 1447ms @a92f16431042
 pass/modules/public_constant_array_computed_extent_body_exit checked 8509ms check-target:macos_arm64 @a92f16431042
 pass/modules/public_float_constants checked 4212ms @a92f16431042
