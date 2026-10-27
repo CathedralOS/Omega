@@ -30,3 +30,11 @@ raw-host provenance guards, then native/Terminal agreement and fact-sensitive
 rejection across matching hosts. Empty local predicates and direct issuer lists
 must never hide inherited routes. Rich policies/views and the full parent remain
 open.
+
+The direct raw-host control at this baseline source-checks successfully and
+executes natively at exit zero despite never invoking the parent issuer.
+Terminal then refuses its qualified inet result (CLI exit 201). This is native
+wrong admission, not successful dual-engine execution. Its actual image and
+raw outcomes are retained with the baseline producer. The initial wrapper
+control had an unrelated replacement-proof refusal; its authored inputs are
+preserved separately before reducing it to the same single-result operation.
