@@ -37,7 +37,10 @@ pub use fragment_object_publication::{
 };
 pub use image_emission::BoundaryExecutionRecord;
 pub use image_emission::NativeForeignAdapterImage;
-pub use native_artifact::{DynamicElfNativeArtifact, NativeArtifact, RequestedNativeArtifact};
+pub use native_artifact::{
+    DynamicElfNativeArtifact, DynamicElfNativeArtifactIdentity, NativeArtifact,
+    NativeArtifactIdentity, RequestedNativeArtifact,
+};
 pub(crate) use native_artifact::{
     NativePhysicalEvidenceScope, NativeProviderExecution, NativeSelectedProviderPlan,
     NativeSelectedProviderPlanDigest,

@@ -86,6 +86,14 @@ class OwnedForeignCohortTests(unittest.TestCase):
                     kept = root / "kept" / recording.name
                     kept.mkdir(parents=True)
                     (kept / "program.oterm").write_bytes(b"canonical artifact")
+                    (kept / "native.identity.txt").write_text("a" * 64 + "\n")
+                    if "--outputs" in arguments:
+                        outputs = Path(arguments[arguments.index("--outputs") + 1])
+                        outputs.mkdir()
+                        (outputs / "results.tsv").write_text("case\tnative\tinterpreter\tinterpreter_exit\nfirst\t0\tagrees\t0\nsecond\t0\tagrees\t0\n")
+                        for name in ("first", "second"):
+                            for suffix in ("stdout", "stderr", "terminal.stdout", "terminal.stderr"):
+                                (outputs / (name + "." + suffix)).write_bytes(b"")
                     stderr = f"native exit 0\ninterp exit: 0\nbuild dir kept: {kept}\n".encode()
                 else:
                     stderr = b""
@@ -104,6 +112,7 @@ class OwnedForeignCohortTests(unittest.TestCase):
             self.assertTrue(all({p.name for p in project.iterdir()} == names
                                 for project, names in accepted.items()))
             self.assertEqual(len(list((output / "sample-logs").glob("*/products/program.oterm"))), 10)
+            self.assertTrue(report["observations"][0]["cases"]["passed"])
 
     def test_mutating_frozen_source_or_lock_refuses(self):
         with tempfile.TemporaryDirectory() as temporary:

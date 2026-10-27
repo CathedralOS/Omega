@@ -126,6 +126,45 @@ def execute(arguments, recording, stem, supplied=b""):
         return subprocess.CompletedProcess(arguments, process.returncode, stdout, stderr)
 
 
+def measure_cases(project, recording, producer):
+    """Exercise retained replay through the compile-once, many-input entrypoint."""
+    recording.mkdir(parents=True, exist_ok=False)
+    inputs = recording / "inputs"
+    inputs.mkdir()
+    supplied = project / "input.txt"
+    for name in ("first", "second"):
+        (inputs / (name + ".stdin")).write_bytes(supplied.read_bytes() if supplied.is_file() else b"")
+    outputs = recording / "outputs"
+    arguments = [str(producer.cli), "run", "--both", "--keep", "--inputs", str(inputs),
+                 "--outputs", str(outputs), str(project / "main.omg")]
+    result = execute(arguments, recording, "run")
+    text = (result.stdout + result.stderr).decode("utf-8", errors="replace").replace("\r\n", "\n")
+    kept = re.search(r"^build dir kept: (.+)$", text, re.M)
+    if result.returncode or not kept:
+        raise ValueError("multi-input run failed or lost retained products")
+    shutil.copytree(Path(kept.group(1).strip()), recording / "products")
+    expected = "case\tnative\tinterpreter\tinterpreter_exit\nfirst\t0\tagrees\t0\nsecond\t0\tagrees\t0\n"
+    if (outputs / "results.tsv").read_text(encoding="utf-8") != expected:
+        raise ValueError("multi-input native/Terminal statuses do not both agree at zero")
+    for name in ("first", "second"):
+        for stream in ("stdout", "stderr"):
+            oracle = project / ("expected_" + stream + ".txt")
+            expected_bytes = oracle.read_bytes() if oracle.is_file() else b""
+            for prefix in ("", "terminal."):
+                if (outputs / (name + "." + prefix + stream)).read_bytes() != expected_bytes:
+                    raise ValueError("multi-input native/Terminal stream oracle differs")
+    identity = (recording / "products/native.identity.txt").read_text(encoding="utf-8")
+    if not re.fullmatch(r"[0-9a-f]{64}\n", identity):
+        raise ValueError("multi-input native identity is missing or malformed")
+    canonical_arguments = [str(producer.cli), "inspect-terminal", "--artifact",
+                           str(recording / "products/program.oterm")]
+    canonical = execute(canonical_arguments, recording, "canonical")
+    if canonical.returncode:
+        raise ValueError("multi-input canonical Terminal artifact inspection failed")
+    return dict(argv=arguments, exit=result.returncode, canonical_argv=canonical_arguments,
+                canonical_exit=canonical.returncode, passed=True)
+
+
 def measure(output, inventory, producer):
     producer.verify()
     observations = []
@@ -167,6 +206,11 @@ def measure(output, inventory, producer):
                 observation.update(canonical_argv=canonical_arguments, canonical_exit=canonical.returncode)
                 if canonical.returncode:
                     raise ValueError("canonical Terminal artifact inspection failed")
+                identity = (recording / "products/native.identity.txt").read_text(encoding="utf-8")
+                if not re.fullmatch(r"[0-9a-f]{64}\n", identity):
+                    raise ValueError("native identity is missing or malformed")
+                if row["place"] == "root":
+                    observation["cases"] = measure_cases(project, recording / "cases", producer)
                 observation["products"] = {str(path.relative_to(recording)): digest(path)
                                            for path in recording.rglob("*") if path.is_file()}
                 observation["passed"] = True
