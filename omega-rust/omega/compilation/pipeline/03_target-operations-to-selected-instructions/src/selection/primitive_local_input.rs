@@ -329,7 +329,7 @@ pub(super) fn read_geometry(
             let signature = source.structural.as_ref()?;
             let root = super::reference_input::root_type(source, *place)?;
             let geometry =
-                crate::structural_inputs::structural_reference_input::reference_source_geometry(
+                crate::structural_inputs::structural_reference_input::storage_address_geometry(
                     root,
                     path,
                     &signature.structural_types,

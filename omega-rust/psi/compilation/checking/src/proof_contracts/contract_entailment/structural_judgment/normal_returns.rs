@@ -21,6 +21,7 @@ use super::{MembershipGuarantee, StructuralJudge, StructuralJudgment, Structural
 use crate::expression_traversal::children;
 use crate::machine_calls::contract_dependencies::independent_call_application;
 use facts::NormalizedWriteFrame;
+use language_semantics::declaration_selection::CollectionMeasure;
 use symbols::SymbolHandle;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, MatchPattern};
@@ -1605,6 +1606,31 @@ impl<'program> StructuralJudge<'program> {
                     && crate::reference_shell(program, reference).is_none()
                 {
                     judge.observe_completed_storage_read(scope.0, scope.1, expression, value.clone());
+                }
+                if let Some(actual_type) = crate::expression_result_type_reference(
+                    program, scope.0, scope.1, expression,
+                ) && crate::fixed_array_type_extent(program, actual_type).is_some()
+                    && let Some(extent) = super::super::structural_terms::observed_collection_measure(
+                        program,
+                        actual_type,
+                        CollectionMeasure::Length,
+                        || None,
+                    )
+                {
+                    // Capture immutable geometry on the completed actual before
+                    // a receiving slice formal attenuates its declared carrier.
+                    // This exact descriptor identity supplies no element facts,
+                    // initializer replay, or additional reference authority.
+                    let descriptor = value.clone().into_collection_descriptor();
+                    if descriptor.observation_identity_key().is_some() {
+                        judge.assume_normal_equation(
+                            StructuralTerm::CollectionMeasure {
+                                measure: CollectionMeasure::Length,
+                                collection: Box::new(descriptor),
+                            },
+                            extent,
+                        );
+                    }
                 }
                 Some(Some(
                     NormalReturnPath::observed(value, judge).at_expression(expression, demand),

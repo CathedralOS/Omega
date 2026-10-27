@@ -1,0 +1,2 @@
+cannot prove requires contract for call require_four
+length == 4
