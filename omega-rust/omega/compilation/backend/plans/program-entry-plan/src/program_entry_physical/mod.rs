@@ -6,7 +6,7 @@
 
 use calling_conventions::{
     BoundaryEntryPlan, EntryStack, MachineRegime, MachineState, MachineStateSet, Preemption,
-    StatePlan,
+    StatePlan, ValidatedBoundaryEntryPlan,
 };
 
 /// The shared state plan for closed target-authored entry replays: the
@@ -29,32 +29,26 @@ fn process_entry_state_plan(initial_regime: MachineRegime) -> StatePlan {
     }
 }
 
-mod exact_linux_arm64;
-mod exact_linux_x86_64;
-mod exact_macos;
-mod exact_macos_x86_64;
-mod exact_windows_x86_64;
+mod arrival;
+mod identity;
 mod package_source;
-pub use exact_linux_arm64::{
-    LINUX_ARM64_I32_TYPE_IDENTITY, LINUX_ARM64_PHYSICAL_REQUIREMENT_IDENTITY,
-    LINUX_ARM64_U64_TYPE_IDENTITY, exact_linux_arm64_physical_boundary_entry_plan,
-};
-pub use exact_linux_x86_64::{
+pub use identity::{
+    LINUX_ARM64_I32_TYPE_IDENTITY, LINUX_ARM64_U64_TYPE_IDENTITY,
     LINUX_X86_64_ADDRESS_TYPE_IDENTITY, LINUX_X86_64_I32_TYPE_IDENTITY,
-    LINUX_X86_64_PHYSICAL_REQUIREMENT_IDENTITY, exact_linux_x86_64_physical_boundary_entry_plan,
-};
-pub use exact_macos::{
     MACOS_ARM64_ADDRESS_TYPE_IDENTITY, MACOS_ARM64_I32_TYPE_IDENTITY,
-    MACOS_ARM64_PHYSICAL_REQUIREMENT_IDENTITY, exact_macos_arm64_physical_boundary_entry_plan,
-};
-pub use exact_macos_x86_64::{
     MACOS_X86_64_ADDRESS_TYPE_IDENTITY, MACOS_X86_64_I32_TYPE_IDENTITY,
-    exact_macos_x86_64_physical_boundary_entry_plan,
+    WINDOWS_X86_64_U32_TYPE_IDENTITY,
 };
-pub use exact_windows_x86_64::{
-    WINDOWS_X86_64_PHYSICAL_REQUIREMENT_IDENTITY, WINDOWS_X86_64_U32_TYPE_IDENTITY,
-    exact_windows_x86_64_physical_boundary_entry_plan,
-};
+
+/// Independently reconstruct and validate the boundary entry plan the closed
+/// target package authored. `None` where the package publishes no hosted
+/// replay: the UEFI contract's plan is authored and admitted by provider
+/// planning, never reconstructed beside it.
+pub fn exact_hosted_physical_boundary_entry_plan(
+    package: target::ProgramEntryPhysicalContractPackage,
+) -> Option<ValidatedBoundaryEntryPlan> {
+    arrival::physical_arrival(package).replay()
+}
 
 /// Domain-separated commitment to the exact source bytes of one closed
 /// toolchain-owned physical-entry contract package.
@@ -162,80 +156,17 @@ impl ProgramEntryPhysicalContractPlan {
             );
         }
         // The contract shape is fixed by the target-owned physical package,
-        // never inferred from parameter count. macOS ARM64 publishes the
-        // four-register dyld arrival under AAPCS64 and deliberately retains
-        // no numeric stack guarantee; UEFI x86-64 publishes the two-input
-        // Microsoft-x64 arrival with its exact closed stack evidence.
-        let (expected_policy, parameter_count, guaranteed_entry_stack) = match (
-            target_slot.owner,
-            target_slot.physical_calling_convention,
-        ) {
-            (
-                target::TargetProfile::UefiX64,
-                Some(target::ProgramEntryCallingConvention::MicrosoftX64),
-            ) => {
-                let application = target::TargetSemantics::guaranteed_entry_stack::<
-                    target::UefiX86_64,
-                >(target_slot.owner)
-                .map_err(|error| error.to_string())?;
-                let guarantee = target::TargetSemantics::close_guaranteed_entry_stack::<
-                    target::UefiX86_64,
-                >(target_slot.owner)
-                .map_err(|error| error.to_string())?;
-                if guarantee.application() != &application {
-                    return Err(
-                        "physical UEFI entry contract target-stack application and numeric closure drifted"
-                            .into(),
-                    );
-                }
-                (
-                    calling_conventions::CallingPolicy::MicrosoftX64,
-                    2,
-                    Some(guarantee),
-                )
-            }
-            (
-                target::TargetProfile::MacosArm64,
-                Some(target::ProgramEntryCallingConvention::Aapcs64),
-            ) => (calling_conventions::CallingPolicy::Aapcs64, 4, None),
-            // The Intel dyld `appMain` entry receives argc, argv, envp and
-            // apple in registers under System V x86-64 and returns the status
-            // in eax; the authored contract publishes no numeric stack
-            // guarantee.
-            (
-                target::TargetProfile::MacosX64,
-                Some(target::ProgramEntryCallingConvention::SystemVAMD64),
-            ) => (calling_conventions::CallingPolicy::SystemVAMD64, 4, None),
-            // The Linux kernel enters through the initial process-stack image
-            // in rsp and receives completion through exit_group; the authored
-            // contract publishes no numeric stack guarantee.
-            (
-                target::TargetProfile::LinuxX64,
-                Some(target::ProgramEntryCallingConvention::SystemVAMD64),
-            ) => (calling_conventions::CallingPolicy::SystemVAMD64, 1, None),
-            // The Linux kernel enters with the machine stack pointer at the
-            // initial process-stack image and receives completion through the
-            // exit_group supervisor call; the authored contract publishes no
-            // numeric stack guarantee.
-            (
-                target::TargetProfile::LinuxArm64,
-                Some(target::ProgramEntryCallingConvention::Aapcs64),
-            ) => (calling_conventions::CallingPolicy::Aapcs64, 1, None),
-            // The Windows loader enters at the PE AddressOfEntryPoint under
-            // Microsoft x64 with no contractual inputs and maps the returned
-            // u32 to the process exit code; the authored contract publishes no
-            // numeric stack guarantee.
-            (
-                target::TargetProfile::WindowsX64,
-                Some(target::ProgramEntryCallingConvention::MicrosoftX64),
-            ) => (calling_conventions::CallingPolicy::MicrosoftX64, 0, None),
-            _ => {
-                return Err(
-                    "physical entry contract requires a target declaration with an authored physical calling convention"
-                        .into(),
-                );
-            }
-        };
+        // never inferred from parameter count: the package's arrival row names
+        // the authored convention, the exact arity, and — where the contract
+        // publishes one — the numeric entry-stack closure.
+        let arrival = arrival::physical_arrival(target_package);
+        if target_slot.physical_calling_convention != Some(arrival.calling_convention) {
+            return Err(format!(
+                "physical {physical_requirement} entry contract requires a target declaration with the package's authored physical calling convention"
+            ));
+        }
+        let (expected_policy, parameter_count) = (arrival.policy, arrival.parameter_count());
+        let guaranteed_entry_stack = arrival.guaranteed_entry_stack(target_slot.owner)?;
         if requirement_identity.is_empty()
             || parameter_type_identities.len() != parameter_count
             || parameter_type_identities
