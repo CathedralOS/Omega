@@ -231,11 +231,8 @@ fn produce(request: &Request) -> Result<(), Box<dyn std::error::Error>> {
     }
     if request.product == Product::Terminal {
         println!("terminal_products={}", reports.len());
-        let first = reports
-            .first()
-            .and_then(|report| report.artifact())
-            .ok_or("missing Terminal artifact")?;
-        for (profile, report) in request.targets.iter().zip(&reports) {
+        let mut retained = Vec::with_capacity(reports.len());
+        for (profile, report) in request.targets.iter().zip(reports) {
             if !request.rollback.is_empty() {
                 let receipt = report
                     .optimization_rollback_receipt()
@@ -250,17 +247,41 @@ fn produce(request: &Request) -> Result<(), Box<dyn std::error::Error>> {
                 report.checked_native_executable_path().is_none(),
                 "Terminal stop published native code"
             );
-            let artifact = report.artifact().ok_or("missing Terminal artifact")?;
+            retained.push(
+                report
+                    .into_retained_terminal_artifact()
+                    .ok_or("missing Terminal artifact")?,
+            );
+        }
+        let first = retained
+            .first()
+            .ok_or("missing Terminal product")?
+            .artifact();
+        for (profile, product) in request.targets.iter().zip(&retained) {
+            let artifact = product.artifact();
             assert!(
                 std::ptr::eq(first, artifact),
                 "equal source targets must share Terminal storage"
+            );
+            let mut matching = product
+                .native_realization_proposal()
+                .ok_or("Terminal product lost its Build companion")?
+                .target_provider_proposals()
+                .iter()
+                .filter(|proposal| proposal.target == profile.target_name());
+            let proposal = matching
+                .next()
+                .ok_or("Terminal product lost its target selection")?;
+            assert!(
+                matching.next().is_none(),
+                "duplicate Terminal target selection"
             );
             let observed = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
                 native_provider: None,
                 artifact,
                 target: Some(profile.target_name()),
                 provisions: None,
-                provider_proposal: None,
+                provider_proposal: Some(proposal),
                 x86_flags: None,
                 memory_ordering: None,
                 fuel_allowance: 100_000,
