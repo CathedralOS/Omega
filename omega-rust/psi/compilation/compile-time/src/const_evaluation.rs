@@ -15,6 +15,7 @@ pub(crate) mod data_layout_queries;
 mod initializer_probe;
 pub(crate) mod range_arguments;
 pub(crate) mod range_endpoints;
+pub(crate) mod selected_constants;
 
 use typed_trees::TypedTrees;
 

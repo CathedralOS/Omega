@@ -266,12 +266,14 @@ fn close_constant_values(
         // Close these actual checked subjects through the same layout owner,
         // using this target's completed recipe and validated plan inputs.
         let selection = typed_trees::references::DeclarationSelection::from_program(&closed_typed);
-        provider_planning::data_layout_queries::fold_data_layout_queries(
+        build_time_evaluation::fold_data_layout_queries(
             &mut closed_typed,
-            selected_target_profile,
-            opaque_representation_selections,
             false,
             &selection,
+            &provider_planning::data_layout_queries::TargetLayoutQueries {
+                target: selected_target_profile,
+                opaque_representations: opaque_representation_selections,
+            },
         )?;
         closed_typed
             .tables
