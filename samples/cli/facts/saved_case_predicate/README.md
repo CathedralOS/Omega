@@ -2,11 +2,13 @@
 
 A saved case verdict selects the same unwritten case payload after a disjoint case replacement.
 
-Parent: **STATE-LOCAL-VALUE-FRONTIER**, remaining case saved-observation composition. A copied `choice in Choice::Full` Boolean passes through an alias and a replacement of the other Choice. Its true arm must justify the current Full payload and the nonzero divisor in `490 / choice.amount`; runtime must return 70. Each twin changes only the replacement destination from the other Choice to the observed Choice. The Boolean survives, but cannot authorize accessing its now-absent payload.
+Parent: **STATE-LOCAL-VALUE-FRONTIER**, generic/reference saved case observations. Each place passes its case through an opaque `Value` constrained by `Value == &'storage mut Choice`. A saved `Choice::Full` verdict survives an alias and a write to the other Choice. It must justify the current payload and the nonzero divisor in `490 / choice.amount`.
 
-Fixed optimized baseline `eed37e0d2571646b78af87c1f6cc691ec176302e` checks the five owned-value places, but wrongly refuses the parameter, nested-machine, other-machine and target-body places when the tag receiver calls `capture`, which clears only the other Choice. It also refuses the further receiver production that writes Full before reading its tag. All ten replacement twins reject on that baseline. Every stale-case twin rejects. The repaired producer runs all nine positives with native exit 0 and Terminal exit 0 on macOS ARM64; all nine twins reject the intended selected-case obligation. The programs and twins are pinned under `tests/omega/{pass,fail}/facts/saved_case_predicate_through_<place>_{exit,rejected}/`.
+Every positive invokes both Full (quotient 70) and Empty (fallback 0), and traps if either result is wrong. The field place checks neighboring values 11 and 13; all places observe the disjoint clear. Each twin changes only the post-observation replacement destination from the other Choice to the observed Choice. Its saved Boolean survives, but cannot authorize accessing the replaced payload.
 
-Governing contracts: [mutation and subject identity](../../../../wiki/spec/language/state_contracts.md#mutation-and-subject-identity), [patterns](../../../../wiki/spec/language/patterns.md), and [fact validity](../../../../wiki/spec/terminal-psi/fact_validity.md). No new language rule is proposed.
+Fixed optimized baseline `a809ca2a41c21115180dce9d1ca68e94d90ebf65` refuses all nine positives while parsing the lifetime-qualified type operand. The parser checkpoint then exposes early equation matching's lifetime restriction. Specialization must retain the formal region relation rather than substituting an anonymous actual into both the input and return types. Expression-match consumers share transition guards' saved-observation publication, and completed stores retain conditional payload domains without selecting a case.
+
+Governing contracts: [type equality and inference](../../../../wiki/spec/language/generics.md#static-type-equality), [returned lifetimes](../../../../wiki/spec/language/lifetimes.md#returned-views), [patterns](../../../../wiki/spec/language/patterns.md), [mutation and subject identity](../../../../wiki/spec/language/state_contracts.md#mutation-and-subject-identity), and [fact validity](../../../../wiki/spec/terminal-psi/fact_validity.md). No new language rule is proposed.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
@@ -61,16 +63,8 @@ The requirement evidence is bounded to this operation:
   execution. Other hosted bindings and target bodies are checked; Windows and
   Linux execution remain unverified on this machine.
 
-Producer: source `ec25f66f10a33964c7cb7919abe8dd68310b8679`, optimized
-executable SHA-256 `bae86e60fa9e508db5b8af1c54dc9553fa008bf72d71065a877d7415c5beb08f`.
-All ten positive programs run with native and Terminal exit 0 on macOS ARM64;
-all ten replacement twins reject selected-case access. A separate fresh-tag
-probe starts Empty and observes the Full value written by the receiver call,
-so its exit-zero result requires that call's effects. Negated receiver tests
-challenge the opposite polarity, and stale/trailing-write controls must reject.
-The audited corpus run completes 49 programs with native/Terminal exit 0, including this row, saved numeric/byte snapshots, stored loans, descriptor replacement and reference projection. Field and tag observations share the checked fresh-receiver retirement and normal-completion route: the reference carrier ends after the read, before its backing owner; an established outer operand keeps its enclosing consumer lifetime. Target reference custody remains independently checked.
+The [inferred application](inferred/main.omg) and its [stale-write twin](inferred/invalid/main.omg) exercise another production of the same fact: the ordinary borrow arguments determine `Value` before the equation is discharged, keeping the callee's invocation lifetime out of the caller's static argument scope. Declaration-order, reference-access, pointee, undeclared-region and wrong-return-source controls live beside generic fixtures under `tests/omega/`.
 
-The parent remains open for remaining generic/reference saved observations,
-single-evaluation pattern destructuring, and matching-host Windows/Linux
-execution. This row establishes this case-observation requirement, not all
-remaining STATE-LOCAL-VALUE-FRONTIER acceptance.
+The nine places and inferred application are pinned under `tests/omega/{pass,fail}/facts/saved_case_predicate*`. On macOS ARM64, optimized producer source `914d1adfdf4` executes the nine places with native and Terminal exit 0; their nine twins reject selected-case access. The authored four-target Build rows and target bodies remain checked. Windows and Linux execution require matching hosts.
+
+The parent remains open for its remaining saved numeric/byte observations and single-evaluation pattern destructuring acceptance. This row closes the generic/reference case-observation requirement only.
