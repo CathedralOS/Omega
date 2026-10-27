@@ -236,6 +236,31 @@ pub(crate) fn set_node_effect_link(
     Ok(output)
 }
 
+/// Land each folded `(site, node)` on the output unit's function: every site's
+/// block and node must resolve, and the node replaces the slot at its
+/// coordinate. The family owns only the node it folded.
+pub(crate) fn land_folded_nodes(
+    output: &mut PsiOptimizationUnit,
+    machine: semantic_vocabulary::MachineId,
+    folded: Vec<(optimization_unit::NodeLocation, optimization_unit::OptimizationNode)>,
+) -> Result<(), OptimizationUnitValidationError> {
+    let function = output
+        .function_mut(machine)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    for (location, node) in folded {
+        let index = usize::try_from(location.node)
+            .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
+        let Some(slot) = function
+            .block_mut(location.block)
+            .and_then(|block| block.nodes.get_mut(index))
+        else {
+            return Err(OptimizationUnitValidationError::CandidateLocationMissing);
+        };
+        *slot = node;
+    }
+    Ok(())
+}
+
 /// The block's node at `node`, or CandidateLocationMissing.
 pub(crate) fn candidate_node(
     block: &optimization_unit::OptimizationBlock,

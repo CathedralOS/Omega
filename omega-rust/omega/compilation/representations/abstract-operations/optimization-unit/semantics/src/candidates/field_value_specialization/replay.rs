@@ -28,8 +28,9 @@ use crate::candidates::rewrite_accounting::substitutions::rewrite_scalar_value_u
 use crate::candidates::state_specialization::cyclic_machines;
 use crate::candidates::structural_bindings::bound_place;
 use crate::candidates::{
-    accept_region_rewrite, candidate_function, canonicalize_provenance, rebuild_node_metadata,
-    receiver_custody_distinct, retirable_scalar_node, retire_node_custody, set_node_effect_link,
+    accept_region_rewrite, candidate_function, canonicalize_provenance, land_folded_nodes,
+    rebuild_node_metadata, receiver_custody_distinct, retirable_scalar_node, retire_node_custody,
+    set_node_effect_link,
 };
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
 use abstract_operations::AbstractOperation as O;
@@ -426,20 +427,10 @@ pub(super) fn validate(
         b"omega.validator.field-value-specialization.v1",
         expected_provenance,
         |output| {
+            land_folded_nodes(output, patch.machine, folded)?;
             let output_function = output
                 .function_mut(patch.machine)
                 .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-            for (location, node) in folded {
-                let index = usize::try_from(location.node)
-                    .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
-                let Some(slot) = output_function
-                    .block_mut(location.block)
-                    .and_then(|block| block.nodes.get_mut(index))
-                else {
-                    return Err(OptimizationUnitValidationError::CandidateLocationMissing);
-                };
-                *slot = node;
-            }
             // Rebind every covered use of each forwarded result to its proven
             // initializer before retiring the observation nodes.
             for row in &patch.reads {

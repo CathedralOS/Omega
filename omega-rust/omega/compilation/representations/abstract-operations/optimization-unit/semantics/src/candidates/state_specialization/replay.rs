@@ -10,6 +10,7 @@ use crate::candidates::provenance_realized_at;
 use crate::candidates::sparse_conditional_constant_propagation::validator_scalar_constant_facts;
 use crate::candidates::{
     accept_region_rewrite, candidate_block, candidate_function, canonicalize_provenance,
+    land_folded_nodes,
 };
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
 use abstract_operations::AbstractOperation as O;
@@ -712,22 +713,6 @@ pub(super) fn validate(
         &expected_blocks,
         b"omega.validator.state-argument-specialization.v1",
         expected_provenance,
-        |output| {
-            let output_function = output
-                .function_mut(patch.machine)
-                .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-            for (location, node) in fused {
-                let index = usize::try_from(location.node)
-                    .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
-                let Some(slot) = output_function
-                    .block_mut(location.block)
-                    .and_then(|block| block.nodes.get_mut(index))
-                else {
-                    return Err(OptimizationUnitValidationError::CandidateLocationMissing);
-                };
-                *slot = node;
-            }
-            Ok(())
-        },
+        |output| land_folded_nodes(output, patch.machine, fused),
     )
 }
