@@ -30,7 +30,14 @@ pub(super) fn close(
                 && domain.content_projection.is_none()
                 && domain.establishment_routes.is_empty()
         }) {
-            let Some(predicate) = &domain.predicate else {
+            let (supplied, _) = terminal_psi::StructuralPathQualification::select(
+                &contract.qualifications,
+                &contract.projected_qualifications,
+                &storage,
+            );
+            let Some(predicate) = super::payload_predicates::introduction_predicate(
+                types, domains, domain, &supplied,
+            ) else {
                 continue;
             };
             let goal = crate::substitution::substitute_proposition_structural_places(

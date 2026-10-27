@@ -115,12 +115,11 @@ pub(super) fn close_with_shared_requirements<Shared: Borrow<Proposition>>(
         {
             continue;
         }
-        let Some(predicate) = &domain.predicate else {
+        let Some(predicate) =
+            introduction_predicate(types, domains, domain, &contract.qualifications)
+        else {
             continue;
         };
-        if !crate::domain_predicate_is_closed(types.iter(), domain.carrier, predicate) {
-            continue;
-        }
         let requirements = requirements.get_or_insert_with(|| {
             if shared.is_empty() && edge_predicate.is_none() {
                 Cow::Borrowed(contract.scalar_requirements.as_slice())
@@ -480,4 +479,44 @@ pub(crate) fn terminal_scalar_snapshots(
                 .map(|expression| (*value, expression))
         })
         .collect()
+}
+
+/// Prove every still-missing value obligation on this exact subject. Existing
+/// memberships cover their own authenticated prerequisites; an unsupplied
+/// issuer or content obligation cannot be replaced by predicate truth.
+pub(super) fn introduction_predicate(
+    types: &[StructuralTypeDeclaration],
+    domains: &[StructuralDomainDeclaration],
+    domain: &StructuralDomainDeclaration,
+    supplied: &[semantic_vocabulary::StructuralDomainId],
+) -> Option<terminal_psi::StructuralDomainPredicate> {
+    let subject = domain.predicate.as_ref()?.subject;
+    let mut clauses = Vec::new();
+    for missing in domain.missing_membership_requirements(domains, supplied)? {
+        if missing.content_projection.is_some() || !missing.establishment_routes.is_empty() {
+            return None;
+        }
+        let predicate = missing.predicate.as_ref()?;
+        if !crate::domain_predicate_is_closed(types.iter(), missing.carrier, predicate) {
+            return None;
+        }
+        let proposition = crate::substitution::substitute_proposition_structural_places(
+            &predicate.proposition,
+            &std::collections::BTreeMap::from([(predicate.subject, (subject, Vec::new()))]),
+        );
+        if proposition != Proposition::Truth {
+            clauses.push(proposition);
+        }
+    }
+    clauses.sort();
+    clauses.dedup();
+    let proposition = match clauses.len() {
+        0 => Proposition::Truth,
+        1 => clauses.pop()?,
+        _ => Proposition::Conjunction(clauses),
+    };
+    Some(terminal_psi::StructuralDomainPredicate {
+        subject,
+        proposition,
+    })
 }

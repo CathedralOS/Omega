@@ -261,6 +261,29 @@ pub(super) fn index_structural_domains<'unit>(
         ));
     }
     for declaration in unit.structural_domains.iter() {
+        if !declaration.required_memberships_are_well_formed(&unit.structural_domains)
+            || (declaration.complete_predicate_theory
+                && declaration
+                    .required_domain_closure(&unit.structural_domains)
+                    .is_none_or(|nodes| {
+                        nodes
+                            .iter()
+                            .any(|node| !node.complete_predicate_theory || node.predicate.is_none())
+                    }))
+            || declaration
+                .establishment_routes
+                .windows(2)
+                .any(|pair| pair[0] >= pair[1])
+            || declaration.establishment_routes.iter().any(|route| {
+                [route.declaration().identity(), route.identity()]
+                    .iter()
+                    .any(|identity| unit.identities.text(*identity).is_none_or(str::is_empty))
+            })
+        {
+            return Err(
+                OptimizationUnitValidationError::InvalidStructuralDomainIdentity(declaration.id),
+            );
+        }
         if declaration.predicate.as_ref().is_some_and(|predicate| {
             !terminal_semantics::domain_predicate_is_closed(
                 types.values().copied(),
@@ -274,6 +297,7 @@ pub(super) fn index_structural_domains<'unit>(
         }
         if declaration.byte_predicate.is_some()
             && (declaration.content_projection.is_some()
+                || !declaration.has_no_required_memberships()
                 || !declaration.establishment_routes.is_empty()
                 || !matches!(
                     types[&declaration.carrier].shape,
