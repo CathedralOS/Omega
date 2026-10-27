@@ -14,16 +14,11 @@ pub(super) fn binding(
     match binding {
         PackagePolicyProviderBinding::Syscall { number, evaluated } => {
             encoder.tag("syscall", 1);
-            encoder.field("number", |encoder| {
-                encoder.i64(*number);
-                Ok(())
-            })?;
+            encoder.i64_field("number", *number)?;
             encoder.field("evaluated", |encoder| {
                 encoder.option(evaluated.as_ref(), |encoder, evaluated| {
                     encoder.field("target", |encoder| encoder.string(&evaluated.target))?;
-                    encoder.field("producer", |encoder| {
-                        encode_producer(encoder, &evaluated.producer)
-                    })
+                    encoder.field_by("producer", &evaluated.producer, encode_producer)
                 })
             })?;
         }
@@ -33,10 +28,7 @@ pub(super) fn binding(
         }
         PackagePolicyProviderBinding::VtableSlot { index } => {
             encoder.tag("vtable_slot", 3);
-            encoder.field("index", |encoder| {
-                encoder.i64(*index);
-                Ok(())
-            })?;
+            encoder.i64_field("index", *index)?;
         }
         PackagePolicyProviderBinding::VtableField {
             table,
@@ -46,9 +38,7 @@ pub(super) fn binding(
             encoder.tag("vtable_field", 4);
             encoder.field("table", |encoder| encoder.string(table))?;
             encoder.field("field", |encoder| encoder.string(field))?;
-            encoder.field("table_declaration", |encoder| {
-                encode_nominal(encoder, table_declaration)
-            })?;
+            encoder.field_by("table_declaration", table_declaration, encode_nominal)?;
         }
         PackagePolicyProviderBinding::TableFunction {
             table,
@@ -58,9 +48,7 @@ pub(super) fn binding(
             encoder.tag("table_function", 5);
             encoder.field("table", |encoder| encoder.string(table))?;
             encoder.field("field", |encoder| encoder.string(field))?;
-            encoder.field("table_declaration", |encoder| {
-                encode_nominal(encoder, table_declaration)
-            })?;
+            encoder.field_by("table_declaration", table_declaration, encode_nominal)?;
         }
         PackagePolicyProviderBinding::CheckedAdapter {
             machine_identity,
@@ -70,10 +58,10 @@ pub(super) fn binding(
             encoder.field("machine_identity", |encoder| {
                 encoder.string(machine_identity)
             })?;
-            encoder.field("machine_package_identity", |encoder| {
-                encoder.optional_package_identity(*machine_package_identity);
-                Ok(())
-            })?;
+            encoder.optional_package_identity_field(
+                "machine_package_identity",
+                *machine_package_identity,
+            )?;
         }
         PackagePolicyProviderBinding::Import {
             target,

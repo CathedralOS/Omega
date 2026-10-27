@@ -26,10 +26,7 @@ pub(super) fn policy(
     encoder: &mut Encoder,
     policy: &PackagePolicyCallables,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("package", |encoder| {
-        encoder.package_identity(policy.package);
-        Ok(())
-    })?;
+    encoder.package_identity_field("package", policy.package)?;
     encoder.field("target", |encoder| {
         encoder.string(policy.target.identity().as_str())
     })?;
@@ -42,12 +39,12 @@ pub(super) fn encode_callable_conformance(
     encoder: &mut Encoder,
     conformance: &PackagePolicyCallableConformance,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("trait", |encoder| {
-        encode_nominal(encoder, &conformance.trait_identity)
-    })?;
-    encoder.field("requirement", |encoder| {
-        encode_nominal(encoder, &conformance.requirement_identity)
-    })?;
+    encoder.field_by("trait", &conformance.trait_identity, encode_nominal)?;
+    encoder.field_by(
+        "requirement",
+        &conformance.requirement_identity,
+        encode_nominal,
+    )?;
     encoder.field("requirement_lifetime_partition", |encoder| {
         encoder.sequence(
             &conformance.requirement_lifetime_partition,

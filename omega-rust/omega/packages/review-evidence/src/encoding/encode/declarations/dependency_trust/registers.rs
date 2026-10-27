@@ -24,24 +24,15 @@ pub(crate) fn encode_machine_register(
         PackageReviewMachineRegister::X86R15 => encoder.tag("x86_r15", 15),
         PackageReviewMachineRegister::X86Xmm(index) => {
             encoder.tag("x86_xmm", 16);
-            let _ = encoder.field("index", |encoder| {
-                encoder.byte(index);
-                Ok(())
-            });
+            let _ = encoder.byte_field("index", index);
         }
         PackageReviewMachineRegister::Aarch64X(index) => {
             encoder.tag("aarch64_x", 17);
-            let _ = encoder.field("index", |encoder| {
-                encoder.byte(index);
-                Ok(())
-            });
+            let _ = encoder.byte_field("index", index);
         }
         PackageReviewMachineRegister::Aarch64V(index) => {
             encoder.tag("aarch64_v", 18);
-            let _ = encoder.field("index", |encoder| {
-                encoder.byte(index);
-                Ok(())
-            });
+            let _ = encoder.byte_field("index", index);
         }
     }
 }

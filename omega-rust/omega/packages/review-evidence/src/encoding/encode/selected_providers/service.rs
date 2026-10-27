@@ -12,18 +12,14 @@ pub(in crate::encoding::encode) fn method(
     method: &PackagePolicyServiceMethod,
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.field("name", |encoder| encoder.string(&method.name))?;
-    encoder.field("requirement_owner", |encoder| {
-        encode_nominal(encoder, &method.requirement_owner)
-    })?;
-    encoder.field("requirement", |encoder| {
-        encode_nominal(encoder, &method.requirement)
-    })?;
-    encoder.field("signature", |encoder| {
-        super::signature::signature(encoder, &method.signature)
-    })?;
-    encoder.field("authority", |encoder| {
-        super::authority::authority(encoder, &method.authority)
-    })?;
+    encoder.field_by(
+        "requirement_owner",
+        &method.requirement_owner,
+        encode_nominal,
+    )?;
+    encoder.field_by("requirement", &method.requirement, encode_nominal)?;
+    encoder.field_by("signature", &method.signature, super::signature::signature)?;
+    encoder.field_by("authority", &method.authority, super::authority::authority)?;
     encoder.field("parameter_count", |encoder| {
         encoder.usize(method.parameter_count)
     })?;
@@ -72,10 +68,7 @@ pub(in crate::encoding::encode) fn method(
         };
         Ok(())
     })?;
-    encoder.field("has_result", |encoder| {
-        encoder.boolean(method.has_result);
-        Ok(())
-    })?;
+    encoder.boolean_field("has_result", method.has_result)?;
     encoder.field("result_type_identity", |encoder| {
         encoder.option(method.result_type_identity.as_ref(), |encoder, value| {
             encoder.field("value", |encoder| encoder.string(value))
@@ -101,18 +94,9 @@ pub(in crate::encoding::encode) fn method(
             encoder.field("value", |encoder| encoder.string(value))
         })
     })?;
-    encoder.field("may_suspend", |encoder| {
-        encoder.boolean(method.may_suspend);
-        Ok(())
-    })?;
-    encoder.field("may_block", |encoder| {
-        encoder.boolean(method.may_block);
-        Ok(())
-    })?;
-    encoder.field("terminates_guarantee", |encoder| {
-        encoder.boolean(method.terminates_guarantee);
-        Ok(())
-    })?;
+    encoder.boolean_field("may_suspend", method.may_suspend)?;
+    encoder.boolean_field("may_block", method.may_block)?;
+    encoder.boolean_field("terminates_guarantee", method.terminates_guarantee)?;
     encoder.field("termination_premises", |encoder| {
         encoder.sequence(&method.termination_premises, |encoder, premise| {
             encoder.field("profile", |encoder| encoder.string(&premise.profile))?;

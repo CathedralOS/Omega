@@ -18,9 +18,7 @@ pub(super) fn authority(
     })?;
     encoder.field("progress_premises", |encoder| {
         encoder.sequence(&authority.progress_premises, |encoder, premise| {
-            encoder.field("profile", |encoder| {
-                encode_nominal(encoder, &premise.profile)
-            })?;
+            encoder.field_by("profile", &premise.profile, encode_nominal)?;
             encoder.field("subject", |encoder| {
                 match premise.subject {
                     ServiceProgressSubject::Parameter(position) => {
@@ -46,12 +44,12 @@ pub(super) fn authority(
                         };
                         Ok(())
                     })?;
-                    encoder.field("requirement_owner", |encoder| {
-                        encode_nominal(encoder, &route.requirement_owner)
-                    })?;
-                    encoder.field("requirement", |encoder| {
-                        encode_nominal(encoder, &route.requirement)
-                    })
+                    encoder.field_by(
+                        "requirement_owner",
+                        &route.requirement_owner,
+                        encode_nominal,
+                    )?;
+                    encoder.field_by("requirement", &route.requirement, encode_nominal)
                 })
             })
         })

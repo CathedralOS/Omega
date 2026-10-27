@@ -8,10 +8,7 @@ pub(super) fn encode_contract_evidence_argument(
     encoder: &mut Encoder,
     argument: &PackageReviewContractEvidenceArgument,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("lane_position", |encoder| {
-        encoder.u32(argument.lane_position());
-        Ok(())
-    })?;
+    encoder.u32_field("lane_position", argument.lane_position())?;
     for (field, term) in [
         ("source", argument.source()),
         ("parameter", argument.parameter()),
@@ -25,10 +22,7 @@ pub(super) fn encode_contract_evidence_argument(
                 };
                 Ok(())
             })?;
-            encoder.field("lane_position", |encoder| {
-                encoder.u32(term.lane_position());
-                Ok(())
-            })?;
+            encoder.u32_field("lane_position", term.lane_position())?;
             Ok(())
         })?;
     }

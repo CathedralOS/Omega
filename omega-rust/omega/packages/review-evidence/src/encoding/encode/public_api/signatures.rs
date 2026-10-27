@@ -88,15 +88,11 @@ pub(in crate::encoding::encode) fn type_parameter(
             PackagePolicyTypeParameterKind::Implementation => encoder.tag("implementation", 5),
             PackagePolicyTypeParameterKind::Const(value) => {
                 encoder.tag("const", 1);
-                encoder.field("type_identity", |encoder| {
-                    encode_type_identity(encoder, value)
-                })?;
+                encoder.field_by("type_identity", value, encode_type_identity)?;
             }
             PackagePolicyTypeParameterKind::Value(value) => {
                 encoder.tag("value", 4);
-                encoder.field("type_identity", |encoder| {
-                    encode_type_identity(encoder, value)
-                })?;
+                encoder.field_by("type_identity", value, encode_type_identity)?;
             }
             PackagePolicyTypeParameterKind::Machine(value) => {
                 encoder.tag("machine", 2);
@@ -106,17 +102,13 @@ pub(in crate::encoding::encode) fn type_parameter(
                 encoder.tag("proposition", 3);
                 encoder.field("parameters", |encoder| {
                     encoder.sequence(&value.parameters, |encoder, parameter| {
-                        encoder.field("type_identity", |encoder| {
-                            encode_type_identity(encoder, &parameter.type_identity)
-                        })?;
-                        encoder.field("is_const", |encoder| {
-                            encoder.boolean(parameter.is_const);
-                            Ok(())
-                        })?;
-                        encoder.field("is_mutable", |encoder| {
-                            encoder.boolean(parameter.is_mutable);
-                            Ok(())
-                        })?;
+                        encoder.field_by(
+                            "type_identity",
+                            &parameter.type_identity,
+                            encode_type_identity,
+                        )?;
+                        encoder.boolean_field("is_const", parameter.is_const)?;
+                        encoder.boolean_field("is_mutable", parameter.is_mutable)?;
                         Ok(())
                     })
                 })?;
@@ -157,12 +149,8 @@ pub(in crate::encoding) fn machine_contract(
             trait_arguments,
         } => {
             encoder.tag("nominal", 1);
-            encoder.field("trait_identity", |encoder| {
-                encode_nominal(encoder, trait_identity)
-            })?;
-            encoder.field("requirement_identity", |encoder| {
-                encode_nominal(encoder, requirement_identity)
-            })?;
+            encoder.field_by("trait_identity", trait_identity, encode_nominal)?;
+            encoder.field_by("requirement_identity", requirement_identity, encode_nominal)?;
             encoder.field("trait_arguments", |encoder| {
                 encoder.sequence(trait_arguments, encode_type_identity)
             })
@@ -182,16 +170,8 @@ pub(in crate::encoding) fn formal(
     is_mutable: bool,
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.field("name", |encoder| encoder.string(name))?;
-    encoder.field("type_identity", |encoder| {
-        encode_type_identity(encoder, value)
-    })?;
-    encoder.field("is_const", |encoder| {
-        encoder.boolean(is_const);
-        Ok(())
-    })?;
-    encoder.field("is_mutable", |encoder| {
-        encoder.boolean(is_mutable);
-        Ok(())
-    })?;
+    encoder.field_by("type_identity", value, encode_type_identity)?;
+    encoder.boolean_field("is_const", is_const)?;
+    encoder.boolean_field("is_mutable", is_mutable)?;
     Ok(())
 }
