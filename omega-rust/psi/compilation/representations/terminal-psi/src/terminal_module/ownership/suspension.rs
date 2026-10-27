@@ -88,6 +88,7 @@ pub enum TerminalSuspensionLoanResource {
     Unresolved,
     DirectRoot,
     Reborrow,
+    IncomingReference,
 }
 
 /// The address captured by the named operation, not a path to reevaluate at
@@ -105,10 +106,10 @@ pub enum TerminalSuspensionLoanCapture {
         source_access: StructuralAccess,
         source_path: HandleSpan<StructuralPathSegment>,
     },
-    /// A leaf of the already evaluated actual in this plan's ordered roster.
+    /// A leaf of an already retained value in this plan's ordered roster.
     /// The path selects its captured descriptor, never a source expression to
     /// evaluate again. An empty path retains the ordinary borrowed operand.
-    CallArgument {
+    RetainedValue {
         live_value: u32,
         path: HandleSpan<StructuralPathSegment>,
     },
@@ -199,7 +200,7 @@ pub fn suspension_frontier_commitment(
     plan: &TerminalSuspensionCallPlan,
 ) -> [u8; 32] {
     let mut hash =
-        crate::digest_encoder::DomainDigestEncoder::new(b"terminal-suspension-frontier-v7\0");
+        crate::digest_encoder::DomainDigestEncoder::new(b"terminal-suspension-frontier-v8\0");
     hash.raw(&plan.operation.get().to_le_bytes());
     hash.raw(&plan.crossing.get().to_le_bytes());
     match plan.target {
@@ -334,7 +335,7 @@ fn hash_loans(
                 hash_access(hash, *source_access);
                 hash_span(hash, *source_path);
             }
-            TerminalSuspensionLoanCapture::CallArgument { live_value, path } => {
+            TerminalSuspensionLoanCapture::RetainedValue { live_value, path } => {
                 hash.byte(2);
                 hash.raw(&live_value.to_le_bytes());
                 hash_span(hash, *path);
@@ -360,6 +361,7 @@ fn hash_loans(
             TerminalSuspensionLoanResource::Unresolved => 0,
             TerminalSuspensionLoanResource::DirectRoot => 1,
             TerminalSuspensionLoanResource::Reborrow => 2,
+            TerminalSuspensionLoanResource::IncomingReference => 3,
         });
         hash_handle(hash, loan.parent);
         hash_span(hash, loan.suppliers);

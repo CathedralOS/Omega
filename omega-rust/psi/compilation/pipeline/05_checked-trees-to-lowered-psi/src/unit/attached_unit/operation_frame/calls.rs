@@ -523,6 +523,24 @@ impl OperationFrame<'_, '_> {
             );
             let home = if let Some(local) = local {
                 Some((local.argument.clone(), local.structural_type))
+            } else if let Some((_, parameter)) = self
+                .evaluation
+                .structural_parameters
+                .iter()
+                .find(|(position, _)| *position as usize == source_position)
+            {
+                // An incoming scalar loan also participates in primitive
+                // access, but its home is the admitted structural parameter.
+                // It has neither an owned-local constructor nor an SSA value
+                // until read. Preserve the parameter's existing access.
+                Some((
+                    terminal_psi::StructuralArgument {
+                        place: parameter.place,
+                        path: Vec::new(),
+                        access: parameter.access,
+                    },
+                    parameter.structural_type,
+                ))
             } else if let Some((_, place, scalar_type)) = self
                 .evaluation
                 .primitive_storage
@@ -560,25 +578,6 @@ impl OperationFrame<'_, '_> {
                     },
                     structural_type,
                 ))
-            } else if self
-                .checked
-                .primitive_type_reference(live.type_reference)
-                .is_none()
-            {
-                self.evaluation
-                    .structural_parameters
-                    .iter()
-                    .find(|(position, _)| *position as usize == source_position)
-                    .map(|(_, parameter)| {
-                        (
-                            terminal_psi::StructuralArgument {
-                                place: parameter.place,
-                                path: Vec::new(),
-                                access: parameter.access,
-                            },
-                            parameter.structural_type,
-                        )
-                    })
             } else {
                 None
             };

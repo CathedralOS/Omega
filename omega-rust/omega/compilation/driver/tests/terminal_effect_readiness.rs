@@ -100,7 +100,12 @@ fn readiness_preserves_nested_continuation_and_rejects_unchecked_suspension() {
     let checked = omega_build::check_source(&mut compiler::CompilationSession::default(), request)
         .result
         .expect("checked suspension fixture");
-    for machine in ["main", "storage_entry", "synchronous_entry"] {
+    for machine in [
+        "main",
+        "storage_entry",
+        "incoming_storage_entry",
+        "synchronous_entry",
+    ] {
         let produced = psi_compiler::TerminalProductionRequest::new(
             &checked.execution().program,
             psi_compiler::TerminalMachineSelection::Name(machine),
@@ -214,7 +219,15 @@ fn readiness_preserves_nested_continuation_and_rejects_unchecked_suspension() {
                 .collect::<Vec<_>>();
             assert_eq!(
                 values,
-                vec![1, if machine == "storage_entry" { 7 } else { 42 }, 42]
+                vec![
+                    1,
+                    if matches!(machine, "storage_entry" | "incoming_storage_entry") {
+                        7
+                    } else {
+                        42
+                    },
+                    42
+                ]
             );
             assert_eq!(instance.effects().len(), 3);
             assert_eq!(

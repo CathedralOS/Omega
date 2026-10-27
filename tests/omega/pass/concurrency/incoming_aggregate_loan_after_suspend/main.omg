@@ -1,0 +1,35 @@
+data Cell {
+    value: i32;
+}
+// Expected exit: 0
+data Message {
+    body: &Cell;
+}
+
+public boundary trait Scheduler {
+    machine park() reaches suspends;
+}
+public Immediate satisfies Scheduler { machine park() {} }
+
+data Main {
+    cell: Cell;
+}
+
+machine read(cell: &Cell) -> i32 {
+    transition { _ -> cell.value }
+}
+
+machine Main::main(main: &mut Main) -> i32 suspends; reaches Scheduler {
+    let message: Message = Message { body: &main.cell };
+    suspend Scheduler::park();
+    let value: i32 = read(message.body);
+    value
+}
+
+machine entry_start() reaches Scheduler crashes Trap {
+    let mut state: Main = Main { cell: Cell { value: 42 } };
+    let observed: i32 = suspend Main::main(&mut state);
+    transition observed == 42 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

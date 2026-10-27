@@ -6,9 +6,10 @@
 //! distinct, including dependencies whose descriptor is no longer current.
 //! Captured operand referents retain backing needed by the incomplete callee,
 //! including constructed children with no named caller descriptor. Both routes
-//! use the same owned-storage coordinate join before closing backing liveness.
+//! join either owned storage or exact invocation-entry permissions before
+//! closing backing liveness.
 //! This graph names logical demands; it establishes no StackLease or permission
-//! to park. Incoming and unresolved actuals still require a per-value join.
+//! to park. Every value still requires its complete per-value lifetime join.
 
 use arena::{Arena, Handle, HandleSpan};
 use checked_trees::{
@@ -119,6 +120,13 @@ pub(super) fn value_frontier(
                 return false;
             }
             match entry.source {
+                checked_trees::SuspensionCrossingLoanSource::Incoming { identity, .. } => {
+                    let incoming = borrow.incoming_references.get(identity);
+                    !captured.is_valid()
+                        && incoming.parameter_symbol() == symbol
+                        && incoming.carrier_type
+                            == validation::peel_declared_constraints(program, type_reference)
+                }
                 checked_trees::SuspensionCrossingLoanSource::Stored { loan, .. } => {
                     !captured.is_valid() && borrow.loans.get(loan).owner_symbol == symbol
                 }
@@ -152,6 +160,9 @@ fn owner_path<'borrow>(
     entry: &SuspensionCrossingLoanFact,
 ) -> &'borrow [checked_trees::BorrowLoanOwnerSegment] {
     match entry.source {
+        checked_trees::SuspensionCrossingLoanSource::Incoming { identity, .. } => borrow
+            .owner_segments
+            .span_or_empty(borrow.incoming_references.get(identity).owner_path),
         checked_trees::SuspensionCrossingLoanSource::Stored { loan, .. } => {
             borrow.loan_owner_path(borrow.loans.get(loan))
         }
@@ -210,18 +221,52 @@ pub(super) fn retain_call_frontier(
         }
     }
 
+    let current_incoming = flow
+        .incoming_reference_constraints(call.entry_constraints)
+        .collect::<Vec<_>>();
+    let incoming = state.incoming_references.handles().filter_map(|identity| {
+        let entry = borrow.incoming_references.get(identity);
+        let references =
+            validation::borrow_contracts::carried_reference_paths(program, entry.carrier_type)?;
+        let path = borrow.owner_segments.span_or_empty(entry.owner_path);
+        let (_, access) = references
+            .into_iter()
+            .find(|(candidate, _)| candidate == path)?;
+        Some(SuspensionCrossingLoanFact {
+            source: checked_trees::SuspensionCrossingLoanSource::Incoming { identity, access },
+            active_at_call: current_incoming.contains(&identity),
+            retained_for_crossing: false,
+            backing: SuspensionCrossingLoanBacking::IncomingReferent { identity },
+        })
+    });
+    let backing = |root, identity| {
+        if borrow.incoming_references.is_valid(identity) {
+            return SuspensionCrossingLoanBacking::IncomingReferent { identity };
+        }
+        if let Some(origin) =
+            owned_backing_origin(program, source_values, root, call.statement_index)
+        {
+            return SuspensionCrossingLoanBacking::StateValue { origin };
+        }
+        // A direct access through an incoming root reference carries the
+        // invocation's borrowed-parameter permission, not owned pointer storage.
+        let identity = state.incoming_references.handles().find(|identity| {
+            let entry = borrow.incoming_references.get(*identity);
+            entry.place_root() == root
+                && entry.owner_path.is_empty()
+                && matches!(
+                    entry.origin,
+                    checked_trees::IncomingReferenceOrigin::ParameterReferent { .. }
+                )
+                && current_incoming.contains(identity)
+        });
+        identity.map_or(SuspensionCrossingLoanBacking::Unresolved, |identity| {
+            SuspensionCrossingLoanBacking::IncomingReferent { identity }
+        })
+    };
     let stored = closure.into_iter().map(|handle| {
         let loan = borrow.loans.get(handle);
-        let backing = if loan.incoming_reference.is_valid() {
-            SuspensionCrossingLoanBacking::IncomingReferent {
-                identity: loan.incoming_reference,
-            }
-        } else {
-            owned_backing_origin(program, source_values, loan.root, call.statement_index)
-                .map_or(SuspensionCrossingLoanBacking::Unresolved, |origin| {
-                    SuspensionCrossingLoanBacking::StateValue { origin }
-                })
-        };
+        let backing = backing(loan.root, loan.incoming_reference);
         SuspensionCrossingLoanFact {
             source: checked_trees::SuspensionCrossingLoanSource::Stored {
                 loan: handle,
@@ -242,17 +287,9 @@ pub(super) fn retain_call_frontier(
             source: checked_trees::SuspensionCrossingLoanSource::CapturedActual { resource },
             active_at_call: true,
             retained_for_crossing: true,
-            backing: owned_backing_origin(
-                program,
-                source_values,
-                row.parent_lifetime.root,
-                call.statement_index,
-            )
-            .map_or(SuspensionCrossingLoanBacking::Unresolved, |origin| {
-                SuspensionCrossingLoanBacking::StateValue { origin }
-            }),
+            backing: backing(row.parent_lifetime.root, row.backing_incoming_reference),
         });
-    let loans = retained.insert_many(stored.chain(actuals));
+    let loans = retained.insert_many(incoming.chain(stored).chain(actuals));
     Ok(SuspensionCrossingBorrowFrontier {
         loans,
         operands: call.argument_operands(),
@@ -260,8 +297,8 @@ pub(super) fn retain_call_frontier(
 }
 
 /// A root view denotes caller-supplied storage, never its descriptor slot.
-/// The entry tracker models contained descriptors, not the root borrowed
-/// parameter permission; absent that captured identity, backing stays unknown.
+/// Incoming backing uses its explicit entry permission in the caller above;
+/// this query must never turn the descriptor into an owned referent.
 fn owned_backing_origin(
     program: &dyn ::validation::CheckingInput,
     source_values: &[StateCarryValue<'_>],
@@ -305,7 +342,8 @@ fn append_dependency(
 /// lifetimes and retained owner storage. The caller cannot leave its invocation
 /// while this ordinary call is incomplete. Keeping the original root in that
 /// invocation therefore extends no source lifetime and returns no parent access.
-/// Incoming referents still need their independent enclosing-activation join.
+/// Incoming permissions retain their exact enclosing-invocation argument; the
+/// caller's checked call frontier independently retains the original backing.
 ///
 /// CPU/thread demands remain conservative and address stability remains a
 /// nonmoving-backing obligation. This is not a runtime park/resume receipt.
@@ -347,17 +385,62 @@ pub(super) fn retained_lifetime_demand(
         if !row.retained_for_crossing {
             return Err("the loan has no retained invocation owner");
         }
-        let origin = match row.backing {
-            SuspensionCrossingLoanBacking::StateValue { origin } => origin,
-            SuspensionCrossingLoanBacking::IncomingReferent { .. }
-            | SuspensionCrossingLoanBacking::Unresolved => {
+        let root = match row.backing {
+            SuspensionCrossingLoanBacking::StateValue { origin } => {
+                if !live_values.iter().any(|live| live.origin == origin) {
+                    return Err("the original backing is absent from retained storage");
+                }
+                match origin {
+                    checked_trees::SuspensionCrossingValueOrigin::Parameter { symbol, .. }
+                    | checked_trees::SuspensionCrossingValueOrigin::Local { symbol, .. } => {
+                        facts::PlaceRoot::Symbol(symbol)
+                    }
+                    checked_trees::SuspensionCrossingValueOrigin::CallArgument { .. } => {
+                        return Err("the captured backing has no enclosing owner");
+                    }
+                }
+            }
+            SuspensionCrossingLoanBacking::IncomingReferent { identity } => {
+                if !state
+                    .incoming_references
+                    .handles()
+                    .any(|member| member == identity)
+                {
+                    return Err("the incoming loan has no exact invocation-entry permission");
+                }
+                let incoming = borrow.incoming_references.get(identity);
+                if !rows.iter().any(|entry| {
+                    entry.active_at_call
+                        && matches!(entry.source,
+                            checked_trees::SuspensionCrossingLoanSource::Incoming {
+                                identity: current, ..
+                            } if current == identity)
+                }) {
+                    return Err("the incoming descriptor has no current retained capture");
+                }
+                if incoming.machine_symbol != state.machine_symbol
+                    || incoming.state_symbol != state.state_symbol
+                    || !live_values.iter().any(|live| {
+                        matches!(live.origin,
+                        checked_trees::SuspensionCrossingValueOrigin::Parameter { symbol, .. }
+                            if symbol == incoming.parameter_symbol())
+                    })
+                {
+                    return Err("the incoming loan's activation argument is not retained");
+                }
+                incoming.place_root()
+            }
+            SuspensionCrossingLoanBacking::Unresolved => {
                 return Err("the referent has no retained enclosing-activation lifetime");
             }
         };
-        if !live_values.iter().any(|live| live.origin == origin) {
-            return Err("the original backing is absent from retained storage");
-        }
         let (loan_handle, parent_resource) = match row.source {
+            checked_trees::SuspensionCrossingLoanSource::Incoming { identity, .. } => {
+                if row.backing != (SuspensionCrossingLoanBacking::IncomingReferent { identity }) {
+                    return Err("the incoming permission names another backing");
+                }
+                continue;
+            }
             checked_trees::SuspensionCrossingLoanSource::Stored { loan, ref resource } => {
                 if !borrow.state_owns_loan(state, loan) {
                     return Err("the loan has no retained invocation owner");
@@ -369,18 +452,11 @@ pub(super) fn retained_lifetime_demand(
                     return Err("the captured operand has no checked loan resource");
                 }
                 let resource = borrow.call_loan_resources.get(resource);
-                let root = match origin {
-                    checked_trees::SuspensionCrossingValueOrigin::Parameter { symbol, .. }
-                    | checked_trees::SuspensionCrossingValueOrigin::Local { symbol, .. } => symbol,
-                    checked_trees::SuspensionCrossingValueOrigin::CallArgument { .. } => {
-                        return Err("the captured backing has no enclosing owner");
-                    }
-                };
                 if resource.machine_symbol != state.machine_symbol
                     || resource.state_symbol != state.state_symbol
                     || resource.parent_lifetime.machine_symbol != state.machine_symbol
                     || resource.parent_lifetime.state_symbol != state.state_symbol
-                    || resource.parent_lifetime.root != facts::PlaceRoot::Symbol(root)
+                    || resource.parent_lifetime.root != root
                     || !frontier
                         .operands
                         .handles()
@@ -474,6 +550,17 @@ pub(super) fn retain_backing_values(
     live_symbols: &mut Vec<symbols::SymbolHandle>,
 ) {
     let mut retained_loans = Vec::new();
+    // Ingress backing is retained by its enclosing activation. Keep the exact
+    // argument coordinate available to lowering, without claiming ownership of
+    // the referenced storage. Current identity checks remain separate.
+    for entry in frontier.iter().filter(|entry| entry.retained_for_crossing) {
+        if let SuspensionCrossingLoanBacking::IncomingReferent { identity } = entry.backing {
+            let symbol = borrow.incoming_references.get(identity).parameter_symbol();
+            if symbol.is_valid() && !live_symbols.contains(&symbol) {
+                live_symbols.push(symbol);
+            }
+        }
+    }
     for entry in frontier.iter().filter(|entry| entry.retained_for_crossing) {
         if let checked_trees::SuspensionCrossingLoanSource::CapturedActual { resource } =
             entry.source
@@ -512,6 +599,15 @@ pub(super) fn retain_backing_values(
     while value_cursor < live_symbols.len() || loan_cursor < retained_loans.len() {
         if let Some(symbol) = live_symbols.get(value_cursor).copied() {
             value_cursor += 1;
+            for entry in frontier.iter_mut() {
+                if let checked_trees::SuspensionCrossingLoanSource::Incoming { identity, .. } =
+                    entry.source
+                    && entry.active_at_call
+                    && borrow.incoming_references.get(identity).parameter_symbol() == symbol
+                {
+                    entry.retained_for_crossing = true;
+                }
+            }
             for entry in frontier.iter().filter(|entry| {
                 entry.active_at_call
                     && entry.stored_loan().is_valid()
@@ -551,6 +647,12 @@ pub(super) fn retain_backing_values(
             continue;
         };
         entry.retained_for_crossing = true;
+        if let SuspensionCrossingLoanBacking::IncomingReferent { identity } = entry.backing {
+            let symbol = borrow.incoming_references.get(identity).parameter_symbol();
+            if symbol.is_valid() && !live_symbols.contains(&symbol) {
+                live_symbols.push(symbol);
+            }
+        }
         if let SuspensionCrossingLoanBacking::StateValue { origin } = entry.backing {
             let symbol = match origin {
                 checked_trees::SuspensionCrossingValueOrigin::Parameter { symbol, .. }
