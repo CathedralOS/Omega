@@ -11,6 +11,7 @@ fn snapshots_materialize_handle_backed_syntax_shape() {
         .type_references
         .insert(TypeReferenceNode::Named(Identifier::generated("i32")));
     let data = Item::Data(DataDefinition {
+        cleanup_selection: None,
         name: Identifier::generated("Example"),
         is_public: true,
         supply_mode: language_core::DataSupplyMode::CheckedShape,
@@ -111,6 +112,7 @@ fn variant_snapshot_retains_payload_only_erased_field() {
             retired_payload_identities: Vec::new(),
         }));
     syntax_trees.push_root_item(Item::Data(DataDefinition {
+        cleanup_selection: None,
         name: Identifier::generated("Envelope"),
         is_public: false,
         supply_mode: language_core::DataSupplyMode::CheckedShape,
@@ -155,6 +157,7 @@ fn numbered_data_snapshot_retains_erased_field_relevance() {
             type_reference: evidence_type,
         }));
     syntax_trees.push_root_item(Item::Data(DataDefinition {
+        cleanup_selection: None,
         is_public: false,
         name: Identifier::generated("Certified"),
         members: arena::HandleSpan::from_parts(field, 1),

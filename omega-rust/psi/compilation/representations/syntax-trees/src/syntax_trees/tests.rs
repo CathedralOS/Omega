@@ -205,6 +205,7 @@ fn assembled_first_statement(
 
 fn single_state_machine(state: arena::Handle<StateHandle>) -> Machine {
     Machine {
+        nested_machines: HandleSpan::empty(),
         name: Identifier::generated("main"),
         generic_data_template: Default::default(),
         default_body_trait: Default::default(),
@@ -764,6 +765,7 @@ fn constant_argument_origin_survives_deep_copy_and_root_extension() {
     );
 
     source.push_root_item(Item::Data(DataDefinition {
+        cleanup_selection: None,
         name: Identifier::generated("Buffer<2>"),
         is_public: false,
         supply_mode: language_core::DataSupplyMode::CheckedShape,
@@ -944,6 +946,7 @@ fn syntax_copy_and_snapshot_preserve_generic_instance_origin() {
         arguments,
     });
     source.push_root_item(Item::Data(DataDefinition {
+        cleanup_selection: None,
         name: Identifier::generated("irrelevant synthetic name"),
         is_public: false,
         supply_mode: language_core::DataSupplyMode::CheckedShape,
@@ -994,6 +997,7 @@ fn syntax_trees_extend_from_preserves_trait_and_data_visibility() {
         refinement_clauses: Vec::new(),
     }));
     file.push_root_item(Item::Data(DataDefinition {
+        cleanup_selection: None,
         name: Identifier::generated("PublicData"),
         is_public: true,
         members: HandleSpan::empty(),
