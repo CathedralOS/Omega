@@ -13,7 +13,7 @@ use crate::byte_sequences::ByteSequenceView;
 use crate::byte_sequences::binding::ByteSequenceBinding;
 use crate::byte_sequences::storage::ByteSequenceStorage;
 use crate::errors::{TerminalInterpretError, malformed};
-use crate::execution::{OperationFlow, TerminalExecution};
+use crate::execution::{OperationFlow, TerminalExecution, dispatched_operation, operation_kind};
 use crate::record::storage::{ConstructorStorage, ConstructorValue};
 use crate::runtime_rows::RuntimeRows;
 use crate::scalar_operations::terminal_scalar_belongs_to_type;
@@ -33,13 +33,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::EstablishScalarCase {
-            result_case,
-            ref fields,
-        } = operation.kind
-        else {
-            unreachable!("dispatched execute_establish_scalar_case")
-        };
+        dispatched_operation!(operation => EstablishScalarCase { result_case, ref fields });
         let terminal_psi::OperationResult::Structural(result) = &operation.result else {
             return Err(malformed());
         };
@@ -127,13 +121,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::EstablishStructuralCase {
-            result_case,
-            ref fields,
-        } = operation.kind
-        else {
-            unreachable!("dispatched execute_establish_structural_case")
-        };
+        dispatched_operation!(operation => EstablishStructuralCase { result_case, ref fields });
         let terminal_psi::OperationResult::Structural(result) = &operation.result else {
             return Err(malformed());
         };
@@ -193,13 +181,11 @@ impl TerminalExecution<'_> {
         if roster.len() != fields.len() {
             return Err(malformed());
         }
-        let mut value = TerminalStructuralValue {
-            opaque_identity: self.local_structural_identities.allocate()?,
-            structural_type: result.structural_type,
-            qualifications: result.qualifications.clone(),
-            projected_qualifications: Vec::new(),
-            path: Vec::new(),
-        };
+        let mut value = TerminalStructuralValue::minted(
+            self.local_structural_identities.allocate()?,
+            result.structural_type,
+            result.qualifications.clone(),
+        );
         let member_root = StructuralRuntimePlace::from(&value);
         let mut storage = ConstructorStorage::new(self.account.as_ref());
         let mut consumed = Vec::new();
@@ -318,14 +304,9 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::EstablishByteSequenceLiteral {
-            destination,
-            ref bytes,
-            ..
-        } = operation.kind
-        else {
-            unreachable!("dispatched execute_establish_byte_sequence_literal")
-        };
+        dispatched_operation!(operation => EstablishByteSequenceLiteral {
+            destination, ref bytes, ..
+        });
         if !matches!(operation.result, terminal_psi::OperationResult::Unit) {
             return Err(malformed());
         }
@@ -369,13 +350,7 @@ impl TerminalExecution<'_> {
             }
             self.structural_values.insert(
                 destination,
-                TerminalStructuralValue {
-                    opaque_identity: destination.get(),
-                    structural_type: *structural_type,
-                    qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
-                    path: Vec::new(),
-                },
+                TerminalStructuralValue::minted(destination.get(), *structural_type, Vec::new()),
             )?;
         }
         Ok(OperationFlow::Advance)
@@ -395,9 +370,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::EstablishZeroedStructural {} = operation.kind else {
-            unreachable!("dispatched execute_establish_zeroed_structural")
-        };
+        dispatched_operation!(operation => EstablishZeroedStructural {});
         let result = operation.result.structural().ok_or_else(malformed)?;
         if !matches!(
             result.multiplicity,
@@ -585,9 +558,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::EstablishStructuralLocal {} = operation.kind else {
-            unreachable!("dispatched execute_establish_structural_local")
-        };
+        dispatched_operation!(operation => EstablishStructuralLocal {});
         let result = operation.result.structural().ok_or_else(malformed)?;
         // A descriptor home may declare byte qualifications its stores prove.
         let descriptor_home = matches!(
@@ -606,13 +577,11 @@ impl TerminalExecution<'_> {
         }
         self.structural_values.insert(
             result.place,
-            TerminalStructuralValue {
-                opaque_identity: self.local_structural_identities.allocate()?,
-                structural_type: result.structural_type,
-                qualifications: result.qualifications.clone(),
-                projected_qualifications: Vec::new(),
-                path: Vec::new(),
-            },
+            TerminalStructuralValue::minted(
+                self.local_structural_identities.allocate()?,
+                result.structural_type,
+                result.qualifications.clone(),
+            ),
         )?;
         self.track_affine_result(result);
         Ok(OperationFlow::Advance)
@@ -622,9 +591,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::EstablishTrivialAffineLocal { destination } = operation.kind else {
-            unreachable!("dispatched execute_establish_trivial_affine_local")
-        };
+        dispatched_operation!(operation => EstablishTrivialAffineLocal { destination });
         if !matches!(operation.result, terminal_psi::OperationResult::Unit)
             || self.structural_values.contains_key(&destination)
         {
@@ -643,13 +610,7 @@ impl TerminalExecution<'_> {
         };
         self.structural_values.insert(
             destination,
-            TerminalStructuralValue {
-                opaque_identity: destination.get(),
-                structural_type: *structural_type,
-                qualifications: Vec::new(),
-                projected_qualifications: Vec::new(),
-                path: Vec::new(),
-            },
+            TerminalStructuralValue::minted(destination.get(), *structural_type, Vec::new()),
         )?;
         self.live_affine_frontier.insert(StructuralAffineDiscard {
             place: destination,
@@ -663,9 +624,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::EstablishRecord { ref fields } = operation.kind else {
-            unreachable!("dispatched execute_establish_record")
-        };
+        dispatched_operation!(operation => EstablishRecord { ref fields });
         self.establish_record(operation.result.structural().ok_or(malformed())?, fields)?;
         Ok(OperationFlow::Advance)
     }
@@ -674,16 +633,9 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::StructuralScalarFieldStore {
-            destination,
-            ref path,
-            field,
-            value,
-            ..
-        } = operation.kind
-        else {
-            unreachable!("dispatched execute_structural_scalar_field_store")
-        };
+        dispatched_operation!(operation => StructuralScalarFieldStore {
+            destination, ref path, field, value, ..
+        });
         if !matches!(operation.result, terminal_psi::OperationResult::Unit) {
             return Err(malformed());
         }
@@ -952,14 +904,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::MoveStructuralField {
-            source,
-            ref path,
-            field,
-        } = operation.kind
-        else {
-            unreachable!("dispatched execute_move_structural_field")
-        };
+        dispatched_operation!(operation => MoveStructuralField { source, ref path, field });
         let result = operation.result.structural().ok_or_else(malformed)?;
         if self.structural_values.contains_key(&result.place) {
             return Err(malformed());
@@ -1028,16 +973,9 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::StoreStructuralField {
-            disposition,
-            destination,
-            ref path,
-            field,
-            ref value,
-        } = operation.kind
-        else {
-            unreachable!("dispatched execute_store_structural_field")
-        };
+        dispatched_operation!(operation => StoreStructuralField {
+            disposition, destination, ref path, field, ref value
+        });
         if !matches!(operation.result, terminal_psi::OperationResult::Unit)
             || value.access != StructuralAccess::Owned
             || !value.path.is_empty()
@@ -1273,15 +1211,9 @@ impl TerminalExecution<'_> {
         // Type geometry still uses the authored operation's captured selector
         // coordinates: a concrete index alone cannot establish a view's extent.
         let declared = machine.operation(operation.id).ok_or_else(malformed)?;
-        let OperationKind::StoreStructuralField {
-            destination,
-            path: declared_path,
-            field: declared_field,
-            ..
-        } = &declared.kind
-        else {
-            return Err(malformed());
-        };
+        operation_kind!(*declared => StoreStructuralField {
+            destination, path: declared_path, field: declared_field, ..
+        });
         if *destination != root || *declared_field != field || declared_path.len() != path.len() {
             return Err(malformed());
         }
@@ -1552,13 +1484,11 @@ impl TerminalExecution<'_> {
             // Snapshot the live byte value before publishing its independent
             // identity. Later indexed writes detach the immutable backing.
             let bytes = bytes.clone();
-            let copied = TerminalStructuralValue {
-                opaque_identity: self.local_structural_identities.allocate()?,
-                structural_type: result.structural_type,
-                qualifications: result.qualifications.clone(),
-                projected_qualifications: Vec::new(),
-                path: Vec::new(),
-            };
+            let copied = TerminalStructuralValue::minted(
+                self.local_structural_identities.allocate()?,
+                result.structural_type,
+                result.qualifications.clone(),
+            );
             self.byte_sequence_values.insert(
                 result.place,
                 crate::byte_sequences::binding::ByteSequenceBinding::Immutable(
@@ -1973,13 +1903,11 @@ impl TerminalExecution<'_> {
             };
             leaves.push((member.field, scalar));
         }
-        let copied = TerminalStructuralValue {
-            opaque_identity: self.local_structural_identities.allocate()?,
-            structural_type: result.structural_type,
-            qualifications: Vec::new(),
-            projected_qualifications: Vec::new(),
-            path: Vec::new(),
-        };
+        let copied = TerminalStructuralValue::minted(
+            self.local_structural_identities.allocate()?,
+            result.structural_type,
+            Vec::new(),
+        );
         let parent = StructuralRuntimePlace::from(&copied);
         for (field, scalar) in leaves {
             self.structural_scalar_fields.insert(
@@ -1995,14 +1923,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::StructuralCaseMembership {
-            source,
-            ref path,
-            case,
-        } = operation.kind
-        else {
-            unreachable!("dispatched execute_structural_case_membership")
-        };
+        dispatched_operation!(operation => StructuralCaseMembership { source, ref path, case });
         let active_case = self.observe_structural_case(source, path)?;
         self.store_scalar(operation, TerminalScalarValue::Boolean(active_case == case))
     }
@@ -2083,14 +2004,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::BooleanStructuralField {
-            source,
-            ref path,
-            field,
-        } = operation.kind
-        else {
-            unreachable!("dispatched execute_boolean_structural_field")
-        };
+        dispatched_operation!(operation => BooleanStructuralField { source, ref path, field });
         self.require_boolean_result(operation)?;
         let value = self.read_observed_field(source, path, field, ScalarType::Boolean)?;
         self.store_scalar(operation, value)
@@ -2100,14 +2014,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::ScalarStructuralField {
-            source,
-            ref path,
-            field,
-        } = operation.kind
-        else {
-            unreachable!("dispatched execute_scalar_structural_field")
-        };
+        dispatched_operation!(operation => ScalarStructuralField { source, ref path, field });
         let scalar_type = operation.result.expect_scalar().scalar_type;
         let value = self.read_observed_field(source, path, field, scalar_type)?;
         self.store_scalar(operation, value)
@@ -2215,15 +2122,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::ByteSequenceRead {
-            source,
-            index,
-            length,
-            ..
-        } = operation.kind
-        else {
-            unreachable!("dispatched execute_byte_sequence_read")
-        };
+        dispatched_operation!(operation => ByteSequenceRead { source, index, length, .. });
         let result = operation.result.expect_scalar();
         let byte_type =
             IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8).expect("u8 is valid");

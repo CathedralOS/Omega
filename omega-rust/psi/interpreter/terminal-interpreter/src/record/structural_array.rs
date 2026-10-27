@@ -4,6 +4,7 @@
 //! FixedIndex paths. Declared result metadata never supplies missing child proof.
 use super::storage::{ConstructorStorage, ConstructorValue};
 use super::*;
+use crate::execution::operation_kind;
 use terminal_psi::OperationKind;
 
 impl TerminalExecution<'_> {
@@ -11,9 +12,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<crate::execution::OperationFlow, TerminalInterpretError> {
-        let OperationKind::EstablishStructuralArray { elements } = &operation.kind else {
-            return Err(malformed());
-        };
+        operation_kind!(operation => EstablishStructuralArray { elements });
         let result = operation.result.structural().ok_or_else(malformed)?;
         let Some(StructuralTypeShape::FixedArray { element, length }) = self
             .program
@@ -32,15 +31,12 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let mut cursor = self.local_structural_identities.cursor();
-        let mut value = TerminalStructuralValue {
-            opaque_identity: self
-                .local_structural_identities
+        let mut value = TerminalStructuralValue::minted(
+            self.local_structural_identities
                 .allocate_staged(&mut cursor)?,
-            structural_type: result.structural_type,
-            qualifications: Vec::new(),
-            projected_qualifications: Vec::new(),
-            path: Vec::new(),
-        };
+            result.structural_type,
+            Vec::new(),
+        );
         let mut staged = ConstructorStorage::new(self.account.as_ref());
         let mut frontier = self.live_affine_frontier.clone();
         let mut consumed = Vec::new();

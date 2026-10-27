@@ -5,7 +5,7 @@
 
 use super::{PlacedReference, PlacedStorage};
 use crate::errors::{TerminalInterpretError, malformed};
-use crate::execution::TerminalExecution;
+use crate::execution::{TerminalExecution, operation_kind};
 use crate::record::storage::ConstructorStorage;
 use crate::values::StructuralRuntimePlace;
 use terminal_psi::{
@@ -19,14 +19,9 @@ impl TerminalExecution<'_> {
         operation: &Operation,
         plan: &TerminalPlacementLifecyclePlan,
     ) -> Result<(), TerminalInterpretError> {
-        let OperationKind::BoundaryCall {
-            structural_arguments,
-            completion_receipts,
-            ..
-        } = &operation.kind
-        else {
-            return Err(malformed());
-        };
+        operation_kind!(operation => BoundaryCall {
+            structural_arguments, completion_receipts, ..
+        });
         let [source, profile_argument] = structural_arguments.as_slice() else {
             return Err(malformed());
         };

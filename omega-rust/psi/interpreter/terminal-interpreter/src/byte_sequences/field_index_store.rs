@@ -4,7 +4,7 @@ use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
 use terminal_psi::{Operation, OperationKind, OperationResult};
 
 use crate::errors::{TerminalInterpretError, malformed};
-use crate::execution::TerminalExecution;
+use crate::execution::{TerminalExecution, operation_kind};
 use crate::values::TerminalScalarValue;
 
 impl TerminalExecution<'_> {
@@ -12,14 +12,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &Operation,
     ) -> Result<(), TerminalInterpretError> {
-        let OperationKind::StructuralByteSequenceFieldLength {
-            source,
-            path,
-            field,
-        } = &operation.kind
-        else {
-            return Err(malformed());
-        };
+        operation_kind!(operation => StructuralByteSequenceFieldLength { source, path, field });
         let Some(result) = operation.result.as_scalar() else {
             return Err(malformed());
         };
@@ -48,18 +41,9 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &Operation,
     ) -> Result<(), TerminalInterpretError> {
-        let OperationKind::StructuralByteSequenceFieldByteStore {
-            destination,
-            path,
-            field,
-            index,
-            value,
-            length,
-            ..
-        } = &operation.kind
-        else {
-            return Err(malformed());
-        };
+        operation_kind!(operation => StructuralByteSequenceFieldByteStore {
+            destination, path, field, index, value, length, ..
+        });
         if operation.result != OperationResult::Unit {
             return Err(malformed());
         }
@@ -104,17 +88,9 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &Operation,
     ) -> Result<(), TerminalInterpretError> {
-        let OperationKind::StructuralByteSequenceFieldRead {
-            source,
-            path,
-            field,
-            index,
-            length,
-            ..
-        } = &operation.kind
-        else {
-            return Err(malformed());
-        };
+        operation_kind!(operation => StructuralByteSequenceFieldRead {
+            source, path, field, index, length, ..
+        });
         let Some(result) = operation.result.as_scalar() else {
             return Err(malformed());
         };

@@ -9,7 +9,7 @@ use terminal_psi::{
 use crate::byte_sequences::binding::ByteSequenceBinding;
 use crate::custody::project_structural_value;
 use crate::errors::{TerminalInterpretError, malformed};
-use crate::execution::TerminalExecution;
+use crate::execution::{TerminalExecution, operation_kind};
 use crate::values::StructuralByteSequenceRuntimeField;
 use crate::values::StructuralRuntimePlace;
 use crate::values::TerminalScalarValue;
@@ -21,17 +21,9 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &Operation,
     ) -> Result<(), TerminalInterpretError> {
-        let OperationKind::StructuralByteSequenceFieldStore {
-            destination,
-            path,
-            field,
-            source,
-            length,
-            ..
-        } = &operation.kind
-        else {
-            return Err(malformed());
-        };
+        operation_kind!(operation => StructuralByteSequenceFieldStore {
+            destination, path, field, source, length, ..
+        });
         if operation.result != OperationResult::Unit || destination == source {
             return Err(malformed());
         }
@@ -144,16 +136,9 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &Operation,
     ) -> Result<(), TerminalInterpretError> {
-        let OperationKind::StructuralByteViewFieldStore {
-            destination,
-            path,
-            field,
-            source,
-            ..
-        } = &operation.kind
-        else {
-            return Err(malformed());
-        };
+        operation_kind!(operation => StructuralByteViewFieldStore {
+            destination, path, field, source, ..
+        });
         if operation.result != OperationResult::Unit || destination == source {
             return Err(malformed());
         }
