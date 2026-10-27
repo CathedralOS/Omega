@@ -60,20 +60,12 @@ impl AllocatorAvailabilityValidationReceipt {
     });
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedAllocatorAvailability {
-    pub(crate) plan: AllocatorAvailabilityPlan,
-    pub(crate) receipt: AllocatorAvailabilityValidationReceipt,
-}
+validated_plan_carrier!(
+    ValidatedAllocatorAvailability: AllocatorAvailabilityPlan,
+    AllocatorAvailabilityValidationReceipt
+);
 
 impl ValidatedAllocatorAvailability {
-    pub const fn plan(&self) -> &AllocatorAvailabilityPlan {
-        &self.plan
-    }
-
-    receipt_accessor_rows!(ref ValidatedAllocatorAvailability {
-        receipt: AllocatorAvailabilityValidationReceipt,
-    });
     pub(crate) fn unconstrained_views(&self, class: RegisterClassId) -> Option<&[RegisterViewId]> {
         self.plan
             .classes

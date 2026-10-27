@@ -76,20 +76,10 @@ impl FixedPrecoloredSplitRequirementValidationReceipt {
     shared_analysis_identity_accessors!(pub);
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedFixedPrecoloredSplitRequirements {
-    pub(crate) plan: FixedPrecoloredSplitRequirementPlan,
-    pub(crate) receipt: FixedPrecoloredSplitRequirementValidationReceipt,
-}
-
-impl ValidatedFixedPrecoloredSplitRequirements {
-    pub const fn plan(&self) -> &FixedPrecoloredSplitRequirementPlan {
-        &self.plan
-    }
-    receipt_accessor_rows!(ref ValidatedFixedPrecoloredSplitRequirements {
-        receipt: FixedPrecoloredSplitRequirementValidationReceipt,
-    });
-}
+validated_plan_carrier!(
+    ValidatedFixedPrecoloredSplitRequirements: FixedPrecoloredSplitRequirementPlan,
+    FixedPrecoloredSplitRequirementValidationReceipt
+);
 
 /// Sort key for a virtual fixed-constraint site — the total order both the
 /// compute pass and the replay checker build their cut tables on.

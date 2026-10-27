@@ -148,6 +148,30 @@ macro_rules! work_defect_conversion {
     )+};
 }
 
+/// One owner row for a validated analysis carrier: the admitted plan, its
+/// receipt, and the two projections every consumer reads — `plan()` and the
+/// receipt's own accessor rows. Each analysis names its carrier, plan and
+/// receipt types instead of restating the shell.
+macro_rules! validated_plan_carrier {
+    ($carrier:ident : $plan:ty, $receipt:ty) => {
+        #[derive(Debug, Clone, PartialEq, Eq)]
+        pub struct $carrier {
+            pub(crate) plan: $plan,
+            pub(crate) receipt: $receipt,
+        }
+
+        impl $carrier {
+            pub const fn plan(&self) -> &$plan {
+                &self.plan
+            }
+
+            receipt_accessor_rows!(ref $carrier {
+                receipt: $receipt,
+            });
+        }
+    };
+}
+
 /// The whole seal of a freshly produced plan: every receipt row is copied from
 /// the plan root the producer just built, and that plan becomes the validated
 /// carrier. A bounded pass names its plan, carrier, receipt, identity function

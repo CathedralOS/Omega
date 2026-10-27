@@ -85,20 +85,10 @@ impl RecoveryClassificationValidationReceipt {
     shared_analysis_identity_accessors!(pub);
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedRecoveryClassifications {
-    pub(crate) plan: RecoveryClassificationPlan,
-    pub(crate) receipt: RecoveryClassificationValidationReceipt,
-}
-
-impl ValidatedRecoveryClassifications {
-    pub const fn plan(&self) -> &RecoveryClassificationPlan {
-        &self.plan
-    }
-    receipt_accessor_rows!(ref ValidatedRecoveryClassifications {
-        receipt: RecoveryClassificationValidationReceipt,
-    });
-}
+validated_plan_carrier!(
+    ValidatedRecoveryClassifications: RecoveryClassificationPlan,
+    RecoveryClassificationValidationReceipt
+);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RecoveryClassificationError {

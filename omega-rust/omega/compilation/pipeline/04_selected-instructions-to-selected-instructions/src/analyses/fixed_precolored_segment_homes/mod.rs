@@ -113,20 +113,10 @@ impl FixedPrecoloredSegmentHomeValidationReceipt {
     shared_analysis_identity_accessors!(pub);
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedFixedPrecoloredSegmentHomes {
-    pub(crate) plan: FixedPrecoloredSegmentHomePlan,
-    pub(crate) receipt: FixedPrecoloredSegmentHomeValidationReceipt,
-}
-
-impl ValidatedFixedPrecoloredSegmentHomes {
-    pub const fn plan(&self) -> &FixedPrecoloredSegmentHomePlan {
-        &self.plan
-    }
-    receipt_accessor_rows!(ref ValidatedFixedPrecoloredSegmentHomes {
-        receipt: FixedPrecoloredSegmentHomeValidationReceipt,
-    });
-}
+validated_plan_carrier!(
+    ValidatedFixedPrecoloredSegmentHomes: FixedPrecoloredSegmentHomePlan,
+    FixedPrecoloredSegmentHomeValidationReceipt
+);
 
 fn affinity_edges(
     domains: &[Domain],

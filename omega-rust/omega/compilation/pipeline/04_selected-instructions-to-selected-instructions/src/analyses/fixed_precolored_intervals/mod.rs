@@ -64,20 +64,10 @@ impl FixedPrecoloredIntervalValidationReceipt {
     shared_analysis_identity_accessors!(pub);
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedFixedPrecoloredIntervals {
-    pub(crate) plan: FixedPrecoloredIntervalPlan,
-    pub(crate) receipt: FixedPrecoloredIntervalValidationReceipt,
-}
-
-impl ValidatedFixedPrecoloredIntervals {
-    pub const fn plan(&self) -> &FixedPrecoloredIntervalPlan {
-        &self.plan
-    }
-    receipt_accessor_rows!(ref ValidatedFixedPrecoloredIntervals {
-        receipt: FixedPrecoloredIntervalValidationReceipt,
-    });
-}
+validated_plan_carrier!(
+    ValidatedFixedPrecoloredIntervals: FixedPrecoloredIntervalPlan,
+    FixedPrecoloredIntervalValidationReceipt
+);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FixedPrecoloredIntervalError {
