@@ -283,7 +283,6 @@ impl StorageCodec {
             structural_type: self.structural_type,
             result_case: None,
             fields,
-            references,
         })
     }
 }
