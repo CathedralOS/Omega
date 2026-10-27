@@ -153,6 +153,7 @@ impl Execution<'_, '_, '_> {
                 && let Ok(ordinal) = u32::try_from(ordinal)
             {
                 let source_arm = dispatch.arms.handle_at(ordinal);
+                let prefix = self.write_prefix();
                 let point = ProgramPoint::Statement {
                     machine_symbol: self.machine.symbol,
                     state_symbol: self.state.symbol,
@@ -174,6 +175,8 @@ impl Execution<'_, '_, '_> {
                             matched,
                         },
                         point,
+                        prefix.writes,
+                        prefix.unknown,
                         branch_contexts,
                         branch_constraints,
                     );
