@@ -21,6 +21,33 @@ design is ahead of its implementation; native support is still being completed.
 [Examples](samples) ·
 [Contributing](#development)
 
+## Failures Omega addresses
+
+These are design guarantees, within the stated trust boundaries:
+
+| Failure | Guarantee | Mechanism |
+| --- | --- | --- |
+| Use-after-free / double-free / dangling references | ✅ Prevented | Ownership, lifetimes, borrow-checking |
+| Out-of-bounds reads and writes | ✅ Prevented | Access validity proofs |
+| Stack overflow | ✅ Prevented | Worst case stack calculations and tail-recursion only |
+| Data races | ✅ Prevented| Borrow-checking and synchronization. |
+| Hidden or unexpected service reach | ✅ Prevented | Queryable call reachability graphs with no circumvention. |
+| Integer overflow / division by zero | ☑️ Prevented by default | Compile-time checked by default. |
+| Unintended infinite loops | ☑️ Opt-in Prevention | Termination proofs. |
+| Deadlocks / indefinite waits | ☑️ Preventable | Protocol proofs. |
+| Dependency supply-chain attacks | ☑️ Preventable | Reviewable reach graphs, package manager reports. |
+| Compiler supply-chain attacks | ☑️ Preventable | Auditable bootstrap chain. |
+
+These guarantees rely on the contracts of external code and hardware. A foreign
+function that lies about its memory access, or an OS that violates its contract,
+is not made safe by calling it from Omega.
+
+The 2026-10-22 optional reach-ceiling and ordinary entry-storage decisions are
+ratified language contracts, not claims that their compiler migration is complete.
+`OPTIONAL-REACH-CEILINGS`, `EXPLICIT-ENTRY-STORAGE`, and
+`STATIC-MACHINE-MIGRATION` in [TASKS.md](TASKS.md) retain that implementation
+and source-migration acceptance.
+
 ## Machines
 
 A machine defines behavior, its inputs, and its contract. A simple machine looks like an ordinary function or method:
@@ -168,37 +195,6 @@ need to establish which user may perform which operation on which account.
 [Topology contract](wiki/spec/packages/topology.md) ·
 [Build isolation and outputs](wiki/spec/build/scoped_execution.md) ·
 [Implementation work](TASKS.md#checked-boundary-topology)
-
-## Failures Omega addresses
-
-These are design guarantees, within the stated trust boundaries:
-
-- ✅ **Prevented** by required checking and admission.
-- ⭐ **Conditionally prevented** on an arithmetic policy, additional proof, or trust decision;
-  the row states what is covered and what remains possible.
-
-| Failure | Guarantee | What Omega does about it |
-| --- | --- | --- |
-| Use-after-free, double-free, dangling references | ✅ | Ownership and borrow checking reject access after an object's lifetime and conflicting transfers. |
-| Out-of-bounds reads and writes | ✅ | Array and slice access requires proof that the index or range is valid. |
-| Stack overflow | ✅ | Recursion is banned, except for tail recursion which compiles as iteration. The compiler pre-calculates the worst-case stack demand, including compiler spills. |
-| Integer overflow and division by zero | ⭐ | Eliminated by default, as all arithmatic defaults to compiler-enforced safety. Users have to opt-in to more dangerous modalities like trapping and wrapping. |
-| Data races | ✅ | Ordinary borrows reject conflicting shared mutation; concurrent access needs an explicit synchronization contract. |
-| Deadlocks and indefinite waits | ⭐ | Protocol proofs rule out wait cycles and missing wakeups for the checked composition and its stated external assumptions. Ownership alone does not promise progress. |
-| Unintended infinite loops | ⭐ | A machine promising termination must prove it. Deliberately nonterminating event loops remain legal. An entire app can prove itself to terminate. |
-| Hidden or unexpected service reach | ⭐ | Checked bodies publish inferred reach; optional annotations enforce ceilings, including empty. Boundary requirements explicitly declare their contracts. Package review highlights critical reach, while admitted foreign contracts and actual runtime authority remain separate obligations. This exposes behavior for review, not proof of benign intent. |
-| Dependency supply-chain attacks | ⭐ | Installing or upgrading a package prompts the user / LLM with trust reports, exposing potentially dangerous reachability such as network or filesystem access. Novel additions, or dangerous combinations are directly surfaced to the user or agents for auditing. |
-| Compiler supply-chain attacks | ⭐ | Omega bootstraps from ~400 lines of hand written assembly, with 0 external dependencies. This assembly kernel interprets a tiny hand written Turing tape, which is used to construct increasingly powerful languages that are simple enough for a human to review them. A trusted tape checker provides strong safety guarantees of the results. |
-
-These guarantees rely on the contracts of external code and hardware. A foreign
-function that lies about its memory access, or an OS that violates its contract,
-is not made safe by calling it from Omega.
-
-The 2026-10-22 optional reach-ceiling and ordinary entry-storage decisions are
-ratified language contracts, not claims that their compiler migration is complete.
-`OPTIONAL-REACH-CEILINGS`, `EXPLICIT-ENTRY-STORAGE`, and
-`STATIC-MACHINE-MIGRATION` in [TASKS.md](TASKS.md) retain that implementation
-and source-migration acceptance.
 
 ## Omega's big bets
 
