@@ -390,15 +390,27 @@ impl Extend<SymbolHandle> for TypeOccurrences {
 
 impl TypedReferences for TypeOccurrences {
     fn call_arguments(&mut self, program: &TypedTrees, call: StaticArgumentCall<'_>) -> bool {
-        if let StaticArgumentCall::Expression(_, call) = call
-            && call.requirement_application.is_valid()
-        {
-            let occurrence = TypeOccurrence {
-                lexical_owner: self.owner,
-                reference: call.requirement_application,
+        if let StaticArgumentCall::Expression(_, call) = call {
+            let readiness = match program
+                .expression_table
+                .build_selection_request(call.build_selection)
+            {
+                Some(crate::expression::BuildSelectionRequest::ProviderReadiness(request)) => {
+                    request.requirement
+                }
+                _ => Default::default(),
             };
-            if !self.requirement_applications.contains(&occurrence) {
-                self.requirement_applications.push(occurrence);
+            for reference in [call.requirement_application, readiness] {
+                if !reference.is_valid() {
+                    continue;
+                }
+                let occurrence = TypeOccurrence {
+                    lexical_owner: self.owner,
+                    reference,
+                };
+                if !self.requirement_applications.contains(&occurrence) {
+                    self.requirement_applications.push(occurrence);
+                }
             }
         }
         for handle in [call.application(), call.selection_application()] {
@@ -1772,6 +1784,12 @@ fn visit_call_expression(
     // (`Parent<u64>`), including the trait and every argument type.
     if call.requirement_application.is_valid() {
         visit_type_reference(program, retained, call.requirement_application);
+    }
+    if let Some(crate::expression::BuildSelectionRequest::ProviderReadiness(request)) = program
+        .expression_table
+        .build_selection_request(call.build_selection)
+    {
+        visit_type_reference(program, retained, request.requirement);
     }
     if let Some(dispatch) = &call.static_requirement_dispatch {
         visit_static_requirement_dispatch(

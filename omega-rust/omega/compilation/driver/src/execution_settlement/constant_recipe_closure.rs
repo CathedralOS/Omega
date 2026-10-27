@@ -18,18 +18,20 @@ use diagnostics::Diagnostic;
 use std::sync::Arc;
 use typed_trees::constant_recipes::ConstantRecipeDependencyReceipt;
 
-pub(super) fn close_constant_recipes(
+/// Proof closure consumes selected constant facts, not native calling or emission plans.
+#[derive(Default)]
+pub(crate) struct ConstantProviders {
+    pub facts: effects::SelectedProviderPlanFacts,
+    pub provenance: Vec<provider_planning::SelectedProviderReviewProvenance>,
+}
+
+pub(crate) fn close_constant_recipes(
     source: &CheckedProductSource,
     selected_target_profile: target::TargetProfile,
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
     selected_provider_plan_facts: &effects::SelectedProviderPlanFacts,
     selected_provider_provenance: &[provider_planning::SelectedProviderReviewProvenance],
-    mut proof_providers: impl FnMut(
-        target::TargetProfile,
-    ) -> Result<
-        provider_planning::CheckedProviderSelection,
-        Vec<Diagnostic>,
-    >,
+    mut proof_providers: impl FnMut(target::TargetProfile) -> Result<ConstantProviders, Vec<Diagnostic>>,
 ) -> Result<Arc<CheckedTrees>, Vec<Diagnostic>> {
     let shared = &source.program;
     let typed = &shared.typed;
@@ -117,7 +119,7 @@ pub(super) fn close_constant_recipes(
         let provenance = supplemental
             .as_ref()
             .map_or(selected_provider_provenance, |selected| {
-                selected.selected_provider_provenance.as_slice()
+                selected.provenance.as_slice()
             });
         let applications = provider_planning::target_machines::proof_application_machines(
             shared,
@@ -175,7 +177,7 @@ pub(super) fn close_constant_recipes(
                 source,
                 target,
                 opaque_representation_selections,
-                &selected.selected_provider_plan_facts,
+                &selected.facts,
                 &layout_queries,
             )?),
         };

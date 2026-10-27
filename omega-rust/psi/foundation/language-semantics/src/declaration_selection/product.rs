@@ -11,21 +11,22 @@
 /// and declaration choices share activation custody, while retaining their
 /// distinct Product admission obligations.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum BuildSelectionRequest {
+pub enum BuildSelectionRequest<Requirement> {
+    ProviderReadiness(ProviderReadinessRequest<Requirement>),
     Entry(RootBindingRequest),
     Declaration(std::sync::Arc<ProductDeclarationRequest>),
     Exclusion(EnumExclusionRequest),
 }
 
-impl Default for BuildSelectionRequest {
+impl<Requirement> Default for BuildSelectionRequest<Requirement> {
     fn default() -> Self {
         Self::Entry(RootBindingRequest::default())
     }
 }
 
-impl BuildSelectionRequest {
-    /// Behavior exclusions and trust acceptances name the enclosing machine. Other selections retain
-    /// their operand scopes directly and need no lexical machine subject.
+impl<Requirement> BuildSelectionRequest<Requirement> {
+    /// Behavior exclusions and trust acceptances name the enclosing machine.
+    /// Other selections retain their operand scopes directly and need no lexical subject.
     pub fn requires_lexical_subject(&self) -> bool {
         match self {
             Self::Exclusion(_) => true,
@@ -36,12 +37,13 @@ impl BuildSelectionRequest {
                         | super::BuildOperation::BoundaryAcceptance
                 )
             }
-            Self::Entry(_) => false,
+            Self::Entry(_) | Self::ProviderReadiness(_) => false,
         }
     }
 
     pub fn source_span(&self) -> source::SourceSpan {
         match self {
+            Self::ProviderReadiness(request) => request.source_span,
             Self::Entry(request) => request.source_span,
             Self::Declaration(request) => request.source_span,
             Self::Exclusion(request) => request.source_span,
@@ -51,9 +53,47 @@ impl BuildSelectionRequest {
     pub fn entry(&self) -> Option<&RootBindingRequest> {
         match self {
             Self::Entry(request) => Some(request),
-            Self::Declaration(_) | Self::Exclusion(_) => None,
+            Self::ProviderReadiness(_) | Self::Declaration(_) | Self::Exclusion(_) => None,
         }
     }
+
+    /// Only these operands may remain unresolved during Build checking.
+    pub fn designated_operands(&self) -> &[ProductDeclarationOperand] {
+        match self {
+            Self::ProviderReadiness(request) => std::slice::from_ref(&request.backing),
+            Self::Declaration(request) => &request.operands,
+            Self::Entry(_) | Self::Exclusion(_) => &[],
+        }
+    }
+
+    /// The producing layer replaces its requirement representation without
+    /// changing the authored backing or unrelated Build selections.
+    pub fn map_requirement<Next, Error>(
+        self,
+        map: impl FnOnce(Requirement) -> Result<Next, Error>,
+    ) -> Result<BuildSelectionRequest<Next>, Error> {
+        Ok(match self {
+            Self::ProviderReadiness(request) => {
+                BuildSelectionRequest::ProviderReadiness(ProviderReadinessRequest {
+                    source_span: request.source_span,
+                    requirement: map(request.requirement)?,
+                    backing: request.backing,
+                })
+            }
+            Self::Entry(request) => BuildSelectionRequest::Entry(request),
+            Self::Declaration(request) => BuildSelectionRequest::Declaration(request),
+            Self::Exclusion(request) => BuildSelectionRequest::Exclusion(request),
+        })
+    }
+}
+
+/// The requirement is already resolved in this source owner. Only the named
+/// dependency backing is deferred; it grants no ordinary import or call.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProviderReadinessRequest<Requirement> {
+    pub source_span: source::SourceSpan,
+    pub requirement: Requirement,
+    pub backing: ProductDeclarationOperand,
 }
 
 /// Evaluated enum selections use checked Omega helpers to encode the closed

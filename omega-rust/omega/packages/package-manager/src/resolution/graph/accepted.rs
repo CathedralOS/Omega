@@ -25,6 +25,36 @@ pub(crate) fn admit_locked_source_request(
     Ok(())
 }
 
+/// A suspended Build has acquired source identity, not a returned package name.
+/// Admit only an existing exact request occurrence at that identity. The final
+/// graph still checks the returned name and complete dependency projection.
+pub(crate) fn admit_locked_issued_source_request(
+    subject: &CanonicalSourceClosureSubject,
+    origin: crate::resolution::source::SourceAcquisitionOrigin<'_>,
+    purpose: DependencyPurpose,
+    ordinal: usize,
+    request: &DependencySourceRequest,
+) -> Result<(), String> {
+    let mut matching = subject.packages().iter().filter(|package| {
+        package.key().source_lineage() == origin.lineage
+            && subject.package_navigation(package.key()) == Some(origin.navigation)
+    });
+    let expected = matching
+        .next()
+        .ok_or("requesting source is absent from locked graph")?;
+    if matching.next().is_some() {
+        return Err("locked graph has multiple package owners for requesting source".into());
+    }
+    if expected.key() != subject.root().selected().key()
+        && expected.resolution() != origin.resolution
+    {
+        return Err("requesting source immutable content differs from locked graph".into());
+    }
+    checked_request(subject, expected.key(), purpose, ordinal, request)
+        .map(|_| ())
+        .map_err(|error| error.to_string())
+}
+
 fn checked_custody(
     subject: &CanonicalSourceClosureSubject,
     expected: &ResolvedSourceIdentity,
@@ -75,24 +105,34 @@ fn edge<'a>(
         requester,
         requester.key() == subject.root().selected().key(),
     )?;
+    checked_request(subject, requester.key(), purpose, ordinal, request)
+}
+
+fn checked_request<'a>(
+    subject: &'a CanonicalSourceClosureSubject,
+    requester: &PackageKey,
+    purpose: DependencyPurpose,
+    ordinal: usize,
+    request: &DependencySourceRequest,
+) -> Result<&'a CanonicalDependencySourceSelection, AcceptedSourceError> {
     let index = subject
         .dependency_requests()
         .binary_search_by(|edge| {
             edge.requester()
-                .cmp(requester.key())
+                .cmp(requester)
                 .then(edge.purpose().cmp(&purpose))
                 .then(edge.dependency_index().cmp(&ordinal))
         })
         .map_err(|_| {
             AcceptedSourceError::mismatch(
-                requester.key(),
+                requester,
                 "authored request occurrence is absent from locked graph",
             )
         })?;
     let edge = &subject.dependency_requests()[index];
     if !request_matches(edge.request(), request) {
         return Err(AcceptedSourceError::mismatch(
-            requester.key(),
+            requester,
             "exact authored dependency request differs",
         ));
     }

@@ -13,12 +13,13 @@ use typed_trees::expression::{
 pub(crate) fn lower(
     source: &symbol_resolved_trees::SymbolResolvedTrees,
     target: &mut typed_trees::TypedTrees,
-    request: BuildSelectionRequest,
+    request: typed_trees::expression::BuildSelectionRequest,
     mut arguments: Vec<ExpressionHandle>,
     acknowledgement: language_semantics::CallOperationalAcknowledgement,
 ) -> Result<ExpressionHandle, Diagnostic> {
     let source_span = request.source_span();
     let operation = match (&request, arguments.len()) {
+        (BuildSelectionRequest::ProviderReadiness(_), 1) => "await_provider",
         (BuildSelectionRequest::Exclusion(_), 2) => "exclude",
         (BuildSelectionRequest::Entry(binding), 1)
             if matches!(binding.implementation, RootBindingOperand::AuthoredPath(_)) =>

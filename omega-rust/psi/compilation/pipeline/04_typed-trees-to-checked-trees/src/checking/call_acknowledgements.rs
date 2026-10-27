@@ -28,12 +28,10 @@ pub(crate) fn validate_call_acknowledgements(
 
             for (statement_index, statement) in statements.iter().enumerate() {
                 let mut call_ordinal = 0usize;
-                let terminal = statement_index + 1 == statements.len();
                 validate_statement(
                     program,
                     statement,
                     statement_index,
-                    terminal,
                     operational_calls,
                     &mut call_ordinal,
                     &mut diagnostics,
@@ -53,7 +51,6 @@ fn validate_statement(
     program: &dyn ::validation::CheckingInput,
     statement: &StatementNode,
     statement_index: usize,
-    terminal: bool,
     operational_calls: &[CallOperational],
     call_ordinal: &mut usize,
     diagnostics: &mut Vec<Diagnostic>,
@@ -102,7 +99,9 @@ fn validate_statement(
             program,
             *expression,
             statement_index,
-            terminal,
+            // The root of a complete expression statement has no enclosing
+            // partially evaluated expression, whether or not a statement follows.
+            true,
             operational_calls,
             call_ordinal,
             diagnostics,

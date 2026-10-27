@@ -74,6 +74,32 @@ pub(super) fn validate(
         })?;
         let arguments = expressions.expression_handles(call.arguments);
         let expected = match request {
+            BuildSelectionRequest::ProviderReadiness(request) => {
+                if !program.traits().iter().any(|definition| {
+                    definition.symbol
+                        == program
+                            .type_reference_table
+                            .type_symbol(request.requirement)
+                        && definition.is_boundary
+                }) || request.backing.path.is_empty()
+                    || request.backing.source_span.span.start
+                        >= request.backing.source_span.span.end
+                {
+                    return Err(Diagnostic::error(
+                        "provider readiness lost its checked requirement or designated backing",
+                    )
+                    .with_source_span(span));
+                }
+                match operation {
+                    "prepare" | "await_provider" => 1,
+                    _ => {
+                        return Err(Diagnostic::error(
+                            "provider readiness lost its checked suspension protocol",
+                        )
+                        .with_source_span(span));
+                    }
+                }
+            }
             BuildSelectionRequest::Exclusion(_) => match operation {
                 "prepare" => 1,
                 "exclude" => 2,

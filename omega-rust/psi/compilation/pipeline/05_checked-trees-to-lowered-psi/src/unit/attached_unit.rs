@@ -630,6 +630,7 @@ pub(crate) fn lower_unit_closure(
         &machine_ids,
     )?;
     let lowered = LoweredPsi {
+        build_provider_requirements: Vec::new(),
         semantic_module: TerminalModule {
             folded_constants,
             indexed_theorems,
