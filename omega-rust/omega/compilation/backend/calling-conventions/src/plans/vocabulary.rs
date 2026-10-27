@@ -34,27 +34,14 @@ impl MachineRegister {
     /// records: x86-64 general registers occupy 0–15, XMM lanes 32–47,
     /// AArch64 general registers 64–95, and vector lanes 128–159.
     pub const fn codec_index(self) -> u8 {
-        match self {
-            Self::X86Rax => 0,
-            Self::X86Rcx => 1,
-            Self::X86Rdx => 2,
-            Self::X86Rbx => 3,
-            Self::X86Rsp => 4,
-            Self::X86Rbp => 5,
-            Self::X86Rsi => 6,
-            Self::X86Rdi => 7,
-            Self::X86R8 => 8,
-            Self::X86R9 => 9,
-            Self::X86R10 => 10,
-            Self::X86R11 => 11,
-            Self::X86R12 => 12,
-            Self::X86R13 => 13,
-            Self::X86R14 => 14,
-            Self::X86R15 => 15,
-            Self::X86Xmm(index) => 32 + (index & 15),
-            Self::Aarch64X(index) => 64 + (index & 31),
-            Self::Aarch64V(index) => 128 + (index & 31),
-        }
+        // Each register bank's base and lane count, indexed by the class
+        // `wire_class_index` publishes. A lane beyond its bank wraps inside
+        // it, so no codec index aliases another register file.
+        const BANK_BASE: [u8; 5] = [0, 0, 32, 64, 128];
+        const BANK_LANES: [u8; 5] = [1, 16, 16, 32, 32];
+        let (class, index) = self.wire_class_index();
+        let bank = class as usize;
+        BANK_BASE[bank] + index % BANK_LANES[bank]
     }
 
     /// The wire class/index pair serialized register fields and digests use:
@@ -833,27 +820,10 @@ pub(crate) const fn system_v_eightbyte_class_code(class: SystemVEightbyteClass) 
 }
 
 pub(crate) const fn register_code(register: MachineRegister) -> u16 {
-    match register {
-        MachineRegister::X86Rax => 0,
-        MachineRegister::X86Rcx => 1,
-        MachineRegister::X86Rdx => 2,
-        MachineRegister::X86Rbx => 3,
-        MachineRegister::X86Rsp => 4,
-        MachineRegister::X86Rbp => 5,
-        MachineRegister::X86Rsi => 6,
-        MachineRegister::X86Rdi => 7,
-        MachineRegister::X86R8 => 8,
-        MachineRegister::X86R9 => 9,
-        MachineRegister::X86R10 => 10,
-        MachineRegister::X86R11 => 11,
-        MachineRegister::X86R12 => 12,
-        MachineRegister::X86R13 => 13,
-        MachineRegister::X86R14 => 14,
-        MachineRegister::X86R15 => 15,
-        MachineRegister::X86Xmm(index) => 0x100 + index as u16,
-        MachineRegister::Aarch64X(index) => 0x200 + index as u16,
-        MachineRegister::Aarch64V(index) => 0x300 + index as u16,
-    }
+    // The same class/index pairs `wire_class_index` publishes, spread one
+    // byte apart so the ordering key compares register file before lane.
+    let (class, index) = register.wire_class_index();
+    ((class as u16 - 1) << 8) | index as u16
 }
 
 pub fn gpr_code(register: MachineRegister) -> Option<u8> {
