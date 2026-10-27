@@ -179,7 +179,7 @@ impl TerminalExecution<'_> {
         establishments: &[terminal_installation::TerminalPlacedViewEstablishment],
     ) -> Result<(), TerminalInterpretError> {
         for recipe in recipes {
-            if recipe.terminal() != self.program.identity
+            if recipe.terminal() != self.program.identity.semantic()
                 || recipe.input().machine != self.current_machine
             {
                 return Err(malformed());

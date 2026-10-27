@@ -29,7 +29,7 @@ pub(crate) fn selected_member(
     let head = TargetMachineCallable::Boundary(boundary);
     let selections =
         selections.ok_or(TerminalInterpretError::TargetMachineSelectionMissing(head))?;
-    if selections.terminal_psi() != program.identity {
+    if selections.terminal_psi() != program.identity.semantic() {
         return Err(TerminalInterpretError::TargetMachineSelectionIdentityMismatch);
     }
     let selected = selections

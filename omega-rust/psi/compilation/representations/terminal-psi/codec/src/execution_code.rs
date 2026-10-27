@@ -43,6 +43,23 @@ pub struct TerminalExecutionIdentity {
     invocation: Option<terminal_psi::InvocationCodeScope>,
 }
 
+impl TerminalExecutionIdentity {
+    /// Content identity for a portable program, without private code custody.
+    /// This describes identity only; it admits neither code nor execution.
+    pub const fn portable(semantic: TerminalPsiIdentity) -> Self {
+        Self {
+            semantic,
+            invocation: None,
+        }
+    }
+
+    /// Canonical semantic content. Private execution additionally requires the
+    /// retained owner compared by this complete identity's equality.
+    pub const fn semantic(&self) -> TerminalPsiIdentity {
+        self.semantic
+    }
+}
+
 impl<'code> From<TerminalArtifactView<'code>> for TerminalExecutionView<'code> {
     fn from(artifact: TerminalArtifactView<'code>) -> Self {
         Self {

@@ -60,7 +60,9 @@ pub(crate) fn empty_program() -> Arc<AdmittedTerminalProgram<'static>> {
         contract: MachineContract::empty(ContractId::new(1).unwrap()),
     });
     Arc::new(AdmittedTerminalProgram {
-        identity: terminal_codec::terminal_psi_identity(&module).unwrap(),
+        identity: terminal_codec::TerminalExecutionIdentity::portable(
+            terminal_codec::terminal_psi_identity(&module).unwrap(),
+        ),
         catalogs: Arc::new(Cow::Owned(module)),
         target_layouts: None,
     })

@@ -52,8 +52,10 @@ impl<'host, 'artifact> TerminalComponentBinding<'host, 'artifact> {
         program: TerminalProgram<'artifact>,
         supplies: TerminalRuntimeSupplies,
     ) -> Result<Self, String> {
-        if program.terminal_psi() != selected.provider()
-            || supplies.terminal_psi() != selected.provider()
+        let provider_identity =
+            terminal_codec::TerminalExecutionIdentity::portable(selected.provider());
+        if program.execution_identity() != &provider_identity
+            || supplies.code_identity != provider_identity
             || program
                 .program
                 .resolve_entry(Some(&supplies))
@@ -142,7 +144,7 @@ impl<'host, 'artifact> TerminalComponentBinding<'host, 'artifact> {
             || !self.required_imports.contains(&boundary)
             || self.bindings.contains_key(&boundary)
             || self.components.contains_key(&boundary)
-            || binding.selected.receiver() != self.program.terminal_psi()
+            || binding.selected.receiver() != self.program.execution_identity()
             || self.supplies.supplies.get(&boundary) != Some(&binding.supply())
         {
             return Err("nested component differs from the exact unused receiving slot".into());
