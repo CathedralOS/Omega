@@ -30,11 +30,7 @@ pub(super) fn assign_register_homes_after_pre_allocation(
     crate::assignment::home_assignment::assign_register_homes_reusing(
         legality,
         ranges,
-        environment.identity(),
-        environment.physical(),
-        environment.constraints(),
-        environment.reservations(),
-        &environment.allocation_constraint_keys(),
+        environment,
         reuse,
     )
 }
@@ -94,11 +90,7 @@ pub(super) fn assign_register_homes_after_selected_lowering(
     crate::assignment::home_assignment::assign_register_homes_reusing(
         legality,
         ranges,
-        environment.identity(),
-        environment.physical(),
-        environment.constraints(),
-        environment.reservations(),
-        &environment.allocation_constraint_keys(),
+        environment,
         reuse,
     )
 }

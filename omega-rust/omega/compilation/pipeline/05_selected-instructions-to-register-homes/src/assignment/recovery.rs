@@ -126,15 +126,7 @@ pub(crate) fn stage_active_resident_register_allocation(
         budget,
     ).map_err(RegisterAllocationError::Rematerialization)?;
     let environment = pressure.source().register_environment();
-    match crate::assign_register_homes(
-        pressure.legality(),
-        pressure.ranges(),
-        environment.identity(),
-        environment.physical(),
-        environment.constraints(),
-        environment.reservations(),
-        &environment.allocation_constraint_keys(),
-    ) {
+    match crate::assign_register_homes(pressure.legality(), pressure.ranges(), environment) {
         Ok(homes) => RetainedAllocation::try_from(
             crate::rewrites::complete_optimized_active_resident_rematerialization(pressure, homes)
                 .map_err(RegisterAllocationError::Rematerialization)?,

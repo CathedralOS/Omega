@@ -43,15 +43,7 @@ pub(super) fn assign_optimized_register_homes_after_fixed_view_copies(
     reanalysis: &StagedOptimizedSelectedReanalysis,
 ) -> Result<crate::ValidatedRegisterHomes, crate::RegisterHomeError> {
     let environment = reanalysis.register_environment();
-    assign_register_homes(
-        reanalysis.legality(),
-        reanalysis.ranges(),
-        environment.identity(),
-        environment.physical(),
-        environment.constraints(),
-        environment.reservations(),
-        &environment.allocation_constraint_keys(),
-    )
+    assign_register_homes(reanalysis.legality(), reanalysis.ranges(), environment)
 }
 
 pub(super) fn construct_optimized_register_homes_after_fixed_view_copies_with_assignment(

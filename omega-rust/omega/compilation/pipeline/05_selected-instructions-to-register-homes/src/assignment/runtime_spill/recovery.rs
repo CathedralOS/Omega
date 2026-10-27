@@ -88,11 +88,7 @@ fn assign_reusing(
     crate::assignment::home_assignment::assign_register_homes_reusing(
         legality,
         ranges,
-        environment.identity(),
-        environment.physical(),
-        environment.constraints(),
-        environment.reservations(),
-        &environment.allocation_constraint_keys(),
+        environment,
         reuse,
     )
 }
@@ -457,7 +453,12 @@ impl<'ranges> FailedDomain<'ranges> {
         };
         let function_ranges = range_functions.get(function)?;
         let mut domain = if let Some(index) = batch_indices.get(&function) {
-            Self::in_function_indexed(function, function_ranges, index, VirtualRegisterId(register))
+            Self::in_function_indexed(
+                function,
+                function_ranges,
+                index,
+                VirtualRegisterId(register),
+            )
         } else {
             Self::in_function(function, function_ranges, VirtualRegisterId(register))
         };
@@ -490,7 +491,9 @@ impl<'ranges> FailedDomain<'ranges> {
             for &r in &neighbors[split..] {
                 direct_pressure.push((r, 1));
             }
-            let pressure = if neighbors.iter().all(|&other| index.components.leader(other) == other)
+            let pressure = if neighbors
+                .iter()
+                .all(|&other| index.components.leader(other) == other)
             {
                 neighbors.iter().map(|&r| (r, 1)).collect()
             } else {
@@ -652,7 +655,10 @@ impl<'ranges> FailedDomain<'ranges> {
         if let Some(index) = self.index {
             if !components.has_multiple_members(component) {
                 let neighbors = index.register_neighbors(component);
-                if neighbors.iter().all(|&other| components.leader(other) == other) {
+                if neighbors
+                    .iter()
+                    .all(|&other| components.leader(other) == other)
+                {
                     pending.retain(|failure| match failure {
                         crate::RegisterHomeError::NoCompatibleHome { function, register } => {
                             if *function != self.function {
@@ -750,7 +756,11 @@ impl<'ranges> FailedDomain<'ranges> {
     #[inline]
     fn live_points_of(&self, register: VirtualRegisterId) -> u64 {
         if let Some(index) = self.index {
-            index.live_points.get(register.0 as usize).copied().unwrap_or(0)
+            index
+                .live_points
+                .get(register.0 as usize)
+                .copied()
+                .unwrap_or(0)
         } else {
             self.ranges
                 .virtual_registers
@@ -1225,22 +1235,16 @@ fn recover_over(
             .functions
             .get(pressured)
             .map_or(0, |body| body.virtual_registers.len());
-        let roster: &mut FunctionRoster = rosters
-            .entry(pressured)
-            .or_insert_with(|| FunctionRoster::new(pressured, candidates(selected.plan(), pressured)));
+        let roster: &mut FunctionRoster = rosters.entry(pressured).or_insert_with(|| {
+            FunctionRoster::new(pressured, candidates(selected.plan(), pressured))
+        });
         // The split decision comes first: one copy after a pinned definition
         // is cheaper than any regeneration or storage, and it is committed
         // whenever admitted. It replaces one live range by two disjoint ones
         // joined at the copy, so no point gains a live value; the pinned
         // segment the failed domain overlapped now ends at the copy.
         let split = phase_profile::scope("06.1.d.05.d_split_probe", || {
-            admissible_split_indexed(
-                domain.as_ref(),
-                roster,
-                &selected,
-                environment,
-                budget,
-            )
+            admissible_split_indexed(domain.as_ref(), roster, &selected, environment, budget)
         })?;
         // Preserve the already-admitted after-definition split. The narrower
         // integer fixed-use copy is an optional refinement for a value-local
@@ -1394,23 +1398,27 @@ fn recover_over(
                             }
                             Ok((crossing, true)) => {
                                 phase_profile::count("06.1.d.05.crossing_used", 1);
-                                let probe = phase_profile::scope("06.1.d.05.g_crossing_reanalyze", || {
-                                    reanalyze_unsealed(
-                                        environment,
-                                        availability,
-                                        &analysis_source.selected(),
-                                        &current_facts,
-                                        &SelectedProgramRef::new(&crossing),
-                                    )
-                                })?;
-                                match phase_profile::scope("06.1.d.05.g2_crossing_probe_all", || {
-                                    home_reuse.probe_all(
-                                        environment.identity(),
-                                        probe.legality_functions(),
-                                        probe.range_functions(),
-                                        environment.physical(),
-                                    )
-                                }) {
+                                let probe =
+                                    phase_profile::scope("06.1.d.05.g_crossing_reanalyze", || {
+                                        reanalyze_unsealed(
+                                            environment,
+                                            availability,
+                                            &analysis_source.selected(),
+                                            &current_facts,
+                                            &SelectedProgramRef::new(&crossing),
+                                        )
+                                    })?;
+                                match phase_profile::scope(
+                                    "06.1.d.05.g2_crossing_probe_all",
+                                    || {
+                                        home_reuse.probe_all(
+                                            environment.identity(),
+                                            probe.legality_functions(),
+                                            probe.range_functions(),
+                                            environment.physical(),
+                                        )
+                                    },
+                                ) {
                                     Ok(()) => {
                                         let facts = seal_recovery_facts(
                                             environment,
@@ -1529,8 +1537,9 @@ fn recover_over(
         recorded.push(rewrite.transformation());
         match probe_result {
             Ok(()) => {
-                let (facts, homes, manifest) =
-                    phase_profile::scope("06.1.d.05.k_seal_and_manifest", || -> Result<_, RuntimeSpillAllocationError> {
+                let (facts, homes, manifest) = phase_profile::scope(
+                    "06.1.d.05.k_seal_and_manifest",
+                    || -> Result<_, RuntimeSpillAllocationError> {
                         let facts = seal_recovery_facts(
                             environment,
                             availability,
@@ -1556,7 +1565,8 @@ fn recover_over(
                             &homes,
                         )?;
                         Ok((facts, homes, manifest))
-                    })?;
+                    },
+                )?;
                 let result = RuntimeSpillAllocation {
                     source,
                     last: RuntimeSpillStep { rewrite },
