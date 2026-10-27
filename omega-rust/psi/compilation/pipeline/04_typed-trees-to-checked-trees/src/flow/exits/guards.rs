@@ -97,11 +97,7 @@ pub(super) fn append_guard_context(
     // upper the sibling conjunct established. One call groups every
     // conjunct on the place into a single intersected row.
     let mut bound_expressions: Vec<ExpressionHandle> = Vec::new();
-    let current = GuardObservation {
-        expression,
-        value,
-        statement_index,
-    };
+    let current = GuardObservation::evaluated(expression, value, statement_index);
     for observation in std::iter::once(current).chain(captured) {
         let GuardObservation {
             expression, value, ..
@@ -119,7 +115,7 @@ pub(super) fn append_guard_context(
             active_contexts,
             active_constraints,
         );
-        if value {
+        if value && observation.current_expression.is_valid() {
             append_case_constraint_context(
                 program,
                 semantic,
@@ -595,22 +591,25 @@ pub(in crate::flow) fn append_predicate_context(
         expression,
         value,
         statement_index: observation_statement_index,
+        current_expression,
     } = observation;
 
-    append_entry_path_context(
-        program,
-        semantic,
-        build,
-        state_symbol,
-        observation_statement_index,
-        expression,
-        value,
-        point,
-        entry_writes,
-        entry_unknown_write,
-        active_contexts,
-        active_constraints,
-    );
+    if current_expression.is_valid() {
+        append_entry_path_context(
+            program,
+            semantic,
+            build,
+            state_symbol,
+            observation_statement_index,
+            expression,
+            value,
+            point,
+            entry_writes,
+            entry_unknown_write,
+            active_contexts,
+            active_constraints,
+        );
+    }
     let predicate_dependencies = super::super::observations::predicate_case_dependencies(
         program,
         build,
@@ -647,7 +646,7 @@ pub(in crate::flow) fn append_predicate_context(
         // replayed, but its independently repeatable leaves remain evidence if
         // every observed coordinate survived the actual write prefix. This is
         // deliberately conservative about writes before an observation too.
-        if !repeatable {
+        if !repeatable && current_expression.is_valid() {
             for (observation, selected) in observations.iter().copied() {
                 if !expression_is_stable_predicate(program, observation) {
                     continue;
@@ -799,7 +798,7 @@ pub(in crate::flow) fn append_predicate_context(
     // downstream `requires pred(..)` or predicate-domain write discharges
     // wherever the operand travels. The refused arm mints nothing — a byte
     // carrier failing the class is not a positive class.
-    if value {
+    if value && current_expression.is_valid() {
         append_byte_predicate_context(
             program,
             semantic,
@@ -815,7 +814,7 @@ pub(in crate::flow) fn append_predicate_context(
     }
     // An effectful invocation's result is not a promise about evaluating that
     // invocation again. A saved local boolean is an ordinary stable place.
-    if !repeatable {
+    if !repeatable || !current_expression.is_valid() {
         return;
     }
     let Some(dependencies) = predicate_dependencies else {
