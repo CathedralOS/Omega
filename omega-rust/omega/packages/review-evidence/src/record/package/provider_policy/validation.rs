@@ -76,14 +76,12 @@ impl PackagePolicySelectedProviders {
                         return Err("provider row omits its realization under a realizing package");
                     }
                 }
-                let mut next = 0;
-                for ordinal in &row.requirement_lifetime_partition {
-                    if *ordinal > next {
-                        return Err("provider lifetime partition is not canonical");
-                    }
-                    if *ordinal == next {
-                        next += 1;
-                    }
+                if row.requirement_lifetime_partition
+                    != language_semantics::type_identity::normalize_requirement_lifetime_partition(
+                        &row.requirement_lifetime_partition,
+                    )
+                {
+                    return Err("provider lifetime partition is not canonical");
                 }
                 if let Some(reach) = &row.installation_reach {
                     for declarations in [&reach.upper_bound, &reach.resolved] {

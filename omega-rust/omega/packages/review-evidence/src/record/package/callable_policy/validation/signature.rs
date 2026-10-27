@@ -147,28 +147,14 @@ pub(super) fn validate(callable: &PackagePolicyCallable) -> Result {
             value_type(argument)?;
         }
         lifetimes(&conformance.trait_lifetime_arguments, &scope)?;
-        if conformance.requirement_lifetime_partition.len()
-            != conformance.trait_lifetime_arguments.len()
+        if conformance.requirement_lifetime_partition
+            != language_semantics::type_identity::normalize_requirement_lifetime_partition(
+                &conformance.trait_lifetime_arguments,
+            )
         {
-            return Err("conformance lifetime partition loses an actual selected lifetime");
-        }
-        let mut next = 0;
-        for (index, argument) in conformance.trait_lifetime_arguments.iter().enumerate() {
-            let expected = if let Some(prior) = conformance.trait_lifetime_arguments[..index]
-                .iter()
-                .position(|prior| prior == argument)
-            {
-                conformance.requirement_lifetime_partition[prior]
-            } else {
-                let ordinal = next;
-                next += 1;
-                ordinal
-            };
-            if conformance.requirement_lifetime_partition[index] != expected {
-                return Err(
-                    "requirement lifetime partition differs from its actual selected lifetimes",
-                );
-            }
+            return Err(
+                "requirement lifetime partition differs from its actual selected lifetimes",
+            );
         }
     }
     for realization in &callable.operator_realizations {
