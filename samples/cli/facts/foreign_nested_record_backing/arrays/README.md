@@ -5,7 +5,7 @@ Parent: [NORMALIZED-ABI-LOWERING](../../../../../TASKS.md); continuation of
 
 A mutable foreign registration retains the exact original nested array Buffer backing until completion consumes Pending; completion writes its middle cell to 73 while marker 91, neighbors 305419896 and 1515863100, and an earlier copy 37 remain unchanged.
 
-`Buffer` owns three ordinary `Cell` records in a fixed array. The actual C
+`Buffer` owns three copyable `Cell` records in a fixed array. The actual C
 provider receives the original complete allocation, writes the middle element
 to 41 during registration, retains its pointer, and writes 73 at completion.
 The receiver checks both adjacent same-width cells and marker 91 after completion,
@@ -40,8 +40,28 @@ checks and rejection of tags, opaque regions, references and other unsupported
 leaf kinds remain in force. Provider lifecycle traps and C layout assertions
 exercise actual foreign behavior, not an interpreter token model.
 
-Qualification is pending. Raw baseline sources, producer/profile receipts,
-provider self-tests and outputs are retained in
+Optimized macOS producer `4d336559156` (SHA256
+`111d3e944aed98fbb3855790680e2fcbb555d5a95643d3fbdef8ad73ab08424e`)
+executes all nine corrected sample places and pinned copies at native/Terminal
+zero; all 18 live-loan observations reject for their authored reason. The const
+place declares its scalar leaf record `[copy]`; its earlier affine-default
+constant was invalid source, not a compiler refusal of a valid constant.
+
+The runtime match additionally required the ordinary owned qualification transfer
+at the selected-value join. Each covered arm rebases the qualification on its
+actual completed value, and only identical subject, domain instance and authority
+survive. Branch-private contexts publish nothing for an incomplete result roster;
+no receiving declaration establishes membership. This follows
+[domain transport](../../../../../wiki/spec/language/domains.md) and
+[pattern joins](../../../../../wiki/spec/language/patterns.md).
+An independent [issued-record control](../../../../../tests/omega/pass/domains/runtime_completed_routed_record_join_exit/main.omg)
+executes both runtime arms with distinct values. Its
+[unissued-arm twin](../../../../../tests/omega/fail/domains/completed_routed_record_join_unissued_arm/main.omg)
+changes one issuer call to an equal-valued bare constructor and rejects at the
+qualified consuming call, without a type or ownership error.
+
+Other-host execution of this continuation remains pending. Raw baseline sources,
+producer/profile receipts, failed setups, provider self-tests and outputs are retained in
 `/Users/zcanann/Omega-build/retained-array-backing-2026-10-27/`.
 This row does not establish pointer graphs, tagged/dynamic carriers,
 independently qualified descendants or owned aggregate result publication.
