@@ -1,0 +1,20 @@
+// A saved case verdict selects the same unwritten case payload after a disjoint case replacement.
+// Expected exit: 0
+domain u64::Divisor(value) requires value > 0;
+data Choice [copy] { case Empty; case Full(amount: u64 in Divisor); }
+machine clear(destination: &mut Choice) { destination = Choice::Empty; }
+data Holder { choice: Choice; other: Choice; }
+machine probe() -> u64 {
+    let mut holder: Holder = Holder { choice: Choice::Full { amount: 7 }, other: Choice::Full { amount: 7 } };
+    let saved: bool = holder.choice in Choice::Full;
+    let alias: bool = saved;
+    clear(&mut holder.other);
+    let ordinary: u64 = 9;
+    transition alias { true -> 490 / holder.choice.amount false -> 0 }
+}
+machine main() crashes Trap {
+    let observed: u64 = probe();
+    transition observed == 70 { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

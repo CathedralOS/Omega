@@ -10,6 +10,16 @@ use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TransitionExit, TransitionGuardNode};
 
+/// One evaluated predicate kept through a proved noninterference interval.
+/// Its source statement selects the actual Flow read and receiver. The later
+/// consuming guard never supplies a replacement evaluation of this expression.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct GuardObservation {
+    pub expression: ExpressionHandle,
+    pub value: bool,
+    pub statement_index: usize,
+}
+
 /// Observations still true when the selected transition arm arrives. Dispatch
 /// precedes arm operands: both direct predicates and saved decisions must name
 /// reads preserved through those operands. Loop candidates consume this same
@@ -79,8 +89,9 @@ pub(crate) fn transition_guard_observations<'program>(
         &later_writes,
         Some(frames),
     ) {
-        if !observations.contains(&observation) {
-            observations.push(observation);
+        let signed = (observation.expression, observation.value);
+        if !observations.contains(&signed) {
+            observations.push(signed);
         }
     }
     Some(observations)
@@ -100,7 +111,7 @@ pub(crate) fn saved_guard_observations<'program>(
     value: bool,
     later_writes: &[String],
     frames: Option<&validation::CallFrameResolver<'program>>,
-) -> Vec<(ExpressionHandle, bool)> {
+) -> Vec<GuardObservation> {
     let Some(frames) = frames else {
         return Vec::new();
     };
@@ -130,7 +141,7 @@ pub(crate) fn saved_guard_observations<'program>(
         if !symbol.is_valid() || program.symbols.get(symbol).kind != SymbolKind::Local {
             continue;
         }
-        let Some((predicate, writes)) =
+        let Some((predicate, observation_statement_index, writes)) =
             reaching_capture(program, machine, state, statement_index, symbol, frames)
         else {
             continue;
@@ -157,15 +168,20 @@ pub(crate) fn saved_guard_observations<'program>(
                 polarity,
                 &mut observations,
             );
-            for observation in observations {
+            for (expression, value) in observations {
+                let observation = GuardObservation {
+                    expression,
+                    value,
+                    statement_index: observation_statement_index,
+                };
                 if !prepared.contains(&observation)
-                    && expression_is_stable_predicate(program, observation.0)
+                    && expression_is_stable_predicate(program, observation.expression)
                     && reads_survive(
                         program,
                         machine,
                         state,
                         statement_index,
-                        observation.0,
+                        observation.expression,
                         &dispatch_writes,
                         frames,
                     )
@@ -176,10 +192,10 @@ pub(crate) fn saved_guard_observations<'program>(
                     // through this worklist, without a second recovery path.
                     if program
                         .expression_table
-                        .name_path_node(observation.0)
+                        .name_path_node(observation.expression)
                         .is_some()
                     {
-                        dispatch.push(observation);
+                        dispatch.push((observation.expression, observation.value));
                     }
                 }
             }
@@ -196,18 +212,18 @@ fn reaching_capture<'program>(
     statement_index: usize,
     symbol: SymbolHandle,
     frames: &validation::CallFrameResolver<'program>,
-) -> Option<(ExpressionHandle, Vec<String>)> {
+) -> Option<(ExpressionHandle, usize, Vec<String>)> {
     let statements = program.statement_table.statements(state.statement_nodes);
     let mut writes = Vec::new();
     let order = program
         .statement_table
         .admitted_execution_order(state.statement_nodes);
     let end = order.position(statement_index)?;
-    for statement in order.indices()[..end]
-        .iter()
-        .rev()
-        .filter_map(|position| statements.get(*position))
-    {
+    for (definition, statement) in order.indices()[..end].iter().rev().filter_map(|position| {
+        statements
+            .get(*position)
+            .map(|statement| (*position, statement))
+    }) {
         if let Some(local) = statement.as_local_data()
             && local.symbol == symbol
         {
@@ -219,7 +235,7 @@ fn reaching_capture<'program>(
                     .expression_write_frame(machine, local.initial_value)
                     .into_complete_paths()?,
             );
-            return Some((local.initial_value, writes));
+            return Some((local.initial_value, definition, writes));
         }
         match statement {
             StatementNode::Transition(transition) => {
