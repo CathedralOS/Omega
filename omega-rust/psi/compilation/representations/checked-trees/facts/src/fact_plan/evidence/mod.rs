@@ -473,28 +473,9 @@ impl QualificationPayloadIdentity {
                 Some(Self::CarryPermission { permission })
             }
             FactPayload::CarryOrigin { .. } => Some(Self::CarryOrigin),
-            FactPayload::InstructionEffect { .. }
-            | FactPayload::CallCompletion { .. }
-            | FactPayload::DomainMembership { .. }
-            | FactPayload::ContractDomainMembership { .. }
-            | FactPayload::BooleanPredicate { .. }
-            | FactPayload::CaseValue { .. }
-            | FactPayload::AssignedValue { .. }
-            | FactPayload::AssignedIntegerBounds { .. }
-            | FactPayload::FloatPredicate { .. }
-            | FactPayload::AssignedScalarValue { .. }
-            | FactPayload::AssignedValueCapture { .. }
-            | FactPayload::StorageDependency { .. }
-            | FactPayload::BytePredicate { .. }
-            | FactPayload::BooleanValue { .. }
-            | FactPayload::MatchPattern { .. }
-            | FactPayload::BooleanExpression(_)
-            | FactPayload::PropositionApplication { .. }
-            | FactPayload::TypeConstraint { .. }
-            | FactPayload::ProofObligation { .. }
-            | FactPayload::Contract { .. }
-            | FactPayload::ContractBooleanExpression { .. }
-            | FactPayload::ContractPropositionApplication { .. } => None,
+            // Every other payload records something else about the fact; the
+            // Some arms above are what carry qualification identity.
+            _ => None,
         }
     }
 }
