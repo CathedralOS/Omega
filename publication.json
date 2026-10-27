@@ -1,0 +1,16 @@
+{
+  "pr": 348,
+  "url": "https://github.com/CathedralOS/Omega/pull/348",
+  "state": "MERGED",
+  "source": "e897a6e3c3e1cf5d37779f6f72228e03d2856ca8",
+  "published": "5ab4e12334fba74babfc3ae8d9992572fba307e6",
+  "merged_at": "2026-10-27T09:17:53Z",
+  "integration_run": "https://github.com/CathedralOS/Omega/actions/runs/40479387736",
+  "integration_conclusion": "success",
+  "fetched_main": "5ab4e12334fba74babfc3ae8d9992572fba307e6",
+  "later_integration": {
+    "main": "d1a8c34874feeb2f2d255e4357f6a48ffa433270",
+    "changes": "Retain invocation as body owner when adopting upstream lazy dead-local computation; integer-predicate conflict was formatting-only on our side; four entry-query sources retain upstream implementation.",
+    "qualification": "Original b011 runtime observations and f091 capture remain unchanged. Final source and queue integration passed compiler-check; no historical engine execution is relabeled."
+  }
+}
