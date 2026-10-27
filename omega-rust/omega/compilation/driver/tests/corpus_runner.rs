@@ -2110,33 +2110,61 @@ fn run_one_bounded(
     live.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let live_owned = std::sync::Arc::clone(live);
     let rel_owned = rel.clone();
-    std::thread::spawn(move || {
-        // catch_unwind keeps a panicking compile from killing the thread
-        // silently — the crash becomes a record carrying the panic text, so
-        // the golden diff shows *why* instead of just "crashed".
-        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            run_one(tier, &base_owned, &main_owned, sequence)
-        }));
-        let record = match outcome {
-            Ok(record) => record,
-            Err(payload) => {
-                let message = payload
-                    .downcast_ref::<String>()
-                    .cloned()
-                    .or_else(|| payload.downcast_ref::<&str>().map(|text| text.to_string()))
-                    .unwrap_or_else(|| "unknown panic".to_string());
-                (
-                    record_text(tier, &rel_owned, "crashed", 0, None, &[], &[message]),
-                    0,
-                )
-            }
-        };
-        // Panic diagnostics sanitize source paths too. Publish completion only
-        // after the last staging access, so exit-time cleanup cannot release
-        // this session's reservation while a detached thread still uses it.
-        live_owned.fetch_sub(1, std::sync::atomic::Ordering::Release);
-        let _ = sender.send(record);
-    });
+    // A fixture is one whole invocation: build-script execution, product
+    // queries, preparation and checked lowering. Those frames nest — a
+    // build-time product query lowers a demanded closure inside the
+    // preparation that issued it — so the thread needs the compiler's own
+    // compile budget, not the 2 MiB host default. Provisioning the default
+    // here aborted the whole run with "has overflowed its stack" instead of
+    // recording one fixture, and that abort cannot be caught.
+    let spawned = std::thread::Builder::new()
+        .name(format!("corpus-fixture-{sequence}"))
+        .stack_size(compiler::checked::COMPILE_STACK_SIZE)
+        .spawn(move || {
+            // catch_unwind keeps a panicking compile from killing the thread
+            // silently — the crash becomes a record carrying the panic text, so
+            // the golden diff shows *why* instead of just "crashed".
+            let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                run_one(tier, &base_owned, &main_owned, sequence)
+            }));
+            let record = match outcome {
+                Ok(record) => record,
+                Err(payload) => {
+                    let message = payload
+                        .downcast_ref::<String>()
+                        .cloned()
+                        .or_else(|| payload.downcast_ref::<&str>().map(|text| text.to_string()))
+                        .unwrap_or_else(|| "unknown panic".to_string());
+                    (
+                        record_text(tier, &rel_owned, "crashed", 0, None, &[], &[message]),
+                        0,
+                    )
+                }
+            };
+            // Panic diagnostics sanitize source paths too. Publish completion only
+            // after the last staging access, so exit-time cleanup cannot release
+            // this session's reservation while a detached thread still uses it.
+            live_owned.fetch_sub(1, std::sync::atomic::Ordering::Release);
+            let _ = sender.send(record);
+        });
+    if let Err(error) = spawned {
+        // A thread that never started produces no record. Charge the failure to
+        // this fixture and release the slot it reserved rather than waiting out
+        // the cap for a compile that never began.
+        live.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+        return (
+            record_text(
+                tier,
+                &rel,
+                "crashed",
+                0,
+                None,
+                &[],
+                &[format!("failed to spawn fixture thread: {error}")],
+            ),
+            0,
+        );
+    }
     match receiver.recv_timeout(cap) {
         Ok(record) => record,
         Err(error) => {
