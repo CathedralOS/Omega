@@ -25,7 +25,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
     let mut wide: [u16; 4096];
     let units: i64 = windows_wide_path(path, &mut wide);
     wide[4095] = 0;
-    transition units > 0 { true -> open(wide) false -> invalid() }
+    transition units > 0 { true -> block open(wide) false -> invalid() }
     machine invalid() -> i64 { WindowsFilesystemIo::c_set_last_error(87); 0 }
     machine open(path: [u16; 4096] in WindowsNativePath) -> i64 {
         // SYNCHRONIZE|DELETE|READ_ATTRIBUTES|LIST_DIRECTORY; shared delete;
@@ -79,7 +79,7 @@ requires parent != 0 && length > 0 && length < 4096
 ensures result != -1
 reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration {
     transition windows_removal_component(&entry.characters, length) {
-        true -> access(parent, entry, length)
+        true -> block access(parent, entry, length)
         false -> invalid()
     }
     machine invalid() -> i64 { WindowsFilesystemIo::c_set_last_error(87); 0 }
@@ -87,8 +87,8 @@ reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration {
         entry: &mut WindowsNativeDirectoryEntryInfo, length: u64) -> i64
     requires parent != 0 && length > 0 && length < 4096 {
         transition (entry.attributes & 16) != 0 {
-            true -> open(parent, entry, length, 1114241)
-            false -> open(parent, entry, length, 1114240)
+            true -> block open(parent, entry, length, 1114241)
+            false -> block open(parent, entry, length, 1114240)
         }
     }
     machine open(parent: i64 in WindowsPrivateNonalertFileOrAbsent,

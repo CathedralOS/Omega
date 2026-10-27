@@ -187,7 +187,7 @@ invokes WindowsFilesystemHost;
     let result: UnitResult = block windows_filesystem_create_dir(path);
     transition result {
         UnitResult::Ok -> UnitResult::Ok
-        UnitResult::Error { kind } -> failed(path, kind)
+        UnitResult::Error { kind } -> block failed(path, kind)
     }
     machine failed(path: &[u8] in Path, kind: ErrorKind) -> UnitResult {
         transition kind {
@@ -203,8 +203,8 @@ invokes WindowsFilesystemHost;
 {
     let root: u64 = windows_filesystem_root_length(path);
     transition root < path.len {
-        true -> walk(path, root)
-        false -> root(path)
+        true -> block walk(path, root)
+        false -> block root(path)
     }
     machine root(path: &[u8] in Path) -> UnitResult {
         let result: MetadataResult = block windows_filesystem_metadata_path(path, false);
@@ -232,11 +232,11 @@ windows_x86_64 machine windows_filesystem_create_components(path: &[u8] in Path,
 reaches FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
 invokes WindowsFilesystemHost;
 {
-    transition { _ -> walk(path, start) }
+    transition { _ -> block walk(path, start) }
     machine walk(path: &[u8] in Path, position: u64) -> UnitResult {
         transition position < path.len {
-            true -> inspect(path, position)
-            false -> complete(path)
+            true -> block inspect(path, position)
+            false -> block complete(path)
         }
     }
     machine complete(path: &[u8] in Path) -> UnitResult {
@@ -245,8 +245,8 @@ invokes WindowsFilesystemHost;
     machine inspect(path: &[u8] in Path, position: u64) -> UnitResult
     requires position < path.len {
         transition position > 0 && windows_filesystem_separator(path, path[position]) {
-            true -> create(path, position)
-            false -> walk(path, position + 1)
+            true -> block create(path, position)
+            false -> block walk(path, position + 1)
         }
     }
     machine create(path: &[u8] in Path, position: u64) -> UnitResult
@@ -254,7 +254,7 @@ invokes WindowsFilesystemHost;
         let result: UnitResult = block windows_filesystem_create_dir_existing(path[0..position]);
         transition result {
             UnitResult::Error { kind } -> (UnitResult::Error { kind: kind })
-            UnitResult::Ok -> walk(path, position + 1)
+            UnitResult::Ok -> block walk(path, position + 1)
         }
     }
 }

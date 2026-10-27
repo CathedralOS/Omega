@@ -32,7 +32,7 @@ windows_x86_64 machine windows_query_synchronous_duplicate(handle: u64) -> i64
 ensures result != -1 {
     let duplicate: u64 = WindowsFilesystemNativeProvider::duplicate_handle(handle);
     transition duplicate != 0 {
-        true -> query(duplicate)
+        true -> block query(duplicate)
         _ -> (0)
     }
     machine query(duplicate: u64) -> i64 {
@@ -41,8 +41,8 @@ ensures result != -1 {
         let mut mode: u32 = 0;
         let result: i32 = block WindowsFilesystemIo::c_file_mode(raw_handle, &mut status, &mut mode, 4, 16);
         transition result == 0 {
-            true -> checked(duplicate, mode)
-            _ -> query_failed(duplicate, result)
+            true -> block checked(duplicate, mode)
+            _ -> block query_failed(duplicate, result)
         }
     }
     machine checked(duplicate: u64, mode: u32) -> i64 {
@@ -51,12 +51,12 @@ ensures result != -1 {
         let raw_handle: i64 = narrow_u64_to_i64_wrapping(duplicate);
         transition (mode & 48) != 0 && raw_handle != 0 && raw_handle != -1 {
             true -> (raw_handle)
-            _ -> refused(duplicate, 87)
+            _ -> block refused(duplicate, 87)
         }
     }
     machine query_failed(duplicate: u64, status: i32) -> i64 {
         let code: u32 = WindowsFilesystemIo::c_status_to_error(status);
-        transition code != 0 { true -> refused(duplicate, code) _ -> refused(duplicate, 87) }
+        transition code != 0 { true -> block refused(duplicate, code) _ -> block refused(duplicate, 87) }
     }
     machine refused(duplicate: u64, code: u32) -> i64 {
         let closed: i32 = block WindowsFilesystemNativeProvider::close_handle(duplicate);
@@ -68,11 +68,11 @@ ensures result != -1 {
 windows_x86_64 machine WindowsFilesystemNativeProvider::write_file(handle: u64, bytes: &[u8]) -> i64
 satisfies WindowsFilesystemHost::write_file
 reaches FilesystemContentWrite {
-    transition bytes.len <= 4294967295 { true -> pin(handle, bytes) _ -> (-87) }
+    transition bytes.len <= 4294967295 { true -> block pin(handle, bytes) _ -> (-87) }
     machine pin(handle: u64, bytes: &[u8]) -> i64 {
         let duplicate: i64 in WindowsSynchronousFileOrAbsent = block windows_synchronous_duplicate(handle);
         transition duplicate != 0 {
-            true -> transfer(duplicate, bytes)
+            true -> block transfer(duplicate, bytes)
             _ -> (WindowsFilesystemNativeProvider::failure_i64())
         }
     }
@@ -88,13 +88,13 @@ windows_x86_64 machine WindowsFilesystemNativeProvider::read_file(handle: u64, b
 satisfies WindowsFilesystemHost::read_file
 reaches FilesystemContentRead {
     transition count <= buffer.len && count <= 4294967295 {
-        true -> pin(handle, buffer, count)
+        true -> block pin(handle, buffer, count)
         _ -> (-87)
     }
     machine pin(handle: u64, buffer: &mut [u8], count: u64) -> i64 {
         let duplicate: i64 in WindowsSynchronousFileOrAbsent = block windows_synchronous_duplicate(handle);
         transition duplicate != 0 {
-            true -> transfer(duplicate, buffer, count)
+            true -> block transfer(duplicate, buffer, count)
             _ -> (WindowsFilesystemNativeProvider::failure_i64())
         }
     }
@@ -120,7 +120,7 @@ requires handle != 0
 reaches FilesystemContentWrite
 {
     transition bytes.len <= 4294967295 {
-        true -> sized(handle, bytes)
+        true -> block sized(handle, bytes)
         _ -> (-87)
     }
     machine sized(handle: i64 in WindowsSynchronousFileOrAbsent, bytes: &[u8]) -> i64
@@ -144,7 +144,7 @@ windows_x86_64 machine windows_read_pinned(handle: i64 in WindowsSynchronousFile
 requires handle != 0
 reaches FilesystemContentRead {
     transition count <= buffer.len && count <= 4294967295 {
-        true -> bounded(handle, buffer, count)
+        true -> block bounded(handle, buffer, count)
         _ -> (-87)
     }
     machine bounded(handle: i64 in WindowsSynchronousFileOrAbsent, buffer: &mut [u8], count: u64) -> i64
