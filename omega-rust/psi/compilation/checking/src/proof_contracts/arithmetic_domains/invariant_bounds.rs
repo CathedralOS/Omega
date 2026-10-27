@@ -21,7 +21,7 @@
 use super::{
     ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine,
     PrimitiveType, SignatureContractKind, State, TableCallExpression, TypeReferenceHandle,
-    TypeReferenceNode, enforced_declared_range, literal_i64,
+    enforced_declared_range, literal_i64,
 };
 use crate::proof_contracts::arithmetic_domains::integer_ranges::primitive_range;
 use language_core::OperatorSpelling;
@@ -49,12 +49,9 @@ fn exact_integer_primitive(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<PrimitiveType> {
-    let mut carrier_type = type_reference;
-    while let TypeReferenceNode::Constrained { base_type, .. } =
-        program.type_reference_table.type_reference(carrier_type)
-    {
-        carrier_type = *base_type;
-    }
+    let carrier_type = program
+        .type_reference_table
+        .unconstrained_type_reference(type_reference);
     let symbol = &program
         .type_reference_table
         .type_reference(carrier_type)
@@ -559,12 +556,9 @@ fn bounds(
                 typed_trees::closed_numeric::land_integer(value, primitive)?;
             }
             // Arithmetic results retain the carrier, not operand refinements.
-            let mut result_type = left.type_reference.or(right.type_reference)?;
-            while let TypeReferenceNode::Constrained { base_type, .. } =
-                program.type_reference_table.type_reference(result_type)
-            {
-                result_type = *base_type;
-            }
+            let result_type = program
+                .type_reference_table
+                .unconstrained_type_reference(left.type_reference.or(right.type_reference)?);
             let carrier = primitive_range(primitive)?;
             // Anonymous operands land at the already-typed operation. A small
             // result is not evidence that an out-of-range operand can land.
@@ -719,12 +713,9 @@ fn unsigned_bitwise_bounds(
         }
         _ => return None,
     };
-    let mut result_type = left.type_reference?;
-    while let TypeReferenceNode::Constrained { base_type, .. } =
-        program.type_reference_table.type_reference(result_type)
-    {
-        result_type = *base_type;
-    }
+    let result_type = program
+        .type_reference_table
+        .unconstrained_type_reference(left.type_reference?);
     Some(Bounds {
         interval,
         constant_value: None,

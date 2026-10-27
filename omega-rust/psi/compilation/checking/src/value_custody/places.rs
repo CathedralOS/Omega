@@ -639,14 +639,11 @@ pub fn unwrapped_type_reference(
 /// reproduces.
 pub fn peel_declared_constraints(
     program: &dyn crate::CheckingInput,
-    mut type_reference: TypeReferenceHandle,
+    type_reference: TypeReferenceHandle,
 ) -> TypeReferenceHandle {
-    while let TypeReferenceNode::Constrained { base_type, .. } =
-        program.type_reference_table.type_reference(type_reference)
-    {
-        type_reference = *base_type;
-    }
-    type_reference
+    program
+        .type_reference_table
+        .unconstrained_type_reference(type_reference)
 }
 
 /// The element type a `FixedArray` or `Slice` carrier declares — `None` for
