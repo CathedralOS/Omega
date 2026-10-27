@@ -132,15 +132,13 @@ pub(super) fn decode_normalized_foreign_call(
     let boundary = decode_id(cursor, BoundaryMachineId::new)?;
     let provider_execution = decode_provider_execution(cursor)?;
     let binding = decode_call_binding(cursor)?;
-    let scalar_count = cursor.length()?;
-    let mut scalar_arguments = Vec::with_capacity(scalar_count.min(cursor.remaining()));
-    for _ in 0..scalar_count {
-        scalar_arguments.push(TargetUnitScalarCallArgument {
+    let scalar_arguments = decode_list::<_, FixedViewCopyDecodeError>(cursor, |cursor| {
+        Ok(TargetUnitScalarCallArgument {
             parameter_index: cursor.u32()?,
             source: decode_scalar_source(cursor)?,
             placement: decode_placement(cursor)?,
-        });
-    }
+        })
+    })?;
     let structural_arguments = decode_list(cursor, decode_target_argument)?;
     let structural_indices = decode_list(cursor, decode_runtime_indices)?;
     let result = match cursor.byte()? {

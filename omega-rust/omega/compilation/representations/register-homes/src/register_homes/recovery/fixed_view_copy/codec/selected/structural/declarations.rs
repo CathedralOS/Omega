@@ -21,7 +21,8 @@ use super::calling::{decode_placement, decode_shape};
 use super::projected_qualifications::{decode_projected, encode_projected};
 use crate::register_homes::recovery::fixed_view_copy::codec::{
     primitives::{
-        Cursor, decode_id, decode_ids, decode_option_u64, encode_ids, encode_option_u64, length,
+        Cursor, decode_id, decode_ids, decode_list, decode_option_u64, encode_ids,
+        encode_option_u64, length,
     },
     values::{decode_bool, decode_scalar, encode_scalar},
 };
@@ -366,15 +367,13 @@ fn encode_cases(
 fn decode_cases(
     cursor: &mut Cursor<'_>,
 ) -> Result<Vec<StructuralCaseDeclaration>, FixedViewCopyDecodeError> {
-    let count = cursor.length()?;
-    let mut cases = Vec::with_capacity(count.min(cursor.remaining()));
-    for _ in 0..count {
-        cases.push(StructuralCaseDeclaration {
+    let cases = decode_list::<_, FixedViewCopyDecodeError>(cursor, |cursor| {
+        Ok(StructuralCaseDeclaration {
             id: decode_id(cursor, StructuralCaseId::new)?,
             identity: terminal_psi::TerminalIdentityIndex(cursor.u32()?),
             fields: decode_fields(cursor)?,
-        });
-    }
+        })
+    })?;
     Ok(cases)
 }
 
@@ -398,9 +397,7 @@ fn encode_fields(
 fn decode_fields(
     cursor: &mut Cursor<'_>,
 ) -> Result<Vec<StructuralFieldDeclaration>, FixedViewCopyDecodeError> {
-    let count = cursor.length()?;
-    let mut fields = Vec::with_capacity(count.min(cursor.remaining()));
-    for _ in 0..count {
+    let fields = decode_list(cursor, |cursor| {
         let id = decode_id(cursor, StructuralFieldId::new)?;
         let identity = terminal_psi::TerminalIdentityIndex(cursor.u32()?);
         let relevance = match cursor.byte()? {
@@ -409,14 +406,14 @@ fn decode_fields(
             tag => return Err(FixedViewCopyDecodeError::UnknownBindingRelevance(tag)),
         };
         let field_type = decode_scalar_restriction(cursor)?;
-        fields.push(StructuralFieldDeclaration {
+        Ok(StructuralFieldDeclaration {
             storage: None,
             id,
             identity,
             relevance,
             field_type,
-        });
-    }
+        })
+    })?;
     Ok(fields)
 }
 
@@ -728,28 +725,24 @@ pub(super) fn decode_entry_claim(
 pub(in super::super) fn decode_path(
     cursor: &mut Cursor<'_>,
 ) -> Result<Vec<StructuralPathSegment>, FixedViewCopyDecodeError> {
-    let count = cursor.length()?;
-    let mut path = Vec::with_capacity(count.min(cursor.remaining()));
-    for _ in 0..count {
+    let path = decode_list::<_, FixedViewCopyDecodeError>(cursor, |cursor| {
         let tag = cursor.byte()?;
-        path.push(decode_projection(cursor, tag)?);
-    }
+        Ok(decode_projection(cursor, tag)?)
+    })?;
     Ok(path)
 }
 
 pub(super) fn decode_reference_origin_path(
     cursor: &mut Cursor<'_>,
 ) -> Result<Vec<terminal_psi::ReferenceOriginProjection>, FixedViewCopyDecodeError> {
-    let count = cursor.length()?;
-    let mut path = Vec::with_capacity(count.min(cursor.remaining()));
-    for _ in 0..count {
+    let path = decode_list::<_, FixedViewCopyDecodeError>(cursor, |cursor| {
         let tag = cursor.byte()?;
-        path.push(if tag == 9 {
+        Ok(if tag == 9 {
             terminal_psi::ReferenceOriginProjection::Element
         } else {
             terminal_psi::ReferenceOriginProjection::Exact(decode_projection(cursor, tag)?)
-        });
-    }
+        })
+    })?;
     Ok(path)
 }
 
