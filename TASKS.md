@@ -587,6 +587,8 @@ defines the complete product bar.
     executes through Terminal Psi and native code with fact-sensitive rejects.
     Public/escaping helpers and changed storage retain their proof obligations;
     private cyclic inference remains conservative.
+    The same [fact with observable helper writes](samples/cli/facts/nested_machine_invocation/private_arithmetic/mutable/README.md)
+    now crosses explicit mutable-reference invocations without granting denotational purity.
     [Lexical entry selection](samples/cli/facts/nested_machine_invocation/lexical_entry/README.md)
     now preserves source helper signatures instead of selecting generated body
     coordinates; qualified calls share source-certified namespace elaboration.
