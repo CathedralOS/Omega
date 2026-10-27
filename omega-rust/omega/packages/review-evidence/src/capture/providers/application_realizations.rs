@@ -79,7 +79,7 @@ pub(crate) fn project_boundary_application_realizations(
             requirement_identity: realization.requirement_overload_identity,
             operator_declaration: nominal_identity(compilation, realization.requirement_operator)?,
             application: PackageReviewBoundaryApplication::Empty,
-            selected_plan_digest: *realization.provider_plan_commitment.as_bytes(),
+            selected_plan_digest: realization.provider_plan_commitment.as_bytes(),
             realization: PackageReviewBoundaryApplicationRealization::NongenericCheckedBody {
                 realization_machine: nominal_identity(
                     compilation,
@@ -188,7 +188,7 @@ fn project_specialized_checked_body_applications(
             requirement_identity: realization.requirement_overload_identity,
             operator_declaration: nominal_identity(compilation, realization.requirement_operator)?,
             application,
-            selected_plan_digest: *realization.provider_plan_commitment.as_bytes(),
+            selected_plan_digest: realization.provider_plan_commitment.as_bytes(),
             realization: PackageReviewBoundaryApplicationRealization::SpecializedCheckedBody {
                 realization_template: nominal_identity(
                     compilation,
