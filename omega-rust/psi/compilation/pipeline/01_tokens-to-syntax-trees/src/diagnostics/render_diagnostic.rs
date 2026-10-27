@@ -1,6 +1,6 @@
 use crate::diagnostics::parse_error::ParseError;
 use crate::input::token_cursor::Input;
-use tokens::{CommentKind, KeywordKind, PunctuationKind, Token, TokenKind};
+use tokens::{CommentKind, Token, TokenKind};
 
 pub(crate) fn unexpected_eof<'tokens, 'source>(
     input: Input<'tokens, 'source>,
@@ -55,94 +55,12 @@ fn describe_token(input: Input<'_, '_>, token: &Token) -> String {
         TokenKind::Identifier => format!("identifier `{}`", input.text(token).as_str()),
         TokenKind::NumericLiteral(_) => format!("numeric literal `{}`", input.text(token).as_str()),
         TokenKind::StringLiteral => "string literal".to_owned(),
-        TokenKind::Keyword(keyword) => format!("keyword `{}`", render_keyword(keyword)),
+        TokenKind::Keyword(keyword) => format!("keyword `{}`", keyword.lexeme()),
         TokenKind::Punctuation(punctuation) => {
-            format!("punctuation `{}`", render_punctuation(punctuation))
+            format!("punctuation `{}`", punctuation.lexeme())
         }
         TokenKind::Whitespace => "whitespace".to_owned(),
         TokenKind::Comment(CommentKind::Line) => "line comment".to_owned(),
         TokenKind::Comment(CommentKind::Block) => "block comment".to_owned(),
-    }
-}
-
-fn render_keyword(keyword: KeywordKind) -> &'static str {
-    match keyword {
-        KeywordKind::As => "as",
-        KeywordKind::Capability => "capability",
-        KeywordKind::Data => "data",
-        KeywordKind::CallingConvention => "calling_convention",
-        KeywordKind::Contains => "contains",
-        KeywordKind::Else => "else",
-        KeywordKind::False => "false",
-        KeywordKind::Foreign => "foreign",
-        KeywordKind::Host => "host",
-        KeywordKind::If => "if",
-        KeywordKind::Let => "let",
-        KeywordKind::Library => "library",
-        KeywordKind::Loop => "loop",
-        KeywordKind::Machine => "machine",
-        KeywordKind::Match => "match",
-        KeywordKind::Owns => "owns",
-        KeywordKind::Platform => "platform",
-        KeywordKind::Public => "public",
-        KeywordKind::Return => "return",
-        KeywordKind::SelfValue => "self",
-        KeywordKind::State => "state",
-        KeywordKind::Struct => "struct",
-        KeywordKind::Target => "target",
-        KeywordKind::Transition => "transition",
-        KeywordKind::True => "true",
-        KeywordKind::Use => "use",
-        KeywordKind::When => "when",
-        KeywordKind::While => "while",
-        KeywordKind::Unknown => "<unknown>",
-    }
-}
-
-fn render_punctuation(punctuation: PunctuationKind) -> &'static str {
-    match punctuation {
-        PunctuationKind::Ampersand => "&",
-        PunctuationKind::AndAnd => "&&",
-        PunctuationKind::Apostrophe => "'",
-        PunctuationKind::Arrow => "->",
-        PunctuationKind::Asterisk => "*",
-        PunctuationKind::Caret => "^",
-        PunctuationKind::Colon => ":",
-        PunctuationKind::ColonColon => "::",
-        PunctuationKind::Comma => ",",
-        PunctuationKind::Dot => ".",
-        PunctuationKind::DotDot => "..",
-        PunctuationKind::DotDotEqual => "..=",
-        PunctuationKind::Equal => "=",
-        PunctuationKind::EqualEqual => "==",
-        PunctuationKind::Exclamation => "!",
-        PunctuationKind::ExclamationEqual => "!=",
-        PunctuationKind::Greater => ">",
-        PunctuationKind::GreaterEqual => ">=",
-        PunctuationKind::GreaterGreater => ">>",
-        PunctuationKind::Hash => "#",
-        PunctuationKind::LeftBrace => "{",
-        PunctuationKind::LeftBracket => "[",
-        PunctuationKind::LeftParen => "(",
-        PunctuationKind::Less => "<",
-        PunctuationKind::LessEqual => "<=",
-        PunctuationKind::LessLess => "<<",
-        PunctuationKind::Minus => "-",
-        PunctuationKind::Percent => "%",
-        PunctuationKind::Pipe => "|",
-        PunctuationKind::PipePipe => "||",
-        PunctuationKind::Plus => "+",
-        PunctuationKind::PlusEqual => "+=",
-        PunctuationKind::MinusEqual => "-=",
-        PunctuationKind::AsteriskEqual => "*=",
-        PunctuationKind::SlashEqual => "/=",
-        PunctuationKind::PercentEqual => "%=",
-        PunctuationKind::RightBrace => "}",
-        PunctuationKind::RightBracket => "]",
-        PunctuationKind::RightParen => ")",
-        PunctuationKind::Semicolon => ";",
-        PunctuationKind::Slash => "/",
-        PunctuationKind::Tilde => "~",
-        PunctuationKind::Unknown => "<unknown>",
     }
 }
