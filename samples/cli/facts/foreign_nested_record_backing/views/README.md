@@ -3,7 +3,40 @@
 Parent: [NORMALIZED-ABI-LOWERING](../../../../../TASKS.md). This extends
 [retained nested backing](../README.md) to an explicitly borrowed array.
 
-A mutable foreign registration retains the original fixed-array view in Buffer until Pending completes; completion writes the middle caller cell to 73 while both neighbors, marker 91 and the earlier copy 37 remain unchanged.
+A mutable foreign registration retains the original fixed-array view in Buffer until Pending completes; the restored middle Cell satisfies ResidentValue for observed_gap, while completion writes 73 and preserves both neighbors, marker 91 and the earlier copy 37.
+
+`Cell.value` carries `ResidentValue`: `0..=2147483647`, excluding 42.
+After completion, `observed_gap` requires that complete declared predicate and
+subtracts the field from 2147483647; the caller checks the resulting 2147483574
+alongside the original canaries. No caller guard re-establishes membership.
+The compact [missing field predicate control](controls/missing_leaf_predicate/main.omg)
+keeps an unqualified public Cell input and must reject the same consuming call.
+The nine exclusive-loan twins remain separate guards on the retained window.
+
+The compact [generic borrowed-root control](controls/generic_borrowed_root/main.omg)
+passes `Wrapper<Cell>` through ordinary mutable calls, consumes the same predicate,
+and checks the original backing after retiring its view. It protects the shared
+call-publication path independently of foreign registration.
+
+Optimized producer `1d92ab9b09e` executes all nine qualified view places and that
+composition control with native/Terminal zero agreement on macOS ARM64. All ten
+intended source rejects hold; the scoped corpus observes ten checked positives,
+ten rejects and ten native/Terminal agreements. The 43 earlier retained-pointer
+programs also agree. Independent source and runtime reviews, exact producers,
+source snapshots and native/Psi products are retained under
+`/Users/zcanann/Omega-build/qualified-borrowed-array-view-2026-10-27/`.
+The failed first aggregate driver remains failed: it required package review for
+an intentionally invalid loan read after all ten positives had completed. Only
+the unrun source controls were executed separately.
+
+The frozen `f5e853ea1f2` baseline source-checks all nine strengthened positives
+but fails lowering with `structural result custody cannot manufacture an owned
+reference`; the unqualified predecessor still executes successfully. A generic
+borrowed-root regression exposed by the initial repair is fixed without weakening
+its complete predicate or exact nominal carrier lookup. Baselines remain under
+`/Users/zcanann/Omega-build/qualified-borrowed-array-view-probe-2026-10-27/`.
+Linux and Windows runs for `1d92ab9b09e` remain pending. The older matching-host
+records below establish only the unqualified predecessor, not this extension.
 
 `Buffer<'cells>` contains `&'cells mut [Cell; 3]`. The C counterpart stores
 `struct cell (*cells)[3]`: one explicit pointer to a fixed array, with no C
@@ -73,5 +106,5 @@ counted as successful whole-suite qualification.
 
 This row establishes the finite borrowed fixed-array descriptor and its original
 backing. Recursive/dynamic pointer graphs, newly introduced provider-owned
-roots, opaque owned reference value/results, tagged carriers and independently
-qualified descendants remain outside this evidence and keep the parent open.
+roots, opaque owned reference value/results, tagged carriers and nominal/routed
+descendant memberships remain outside this evidence and keep the parent open.

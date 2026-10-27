@@ -30,6 +30,7 @@ use crate::terminal_identities::{
 };
 
 pub(crate) mod affine_cleanup;
+pub(crate) mod call_qualifications;
 pub(crate) mod claim_bindings;
 pub(crate) mod completed_address;
 pub(crate) mod completed_place;

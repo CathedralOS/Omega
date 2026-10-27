@@ -88,152 +88,51 @@ pub fn observed_storage_type_references(
     atomic: bool,
 ) -> Result<StorageObservationTypePath, StorageObservationTypePathError> {
     use checked_trees::CheckedUnitStructuralPathSegment as Segment;
-    use typed_trees::data::DataMember;
     use typed_trees::types::TypeReferenceNode;
 
     let final_field = field
         .is_valid()
         .then(|| Segment::Field(field_identity.clone()));
-    let mut current = source_type;
-    let mut references = vec![(current, 0)];
-    let mut substitutions = Vec::new();
-    let mut selected_case = None;
+    let mut cursor = ObservationTypeCursor::new(source_type);
+    let mut references = vec![(source_type, 0)];
     for (ordinal, segment) in path.iter().chain(final_field.iter()).enumerate() {
-        current = substituted_type_reference(program, current, &substitutions);
-        let carrier = crate::peel_declared_constraints(program, current);
-        let current_type_identity =
-            program.type_identity(typed_trees::type_identity::TypeIdentityRequest {
-                substitutions: &substitutions,
-                ..typed_trees::type_identity::TypeIdentityRequest::ordinary(current)
-            });
-        let failure = |reason| StorageObservationTypePathError {
-            segment_ordinal: ordinal,
-            segment: Some(segment.clone()),
-            source_type,
-            current_type: current,
-            current_type_identity: program
-                .type_identity_text(current_type_identity)
-                .unwrap_or_default(),
-            reason,
-        };
-        current = match segment {
-            Segment::Referent => {
-                if selected_case.is_some() {
-                    return Err(failure("reference crossing interrupts a selected case"));
-                }
-                let TypeReferenceNode::Reference {
-                    referee, access, ..
-                } = program.type_reference_table.type_reference(carrier)
-                else {
-                    return Err(failure("reference crossing has no reference carrier"));
-                };
-                if !access.is_readable() {
-                    return Err(failure("field observation crosses a write-only reference"));
-                }
-                *referee
-            }
-            Segment::Case(identity) => {
-                if selected_case.is_some() {
-                    return Err(failure("case selection interrupts another selected case"));
-                }
-                let data = observation_data_declaration(program, carrier, &substitutions)
-                    .ok_or_else(|| failure("case carrier has no exact data declaration"))?;
-                let mut matching = program.data_members(data).iter().filter_map(|member| {
-                    let DataMember::Variant(case) = member else {
-                        return None;
-                    };
-                    (checked_trees::CheckedMemberIdentity::of_member(
-                        case.identity,
-                        case.name.clone(),
-                    ) == *identity)
-                        .then_some(case)
-                });
-                selected_case = Some(
-                    matching
-                        .next()
-                        .ok_or_else(|| failure("case identity is absent from its carrier"))?,
-                );
-                if matching.next().is_some() {
-                    return Err(failure("case identity is ambiguous in its carrier"));
-                }
-                continue;
-            }
-            Segment::Field(identity) => {
-                let data = observation_data_declaration(program, carrier, &substitutions)
-                    .ok_or_else(|| failure("field carrier has no exact data declaration"))?;
-                let case = selected_case.take();
-                let payloads = case.map_or(&[][..], |case| program.data_payload_fields(case));
-                let fields = program
-                    .data_members(data)
-                    .iter()
-                    .filter_map(|member| match member {
-                        DataMember::Field(field) if case.is_none() => Some(field),
-                        _ => None,
-                    });
-                let mut matching = payloads.iter().chain(fields).filter(|candidate| {
-                    checked_trees::CheckedMemberIdentity::of_member(
-                        candidate.identity,
-                        candidate.name.clone(),
-                    ) == *identity
-                });
-                let selected = matching
-                    .next()
-                    .ok_or_else(|| failure("field identity is absent from its carrier"))?;
-                if matching.next().is_some() {
-                    return Err(failure("field identity is ambiguous in its carrier"));
-                }
-                field_type_reference(program, current, selected.symbol, &mut substitutions)
-                    .ok_or_else(|| failure("field type lost its supplying application"))?
-            }
-            Segment::FixedIndex(index) => {
-                if selected_case.is_some() {
-                    return Err(failure("index interrupts a selected case payload"));
-                }
-                if let Some(length) = crate::fixed_array_type_length(program, carrier)
-                    && usize::try_from(*index).map_or(true, |index| index >= length)
-                {
-                    return Err(failure("fixed index exceeds its declared collection"));
-                }
-                if matches!(
-                    program.type_reference_table.type_reference(carrier),
-                    TypeReferenceNode::Reference { .. }
-                ) {
-                    return Err(failure("index requires its explicit reference crossing"));
-                }
-                indexed_element_type_reference(program, current, &substitutions)
-                    .ok_or_else(|| failure("index carrier has no collection element"))?
-            }
-            Segment::RuntimeIndex(_) | Segment::ComputedIndex(_) => {
-                if selected_case.is_some() {
-                    return Err(failure("index interrupts a selected case payload"));
-                }
-                if matches!(
-                    program.type_reference_table.type_reference(carrier),
-                    TypeReferenceNode::Reference { .. }
-                ) {
-                    return Err(failure("index requires its explicit reference crossing"));
-                }
-                indexed_element_type_reference(program, current, &substitutions)
-                    .ok_or_else(|| failure("index carrier has no collection element"))?
-            }
-            _ => {
-                return Err(failure(
-                    "field observation has a non-field projection segment",
-                ));
-            }
-        };
-        current = substituted_type_reference(program, current, &substitutions);
-        references.push((current, substitutions.len()));
+        let current = cursor.projection.normalize(program);
+        let identity = program.type_identity(typed_trees::type_identity::TypeIdentityRequest {
+            substitutions: &cursor.projection.substitutions,
+            ..typed_trees::type_identity::TypeIdentityRequest::ordinary(current)
+        });
+        let _ =
+            cursor
+                .advance(program, segment)
+                .map_err(|reason| StorageObservationTypePathError {
+                    segment_ordinal: ordinal,
+                    segment: Some(segment.clone()),
+                    source_type,
+                    current_type: current,
+                    current_type_identity: program.type_identity_text(identity).unwrap_or_default(),
+                    reason,
+                })?;
+        if !matches!(segment, Segment::Case(_)) {
+            references.push((
+                cursor.projection.normalize(program),
+                cursor.projection.substitutions.len(),
+            ));
+        }
     }
+    let current = cursor.projection.normalize(program);
     let failure = |reason| StorageObservationTypePathError {
         segment_ordinal: path.len() + usize::from(field.is_valid()),
         segment: None,
         source_type,
         current_type: current,
-        current_type_identity: observation_type_identity_text(program, current, &substitutions),
+        current_type_identity: observation_type_identity_text(
+            program,
+            current,
+            &cursor.projection.substitutions,
+        ),
         reason,
     };
-    if selected_case.is_some() {
+    if cursor.selected_case.is_some() {
         return Err(failure("field observation ends in an unprojected case"));
     }
     if atomic {
@@ -252,14 +151,247 @@ pub fn observed_storage_type_references(
                 "atomic observation ends at an ordinary scalar leaf",
             ));
         }
-        // Atomic fields have Atomic(ScalarType) representation inside their
-        // owner; no standalone structural wrapper is manufactured for them.
+        // Atomic fields use their owner's scalar representation.
         references.pop();
     }
     Ok(StorageObservationTypePath {
         entries: references,
-        substitutions,
+        substitutions: cursor.projection.substitutions,
     })
+}
+
+/// Resolve an already checked membership's root-relative storage coordinate.
+/// Pointer crossings describe the actual stored presentation; they confer no
+/// access, lifetime, membership or ownership. The publisher retains the exact
+/// checked occurrence and Core authenticates its live restoration window.
+/// A final reference remains the selected descriptor home. If the membership
+/// qualifies its referent, `result_membership_carrier` supplies that separate,
+/// domain-sensitive suffix; the place alone cannot choose the endpoint.
+pub fn qualification_storage_path(
+    program: &dyn crate::CheckingInput,
+    root_type: TypeReferenceHandle,
+    segments: &[facts::PlaceSegment],
+) -> Result<Vec<checked_trees::CheckedUnitStructuralPathSegment>, &'static str> {
+    use checked_trees::CheckedUnitStructuralPathSegment as Segment;
+    use typed_trees::types::TypeReferenceNode;
+
+    if !root_type.is_valid() {
+        return Err("qualification storage has no exact root type");
+    }
+    let mut cursor = ObservationTypeCursor::new(root_type);
+    let mut path = Vec::with_capacity(segments.len());
+    for segment in segments {
+        let mut crossed = Vec::new();
+        loop {
+            let carrier = cursor.carrier(program)?;
+            if !matches!(
+                program.type_reference_table.type_reference(carrier),
+                TypeReferenceNode::Reference { .. }
+            ) {
+                break;
+            }
+            if crossed.contains(&carrier) {
+                return Err("qualification storage crosses a cyclic reference carrier");
+            }
+            crossed.push(carrier);
+            let stored_pointer =
+                crate::stores_reference_shape(program, carrier, &cursor.projection.substitutions);
+            let _ = cursor.advance(program, &Segment::Referent)?;
+            // Slice views already store their referent presentation. They
+            // are not an additional ordinary pointer wrapper.
+            if stored_pointer {
+                path.push(Segment::Referent);
+            }
+        }
+        let (checked, symbol) = match segment {
+            facts::PlaceSegment::Field { symbol } => (
+                Segment::Field(
+                    super::structural_member_identity(program, *symbol)
+                        .ok_or("qualification field has no exact member identity")?,
+                ),
+                Some(*symbol),
+            ),
+            facts::PlaceSegment::Case { variant } => (
+                Segment::Case(
+                    super::structural_member_identity(program, *variant)
+                        .ok_or("qualification case has no exact member identity")?,
+                ),
+                Some(*variant),
+            ),
+            facts::PlaceSegment::FixedIndex { index } => (
+                Segment::FixedIndex(
+                    u64::try_from(*index).map_err(|_| "qualification index exceeds u64")?,
+                ),
+                None,
+            ),
+            facts::PlaceSegment::Index { .. } => {
+                return Err("qualification storage requires a statically captured index");
+            }
+            facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::OpaqueRange => {
+                return Err("qualification storage has an unsupported collection window");
+            }
+        };
+        if cursor.advance(program, &checked)? != symbol {
+            return Err("qualification member differs from its exact typed owner");
+        }
+        path.push(checked);
+    }
+    if cursor.selected_case.is_some() {
+        return Err("qualification storage ends in an unprojected case");
+    }
+    Ok(path)
+}
+
+/// Both checked observations and canonical qualification coordinates consume
+/// this one applied field/case/index grammar and substitution environment.
+struct ObservationTypeCursor<'program> {
+    projection: ProjectionTypeCursor,
+    selected_case: Option<&'program typed_trees::data::DataVariant>,
+}
+
+impl<'program> ObservationTypeCursor<'program> {
+    fn new(reference: TypeReferenceHandle) -> Self {
+        Self {
+            projection: ProjectionTypeCursor::new(reference),
+            selected_case: None,
+        }
+    }
+
+    fn carrier(
+        &mut self,
+        program: &dyn crate::CheckingInput,
+    ) -> Result<TypeReferenceHandle, &'static str> {
+        let current = self.projection.normalize(program);
+        crate::value_custody::reference_shells::peel_carrier_shells(
+            program,
+            current,
+            &self.projection.substitutions,
+        )
+        .ok_or("observation carrier has no finite supplying application")
+    }
+
+    /// Return the actual selected member, so a canonical symbol cannot be
+    /// reinterpreted as a same-spelled member of another declaration.
+    fn advance(
+        &mut self,
+        program: &'program dyn crate::CheckingInput,
+        segment: &checked_trees::CheckedUnitStructuralPathSegment,
+    ) -> Result<Option<SymbolHandle>, &'static str> {
+        use checked_trees::CheckedUnitStructuralPathSegment as Segment;
+        use typed_trees::{data::DataMember, types::TypeReferenceNode};
+
+        let current = self.projection.normalize(program);
+        let carrier = self.carrier(program)?;
+        let mut member = None;
+        self.projection.current = match segment {
+            Segment::Referent => {
+                if self.selected_case.is_some() {
+                    return Err("reference crossing interrupts a selected case");
+                }
+                let TypeReferenceNode::Reference {
+                    referee, access, ..
+                } = program.type_reference_table.type_reference(carrier)
+                else {
+                    return Err("reference crossing has no reference carrier");
+                };
+                if !access.is_readable() {
+                    return Err("field observation crosses a write-only reference");
+                }
+                *referee
+            }
+            Segment::Case(identity) => {
+                if self.selected_case.is_some() {
+                    return Err("case selection interrupts another selected case");
+                }
+                let data =
+                    observation_data_declaration(program, carrier, &self.projection.substitutions)
+                        .ok_or("case carrier has no exact data declaration")?;
+                let mut matching = program.data_members(data).iter().filter_map(|value| {
+                    let DataMember::Variant(case) = value else {
+                        return None;
+                    };
+                    (case.member_identity() == *identity).then_some(case)
+                });
+                let case = matching
+                    .next()
+                    .ok_or("case identity is absent from its carrier")?;
+                if matching.next().is_some() {
+                    return Err("case identity is ambiguous in its carrier");
+                }
+                self.selected_case = Some(case);
+                return Ok(Some(case.symbol));
+            }
+            Segment::Field(identity) => {
+                let data =
+                    observation_data_declaration(program, carrier, &self.projection.substitutions)
+                        .ok_or("field carrier has no exact data declaration")?;
+                let case = self.selected_case.take();
+                let payloads = case.map_or(&[][..], |case| program.data_payload_fields(case));
+                let fields = program
+                    .data_members(data)
+                    .iter()
+                    .filter_map(|value| match value {
+                        DataMember::Field(field) if case.is_none() => Some(field),
+                        _ => None,
+                    });
+                let mut matching = payloads
+                    .iter()
+                    .chain(fields)
+                    .filter(|field| field.member_identity() == *identity);
+                let selected = matching
+                    .next()
+                    .ok_or("field identity is absent from its carrier")?;
+                if matching.next().is_some() {
+                    return Err("field identity is ambiguous in its carrier");
+                }
+                if selected.relevance.is_erased() {
+                    return Err("field observation traverses an erased field");
+                }
+                member = Some(selected.symbol);
+                field_type_reference(
+                    program,
+                    current,
+                    selected.symbol,
+                    &mut self.projection.substitutions,
+                )
+                .ok_or("field type lost its supplying application")?
+            }
+            Segment::FixedIndex(index) => {
+                if self.selected_case.is_some() {
+                    return Err("index interrupts a selected case payload");
+                }
+                if let Some(length) = crate::fixed_array_type_length(program, carrier)
+                    && usize::try_from(*index).map_or(true, |index| index >= length)
+                {
+                    return Err("fixed index exceeds its declared collection");
+                }
+                if matches!(
+                    program.type_reference_table.type_reference(carrier),
+                    TypeReferenceNode::Reference { .. }
+                ) {
+                    return Err("index requires its explicit reference crossing");
+                }
+                indexed_element_type_reference(program, current, &self.projection.substitutions)
+                    .ok_or("index carrier has no collection element")?
+            }
+            Segment::RuntimeIndex(_) | Segment::ComputedIndex(_) => {
+                if self.selected_case.is_some() {
+                    return Err("index interrupts a selected case payload");
+                }
+                if matches!(
+                    program.type_reference_table.type_reference(carrier),
+                    TypeReferenceNode::Reference { .. }
+                ) {
+                    return Err("index requires its explicit reference crossing");
+                }
+                indexed_element_type_reference(program, current, &self.projection.substitutions)
+                    .ok_or("index carrier has no collection element")?
+            }
+            _ => return Err("field observation has a non-field projection segment"),
+        };
+        self.projection.normalize(program);
+        Ok(member)
+    }
 }
 
 fn observation_type_identity_text(

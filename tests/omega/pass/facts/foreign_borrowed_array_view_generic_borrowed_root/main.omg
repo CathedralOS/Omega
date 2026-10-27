@@ -1,0 +1,19 @@
+// Expected exit: 0. Qualification restoration follows the selected generic field through borrowed generic carrier.
+use omega::language::core::drop;
+public domain u64::ResidentValue(value) requires value >= 0 && value <= 2147483647 && value != 42;
+public data Cell { left: u64; value: u64 in ResidentValue; right: u64; }
+public data Wrapper<T> { item: T; }
+machine observed_gap(value: u64 in ResidentValue) -> u64 { 2147483647 - value }
+machine touch(slot: &mut Wrapper<Cell>) { slot.item.value = 73; }
+machine relay(slot: &mut Wrapper<Cell>) { touch(slot); }
+machine entry_start() crashes Trap {
+    let mut wrapper: Wrapper<Cell> = Wrapper { item: Cell { left: 91, value: 37, right: 1515863100 } };
+    let original: u64 = wrapper.item.value;
+    let mut view: &mut Wrapper<Cell> = &mut wrapper;
+    relay(&mut view);
+    let gap: u64 = observed_gap(view.item.value);
+    drop(view);
+    transition gap == 2147483574 && wrapper.item.value == 73 && wrapper.item.left == 91 && wrapper.item.right == 1515863100 && original == 37 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

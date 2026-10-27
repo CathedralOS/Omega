@@ -590,10 +590,10 @@ pub use value_custody::places::{
     nearest_scoped_local, observed_storage_type_references, owned_projection_type_reference,
     parameter_source_type_application, place_root_may_be_symbol,
     project_type_reference_from_segments, projected_statement_receiver_place,
-    projected_statement_receiver_type_reference, push_field_place_segments, receiver_projections,
-    resolve_member_symbol_from_type_symbol, runtime_field_subject, state_scoped_name_symbol,
-    structural_member_identity, symbol_type_symbol, unique_data_definition_by_symbol,
-    whole_collection_view_source,
+    projected_statement_receiver_type_reference, push_field_place_segments,
+    qualification_storage_path, receiver_projections, resolve_member_symbol_from_type_symbol,
+    runtime_field_subject, state_scoped_name_symbol, structural_member_identity,
+    symbol_type_symbol, unique_data_definition_by_symbol, whole_collection_view_source,
 };
 
 /// Walk a type-reference table once into a positional row vector: row 0 is

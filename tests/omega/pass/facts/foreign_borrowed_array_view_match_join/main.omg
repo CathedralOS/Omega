@@ -1,10 +1,11 @@
-// Fact: A mutable foreign registration retains the original fixed-array view in Buffer until Pending completes; completion writes the middle caller cell to 73 while both neighbors, marker 91 and the earlier copy 37 remain unchanged.
+// Fact: A mutable foreign registration retains the original fixed-array view in Buffer until Pending completes; the restored middle Cell satisfies ResidentValue for observed_gap, while completion writes 73 and preserves both neighbors, marker 91 and the earlier copy 37.
 // Expected exit: 0. Both writes reach the caller array through its checked fixed-array reference.
 use omega::language::core::content;
 use omega::language::core::drop;
 use omega::language::core::external_binding;
 public data ByteUnit {}
-public data Cell { value: u64; }
+public domain u64::ResidentValue(value) requires value >= 0 && value <= 2147483647 && value != 42;
+public data Cell { value: u64 in ResidentValue; }
 public data Buffer<'cells> [linear] { marker: u64; cells: &'cells mut [Cell; 3]; }
 machine Buffer::drop(buffer: &mut Buffer<'cells>) {}
 public domain Buffer::Owned;
@@ -151,6 +152,7 @@ machine run_case(main: &mut Main, choose_first: bool, expected_route: u64) reach
     let returned: Capacity in Capacity::Available = Writer::complete(routed.pending, &mut observed);
     Writer::release(returned);
     let value: u64 = buffer.cells[1].value;
+    let gap: u64 = observed_gap(buffer.cells[1].value);
     let left: u64 = buffer.cells[0].value;
     let right: u64 = buffer.cells[2].value;
     let marker: u64 = buffer.marker;
@@ -158,11 +160,12 @@ machine run_case(main: &mut Main, choose_first: bool, expected_route: u64) reach
     let caller_value: u64 = cells[1].value;
     let caller_left: u64 = cells[0].value;
     let caller_right: u64 = cells[2].value;
-    transition observed == 73 && value == 73 && original == 37 && marker == 91 && left == 305419896 && right == 1515863100 && caller_value == 73 && caller_left == 305419896 && caller_right == 1515863100 && observed_route == expected_route { true -> done() _ -> bad() }
+    transition gap == 2147483574 && observed == 73 && value == 73 && original == 37 && marker == 91 && left == 305419896 && right == 1515863100 && caller_value == 73 && caller_left == 305419896 && caller_right == 1515863100 && observed_route == expected_route { true -> done() _ -> bad() }
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
 }
 
+machine observed_gap(value: u64 in ResidentValue) -> u64 { 2147483647 - value }
 machine run_main(main: &mut Main) reaches Writer crashes Trap {
     run_case(main, true, 11);
     run_case(main, false, 22);

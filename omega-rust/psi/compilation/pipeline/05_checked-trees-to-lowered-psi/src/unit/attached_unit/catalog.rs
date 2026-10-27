@@ -1069,6 +1069,11 @@ pub(super) fn lower_unit_structural_domains(
             continue;
         }
         for fact in crate::emission::loan_completions::qualification_facts(checked, region) {
+            if crate::emission::call_qualifications::declaration_represents(
+                identities, checked, fact,
+            )? {
+                continue;
+            }
             if let Some((_, _, _, domain)) = fact.payload.domain_membership()
                 && !selected.contains(&domain)
             {
@@ -1078,6 +1083,38 @@ pub(super) fn lower_unit_structural_domains(
     }
     for symbol in closure {
         let body = UnitBody::find(plans, *symbol)?;
+        // Statement-call publications and returned custody consume the same
+        // exact occurrence inventory. A declaration-represented scalar duty
+        // is discharged there, while every nominal row roots its theory here.
+        for (state, operation) in body.operations_with_states() {
+            let Some(call) = operation.call() else {
+                continue;
+            };
+            let (machine, _) = crate::declarations::state_declaration(checked, state)?;
+            let coordinate = crate::emission::operation_emission::buffer::SourceCallCoordinate {
+                state,
+                statement_index: call.coordinate.statement_index as usize,
+                call_ordinal: call.coordinate.call_ordinal as usize,
+            };
+            let homes = body.structural_home_roots(checked, state)?;
+            for fact in crate::emission::call_qualifications::for_call(
+                checked,
+                machine.symbol,
+                coordinate,
+                |root| homes.contains(&root),
+            ) {
+                if crate::emission::call_qualifications::declaration_represents(
+                    identities, checked, fact,
+                )? {
+                    continue;
+                }
+                if let Some((_, _, _, domain)) = fact.payload.domain_membership()
+                    && !selected.contains(&domain)
+                {
+                    selected.push(domain);
+                }
+            }
+        }
         // A callable publishes its result contract even when its only caller
         // observes a field immediately. Register that signature's domains here,
         // not incidentally through a receiving local or another parameter.
