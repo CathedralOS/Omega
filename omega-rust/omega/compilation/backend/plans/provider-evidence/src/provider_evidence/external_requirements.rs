@@ -5,7 +5,7 @@
 //! the evaluated locator and calling contract. Neither this join nor its lookup
 //! grants execution, same-stack custody, or receiving permission.
 
-use super::{SelectedProviderPlanFacts, identity_text, selected_closure_report_fingerprint};
+use super::{SelectedProviderPlanFacts, identity_text};
 use crate::provider_plan::{ProviderBinding, ProviderPlanDigest};
 use terminal_psi::{TerminalIdentityIndex, TerminalIdentityTable};
 
@@ -102,14 +102,7 @@ impl SelectedProviderPlanFacts {
             }
         }
         self.external_requirement_applications = rows;
-        self.report_fingerprint = selected_closure_report_fingerprint(
-            &self.plans,
-            &self.installation_reach_resolutions,
-            &self.specialized_requirement_rows,
-            &self.family_realization_rows,
-            &self.external_requirement_applications,
-            &self.identities,
-        );
+        self.refresh_report_fingerprint();
         Ok(self)
     }
 }

@@ -324,7 +324,7 @@ impl SelectedProviderPlanFacts {
         self.plans.push(plan);
         self.plans.sort_by(ProviderPlan::selection_order);
         self.toolchain_settled_identities.insert(identity);
-        self.report_fingerprint = selected_plans_report_fingerprint(&self.plans);
+        self.refresh_report_fingerprint();
         Ok(self)
     }
 
@@ -370,14 +370,7 @@ impl SelectedProviderPlanFacts {
         self.identities = identities.build();
         self.plans.extend(checked.plans);
         self.plans.sort_by(ProviderPlan::selection_order);
-        self.report_fingerprint = selected_closure_report_fingerprint(
-            &self.plans,
-            &self.installation_reach_resolutions,
-            &self.specialized_requirement_rows,
-            &self.family_realization_rows,
-            &self.external_requirement_applications,
-            &self.identities,
-        );
+        self.refresh_report_fingerprint();
         Ok(self)
     }
 
@@ -413,6 +406,24 @@ impl SelectedProviderPlanFacts {
 
     pub const fn report_fingerprint(&self) -> u64 {
         self.report_fingerprint
+    }
+
+    /// Re-derive the compact report coordinate from every roster this closure
+    /// retains. The roster is named here once: `plans`, installation reach,
+    /// specialized requirement rows, family realization rows and closed
+    /// external applications each join the fingerprint at this owner rather
+    /// than at the attachment method that happened to mutate them. Empty
+    /// rosters contribute nothing, so a closure with no attached evidence
+    /// keeps the plans-only coordinate.
+    fn refresh_report_fingerprint(&mut self) {
+        self.report_fingerprint = selected_closure_report_fingerprint(
+            &self.plans,
+            &self.installation_reach_resolutions,
+            &self.specialized_requirement_rows,
+            &self.family_realization_rows,
+            &self.external_requirement_applications,
+            &self.identities,
+        );
     }
 
     /// Non-authoritative compatibility/report identity retained for existing
@@ -578,14 +589,7 @@ impl SelectedProviderPlanFacts {
             }
         }
         self.installation_reach_resolutions = resolutions;
-        self.report_fingerprint = selected_closure_report_fingerprint(
-            &self.plans,
-            &self.installation_reach_resolutions,
-            &self.specialized_requirement_rows,
-            &self.family_realization_rows,
-            &self.external_requirement_applications,
-            &self.identities,
-        );
+        self.refresh_report_fingerprint();
         Ok(self)
     }
 
@@ -691,14 +695,7 @@ impl SelectedProviderPlanFacts {
         }
         self.specialized_requirement_rows = rows;
         self.validate_family_realization_rows(&self.family_realization_rows)?;
-        self.report_fingerprint = selected_closure_report_fingerprint(
-            &self.plans,
-            &self.installation_reach_resolutions,
-            &self.specialized_requirement_rows,
-            &self.family_realization_rows,
-            &self.external_requirement_applications,
-            &self.identities,
-        );
+        self.refresh_report_fingerprint();
         Ok(self)
     }
 
@@ -887,14 +884,7 @@ impl SelectedProviderPlanFacts {
         rows.sort_by_cached_key(|row| self.identity_text(row.head_identity).to_owned());
         self.validate_family_realization_rows(&rows)?;
         self.family_realization_rows = rows;
-        self.report_fingerprint = selected_closure_report_fingerprint(
-            &self.plans,
-            &self.installation_reach_resolutions,
-            &self.specialized_requirement_rows,
-            &self.family_realization_rows,
-            &self.external_requirement_applications,
-            &self.identities,
-        );
+        self.refresh_report_fingerprint();
         Ok(self)
     }
 
