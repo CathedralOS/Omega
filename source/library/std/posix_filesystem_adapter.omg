@@ -1656,7 +1656,9 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
         filesystem.rda_close_rc = PosixFilesystemHost::close(filesystem.rda_fd);
         transition filesystem.rda_depth >= 1 { true -> rds_pop_go(filesystem) _ -> rds_fail(filesystem) }
     }
-    machine rds_pop_go(filesystem: &mut PosixFilesystem) {
+    machine rds_pop_go(filesystem: &mut PosixFilesystem)
+    requires filesystem.rda_depth >= 1
+    {
         filesystem.rda_depth = filesystem.rda_depth - 1;
         transition filesystem.rda_close_rc == 0 { true -> rds_popped(filesystem) _ -> rds_close_failed(filesystem) }
     }
@@ -1735,7 +1737,9 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
         filesystem.rda_rc = -24;
         transition { _ -> rds_fail(filesystem) }
     }
-    machine rds_push_go(filesystem: &mut PosixFilesystem) {
+    machine rds_push_go(filesystem: &mut PosixFilesystem)
+    requires filesystem.rda_depth < 16
+    {
         filesystem.rda_stack[filesystem.rda_depth] = filesystem.rda_sub;
         filesystem.rda_depth = filesystem.rda_depth + 1;
         transition true { true -> rds_continue(filesystem) _ -> rds_fail(filesystem) }
