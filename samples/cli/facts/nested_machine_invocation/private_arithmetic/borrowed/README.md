@@ -37,6 +37,14 @@ controls reuse their existing `nested_machine_private_arithmetic_mutable_` pins.
 Every positive has all four hosted target entries; other-host native execution
 is not claimed.
 
+After the actual integration conflicts were resolved, optimized producer
+`9f2d790a91c` repeated this acceptance and the incoming composed-predicate row.
+The focused records cover 190 source fixtures and 85 authored native/Terminal
+outcomes (84 exit-zero agreements and one intended trap). A normalized terminal
+call inside a denotational body now uses the same specification admission as
+other call forms, retaining exact target, dependency, content and effect checks.
+Earlier records keep their original producer/source identities.
+
 The [disjoint control](controls/disjoint/main.omg) starts with an arbitrary
 borrowed record and establishes its count bound through a guard. Its callee
 writes another field and subtracts from the count. It now executes in both
