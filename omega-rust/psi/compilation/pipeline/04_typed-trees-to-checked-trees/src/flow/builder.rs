@@ -113,6 +113,11 @@ pub(crate) fn build_flow_facts(
     };
 
     let groups = machine_groups(program, borrow);
+    phase_profile::count("05.d.3.b.flow.groups", groups.len() as u64);
+    phase_profile::count(
+        "05.d.3.b.flow.max_group_machines",
+        groups.iter().map(Vec::len).max().unwrap_or(0) as u64,
+    );
     let mut flow = build_groups(&inputs, &groups, &new_build, semantic);
     attach_reach_summaries(program, &mut flow, service_reaches, operational);
     flow

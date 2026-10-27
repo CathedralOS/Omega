@@ -130,31 +130,34 @@ pub(super) fn establish(
             _ => None,
         };
         if let Some(reference) = declared_type {
-            let target = semantic.places.get(target_place);
-            let root = target.root;
-            let prefix = semantic
-                .place_segments
-                .span_or_empty(target.segments)
-                .to_vec();
-            for row in validation::field_domains::declared_type_domain_rows(program, reference) {
-                if row.path.is_empty()
-                    || row.transfer
-                    || validation::field_domains::domain_requires_provenance(
-                        program,
+            let rows = validation::field_domains::declared_type_domain_rows(program, reference);
+            if !rows.is_empty() {
+                let target = semantic.places.get(target_place);
+                let root = target.root;
+                let prefix = semantic
+                    .place_segments
+                    .span_or_empty(target.segments)
+                    .to_vec();
+                for row in rows {
+                    if row.path.is_empty()
+                        || row.transfer
+                        || validation::field_domains::domain_requires_provenance(
+                            program,
+                            row.domain_symbol,
+                        )
+                    {
+                        continue;
+                    }
+                    let mut path = prefix.clone();
+                    path.extend_from_slice(&row.path);
+                    let place = crate::semantic::places::append_place(semantic, root, &path);
+                    let fact = semantic.append_fact(membership_fact(
+                        place,
                         row.domain_symbol,
-                    )
-                {
-                    continue;
+                        row.semantic_domain,
+                    ));
+                    semantic.append_ref(refs, fact);
                 }
-                let mut path = prefix.clone();
-                path.extend_from_slice(&row.path);
-                let place = crate::semantic::places::append_place(semantic, root, &path);
-                let fact = semantic.append_fact(membership_fact(
-                    place,
-                    row.domain_symbol,
-                    row.semantic_domain,
-                ));
-                semantic.append_ref(refs, fact);
             }
         }
     }

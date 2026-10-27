@@ -25,6 +25,7 @@ impl RangeFacts<'_> {
         symbol: SymbolHandle,
     ) {
         if !symbol.is_valid()
+            || self.expression_dependencies.is_empty()
             || !validation::place_has_builtin_coordinates(program, machine, Some(state), captured)
         {
             return;
@@ -56,7 +57,42 @@ impl RangeFacts<'_> {
             return;
         }
         let transferable = self.preserved_expression_labels(program, machine, state, Some(&[]));
-        let originals = self.expression_dependencies.clone();
+        let call_frames = self.checked_calls.and_then(|context| context.call_frames());
+        let originals: Vec<_> = self
+            .expression_dependencies
+            .iter()
+            .filter(|original| transferable.contains(&original.label))
+            .filter_map(|original| {
+                // Extent facts name the descriptor, not its `.len` projection.
+                let subject = validation::collection_length_receiver(
+                    program,
+                    machine,
+                    Some(state),
+                    original.expression,
+                )
+                .unwrap_or(original.expression);
+                let original_place = validation::canonical_place_from_expression_in_state(
+                    program,
+                    state.symbol,
+                    self.statement_index,
+                    subject,
+                )
+                .and_then(|place| {
+                    crate::flow::rebase_exact_local_place(
+                        program,
+                        state.symbol,
+                        self.statement_index,
+                        place,
+                        call_frames,
+                    )
+                })?;
+                (original_place.root == source.root)
+                    .then(|| (original.descriptor.is_some(), subject, original_place))
+            })
+            .collect();
+        if originals.is_empty() {
+            return;
+        }
         let prefix = self.statement_index.saturating_add(1);
         let bound_lookup = self.bound_lookup();
         for (expression, _) in program.expression_table.iter_expressions() {
@@ -89,35 +125,7 @@ impl RangeFacts<'_> {
             else {
                 continue;
             };
-            for original in &originals {
-                if !transferable.contains(&original.label) {
-                    continue;
-                }
-                // Extent facts name the descriptor, not its `.len` projection.
-                let subject = validation::collection_length_receiver(
-                    program,
-                    machine,
-                    Some(state),
-                    original.expression,
-                )
-                .unwrap_or(original.expression);
-                let Some(original_place) = validation::canonical_place_from_expression_in_state(
-                    program,
-                    state.symbol,
-                    self.statement_index,
-                    subject,
-                )
-                .and_then(|place| {
-                    crate::flow::rebase_exact_local_place(
-                        program,
-                        state.symbol,
-                        self.statement_index,
-                        place,
-                        self.checked_calls.and_then(|context| context.call_frames()),
-                    )
-                }) else {
-                    continue;
-                };
+            for &(has_descriptor, subject, ref original_place) in &originals {
                 let mut uses_frozen_selector = false;
                 let same_place = original_place.root == rebased.root
                     && original_place.segments.len() == rebased.segments.len()
@@ -211,7 +219,7 @@ impl RangeFacts<'_> {
                         machine: machine.symbol,
                         state: state.symbol,
                         reads: Some(dependencies),
-                        descriptor: original.descriptor.as_ref().map(|_| candidate.clone()),
+                        descriptor: has_descriptor.then(|| candidate.clone()),
                     });
                 }
             }
