@@ -180,7 +180,7 @@ pub(super) fn admitted_carrier(
             // carrier is the authored target, not the source. Recasts,
             // non-integer targets and non-integer sources keep no builtin
             // meaning: their formation obligations stay with the cast owner.
-            let value_carrier = admitted_carrier(program, machine, state, cast.value, depth + 1);
+            let value_carrier = admitted_carrier(program, machine, state, cast.value, depth + 1)?;
             let integer_target = program
                 .primitive_type_reference(cast.target_type)
                 .is_some_and(|target| target.is_fixed_integer());
@@ -191,13 +191,20 @@ pub(super) fn admitted_carrier(
                 program.expression_table.expression(cast.value),
                 ExpressionNode::Integer(_)
             );
+            // A value cast reads its operand, including the referent of an
+            // ordinary scalar place. Proof embedding deliberately refuses
+            // arbitrary references, so it is not this operation's carrier
+            // query. Keep the recursively admitted type and use the same
+            // value unwrapping as ordinary expression checking. This grants
+            // no integer equality or permission to read the storage.
             let integer_source = integer_literal
-                || crate::proof_contracts::proof_embeddings::integer_embedding(program, cast.value)
-                    .is_some_and(|source| source.primitive.is_fixed_integer());
+                || value_carrier
+                    .and_then(|reference| program.unwrapped_type_reference(reference))
+                    .and_then(|reference| program.primitive_type_reference(reference))
+                    .is_some_and(|source| source.is_fixed_integer());
             if integer_target && integer_literal {
                 return Some(Some(cast.target_type));
             }
-            value_carrier?;
             (integer_target && integer_source).then(|| Some(cast.target_type))
         }
         ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
