@@ -1,4 +1,3 @@
-use sha2::{Digest, Sha256};
 use target::NativeTarget;
 
 use super::{TargetCostModelIdentity, TargetCostModelVersion};
