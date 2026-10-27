@@ -87,7 +87,7 @@ impl ComponentPublication {
         let retained = finish_terminal_application(produced, request)?;
         let description = describe_component(&self.checked, &retained)?;
         let accepted_permissions =
-            crate::native::accepted_terminal_authority_permission_policy(&self.checked)?;
+            super::native_inputs::accepted_terminal_authority_permission_policy(&self.checked)?;
         IndependentComponentProduct::new(description, retained, accepted_permissions)
             .map_err(|reason| vec![Diagnostic::error(reason)])
     }

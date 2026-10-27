@@ -267,11 +267,25 @@ fn terminal_production_owns_the_build_provider_companion() {
 }
 
 #[test]
-fn native_product_consumes_terminal_without_producing_it() {
-    let source = include_str!("native.rs");
-    assert!(source.contains("terminal: compilation_products::RetainedTerminalArtifact"));
-    assert!(!source.contains("crate::terminal::"));
-    assert!(!source.contains("TerminalProductionRequest"));
+fn native_product_supplies_inputs_without_orchestrating_component_emission() {
+    let source = include_str!("product_execution.rs");
+    assert!(source.contains("native_production::compile(terminal, request)"));
+    let inputs = include_str!("product_execution/native_inputs.rs");
+    assert!(inputs.contains("ComponentCompilation"));
+    assert!(inputs.contains("receiving_identities: facts.identities()"));
+    for source in [source, inputs] {
+        for forbidden in [
+            "emit_component_exports(",
+            "emit_shared_image(",
+            "ComponentNativeCall::join(",
+            "with_component_products(",
+        ] {
+            assert!(
+                !source.contains(forbidden),
+                "product owner orchestrates {forbidden}"
+            );
+        }
+    }
 }
 
 #[test]

@@ -30,7 +30,6 @@ mod product_boundary;
 pub use identity::{compiler_build_profile, compiler_identity, compiler_optimization_level};
 
 pub mod checked;
-mod native;
 mod terminal;
 
 pub use crate::checked::{
