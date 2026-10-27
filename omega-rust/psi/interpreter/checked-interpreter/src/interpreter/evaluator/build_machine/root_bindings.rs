@@ -240,18 +240,24 @@ impl<'program> Evaluator<'program> {
                         );
                     }
                 };
+                let selecting_machine = if request.operation == BuildOperation::ServiceExclusion {
+                    Some(
+                        self.program
+                            .symbols
+                            .symbol_source_span(frame.machine_symbol)
+                            .ok_or_else(|| {
+                                Halt::Trap(
+                                    "Product selection lost its authored machine coordinate".into(),
+                                )
+                            })?,
+                    )
+                } else {
+                    None
+                };
                 SourceBuildSelection::Declaration(ExecutedProductSelection {
                     request,
                     composition,
-                    selecting_machine: self
-                        .program
-                        .symbols
-                        .symbol_source_span(frame.machine_symbol)
-                        .ok_or_else(|| {
-                            Halt::Trap(
-                                "Product selection lost its authored machine coordinate".into(),
-                            )
-                        })?,
+                    selecting_machine,
                 })
             }
         };

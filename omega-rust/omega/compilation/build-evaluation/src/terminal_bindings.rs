@@ -232,6 +232,11 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter<'_, '_> {
                         ));
                     }
                 };
+                if call.request.requires_lexical_subject() && call.selecting_machine.is_none() {
+                    return Err(refuse(
+                        "behavior exclusion lost its authored machine coordinate",
+                    ));
+                }
                 ExecutedBuildSelection::Declaration(ExecutedProductSelection {
                     request: request.clone(),
                     selecting_machine: call.selecting_machine,
@@ -257,7 +262,9 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter<'_, '_> {
                     language_semantics::declaration_selection::ExecutedEnumExclusion {
                         request: request.clone(),
                         code,
-                        selecting_machine: call.selecting_machine,
+                        selecting_machine: call.selecting_machine.ok_or_else(|| {
+                            refuse("behavior exclusion lost its authored machine coordinate")
+                        })?,
                     },
                 )
             }
