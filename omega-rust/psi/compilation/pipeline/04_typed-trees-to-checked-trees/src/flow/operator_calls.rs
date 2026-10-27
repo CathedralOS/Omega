@@ -237,7 +237,6 @@ pub(super) fn apply_named_operator_call_effects(
     statement_index: usize,
     call: &typed_trees::expression::TableCallExpression,
     named_use: arena::Handle<checked_trees::CheckedNamedOperatorUseFact>,
-    ordinary_call_ordinal: Option<usize>,
     active_contexts: &mut HandleSpan<FlowSemanticContextRef>,
     active_constraints: &mut HandleSpan<FlowConstraintRef>,
 ) {
@@ -317,74 +316,6 @@ pub(super) fn apply_named_operator_call_effects(
         active_contexts,
         active_constraints,
     );
-    // Ordinary flow already published this exact occurrence. A named-only
-    // operator has no BorrowCallFact, but its admitted signature owes the same
-    // normal-return default duties as a body-backed invocation. Selection does
-    // not supply routed authority: those provisional rows still reach the
-    // independent content admission, which requires a completed receipt.
-    if ordinary_call_ordinal.is_none() {
-        let selected = *build.operators.named_uses.get(named_use);
-        let checked_trees::CheckedValueOrigin::StateStatement {
-            machine_symbol,
-            state_symbol,
-            statement_index: selected_statement,
-            ..
-        } = selected.origin
-        else {
-            return;
-        };
-        if machine_symbol != caller_machine_symbol
-            || state_symbol != caller_state_symbol
-            || selected_statement != statement_index
-        {
-            return;
-        }
-        let Some((machine, state)) =
-            validation::machine_state_by_symbols(program, machine_symbol, state_symbol)
-        else {
-            return;
-        };
-        // This is the occurrence's applied source result, never the receiver
-        // query's fallback to the operator's unapplied declaration type. An
-        // unavailable application must not reintroduce foreign generic binders.
-        let Some(return_type) = validation::expression_result_type_reference(
-            program,
-            machine,
-            state,
-            selected.expression,
-        ) else {
-            return;
-        };
-        if !super::call_results::carries_identity_rows(program, return_type) {
-            return;
-        }
-        let rows = super::call_results::type_domain_rows(program, return_type);
-        if rows.is_empty() {
-            return;
-        }
-        let mut exit = super::CallFlowContexts {
-            contexts: *active_contexts,
-            constraints: *active_constraints,
-        };
-        super::call_results::append_memberships(
-            semantic,
-            build,
-            &mut exit,
-            selected.expression,
-            ProgramPoint::Statement {
-                machine_symbol: caller_machine_symbol,
-                state_symbol: caller_state_symbol,
-                statement_index,
-            },
-            QualificationEvidence::from_origin(
-                language_semantics::QualificationEvidenceOrigin::Propagated,
-                operator.symbol,
-            ),
-            &rows,
-        );
-        *active_contexts = exit.contexts;
-        *active_constraints = exit.constraints;
-    }
 }
 
 /// The write set one expression-form named operator call contributes to the

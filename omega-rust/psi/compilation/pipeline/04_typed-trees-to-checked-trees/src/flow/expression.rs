@@ -104,7 +104,6 @@ struct InvocationInputs<'evaluated> {
 
 #[derive(Default)]
 struct CompletedInvocation {
-    call_ordinal: Option<usize>,
     stores: Vec<stored_call_values::CallStore>,
     operands: HandleSpan<checked_trees::FlowOperandFact>,
 }
@@ -640,11 +639,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             .control
             .calls
             .append_to_span(self.state_calls, call);
-        CompletedInvocation {
-            call_ordinal: Some(borrowed_call.call_ordinal),
-            stores,
-            operands,
-        }
+        CompletedInvocation { stores, operands }
     }
 
     pub(super) fn expression(
@@ -1763,7 +1758,6 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                         self.statement_index,
                         call,
                         named_use,
-                        completed.call_ordinal,
                         contexts,
                         constraints,
                     );

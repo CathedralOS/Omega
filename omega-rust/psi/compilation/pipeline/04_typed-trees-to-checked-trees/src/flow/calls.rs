@@ -465,7 +465,11 @@ fn append_call_result_field_domain_facts<'plans>(
         return;
     };
     let selected = program.requirement_call_signature(machine.symbol, call);
-    let Some(return_type) = validation::call_result_type(program, expression) else {
+    // A named operator can complete without an authored machine target or a
+    // retained constructor type. Its exact source occurrence still owns the
+    // applied result contract; machine-only lookup would lose its field duties.
+    let Some(return_type) = build.expression_result_type_at(program, machine, state, expression)
+    else {
         return;
     };
     let key = (

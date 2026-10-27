@@ -61,6 +61,19 @@ impl InvocationEvents<'_> {
 }
 
 impl Invocation<'_> {
+    fn target_symbol(&self, program: &dyn ::validation::CheckingInput) -> SymbolHandle {
+        validation::call_target_symbol(program, self.call)
+    }
+
+    fn result_type(
+        &self,
+        program: &dyn ::validation::CheckingInput,
+    ) -> Option<typed_trees::types::TypeReferenceHandle> {
+        let (machine, state) =
+            validation::machine_state_by_symbols(program, self.machine, self.state)?;
+        validation::expression_result_type_reference(program, machine, state, self.expression)
+    }
+
     pub(super) fn evaluation(
         &self,
         program: &dyn ::validation::CheckingInput,
@@ -115,7 +128,6 @@ pub(super) fn check_call_result_qualifications(
                 call_ordinal,
             } = fact.point
             else {
-                failure_reason = Some("the normal-return membership has no authenticated completed invocation and custody receipt; a selected named signature alone cannot supply routed authority");
                 return None;
             };
             let site = validation::find_call_site(
@@ -155,6 +167,10 @@ pub(super) fn check_call_result_qualifications(
             else {
                 return None;
             };
+            // Borrow discovery and flow resolve named calls through this same
+            // selected declaration. Their authored leaf may have no symbol;
+            // neither another overload nor a matching spelling supplies it.
+            let target_symbol = validation::call_target_symbol(program, call);
             let public_contract =
                 validation::requirement_contract_signature(program, machine_symbol, &site);
             // Flow names the selected body's executable entry; typed calls can
@@ -162,9 +178,9 @@ pub(super) fn check_call_result_qualifications(
             // Rewriting may replace an evidence child with an executable body
             // while flow retains its public requirement as the fact's source.
             // Only the validated invocation contract joins those identities.
-            let exact_source = fact.evidence.source_symbol == call.target_symbol
+            let exact_source = fact.evidence.source_symbol == target_symbol
                 || fact.evidence.source_symbol
-                    == validation::call_target_entry_symbol(program, call.target_symbol)
+                    == validation::call_target_entry_symbol(program, target_symbol)
                 || public_contract
                     .is_some_and(|(_, signature)| fact.evidence.source_symbol == signature.symbol);
             if fact.evidence.origin != QualificationEvidenceOrigin::Propagated
@@ -188,9 +204,9 @@ pub(super) fn check_call_result_qualifications(
                 .or_else(|| program.requirement_call_signature(machine_symbol, call));
             let declared = crate::flow::call_result_qualification_identities(
                 program,
-                call.target_symbol,
+                target_symbol,
                 selected,
-                validation::call_result_type(program, expression)?,
+                invocation.result_type(program)?,
             );
             if !declared.iter().any(|(declared_path, symbol, identity)| {
                 declared_path == path && *symbol == domain_symbol && *identity == semantic_domain
@@ -205,7 +221,7 @@ pub(super) fn check_call_result_qualifications(
             // Checked bodies owe routed field membership at every exit. The
             // multiplicity checker independently replays their returned claim
             // maps, including identity-forwarding wrappers without a theorem.
-            if validation::call_target_has_checked_body_contract(program, call.target_symbol) {
+            if validation::call_target_has_checked_body_contract(program, target_symbol) {
                 return Some(());
             }
             // Every ordinary selected conformance owes its full public result
@@ -252,11 +268,11 @@ pub(super) fn check_call_result_qualifications(
             // the routes below: promising provenance cannot create capacity.
             // Authorized issuance likewise keeps its existing freshness join.
             if projection.is_none()
-                && boundary_requirement_signature(program, call.target_symbol, domain).is_none()
+                && boundary_requirement_signature(program, target_symbol, domain).is_none()
                 && program.traits().iter().any(|owner| {
                     owner.is_boundary
                         && program
-                            .trait_machine_signature_by_symbol(owner, call.target_symbol)
+                            .trait_machine_signature_by_symbol(owner, target_symbol)
                             .is_some()
                 })
             {
@@ -265,7 +281,7 @@ pub(super) fn check_call_result_qualifications(
 
             let call_parameters = selected
                 .map(|signature| program.state_signature_parameters(signature))
-                .or_else(|| validation::call_target_parameters(program, call.target_symbol));
+                .or_else(|| validation::call_target_parameters(program, target_symbol));
 
             // Preserve the existing bare-result issuance route, including its
             // exact carrier/subject checks. Fresh supply must be fresh: a
@@ -325,7 +341,7 @@ pub(super) fn check_call_result_qualifications(
                         }
                         _ => return false,
                     };
-                    if state_symbol != call.target_symbol
+                    if state_symbol != target_symbol
                         || contract.kind != checked_trees::ContractProofFactKind::Ensures
                     {
                         return false;
@@ -351,7 +367,7 @@ pub(super) fn check_call_result_qualifications(
                         return false;
                     }
                     authorized_ensures_signature(program, owner_symbol, state_symbol, contract.fact)
-                }) || result_type_issuance_route(program, call.target_symbol, selected, domain))
+                }) || result_type_issuance_route(program, target_symbol, selected, domain))
             {
                 return Some(());
             }
@@ -369,7 +385,7 @@ pub(super) fn check_call_result_qualifications(
             if path
                 .iter()
                 .any(|segment| matches!(segment, PlaceSegment::Case { .. }))
-                && case_payload_issuance_route(program, call.target_symbol, selected, domain, path)
+                && case_payload_issuance_route(program, target_symbol, selected, domain, path)
                 && match (call_parameters, projection) {
                     (Some(parameters), Some(projection)) => !consumes_qualified_input(
                         program,
@@ -397,7 +413,7 @@ pub(super) fn check_call_result_qualifications(
                 .conservation_plans
                 .iter()
                 .any(|plan| {
-                    plan.callable == call.target_symbol
+                    plan.callable == target_symbol
                         && plan.algebra == projection.algebra
                         && [
                             (plan.equation.left(), plan.equation.right()),
@@ -501,7 +517,7 @@ fn private_placement_result_contract(
     semantic_domain: language_semantics::SemanticDomainId,
     path: &[PlaceSegment],
 ) -> Result<bool, Diagnostic> {
-    let callable = invocation.call.target_symbol;
+    let callable = invocation.target_symbol(program);
     let Some(declaration) =
         typed_trees::typed_trees::PlacementExecutionDeclaration::authenticate(program, callable)?
     else {
@@ -523,10 +539,9 @@ fn private_placement_result_contract(
         .ok_or_else(|| {
             Diagnostic::error("placement primitive result lost its authenticated entry")
         })?;
-    let result_type =
-        validation::call_result_type(program, invocation.expression).ok_or_else(|| {
-            Diagnostic::error("placement source contract lost its applied result type")
-        })?;
+    let result_type = invocation.result_type(program).ok_or_else(|| {
+        Diagnostic::error("placement source contract lost its applied result type")
+    })?;
     let expected = program.type_identity(typed_trees::type_identity::TypeIdentityRequest {
         substitutions: &bindings,
         ..typed_trees::type_identity::TypeIdentityRequest::ordinary(state.return_type)
@@ -927,7 +942,7 @@ pub(super) fn input_claim(
         .find(|call| {
             call.statement_index == invocation.statement
                 && call.call_ordinal == invocation.ordinal
-                && call.target_symbol == invocation.call.target_symbol
+                && call.target_symbol == invocation.target_symbol(program)
         })?;
     let (operands, receiver_offset) =
         crate::flow::captured_call_operands(program, &facts.flow, state_flow, call_flow)?;
@@ -989,6 +1004,7 @@ pub(super) fn input_claim(
     )?;
     current.extend_segments(path);
     let transferred = unique_claim(
+        program,
         facts,
         invocation,
         evaluation,
@@ -1040,7 +1056,7 @@ pub(super) fn result_claim(
     let call_source = PermissionEventSource::Call {
         statement_index: invocation.statement,
         call_ordinal: invocation.ordinal,
-        target_symbol: invocation.call.target_symbol,
+        target_symbol: invocation.target_symbol(program),
     };
     let statement_source = PermissionEventSource::Statement {
         statement_index: invocation.statement,
@@ -1072,6 +1088,7 @@ pub(super) fn result_claim(
 }
 
 fn unique_claim(
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     invocation: &Invocation<'_>,
     evaluation: checked_trees::FlowPermissionEvaluation,
@@ -1082,7 +1099,7 @@ fn unique_claim(
     let source = PermissionEventSource::Call {
         statement_index: invocation.statement,
         call_ordinal: invocation.ordinal,
-        target_symbol: invocation.call.target_symbol,
+        target_symbol: invocation.target_symbol(program),
     };
     let mut identity = None;
     for event in invocation.events.iter() {
