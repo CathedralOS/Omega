@@ -41,9 +41,11 @@ At fixed source `44b2274fb223fa7e88d86144052b911cc6834632`, optimized producer
 `4d336559156` (SHA256
 `111d3e944aed98fbb3855790680e2fcbb555d5a95643d3fbdef8ad73ab08424e`)
 rejects this valid local witness at `drop(buffer)`: all four declared leaf-domain
-duties were lost after completion. The earlier unqualified array row runs in
-native and Terminal execution on macOS and completed all three remote host jobs;
-that evidence does not qualify the new predicate continuation on those hosts.
+duties were lost after completion. The earlier unqualified array row has actual native/Terminal agreement on all
+four matching hosts, with independently reviewed products and optimized producer
+bytes. The remote raw runtime reports retain `exit1 / moved / new9`: those are
+new baseline rows, while each actual native and Terminal result is zero. That
+evidence does not qualify the new predicate continuation on those hosts.
 
 The source repair follows the actual captured lifetime inputs, their complete
 root/leaf rosters and strict evaluated call graph. A normal consuming completion
