@@ -51,18 +51,11 @@ impl ScalarFieldValue {
         })
     }
 
-    /// Constructs a scalar value carrying its compiler-retained stable member
-    /// identity. The field spelling remains diagnostic presentation.
-    pub fn new_numbered(
-        field: impl Into<String>,
-        member_identity: u64,
-        width_bits: u16,
-        value: u64,
-    ) -> Result<Self, MaterializationDiagnostic> {
-        let mut value = Self::new(field, width_bits, value)?;
-        value.member_identity = Some(member_identity);
-        Ok(value)
-    }
+    numbered_constructor!(
+        /// Constructs a scalar value carrying its compiler-retained stable member
+        /// identity. The field spelling remains diagnostic presentation.
+        new_numbered(field, width_bits: u16, value: u64) -> new
+    );
 }
 
 /// One complete aggregate supplied to a validated dictated-layout
@@ -116,17 +109,11 @@ impl AggregateFieldSchema {
         })
     }
 
-    /// Constructs one whole aggregate field with its compiler-retained stable
-    /// member identity. The field spelling remains diagnostic presentation.
-    pub fn new_numbered(
-        field: impl Into<String>,
-        member_identity: u64,
-        byte_size: u64,
-    ) -> Result<Self, MaterializationDiagnostic> {
-        let mut schema = Self::new(field, byte_size)?;
-        schema.member_identity = Some(member_identity);
-        Ok(schema)
-    }
+    numbered_constructor!(
+        /// Constructs one whole aggregate field with its compiler-retained stable
+        /// member identity. The field spelling remains diagnostic presentation.
+        new_numbered(field, byte_size: u64) -> new
+    );
 
     /// Constructs the compiler-derived shape of one outer fixed array. A
     /// validated layout may retain one whole-field `At`, or use exactly one
@@ -167,20 +154,11 @@ impl AggregateFieldSchema {
         })
     }
 
-    /// Constructs one numbered outer fixed array. Element geometry remains
-    /// compiler-derived while the stable identity rejoins renamed layout rows.
-    pub fn new_repeated_numbered(
-        field: impl Into<String>,
-        member_identity: u64,
-        element_byte_size: u64,
-        element_align: u64,
-        element_count: u64,
-    ) -> Result<Self, MaterializationDiagnostic> {
-        let mut schema =
-            Self::new_repeated(field, element_byte_size, element_align, element_count)?;
-        schema.member_identity = Some(member_identity);
-        Ok(schema)
-    }
+    numbered_constructor!(
+        /// Constructs one numbered outer fixed array. Element geometry remains
+        /// compiler-derived while the stable identity rejoins renamed layout rows.
+        new_repeated_numbered(field, element_byte_size: u64, element_align: u64, element_count: u64) -> new_repeated
+    );
 }
 
 impl AggregateFieldValue {
@@ -233,15 +211,9 @@ impl ScalarFieldSchema {
         })
     }
 
-    /// Constructs a decode schema carrying its compiler-retained stable member
-    /// identity. Decoded values use the current schema spelling.
-    pub fn new_numbered(
-        field: impl Into<String>,
-        member_identity: u64,
-        width_bits: u16,
-    ) -> Result<Self, MaterializationDiagnostic> {
-        let mut schema = Self::new(field, width_bits)?;
-        schema.member_identity = Some(member_identity);
-        Ok(schema)
-    }
+    numbered_constructor!(
+        /// Constructs a decode schema carrying its compiler-retained stable member
+        /// identity. Decoded values use the current schema spelling.
+        new_numbered(field, width_bits: u16) -> new
+    );
 }
