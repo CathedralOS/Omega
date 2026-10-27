@@ -980,7 +980,11 @@ pub(crate) fn lower_owned_operand_claims(
     .ok_or(LoweringError::Unsupported(
         "returned owner has no exact carrier",
     ))?;
-    let (prefix, _) = validation::structural_owned_path(&checked.typed, root_type, prefix)
+    // These coordinates name the selected value's storage, including a loan
+    // descriptor. They do not own its referent. Actual linear claims below
+    // still require structural_claim_path and matching evaluated provenance;
+    // an empty selected frontier still authenticates its complete receipt.
+    let (prefix, _) = validation::structural_storage_path(&checked.typed, root_type, prefix)
         .map_err(LoweringError::Unsupported)?;
     let mut claims = Vec::new();
     let mut consumer = expected_source;
@@ -1041,7 +1045,7 @@ pub(crate) fn lower_owned_operand_claims(
         {
             return unsupported("owned operand has ambiguous consuming evaluation");
         }
-        let source_path = validation::structural_owned_path(
+        let source_path = validation::structural_storage_path(
             &checked.typed,
             root_type,
             ownership.segments.span_or_empty(transfer.path),
