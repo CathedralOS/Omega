@@ -18,19 +18,31 @@ pub(crate) fn admit_provider_installation_with_projection(
     let module = artifact.module();
     let mut selections = Vec::new();
     let mut installed_candidates = Vec::new();
-    let mut boundaries = plan
-        .provider_candidates
-        .iter()
-        .map(|candidate| candidate.boundary)
-        .collect::<Vec<_>>();
-    boundaries.sort();
-    boundaries.dedup();
-    for boundary in boundaries {
-        let candidates = plan
-            .provider_candidates
-            .iter()
-            .filter(|candidate| candidate.boundary == boundary)
-            .collect::<Vec<_>>();
+    let mut candidates_by_boundary = std::collections::BTreeMap::<
+        semantic_vocabulary::BoundaryMachineId,
+        Vec<&terminal_psi::ProviderCandidateConformance>,
+    >::new();
+    for candidate in &plan.provider_candidates {
+        candidates_by_boundary
+            .entry(candidate.boundary)
+            .or_default()
+            .push(candidate);
+    }
+    let mut selected_by_req = std::collections::BTreeMap::<
+        &str,
+        Vec<(&str, &str, &str)>,
+    >::new();
+    for row in selected {
+        selected_by_req
+            .entry(row.requirement_identity.as_str())
+            .or_default()
+            .push((
+                row.provider_declaration.as_str(),
+                row.provider_identity.as_str(),
+                row.machine_identity.as_str(),
+            ));
+    }
+    for (boundary, candidates) in candidates_by_boundary {
         let requirement_identity = plan.identities.text(candidates[0].requirement_identity);
         if requirement_identity.unwrap_or_default().is_empty()
             || candidates.iter().any(|candidate| {
@@ -39,20 +51,10 @@ pub(crate) fn admit_provider_installation_with_projection(
         {
             return Err(ProviderInstallationError::InvalidLoweredCatalog);
         }
-        let selected_rows = selected
-            .iter()
-            .filter(|row| row.requirement_identity == requirement_identity.unwrap_or_default())
-            .map(|row| {
-                (
-                    row.provider_declaration.as_str(),
-                    row.provider_identity.as_str(),
-                    row.machine_identity.as_str(),
-                )
-            })
-            .collect::<Vec<_>>();
-        if selected_rows.is_empty() {
+        let Some(selected_rows) = selected_by_req.get(requirement_identity.unwrap_or_default())
+        else {
             return Err(ProviderInstallationError::MissingSelectedProvider { boundary });
-        }
+        };
         let exact = candidates
             .iter()
             .filter(|candidate| {

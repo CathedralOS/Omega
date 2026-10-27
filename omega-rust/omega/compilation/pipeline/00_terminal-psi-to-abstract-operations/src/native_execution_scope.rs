@@ -64,9 +64,19 @@ impl std::error::Error for NativeExecutionScopeError {}
 pub(crate) struct NativeExecutionScope {
     machines: Vec<MachineId>,
     boundaries: Vec<BoundaryMachineId>,
+    boundaries_set: std::collections::BTreeSet<BoundaryMachineId>,
     // Exact rows in this input's unchanged candidate catalog, not membership
     // inferred from a body that might also be reachable by another route.
     selected_candidate_positions: Vec<usize>,
+}
+
+struct ScopeBoundaryIndex<'a> {
+    boundary_set: std::collections::BTreeSet<BoundaryMachineId>,
+    candidates_by_boundary: std::collections::BTreeMap<
+        BoundaryMachineId,
+        Vec<(usize, &'a terminal_psi::ProviderCandidateConformance)>,
+    >,
+    selected_by_req: std::collections::BTreeMap<&'a str, Vec<&'a SelectedProviderAdapter>>,
 }
 
 impl NativeExecutionScope {
@@ -85,6 +95,34 @@ impl NativeExecutionScope {
             .map(|(position, function)| (function.machine, position))
             .collect::<Vec<_>>();
         function_positions.sort_unstable_by_key(|(machine, _)| *machine);
+        let boundary_set = plan
+            .boundary_machines
+            .iter()
+            .map(|row| row.id)
+            .collect::<std::collections::BTreeSet<_>>();
+        let mut candidates_by_boundary = std::collections::BTreeMap::<
+            BoundaryMachineId,
+            Vec<(usize, &terminal_psi::ProviderCandidateConformance)>,
+        >::new();
+        for (pos, candidate) in plan.provider_candidates.iter().enumerate() {
+            candidates_by_boundary
+                .entry(candidate.boundary)
+                .or_default()
+                .push((pos, candidate));
+        }
+        let mut selected_by_req =
+            std::collections::BTreeMap::<&str, Vec<&SelectedProviderAdapter>>::new();
+        for row in selected {
+            selected_by_req
+                .entry(row.requirement_identity.as_str())
+                .or_default()
+                .push(row);
+        }
+        let index = ScopeBoundaryIndex {
+            boundary_set,
+            candidates_by_boundary,
+            selected_by_req,
+        };
         let mut visited = vec![false; plan.functions.len()];
         let mut pending = vec![plan.entry];
         pending.extend(
@@ -97,12 +135,13 @@ impl NativeExecutionScope {
         let mut scope = Self {
             machines: Vec::new(),
             boundaries: Vec::new(),
+            boundaries_set: std::collections::BTreeSet::new(),
             selected_candidate_positions: Vec::new(),
         };
         for boundary in receiving_provider_roots {
             scope.retain_boundary(
                 input,
-                selected,
+                &index,
                 assumptions,
                 &function_positions,
                 *boundary,
@@ -158,7 +197,7 @@ impl NativeExecutionScope {
                     | AbstractOperation::ExternalCompletion { boundary, .. } => {
                         scope.retain_boundary(
                             input,
-                            selected,
+                            &index,
                             assumptions,
                             &function_positions,
                             *boundary,
@@ -180,19 +219,20 @@ impl NativeExecutionScope {
     fn retain_boundary(
         &mut self,
         input: &crate::VerifiedPsiOptimizationInput,
-        selected: &[SelectedProviderAdapter],
+        index: &ScopeBoundaryIndex<'_>,
         assumptions: &[(BoundaryMachineId, BoundaryMachineId)],
         function_positions: &[(MachineId, usize)],
         boundary: BoundaryMachineId,
         pending: &mut Vec<MachineId>,
     ) -> Result<(), NativeExecutionScopeError> {
-        if self.boundaries.contains(&boundary) {
+        if self.boundaries_set.contains(&boundary) {
             return Ok(());
         }
         let plan = input.plan();
-        if !plan.boundary_machines.iter().any(|row| row.id == boundary) {
+        if !index.boundary_set.contains(&boundary) {
             return Err(NativeExecutionScopeError::MissingBoundary(boundary));
         }
+        self.boundaries_set.insert(boundary);
         self.boundaries.push(boundary);
         if let Some(entry) = input
             .selected_program_entry_call()
@@ -209,7 +249,7 @@ impl NativeExecutionScope {
         {
             return self.retain_boundary(
                 input,
-                selected,
+                index,
                 assumptions,
                 function_positions,
                 *supplied,
@@ -223,17 +263,13 @@ impl NativeExecutionScope {
             pending.push(member);
             return Ok(());
         }
-        let candidates = plan
-            .provider_candidates
-            .iter()
-            .enumerate()
-            .filter(|(_, candidate)| candidate.boundary == boundary)
-            .collect::<Vec<_>>();
-        if !selected.iter().any(|row| {
-            candidates.iter().any(|(_, candidate)| {
-                plan.identities.text(candidate.requirement_identity)
-                    == Some(row.requirement_identity.as_str())
-            })
+        let Some(candidates) = index.candidates_by_boundary.get(&boundary) else {
+            return Ok(());
+        };
+        if !candidates.iter().any(|(_, candidate)| {
+            plan.identities
+                .text(candidate.requirement_identity)
+                .is_some_and(|req| index.selected_by_req.contains_key(req))
         }) {
             // Retained alternatives do not select an invocation's binding.
             // Imports and builtins remain independently admitted external leaves.
@@ -244,18 +280,22 @@ impl NativeExecutionScope {
             function_positions
                 .binary_search_by_key(&candidate.candidate, |(machine, _)| *machine)
                 .is_ok()
-                && selected.iter().any(|row| {
-                    plan.identities.text(candidate.requirement_identity)
-                        == Some(row.requirement_identity.as_str())
-                        && plan.identities.text(candidate.provider_identity)
-                            == Some(row.provider_identity.as_str())
-                        && plan
-                            .identities
-                            .text(candidate.provider_declaration.identity())
-                            == Some(row.provider_declaration.as_str())
-                        && plan.identities.text(candidate.candidate_identity)
-                            == Some(row.machine_identity.as_str())
-                })
+                && plan
+                    .identities
+                    .text(candidate.requirement_identity)
+                    .and_then(|req| index.selected_by_req.get(req))
+                    .is_some_and(|rows| {
+                        rows.iter().any(|row| {
+                            plan.identities.text(candidate.provider_identity)
+                                == Some(row.provider_identity.as_str())
+                                && plan
+                                    .identities
+                                    .text(candidate.provider_declaration.identity())
+                                    == Some(row.provider_declaration.as_str())
+                                && plan.identities.text(candidate.candidate_identity)
+                                    == Some(row.machine_identity.as_str())
+                        })
+                    })
         });
         let candidate =
             matches

@@ -37,17 +37,39 @@ pub(super) fn settle_native_lifecycles<'execution>(
     Vec<Diagnostic>,
 > {
     let module = input.context().module();
-    let reached = |machine| {
-        input
-            .plan()
-            .functions
-            .iter()
-            .any(|function| function.machine == machine)
-    };
+    let primitive_plans: std::collections::BTreeMap<
+        semantic_vocabulary::BoundaryMachineId,
+        &TerminalPlacementLifecyclePlan,
+    > = module
+        .placement_lifecycle_plans
+        .iter()
+        .filter(|plan| {
+            matches!(
+                plan.execution,
+                TerminalPlacementLifecycleExecution::CompilerPrimitive { .. }
+            )
+        })
+        .map(|plan| (plan.boundary, plan))
+        .collect();
+    if primitive_plans.is_empty() {
+        return Ok((Vec::new(), Vec::new()));
+    }
+    let reached_functions: std::collections::BTreeMap<
+        MachineId,
+        &abstract_operations::AbstractFunction,
+    > = input
+        .plan()
+        .functions
+        .iter()
+        .map(|function| (function.machine, function))
+        .collect();
     let mut graph = None;
     let mut settlements = Vec::new();
     let mut mechanisms = Vec::new();
-    for machine in module.machines.iter().filter(|machine| reached(machine.id)) {
+    for machine in &module.machines {
+        let Some(function) = reached_functions.get(&machine.id) else {
+            continue;
+        };
         for block in &machine.blocks {
             for (ordinal, operation) in block.operations.iter().enumerate() {
                 let OperationKind::BoundaryCall {
@@ -58,26 +80,19 @@ pub(super) fn settle_native_lifecycles<'execution>(
                 else {
                     continue;
                 };
+                let Some(&plan) = primitive_plans.get(boundary) else {
+                    continue;
+                };
                 // The canonical module also retains operations outside this
                 // native product. A dead call or another target's body must not
                 // demand execution merely because its declaration is present.
-                if !input.plan().function(machine.id).is_some_and(|function| {
-                    function
-                        .operations
-                        .iter()
-                        .any(|lowered| lowered.psi_operation() == Some(operation.id))
-                }) {
+                if !function
+                    .operations
+                    .iter()
+                    .any(|lowered| lowered.psi_operation() == Some(operation.id))
+                {
                     continue;
                 }
-                let Some(plan) = module.placement_lifecycle_plans.iter().find(|plan| {
-                    plan.boundary == *boundary
-                        && matches!(
-                            plan.execution,
-                            TerminalPlacementLifecycleExecution::CompilerPrimitive { .. }
-                        )
-                }) else {
-                    continue;
-                };
                 let fail = |reason| {
                     vec![Diagnostic::error(format!(
                         "native placement lifecycle at machine {:?}, operation {:?}: {reason}",

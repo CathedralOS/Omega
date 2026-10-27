@@ -19,6 +19,29 @@ pub(super) fn replay_installed_provider_calls(
     installed: &[ProviderCandidateConformance],
     assumed: &[terminal_installation::AdmittedAssumedBinding],
 ) -> Result<Vec<AdmittedInstalledProviderCall>, ProviderInstallationError> {
+    if installed.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut installed_by_boundary = std::collections::BTreeMap::new();
+    for row in installed {
+        installed_by_boundary.entry(row.boundary).or_insert(row);
+    }
+    let mut assumed_by_required = std::collections::BTreeMap::new();
+    for row in assumed {
+        assumed_by_required.entry(row.required).or_insert(row);
+    }
+    let mut boundary_by_id = std::collections::BTreeMap::new();
+    for row in &plan.boundary_machines {
+        boundary_by_id.entry(row.id).or_insert(row);
+    }
+    let mut function_by_id = std::collections::BTreeMap::new();
+    for row in &plan.functions {
+        function_by_id.entry(row.machine).or_insert(row);
+    }
+    let mut machine_by_id = std::collections::BTreeMap::new();
+    for row in &module.machines {
+        machine_by_id.entry(row.id).or_insert(row);
+    }
     let mut calls = Vec::new();
     for caller in &plan.functions {
         for operation in &caller.operations {
@@ -32,7 +55,7 @@ pub(super) fn replay_installed_provider_calls(
                 frontier_lower_bound,
             } = operation
             {
-                let Some(provider) = installed.iter().find(|row| row.boundary == *boundary) else {
+                let Some(&provider) = installed_by_boundary.get(boundary) else {
                     continue;
                 };
                 let invocation_site =
@@ -42,9 +65,15 @@ pub(super) fn replay_installed_provider_calls(
                     invocation_site,
                     boundary: *boundary,
                 };
-                let declaration = plan.boundary_machine(*boundary).ok_or_else(malformed)?;
-                let candidate = module.machine(provider.candidate).ok_or_else(malformed)?;
-                let source = module.machine(caller.machine).ok_or_else(malformed)?;
+                let declaration = boundary_by_id.get(boundary).copied().ok_or_else(malformed)?;
+                let candidate = machine_by_id
+                    .get(&provider.candidate)
+                    .copied()
+                    .ok_or_else(malformed)?;
+                let source = machine_by_id
+                    .get(&caller.machine)
+                    .copied()
+                    .ok_or_else(malformed)?;
                 let mut edges = source
                     .blocks
                     .iter()
@@ -107,10 +136,10 @@ pub(super) fn replay_installed_provider_calls(
             else {
                 continue;
             };
-            let assumption = assumed.iter().find(|row| row.required == *boundary);
-            let Some(provider) = installed
-                .iter()
-                .find(|row| row.boundary == *boundary)
+            let assumption = assumed_by_required.get(boundary).copied();
+            let Some(provider) = installed_by_boundary
+                .get(boundary)
+                .copied()
                 .or_else(|| {
                     assumption.and_then(|link| {
                         installed.iter().find(|row| {
@@ -127,12 +156,19 @@ pub(super) fn replay_installed_provider_calls(
                 invocation_site: (*psi_operation).into(),
                 boundary: *boundary,
             };
-            let boundary_declaration =
-                terminal_psi::find_boundary_machine(&plan.boundary_machines, *boundary)
-                    .ok_or_else(malformed)?;
-            let candidate = plan.function(provider.candidate).ok_or_else(malformed)?;
-            let terminal_candidate = module.machine(provider.candidate).ok_or_else(malformed)?;
-            let terminal_caller = module.machine(caller.machine).ok_or_else(malformed)?;
+            let boundary_declaration = boundary_by_id.get(boundary).copied().ok_or_else(malformed)?;
+            let candidate = function_by_id
+                .get(&provider.candidate)
+                .copied()
+                .ok_or_else(malformed)?;
+            let terminal_candidate = machine_by_id
+                .get(&provider.candidate)
+                .copied()
+                .ok_or_else(malformed)?;
+            let terminal_caller = machine_by_id
+                .get(&caller.machine)
+                .copied()
+                .ok_or_else(malformed)?;
             let terminal_operation = terminal_caller
                 .operation(*psi_operation)
                 .ok_or_else(malformed)?;

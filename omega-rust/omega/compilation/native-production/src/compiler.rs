@@ -24,13 +24,17 @@ pub fn compile(
     let recoverable_image_request = request.image_request.clone();
     let components = request.components;
     let result = (|| {
-        let (artifact, proposal) = request.prepare_terminal(retained)?;
+        let (artifact, proposal) = phase_profile::scope("06.1.a_prepare_terminal", || {
+            request.prepare_terminal(retained)
+        })?;
         let selections = terminal_installation::admit_target_machine_selections(
             artifact.view(),
             proposal.target_profile().target_name(),
         );
-        let layouts = terminal_installation::admit_target_layouts(artifact.view(), &selections)
-            .map_err(|reason| vec![Diagnostic::error(format!("entry RAM layout: {reason:?}"))])?;
+        let layouts = phase_profile::scope("06.1.b_admit_target_layouts", || {
+            terminal_installation::admit_target_layouts(artifact.view(), &selections)
+                .map_err(|reason| vec![Diagnostic::error(format!("entry RAM layout: {reason:?}"))])
+        })?;
         let entry = proposal.program_entry().checked_entry().terminal_entry();
         let mut recipes = Vec::with_capacity(request.private_entry_ram.len());
         for initializer in request.private_entry_ram {
@@ -60,21 +64,25 @@ pub fn compile(
             .iter()
             .map(|component| component.call())
             .collect::<Vec<_>>();
-        let (input, execution) = proposal.prepare_native_execution_with_components(
-            &artifact,
-            &recipes,
-            &component_selections,
-        )?;
-        let prepared = proposal.prepare_native_providers(
-            &artifact,
-            RetainedNativeProviderInputs {
-                execution: &execution,
-                optimization_selections: request.optimization_selections,
-                accepted_package_permissions: &request
-                    .accepted_package_terminal_authority_permission_policy,
-                imports: request.imports,
-            },
-        )?;
+        let (input, execution) = phase_profile::scope("06.1.c1_prepare_native_execution", || {
+            proposal.prepare_native_execution_with_components(
+                &artifact,
+                &recipes,
+                &component_selections,
+            )
+        })?;
+        let prepared = phase_profile::scope("06.1.c2_prepare_native_providers", || {
+            proposal.prepare_native_providers(
+                &artifact,
+                RetainedNativeProviderInputs {
+                    execution: &execution,
+                    optimization_selections: request.optimization_selections,
+                    accepted_package_permissions: &request
+                        .accepted_package_terminal_authority_permission_policy,
+                    imports: request.imports,
+                },
+            )
+        })?;
         let mut native_settlements = prepared.program_settlements();
         native_settlements.extend(components.iter().map(|component| component.settlement()));
         let admission = prepared.admission_request(

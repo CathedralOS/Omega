@@ -1525,22 +1525,22 @@ pub(super) fn derive_runtime_spill<'source>(
     let any_flexible = flexible_uses.iter().any(|&flexible| flexible);
     let mut implicit_use_units = std::collections::BTreeSet::new();
     let mut pinned_units = std::collections::BTreeSet::new();
-    let mut base_excluded_mask = 0u64;
+    let mut base_excluded_mask = 0u128;
     let mut can_use_unit_mask = false;
     if any_flexible {
         let model = environment.physical().model();
         can_use_unit_mask = model
             .views
             .iter()
-            .all(|v| v.units.iter().chain(&v.write_units).all(|u| (u.0 as usize) < 64));
-        let mut units_mask = 0u64;
-        let mut views_mask = 0u64;
+            .all(|v| v.units.iter().chain(&v.write_units).all(|u| (u.0 as usize) < 128));
+        let mut units_mask = 0u128;
+        let mut views_mask = 0u128;
         let mut seen_units = Vec::new();
         let mut seen_views = Vec::new();
         let mut mark_unit = |unit: RegisterUnitId| {
             let idx = usize::from(unit.0);
-            if idx < 64 {
-                units_mask |= 1u64 << idx;
+            if idx < 128 {
+                units_mask |= 1u128 << idx;
             } else {
                 if idx >= seen_units.len() {
                     seen_units.resize(idx + 1, false);
@@ -1550,8 +1550,8 @@ pub(super) fn derive_runtime_spill<'source>(
         };
         let mut mark_view = |view: register_model::RegisterViewId| {
             let idx = usize::from(view.0);
-            if idx < 64 {
-                views_mask |= 1u64 << idx;
+            if idx < 128 {
+                views_mask |= 1u128 << idx;
             } else {
                 if idx >= seen_views.len() {
                     seen_views.resize(idx + 1, false);
@@ -1575,15 +1575,15 @@ pub(super) fn derive_runtime_spill<'source>(
                 break;
             }
         }
-        let mut block_units_mask = 0u64;
-        let mut block_views_mask = 0u64;
+        let mut block_units_mask = 0u128;
+        let mut block_views_mask = 0u128;
         for block_index in 0..function.blocks.len() {
             if let Some((implicit_mask, _, _, fixed_mask, has_high)) =
                 function.blocks.block_unit_masks(block_index)
                 && !has_high
             {
-                block_units_mask |= implicit_mask;
-                block_views_mask |= fixed_mask;
+                block_units_mask |= implicit_mask as u128;
+                block_views_mask |= fixed_mask as u128;
             } else if let Some((units, views)) =
                 function.blocks.block_implicit_units_and_fixed_views(block_index)
             {
@@ -1620,28 +1620,28 @@ pub(super) fn derive_runtime_spill<'source>(
         views_mask |= block_views_mask;
         can_use_unit_mask &= seen_units.is_empty();
         if can_use_unit_mask {
-            let mut pinned_mask = 0u64;
+            let mut pinned_mask = 0u128;
             let mut vm = views_mask;
             while vm != 0 {
                 let bit = vm.trailing_zeros() as usize;
                 vm &= vm - 1;
                 if let Some(view) = model.views.get(bit) {
                     for &u in view.units.iter().chain(&view.write_units) {
-                        pinned_mask |= 1u64 << u.0;
+                        pinned_mask |= 1u128 << u.0;
                     }
                 }
             }
             for (idx, &seen) in seen_views.iter().enumerate() {
                 if seen && let Some(view) = model.views.get(idx) {
                     for &u in view.units.iter().chain(&view.write_units) {
-                        pinned_mask |= 1u64 << u.0;
+                        pinned_mask |= 1u128 << u.0;
                     }
                 }
             }
-            let mut reserved_mask = 0u64;
+            let mut reserved_mask = 0u128;
             for &u in environment.reservations().reserved_units() {
-                if (u.0 as usize) < 64 {
-                    reserved_mask |= 1u64 << u.0;
+                if (u.0 as usize) < 128 {
+                    reserved_mask |= 1u128 << u.0;
                 }
             }
             base_excluded_mask = units_mask | pinned_mask | reserved_mask;
@@ -1657,15 +1657,15 @@ pub(super) fn derive_runtime_spill<'source>(
                     implicit_use_units.insert(RegisterUnitId(id));
                 }
             }
-            let mut pinned_mask = 0u64;
+            let mut pinned_mask = 0u128;
             let mut vm = views_mask;
             while vm != 0 {
                 let bit = vm.trailing_zeros() as usize;
                 vm &= vm - 1;
                 if let Some(view) = model.views.get(bit) {
                     for &u in view.units.iter().chain(&view.write_units) {
-                        if (u.0 as usize) < 64 {
-                            pinned_mask |= 1u64 << u.0;
+                        if (u.0 as usize) < 128 {
+                            pinned_mask |= 1u128 << u.0;
                         } else {
                             pinned_units.insert(u);
                         }
@@ -1686,7 +1686,7 @@ pub(super) fn derive_runtime_spill<'source>(
             }
         }
     }
-    let surviving_home_exists_mask = |excluded_mask: u64| -> bool {
+    let surviving_home_exists_mask = |excluded_mask: u128| -> bool {
         let physical = environment.physical().model();
         physical
             .classes
@@ -1704,7 +1704,7 @@ pub(super) fn derive_runtime_spill<'source>(
                                     .units
                                     .iter()
                                     .chain(&view.write_units)
-                                    .all(|unit| (excluded_mask & (1u64 << unit.0)) == 0)
+                                    .all(|unit| (excluded_mask & (1u128 << unit.0)) == 0)
                         })
                 })
             })
@@ -1766,7 +1766,7 @@ pub(super) fn derive_runtime_spill<'source>(
             let first_unpinned = use_positions[block_index].unpinned.first().copied();
             let last_unpinned = use_positions[block_index].unpinned.iter().next_back().copied();
             let mut open = false;
-            let mut written_mask = 0u64;
+            let mut written_mask = 0u128;
             let mut written = std::collections::BTreeSet::new();
             if let Some(start_idx) = first_unpinned {
                 for (offset, instruction) in
@@ -1799,11 +1799,11 @@ pub(super) fn derive_runtime_spill<'source>(
                             .clobbers
                             .iter()
                             .chain(&instruction.implicit_defs)
-                            .all(|u| (u.0 as usize) < 64)
+                            .all(|u| (u.0 as usize) < 128)
                     {
                         let mut trial_mask = written_mask;
                         for &u in instruction.clobbers.iter().chain(&instruction.implicit_defs) {
-                            trial_mask |= 1u64 << u.0;
+                            trial_mask |= 1u128 << u.0;
                         }
                         if surviving_home_exists_mask(base_excluded_mask | trial_mask) {
                             written_mask = trial_mask;
