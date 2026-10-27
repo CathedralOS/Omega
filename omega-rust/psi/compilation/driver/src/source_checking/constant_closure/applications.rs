@@ -246,7 +246,7 @@ fn application_machines(
     let plan = &checked.facts.operational;
     let mut pending = Vec::new();
     for machine in typed.machines() {
-        let authored = typed.machine_authored_target(machine);
+        let authored = typed.source_target_context(machine);
         if authored.is_some_and(|name| name == target) || (selected_product && authored.is_none()) {
             pending.push(Application {
                 machine: machine.symbol,

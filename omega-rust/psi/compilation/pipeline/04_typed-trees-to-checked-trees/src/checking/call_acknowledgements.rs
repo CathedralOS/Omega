@@ -444,13 +444,13 @@ fn validate_call(
                 acknowledgement.acknowledges_suspend,
                 acknowledgement.acknowledges_block,
             ),
-        )));
+        )).with_source_span(source_span));
     }
 
     if may_suspend && !direct_position {
         diagnostics.push(at_call(format!(
             "suspending call to `{target}` is nested inside a partially evaluated expression; bind it as a complete statement, simple `let` right-hand side, transition subject, or terminal expression before continuation planning",
-        )));
+        )).with_source_span(source_span));
     }
 }
 

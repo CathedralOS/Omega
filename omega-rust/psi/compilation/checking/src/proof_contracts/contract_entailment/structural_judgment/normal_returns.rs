@@ -2791,7 +2791,7 @@ impl<'program> NormalReturnPath<'program> {
 /// Authored mathematical definitions have no runtime invocation, including
 /// definitions with ordinary scalar results. Other calls need the shared
 /// proof-only classification; runtime calls still require complete write frames.
-pub(super) fn call_has_mathematical_denotation(
+pub(in crate::proof_contracts::contract_entailment) fn call_has_mathematical_denotation(
     program: &dyn crate::CheckingInput,
     caller: SymbolHandle,
     call: &typed_trees::expression::TableCallExpression,

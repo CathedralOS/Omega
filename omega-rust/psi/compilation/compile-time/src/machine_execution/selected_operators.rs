@@ -422,7 +422,7 @@ pub fn validate_selected_provider_bodies(
         }
         if row.target_scope.is_empty()
             || program
-                .machine_authored_target(provider)
+                .source_target_context(provider)
                 .is_some_and(|target| target != row.target_scope)
         {
             return Err("selected build-time provider belongs to another target capsule".into());

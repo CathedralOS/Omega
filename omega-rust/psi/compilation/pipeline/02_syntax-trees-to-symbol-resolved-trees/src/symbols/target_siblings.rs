@@ -62,10 +62,32 @@ fn bind_sibling_calls_with(
             })
         })
         .collect::<Vec<_>>();
-    for sibling in siblings
+    // Target context belongs to the lexical declaration, including every
+    // nested body. Flat helper identities retain that context when selecting
+    // another member of the same exact family; the portable head is never an
+    // executable substitute for the enclosing target's recursive call.
+    let bodies = program
+        .machines
         .iter()
-        .filter(|sibling| work.contains(&sibling.machine))
-    {
+        .filter(|machine| work.contains(&machine.symbol))
+        .filter_map(|machine| {
+            let body = machine.symbol;
+            let mut owner = machine;
+            loop {
+                if let Some(sibling) = siblings
+                    .iter()
+                    .find(|sibling| sibling.machine == owner.symbol)
+                {
+                    return Some((body, sibling));
+                }
+                if !owner.lexical_parent.is_valid() {
+                    return None;
+                }
+                owner = program.machines.get(owner.lexical_parent);
+            }
+        })
+        .collect::<Vec<_>>();
+    for (body, sibling) in bodies {
         let same_target = siblings
             .iter()
             .filter(|candidate| candidate.target == sibling.target)
@@ -139,6 +161,6 @@ fn bind_sibling_calls_with(
             };
             state.is_valid().then_some(state)
         };
-        retarget_machine_calls(program, sibling.machine, inputs, &mut decide);
+        retarget_machine_calls(program, body, inputs, &mut decide);
     }
 }

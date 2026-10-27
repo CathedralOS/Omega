@@ -261,7 +261,7 @@ pub(crate) fn realizes_machine(
         .unwrap_or_else(|| TargetProfile::host().target_name());
     context
         .typed
-        .machine_authored_target(machine)
+        .source_target_context(machine)
         .is_none_or(|authored| authored == target)
 }
 

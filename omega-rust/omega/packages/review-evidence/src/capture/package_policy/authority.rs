@@ -2,7 +2,7 @@
 
 use crate::capture::PackageReviewInput;
 use crate::capture::authority::dangerous_authority_class;
-use crate::capture::semantics::declarations::nominal_identity;
+use crate::capture::semantics::declarations::{is_checked_source_instance, nominal_identity};
 use crate::record::{
     PackagePolicyCallable, PackagePolicyCallables, PackageReviewDangerousAuthority,
     PackageReviewDangerousAuthoritySlack, PackageReviewNominalIdentity,
@@ -55,6 +55,9 @@ pub(super) fn project(
     let mut dangerous = Vec::new();
     let mut slack = Vec::new();
     for definition in compilation.facts.service_reaches.services.definitions() {
+        if !is_checked_source_instance(compilation, definition.symbol)? {
+            continue;
+        }
         let Some(class) = dangerous_authority_class(compilation, definition)? else {
             continue;
         };
