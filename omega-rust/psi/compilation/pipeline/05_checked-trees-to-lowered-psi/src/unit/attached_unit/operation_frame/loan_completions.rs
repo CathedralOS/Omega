@@ -35,24 +35,11 @@ impl OperationFrame<'_, '_> {
             let mut qualifications = Vec::new();
             let mut projected_qualifications = Vec::new();
             for (semantic_domain, path, carrier) in &completion.qualifications {
-                let domain = if let Some(carrier) = carrier {
-                    crate::terminal_identities::lookup_domain_id_for_carrier(
-                        self.callees.domain_ids,
-                        *semantic_domain,
-                        *carrier,
-                    )
-                    .or_else(|_| {
-                        crate::terminal_identities::lookup_domain_id(
-                            self.callees.domain_ids,
-                            *semantic_domain,
-                        )
-                    })?
-                } else {
-                    crate::terminal_identities::lookup_domain_id(
-                        self.callees.domain_ids,
-                        *semantic_domain,
-                    )?
-                };
+                let domain = crate::terminal_identities::lookup_domain_id_for_carrier(
+                    self.callees.domain_ids,
+                    *semantic_domain,
+                    *carrier,
+                )?;
                 if path.is_empty() {
                     qualifications.push(domain);
                 } else {

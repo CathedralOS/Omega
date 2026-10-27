@@ -25,7 +25,7 @@ pub(crate) struct PreparedLoanCompletion {
     pub(crate) qualifications: Vec<(
         language_semantics::SemanticDomainId,
         Vec<StructuralPathSegment>,
-        Option<StructuralTypeId>,
+        StructuralTypeId,
     )>,
 }
 
@@ -210,18 +210,16 @@ pub(crate) fn prepare(
                 )?,
             );
             let carrier = if full_path.is_empty() {
-                Some(structural_type)
+                structural_type
             } else {
-                Some(
-                    terminal_semantics::qualification_path_carrier(
-                        types.iter(),
-                        structural_type,
-                        &full_path,
-                    )
-                    .ok_or(LoweringError::Unsupported(
-                        "loan completion qualification has no exact projected carrier",
-                    ))?,
+                terminal_semantics::qualification_path_carrier(
+                    types.iter(),
+                    structural_type,
+                    &full_path,
                 )
+                .ok_or(LoweringError::Unsupported(
+                    "loan completion qualification has no exact projected carrier",
+                ))?
             };
             qualifications.push((semantic_domain, full_path, carrier));
         }
@@ -308,18 +306,11 @@ pub(crate) fn emit(
         let mut qualifications = Vec::new();
         let mut projected_qualifications = Vec::new();
         for (semantic_domain, path, carrier) in &completion.qualifications {
-            let domain = if let Some(carrier) = carrier {
-                crate::terminal_identities::lookup_domain_id_for_carrier(
-                    calls.domain_ids,
-                    *semantic_domain,
-                    *carrier,
-                )
-                .or_else(|_| {
-                    crate::terminal_identities::lookup_domain_id(calls.domain_ids, *semantic_domain)
-                })?
-            } else {
-                crate::terminal_identities::lookup_domain_id(calls.domain_ids, *semantic_domain)?
-            };
+            let domain = crate::terminal_identities::lookup_domain_id_for_carrier(
+                calls.domain_ids,
+                *semantic_domain,
+                *carrier,
+            )?;
             if path.is_empty() {
                 qualifications.push(domain);
             } else {
