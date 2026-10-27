@@ -65,10 +65,10 @@ fn declared_array_leaf_proves_its_predicate_without_creating_extra_custody() {
     let predicate = |maximum| StructuralDomainPredicate {
         subject,
         proposition: Proposition::LessOrEqual(
-            ScalarTerm::StructuralRead {
+            ScalarTerm::IntegerField {
                 root: subject,
                 path: Vec::new(),
-                scalar_type: ScalarType::Integer(integer),
+                scalar_type: integer,
             },
             ScalarTerm::Integer {
                 scalar_type: integer,
