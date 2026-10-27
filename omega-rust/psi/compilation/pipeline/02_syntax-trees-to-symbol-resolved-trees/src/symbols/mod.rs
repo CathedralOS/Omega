@@ -466,7 +466,6 @@ pub(crate) fn assign_constant_expression_symbols(
         symbol: symbols::SymbolHandle::invalid(),
         lexical_requirements: scope::LexicalRequirements::none(),
         type_parameters: &[],
-        attached_data: None,
         attached_data_symbol: symbols::SymbolHandle::invalid(),
         inherited_data_members: None,
         owned_data: &[],

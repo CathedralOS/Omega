@@ -222,7 +222,6 @@ pub(super) fn assign_machine_symbols(
             symbol: machine_symbol,
             lexical_requirements: LexicalRequirements::none(),
             type_parameters: &local_type_parameters,
-            attached_data: machine.attached_data.as_ref(),
             attached_data_symbol: machine.attached_data_symbol,
             owned_data: &[],
             prior_statements: &[],

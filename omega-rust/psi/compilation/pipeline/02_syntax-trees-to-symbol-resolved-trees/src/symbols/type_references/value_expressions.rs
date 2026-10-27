@@ -36,7 +36,6 @@ pub(in crate::symbols) fn assign_declaration_type_value_expression_symbols(
                 attached_machines: &attached_machines,
                 resolution_indexes: &program.resolution_indexes,
                 type_parameters: &[],
-                attached_data: None,
                 attached_data_symbol: SymbolHandle::invalid(),
                 inherited_data_members: None,
                 owned_data: &[],
@@ -69,7 +68,6 @@ pub(in crate::symbols) fn assign_declaration_type_value_expression_symbols(
             type_parameters: declarations
                 .data_type_parameters
                 .span_or_empty(definition.type_parameters),
-            attached_data: Some(&definition.name),
             attached_data_symbol: definition.symbol,
             inherited_data_members: Some(members),
             owned_data: &[],
