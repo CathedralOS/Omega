@@ -15,6 +15,24 @@ use crate::values::StructuralRuntimePlace;
 use crate::values::TerminalScalarValue;
 
 impl TerminalExecution<'_> {
+    /// Length observes the current descriptor metadata, never its bytes. A
+    /// write-only containing home cannot supply a stored pointer along the path.
+    pub(crate) fn byte_field_length_home(
+        &self,
+        root: PlaceId,
+        path: &[StructuralPathSegment],
+        field: StructuralFieldId,
+    ) -> Result<(StructuralByteSequenceRuntimeField, Option<u64>), TerminalInterpretError> {
+        let (cell, carrier) =
+            self.resolve_byte_field_carrier(root, path, field, false, true)?;
+        let capacity = match carrier {
+            ByteSequenceCarrier::BorrowedView { .. } => None,
+            ByteSequenceCarrier::BoundedView { capacity, .. }
+            | ByteSequenceCarrier::BoundedOwned { capacity } => Some(capacity),
+        };
+        Ok((cell, capacity))
+    }
+
     /// Dispatch charges fuel first. Validate and snapshot the complete source
     /// before replacing either live bytes or length; no failure partially writes.
     pub(crate) fn execute_structural_byte_sequence_field_store(
@@ -217,6 +235,18 @@ impl TerminalExecution<'_> {
         requires_mutation: bool,
     ) -> Result<(StructuralByteSequenceRuntimeField, ByteSequenceCarrier), TerminalInterpretError>
     {
+        self.resolve_byte_field_carrier(root, path, field, requires_mutation, false)
+    }
+
+    fn resolve_byte_field_carrier(
+        &self,
+        root: PlaceId,
+        path: &[StructuralPathSegment],
+        field: StructuralFieldId,
+        requires_mutation: bool,
+        length_metadata: bool,
+    ) -> Result<(StructuralByteSequenceRuntimeField, ByteSequenceCarrier), TerminalInterpretError>
+    {
         let machine = self
             .program
             .machines()
@@ -249,6 +279,12 @@ impl TerminalExecution<'_> {
             }
             (StructuralAccess::Owned, false)
         };
+        if length_metadata
+            && access == StructuralAccess::WriteOnlyBorrow
+            && path.contains(&StructuralPathSegment::Referent)
+        {
+            return Err(malformed());
+        }
         // A final Case selects a payload namespace, not a child allocation.
         // Resolve its sum first, then authenticate the stored tag at that exact
         // backing before looking up its declaration-local field.
@@ -299,7 +335,9 @@ impl TerminalExecution<'_> {
             // Authority belongs to the current binding, including an arrival
             // parameter. The static projection resolver checks every selected hop;
             // the operation-wide selector pass already checked dynamic bounds.
-            let requested = if requires_mutation {
+            let requested = if requires_mutation
+                || (length_metadata && access == StructuralAccess::WriteOnlyBorrow)
+            {
                 StructuralAccess::WriteOnlyBorrow
             } else {
                 StructuralAccess::SharedBorrow

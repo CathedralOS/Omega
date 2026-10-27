@@ -347,13 +347,19 @@ fn demanded_provider_plans(
                     .map_or(symbol, |application| application.template)
             })
             .collect::<std::collections::HashSet<_>>();
+    let requirement_template = |symbol| {
+        checked
+            .typed
+            .closed_requirement_application(symbol)
+            .map_or(symbol, |application| application.template)
+    };
     uses.extend(
         checked
             .facts
             .operators
             .boundary_applications
             .iter()
-            .map(|application| application.requirement_symbol),
+            .map(|application| requirement_template(application.requirement_symbol)),
     );
     uses.extend(
         checked
@@ -361,7 +367,18 @@ fn demanded_provider_plans(
             .operators
             .symbolic_boundary_applications
             .iter()
-            .map(|application| application.requirement_symbol),
+            .map(|application| requirement_template(application.requirement_symbol)),
+    );
+    // Boundary requirements satisfied by the program's own selections are
+    // demands even when no callable names them: stored-descriptor slice
+    // operations mint `Slice::index`/`Slice::range` reaches that surface only
+    // in the checker's closed-requirement inventory.
+    uses.extend(
+        checked
+            .facts
+            .provider_closed_requirements
+            .iter()
+            .map(|row| row.template),
     );
     candidates
         .iter()

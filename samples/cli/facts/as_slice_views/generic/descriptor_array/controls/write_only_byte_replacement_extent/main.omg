@@ -1,0 +1,23 @@
+// Expected exit: 0
+// Replacement invalidates the prior byte-field length; the next observation is live.
+use omega::language::core::slice;
+data ByteHolder<'storage> [copy] { padding: u64; view: &'storage [u8]; }
+machine measured<'storage>(home: &write ByteHolder<'storage>) -> u64 { home.view.len }
+machine success() {}
+machine failure() crashes Trap { crash Trap; }
+machine main() crashes Trap {
+    let first: [u8; 4] = [7u8, 8u8, 9u8, 10u8];
+    let second: [u8; 3] = [1u8, 2u8, 3u8];
+    let old_view: &[u8] = &first[..];
+    let replacement: &[u8] = &second[..];
+    let mut home: ByteHolder = ByteHolder { padding: 19, view: old_view };
+    let before: u64 = measured(&write home);
+    home.padding = 23u64;
+    home.view = replacement;
+    let after: u64 = measured(&write home);
+    transition before == 4 && after == 3 && home.padding == 23
+        && home.view[2u64] == 3u8 && first[2u64] == 9u8 {
+        true -> success()
+        false -> failure()
+    }
+}
