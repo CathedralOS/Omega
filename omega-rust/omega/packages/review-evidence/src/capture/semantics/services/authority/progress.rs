@@ -3,11 +3,11 @@ use super::Diagnostic;
 use crate::capture::PackageReviewInput;
 use crate::capture::nominal_identity;
 use crate::capture::semantics::declarations::{
-    premise_projections, progress_profile, trait_requirement_identity_from_symbols,
+    premise_projections, progress_profile, project_service_progress_routes,
 };
 use crate::capture::semantics::services::rejected;
-use crate::record::{PackagePolicyServiceProgressPremise, PackagePolicyServiceProgressRoute};
-use effects::provider_plan::{ServiceProgressEstablishmentRouteKind, ServiceProgressSubject};
+use crate::record::PackagePolicyServiceProgressPremise;
+use effects::provider_plan::ServiceProgressSubject;
 
 pub(super) fn project(
     compilation: &PackageReviewInput<'_>,
@@ -32,42 +32,11 @@ pub(super) fn project(
         let ordinal = typed_trees::signature::state_parameter_position(parameters, subject.symbol)
             .ok_or_else(|| rejected("progress subject has no source parameter ordinal"))?;
         let subject = ServiceProgressSubject::Parameter(ordinal);
-        // Progress profiles project only requirement routes; exact-machine
-        // routes are ineligible for admitted boundary progress profiles.
-        let mut establishment_routes = profile
-            .establishment_routes
-            .iter()
-            .filter(|route| {
-                !matches!(
-                    route,
-                    language_semantics::DomainEstablishmentRoute::ExactMachine { .. }
-                )
-            })
-            .map(|route| {
-                Ok(PackagePolicyServiceProgressRoute {
-                    kind: match route {
-                        language_semantics::DomainEstablishmentRoute::CheckedRequirement {
-                            ..
-                        } => ServiceProgressEstablishmentRouteKind::CheckedRequirement,
-                        language_semantics::DomainEstablishmentRoute::BoundaryRequirement {
-                            ..
-                        } => ServiceProgressEstablishmentRouteKind::BoundaryRequirement,
-                        language_semantics::DomainEstablishmentRoute::ExactMachine { .. } => {
-                            unreachable!("exact-machine routes are filtered above")
-                        }
-                    },
-                    requirement_owner: nominal_identity(compilation, route.source_symbol())?,
-                    requirement: trait_requirement_identity_from_symbols(
-                        compilation,
-                        route.source_symbol(),
-                        route.requirement_symbol(),
-                        "selected provider progress establishment",
-                    )?,
-                })
-            })
-            .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
-        establishment_routes.sort();
-        establishment_routes.dedup();
+        let establishment_routes = project_service_progress_routes(
+            compilation,
+            profile,
+            "selected provider progress establishment",
+        )?;
         projected.push(PackagePolicyServiceProgressPremise {
             profile: nominal_identity(compilation, profile.symbol)?,
             subject,

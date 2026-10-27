@@ -2,6 +2,7 @@
 //! ownership, provider and trait requirement identities, policy requirement
 //! identities and the declaring schema of a provider requirement.
 
+mod establishment_routes;
 mod identity;
 mod ownership;
 mod policy_requirements;
@@ -9,6 +10,7 @@ mod progress;
 mod provider_schema;
 mod requirements;
 
+pub(crate) use establishment_routes::project_service_progress_routes;
 pub(crate) use identity::{nominal_identity, nominal_identity_from_symbols};
 pub(crate) use ownership::{
     is_canonical_virtual_toolchain_path, is_checked_source_instance, is_product_scope_instance,

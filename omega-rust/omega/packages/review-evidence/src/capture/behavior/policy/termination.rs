@@ -3,13 +3,11 @@ use crate::capture::PackageReviewInput;
 use crate::capture::semantics::{
     declarations::{
         nominal_identity, premise_projections, premise_subject, progress_profile,
-        trait_requirement_identity_from_symbols,
+        project_service_progress_routes,
     },
     facts::exactly_one,
 };
-use crate::record::{
-    PackagePolicyProgressPremise, PackagePolicyServiceProgressRoute, PackagePolicyTermination,
-};
+use crate::record::{PackagePolicyProgressPremise, PackagePolicyTermination};
 use checked_trees::RealizedMachineContractEnvelope;
 use diagnostics::Diagnostic;
 use typed_trees::{machine::Machine, state::State};
@@ -88,21 +86,11 @@ fn project_guarantee(
     let mut projected = Vec::new();
     for premise in premises {
         let profile = progress_profile(compilation, premise.profile, &subject)?;
-        // Progress profiles project only requirement routes; exact-machine
-        // routes are ineligible for admitted boundary progress profiles.
-        let mut establishment_routes = profile.establishment_routes.iter().filter(|route| !matches!(route, language_semantics::DomainEstablishmentRoute::ExactMachine { .. })).map(|route| {
-            Ok(PackagePolicyServiceProgressRoute {
-                kind: match route {
-                    language_semantics::DomainEstablishmentRoute::CheckedRequirement {..} => effects::provider_plan::ServiceProgressEstablishmentRouteKind::CheckedRequirement,
-                    language_semantics::DomainEstablishmentRoute::BoundaryRequirement {..} => effects::provider_plan::ServiceProgressEstablishmentRouteKind::BoundaryRequirement,
-                    language_semantics::DomainEstablishmentRoute::ExactMachine { .. } => unreachable!("exact-machine routes are filtered above"),
-                },
-                requirement_owner: nominal_identity(compilation, route.source_symbol())?,
-                requirement: trait_requirement_identity_from_symbols(compilation, route.source_symbol(), route.requirement_symbol(), "callable progress establishment")?,
-            })
-        }).collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
-        establishment_routes.sort();
-        establishment_routes.dedup();
+        let establishment_routes = project_service_progress_routes(
+            compilation,
+            profile,
+            "callable progress establishment",
+        )?;
         projected.push(PackagePolicyProgressPremise {
             profile: nominal_identity(compilation, profile.symbol)?,
             subject: premise_subject(compilation, parameters, premise.subject.root, &subject)?,
