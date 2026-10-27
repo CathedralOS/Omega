@@ -27,14 +27,8 @@ pub(crate) fn encode_value_placement(
             }
             PackageReviewBoundaryValueClass::SystemVAggregate { first, second } => {
                 encoder.tag("system_v_aggregate", 3);
-                encoder.field("first", |encoder| {
-                    encode_system_v_class(encoder, first);
-                    Ok(())
-                })?;
-                encoder.field("second", |encoder| {
-                    encode_system_v_class(encoder, second);
-                    Ok(())
-                })?;
+                encoder.field_by("first", first, encode_system_v_class)?;
+                encoder.field_by("second", second, encode_system_v_class)?;
             }
         };
         Ok(())
@@ -58,10 +52,7 @@ fn encode_value_location(
                 byte_size,
             } => {
                 encoder.tag("register", 0);
-                encoder.field("register", |encoder| {
-                    encode_machine_register(encoder, register);
-                    Ok(())
-                })?;
+                encoder.field_by("register", register, encode_machine_register)?;
                 encoder.u32_field("value_byte_offset", value_byte_offset)?;
                 encoder.u32_field("byte_size", byte_size)?;
             }
@@ -88,10 +79,7 @@ fn encode_value_location(
                     match pointer {
                         PackageReviewIndirectPointerLocation::Register(register) => {
                             encoder.tag("register", 0);
-                            encoder.field("register", |encoder| {
-                                encode_machine_register(encoder, register);
-                                Ok(())
-                            })?;
+                            encoder.field_by("register", register, encode_machine_register)?;
                         }
                         PackageReviewIndirectPointerLocation::Stack {
                             stack_byte_offset,

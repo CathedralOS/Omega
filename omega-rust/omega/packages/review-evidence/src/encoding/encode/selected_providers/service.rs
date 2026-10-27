@@ -44,10 +44,11 @@ pub(in crate::encoding::encode) fn method(
                 };
                 Ok(())
             })?;
-            encoder.field("effective_carry", |encoder| {
-                encode_carry_policy(encoder, claim.effective_carry);
-                Ok(())
-            })?;
+            encoder.field_by(
+                "effective_carry",
+                claim.effective_carry,
+                encode_carry_policy,
+            )?;
             encoder.field("authority_flow", |encoder| {
                 match claim.authority_flow {
                     ServiceEntryAuthorityFlow::Accepts => encoder.tag("accepts", 0),
@@ -77,10 +78,11 @@ pub(in crate::encoding::encode) fn method(
     encoder.field("result_claims", |encoder| {
         encoder.sequence(&method.result_claims, |encoder, claim| {
             encoder.field("domain", |encoder| encoder.string(&claim.domain))?;
-            encoder.field("effective_carry", |encoder| {
-                encode_carry_policy(encoder, claim.effective_carry);
-                Ok(())
-            })?;
+            encoder.field_by(
+                "effective_carry",
+                claim.effective_carry,
+                encode_carry_policy,
+            )?;
             Ok(())
         })
     })?;

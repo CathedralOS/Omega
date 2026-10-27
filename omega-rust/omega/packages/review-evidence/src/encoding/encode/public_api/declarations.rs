@@ -202,10 +202,7 @@ pub(in crate::encoding::encode) fn data_shape(
     encoder.field("type_parameters", |encoder| {
         encoder.sequence(&shape.type_parameters, type_parameter)
     })?;
-    encoder.field("properties", |encoder| {
-        encode_data_properties(encoder, shape.properties);
-        Ok(())
-    })?;
+    encoder.field_by("properties", shape.properties, encode_data_properties)?;
     encoder.boolean_field("zero_gated", shape.zero_gated)?;
     encoder.field("invariants", |encoder| {
         encoder.sequence(&shape.invariants, encode_contract_fact)

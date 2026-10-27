@@ -115,10 +115,7 @@ pub(crate) fn encode_proposition_binder(
         };
         Ok(())
     })?;
-    encoder.field("bounds", |encoder| {
-        encode_data_properties(encoder, binder.bounds);
-        Ok(())
-    })?;
+    encoder.field_by("bounds", binder.bounds, encode_data_properties)?;
     Ok(())
 }
 

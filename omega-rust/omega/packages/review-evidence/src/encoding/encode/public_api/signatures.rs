@@ -116,10 +116,7 @@ pub(in crate::encoding::encode) fn type_parameter(
         };
         Ok(())
     })?;
-    encoder.field("bounds", |encoder| {
-        encode_data_properties(encoder, parameter.bounds);
-        Ok(())
-    })?;
+    encoder.field_by("bounds", parameter.bounds, encode_data_properties)?;
     Ok(())
 }
 
