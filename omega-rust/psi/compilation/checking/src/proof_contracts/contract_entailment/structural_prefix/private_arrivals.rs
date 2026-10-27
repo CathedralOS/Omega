@@ -90,7 +90,6 @@ pub(in crate::proof_contracts::contract_entailment) fn observe_private_arrivals(
         if case_facts_only {
             judge.restrict_to_case_facts();
         }
-        observer.root = arrival_root.symbol;
         recognized &= super::recognize_structural_case_arms(
             program,
             arrival_root,

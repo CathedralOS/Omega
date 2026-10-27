@@ -5,23 +5,30 @@
 //! Start from actual group entries before disconnected members so ordinary
 //! guarded loops keep their natural entry as the recurring proof boundary.
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum VisitState {
+    Unvisited,
+    Active,
+    Complete,
+}
+
 pub(super) fn entries(
     successors: &[Vec<usize>],
     needed: &[bool],
     declared_entries: &[usize],
 ) -> Vec<usize> {
-    let mut colors = vec![0u8; successors.len()];
+    let mut visits = vec![VisitState::Unvisited; successors.len()];
     let mut selected = vec![false; successors.len()];
     let mut pending = Vec::new();
     for start in declared_entries.iter().copied().chain(0..successors.len()) {
-        if !needed[start] || colors[start] != 0 {
+        if !needed[start] || visits[start] != VisitState::Unvisited {
             continue;
         }
-        colors[start] = 1;
+        visits[start] = VisitState::Active;
         pending.push((start, 0));
         while let Some(&(current, next)) = pending.last() {
             if next == successors[current].len() {
-                colors[current] = 2;
+                visits[current] = VisitState::Complete;
                 pending.pop();
                 continue;
             }
@@ -31,13 +38,13 @@ pub(super) fn entries(
             if !needed[destination] {
                 continue;
             }
-            match colors[destination] {
-                0 => {
-                    colors[destination] = 1;
+            match visits[destination] {
+                VisitState::Unvisited => {
+                    visits[destination] = VisitState::Active;
                     pending.push((destination, 0));
                 }
-                1 => selected[destination] = true,
-                _ => {}
+                VisitState::Active => selected[destination] = true,
+                VisitState::Complete => {}
             }
         }
     }
