@@ -56,8 +56,9 @@ impl ExitScalars<'_, '_> {
                 return false;
             };
             matches!(self.program.expression_table.expression(call.arguments[position]),
-                ExpressionNode::Name(path) if path.symbol == symbol && path.head_symbol == symbol
-                    && self.program.expression_table.name_path_members(path.members).len() == 1)
+                ExpressionNode::Name(path)
+                    if self.program.expression_table.name_path_is_single_member(path)
+                        && path.symbol == symbol)
         })
     }
 

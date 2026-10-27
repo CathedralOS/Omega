@@ -324,12 +324,7 @@ impl PremiseScope<'_> {
                 ..
             } => {
                 if let Some(path) = program.expression_table.name_path_node(expression)
-                    && program
-                        .expression_table
-                        .name_path_members(path.members)
-                        .len()
-                        == 1
-                    && path.head_symbol == path.symbol
+                    && program.expression_table.name_path_is_single_member(path)
                     && let Some(index) =
                         typed_trees::signature::state_parameter_position(parameters, path.symbol)
                 {

@@ -851,14 +851,13 @@ pub(super) fn normalized_bound(
     };
     match program.expression_table.expression(expression) {
         ExpressionNode::Integer(value) => value.value_i64().map(NormalizedBound::Integer),
-        ExpressionNode::Name(path) => {
-            let members = program.expression_table.name_path_members(path.members);
-            (members.len() == 1 && path.symbol.is_valid() && path.head_symbol == path.symbol)
-                .then_some(NormalizedBound::Symbol {
-                    symbol: path.symbol,
-                    offset: 0,
-                })
-        }
+        ExpressionNode::Name(path) => program
+            .expression_table
+            .name_path_is_single_member(path)
+            .then_some(NormalizedBound::Symbol {
+                symbol: path.symbol,
+                offset: 0,
+            }),
         _ => None,
     }
 }

@@ -871,13 +871,7 @@ fn entry_operand_name_at(
     depth: u32,
 ) -> Option<CrashPredicateExpression> {
     if depth >= MAX_ENTRY_PROVENANCE_DEPTH
-        || program
-            .expression_table
-            .name_path_members(path.members)
-            .len()
-            != 1
-        || !path.symbol.is_valid()
-        || path.head_symbol != path.symbol
+        || !program.expression_table.name_path_is_single_member(path)
     {
         return None;
     }
