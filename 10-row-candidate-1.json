@@ -1,0 +1,272 @@
+[
+  {
+    "place": "local",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case-calls/producer-1/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/saved_case_predicate/local/main.omg"
+    ],
+    "source_sha256": "e8f0b8f1c2a069c476919b5844d5b765770772f2b891ea83875c9b3be3bbdc7e",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "local",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case-calls/producer-1/omega",
+      "--check",
+      "samples/cli/facts/saved_case_predicate/local/invalid/main.omg"
+    ],
+    "source_sha256": "9d9be2ac2042ceb1a908bebdcf4f0d9a367f71d6dba160bfec9e09b352d69eb3",
+    "exit": 0,
+    "stdout": "compiled 20 source file(s) from /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/saved_case_predicate/local/invalid/main.omg; wrote_output=false\n",
+    "stderr": ""
+  },
+  {
+    "place": "field",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case-calls/producer-1/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/saved_case_predicate/field/main.omg"
+    ],
+    "source_sha256": "acf8733170ff121b69a1a51dc626a6219dd01ff96a277fd78875a0247cafa9b7",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "field",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case-calls/producer-1/omega",
+      "--check",
+      "samples/cli/facts/saved_case_predicate/field/invalid/main.omg"
+    ],
+    "source_sha256": "0edb923cda14cab01f017f5f2612a5a4a595c517791afa1e78fedb8b7677ddc8",
+    "exit": 0,
+    "stdout": "compiled 20 source file(s) from /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/saved_case_predicate/field/invalid/main.omg; wrote_output=false\n",
+    "stderr": ""
+  },
+  {
+    "place": "parameter",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case-calls/producer-1/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/saved_case_predicate/parameter/main.omg"
+    ],
+    "source_sha256": "d4e642e0fd568682679d178606d03b9332a4b7ce1be02d31323d7463646e0441",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "parameter",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case-calls/producer-1/omega",
+      "--check",
+      "samples/cli/facts/saved_case_predicate/parameter/invalid/main.omg"
+    ],
+    "source_sha256": "2af0ebd7ecf1b438350d92409c7520d6ccc57aa2ef5aa1b7df0ec309fd30df39",
+    "exit": 0,
+    "stdout": "compiled 20 source file(s) from /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/saved_case_predicate/parameter/invalid/main.omg; wrote_output=false\n",
+    "stderr": ""
+  },
+  {
+    "place": "call_result",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case-calls/producer-1/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/saved_case_predicate/call_result/main.omg"
+    ],
+    "source_sha256": "097a950619cad30352d7db317e5ffdd165ab283354c06a39d7888d42f38f7b6d",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "call_result",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case-calls/producer-1/omega",
+      "--check",
+      "samples/cli/facts/saved_case_predicate/call_result/invalid/main.omg"
+    ],
+    "source_sha256": "44323a164f32729fcd1013e1a17767c00114a0133761f70b44e1c803d8bbbd15",
+    "exit": 0,
+    "stdout": "compiled 20 source file(s) from /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/saved_case_predicate/call_result/invalid/main.omg; wrote_output=false\n",
+    "stderr": ""
+  },
+  {
+    "place": "match_join",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case-calls/producer-1/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/saved_case_predicate/match_join/main.omg"
+    ],
+    "source_sha256": "72f3b4f6d4b02fd1811f7d6af8208aa68b91e6e65770807404901129b70ad858",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "match_join",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case-calls/producer-1/omega",
+      "--check",
+      "samples/cli/facts/saved_case_predicate/match_join/invalid/main.omg"
+    ],
+    "source_sha256": "a5ac3b02f3d4e112207e110ed1603410e679bfa03e72f43983fd1d347126fefd",
+    "exit": 0,
+    "stdout": "compiled 20 source file(s) from /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/saved_case_predicate/match_join/invalid/main.omg; wrote_output=false\n",
+    "stderr": ""
+  },
+  {
+    "place": "const_name",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case-calls/producer-1/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/saved_case_predicate/const_name/main.omg"
+    ],
+    "source_sha256": "cb00a42d90f8d6bf4703542fe6405583e4bad46bb8c87a1a4c89f77655ddb1ad",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "const_name",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case-calls/producer-1/omega",
+      "--check",
+      "samples/cli/facts/saved_case_predicate/const_name/invalid/main.omg"
+    ],
+    "source_sha256": "c3ae892f986a00d1352fc983f29ef6e175fbedbbafdc6b6b16badd0685a0ede2",
+    "exit": 0,
+    "stdout": "compiled 20 source file(s) from /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/saved_case_predicate/const_name/invalid/main.omg; wrote_output=false\n",
+    "stderr": ""
+  },
+  {
+    "place": "other_state",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case-calls/producer-1/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/saved_case_predicate/other_state/main.omg"
+    ],
+    "source_sha256": "26b7615a7f609dcdcee89d265f28c314b50143287a583b9951cdd32167e3d8b2",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "other_state",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case-calls/producer-1/omega",
+      "--check",
+      "samples/cli/facts/saved_case_predicate/other_state/invalid/main.omg"
+    ],
+    "source_sha256": "46ad3cfb6e38f90f829c92fd5a6550912c89562dcb9c3d4685dc7b6b291f81d7",
+    "exit": 0,
+    "stdout": "compiled 20 source file(s) from /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/saved_case_predicate/other_state/invalid/main.omg; wrote_output=false\n",
+    "stderr": ""
+  },
+  {
+    "place": "other_machine",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case-calls/producer-1/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/saved_case_predicate/other_machine/main.omg"
+    ],
+    "source_sha256": "ec9ba6450d03ec3eeb97e0ecd76287f34f483fdff0d5e1a7e50172a5232933fb",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "other_machine",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case-calls/producer-1/omega",
+      "--check",
+      "samples/cli/facts/saved_case_predicate/other_machine/invalid/main.omg"
+    ],
+    "source_sha256": "299ad3dcf65a595b1e033506ba94441b1a2a2b6ecac5daf421e8a42725a023f2",
+    "exit": 0,
+    "stdout": "compiled 20 source file(s) from /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/saved_case_predicate/other_machine/invalid/main.omg; wrote_output=false\n",
+    "stderr": ""
+  },
+  {
+    "place": "target_body",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case-calls/producer-1/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/saved_case_predicate/target_body/main.omg"
+    ],
+    "source_sha256": "ae04d1577765b614ce4a4f0fa7a811527fe6a1c2653c39fa4b9df010d6843292",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "target_body",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case-calls/producer-1/omega",
+      "--check",
+      "samples/cli/facts/saved_case_predicate/target_body/invalid/main.omg"
+    ],
+    "source_sha256": "3de4ecfa28f5ed46d3c2805a60e131adf75fbc5eeae235627ce52925ecc29ec6",
+    "exit": 0,
+    "stdout": "compiled 20 source file(s) from /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/saved_case_predicate/target_body/invalid/main.omg; wrote_output=false\n",
+    "stderr": ""
+  },
+  {
+    "place": "writes_before_read",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case-calls/producer-1/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/saved_case_predicate/writes_before_read/main.omg"
+    ],
+    "source_sha256": "2aa4c3a36f8b98cd19d04c1d40a119f98b94a4b0fe568dce3a1f38cfa09d7749",
+    "exit": 200,
+    "stdout": "",
+    "stderr": "native compile FAILED:\n  error: cannot compile admitted project: checked compilation failed for package `saved_case_parameter` with 1 diagnostic(s)\n  error: machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence\n"
+  },
+  {
+    "place": "writes_before_read",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case-calls/producer-1/omega",
+      "--check",
+      "samples/cli/facts/saved_case_predicate/writes_before_read/invalid/main.omg"
+    ],
+    "source_sha256": "58a61b60251bc55d5a1ea31bc9c6391c962dbcb174b53446f5f20a689345f615",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `saved_case_parameter` with 1 diagnostic(s)\n  error: machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence\n"
+  }
+]

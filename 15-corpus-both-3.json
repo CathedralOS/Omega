@@ -1,0 +1,880 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "ca9cba603c505cd2c9edfbd463674e21f3ce7539",
+  "dirty": true,
+  "leg": "both",
+  "target": "macos_arm64",
+  "golden": "tests/omega/corpus_both_macos_arm64.txt",
+  "golden_reason_gaps": {
+    "rows": 0,
+    "of": 4669
+  },
+  "subset": true,
+  "filter": "facts/saved_case_predicate_,facts/saved_observation_snapshot_,facts/saved_byte_predicate_,facts/case_payload_stored_loan_,facts/descriptor_guard_replacement_,control_flow/saved_case_predicate_,borrows/guard_subject,borrows/guard_observation,borrows/runtime_reference_projection_evaluation_exit",
+  "shard": null,
+  "verdict": "recorded_regression",
+  "exit_code": 3,
+  "counts": {
+    "fixtures": 49,
+    "by_status": {
+      "built": 39,
+      "rejected": 10
+    },
+    "wrong_reason": 0,
+    "wrong_reason_fixtures": [],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 9,
+    "lost_success_fixtures": [
+      "pass/facts/saved_case_predicate_through_call_result_exit",
+      "pass/facts/saved_case_predicate_through_const_name_exit",
+      "pass/facts/saved_case_predicate_through_field_exit",
+      "pass/facts/saved_case_predicate_through_local_exit",
+      "pass/facts/saved_case_predicate_through_match_join_exit",
+      "pass/facts/saved_case_predicate_through_other_machine_exit",
+      "pass/facts/saved_case_predicate_through_other_state_exit",
+      "pass/facts/saved_case_predicate_through_parameter_exit",
+      "pass/facts/saved_case_predicate_through_target_body_exit"
+    ],
+    "pinned_off_target": 10,
+    "pinned_off_target_fixtures": [
+      "pass/control_flow/saved_case_predicate_receiver_writes_before_read_exit",
+      "pass/facts/saved_case_predicate_through_call_result_exit",
+      "pass/facts/saved_case_predicate_through_const_name_exit",
+      "pass/facts/saved_case_predicate_through_field_exit",
+      "pass/facts/saved_case_predicate_through_local_exit",
+      "pass/facts/saved_case_predicate_through_match_join_exit",
+      "pass/facts/saved_case_predicate_through_other_machine_exit",
+      "pass/facts/saved_case_predicate_through_other_state_exit",
+      "pass/facts/saved_case_predicate_through_parameter_exit",
+      "pass/facts/saved_case_predicate_through_target_body_exit"
+    ],
+    "by_verdict": {}
+  },
+  "oracle_failures": [
+    "pass/control_flow/saved_case_predicate_receiver_writes_before_read_exit: expected native 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/facts/saved_case_predicate_through_call_result_exit: expected native 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/facts/saved_case_predicate_through_const_name_exit: expected native 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/facts/saved_case_predicate_through_field_exit: expected native 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/facts/saved_case_predicate_through_local_exit: expected native 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/facts/saved_case_predicate_through_match_join_exit: expected native 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/facts/saved_case_predicate_through_other_machine_exit: expected native 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/facts/saved_case_predicate_through_other_state_exit: expected native 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/facts/saved_case_predicate_through_parameter_exit: expected native 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/facts/saved_case_predicate_through_target_body_exit: expected native 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/control_flow/saved_case_predicate_receiver_writes_before_read_exit: expected interpreted 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/facts/saved_case_predicate_through_call_result_exit: expected interpreted 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/facts/saved_case_predicate_through_const_name_exit: expected interpreted 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/facts/saved_case_predicate_through_field_exit: expected interpreted 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/facts/saved_case_predicate_through_local_exit: expected interpreted 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/facts/saved_case_predicate_through_match_join_exit: expected interpreted 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/facts/saved_case_predicate_through_other_machine_exit: expected interpreted 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/facts/saved_case_predicate_through_other_state_exit: expected interpreted 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/facts/saved_case_predicate_through_parameter_exit: expected interpreted 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/facts/saved_case_predicate_through_target_body_exit: expected interpreted 0, observed rejected {'interpreter': 'unchecked'}"
+  ],
+  "infrastructure_error": null,
+  "golden_provenance": null,
+  "perf_context": null,
+  "observations": [
+    {
+      "fixture": "pass/borrows/guard_subject_ends_before_returning_call_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1834,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/borrows/runtime_reference_projection_evaluation_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2607,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/control_flow/saved_case_predicate_disjoint_effects_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1732,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/control_flow/saved_case_predicate_receiver_writes_before_read_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 1371,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "cannot plan contextual call cleanup against the executable hook roster: missing executable cleanup catalog"
+      ],
+      "regressed_from": null,
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_call_result_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1608,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_const_name_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1755,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_field_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1579,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_local_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1564,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_match_join_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1622,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_other_machine_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1643,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_other_state_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1714,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_parameter_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1545,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_target_body_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1757,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/facts/descriptor_guard_replacement_through_call_result_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1910,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/facts/descriptor_guard_replacement_through_const_name_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1666,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/facts/descriptor_guard_replacement_through_field_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1560,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/facts/descriptor_guard_replacement_through_local_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1761,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/facts/descriptor_guard_replacement_through_match_join_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1697,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/facts/descriptor_guard_replacement_through_other_machine_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1689,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/facts/descriptor_guard_replacement_through_other_state_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1867,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/facts/descriptor_guard_replacement_through_parameter_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1680,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/facts/descriptor_guard_replacement_through_target_body_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1799,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/facts/saved_byte_predicate_through_call_result",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1619,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/facts/saved_byte_predicate_through_const_name",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1663,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/facts/saved_byte_predicate_through_field",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1688,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/facts/saved_byte_predicate_through_local",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1688,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/facts/saved_byte_predicate_through_match_join",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1684,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/facts/saved_byte_predicate_through_other_machine",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1698,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/facts/saved_byte_predicate_through_other_state",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1668,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/facts/saved_byte_predicate_through_parameter",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1694,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/facts/saved_byte_predicate_through_target_body",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1698,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_call_result_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 1347,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "cannot plan contextual call cleanup against the executable hook roster: missing executable cleanup catalog"
+      ],
+      "regressed_from": {
+        "status": "built",
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        }
+      },
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_const_name_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 1488,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "cannot plan contextual call cleanup against the executable hook roster: missing executable cleanup catalog"
+      ],
+      "regressed_from": {
+        "status": "built",
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        }
+      },
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_field_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 1437,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "cannot plan contextual call cleanup against the executable hook roster: missing executable cleanup catalog"
+      ],
+      "regressed_from": {
+        "status": "built",
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        }
+      },
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_local_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 1365,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "cannot plan contextual call cleanup against the executable hook roster: missing executable cleanup catalog"
+      ],
+      "regressed_from": {
+        "status": "built",
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        }
+      },
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_match_join_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 1239,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "cannot plan contextual call cleanup against the executable hook roster: missing executable cleanup catalog"
+      ],
+      "regressed_from": {
+        "status": "built",
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        }
+      },
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_other_machine_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 1228,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "cannot plan contextual call cleanup against the executable hook roster: missing executable cleanup catalog"
+      ],
+      "regressed_from": {
+        "status": "built",
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        }
+      },
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_other_state_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 1446,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "cannot plan contextual call cleanup against the executable hook roster: missing executable cleanup catalog"
+      ],
+      "regressed_from": {
+        "status": "built",
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        }
+      },
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_parameter_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 1443,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "cannot plan contextual call cleanup against the executable hook roster: missing executable cleanup catalog"
+      ],
+      "regressed_from": {
+        "status": "built",
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        }
+      },
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_target_body_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 1426,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "cannot plan contextual call cleanup against the executable hook roster: missing executable cleanup catalog"
+      ],
+      "regressed_from": {
+        "status": "built",
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        }
+      },
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_through_call_result_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1695,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_through_const_name_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1684,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_through_field_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1588,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_through_local_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1778,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_through_match_join_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1857,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_through_other_machine_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1809,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_through_other_state_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1637,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_through_parameter_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1714,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "ca9cba603c50"
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_through_target_body_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1475,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "ca9cba603c50"
+    }
+  ],
+  "fixtures": []
+}

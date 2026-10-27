@@ -1,0 +1,102 @@
+{
+  "context": {
+    "host": "macOS ARM64",
+    "target": "macos_arm64",
+    "parent": "STATE-LOCAL-VALUE-FRONTIER",
+    "requirement": "Preserve an evaluated case decision and its actual post-receiver-call read epoch; distinguish historical decisions from repeatable current expressions and invalidate tag authority on trailing overlapping writes."
+  },
+  "semantic_contracts": [
+    {
+      "contract": "wiki/spec/language/state_contracts.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow"
+      ],
+      "classification": "missing_implementation",
+      "reason": "A reference-returning receiver can write before its tag is read. Preserve the actual captured decision and its original Flow observation independently from expression replayability. Existing typed write-prefix and exact-subject checks decide currency; current-expression inference retains its repeatability and noninterference obligations.",
+      "passages": [
+        "Facts apply to their exact subjects and program points. Assignments first\n[capture their destination place](expressions.md#evaluation-schedule), including\nits selectors and bounds at that program point. They then evaluate the\nright-hand side and its effects, capture transferable evidence, and finally\ninvalidate overlapping destination facts and establish the new value at the\ncaptured place. Right-hand-side mutations invalidate their own overlapping facts\nwhen they occur; the captured selector is not a fact that the selector's live\nbinding still has its earlier value. Uninitialized storage\nhas no assumed zero. Copies transport facts about the captured value, not source\nexpressions to be reevaluated after mutation.\n\nA reference identifies live storage, not its former contents. Replacing a local\nreference binding changes that binding without redirecting aliases made from its\nprevious value. A write through the reference changes the referent, not the\nbinding. Stored reference leaves retain their captured origins until replacement\nor exposure invalidates that relation. Type or lifetime correspondence alone\ndoes not establish a returned reference's storage origin.\n\nCaller-visible mutation summaries include operand evaluation and callee writes.\nA complete empty summary preserves facts; an unknown summary proves no\nnon-interference. Fact invalidation uses storage footprints, while borrow\nauthorization uses the access route. Neither may-write summaries nor origin\nrecovery grant loans, permit moves, or discharge linear claims."
+      ]
+    },
+    {
+      "contract": "wiki/spec/language/patterns.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow"
+      ],
+      "classification": "missing_implementation",
+      "reason": "A saved true case verdict selects the exact current payload after proven disjoint effects, while replacement of that case retires the current payload fact. Keep all branch and payload formation obligations.",
+      "passages": [
+        "A dispatch evaluates its subject once, tests alternatives in authored order,\nand executes only the selected arm. Matching contributes facts valid for that\nsubject and program point. Failed alternatives do not execute their bodies.\nAn expression `match` produces compatible arm values; a `transition` selects an\noutgoing control edge. Both use the same pattern vocabulary."
+      ]
+    },
+    {
+      "contract": "wiki/spec/terminal-psi/ownership.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/scalar_computations",
+        "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/scalar_lowering",
+        "omega-rust/psi/compilation/representations/checked-trees/src/checked_trees/values/computations.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/cleanup/temporary_actions.rs"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Every scalar observation completes its fresh reference receiver at the checked normal continuation, before backing-owner disposal. Share the existing reference-descriptor retirement selection and emission between scalar field and tag observations; keep established outer operands alive and leave nominal backing cleanup and loans with their existing owners.",
+      "passages": [
+        "Parameter, named-local, and call-result roots retain distinct establishment\nidentities. A result ordinal is not a parameter index. An anonymous projected\nargument retains its real producer expression rather than a fabricated local;\nthe producer completes before the consumer even if captured call ordinals are\npreorder.\n\nA dying temporary's normal continuation owns its remaining cleanup. A final\nconsumer may use the return edge; a continuing body uses an explicit continuation\nedge. Even an empty complement retains source continuation correspondence.\nPartial moves do not retire the whole root early. Other live roots remain live.\n"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "saved-case-receiver-final",
+      "kind": "native",
+      "command": [
+        "python3",
+        "build/saved-case-calls/validate-final.py"
+      ],
+      "inputs": [
+        "omega-rust",
+        "source/library",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        ".config",
+        "tools",
+        "samples/cli/facts/saved_case_predicate",
+        "tests/omega",
+        "build.omg"
+      ],
+      "artifacts": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case-calls/producer-4/omega",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case-calls/producer-4/corpus_runner",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case-calls/producer-4.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case-calls/corpus-both-4.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case-calls/corpus-both-4.log",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case-calls/validate-final.py",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case-calls/run-row.py",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case-calls/run-probes-final.py",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case-calls/probes/fresh_tag/main.omg",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case-calls/probes/fresh_tag/build.omg",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case-calls/probes/negated_receiver_stale/main.omg",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case-calls/probes/negated_receiver_stale/build.omg",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case-calls/probes/negated_receiver/main.omg",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case-calls/probes/negated_receiver/build.omg"
+      ],
+      "producer": {
+        "revision": "4bfbec3a6dbad738c5bb19d85614c5eb67505505",
+        "inputs": [
+          "omega-rust",
+          "source/library",
+          "Cargo.toml",
+          "Cargo.lock",
+          "rust-toolchain.toml"
+        ],
+        "executables": [
+          "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case-calls/producer-4/omega",
+          "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case-calls/producer-4/corpus_runner"
+        ]
+      },
+      "closure_reason": "Full compiler/library source and authored source/oracle closure. Fresh focused source controls and ten dual-engine sample executions plus fresh-tag/polarity controls; retain the original independently audited49-program runtime record and its actual producer identity. Only docs/goldens changed after optimized ec25f66 build; producer inputs are byte-identical.",
+      "final": false,
+      "expected_exit": 0,
+      "timeout_seconds": 300
+    }
+  ]
+}

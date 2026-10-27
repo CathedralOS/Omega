@@ -1,0 +1,95 @@
+{
+  "schema": "qualification-handoff-1",
+  "role": "implementation",
+  "candidate": "eed37e0d2571646b78af87c1f6cc691ec176302e",
+  "source_revision": "eed37e0d2571646b78af87c1f6cc691ec176302e",
+  "changed_paths": [],
+  "canonical_context": [
+    {
+      "contract": "wiki/spec/language/state_contracts.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow"
+      ],
+      "classification": "missing_implementation",
+      "reason": "A reference-returning receiver can write before its tag is read. Preserve the actual captured decision and its original Flow observation independently from expression replayability. Existing typed write-prefix and exact-subject checks decide currency; current-expression inference retains its repeatability and noninterference obligations.",
+      "passages": [
+        "Facts apply to their exact subjects and program points. Assignments first\n[capture their destination place](expressions.md#evaluation-schedule), including\nits selectors and bounds at that program point. They then evaluate the\nright-hand side and its effects, capture transferable evidence, and finally\ninvalidate overlapping destination facts and establish the new value at the\ncaptured place. Right-hand-side mutations invalidate their own overlapping facts\nwhen they occur; the captured selector is not a fact that the selector's live\nbinding still has its earlier value. Uninitialized storage\nhas no assumed zero. Copies transport facts about the captured value, not source\nexpressions to be reevaluated after mutation.\n\nA reference identifies live storage, not its former contents. Replacing a local\nreference binding changes that binding without redirecting aliases made from its\nprevious value. A write through the reference changes the referent, not the\nbinding. Stored reference leaves retain their captured origins until replacement\nor exposure invalidates that relation. Type or lifetime correspondence alone\ndoes not establish a returned reference's storage origin.\n\nCaller-visible mutation summaries include operand evaluation and callee writes.\nA complete empty summary preserves facts; an unknown summary proves no\nnon-interference. Fact invalidation uses storage footprints, while borrow\nauthorization uses the access route. Neither may-write summaries nor origin\nrecovery grant loans, permit moves, or discharge linear claims."
+      ],
+      "revision": "eed37e0d2571646b78af87c1f6cc691ec176302e",
+      "blob": "3f0063b497dff2a77ef78b292b1f3315cf7b22d9"
+    },
+    {
+      "contract": "wiki/spec/language/patterns.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow"
+      ],
+      "classification": "missing_implementation",
+      "reason": "A saved true case verdict selects the exact current payload after proven disjoint effects, while replacement of that case retires the current payload fact. Keep all branch and payload formation obligations.",
+      "passages": [
+        "A dispatch evaluates its subject once, tests alternatives in authored order,\nand executes only the selected arm. Matching contributes facts valid for that\nsubject and program point. Failed alternatives do not execute their bodies.\nAn expression `match` produces compatible arm values; a `transition` selects an\noutgoing control edge. Both use the same pattern vocabulary."
+      ],
+      "revision": "eed37e0d2571646b78af87c1f6cc691ec176302e",
+      "blob": "5cbaddcb87f5edbbfb08bb667218f80b176fd21a"
+    }
+  ],
+  "context_fingerprint": "c41e03c3a50e9e88c9d60fbb46c8e278ca88f752de02e64b88ff7cf794698e4c",
+  "reinject_context": [
+    {
+      "contract": "wiki/spec/language/state_contracts.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow"
+      ],
+      "classification": "missing_implementation",
+      "reason": "A reference-returning receiver can write before its tag is read. Preserve the actual captured decision and its original Flow observation independently from expression replayability. Existing typed write-prefix and exact-subject checks decide currency; current-expression inference retains its repeatability and noninterference obligations.",
+      "passages": [
+        "Facts apply to their exact subjects and program points. Assignments first\n[capture their destination place](expressions.md#evaluation-schedule), including\nits selectors and bounds at that program point. They then evaluate the\nright-hand side and its effects, capture transferable evidence, and finally\ninvalidate overlapping destination facts and establish the new value at the\ncaptured place. Right-hand-side mutations invalidate their own overlapping facts\nwhen they occur; the captured selector is not a fact that the selector's live\nbinding still has its earlier value. Uninitialized storage\nhas no assumed zero. Copies transport facts about the captured value, not source\nexpressions to be reevaluated after mutation.\n\nA reference identifies live storage, not its former contents. Replacing a local\nreference binding changes that binding without redirecting aliases made from its\nprevious value. A write through the reference changes the referent, not the\nbinding. Stored reference leaves retain their captured origins until replacement\nor exposure invalidates that relation. Type or lifetime correspondence alone\ndoes not establish a returned reference's storage origin.\n\nCaller-visible mutation summaries include operand evaluation and callee writes.\nA complete empty summary preserves facts; an unknown summary proves no\nnon-interference. Fact invalidation uses storage footprints, while borrow\nauthorization uses the access route. Neither may-write summaries nor origin\nrecovery grant loans, permit moves, or discharge linear claims."
+      ],
+      "revision": "eed37e0d2571646b78af87c1f6cc691ec176302e",
+      "blob": "3f0063b497dff2a77ef78b292b1f3315cf7b22d9"
+    },
+    {
+      "contract": "wiki/spec/language/patterns.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow"
+      ],
+      "classification": "missing_implementation",
+      "reason": "A saved true case verdict selects the exact current payload after proven disjoint effects, while replacement of that case retires the current payload fact. Keep all branch and payload formation obligations.",
+      "passages": [
+        "A dispatch evaluates its subject once, tests alternatives in authored order,\nand executes only the selected arm. Matching contributes facts valid for that\nsubject and program point. Failed alternatives do not execute their bodies.\nAn expression `match` produces compatible arm values; a `transition` selects an\noutgoing control edge. Both use the same pattern vocabulary."
+      ],
+      "revision": "eed37e0d2571646b78af87c1f6cc691ec176302e",
+      "blob": "5cbaddcb87f5edbbfb08bb667218f80b176fd21a"
+    }
+  ],
+  "context_refresh": true,
+  "checks": [
+    {
+      "id": "case-flow-build",
+      "kind": "build",
+      "command": [
+        "cargo",
+        "check",
+        "--locked",
+        "-p",
+        "typed-trees-to-checked-trees"
+      ],
+      "inputs": [
+        "Cargo.lock",
+        "Cargo.toml",
+        "omega-rust",
+        "rust-toolchain.toml",
+        "source/library",
+        "wiki/spec/language/patterns.md",
+        "wiki/spec/language/state_contracts.md"
+      ],
+      "artifacts": [],
+      "closure_reason": "Focused source build definition for implementation context only; native row qualification is still required before acceptance.",
+      "final": false,
+      "expected_exit": 0,
+      "timeout_seconds": 300
+    }
+  ],
+  "assessments": [],
+  "review_instruction": "Judge behavior against these passages; uncovered semantics need an explicit owner decision. Inspect the candidate diff and check evidence; passage identity alone is not semantic compliance.",
+  "prior_context_retained": false
+}

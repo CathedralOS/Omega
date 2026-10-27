@@ -1,0 +1,84 @@
+{
+  "schema": "omega-qualification-summary-v1",
+  "state": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case-calls/qualification-state.json",
+  "revision": 4,
+  "base": "eed37e0d2571646b78af87c1f6cc691ec176302e",
+  "qualification_revision": "4bfbec3a6dbad738c5bb19d85614c5eb67505505",
+  "running": null,
+  "source_ref": "refs/qualification/afcbc69f315fd047dd52d433/4bfbec3a6dbad738c5bb19d85614c5eb67505505",
+  "latest_run": {
+    "id": "17449a9026b04f3c89b205458c0e23c4",
+    "check": "saved-case-receiver-final",
+    "revision": "4bfbec3a6dbad738c5bb19d85614c5eb67505505",
+    "exit": 0,
+    "invalidations": [],
+    "duration_seconds": 79.84254525,
+    "receipt": {
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case-calls/qualification-state.records/17449a9026b04f3c89b205458c0e23c4.json",
+      "sha256": "121872336d4e7ca18fd79d10dc787348831971bff08937a2f2f937f6b181aa22"
+    }
+  },
+  "latest_assessment": {
+    "candidate": "4bfbec3a6dbad738c5bb19d85614c5eb67505505",
+    "base": "eed37e0d2571646b78af87c1f6cc691ec176302e",
+    "checks": [
+      {
+        "check": "saved-case-receiver-final",
+        "action": "reuse",
+        "reasons": [
+          "reviewed_inputs_unchanged"
+        ],
+        "evidence": "17449a9026b04f3c89b205458c0e23c4",
+        "observed_revision": "4bfbec3a6dbad738c5bb19d85614c5eb67505505"
+      }
+    ],
+    "canonical_context": [
+      {
+        "classification": "missing_implementation",
+        "contract": "wiki/spec/language/state_contracts.md",
+        "implementation": [
+          "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow"
+        ],
+        "passages": [
+          "Facts apply to their exact subjects and program points. Assignments first\n[capture their destination place](expressions.md#evaluation-schedule), including\nits selectors and bounds at that program point. They then evaluate the\nright-hand side and its effects, capture transferable evidence, and finally\ninvalidate overlapping destination facts and establish the new value at the\ncaptured place. Right-hand-side mutations invalidate their own overlapping facts\nwhen they occur; the captured selector is not a fact that the selector's live\nbinding still has its earlier value. Uninitialized storage\nhas no assumed zero. Copies transport facts about the captured value, not source\nexpressions to be reevaluated after mutation.\n\nA reference identifies live storage, not its former contents. Replacing a local\nreference binding changes that binding without redirecting aliases made from its\nprevious value. A write through the reference changes the referent, not the\nbinding. Stored reference leaves retain their captured origins until replacement\nor exposure invalidates that relation. Type or lifetime correspondence alone\ndoes not establish a returned reference's storage origin.\n\nCaller-visible mutation summaries include operand evaluation and callee writes.\nA complete empty summary preserves facts; an unknown summary proves no\nnon-interference. Fact invalidation uses storage footprints, while borrow\nauthorization uses the access route. Neither may-write summaries nor origin\nrecovery grant loans, permit moves, or discharge linear claims."
+        ],
+        "reason": "A reference-returning receiver can write before its tag is read. Preserve the actual captured decision and its original Flow observation independently from expression replayability. Existing typed write-prefix and exact-subject checks decide currency; current-expression inference retains its repeatability and noninterference obligations.",
+        "revision": "eed37e0d2571646b78af87c1f6cc691ec176302e",
+        "blob": "3f0063b497dff2a77ef78b292b1f3315cf7b22d9"
+      },
+      {
+        "classification": "missing_implementation",
+        "contract": "wiki/spec/language/patterns.md",
+        "implementation": [
+          "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow"
+        ],
+        "passages": [
+          "A dispatch evaluates its subject once, tests alternatives in authored order,\nand executes only the selected arm. Matching contributes facts valid for that\nsubject and program point. Failed alternatives do not execute their bodies.\nAn expression `match` produces compatible arm values; a `transition` selects an\noutgoing control edge. Both use the same pattern vocabulary."
+        ],
+        "reason": "A saved true case verdict selects the exact current payload after proven disjoint effects, while replacement of that case retires the current payload fact. Keep all branch and payload formation obligations.",
+        "revision": "eed37e0d2571646b78af87c1f6cc691ec176302e",
+        "blob": "5cbaddcb87f5edbbfb08bb667218f80b176fd21a"
+      },
+      {
+        "classification": "missing_implementation",
+        "contract": "wiki/spec/terminal-psi/ownership.md",
+        "implementation": [
+          "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/scalar_computations",
+          "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/scalar_lowering",
+          "omega-rust/psi/compilation/representations/checked-trees/src/checked_trees/values/computations.rs",
+          "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/cleanup/temporary_actions.rs"
+        ],
+        "passages": [
+          "Parameter, named-local, and call-result roots retain distinct establishment\nidentities. A result ordinal is not a parameter index. An anonymous projected\nargument retains its real producer expression rather than a fabricated local;\nthe producer completes before the consumer even if captured call ordinals are\npreorder.\n\nA dying temporary's normal continuation owns its remaining cleanup. A final\nconsumer may use the return edge; a continuing body uses an explicit continuation\nedge. Even an empty complement retains source continuation correspondence.\nPartial moves do not retire the whole root early. Other live roots remain live.\n"
+        ],
+        "reason": "Every scalar observation completes its fresh reference receiver at the checked normal continuation, before backing-owner disposal. Share the existing reference-descriptor retirement selection and emission between scalar field and tag observations; keep established outer operands alive and leave nominal backing cleanup and loans with their existing owners.",
+        "revision": "eed37e0d2571646b78af87c1f6cc691ec176302e",
+        "blob": "d01b35a41784e5ae4ee016f1682a2be9a82ff384"
+      }
+    ],
+    "incoming_paths": [],
+    "duration_seconds": 1.3511260410000006,
+    "reused": 1,
+    "invalidated": 0
+  }
+}

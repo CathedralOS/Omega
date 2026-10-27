@@ -1,0 +1,11 @@
+{
+  "revision": "ca9cba603c505cd2c9edfbd463674e21f3ce7539",
+  "executables": {
+    "omega": "d6badc923ca9262e27730e56d1dd436f1a6b46fa1b2dbbfd4875dcea60b13704",
+    "corpus_runner": "d8b02a6b9355d0374b7c09c137b2522dbf6a52653777c7d9f37a7bf3c377f53c"
+  },
+  "build_logs": [
+    "build-3.log",
+    "corpus-build-3.log"
+  ]
+}

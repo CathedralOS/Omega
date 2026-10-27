@@ -1,0 +1,184 @@
+{
+  "schema": "qualification-handoff-1",
+  "role": "implementation",
+  "candidate": "3c8328a32378a8f1fce3e9bef39f10313b4c12d8",
+  "source_revision": "eed37e0d2571646b78af87c1f6cc691ec176302e",
+  "changed_paths": [
+    "TASKS.md",
+    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/calls/transition_guards.rs",
+    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/direct/guard_values/denotations.rs",
+    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow/exits/guards.rs",
+    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow/expression/boolean_completions.rs",
+    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow/expression/dispatch.rs",
+    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow/guard_predicates.rs",
+    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow/operand_contexts.rs",
+    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow/operand_contexts/write_intervals.rs",
+    "samples/cli/facts/saved_case_predicate/README.md",
+    "samples/cli/facts/saved_case_predicate/call_result/invalid/main.omg",
+    "samples/cli/facts/saved_case_predicate/call_result/main.omg",
+    "samples/cli/facts/saved_case_predicate/const_name/invalid/main.omg",
+    "samples/cli/facts/saved_case_predicate/const_name/main.omg",
+    "samples/cli/facts/saved_case_predicate/field/invalid/main.omg",
+    "samples/cli/facts/saved_case_predicate/field/main.omg",
+    "samples/cli/facts/saved_case_predicate/local/invalid/main.omg",
+    "samples/cli/facts/saved_case_predicate/local/main.omg",
+    "samples/cli/facts/saved_case_predicate/match_join/invalid/main.omg",
+    "samples/cli/facts/saved_case_predicate/match_join/main.omg",
+    "samples/cli/facts/saved_case_predicate/other_machine/invalid/main.omg",
+    "samples/cli/facts/saved_case_predicate/other_machine/main.omg",
+    "samples/cli/facts/saved_case_predicate/other_state/invalid/main.omg",
+    "samples/cli/facts/saved_case_predicate/other_state/main.omg",
+    "samples/cli/facts/saved_case_predicate/parameter/invalid/main.omg",
+    "samples/cli/facts/saved_case_predicate/parameter/main.omg",
+    "samples/cli/facts/saved_case_predicate/target_body/invalid/main.omg",
+    "samples/cli/facts/saved_case_predicate/target_body/main.omg",
+    "samples/cli/facts/saved_case_predicate/writes_before_read/build.omg",
+    "samples/cli/facts/saved_case_predicate/writes_before_read/invalid/build.omg",
+    "samples/cli/facts/saved_case_predicate/writes_before_read/invalid/main.omg",
+    "samples/cli/facts/saved_case_predicate/writes_before_read/main.omg",
+    "tests/omega/fail/control_flow/saved_case_predicate_receiver_trailing_write_rejected/build.omg",
+    "tests/omega/fail/control_flow/saved_case_predicate_receiver_trailing_write_rejected/expected.txt",
+    "tests/omega/fail/control_flow/saved_case_predicate_receiver_trailing_write_rejected/main.omg",
+    "tests/omega/fail/control_flow/saved_case_predicate_receiver_writes_before_read_rejected/build.omg",
+    "tests/omega/fail/control_flow/saved_case_predicate_receiver_writes_before_read_rejected/expected.txt",
+    "tests/omega/fail/control_flow/saved_case_predicate_receiver_writes_before_read_rejected/main.omg",
+    "tests/omega/fail/facts/saved_case_predicate_through_call_result_rejected/main.omg",
+    "tests/omega/fail/facts/saved_case_predicate_through_const_name_rejected/main.omg",
+    "tests/omega/fail/facts/saved_case_predicate_through_field_rejected/main.omg",
+    "tests/omega/fail/facts/saved_case_predicate_through_local_rejected/main.omg",
+    "tests/omega/fail/facts/saved_case_predicate_through_match_join_rejected/main.omg",
+    "tests/omega/fail/facts/saved_case_predicate_through_other_machine_rejected/main.omg",
+    "tests/omega/fail/facts/saved_case_predicate_through_other_state_rejected/main.omg",
+    "tests/omega/fail/facts/saved_case_predicate_through_parameter_rejected/main.omg",
+    "tests/omega/fail/facts/saved_case_predicate_through_target_body_rejected/main.omg",
+    "tests/omega/pass/control_flow/saved_case_predicate_receiver_writes_before_read_exit/build.omg",
+    "tests/omega/pass/control_flow/saved_case_predicate_receiver_writes_before_read_exit/expected_native_exit.txt",
+    "tests/omega/pass/control_flow/saved_case_predicate_receiver_writes_before_read_exit/main.omg",
+    "tests/omega/pass/facts/saved_case_predicate_through_call_result_exit/main.omg",
+    "tests/omega/pass/facts/saved_case_predicate_through_const_name_exit/main.omg",
+    "tests/omega/pass/facts/saved_case_predicate_through_field_exit/main.omg",
+    "tests/omega/pass/facts/saved_case_predicate_through_local_exit/main.omg",
+    "tests/omega/pass/facts/saved_case_predicate_through_match_join_exit/main.omg",
+    "tests/omega/pass/facts/saved_case_predicate_through_other_machine_exit/main.omg",
+    "tests/omega/pass/facts/saved_case_predicate_through_other_state_exit/main.omg",
+    "tests/omega/pass/facts/saved_case_predicate_through_parameter_exit/main.omg",
+    "tests/omega/pass/facts/saved_case_predicate_through_target_body_exit/main.omg"
+  ],
+  "canonical_context": [
+    {
+      "contract": "wiki/spec/language/state_contracts.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow"
+      ],
+      "classification": "missing_implementation",
+      "reason": "A reference-returning receiver can write before its tag is read. Preserve the actual captured decision and its original Flow observation independently from expression replayability. Existing typed write-prefix and exact-subject checks decide currency; current-expression inference retains its repeatability and noninterference obligations.",
+      "passages": [
+        "Facts apply to their exact subjects and program points. Assignments first\n[capture their destination place](expressions.md#evaluation-schedule), including\nits selectors and bounds at that program point. They then evaluate the\nright-hand side and its effects, capture transferable evidence, and finally\ninvalidate overlapping destination facts and establish the new value at the\ncaptured place. Right-hand-side mutations invalidate their own overlapping facts\nwhen they occur; the captured selector is not a fact that the selector's live\nbinding still has its earlier value. Uninitialized storage\nhas no assumed zero. Copies transport facts about the captured value, not source\nexpressions to be reevaluated after mutation.\n\nA reference identifies live storage, not its former contents. Replacing a local\nreference binding changes that binding without redirecting aliases made from its\nprevious value. A write through the reference changes the referent, not the\nbinding. Stored reference leaves retain their captured origins until replacement\nor exposure invalidates that relation. Type or lifetime correspondence alone\ndoes not establish a returned reference's storage origin.\n\nCaller-visible mutation summaries include operand evaluation and callee writes.\nA complete empty summary preserves facts; an unknown summary proves no\nnon-interference. Fact invalidation uses storage footprints, while borrow\nauthorization uses the access route. Neither may-write summaries nor origin\nrecovery grant loans, permit moves, or discharge linear claims."
+      ],
+      "revision": "eed37e0d2571646b78af87c1f6cc691ec176302e",
+      "blob": "3f0063b497dff2a77ef78b292b1f3315cf7b22d9"
+    },
+    {
+      "contract": "wiki/spec/language/patterns.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow"
+      ],
+      "classification": "missing_implementation",
+      "reason": "A saved true case verdict selects the exact current payload after proven disjoint effects, while replacement of that case retires the current payload fact. Keep all branch and payload formation obligations.",
+      "passages": [
+        "A dispatch evaluates its subject once, tests alternatives in authored order,\nand executes only the selected arm. Matching contributes facts valid for that\nsubject and program point. Failed alternatives do not execute their bodies.\nAn expression `match` produces compatible arm values; a `transition` selects an\noutgoing control edge. Both use the same pattern vocabulary."
+      ],
+      "revision": "eed37e0d2571646b78af87c1f6cc691ec176302e",
+      "blob": "5cbaddcb87f5edbbfb08bb667218f80b176fd21a"
+    },
+    {
+      "contract": "wiki/spec/terminal-psi/ownership.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/scalar_computations",
+        "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/scalar_lowering"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Every scalar observation completes its fresh reference receiver at the checked normal continuation, before backing-owner disposal. Share the existing reference-descriptor retirement selection and emission between scalar field and tag observations; keep established outer operands alive and leave nominal backing cleanup and loans with their existing owners.",
+      "passages": [
+        "Parameter, named-local, and call-result roots retain distinct establishment\nidentities. A result ordinal is not a parameter index. An anonymous projected\nargument retains its real producer expression rather than a fabricated local;\nthe producer completes before the consumer even if captured call ordinals are\npreorder.\n\nA dying temporary's normal continuation owns its remaining cleanup. A final\nconsumer may use the return edge; a continuing body uses an explicit continuation\nedge. Even an empty complement retains source continuation correspondence.\nPartial moves do not retire the whole root early. Other live roots remain live.\n"
+      ],
+      "revision": "eed37e0d2571646b78af87c1f6cc691ec176302e",
+      "blob": "d01b35a41784e5ae4ee016f1682a2be9a82ff384"
+    }
+  ],
+  "context_fingerprint": "55903f91ba3162e5c0f3d98c6aa6e24765d6841cb793c89e4ac1989347ea812d",
+  "reinject_context": [
+    {
+      "contract": "wiki/spec/language/state_contracts.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow"
+      ],
+      "classification": "missing_implementation",
+      "reason": "A reference-returning receiver can write before its tag is read. Preserve the actual captured decision and its original Flow observation independently from expression replayability. Existing typed write-prefix and exact-subject checks decide currency; current-expression inference retains its repeatability and noninterference obligations.",
+      "passages": [
+        "Facts apply to their exact subjects and program points. Assignments first\n[capture their destination place](expressions.md#evaluation-schedule), including\nits selectors and bounds at that program point. They then evaluate the\nright-hand side and its effects, capture transferable evidence, and finally\ninvalidate overlapping destination facts and establish the new value at the\ncaptured place. Right-hand-side mutations invalidate their own overlapping facts\nwhen they occur; the captured selector is not a fact that the selector's live\nbinding still has its earlier value. Uninitialized storage\nhas no assumed zero. Copies transport facts about the captured value, not source\nexpressions to be reevaluated after mutation.\n\nA reference identifies live storage, not its former contents. Replacing a local\nreference binding changes that binding without redirecting aliases made from its\nprevious value. A write through the reference changes the referent, not the\nbinding. Stored reference leaves retain their captured origins until replacement\nor exposure invalidates that relation. Type or lifetime correspondence alone\ndoes not establish a returned reference's storage origin.\n\nCaller-visible mutation summaries include operand evaluation and callee writes.\nA complete empty summary preserves facts; an unknown summary proves no\nnon-interference. Fact invalidation uses storage footprints, while borrow\nauthorization uses the access route. Neither may-write summaries nor origin\nrecovery grant loans, permit moves, or discharge linear claims."
+      ],
+      "revision": "eed37e0d2571646b78af87c1f6cc691ec176302e",
+      "blob": "3f0063b497dff2a77ef78b292b1f3315cf7b22d9"
+    },
+    {
+      "contract": "wiki/spec/language/patterns.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow"
+      ],
+      "classification": "missing_implementation",
+      "reason": "A saved true case verdict selects the exact current payload after proven disjoint effects, while replacement of that case retires the current payload fact. Keep all branch and payload formation obligations.",
+      "passages": [
+        "A dispatch evaluates its subject once, tests alternatives in authored order,\nand executes only the selected arm. Matching contributes facts valid for that\nsubject and program point. Failed alternatives do not execute their bodies.\nAn expression `match` produces compatible arm values; a `transition` selects an\noutgoing control edge. Both use the same pattern vocabulary."
+      ],
+      "revision": "eed37e0d2571646b78af87c1f6cc691ec176302e",
+      "blob": "5cbaddcb87f5edbbfb08bb667218f80b176fd21a"
+    },
+    {
+      "contract": "wiki/spec/terminal-psi/ownership.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/scalar_computations",
+        "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/scalar_lowering"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Every scalar observation completes its fresh reference receiver at the checked normal continuation, before backing-owner disposal. Share the existing reference-descriptor retirement selection and emission between scalar field and tag observations; keep established outer operands alive and leave nominal backing cleanup and loans with their existing owners.",
+      "passages": [
+        "Parameter, named-local, and call-result roots retain distinct establishment\nidentities. A result ordinal is not a parameter index. An anonymous projected\nargument retains its real producer expression rather than a fabricated local;\nthe producer completes before the consumer even if captured call ordinals are\npreorder.\n\nA dying temporary's normal continuation owns its remaining cleanup. A final\nconsumer may use the return edge; a continuing body uses an explicit continuation\nedge. Even an empty complement retains source continuation correspondence.\nPartial moves do not retire the whole root early. Other live roots remain live.\n"
+      ],
+      "revision": "eed37e0d2571646b78af87c1f6cc691ec176302e",
+      "blob": "d01b35a41784e5ae4ee016f1682a2be9a82ff384"
+    }
+  ],
+  "context_refresh": true,
+  "checks": [
+    {
+      "id": "case-flow-build",
+      "kind": "build",
+      "command": [
+        "cargo",
+        "check",
+        "--locked",
+        "-p",
+        "typed-trees-to-checked-trees"
+      ],
+      "inputs": [
+        "Cargo.lock",
+        "Cargo.toml",
+        "omega-rust",
+        "rust-toolchain.toml",
+        "source/library",
+        "wiki/spec/language/patterns.md",
+        "wiki/spec/language/state_contracts.md",
+        "wiki/spec/terminal-psi/ownership.md"
+      ],
+      "artifacts": [],
+      "closure_reason": "Focused source build definition for implementation context only; native row qualification is still required before acceptance.",
+      "final": false,
+      "expected_exit": 0,
+      "timeout_seconds": 300
+    }
+  ],
+  "assessments": [],
+  "review_instruction": "Judge behavior against these passages; uncovered semantics need an explicit owner decision. Inspect the candidate diff and check evidence; passage identity alone is not semantic compliance.",
+  "prior_context_retained": false
+}

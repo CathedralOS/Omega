@@ -1,0 +1,52 @@
+[
+  {
+    "name": "fresh_tag",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case-calls/producer-4/omega",
+      "run",
+      "--both",
+      "build/saved-case-calls/probes/fresh_tag/main.omg"
+    ],
+    "source_sha256": "4d81f8ba4cb8a6d21d642129299e16bcd5c2549fbf47b1a7dd660a53190e9a40",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "name": "negated_receiver",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case-calls/producer-4/omega",
+      "run",
+      "--both",
+      "build/saved-case-calls/probes/negated_receiver/main.omg"
+    ],
+    "source_sha256": "be55a18918d4c9befd5f141caac8bedcbf2edab1eb8da15b9f2d156b5ab9c405",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "name": "negated_receiver_stale",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case-calls/producer-4/omega",
+      "--check",
+      "build/saved-case-calls/probes/negated_receiver_stale/main.omg"
+    ],
+    "source_sha256": "a21c94f6dabe0a2292a763998a140b579e07355f6d32052071bcc565517576cf",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `saved_case_parameter` with 1 diagnostic(s)\n  error: machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence\n"
+  },
+  {
+    "name": "trailing_write",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case-calls/producer-4/omega",
+      "--check",
+      "tests/omega/fail/control_flow/saved_case_predicate_receiver_trailing_write_rejected/main.omg"
+    ],
+    "source_sha256": "5250a9adac68c2240ef55df0c5dda69753087d85470dc2dbedbfb25d48fd3e60",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `saved_case_trailing_effect` with 1 diagnostic(s)\n  error: machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence\n"
+  }
+]

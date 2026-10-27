@@ -1,0 +1,40 @@
+corpus_gate: tests/omega/corpus_outcomes.txt carries 1 of 18499 rows asserting an expected/unexpected outcome with no stored diagnostic line — their outcome is an observation, their reason is unsupported, and LOST cannot see them because the key is present. Reason-level verdicts drawn from them are unsupported; --record refuses to write new rows of that shape
+~ fail/facts/saved_byte_predicate_through_call_result: diagnostics moved
+    - cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership
+    + cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_
+~ fail/facts/saved_byte_predicate_through_const_name: diagnostics moved
+    - cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership
+    + cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_
+~ fail/facts/saved_byte_predicate_through_field: diagnostics moved
+    - cannot prove requires contract for call inspect from probe: ascii_only(holder.bytes[0..1]) && holder.bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, dom
+    + cannot prove requires contract for call inspect from probe: ascii_only(holder.bytes[0..1]) && holder.bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requi
+~ fail/facts/saved_byte_predicate_through_local: diagnostics moved
+    - cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership
+    + cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_
+~ fail/facts/saved_byte_predicate_through_match_join: diagnostics moved
+    - cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership
+    + cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_
+~ fail/facts/saved_byte_predicate_through_other_machine: diagnostics moved
+    - cannot prove requires contract for call inspect from observe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membersh
+    + cannot prove requires contract for call inspect from observe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `asci
+~ fail/facts/saved_byte_predicate_through_other_state: diagnostics moved
+    - cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership
+    + cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `observe`; authored requirement `asci
+~ fail/facts/saved_byte_predicate_through_parameter: diagnostics moved
+    - cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership
+    + cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_
+~ fail/facts/saved_byte_predicate_through_target_body: diagnostics moved
+    - cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership
+    + cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_
+~ fail/facts/saved_observation_snapshot_through_other_machine_rejected: diagnostics moved
+    - cannot prove ensures contract for exit from read_kept at statement 2: result == items[0] && result == 7 | cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contrac
+    + cannot prove ensures contract for exit from read_kept at statement 2: result == items[0] && result == 7
+  pass/facts/saved_observation_snapshot_through_other_machine_exit: 6914ms -> 1465ms (>=2x faster)
+corpus_gate: perf context — worker counts differ (golden jobs=2, this run jobs=4) — record and diff at the same OMEGA_CORPUS_JOBS before trusting perf moves
+corpus_gate: perf context — the golden was recorded on a busy machine (pre-run load 7.27 on 10 cpus); fixtures only look faster now — treat perf_faster moves as noise
+corpus_gate: 10 structural move(s), 0 perf move(s) — 124 fixtures ({'checked': 60, 'rejected': 64}), 0 rejected without their expected fragment, 0 fail fixtures did not reject; verdicts {'perf_faster': 1, 'moved': 10}
+corpus_gate: of those — 10 diagnostics or facts moved
+corpus_gate: golden provenance: 124 rows stamped, 0 legacy (unstamped), oldest stamped row 333 commits behind HEAD (@a92f16431042)
+corpus_gate: measured at jobs=4, golden jobs=2
+corpus_gate: 313 pass/run row(s) pinned without a success and 35 fail row(s) pinned as a success (295 carry regressed-from)
+corpus_gate:   list them with --list-pinned-regressions
