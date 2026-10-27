@@ -258,10 +258,7 @@ pub(crate) fn encode_service_ceiling(
     writer: &mut Writer,
     services: &[ServiceId],
 ) -> Result<(), CodecError> {
-    writer.len("published service ceiling", services.len())?;
-    for service in services {
-        writer.id(*service);
-    }
+    writer.ids("published service ceiling", services)?;
     Ok(())
 }
 
@@ -707,13 +704,7 @@ pub(super) fn encode_call_result(
             writer.u8(2);
             writer.id(result.structural_type);
             encode_multiplicity(writer, result.multiplicity);
-            writer.len(
-                "boundary result qualifications",
-                result.qualifications.len(),
-            )?;
-            for qualification in &result.qualifications {
-                writer.id(*qualification);
-            }
+            writer.ids("boundary result qualifications", &result.qualifications)?;
             encode_projected_qualifications(writer, &result.projected_qualifications)?;
         }
     }

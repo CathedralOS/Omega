@@ -115,10 +115,11 @@ fn encode_crossing(
     writer.boolean(crossing.suspension_allowed);
     writer.boolean(crossing.preserve_cpu);
     writer.boolean(crossing.preserve_host_thread);
-    writer.len("task crossing live carry", crossing.live_carry.len())?;
-    for live in &crossing.live_carry {
-        encode_live_carry(writer, live)?;
-    }
+    writer.counted(
+        "task crossing live carry",
+        &crossing.live_carry,
+        encode_live_carry,
+    )?;
     Ok(())
 }
 
@@ -229,14 +230,8 @@ fn encode_demand(
         encode_signature_value(writer, argument);
     }
     encode_signature_value(writer, &demand.signature_outcome);
-    writer.len("task frames", demand.frames.len())?;
-    for frame in &demand.frames {
-        encode_frame(writer, frame)?;
-    }
-    writer.len("task crossings", demand.crossings.len())?;
-    for crossing in &demand.crossings {
-        encode_crossing(writer, crossing)?;
-    }
+    writer.counted("task frames", &demand.frames, encode_frame)?;
+    writer.counted("task crossings", &demand.crossings, encode_crossing)?;
     writer.boolean(demand.carry_obligations.preserve_cpu);
     writer.boolean(demand.carry_obligations.preserve_host_thread);
     Ok(())
@@ -302,24 +297,17 @@ pub(super) fn encode_demands(
     writer: &mut Writer,
     demands: &TerminalTaskActivationDemands,
 ) -> Result<(), CodecError> {
-    writer.len("task activation demands", demands.demands.len())?;
-    for demand in &demands.demands {
-        encode_demand(writer, demand)?;
-    }
-    writer.len(
+    writer.counted("task activation demands", &demands.demands, encode_demand)?;
+    writer.counted(
         "task activation structural types",
-        demands.structural_types.len(),
+        &demands.structural_types,
+        encode_structural_type,
     )?;
-    for declaration in &demands.structural_types {
-        encode_structural_type(writer, declaration)?;
-    }
-    writer.len(
+    writer.counted(
         "task activation target layout applications",
-        demands.target_layout_applications.len(),
+        &demands.target_layout_applications,
+        target_layout_wire::encode,
     )?;
-    for application in &demands.target_layout_applications {
-        target_layout_wire::encode(writer, application)?;
-    }
     Ok(())
 }
 

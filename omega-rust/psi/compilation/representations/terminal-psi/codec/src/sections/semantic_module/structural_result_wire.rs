@@ -98,13 +98,7 @@ pub(crate) fn encode_function_result(
     writer.id(result.place);
     writer.id(result.structural_type);
     encode_multiplicity(writer, result.multiplicity);
-    writer.len(
-        "structural result qualifications",
-        result.qualifications.len(),
-    )?;
-    for qualification in &result.qualifications {
-        writer.id(*qualification);
-    }
+    writer.ids("structural result qualifications", &result.qualifications)?;
     encode_projected_qualifications(writer, &result.projected_qualifications)?;
     writer.len(
         "structural reference result sources",
@@ -196,13 +190,10 @@ pub(crate) fn encode_operation_result(
     writer.id(result.place);
     writer.id(result.structural_type);
     encode_multiplicity(writer, result.multiplicity);
-    writer.len(
+    writer.ids(
         "structural operation result qualifications",
-        result.qualifications.len(),
+        &result.qualifications,
     )?;
-    for qualification in &result.qualifications {
-        writer.id(*qualification);
-    }
     encode_projected_qualifications(writer, &result.projected_qualifications)?;
     writer.len(
         "operation result qualification establishments",

@@ -89,6 +89,39 @@ impl Writer {
         }
         Ok(())
     }
+
+    /// Write a length-prefixed roster of semantic identities: the `u32`
+    /// count, then each identity. The read side states the same roster once
+    /// (`decode_ids`); this is its emitting form, so one call owns the count
+    /// and the rows it counts.
+    pub(crate) fn ids<I: PsiSemanticId>(
+        &mut self,
+        label: &'static str,
+        values: &[I],
+    ) -> Result<(), CodecError> {
+        self.len(label, values.len())?;
+        for value in values {
+            self.id(*value);
+        }
+        Ok(())
+    }
+
+    /// Write a length-prefixed roster through a shared row encoder: the `u32`
+    /// count, then every element through `encode`. The read side states the
+    /// same collection once (`decode_counted`); this is its emitting form, so
+    /// the count and the rows cannot be written from two spellings.
+    pub(crate) fn counted<T>(
+        &mut self,
+        label: &'static str,
+        values: &[T],
+        encode: fn(&mut Writer, &T) -> Result<(), CodecError>,
+    ) -> Result<(), CodecError> {
+        self.len(label, values.len())?;
+        for value in values {
+            encode(self, value)?;
+        }
+        Ok(())
+    }
 }
 
 pub(crate) struct Reader<'bytes> {
