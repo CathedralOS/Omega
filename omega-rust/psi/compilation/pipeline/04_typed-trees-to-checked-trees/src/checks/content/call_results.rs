@@ -189,6 +189,7 @@ pub(super) fn check_call_result_qualifications(
                 program,
                 call.target_symbol,
                 selected,
+                validation::call_result_type(program, expression)?,
             );
             if !declared.iter().any(|(declared_path, symbol, identity)| {
                 declared_path == path && *symbol == domain_symbol && *identity == semantic_domain
@@ -221,7 +222,7 @@ pub(super) fn check_call_result_qualifications(
             // execution engines refuse generic provider/handler fallback.
             // In particular Granted still follows conservation below: these
             // private routes authorize content transition, not fresh storage.
-            match private_placement_result_contract(program, &invocation, domain, path) {
+            match private_placement_result_contract(program, &invocation, domain, semantic_domain, path) {
                 Ok(true) => {
                     if result_claim(program, facts, &invocation, path).is_none() {
                         primitive_error = Some(Diagnostic::error(
@@ -496,6 +497,7 @@ fn private_placement_result_contract(
     program: &dyn ::validation::CheckingInput,
     invocation: &Invocation<'_>,
     domain: &typed_trees::domain::DomainDefinition,
+    semantic_domain: language_semantics::SemanticDomainId,
     path: &[PlaceSegment],
 ) -> Result<bool, Diagnostic> {
     let callable = invocation.call.target_symbol;
@@ -510,50 +512,41 @@ fn private_placement_result_contract(
     }) {
         return Ok(false);
     }
-    let (policy, schema) = declaration.invocation_operands(
+    let bindings = declaration.source_invocation_bindings(
         program,
         invocation.machine,
         invocation.call.authored_machine_application,
     )?;
-    let nominal = |reference| match program.type_reference_table.type_reference(reference) {
-        typed_trees::types::TypeReferenceNode::Named { symbol, .. } => Some(*symbol),
-        _ => None,
-    };
-    let mut plans = program
-        .placement_lifecycle_plans
-        .iter()
-        .filter_map(|(_, plan)| match plan {
-            typed_trees::typed_trees::PlacementLifecyclePlan::Evaluated {
-                callable: candidate,
-                operation,
-                policy,
-                schema,
-                ..
-            } if *candidate == declaration.machine() => Some((*operation, *policy, *schema)),
-            _ => None,
-        });
-    let expected = nominal(policy)
-        .zip(nominal(schema))
-        .map(|(policy, schema)| (declaration.operation(), policy, schema));
-    if expected.is_none() || plans.next() != expected || plans.next().is_some() {
-        return Err(Diagnostic::error(
-            "placement primitive result lost its unique evaluated operation contract",
-        ));
-    }
     let state = program
         .state_by_symbol(declaration.state())
         .ok_or_else(|| {
             Diagnostic::error("placement primitive result lost its authenticated entry")
         })?;
+    let result_type =
+        validation::call_result_type(program, invocation.expression).ok_or_else(|| {
+            Diagnostic::error("placement source contract lost its applied result type")
+        })?;
+    let expected = program.type_identity(typed_trees::type_identity::TypeIdentityRequest {
+        substitutions: &bindings,
+        ..typed_trees::type_identity::TypeIdentityRequest::ordinary(state.return_type)
+    });
+    if expected != program.normalized_type_identity(result_type) {
+        return Err(Diagnostic::error(
+            "placement source result disagrees with its exact invocation-owned type operands",
+        ));
+    }
+    // This proves the sealed conditional source contract only. Closed
+    // geometry, profile provenance and actual backing remain execution duties.
     let matches = path
         .iter()
         .any(|segment| matches!(segment, PlaceSegment::Case { .. }))
-        && qualified_leaf_carrier(program, state.return_type, path).is_some_and(|carrier| {
+        && qualified_leaf_carrier(program, result_type, path).is_some_and(|carrier| {
             crate::facts::qualification_evidence::unwrapped_type_references_match(
                 program,
                 carrier,
                 domain.target_type,
-            )
+            ) && validation::field_domains::domain_constraint_identities(program, carrier)
+                .contains(&(domain.symbol, semantic_domain))
         });
     if !matches {
         return Err(Diagnostic::error(
@@ -778,14 +771,15 @@ fn qualified_leaf_carrier(
                 variant_scope = Some(*variant);
             }
             PlaceSegment::Field { symbol } => {
-                // The path belongs to the selected closed application, not
+                // The path belongs to the selected prepared application, not
                 // its unspecialized template. Do not peel a reference: that
                 // would turn borrowed storage into an owned issuance subject.
-                let data = program.closed_data_definition(
-                    program
-                        .type_reference_table
-                        .unconstrained_type_reference(carrier),
-                )?;
+                let reference = program
+                    .type_reference_table
+                    .unconstrained_type_reference(carrier);
+                let data = program
+                    .data_application_definition(reference)
+                    .or_else(|| program.closed_data_definition(reference))?;
                 let field = match variant_scope.take() {
                     Some(variant_symbol) => program
                         .data_members(data)

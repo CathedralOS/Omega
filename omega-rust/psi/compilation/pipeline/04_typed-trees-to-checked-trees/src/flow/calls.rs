@@ -465,9 +465,13 @@ fn append_call_result_field_domain_facts<'plans>(
         return;
     };
     let selected = program.requirement_call_signature(machine.symbol, call);
+    let Some(return_type) = validation::call_result_type(program, expression) else {
+        return;
+    };
     let key = (
         borrow_call.target_symbol,
         selected.map_or(0, |s| std::ptr::from_ref(s) as usize),
+        return_type,
     );
     // These are provisional checked-signature facts, not new issuance. The
     // content checker independently rejoins routed result claims to this
@@ -479,6 +483,7 @@ fn append_call_result_field_domain_facts<'plans>(
             build,
             borrow_call.target_symbol,
             selected,
+            return_type,
         ));
         build.call_result_identities.insert(key, computed);
     }
@@ -577,13 +582,17 @@ fn checked_realization_result_identities<'plans>(
     // Monomorphization has already joined the executable target to that
     // selection. Read the actual target's substituted types and contracts:
     // template parameter identities cannot match a closed invocation's rows.
-    let key = (call.target_symbol, 0);
+    // This fence reads the checked realization's own declared result, not a
+    // public requirement's stronger receiving annotation.
+    let return_type = memoized_call_target_return_type(program, build, call.target_symbol)?;
+    let key = (call.target_symbol, 0, return_type);
     if !build.call_result_identities.contains_key(&key) {
         let computed = std::rc::Rc::new(call_result_qualification_identities_indexed(
             program,
             build,
             call.target_symbol,
             None,
+            return_type,
         ));
         build.call_result_identities.insert(key, computed);
     }
@@ -770,17 +779,15 @@ pub(crate) fn call_result_qualification_identities(
     program: &dyn ::validation::CheckingInput,
     target: SymbolHandle,
     selected: Option<&typed_trees::signature::StateSignature>,
+    return_type: typed_trees::types::TypeReferenceHandle,
 ) -> Vec<(
     Vec<facts::PlaceSegment>,
     SymbolHandle,
     language_semantics::SemanticDomainId,
 )> {
-    let Some(return_type) = selected
-        .map(|signature| signature.return_type)
-        .or_else(|| call_target_return_type(program, target))
-    else {
+    if !return_type.is_valid() {
         return Vec::new();
-    };
+    }
     let parameters = selected
         .map(|signature| program.state_signature_parameters(signature))
         .or_else(|| validation::call_target_parameters(program, target));
@@ -813,17 +820,15 @@ fn call_result_qualification_identities_indexed<'plans>(
     build: &mut FlowBuildContext<'plans>,
     target: SymbolHandle,
     selected: Option<&'plans typed_trees::signature::StateSignature>,
+    return_type: typed_trees::types::TypeReferenceHandle,
 ) -> Vec<(
     Vec<facts::PlaceSegment>,
     SymbolHandle,
     language_semantics::SemanticDomainId,
 )> {
-    let Some(return_type) = selected
-        .map(|signature| signature.return_type)
-        .or_else(|| memoized_call_target_return_type(program, build, target))
-    else {
+    if !return_type.is_valid() {
         return Vec::new();
-    };
+    }
     let parameters = selected
         .map(|signature| program.state_signature_parameters(signature))
         .or_else(|| memoized_call_target_parameters(program, build, target));
