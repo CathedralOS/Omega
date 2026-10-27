@@ -8,7 +8,7 @@
     "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/product-nested/runtime-qualification.records/d183733fb9244c078b10132a0f4b9ffb.json",
     "sha256": "c501c35b2b9eb6beed972626f0b8e8c98fe8a42d507daba4f09fad98bd749ac4"
   },
-  "applicability": "Actual engine observations retain their original producer and source revisions. Compiler and libraries equal the submitted head; later source changes only pin fixtures, prose and goldens. Qualification validates retained engine observations, without reexecuting them. Native execution was macOS ARM64 only.",
+  "applicability": "CLI built at d871d8aaf7a98bfb2f0bb27de86aac844c5c8a3a; runner at254c8f6b38f2dc15669035a393693f06dadc3ace. Their complete compiler/library inputs equal submitted286c3a66623fcdda18830cd7d81ea8bc8d78d506. The const-name actual-argument setup was corrected after the CLI build and rerun with both the frozen baseline and repaired CLI; malformed setup and original results remain separate. Actual corpus records belong to254c8f6b38f and sample observations retain exact consumed-source hashes. Qualification authenticates those retained observations without reexecuting engines. Native execution was macOS ARM64 only.",
   "artifacts": "Frozen compiler executables remain local and are omitted from this evidence branch. Exact source bundles, build receipts, binary digests and verified profiles are retained.",
   "files": [
     {
