@@ -1,14 +1,12 @@
 //! Same-block and dominating scalar CSE validation and rewrite application.
 use crate::candidates::accept_region_rewrite;
+use crate::candidates::contract;
 use crate::candidates::global_value_numbering::{ScalarCseProofClass, ScalarCseScope};
 use crate::candidates::retire_node_custody;
 use crate::candidates::rewrite_accounting::common_subexpression::reconstruct_local_cse_accounting;
 use crate::candidates::rewrite_accounting::substitutions::rewrite_scalar_value_uses;
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
 use abstract_operations::AbstractOperation as O;
-use optimization_core::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationSafetyClass,
-};
 use optimization_unit::{
     LocalScalarCommonSubexpressionRewrite, NodeLocation, OptimizationFact, PsiOptimizationUnit,
     PsiRewriteCandidate, PsiRewritePatch, ScalarSubstitution, ValueDefinition, ValueDefinitionSite,
@@ -17,6 +15,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::admission::{independent_cse_expression, independently_accepted_operation_fact};
 use super::dominance_reconstruction::independent_reachable_dominators;
+use super::rule_catalog;
 use super::expression_keys::{
     independent_compatible_policy_scalar_leader, independent_compatible_policy_scalar_redundant,
 };
@@ -28,34 +27,17 @@ pub(super) fn validate_scalar_common_subexpression_candidate(
     scope: ScalarCseScope,
     proof_class: ScalarCseProofClass,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
-    let expected_safety = match proof_class {
-        ScalarCseProofClass::ObligationFree => OptimizationSafetyClass::ExactOperationSemantics,
-        ScalarCseProofClass::ProofCertified | ScalarCseProofClass::CompatiblePolicy => {
-            OptimizationSafetyClass::ProofCertified
-        }
+    let required = match scope {
+        ScalarCseScope::SameBlock => rule_catalog::SAME_BLOCK_ANALYSES,
+        ScalarCseScope::Dominating => rule_catalog::DOMINATING_ANALYSES,
     };
-    let expected_required = match scope {
-        ScalarCseScope::SameBlock => {
-            AnalysisSet::new([AnalysisKind::UseDefinition, AnalysisKind::EffectSummaries])
-        }
-        ScalarCseScope::Dominating => AnalysisSet::new([
-            AnalysisKind::ControlFlowGraph,
-            AnalysisKind::Dominators,
-            AnalysisKind::UseDefinition,
-            AnalysisKind::EffectSummaries,
-        ]),
-    };
-    if candidate.required_analyses() != expected_required
-        || candidate.invalidated_analyses()
-            != AnalysisInvalidationSet::new([
-                AnalysisKind::UseDefinition,
-                AnalysisKind::EffectSummaries,
-            ])
-        || candidate.safety_class() != expected_safety
-        || candidate.predicted_cost_delta() != -1
-    {
-        return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
-    }
+    contract::admit_roster(
+        candidate,
+        required,
+        contract::USE_DEFINITION_AND_EFFECT_SUMMARIES,
+        rule_catalog::safety_class(proof_class),
+        Some(-1),
+    )?;
     let patch = match (scope, candidate.patch()) {
         (
             ScalarCseScope::SameBlock,

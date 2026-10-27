@@ -6,7 +6,6 @@ use crate::candidates::sparse_conditional_constant_propagation::{
 use crate::candidates::{candidate_block, candidate_function, require_realized_rows};
 use crate::{
     OptimizationUnitValidationError, ValidatedPsiRewrite, reconstruct_closed_scalar_node_boundary,
-    validate_psi_optimization_unit,
 };
 use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationValidatorIdentity,
@@ -21,10 +20,7 @@ pub(crate) fn validate_boolean_evaluation_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
-    validate_psi_optimization_unit(input)?;
-    if candidate.input() != input.identity {
-        return Err(OptimizationUnitValidationError::CandidateInputMismatch);
-    }
+    crate::candidates::contract::admit_origin(input, candidate)?;
     let expected_analyses = match candidate.scalar_evaluation_witness() {
         Some(IntegerEvaluationWitness::RangeAgainstRange { .. }) => {
             AnalysisSet::new([AnalysisKind::ValueRanges])

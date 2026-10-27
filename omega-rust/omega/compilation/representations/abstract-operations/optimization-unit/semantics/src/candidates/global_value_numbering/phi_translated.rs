@@ -1,5 +1,6 @@
 //! Phi-translated join validation and rewrite application.
 use crate::candidates::accept_region_rewrite;
+use crate::candidates::contract;
 use crate::candidates::global_value_numbering::ScalarCseProofClass;
 use crate::candidates::retire_node_custody;
 use crate::candidates::rewrite_accounting::common_subexpression::reconstruct_phi_translated_cse_accounting;
@@ -7,9 +8,6 @@ use crate::candidates::rewrite_accounting::substitutions::{
     rewrite_scalar_value_uses, rewrite_successor_operation,
 };
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
-use optimization_core::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationSafetyClass,
-};
 use optimization_unit::{
     NodeLocation, OptimizationFact, PhiTranslatedScalarIncoming, PsiOptimizationUnit,
     PsiRewriteCandidate, PsiRewritePatch, ValueDefinition, ValueDefinitionSite,
@@ -18,6 +16,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::admission::{independent_cse_expression, independently_accepted_operation_fact};
 use super::dominance_reconstruction::independent_reachable_dominators;
+use super::rule_catalog;
 use super::expression_keys::{
     independent_compatible_policy_scalar_leader, independent_compatible_policy_scalar_redundant,
 };
@@ -33,28 +32,14 @@ pub(super) fn validate_phi_translated_scalar_common_subexpression_candidate(
     candidate: &PsiRewriteCandidate,
     proof_class: ScalarCseProofClass,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
-    let expected_safety = match proof_class {
-        ScalarCseProofClass::ObligationFree => OptimizationSafetyClass::ExactOperationSemantics,
-        ScalarCseProofClass::ProofCertified | ScalarCseProofClass::CompatiblePolicy => {
-            OptimizationSafetyClass::ProofCertified
-        }
-    };
-    if candidate.required_analyses()
-        != AnalysisSet::new([
-            AnalysisKind::ControlFlowGraph,
-            AnalysisKind::Dominators,
-            AnalysisKind::UseDefinition,
-            AnalysisKind::EffectSummaries,
-        ])
-        || candidate.invalidated_analyses()
-            != AnalysisInvalidationSet::new([
-                AnalysisKind::UseDefinition,
-                AnalysisKind::EffectSummaries,
-            ])
-        || candidate.safety_class() != expected_safety
-        || candidate.predicted_cost_delta() != -1
-        || !candidate.substitutions().is_empty()
-    {
+    contract::admit_roster(
+        candidate,
+        rule_catalog::DOMINATING_ANALYSES,
+        contract::USE_DEFINITION_AND_EFFECT_SUMMARIES,
+        rule_catalog::safety_class(proof_class),
+        Some(-1),
+    )?;
+    if !candidate.substitutions().is_empty() {
         return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
     }
     let PsiRewritePatch::EliminatePhiTranslatedScalarCommonSubexpression(patch) = candidate.patch()
