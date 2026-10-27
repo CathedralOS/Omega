@@ -82,7 +82,7 @@ pub use machine_calls::structural_call_custody::{
     structural_owned_path, structural_qualification_contract, structural_result_contract,
     structural_result_projected_qualifications, structural_result_qualification_contract,
     structural_result_qualifications, structural_state_contract_predicates,
-    structural_storage_path, view_result_carrier_qualifications,
+    structural_storage_path, structural_transfer_storage_path, view_result_carrier_qualifications,
     zeroed_byte_projected_qualifications,
 };
 pub use proof_contracts::arithmetic_domains::domain_intervals::{
