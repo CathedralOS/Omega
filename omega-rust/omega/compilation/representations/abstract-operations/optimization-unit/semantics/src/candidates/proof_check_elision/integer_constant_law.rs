@@ -19,10 +19,7 @@ use crate::{
     OptimizationUnitValidationError, ValidatedPsiRewrite, reconstruct_closed_scalar_node_boundary,
 };
 use abstract_operations::{AbstractOperation, operations::IntegerArithmeticOperands};
-use optimization_core::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationSafetyClass,
-    OptimizationValidatorIdentity,
-};
+use optimization_core::{AnalysisKind, OptimizationSafetyClass, OptimizationValidatorIdentity};
 use optimization_unit::{
     ObservationKnowledge, PsiOptimizationFunction, PsiOptimizationUnit, PsiRealizationSite,
     PsiRewriteCandidate, PsiRewritePatch, ValueDefinition, ValueDefinitionSite,
@@ -76,9 +73,25 @@ pub(super) struct IndependentIntegerConstantLaw {
     pub(super) validator_domain: &'static [u8],
     /// The analyses the proposal needs; the literal-divisor laws also read the
     /// constant facts their evidence names.
-    pub(super) required_analyses: AnalysisSet,
+    pub(super) required_analyses: &'static [AnalysisKind],
     pub(super) recognise: LawShapeRecogniser,
     pub(super) verify_evidence: LawEvidenceCheck,
+}
+
+impl IndependentIntegerConstantLaw {
+    /// The roster row this law's candidate is admitted against: the law states
+    /// its own rule domain and the analyses its proposal reads, and the shared
+    /// protocol adds the invalidation set and safety class every integer
+    /// constant law carries.
+    fn contract(&self) -> crate::candidates::contract::RuleContract {
+        crate::candidates::contract::RuleContract {
+            rule_domain: self.rule_domain,
+            required_analyses: self.required_analyses,
+            invalidated_analyses: crate::candidates::contract::USE_DEFINITION_AND_EFFECT_SUMMARIES,
+            safety_class: OptimizationSafetyClass::ProofCertified,
+            predicted_cost_delta: Some(-1),
+        }
+    }
 }
 
 /// The accepted obligation fact of the law's authored operation, reconstructed
@@ -107,15 +120,8 @@ pub(super) fn validate_integer_constant_law_candidate(
     candidate: &PsiRewriteCandidate,
     law: &IndependentIntegerConstantLaw,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
-    crate::candidates::contract::validate(
-        input,
-        candidate,
-        law.rule_domain,
-        law.required_analyses,
-        AnalysisInvalidationSet::new([AnalysisKind::UseDefinition, AnalysisKind::EffectSummaries]),
-        OptimizationSafetyClass::ProofCertified,
-    )?;
-    if !candidate.substitutions().is_empty() || candidate.predicted_cost_delta() != -1 {
+    crate::candidates::contract::admit(input, candidate, &law.contract())?;
+    if !candidate.substitutions().is_empty() {
         return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
     }
     let PsiRewritePatch::ReplaceIntegerOperationWithConstant(patch) = candidate.patch() else {

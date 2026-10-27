@@ -1,8 +1,5 @@
 //! Optimizer module role: executable entrance. Shared terminal-jump validation.
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
-use optimization_core::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationSafetyClass,
-};
 use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate};
 
 mod replay;
@@ -11,24 +8,10 @@ pub(crate) fn validate_shared_jump_fusion_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
-    super::super::contract::validate(
+    super::super::contract::admit(
         input,
         candidate,
-        b"omega.psi-rule.shared-terminal-jump-fusion.v2",
-        AnalysisSet::new([
-            AnalysisKind::ControlFlowGraph,
-            AnalysisKind::OwnershipFrontiers,
-            AnalysisKind::PostDominators,
-        ]),
-        AnalysisInvalidationSet::new([
-            AnalysisKind::ControlFlowGraph,
-            AnalysisKind::UseDefinition,
-            AnalysisKind::EffectSummaries,
-        ]),
-        OptimizationSafetyClass::StructuralIdentity,
+        &super::super::contract::SHARED_TERMINAL_JUMP_FUSION,
     )?;
-    if candidate.predicted_cost_delta() != -1 {
-        return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
-    }
     replay::validate(input, candidate)
 }
