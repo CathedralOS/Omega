@@ -167,6 +167,9 @@ pub(crate) fn prepare(
         }
         let mut qualifications = Vec::new();
         for fact in qualification_facts(checked, region) {
+            if super::call_qualifications::declaration_represents(identities, checked, fact)? {
+                continue;
+            }
             let Some(place_handle) = fact.place.as_place() else {
                 continue;
             };

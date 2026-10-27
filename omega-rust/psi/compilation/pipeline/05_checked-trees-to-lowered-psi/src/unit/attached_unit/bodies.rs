@@ -174,18 +174,36 @@ impl<'a> UnitBody<'a> {
     /// Complete catalog dependencies, including structural producers carried by
     /// selected return terminators. This is not the runtime operation order.
     pub(crate) fn operations(self) -> impl Iterator<Item = &'a CheckedUnitEffectOperationPlan> {
+        self.operations_with_states()
+            .map(|(_, operation)| operation)
+    }
+
+    /// Source states remain attached to the same complete operation inventory,
+    /// so call-local dependencies cannot borrow another state's facts.
+    pub(crate) fn operations_with_states(
+        self,
+    ) -> impl Iterator<Item = (symbols::SymbolHandle, &'a CheckedUnitEffectOperationPlan)> {
         let (ordinary, composed) = match self {
-            Self::Ordinary(plan) => (plan.operations.as_slice(), &[][..]),
-            Self::Composed(plan) => (&[][..], plan.states.as_slice()),
+            Self::Ordinary(plan) => (Some(plan), &[][..]),
+            Self::Composed(plan) => (None, plan.states.as_slice()),
         };
         ordinary
-            .iter()
-            .chain(
-                composed
+            .into_iter()
+            .flat_map(|plan| {
+                plan.operations
                     .iter()
-                    .flat_map(|state| state.operation_dependencies()),
-            )
-            .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+                    .map(move |operation| (plan.state, operation))
+            })
+            .chain(composed.iter().flat_map(|state| {
+                state
+                    .operation_dependencies()
+                    .map(move |operation| (state.state, operation))
+            }))
+            .flat_map(|(state, operation)| {
+                operation
+                    .with_value_calls()
+                    .map(move |operation| (state, operation))
+            })
     }
 
     pub(crate) fn structural_parameters(
@@ -200,6 +218,110 @@ impl<'a> UnitBody<'a> {
                 .iter()
                 .flat_map(|state| &state.structural_parameters),
         )
+    }
+
+    /// Structural source homes admitted by this state's retained bindings,
+    /// including primitive storage established before lending an address.
+    pub(crate) fn structural_home_roots(
+        self,
+        checked: &checked_trees::CheckedTrees,
+        state: symbols::SymbolHandle,
+    ) -> Result<Vec<facts::PlaceRoot>, LoweringError> {
+        let (_, declaration) = crate::declarations::state_declaration(checked, state)?;
+        let (parameters, scalar_parameters, storage) = match self {
+            Self::Ordinary(plan) if plan.state == state => (
+                plan.structural_parameters.as_slice(),
+                plan.scalar_parameters.as_slice(),
+                plan.parameter_storage.as_slice(),
+            ),
+            Self::Ordinary(_) => (&[][..], &[][..], &[][..]),
+            Self::Composed(plan) => plan.states.iter().find(|plan| plan.state == state).map_or(
+                (&[][..], &[][..], &[][..]),
+                |plan| {
+                    (
+                        plan.structural_parameters.as_slice(),
+                        plan.scalar_parameters.as_slice(),
+                        plan.parameter_storage.as_slice(),
+                    )
+                },
+            ),
+        };
+        let mut roots = Vec::new();
+        for parameter in parameters {
+            let formal = checked
+                .state_parameters(declaration)
+                .get(parameter.position as usize)
+                .ok_or(LoweringError::Unsupported(
+                    "call membership home lost its structural formal",
+                ))?;
+            roots.push(facts::PlaceRoot::Symbol(formal.symbol));
+        }
+        for storage in storage {
+            roots.push(facts::PlaceRoot::Symbol(storage.symbol));
+        }
+        for (_, operation) in self
+            .operations_with_states()
+            .filter(|(owner, _)| *owner == state)
+        {
+            if let Some(result) = operation.structural_result_binding()
+                && result.local.is_named()
+            {
+                let root = facts::PlaceRoot::Symbol(result.local.symbol);
+                if !roots.contains(&root) {
+                    roots.push(root);
+                }
+            }
+            if let checked_trees::CheckedUnitEffectOperationPlan::EstablishLocal(
+                checked_trees::CheckedUnitLocalBindingPlan::Structural { symbol, .. }
+                | checked_trees::CheckedUnitLocalBindingPlan::Primitive { symbol, .. },
+            ) = operation
+            {
+                let root = facts::PlaceRoot::Symbol(*symbol);
+                if !roots.contains(&root) {
+                    roots.push(root);
+                }
+            }
+            if let Some(call) = operation.call() {
+                for argument in &call.structural_arguments {
+                    use checked_trees::CheckedUnitStructuralArgumentSourcePlan as Source;
+                    let root = match argument.source {
+                        Source::PrimitiveLocal { symbol }
+                        | Source::StructuralLocal { symbol }
+                        | Source::StructuralLocalBorrow { symbol, .. } => {
+                            Some(facts::PlaceRoot::Symbol(symbol))
+                        }
+                        Source::StructuralExpression { expression } => {
+                            Some(facts::PlaceRoot::Expression(expression))
+                        }
+                        Source::ScalarParameter { parameter_index } => scalar_parameters
+                            .get(parameter_index as usize)
+                            .and_then(|parameter| {
+                                checked
+                                    .state_parameters(declaration)
+                                    .get(parameter.position as usize)
+                            })
+                            .map(|parameter| facts::PlaceRoot::Symbol(parameter.symbol)),
+                        _ => None,
+                    };
+                    if let Some(root) = root
+                        && !roots.contains(&root)
+                    {
+                        roots.push(root);
+                    }
+                }
+            }
+            if let Some(call) = operation.call()
+                && call.structural_result().is_some()
+                && let Some(Some(checked_trees::NominalMachineUseSite::Expression(expression))) =
+                    call.source_site()
+            {
+                let root = facts::PlaceRoot::Expression(expression);
+                if !roots.contains(&root) {
+                    roots.push(root);
+                }
+            }
+        }
+        Ok(roots)
     }
 
     /// Entry storage for every `mut` scalar formal the body's states take.

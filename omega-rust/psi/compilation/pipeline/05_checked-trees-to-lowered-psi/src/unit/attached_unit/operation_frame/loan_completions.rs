@@ -96,17 +96,24 @@ impl OperationFrame<'_, '_> {
         coordinate: SourceCallCoordinate,
         state: &checked_trees::state::State,
     ) -> Result<(), LoweringError> {
-        let point = facts::ProgramPoint::CallEnsures {
-            machine_symbol: self.machine,
-            state_symbol: self.state,
-            statement_index: coordinate.statement_index,
-            call_ordinal: coordinate.call_ordinal,
-        };
         let types = self.structural_types.declarations().to_vec();
-        for (_, fact) in self.checked.facts.semantic.facts.iter() {
-            if fact.origin != facts::FactOrigin::CallEnsures || fact.point != point {
-                continue;
+        let mut homes = self
+            .evaluation
+            .structural_locals
+            .iter()
+            .map(|local| local.root)
+            .collect::<Vec<_>>();
+        for (position, _) in &self.evaluation.structural_parameters {
+            if let Some(parameter) = self.checked.state_parameters(state).get(*position as usize) {
+                homes.push(facts::PlaceRoot::Symbol(parameter.symbol));
             }
+        }
+        for fact in crate::emission::call_qualifications::for_call(
+            self.checked,
+            self.machine,
+            coordinate,
+            |root| homes.contains(&root),
+        ) {
             let Some(place_handle) = fact.place.as_place() else {
                 continue;
             };
@@ -145,6 +152,13 @@ impl OperationFrame<'_, '_> {
             let Some((owner, structural_type)) = home else {
                 continue;
             };
+            if crate::emission::call_qualifications::declaration_represents(
+                identities,
+                self.checked,
+                fact,
+            )? {
+                continue;
+            }
             let segments = self
                 .checked
                 .facts

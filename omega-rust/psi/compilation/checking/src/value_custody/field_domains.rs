@@ -657,6 +657,29 @@ pub fn domain_requires_provenance(
     visit(program, symbol, &mut Vec::new())
 }
 
+/// Whether the normalized predicate and separately retained subject duties
+/// describe this declaration's entire theory. Routes and subject memberships
+/// retain their own authority; a complete predicate alone does not issue them.
+pub fn domain_predicate_theory_is_complete(
+    program: &dyn crate::CheckingInput,
+    definition: &typed_trees::domain::DomainDefinition,
+) -> bool {
+    definition.classification.is_none()
+        && definition.semantic_roles.is_empty()
+        && definition.cleanup_selection.is_none()
+        && definition.alias.is_none()
+        && definition.operators.is_empty()
+        && !matches!(
+            program
+                .type_reference_table
+                .type_reference(definition.target_type),
+            TypeReferenceNode::Constrained { .. }
+        )
+        && domain_constraint_symbols(program, definition.target_type).is_empty()
+        && typed_trees::domain::required_subject_memberships(program.typed_program(), definition)
+            .is_some()
+}
+
 /// Alias atoms must all be predicate- and route-free. This declaration rule
 /// governs both retained qualification uses and scalar computation eligibility.
 pub fn domain_is_vacuous(
