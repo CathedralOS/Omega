@@ -185,11 +185,7 @@ fn activation_borrow_result_origins(
             origin: Some(ReferenceSource::Symbolic(FramePlaceOrigin {
                 path: parameter.name.as_str().to_owned(),
                 precision: FramePathPrecision::Exact,
-                source: FrameSourcePlace {
-                    root: parameter.symbol,
-                    builtin_coordinates: true,
-                    ..Default::default()
-                },
+                source: FrameSourcePlace::parameter_root(parameter),
             })),
         }],
         ..Default::default()

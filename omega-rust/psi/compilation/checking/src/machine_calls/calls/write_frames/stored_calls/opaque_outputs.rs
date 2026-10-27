@@ -48,47 +48,28 @@ pub(super) fn effects(
             }
             let actual = arguments.get(dependency.parameter_index)?;
             let relative = FrameSourcePlace {
-                root: parameter.symbol,
                 segments: owner_segments(&dependency.source_path)?,
-                builtin_coordinates: true,
-                ..Default::default()
+                ..FrameSourcePlace::parameter_root(parameter)
             };
-            let selected = SlotSource {
-                carrier_backing: None,
-                origin: FramePlaceOrigin {
-                    path: path(program, &relative),
-                    precision: FramePathPrecision::Exact,
-                    source: relative.clone(),
-                },
-                carrier: relative.clone(),
-                lifetime_access: Some(dependency.access),
-            };
+            let selected = SlotSource::from_place(
+                program,
+                relative.clone(),
+                FramePathPrecision::Exact,
+                Some(dependency.access),
+            );
             let captured =
                 if !super::super::type_reference_is_reference(program, dependency.source_type) {
                     aggregate_argument_sources(
                         program, machine, parameter, actual, &selected, context, symbols,
                     )?
                 } else {
-                    let root = FrameSourcePlace {
-                        root: parameter.symbol,
-                        builtin_coordinates: true,
-                        ..Default::default()
-                    };
+                    let root = FrameSourcePlace::parameter_root(parameter);
                     let captured = aggregate_argument_sources(
                         program,
                         machine,
                         parameter,
                         actual,
-                        &SlotSource {
-                            carrier_backing: None,
-                            origin: FramePlaceOrigin {
-                                path: parameter.name.to_string(),
-                                precision: FramePathPrecision::Exact,
-                                source: root.clone(),
-                            },
-                            carrier: root,
-                            lifetime_access: None,
-                        },
+                        &SlotSource::from_place(program, root, FramePathPrecision::Exact, None),
                         context,
                         symbols,
                     )?;
@@ -221,21 +202,15 @@ pub(super) fn formal_effects(
                 return None;
             }
             let source = FrameSourcePlace {
-                root: parameter.symbol,
                 segments: owner_segments(&dependency.source_path)?,
-                builtin_coordinates: true,
-                ..Default::default()
+                ..FrameSourcePlace::parameter_root(parameter)
             };
-            sources.push(SlotSource {
-                carrier_backing: None,
-                origin: FramePlaceOrigin {
-                    path: path(program, &source),
-                    precision: FramePathPrecision::Exact,
-                    source: source.clone(),
-                },
-                carrier: source,
-                lifetime_access: Some(dependency.access),
-            });
+            sources.push(SlotSource::from_place(
+                program,
+                source,
+                FramePathPrecision::Exact,
+                Some(dependency.access),
+            ));
         }
         effects.push(SlotEffect {
             root: parameter.symbol,

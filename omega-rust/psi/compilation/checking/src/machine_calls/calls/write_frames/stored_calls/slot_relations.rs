@@ -83,6 +83,29 @@ pub(in crate::machine_calls::calls::write_frames) struct SlotSource {
         Option<language_semantics::ReferenceAccess>,
 }
 
+impl SlotSource {
+    /// The source a frame place presents at `precision`: the place's own path,
+    /// the place itself as the carrier, and no descriptor backing of its own.
+    /// A dependency's lifetime access rides along without becoming a selector.
+    pub(in crate::machine_calls::calls::write_frames) fn from_place(
+        program: &dyn crate::CheckingInput,
+        place: FrameSourcePlace,
+        precision: FramePathPrecision,
+        lifetime_access: Option<language_semantics::ReferenceAccess>,
+    ) -> Self {
+        Self {
+            carrier_backing: None,
+            origin: FramePlaceOrigin {
+                path: path(program, &place),
+                precision,
+                source: place.clone(),
+            },
+            carrier: place,
+            lifetime_access,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub(in crate::machine_calls::calls::write_frames) struct SlotInventory {
     pub(in crate::machine_calls::calls::write_frames) origin: StoredWriteOrigin,
