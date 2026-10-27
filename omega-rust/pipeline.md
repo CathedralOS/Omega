@@ -257,6 +257,16 @@ Preparation retains a refusal as data until the native handoff demands it, so a
 checking-only stop does not acquire native-only obligations. Physical family
 membership and receiving admission still belong to the Terminal consumer.
 
+The source-producing operation returns each Terminal application with its exact
+Build provider companion. It closes those proposals against the emitted demand
+catalog before returning the product: selecting against all source candidates
+would incorrectly demand unused providers. Native completion attaches the retained
+proposals without reopening source selection. Unavailable target rows remain data
+for receiving admission, not failures of shared portable production.
+Completion consumes an explicit native-proposal request and the produced
+application, not a checked compilation. The application retains physical-adapter
+selection; completion still binds its exact arrival contract against the artifact.
+
 An anonymous Build runs before its final source graph has a declaration owner.
 The Psi production request therefore distinguishes invocation-only code from
 portable publication, using the same stages, Terminal representation and

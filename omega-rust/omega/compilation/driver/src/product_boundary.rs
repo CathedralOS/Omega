@@ -231,14 +231,39 @@ fn components_use_the_shared_product_sequence() {
     let completion = terminal
         .split_once("pub(crate) fn finish_terminal_application(")
         .expect("retained application completion")
-        .1
-        .split_once("fn publish_target_providers(")
-        .expect("provider publication")
-        .0;
+        .1;
     assert!(!completion.contains("program.typed"));
     assert!(!completion.contains("component_calling_applications("));
     assert!(!include_str!("lib.rs").contains("publish_checked_component"));
     assert!(!include_str!("compiler.rs").contains("mod package"));
+}
+
+#[test]
+fn terminal_production_owns_the_build_provider_companion() {
+    let source = include_str!("terminal/terminal_artifact.rs");
+    let (production, completion) = source
+        .split_once("pub(crate) fn finish_terminal_application(")
+        .expect("source production precedes native completion");
+    assert!(production.contains("pub provider_proposals:"));
+    assert!(production.contains("provider_proposals: produce_target_provider_proposals("));
+    assert!(production.contains("TargetProviderPublicationRequest"));
+    assert!(completion.contains("with_target_provider_proposals(produced.provider_proposals)"));
+    assert!(completion.contains("TerminalNativeProposalRequest<'_>"));
+    assert!(completion.contains("if produced.physical_entry_adapter"));
+    for forbidden in [
+        "produce_target_provider_proposals(",
+        "TargetProviderPublicationRequest",
+        "program.typed",
+        ".provider_defaults()",
+        ".providers()",
+        "CheckedCompilation",
+        "terminal_native_proposal_request(",
+    ] {
+        assert!(
+            !completion.contains(forbidden),
+            "completion reopens {forbidden}"
+        );
+    }
 }
 
 #[test]
