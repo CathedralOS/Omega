@@ -300,73 +300,6 @@ impl<'program> StructuralJudge<'program> {
             return value;
         }
         let value = match value {
-            StructuralTerm::Variable(ref name) => {
-                if let Some((_, replacement)) = self
-                    .substitutions
-                    .iter()
-                    .find(|(variable, _)| variable == name)
-                {
-                    return self.completed_value_identity_at(replacement.clone(), depth + 1);
-                }
-                value
-            }
-            StructuralTerm::IntegerEmbedding { reference, value } => {
-                StructuralTerm::IntegerEmbedding {
-                    reference,
-                    value: Box::new(self.completed_value_identity_at(*value, depth + 1)),
-                }
-            }
-            StructuralTerm::MathematicalBinary {
-                operator,
-                left,
-                right,
-            } => StructuralTerm::MathematicalBinary {
-                operator,
-                left: Box::new(self.completed_value_identity_at(*left, depth + 1)),
-                right: Box::new(self.completed_value_identity_at(*right, depth + 1)),
-            },
-            StructuralTerm::ObservedValue {
-                observed_type,
-                value,
-                descriptor,
-            } => StructuralTerm::ObservedValue {
-                observed_type,
-                value: Box::new(self.completed_value_identity_at(*value, depth + 1)),
-                descriptor: descriptor.map(|descriptor| {
-                    Box::new(self.completed_value_identity_at(*descriptor, depth + 1))
-                }),
-            },
-            StructuralTerm::Constructor { data, case, fields } => StructuralTerm::Constructor {
-                data,
-                case,
-                fields: fields
-                    .into_iter()
-                    .map(|(name, value)| (name, self.completed_value_identity_at(value, depth + 1)))
-                    .collect(),
-            },
-            StructuralTerm::ScalarBinary {
-                references,
-                operator,
-                meaning,
-                left,
-                right,
-            } => StructuralTerm::ScalarBinary {
-                references,
-                operator,
-                meaning,
-                left: Box::new(self.completed_value_identity_at(*left, depth + 1)),
-                right: Box::new(self.completed_value_identity_at(*right, depth + 1)),
-            },
-            StructuralTerm::CollectionMeasure {
-                measure,
-                collection,
-            } => StructuralTerm::CollectionMeasure {
-                measure,
-                collection: Box::new(
-                    self.completed_value_identity_at(*collection, depth + 1)
-                        .into_collection_descriptor(),
-                ),
-            },
             StructuralTerm::Projection { subject, path } => {
                 let subject = self.completed_value_identity_at(*subject, depth + 1);
                 path.split('.')
@@ -382,7 +315,7 @@ impl<'program> StructuralJudge<'program> {
                         path,
                     })
             }
-            value => value,
+            other => other.map_children(|child| self.completed_value_identity_at(child, depth + 1)),
         };
         if !matches!(
             value.semantic_value(),
