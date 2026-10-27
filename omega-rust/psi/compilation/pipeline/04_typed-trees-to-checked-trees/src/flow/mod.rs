@@ -89,6 +89,7 @@ mod transfers;
 // One call's facts: the call builder, its phases, and boundary-trait edges.
 mod boundaries;
 mod call_phases;
+mod retained_borrows;
 pub(crate) mod calls;
 
 // What a write drops: the places a statement or call writes, the facts over them

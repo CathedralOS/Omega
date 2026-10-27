@@ -137,6 +137,7 @@ pub(super) fn build_call_flow_fact<'plans>(
     // the callee re-proved at its return (checks/contracts/exits).
     append_call_referent_field_domain_facts(
         program,
+        borrow,
         semantic,
         build,
         machine,
