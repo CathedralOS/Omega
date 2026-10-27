@@ -7239,6 +7239,31 @@ fail/facts/data_where_standing_const_nested_false rejected 527ms expected @2693b
 	data `Counter` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/facts/data_where_standing_const_scalar_false rejected 328ms expected @2693b883558f
 	data `Counter` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/data_where_standing_mutable_recast_live_backing_write_rejected rejected 1335ms expected @a1f4e9300309
+	statement 2 mutates `storage.before` while local borrow `counter` is still active (borrowed at statement 1; its last use is at statement 5)
+	statement 2 mutates `storage.before` while local borrow `counter` is still active (borrowed at statement 1; its last use is at statement 5)
+fail/facts/data_where_standing_mutable_recast_qualified_constant_rejected rejected 441ms expected @a1f4e9300309
+	machine `compute` state `entry`: recast target `Counter` is not a scalar primitive or an eligible fixed aggregate over a byte region or typed aggregate place; deeper shapes land with the byte-view rung
+fail/facts/data_where_standing_mutable_recast_stronger_rejected rejected 410ms expected @a1f4e9300309
+	machine `compute` state `entry`: recast target `Counter` is not a scalar primitive or an eligible fixed aggregate over a byte region or typed aggregate place; deeper shapes land with the byte-view rung
+fail/facts/data_where_standing_mutable_recast_through_call_result_rejected rejected 425ms expected @a1f4e9300309
+	machine `compute` state `entry`: mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions; the source and target `Counter` are not representation-compatible
+fail/facts/data_where_standing_mutable_recast_through_const_name_rejected rejected 586ms expected @a1f4e9300309
+	machine `compute` state `entry`: mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions; the source and target `Counter` are not representation-compatible
+fail/facts/data_where_standing_mutable_recast_through_field_rejected rejected 432ms expected @a1f4e9300309
+	machine `compute` state `entry`: mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions; the source and target `Counter` are not representation-compatible
+fail/facts/data_where_standing_mutable_recast_through_local_rejected rejected 441ms expected @a1f4e9300309
+	machine `compute` state `entry`: mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions; the source and target `Counter` are not representation-compatible
+fail/facts/data_where_standing_mutable_recast_through_match_join_rejected rejected 435ms expected @a1f4e9300309
+	machine `compute` state `entry`: mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions; the source and target `Counter` are not representation-compatible
+fail/facts/data_where_standing_mutable_recast_through_other_machine_rejected rejected 401ms expected @a1f4e9300309
+	machine `compute` state `entry`: mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions; the source and target `Counter` are not representation-compatible
+fail/facts/data_where_standing_mutable_recast_through_other_state_rejected rejected 407ms expected @a1f4e9300309
+	machine `compute` state `entry`: mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions; the source and target `Counter` are not representation-compatible
+fail/facts/data_where_standing_mutable_recast_through_parameter_rejected rejected 409ms expected @a1f4e9300309
+	machine `compute` state `entry`: mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions; the source and target `Counter` are not representation-compatible
+fail/facts/data_where_standing_mutable_recast_through_target_body_rejected rejected 424ms expected @a1f4e9300309
+	machine `compute` state `entry`: mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions; the source and target `Counter` are not representation-compatible
 fail/facts/data_where_standing_predicate_helper_alias_invalid_rejected rejected 1062ms expected @2693b883558f
 	exact arithmetic in machine `compute` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/data_where_standing_predicate_helper_literal_invalid_rejected rejected 331ms expected @2693b883558f
@@ -25640,6 +25665,16 @@ pass/facts/crash_entry_signed_zero_through_parameter_exit checked 8173ms check-t
 pass/facts/crash_entry_signed_zero_through_target_body_exit checked 7322ms check-target:macos_arm64 @a92f16431042
 pass/facts/data_where_standing_const_coupled_const checked 2363ms check-target:macos_arm64 @06b136c1a61f
 pass/facts/data_where_standing_const_nested_const checked 2363ms check-target:macos_arm64 @06b136c1a61f
+pass/facts/data_where_standing_mutable_recast_direct_exit checked 3074ms check-target:macos_arm64 @a1f4e9300309
+pass/facts/data_where_standing_mutable_recast_through_call_result_exit checked 3027ms check-target:macos_arm64 @a1f4e9300309
+pass/facts/data_where_standing_mutable_recast_through_const_name_exit checked 11120ms check-target:macos_arm64 @a1f4e9300309
+pass/facts/data_where_standing_mutable_recast_through_field_exit checked 2937ms check-target:macos_arm64 @a1f4e9300309
+pass/facts/data_where_standing_mutable_recast_through_local_exit checked 3007ms check-target:macos_arm64 @a1f4e9300309
+pass/facts/data_where_standing_mutable_recast_through_match_join_exit checked 2975ms check-target:macos_arm64 @a1f4e9300309
+pass/facts/data_where_standing_mutable_recast_through_other_machine_exit checked 3031ms check-target:macos_arm64 @a1f4e9300309
+pass/facts/data_where_standing_mutable_recast_through_other_state_exit checked 2993ms check-target:macos_arm64 @a1f4e9300309
+pass/facts/data_where_standing_mutable_recast_through_parameter_exit checked 2999ms check-target:macos_arm64 @a1f4e9300309
+pass/facts/data_where_standing_mutable_recast_through_target_body_exit checked 2985ms check-target:macos_arm64 @a1f4e9300309
 pass/facts/data_where_standing_predicate_helper_alias_exit checked 8781ms check-target:macos_arm64 @2693b883558f
 pass/facts/data_where_standing_predicate_helper_literal_exit checked 1940ms check-target:macos_arm64 @2693b883558f
 pass/facts/data_where_standing_predicate_helper_through_call_result_exit checked 1688ms check-target:macos_arm64 @2693b883558f
