@@ -4,7 +4,7 @@ use omega::language::core::content;
 use omega::language::core::drop;
 use omega::language::core::external_binding;
 public data ByteUnit {}
-public data Cell { value: u64; }
+public data Cell [copy] { value: u64; }
 public data Buffer [linear] { marker: u64; cells: [Cell; 3]; }
 machine Buffer::drop(buffer: &mut Buffer) {}
 public domain Buffer::Owned;
