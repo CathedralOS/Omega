@@ -6,6 +6,8 @@
 //! layout. An owner's claims, linearity or domains do not turn an admitted
 //! scalar read into a whole-owner copy. Keep those records on the owner; do not
 //! impose the retired claim-free carrier restriction during physical selection.
+use crate::selection::place_declaration::{declares_block_parameter, declares_operation_result};
+
 use calling_conventions::ValueShape;
 use legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarInstructionKind as Instruction,
@@ -40,14 +42,7 @@ pub(crate) fn local(
         || !result.qualification_establishments.is_empty()
         || !result.projected_qualifications.is_empty()
         || !result.claims.is_empty()
-        || !signature.structural_places.iter().any(|declaration| {
-            declaration.id == place
-                && declaration.kind
-                    == StructuralPlaceKind::OperationResult {
-                        producer: row.operation,
-                        structural_type: result.structural_type,
-                    }
-        })
+        || !declares_operation_result(signature, place, row.operation, result.structural_type)
         || !signature.structural_types.iter().any(|declaration| {
             declaration.id == result.structural_type
                 && declaration.shape == StructuralTypeShape::PrimitiveScalar(value.scalar_type)
@@ -92,14 +87,7 @@ fn block_arrival(
     let (block, parameter) = matching.next()?;
     (matching.next().is_none()
         && block != source.entry_block
-        && signature.structural_places.iter().any(|declaration| {
-            declaration.id == place
-                && declaration.kind
-                    == (StructuralPlaceKind::BlockParameter {
-                        block,
-                        position: parameter.position,
-                    })
-        }))
+        && declares_block_parameter(signature, place, block, parameter.position))
     .then_some(parameter)
 }
 
