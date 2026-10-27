@@ -35,16 +35,18 @@ macro_rules! digest_commitment {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MachineSpecialization {
     pub template: symbols::SymbolHandle,
+    /// Original binder ownership retained without a callable body. Private
+    /// projections may remove the template root while keeping its exact tuple.
+    pub template_declaration: Option<StaticMachineDeclarationDescription>,
     /// Original binder arena range, retained after the live template is closed.
     /// Rewritten calls use its exact machine-binder identities and declaration
     /// order to rejoin the selected entries in this specialization.
     pub template_parameters: HandleSpan<data::TypeParameter>,
     /// Exact typed substitution, independent of diagnostic and hash strings.
     pub binding_application: crate::static_applications::StaticMachineApplicationHandle,
-    /// Concrete machine instance produced for this substitution. The first
-    /// specialization may reuse `template`; later specializations clone it
-    /// under a fresh symbol. Consumers must key executable/elaborated work by
-    /// this symbol rather than guessing from specialization order.
+    /// Concrete machine instance produced under a fresh symbol for this
+    /// substitution. The authored template keeps its own declaration identity;
+    /// executable/elaborated work keys this exact instance, never source order.
     pub instance: symbols::SymbolHandle,
     /// Readable source-oriented spellings retained for diagnostics only.
     pub type_arguments: Vec<String>,
@@ -77,6 +79,18 @@ pub struct MachineSpecialization {
     /// instance points at the same template commitment; none spends a new
     /// grant. `None` for checked templates.
     pub accepted_template_commitment: Option<String>,
+}
+
+/// The original declaration scope a retained specialization tuple is judged
+/// against. This contains no states, entry or body and grants no invocation.
+/// The receipt separately owns the original parameter span and exact tuple.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StaticMachineDeclarationDescription {
+    pub symbol: symbols::SymbolHandle,
+    pub name: crate::name::Identifier,
+    pub source_span: Option<source::SourceSpan>,
+    pub lifetime_parameters: Vec<crate::name::Identifier>,
+    pub conformance_bounds: Vec<crate::machine::GenericConformanceBound>,
 }
 
 digest_commitment! {

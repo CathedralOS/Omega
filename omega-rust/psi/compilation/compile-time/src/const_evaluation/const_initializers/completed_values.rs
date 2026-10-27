@@ -24,7 +24,7 @@ fn same_source(left: &ConstDeclaration, right: &ConstDeclaration) -> bool {
         && left.materialized_initializer == right.materialized_initializer
 }
 
-fn exact_declaration<'program>(
+pub(super) fn exact_declaration<'program>(
     program: &'program TypedTrees,
     expected: &ConstDeclaration,
 ) -> Result<&'program ConstDeclaration, String> {

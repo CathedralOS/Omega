@@ -20,6 +20,14 @@ pub(crate) fn settle(
     domain: &EvaluationDomain,
     selected: crate::SelectedBuildTimeOperators<'_>,
 ) -> Result<(), Vec<Diagnostic>> {
+    if std::env::var_os("OMEGA_INITIALIZER_SELECTION_TRACE").is_some() {
+        eprintln!(
+            "target-initializer-settlement pending={} selected_provider_rows={} selected_operator_rows={}",
+            pending.len(),
+            selected.provider_bodies.len(),
+            selected.operators.len()
+        );
+    }
     let mut declarations = typed
         .const_declarations()
         .iter()
@@ -51,17 +59,31 @@ pub(crate) fn settle(
             );
             let mut work = domain.clone();
             work.include(owner);
-            let work = work.demanded_roots(&probes, &[owner]);
+            // Demand the graph that will actually execute, while the original
+            // continuation scope is still intact. Narrowing the requirement
+            // graph first would discard its later selected provider instance.
+            // Selection validation grants no invocation authority; preparation
+            // and ordinary admission below still inspect this exact closure.
+            let selected_execution =
+                crate::machine_execution::selected_operators::prepare_selected_execution(
+                    &probes,
+                    selected.provider_bodies,
+                    selected.operators,
+                )
+                .map_err(|reason| super::failure(declaration.initializer_source_span, reason))?;
+            let work =
+                work.demanded_roots(selected_execution.as_ref().unwrap_or(&probes), &[owner]);
             // Source selections, including helper bodies and unexecuted arms,
             // order aliases before consumers. A provisional value is never a
             // canonical dependency, regardless of declaration order in source.
-            let references = work.references(&probes);
+            let dependency_source = selected_execution.as_ref().unwrap_or(&probes);
+            let references = work.references(dependency_source);
             let pending_dependency =
                 references
                     .authored_selection_occurrences
                     .iter()
                     .any(|occurrence| {
-                        probes
+                        dependency_source
                             .authored_declaration_selections()
                             .get(*occurrence)
                             .and_then(|selection| {
@@ -70,7 +92,9 @@ pub(crate) fn settle(
                                     .as_resolved()
                                     .map(|selected| selected.selected_symbol())
                             })
-                            .and_then(|symbol| probes.const_declaration_by_symbol(symbol))
+                            .and_then(|symbol| {
+                                dependency_source.const_declaration_by_symbol(symbol)
+                            })
                             .is_some_and(|dependency| dependency.evaluated_value.is_none())
                     });
             if !pending_dependency {

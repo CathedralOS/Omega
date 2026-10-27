@@ -517,6 +517,13 @@ impl ExpressionTable {
         self.static_machine_applications.get(application)
     }
 
+    pub fn static_machine_application_is_valid(
+        &self,
+        application: StaticMachineApplicationHandle,
+    ) -> bool {
+        self.static_machine_applications.is_valid(application)
+    }
+
     pub fn static_machine_application_mut(
         &mut self,
         application: StaticMachineApplicationHandle,

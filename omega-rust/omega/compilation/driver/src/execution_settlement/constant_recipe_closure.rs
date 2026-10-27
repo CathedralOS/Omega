@@ -340,12 +340,35 @@ fn close_constant_values(
             "constant recipes are retained without their authored evaluation source",
         )]);
     };
+    // Type-directed generic token uses become exact normalized requirement
+    // occurrences only after Psi's continuation-owned private preparation.
+    // Provider selection and evaluation consume this SAME forest; appended
+    // handles are never looked up in the original authored storage.
+    let prepared_source =
+        build_time_evaluation::PreCheckEvaluation::prepare_initializer_provider_source(
+            authored,
+            &source.constant_recipe_continuations,
+        )?;
+    let private_provider_facts = prepared_source
+        .as_ref()
+        .map(|checked| {
+            provider_planning::settle_selected_requirement_specializations(
+                checked,
+                selected_provider_plan_facts,
+            )
+        })
+        .transpose()?;
+    let evaluation_source =
+        prepared_source.map_or_else(|| authored.clone(), |checked| checked.typed.into_inner());
+    let authored = &evaluation_source;
     let evaluation = selected_dispatch::SelectedConstantEvaluation::prepare(
         provider_planning::ProviderPlanningContext::new(authored, source::DependencyScope::Product),
         selected_target_profile,
         opaque_representation_selections,
         &validation::derive_pre_flow_operator_selections(authored),
-        selected_provider_plan_facts,
+        private_provider_facts
+            .as_ref()
+            .unwrap_or(selected_provider_plan_facts),
     )?;
     let target_bodies = evaluation.target_body_receipts();
     let (operators, provider_bodies) = evaluation.pending_fold_providers();
@@ -383,7 +406,7 @@ fn close_constant_values(
     receipts.dedup();
     // The fold lands on a private copy of the shared program; the shared
     // storage keeps its symbolic positions for every other target.
-    let mut evaluated = authored.clone();
+    let mut evaluated = evaluation_source;
     evaluation.evaluate_pending(&mut evaluated, source.constant_recipe_continuations.clone())?;
     let mut closure = typed.read_constant_recipe_closure(&evaluated, receipts)?;
     closure.target_bodies = target_bodies;

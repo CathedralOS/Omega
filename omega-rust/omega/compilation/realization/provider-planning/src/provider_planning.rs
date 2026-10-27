@@ -121,6 +121,25 @@ pub fn bind_selected_provider_plan_facts(
     })
 }
 
+/// Close existing selected generic rows over a privately checked constant
+/// preparation. This replays checked specialization custody; it neither derives
+/// candidate plans nor selects a different provider. The shared closure stays
+/// unchanged while this evaluator consumes the private program's exact handles.
+pub fn settle_selected_requirement_specializations(
+    checked: &checked_trees::CheckedTrees,
+    selected: &effects::SelectedProviderPlanFacts,
+) -> Result<effects::SelectedProviderPlanFacts, Vec<diagnostics::Diagnostic>> {
+    let (rows, identities) = provenance_replay::derive_selected_requirement_specializations(
+        &checked.typed,
+        &checked.facts,
+        selected,
+    )?;
+    selected
+        .clone()
+        .with_specialized_requirement_rows(rows, &identities)
+        .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])
+}
+
 /// PRV4c: select one fully covering provider type per applicable boundary
 /// slot. An explicit build-root declaration wins over the selected target
 /// package's ordinary default declaration. Without either, a unique covering

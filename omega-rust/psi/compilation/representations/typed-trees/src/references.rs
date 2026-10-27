@@ -1981,6 +1981,15 @@ fn visit_machine_with_sidecars(
     let mut visit_specialization = |specialization: &crate::typed_trees::MachineSpecialization| {
         visit_type_parameters(program, retained, specialization.template_parameters);
         visit_static_machine_bindings(program, retained, specialization.binding_application);
+        if let Some(description) = &specialization.template_declaration {
+            retained.declaration_description_dependency(description.symbol);
+            for bound in &description.conformance_bounds {
+                visit_symbol(retained, bound.trait_symbol);
+                for argument in &bound.arguments {
+                    visit_type_reference(program, retained, *argument);
+                }
+            }
+        }
         for realization in &specialization.operator_realizations {
             for argument in &realization.arguments {
                 use crate::operator::ClosedOperatorApplicationArgument;

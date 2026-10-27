@@ -437,6 +437,55 @@ impl PreCheckEvaluation {
         &self.pending_initializers
     }
 
+    /// Prepare one canonical private forest for all matched continuations.
+    /// Union their existing work/execution selections before projection; a
+    /// sequence of projections would erase independent cohorts. This grants
+    /// no provider selection or execution authority.
+    pub fn prepare_initializer_provider_source(
+        typed: &typed_trees::TypedTrees,
+        continuations: &[Self],
+    ) -> Result<Option<checked_trees::CheckedTrees>, Vec<diagnostics::Diagnostic>> {
+        let pending = continuations
+            .iter()
+            .flat_map(|continuation| continuation.pending_initializers.iter().cloned())
+            .collect::<Vec<_>>();
+        if pending.is_empty() {
+            return Ok(None);
+        }
+        let first = continuations.first().ok_or_else(|| {
+            vec![diagnostics::Diagnostic::error(
+                "pending scalar preparation has no source continuation",
+            )]
+        })?;
+        if continuations.iter().any(|continuation| {
+            continuation.domain.product_frontier != first.domain.product_frontier
+        }) {
+            return Err(vec![diagnostics::Diagnostic::error(
+                "pending scalar continuations have incompatible declaration frontiers",
+            )]);
+        }
+        let declarations = typed_trees::references::collect_program_declarations(typed);
+        let work =
+            DeclarationSelection::from_symbols(declarations.iter().copied().filter(|symbol| {
+                continuations
+                    .iter()
+                    .any(|continuation| continuation.domain.work.contains(*symbol))
+            }));
+        let execution =
+            DeclarationSelection::from_symbols(declarations.into_iter().filter(|symbol| {
+                continuations
+                    .iter()
+                    .any(|continuation| continuation.domain.execution.contains(*symbol))
+            }));
+        let domain = EvaluationDomain {
+            work,
+            execution,
+            product_frontier: first.domain.product_frontier.clone(),
+            accounting: first.domain.accounting.clone(),
+        };
+        const_initializers::prepare_initializer_provider_source(typed, &pending, &domain).map(Some)
+    }
+
     /// Compare pending work from the same source-preparation owner. An authority
     /// object is opaque: only a shared object can establish the same selection
     /// context here. This is input matching, never permission to execute work.
@@ -601,6 +650,12 @@ impl PreCheckEvaluation {
                 self.selection_authority.clone(),
                 &self.domain,
             )?;
+        if std::env::var_os("OMEGA_INITIALIZER_SELECTION_TRACE").is_some() {
+            eprintln!(
+                "typed-initializer-continuation pending={} other_selection={needs_selected_execution}",
+                self.pending_initializers.len()
+            );
+        }
         if needs_selected_execution || !self.pending_initializers.is_empty() {
             range_endpoints::defer_pending_endpoint_calls_in(typed, &self.domain)?;
             const_applications::defer_pending_const_applications(typed, &self.domain)?;

@@ -546,6 +546,20 @@ pub fn validate_selected_provider_bodies(
                         .into(),
                 );
             }
+            let actual_parameters = program.state_parameters(entry);
+            if actual_parameters.len() != parameters.len()
+                || program.normalized_type_identity(entry.return_type)
+                    != program.normalized_type_identity(required_entry.return_type)
+                || !parameters
+                    .iter()
+                    .zip(actual_parameters)
+                    .all(|(required, actual)| {
+                        program.normalized_type_identity(required.type_reference)
+                            == program.normalized_type_identity(actual.type_reference)
+                    })
+            {
+                return Err("selected build-time provider entry signature differs from its closed requirement".into());
+            }
             if program
                 .machine_contracts(requirement)
                 .iter()
@@ -560,51 +574,96 @@ pub fn validate_selected_provider_bodies(
             // Token views and plain named requirements have one source owner.
             // Rejoin the exact satisfaction target and independently check its
             // signature, contracts, and operational ceiling on the actual machine.
-            let conformances = program
+            let mut conformances = program
                 .machine_trait_conformances(provider)
                 .iter()
-                .filter(|conformance| {
+                .filter_map(|conformance| {
                     if conformance.external_binding.is_some() {
-                        return false;
+                        return None;
                     }
-                    let Some(typed_trees::machine::SatisfiedDeclaration::TopLevelRequirement(
-                        required,
-                    )) = typed_trees::machine::resolve_satisfied_declaration(
+                    // The authored edge names the exact template. A closed
+                    // provider cannot rediscover that generic token signature
+                    // by comparing its already-substituted operand types.
+                    let mut required = program.machines().iter().filter(|machine| {
+                        machine.symbol == conformance.symbol
+                            && machine.supply_mode
+                                == language_semantics::MachineSupplyMode::TopLevelRequirement
+                            && conformance.requirement_symbol == machine.symbol
+                    });
+                    let Some(required_template) = required.next() else {
+                        return None;
+                    };
+                    if required.next().is_some() {
+                        return None;
+                    }
+                    (validation::resolve_closed_requirement_application(
                         program,
                         provider,
-                        conformance,
+                        required_template,
                     )
-                    else {
-                        return false;
-                    };
-                    required.symbol == requirement.symbol
+                    .is_ok_and(|closed| closed.symbol == requirement.symbol)
                         && validation::revalidate_top_level_requirement_realization(
                             program,
                             provider,
-                            required,
+                            required_template,
                             conformance,
                         )
-                        .is_ok()
-                })
-                .count();
-            if conformances != 1 {
+                        .is_ok())
+                    .then_some(required_template)
+                });
+            let Some(authored_requirement) = conformances.next() else {
                 return Err("selected build-time provider does not bind its requirement through exactly one checked conformance".into());
+            };
+            if conformances.next().is_some() {
+                return Err(
+                    "selected build-time provider has multiple checked requirement conformances"
+                        .into(),
+                );
+            }
+            if authored_requirement.spelling != requirement.spelling {
+                return Err(
+                    "selected build-time closed requirement changed its authored token".into(),
+                );
             }
             let mut bindings = program
                 .machine_token_bindings()
                 .iter()
-                .filter(|binding| binding.symbol == requirement.symbol);
+                .filter(|binding| binding.symbol == authored_requirement.symbol);
             match (bindings.next(), bindings.next()) {
                 (None, None) if requirement.spelling.is_none() => continue,
-                (Some(binding), None) if binding.spelling == requirement.spelling => {}
+                (Some(binding), None)
+                    if authored_requirement.spelling.is_some()
+                        && binding.spelling == authored_requirement.spelling
+                        && binding.is_boundary
+                        && binding.is_public == authored_requirement.is_public
+                        && binding.type_parameters == authored_requirement.type_parameters
+                        && binding.lifetime_parameters
+                            == authored_requirement.lifetime_parameters
+                        && binding.contracts == authored_requirement.contracts =>
+                {
+                    let [authored_entry] = program.machine_states(authored_requirement) else {
+                        return Err(
+                            "selected build-time authored requirement lost its unique entry".into(),
+                        );
+                    };
+                    if binding.parameters != authored_entry.parameters
+                        || binding.return_type != authored_entry.return_type
+                    {
+                        return Err(
+                            "selected build-time token view changed its authored signature".into(),
+                        );
+                    }
+                }
                 _ => {
                     return Err(
                         "selected build-time token view differs from its actual requirement".into(),
                     );
                 }
             }
-            // A normalized named call still owes its token-view signature
-            // checks. Only a genuinely untokened requirement has no such view.
+            // The machine's exact closed conformance owns its signature and
+            // contracts. Its authored token view shares the template's spans;
+            // no second operator declaration or derived token view is needed.
+            continue;
         }
         let matching: Vec<_> = program
             .operators()

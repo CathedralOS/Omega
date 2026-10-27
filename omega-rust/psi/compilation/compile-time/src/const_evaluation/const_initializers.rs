@@ -862,6 +862,49 @@ pub(crate) fn pending_initializers_need_execution_selection(
         .collect())
 }
 
+/// Close type-directed call/operator applications for Omega's existing provider
+/// demand query. This prepares no selected body and grants no execution.
+pub(crate) fn prepare_initializer_provider_source(
+    typed: &typed_trees::TypedTrees,
+    pending: &[typed_trees::constant::ConstDeclaration],
+    domain: &crate::build_time_evaluation::EvaluationDomain,
+) -> Result<checked_trees::CheckedTrees, Vec<Diagnostic>> {
+    for declaration in pending {
+        if !domain.contains(declaration.symbol) {
+            return Err(failure(
+                declaration.initializer_source_span,
+                "pending initializer escaped its source continuation domain",
+            ));
+        }
+        completed_values::exact_declaration(typed, declaration)
+            .map_err(|reason| failure(declaration.initializer_source_span, reason))?;
+    }
+    let prepared = crate::PreparedBuildMachineProgram::prepare_in(typed, domain)?;
+    // Constant preparation closes ordinary static calls but deliberately keeps
+    // operator syntax. The ordinary source preparation owns token binding and
+    // its subsequent specialization; provider planning needs that exact closed
+    // requirement occurrence, not a generic operator-signature view.
+    let request = typed_trees_to_typed_trees::PreparationRequest::settled();
+    let (prepared, preparation) =
+        typed_trees_to_typed_trees::prepare_typed_trees(prepared.typed().clone(), &request)?;
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        prepared,
+        preparation,
+        &typed_trees_to_checked_trees::CheckingRequest::new(),
+    )?;
+    let selections = checked.authored_declaration_selections().clone();
+    let mut prepared = checked.typed.into_inner();
+    prepared.retain_authored_declaration_selections(selections);
+    for declaration in pending {
+        completed_values::exact_declaration(&prepared, declaration)
+            .map_err(|reason| failure(declaration.initializer_source_span, reason))?;
+    }
+    Ok(checked_trees::CheckedTrees::with_roots(
+        prepared,
+        checked.facts,
+    ))
+}
+
 fn retain_pending_observations(
     syntax: &mut SyntaxTrees,
     declarations: &mut [Declaration],

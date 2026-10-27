@@ -135,11 +135,34 @@ impl CheckedInitializers {
     ) -> Result<bool, String> {
         let invocation = self.calls_for_source(reference)?;
         let facts = validation::derive_pre_flow_operator_selections(&self.typed);
-        Ok(self.admission.closure_needs_execution_preparation(
+        let needs = self.admission.closure_needs_execution_preparation(
             &self.typed,
             invocation.machine.symbol,
             &facts,
-        ))
+        );
+        if std::env::var_os("OMEGA_INITIALIZER_SELECTION_TRACE").is_some() {
+            let mut closure = vec![invocation.machine.symbol];
+            self.admission
+                .append_execution_dependencies(&self.typed, &mut closure);
+            let machines = closure
+                .iter()
+                .map(|symbol| {
+                    self.typed
+                        .machine_by_symbol(*symbol)
+                        .map(|machine| (machine.symbol, machine.name.as_str(), machine.supply_mode))
+                })
+                .collect::<Vec<_>>();
+            let roots = invocation.probe_roots().map(|roots| {
+                roots
+                    .into_iter()
+                    .map(|root| (root, self.typed.expression_table.expression(root).clone()))
+                    .collect::<Vec<_>>()
+            });
+            eprintln!(
+                "source-initializer-readiness reference={reference:?} needs={needs} closure={machines:?} roots={roots:?}"
+            );
+        }
+        Ok(needs)
     }
 
     pub(super) fn calls<'program>(

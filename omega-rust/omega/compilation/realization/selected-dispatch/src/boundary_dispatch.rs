@@ -21,6 +21,120 @@ use crate::boundary_dispatch::boundary_fields::{
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 
+/// Rejoin a closed constant use through the selected generic row's existing
+/// specialization custody. The report coordinate only narrows the search;
+/// exact identities and ordinary adapter replay establish the association.
+pub(crate) fn selected_specialized_constant_adapter<'typed, 'plans>(
+    context: provider_planning::ProviderPlanningContext<'typed>,
+    selected: &'plans effects::SelectedProviderPlanFacts,
+    requirement: symbols::SymbolHandle,
+    target: &str,
+) -> Result<
+    Option<(
+        &'plans effects::provider_plan::ProviderPlan,
+        &'typed typed_trees::machine::Machine,
+        symbols::SymbolHandle,
+    )>,
+    Diagnostic,
+> {
+    let typed = context.typed;
+    if !context.contains(requirement) {
+        return Ok(None);
+    }
+    let Some(closed) = typed.machine(requirement) else {
+        return Ok(None);
+    };
+    let Some(identity) = typed.machine_callable_identity_text(closed) else {
+        return Ok(None);
+    };
+    let declarations = typed_trees::references::DeclarationSelection::from_symbols(
+        typed_trees::references::collect_program_declarations(typed)
+            .into_iter()
+            .filter(|symbol| context.contains(*symbol)),
+    );
+    let mut result = None;
+    for specialization in selected
+        .specialized_requirement_rows()
+        .iter()
+        .filter(|row| {
+            selected.identities().text(row.requirement_identity) == Some(identity.as_str())
+        })
+    {
+        for plan in selected.plans().iter().filter(|plan| {
+            plan.target == target
+                && plan.report_fingerprint() == specialization.provider_plan_report_identity
+        }) {
+            for row in &plan.rows {
+                let effects::provider_plan::ProviderBinding::CheckedAdapter {
+                    machine_identity,
+                    ..
+                } = &row.binding
+                else {
+                    continue;
+                };
+                if selected
+                    .identities()
+                    .text(specialization.selected_requirement_identity)
+                    != Some(plan.identities.text(row.requirement_identity))
+                    || selected
+                        .identities()
+                        .text(specialization.selected_machine_identity)
+                        != Some(plan.identities.text(*machine_identity))
+                {
+                    continue;
+                }
+                let Some(adapter_rows::SelectedAdapterTarget::TopLevelRequirement {
+                    requirement: template,
+                    ..
+                }) = adapter_rows::resolve_selected_adapter_target(typed, plan, row)?
+                else {
+                    continue;
+                };
+                let Some((_, declaration)) =
+                    provider_planning::selected_requirement_checked_adapter(
+                        context,
+                        plan,
+                        template.symbol,
+                    )?
+                else {
+                    return Err(Diagnostic::error(
+                        "selected generic constant row has no checked template adapter",
+                    ));
+                };
+                for resolved in resolve_selected_adapter_row(
+                    typed,
+                    &declarations,
+                    plan,
+                    row,
+                    selected.specialized_requirement_rows(),
+                    selected.identities(),
+                )? {
+                    let ResolvedAdapterRow::Adapter(adapter) = resolved else {
+                        continue;
+                    };
+                    if adapter.receiver_trait != closed.symbol
+                        || adapter.requirement_identity != identity
+                    {
+                        continue;
+                    }
+                    let Some(provider) = typed.machine_holding_state(adapter.symbol) else {
+                        return Err(Diagnostic::error(
+                            "selected generic constant adapter lost its exact provider entry",
+                        ));
+                    };
+                    if result.is_some() {
+                        return Err(Diagnostic::error(
+                            "closed constant requirement has multiple selected generic adapters",
+                        ));
+                    }
+                    result = Some((plan, provider, declaration));
+                }
+            }
+        }
+    }
+    Ok(result)
+}
+
 /// Service erasure joins the selected plan, not its checked-adapter subset.
 /// Intrinsic and foreign rows deliberately produce no adapter dispatch; an
 /// unrelated checked provider must not make their service carriers invalid.
@@ -492,10 +606,9 @@ pub(crate) fn settle_selected_boundary_adapter_dispatch(
             .map(|application| application.declaring_trait)
             .filter(|trait_symbol| trait_symbol.is_valid())
             .unwrap_or(adapter.receiver_trait);
-        let requirement = application
-            .map_or(adapter.requirement_symbol, |application| {
-                application.template
-            });
+        let requirement = application.map_or(adapter.requirement_symbol, |application| {
+            application.template
+        });
         dispatch.push(checked_trees::CheckedBoundaryAdapterDispatch {
             receiver,
             requirement,
