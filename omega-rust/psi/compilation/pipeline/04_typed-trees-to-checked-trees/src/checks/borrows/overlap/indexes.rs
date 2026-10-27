@@ -690,10 +690,12 @@ pub(super) fn projected_bound(
         let place = validation::canonical_place_from_expression(program, expression)?;
         let symbol = place.root.as_symbol()?;
         if place.segments.is_empty()
-            || !place
-                .segments
-                .iter()
-                .all(|segment| matches!(segment, facts::PlaceSegment::Field { .. }))
+            || !place.segments.iter().all(|segment| {
+                matches!(
+                    segment,
+                    facts::PlaceSegment::Field { .. } | facts::PlaceSegment::FixedIndex { .. }
+                )
+            })
         {
             return None;
         }
@@ -744,6 +746,26 @@ pub(super) fn append_immutable_projection(
         reference = shell.referee;
     }
     segments.extend_from_slice(projection);
+    for (position, segment) in segments.iter().enumerate() {
+        match segment {
+            facts::PlaceSegment::Field { .. } => {}
+            facts::PlaceSegment::FixedIndex { index } => {
+                // Type/path replay alone does not establish array bounds.
+                // Each index belongs to the type at its own prefix; an outer
+                // array's extent cannot authorize a nested element selection.
+                let container = validation::owned_projection_type_reference(
+                    program,
+                    reference,
+                    &segments[..position],
+                )?;
+                let extent = validation::fixed_array_type_length(program, container)?;
+                if *index >= extent {
+                    return None;
+                }
+            }
+            _ => return None,
+        }
+    }
     let leaf = validation::owned_projection_type_reference(program, reference, &segments)?;
     if !program.primitive_type_reference(leaf)?.is_fixed_integer()
         || program.arithmetic_domain_for_type_reference(leaf)
