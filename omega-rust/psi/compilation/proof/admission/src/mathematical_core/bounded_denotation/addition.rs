@@ -34,7 +34,7 @@ use semantic_vocabulary::{
     IntegerCarrier, IntegerMathTerm, IntegerType, IntegerValue, Proposition, ScalarTerm, ScalarType,
 };
 
-use super::super::scheme_dsl::{self, apps, id, pi, scheme_at, v};
+use super::super::scheme_dsl::{self, apps, id, pi, pis, scheme_at, v};
 use super::binary_numerals;
 use super::denotation::{BinaryBoundOperation, math_less_or_equal_sides};
 use super::{
@@ -113,10 +113,7 @@ impl Denotation {
                 let constant = |position| scheme_at(position, Vec::new());
                 let carrier = || constant(integer);
                 let binders = |names: &[&'static str], body| {
-                    names
-                        .iter()
-                        .rev()
-                        .fold(body, |inner, name| pi(name, carrier(), inner))
+                    pis(names.iter().map(|name| (*name, carrier())), body)
                 };
                 let add = |left, right| apps(constant(operation), [left, right]);
                 let statement = match law {

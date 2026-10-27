@@ -46,7 +46,9 @@ use semantic_vocabulary::{
     IntegerCarrier, IntegerSign, IntegerType, IntegerValue, Proposition, ScalarTerm,
 };
 
-use super::super::scheme_dsl::{self, apps, case_two, id, lam, pi, scheme_at, sigma, sort, two, v};
+use super::super::scheme_dsl::{
+    self, apps, case_two, id, lam, pi, pis, scheme_at, sigma, sort, two, v,
+};
 use super::super::term::Level;
 use super::integer_operations::IntegerOperation;
 use super::{BoundedDenotationError, Denotation, IntegerLaw, IntegerRelation, Term, TermHandle};
@@ -198,10 +200,7 @@ impl Denotation {
                 let constant = |position| scheme_at(position, Vec::new());
                 let carrier = || constant(integer);
                 let binders = |names: &[&'static str], body| {
-                    names
-                        .iter()
-                        .rev()
-                        .fold(body, |inner, name| pi(name, carrier(), inner))
+                    pis(names.iter().map(|name| (*name, carrier())), body)
                 };
                 let le = |left, right| apps(constant(less_or_equal), [left, right]);
                 let eq = |left, right| id(carrier(), left, right);
