@@ -9,7 +9,7 @@
 //! retain it with the checked application through the receiving installation.
 
 use crate::type_regions::{
-    TypeRegionRelationship, TypeRegionScope, type_reference_region_applications,
+    ReferenceStep, TypeRegionRelationship, TypeRegionScope, type_reference_region_applications,
 };
 use symbols::SymbolHandle;
 use typed_trees::trait_definition::{AppliedTraitScope, Conformance};
@@ -17,7 +17,7 @@ use typed_trees::type_identity::{
     AppliedTypeIdentityScope, LifetimeParameterIdentity, NormalizedTypeIdentity,
     TypeIdentityRequest, applied_lifetime_parameter_identity,
 };
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::TypeReferenceHandle;
 
 /// Receiving coordinates in the selecting declaration's public binder order.
 /// This invocation-local result grants neither a loan nor selection authority.
@@ -225,70 +225,46 @@ impl TypeRegionScope for ApplicationRegions<'_> {
         )
     }
 
-    fn resolve(
+    fn enter_operand(mut self, program: &dyn crate::CheckingInput, owner: SymbolHandle) -> Self {
+        let count = self
+            .identities
+            .iter()
+            .rposition(|identity| {
+                program.lifetime_declaration_owner(identity.declaration)
+                    == program.lifetime_declaration_owner(owner)
+            })
+            .map_or(0, |ordinal| ordinal + 1);
+        self = self.prefix(count);
+        self.owner = owner;
+        self
+    }
+
+    fn named_alias(
         mut self,
-        program: &dyn crate::CheckingInput,
-        mut reference: TypeReferenceHandle,
-    ) -> Option<(TypeReferenceHandle, Self)> {
-        let mut visited = Vec::new();
-        loop {
-            if !reference.is_valid() {
-                return Some((reference, self));
-            }
-            if visited.contains(&reference)
-                || !program
-                    .type_reference_table
-                    .contains_type_reference(reference)
-            {
-                return None;
-            }
-            visited.push(reference);
-            let owner = program
-                .type_reference_table
-                .operand_lifetime_owner(reference);
-            if owner.is_valid() {
-                let count = self
-                    .identities
-                    .iter()
-                    .rposition(|scope| {
-                        program.lifetime_declaration_owner(scope.declaration)
-                            == program.lifetime_declaration_owner(owner)
-                    })
-                    .map_or(0, |ordinal| ordinal + 1);
-                self = self.prefix(count);
-                self.owner = owner;
-            }
-            let TypeReferenceNode::Named { symbol, .. } =
-                program.type_reference_table.type_reference(reference)
-            else {
-                return Some((reference, self));
-            };
-            if let Some((ordinal, (_, argument))) = self.application.substitutions[..self.visible]
-                .iter()
-                .enumerate()
-                .rev()
-                .find(|(_, (parameter, _))| parameter == symbol)
-            {
-                if *argument == reference {
-                    return Some((reference, self));
-                }
-                reference = *argument;
-                let count = self
-                    .application
-                    .substitution_scope_starts
-                    .partition_point(|start| *start <= ordinal)
-                    .checked_sub(1)?;
-                self = self.prefix(count);
-                continue;
-            }
-            if let Some(origin) = program
-                .data_definition_by_symbol(*symbol)
-                .and_then(|definition| definition.generic_instance)
-            {
-                reference = origin;
-                continue;
-            }
-            return Some((reference, self));
+        _program: &dyn crate::CheckingInput,
+        symbol: SymbolHandle,
+        reference: TypeReferenceHandle,
+    ) -> Option<ReferenceStep<Self>> {
+        let substitutions = &self.application.substitutions;
+        let visible = self.visible;
+        let (ordinal, argument) = substitutions[..visible]
+            .iter()
+            .enumerate()
+            .rev()
+            .find(|(_, (parameter, _))| *parameter == symbol)
+            .map(|(ordinal, (_, argument))| (ordinal, *argument))?;
+        if argument == reference {
+            return Some(ReferenceStep::Stop);
         }
+        let Some(count) = self
+            .application
+            .substitution_scope_starts
+            .partition_point(|start| *start <= ordinal)
+            .checked_sub(1)
+        else {
+            return Some(ReferenceStep::Refuse);
+        };
+        self = self.prefix(count);
+        Some(ReferenceStep::Chase(self, argument))
     }
 }

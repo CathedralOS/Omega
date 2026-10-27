@@ -17,25 +17,88 @@ pub(crate) trait TypeRegionScope: Copy {
         program.normalized_type_identity(reference)
     }
 
-    fn resolve(
+    /// Rewrite this scope when the walk reaches an operand owned elsewhere.
+    fn enter_operand(
         self,
+        _program: &dyn crate::CheckingInput,
+        _owner: symbols::SymbolHandle,
+    ) -> Self {
+        self
+    }
+
+    /// One named alias of this scope's rosters: `None` when the name is not an
+    /// alias here, so the walk falls through to the declaration instance.
+    fn named_alias(
+        self,
+        _program: &dyn crate::CheckingInput,
+        _symbol: symbols::SymbolHandle,
+        _reference: TypeReferenceHandle,
+    ) -> Option<ReferenceStep<Self>> {
+        None
+    }
+
+    /// Walk one reference to its alias-free form under this scope. Validity,
+    /// the visited set, the operand-lifetime owner step and the generic-instance
+    /// alias are the same operation for every scope, so the walk lives here
+    /// once: every scope restated it before.
+    fn resolve(
+        mut self,
         program: &dyn crate::CheckingInput,
-        reference: TypeReferenceHandle,
-    ) -> Option<(TypeReferenceHandle, Self)>;
+        mut reference: TypeReferenceHandle,
+    ) -> Option<(TypeReferenceHandle, Self)> {
+        let mut visited = Vec::new();
+        loop {
+            if !reference.is_valid() {
+                return Some((reference, self));
+            }
+            if visited.contains(&reference)
+                || !program
+                    .type_reference_table
+                    .contains_type_reference(reference)
+            {
+                return None;
+            }
+            visited.push(reference);
+            let owner = program
+                .type_reference_table
+                .operand_lifetime_owner(reference);
+            if owner.is_valid() {
+                self = self.enter_operand(program, owner);
+            }
+            let TypeReferenceNode::Named { symbol, .. } =
+                program.type_reference_table.type_reference(reference)
+            else {
+                return Some((reference, self));
+            };
+            match self.named_alias(program, *symbol, reference) {
+                Some(ReferenceStep::Refuse) => return None,
+                Some(ReferenceStep::Stop) => return Some((reference, self)),
+                Some(ReferenceStep::Chase(scope, next)) => {
+                    self = scope;
+                    reference = next;
+                    continue;
+                }
+                None => {}
+            }
+            if let Some(application) = program
+                .data_definition_by_symbol(*symbol)
+                .and_then(|definition| definition.generic_instance)
+            {
+                reference = application;
+                continue;
+            }
+            return Some((reference, self));
+        }
+    }
 }
 
-impl TypeRegionScope for () {
-    fn resolve(
-        self,
-        program: &dyn crate::CheckingInput,
-        reference: TypeReferenceHandle,
-    ) -> Option<(TypeReferenceHandle, Self)> {
-        (!reference.is_valid()
-            || program
-                .type_reference_table
-                .contains_type_reference(reference))
-        .then_some((reference, self))
-    }
+/// One named-alias step of the reference walk: chase the substituted operand
+/// with the scope that supplied it, stop on the reference itself, or refuse an
+/// alias this scope cannot apply.
+pub(crate) enum ReferenceStep<Scope> {
+    Chase(Scope, TypeReferenceHandle),
+    Stop,
+    Refuse,
 }
 
 /// Callable inputs may accept weaker qualifications; a provider application

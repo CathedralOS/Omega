@@ -111,7 +111,7 @@ fn destination_layout_roots(
     let place = facts.places.get(place);
     let root = place.root.as_symbol().ok_or(())?;
     let segments = facts.place_segments.span_or_empty(place.segments);
-    let mut roots = vec![root_type(program, state, root).ok_or(())?];
+    let mut roots = vec![crate::state_root_type(program, state, root).ok_or(())?];
     let candidates: Vec<_> = origins
         .unwrap_or(&[])
         .iter()
@@ -192,7 +192,7 @@ fn destination_projections(
     if !crate::place_has_builtin_coordinates(program, machine, Some(state), destination) {
         return Err(());
     }
-    let direct_type = root_type(program, state, root).ok_or(())?;
+    let direct_type = crate::state_root_type(program, state, root).ok_or(())?;
     // An aggregate's own scalar field has the representation selected by its
     // exact nominal declaration. A whole-record loan does not turn Room.value
     // into some other record's IntegerAt merely because its backing root is
@@ -281,7 +281,7 @@ fn source_coordinates(
     if !source.root.is_valid() {
         return Err(());
     }
-    let declared = root_type(program, state, source.root).ok_or(())?;
+    let declared = crate::state_root_type(program, state, source.root).ok_or(())?;
     let (carrier, path) = match &source.representation {
         Some((carrier, path)) => (*carrier, path.clone()),
         None => (declared, source.segments.clone()),
@@ -291,21 +291,6 @@ fn source_coordinates(
         .contains_type_reference(carrier)
         .then_some((carrier, path))
         .ok_or(())
-}
-
-fn root_type(
-    program: &dyn crate::CheckingInput,
-    state: &State,
-    root: SymbolHandle,
-) -> Option<TypeReferenceHandle> {
-    program
-        .state_parameter_by_symbol(state, root)
-        .map(|parameter| parameter.type_reference)
-        .or_else(|| {
-            program
-                .state_local_declaration(state, root)
-                .map(|(_, local)| local.type_reference)
-        })
 }
 
 /// Walk declaration identities once to the leaf's immediate owner. Geometry

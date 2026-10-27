@@ -575,14 +575,7 @@ fn aggregate_projection(
         }
     }
     let root_type = match program.expression_table.expression(root) {
-        ExpressionNode::Name(name) => program
-            .state_local_declaration(state, name.symbol)
-            .map(|(_, local)| local.type_reference)
-            .or_else(|| {
-                program
-                    .state_parameter_by_symbol(state, name.symbol)
-                    .map(|parameter| parameter.type_reference)
-            })?,
+        ExpressionNode::Name(name) => crate::state_root_type(program, state, name.symbol)?,
         ExpressionNode::Call(call) => {
             let (_, destination) =
                 crate::machine_calls::calls::machine_state_by_symbol(program, call.target_symbol)

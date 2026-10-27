@@ -4,9 +4,10 @@
 //! their owner. Callable alpha-binders normalize on both sides of the join.
 
 use super::{TraitTypeBinding, TraitTypeBindingTarget};
-use crate::type_regions::TypeRegionScope;
+use crate::type_regions::{ReferenceStep, TypeRegionScope};
+use symbols::SymbolHandle;
 use typed_trees::type_identity::{NormalizedTypeIdentity, TypeIdentityRequest};
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::TypeReferenceHandle;
 
 #[derive(Clone, Copy)]
 pub(super) struct RegionApplicationScope<'scope> {
@@ -73,50 +74,26 @@ impl TypeRegionScope for RegionApplicationScope<'_> {
         )
     }
 
-    fn resolve(
+    fn named_alias(
         mut self,
-        program: &dyn crate::CheckingInput,
-        mut reference: TypeReferenceHandle,
-    ) -> Option<(TypeReferenceHandle, Self)> {
-        let mut visited = Vec::new();
-        loop {
-            if !reference.is_valid() {
-                return Some((reference, self));
-            }
-            if !program
-                .type_reference_table
-                .contains_type_reference(reference)
-                || visited.contains(&reference)
-            {
-                return None;
-            }
-            visited.push(reference);
-            let TypeReferenceNode::Named { symbol, .. } =
-                program.type_reference_table.type_reference(reference)
-            else {
-                return Some((reference, self));
-            };
-            if !self.provider
-                && let Some(binding) = self
-                    .bindings
-                    .iter()
-                    .rev()
-                    .find(|binding| binding.parameter_symbol == *symbol)
-                && let TraitTypeBindingTarget::Type(argument) = binding.target
-            {
-                reference = argument;
-                self.bindings = &self.bindings[..binding.scope_start];
-                self.provider = self.bindings.is_empty();
-                continue;
-            }
-            if let Some(application) = program
-                .data_definition_by_symbol(*symbol)
-                .and_then(|definition| definition.generic_instance)
-            {
-                reference = application;
-                continue;
-            }
-            return Some((reference, self));
+        _program: &dyn crate::CheckingInput,
+        symbol: symbols::SymbolHandle,
+        _reference: TypeReferenceHandle,
+    ) -> Option<ReferenceStep<Self>> {
+        if self.provider {
+            return None;
         }
+        let bindings = self.bindings;
+        let binding = bindings
+            .iter()
+            .rev()
+            .find(|binding| binding.parameter_symbol == symbol)?;
+        let TraitTypeBindingTarget::Type(argument) = binding.target else {
+            return None;
+        };
+        let bindings = &bindings[..binding.scope_start];
+        self.bindings = bindings;
+        self.provider = bindings.is_empty();
+        Some(ReferenceStep::Chase(self, argument))
     }
 }

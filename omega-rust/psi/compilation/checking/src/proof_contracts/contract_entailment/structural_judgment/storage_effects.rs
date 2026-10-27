@@ -1002,14 +1002,7 @@ impl StructuralJudge<'_> {
                     assignment.target,
                 )?;
                 let root = place.root.as_symbol()?;
-                let declared = program
-                    .state_parameter_by_symbol(state, root)
-                    .map(|parameter| parameter.type_reference)
-                    .or_else(|| {
-                        program
-                            .state_local_declaration(state, root)
-                            .map(|(_, local)| local.type_reference)
-                    })?;
+                let declared = crate::state_root_type(program, state, root)?;
                 if !place.segments.is_empty() || !frames.value_is_reference_free(declared) {
                     return None;
                 }
