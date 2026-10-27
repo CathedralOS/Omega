@@ -102,10 +102,10 @@ pub(crate) fn bind_selected_operator_calls(
     {
         return Ok(0);
     }
-    // Binding reads the operator uses and their candidates only.
+    // Binding reads the operator, named and named-requirement uses with their
+    // candidates only.
     let values = validation::collect_executable_value_origins(program, roots);
     let mut facts = validation::build_operator_uses(program, &values);
-    let named = validation::collect_named_requirement_uses(program, &values);
     // A domain-homed binding (`machine + Quantity::Additive::add`) is a
     // `DomainPending` candidate until binding-site selection settles it. That
     // selection reads only static operand qualifications, mints, and
@@ -266,7 +266,8 @@ pub(crate) fn bind_selected_operator_calls(
         .named_uses()
         .map(|fact| (fact.expression, fact.selected_operator_symbol))
         .chain(
-            named
+            facts
+                .named_requirement_uses
                 .iter()
                 .map(|(_, fact)| (fact.expression, fact.requirement_symbol)),
         )

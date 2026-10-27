@@ -8,9 +8,9 @@ use std::collections::HashSet;
 
 use arena::Arena;
 use checked_trees::{
-    CheckedArithmeticPolicyAdapter, CheckedNamedOperatorUseFact, CheckedOperatorCandidateFact,
-    CheckedOperatorFacts, CheckedOperatorResolutionStatus, CheckedOperatorUseFact,
-    CheckedValueFacts, CheckedValueOrigin,
+    CheckedArithmeticPolicyAdapter, CheckedNamedOperatorUseFact, CheckedNamedRequirementUseFact,
+    CheckedOperatorCandidateFact, CheckedOperatorFacts, CheckedOperatorResolutionStatus,
+    CheckedOperatorUseFact, CheckedValueFacts, CheckedValueOrigin,
 };
 use language_core::operator_spelling::OperatorSpelling;
 use numerics::arithmetic::ArithmeticDomain;
@@ -115,18 +115,21 @@ pub fn collect_pre_specialization_operator_selections(
     }
 }
 
-/// The retained facts of one occurrence-deduplicated operator walk: the
-/// operator, named and candidate rows of a single visit share one sink.
+/// The retained facts of one occurrence-deduplicated operator walk. The
+/// operator, named, candidate and named-requirement rows all come from the same
+/// visit, so they share one sink and one occurrence roster instead of a second
+/// pass over the same value rows.
 #[derive(Default)]
 struct OperatorUseSink {
     seen: HashSet<(ExpressionHandle, CheckedValueOrigin), symbols::BuildSymbolHasher>,
     uses: Arena<CheckedOperatorUseFact>,
     named_uses: Arena<CheckedNamedOperatorUseFact>,
+    named_requirement_uses: Arena<CheckedNamedRequirementUseFact>,
     candidates: Arena<CheckedOperatorCandidateFact>,
 }
 
-/// The operator and named uses with their candidates, without the requirement
-/// uses and declaration contracts `build_operator_facts` adds.
+/// The operator, named and named-requirement uses with their candidates,
+/// without the declaration contracts `build_operator_facts` adds.
 pub fn build_operator_uses(
     program: &dyn crate::CheckingInput,
     values: &CheckedValueFacts,
@@ -149,10 +152,12 @@ pub fn build_operator_uses(
     let OperatorUseSink {
         uses,
         named_uses,
+        named_requirement_uses,
         candidates,
         ..
     } = sink;
     CheckedOperatorFacts::with_roots(uses, named_uses, candidates)
+        .with_named_requirement_uses(named_requirement_uses)
 }
 
 fn collect_expression_operator_use(
@@ -251,6 +256,14 @@ fn collect_expression_operator_use(
         ExpressionNode::Call(call) => {
             if let Some(named_use) = named_operator_use_fact(program, expression, origin, call) {
                 sink.named_uses.append(named_use);
+            }
+            // The requirement-spelling twin of a named call: a direct call to a
+            // receiver-free boundary requirement retains the same occurrence
+            // with the requirement's own declaration and result-policy adapter.
+            if let Some(requirement_use) = super::requirement_uses::named_requirement_use_fact(
+                program, expression, origin, call,
+            ) {
+                sink.named_requirement_uses.append(requirement_use);
             }
         }
         _ => {}
