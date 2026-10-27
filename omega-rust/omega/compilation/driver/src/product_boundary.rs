@@ -171,6 +171,24 @@ fn package_batches_carry_owners_instead_of_parallel_result_tables() {
 }
 
 #[test]
+fn terminal_cohorts_retain_admitted_applications() {
+    let source = include_str!("terminal/terminal_artifact.rs");
+    assert!(source.contains("struct AdmittedTerminalApplication"));
+    for forbidden in [
+        "requests[",
+        "entries[",
+        "results[",
+        "Vec<Vec<usize>>",
+        "unwrap_or_else(|_| target::TargetProfile::host())",
+    ] {
+        assert!(
+            !source.contains(forbidden),
+            "cohort reconstructs {forbidden}"
+        );
+    }
+}
+
+#[test]
 fn components_use_the_shared_product_sequence() {
     for source in [
         include_str!("checked/package_compilation.rs"),
