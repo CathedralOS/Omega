@@ -6174,6 +6174,33 @@ fail/facts/checked_predicate_disjoint_loans_control_indexed_path_rejected reject
 fail/facts/checked_predicate_disjoint_loans_control_indexed_stale_rejected rejected 1091ms expected @15cba48fc191
 	cannot prove requires contract for call replace from main: indices.positions[0] < values[..].len (needs fact `indices.positions[0] < values.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call replace from main: distinct(indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/checked_predicate_disjoint_loans_control_runtime_index_array_path_rejected rejected 1700ms expected @b9c54be6f576
+	statement 1 creates local borrow `second` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
+	statement 1 borrows `values[indices.unrelated[indices.second]]` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
+	statement 2 mutates `first` while local borrow `second` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
+fail/facts/checked_predicate_disjoint_loans_control_runtime_index_bounds_guard_rejected rejected 1819ms expected @b9c54be6f576
+	cannot prove requires contract for call replace from main: indices.first < 2 (needs fact `indices.first < 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call replace from main: indices.positions[indices.first] < values[..].len (needs fact `indices.positions[indices.first] < values.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call replace from main: distinct(indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/checked_predicate_disjoint_loans_control_runtime_index_formation_rejected rejected 1369ms expected @b9c54be6f576
+	statement 1 creates local borrow `second` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
+	statement 1 borrows `values[indices.positions[indices.second]]` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
+	statement 2 mutates `first` while local borrow `second` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
+	cannot prove index `indices.first` is within length 2 in distinct::entry
+	cannot prove index `indices.second` is within length 2 in distinct::entry
+fail/facts/checked_predicate_disjoint_loans_control_runtime_index_mutable_selector_rejected rejected 1892ms expected @b9c54be6f576
+	statement 2 creates local borrow `second` while local borrow `first` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 borrows `values[indices.positions[indices.second]]` while local borrow `first` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 3 mutates `first` while local borrow `second` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
+	cannot prove index `indices.positions[indices.second]` is within unknown slice length of `values` in replace::entry
+fail/facts/checked_predicate_disjoint_loans_control_runtime_index_operand_snapshot_rejected rejected 2855ms expected @b9c54be6f576
+	cannot prove requires contract for call replace from main: distinct(constructor:81:package:0101010101010101010101010101010101010101010101010101010101010101::Indices6:record17:common:name:first13:indices.first21:common:name:positions44:[indices.positions[0], indices.positions[1]]18:common:name:second14:indices.second) == true (needs fact `distinct(&indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `distinct(shared constructor:81:package:0101010101010101010101010101010101010101010101010101010101010101::Indices6:record17:common:name:first13:indices.first21:common:name:positions44:[indices.positions[0], indices.positions[1]]18:common:name:second14:indices.second) == true`
+fail/facts/checked_predicate_disjoint_loans_control_runtime_index_record_root_rejected rejected 1886ms expected @b9c54be6f576
+	statement 1 creates local borrow `second` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
+	statement 1 borrows `values[other.positions[other.second]]` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
+	statement 2 mutates `first` while local borrow `second` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
+fail/facts/checked_predicate_disjoint_loans_control_runtime_index_stronger_guard_rejected rejected 2515ms expected @b9c54be6f576
+	cannot prove requires contract for call replace from main: distinct(indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/checked_predicate_disjoint_loans_disconnected_public_envelope_rejected rejected 468ms expected @16fbd2f86248
 	machine `Selected::accept` realizes `Accept::accept` but requires `sparse(value) == true`, which the requirement does not imply; callers of the requirement prove only its own `requires`
 fail/facts/checked_predicate_disjoint_loans_equal_actuals_rejected rejected 575ms expected @16fbd2f86248
@@ -6246,6 +6273,10 @@ fail/facts/checked_predicate_disjoint_loans_through_call_result_rejected rejecte
 	statement 2 creates local borrow `second` while local borrow `first` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 2 borrows `values[second_index]` while local borrow `first` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 3 mutates `first` while local borrow `second` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
+fail/facts/checked_predicate_disjoint_loans_through_call_result_runtime_index_predicate_rejected rejected 1533ms expected @b9c54be6f576
+	statement 1 creates local borrow `second` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
+	statement 1 borrows `values[indices.positions[indices.second]]` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
+	statement 2 mutates `first` while local borrow `second` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/facts/checked_predicate_disjoint_loans_through_call_result_unary_predicate_rejected rejected 521ms expected @16fbd2f86248
 	statement 2 creates local borrow `second` while local borrow `first` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 2 borrows `values[second_index]` while local borrow `first` is still active (borrowed at statement 1; its last use is at statement 3)
@@ -6263,6 +6294,10 @@ fail/facts/checked_predicate_disjoint_loans_through_const_name_record_predicate_
 fail/facts/checked_predicate_disjoint_loans_through_const_name_rejected rejected 514ms expected @16fbd2f86248
 	statement 1 creates local borrow `second` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
 	statement 1 borrows `values[second_index]` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
+	statement 2 mutates `first` while local borrow `second` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
+fail/facts/checked_predicate_disjoint_loans_through_const_name_runtime_index_predicate_rejected rejected 1687ms expected @b9c54be6f576
+	statement 1 creates local borrow `second` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
+	statement 1 borrows `values[indices.positions[indices.second]]` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
 	statement 2 mutates `first` while local borrow `second` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/facts/checked_predicate_disjoint_loans_through_const_name_unary_predicate_rejected rejected 512ms expected @16fbd2f86248
 	statement 1 creates local borrow `second` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
@@ -6282,6 +6317,10 @@ fail/facts/checked_predicate_disjoint_loans_through_field_rejected rejected 515m
 	statement 1 creates local borrow `second` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
 	statement 1 borrows `values[second_index]` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
 	statement 2 mutates `first` while local borrow `second` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
+fail/facts/checked_predicate_disjoint_loans_through_field_runtime_index_predicate_rejected rejected 2279ms expected @b9c54be6f576
+	statement 1 creates local borrow `second` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
+	statement 1 borrows `values[indices.positions[indices.second]]` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
+	statement 2 mutates `first` while local borrow `second` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/facts/checked_predicate_disjoint_loans_through_field_unary_predicate_rejected rejected 507ms expected @16fbd2f86248
 	statement 1 creates local borrow `second` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
 	statement 1 borrows `values[second_index]` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
@@ -6300,6 +6339,10 @@ fail/facts/checked_predicate_disjoint_loans_through_local_rejected rejected 513m
 	statement 2 creates local borrow `second` while local borrow `first` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 2 borrows `values[second_index]` while local borrow `first` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 3 mutates `first` while local borrow `second` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
+fail/facts/checked_predicate_disjoint_loans_through_local_runtime_index_predicate_rejected rejected 2362ms expected @b9c54be6f576
+	statement 1 creates local borrow `second` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
+	statement 1 borrows `values[indices.positions[indices.second]]` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
+	statement 2 mutates `first` while local borrow `second` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/facts/checked_predicate_disjoint_loans_through_local_unary_predicate_rejected rejected 495ms expected @16fbd2f86248
 	statement 2 creates local borrow `second` while local borrow `first` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 2 borrows `values[second_index]` while local borrow `first` is still active (borrowed at statement 1; its last use is at statement 3)
@@ -6318,6 +6361,10 @@ fail/facts/checked_predicate_disjoint_loans_through_match_join_rejected rejected
 	statement 2 creates local borrow `second` while local borrow `first` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 2 borrows `values[second_index]` while local borrow `first` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 3 mutates `first` while local borrow `second` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
+fail/facts/checked_predicate_disjoint_loans_through_match_join_runtime_index_predicate_rejected rejected 2074ms expected @b9c54be6f576
+	statement 1 creates local borrow `second` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
+	statement 1 borrows `values[indices.positions[indices.second]]` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
+	statement 2 mutates `first` while local borrow `second` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/facts/checked_predicate_disjoint_loans_through_match_join_unary_predicate_rejected rejected 550ms expected @16fbd2f86248
 	statement 2 creates local borrow `second` while local borrow `first` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 2 borrows `values[second_index]` while local borrow `first` is still active (borrowed at statement 1; its last use is at statement 3)
@@ -6335,6 +6382,10 @@ fail/facts/checked_predicate_disjoint_loans_through_other_machine_record_predica
 fail/facts/checked_predicate_disjoint_loans_through_other_machine_rejected rejected 554ms expected @16fbd2f86248
 	statement 1 creates local borrow `second` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
 	statement 1 borrows `values[second_index]` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
+	statement 2 mutates `first` while local borrow `second` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
+fail/facts/checked_predicate_disjoint_loans_through_other_machine_runtime_index_predicate_rejected rejected 2275ms expected @b9c54be6f576
+	statement 1 creates local borrow `second` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
+	statement 1 borrows `values[indices.positions[indices.second]]` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
 	statement 2 mutates `first` while local borrow `second` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/facts/checked_predicate_disjoint_loans_through_other_machine_unary_predicate_rejected rejected 528ms expected @16fbd2f86248
 	statement 1 creates local borrow `second` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
@@ -6354,6 +6405,10 @@ fail/facts/checked_predicate_disjoint_loans_through_other_state_rejected rejecte
 	statement 1 creates local borrow `second` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
 	statement 1 borrows `values[second_index]` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
 	statement 2 mutates `first` while local borrow `second` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
+fail/facts/checked_predicate_disjoint_loans_through_other_state_runtime_index_predicate_rejected rejected 2315ms expected @b9c54be6f576
+	statement 1 creates local borrow `second` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
+	statement 1 borrows `values[indices.positions[indices.second]]` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
+	statement 2 mutates `first` while local borrow `second` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/facts/checked_predicate_disjoint_loans_through_other_state_unary_predicate_rejected rejected 547ms expected @16fbd2f86248
 	statement 1 creates local borrow `second` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
 	statement 1 borrows `values[second_index]` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
@@ -6371,6 +6426,10 @@ fail/facts/checked_predicate_disjoint_loans_through_parameter_record_predicate_r
 fail/facts/checked_predicate_disjoint_loans_through_parameter_rejected rejected 516ms expected @16fbd2f86248
 	statement 1 creates local borrow `second` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
 	statement 1 borrows `values[second_index]` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
+	statement 2 mutates `first` while local borrow `second` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
+fail/facts/checked_predicate_disjoint_loans_through_parameter_runtime_index_predicate_rejected rejected 2192ms expected @b9c54be6f576
+	statement 1 creates local borrow `second` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
+	statement 1 borrows `values[indices.positions[indices.second]]` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
 	statement 2 mutates `first` while local borrow `second` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/facts/checked_predicate_disjoint_loans_through_parameter_unary_predicate_rejected rejected 515ms expected @16fbd2f86248
 	statement 1 creates local borrow `second` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
@@ -6419,6 +6478,19 @@ fail/facts/checked_predicate_disjoint_loans_through_target_body_rejected rejecte
 	statement 2 mutates `first` while local borrow `second` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 	statement 1 creates local borrow `second` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
 	statement 1 borrows `values[second_index]` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
+	statement 2 mutates `first` while local borrow `second` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
+fail/facts/checked_predicate_disjoint_loans_through_target_body_runtime_index_predicate_rejected rejected 4062ms expected @b9c54be6f576
+	statement 1 creates local borrow `second` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
+	statement 1 borrows `values[indices.positions[indices.second]]` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
+	statement 2 mutates `first` while local borrow `second` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
+	statement 1 creates local borrow `second` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
+	statement 1 borrows `values[indices.positions[indices.second]]` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
+	statement 2 mutates `first` while local borrow `second` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
+	statement 1 creates local borrow `second` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
+	statement 1 borrows `values[indices.positions[indices.second]]` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
+	statement 2 mutates `first` while local borrow `second` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
+	statement 1 creates local borrow `second` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
+	statement 1 borrows `values[indices.positions[indices.second]]` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
 	statement 2 mutates `first` while local borrow `second` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/facts/checked_predicate_disjoint_loans_through_target_body_unary_predicate_rejected rejected 517ms expected @16fbd2f86248
 	statement 1 creates local borrow `second` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
@@ -24640,6 +24712,9 @@ pass/facts/checked_predicate_disjoint_loans_composed_predicate_exit checked 778m
 pass/facts/checked_predicate_disjoint_loans_control_indexed_operand_snapshot_exit checked 1395ms check-target:macos_arm64 @15cba48fc191
 pass/facts/checked_predicate_disjoint_loans_control_indexed_path_exit checked 1396ms check-target:macos_arm64 @15cba48fc191
 pass/facts/checked_predicate_disjoint_loans_control_indexed_snapshot_exit checked 1303ms check-target:macos_arm64 @15cba48fc191
+pass/facts/checked_predicate_disjoint_loans_control_runtime_index_array_path_exit checked 2184ms check-target:macos_arm64 @b9c54be6f576
+pass/facts/checked_predicate_disjoint_loans_control_runtime_index_operand_snapshot_exit checked 2137ms check-target:macos_arm64 @b9c54be6f576
+pass/facts/checked_predicate_disjoint_loans_control_runtime_index_record_root_exit checked 2002ms check-target:macos_arm64 @b9c54be6f576
 pass/facts/checked_predicate_disjoint_loans_record_exclusive_call_exit checked 1449ms check-target:macos_arm64 @baad519176fe
 pass/facts/checked_predicate_disjoint_loans_record_nested_path_exit checked 1456ms check-target:macos_arm64 @baad519176fe
 pass/facts/checked_predicate_disjoint_loans_record_operand_snapshot_exit checked 1413ms check-target:macos_arm64 @baad519176fe
@@ -24652,46 +24727,55 @@ pass/facts/checked_predicate_disjoint_loans_through_call_result_exclusive_call_e
 pass/facts/checked_predicate_disjoint_loans_through_call_result_exit checked 761ms check-target:macos_arm64 @16fbd2f86248
 pass/facts/checked_predicate_disjoint_loans_through_call_result_indexed_predicate_exit checked 1302ms check-target:macos_arm64 @15cba48fc191
 pass/facts/checked_predicate_disjoint_loans_through_call_result_record_predicate_exit checked 1480ms check-target:macos_arm64 @baad519176fe
+pass/facts/checked_predicate_disjoint_loans_through_call_result_runtime_index_predicate_exit checked 1965ms check-target:macos_arm64 @b9c54be6f576
 pass/facts/checked_predicate_disjoint_loans_through_call_result_unary_predicate_exit checked 756ms check-target:macos_arm64 @16fbd2f86248
 pass/facts/checked_predicate_disjoint_loans_through_const_name_exclusive_call_exit checked 754ms check-target:macos_arm64 @16fbd2f86248
 pass/facts/checked_predicate_disjoint_loans_through_const_name_exit checked 751ms check-target:macos_arm64 @16fbd2f86248
 pass/facts/checked_predicate_disjoint_loans_through_const_name_indexed_predicate_exit checked 1301ms check-target:macos_arm64 @15cba48fc191
 pass/facts/checked_predicate_disjoint_loans_through_const_name_record_predicate_exit checked 1438ms check-target:macos_arm64 @baad519176fe
+pass/facts/checked_predicate_disjoint_loans_through_const_name_runtime_index_predicate_exit checked 2220ms check-target:macos_arm64 @b9c54be6f576
 pass/facts/checked_predicate_disjoint_loans_through_const_name_unary_predicate_exit checked 770ms check-target:macos_arm64 @16fbd2f86248
 pass/facts/checked_predicate_disjoint_loans_through_field_exclusive_call_exit checked 768ms check-target:macos_arm64 @16fbd2f86248
 pass/facts/checked_predicate_disjoint_loans_through_field_exit checked 739ms check-target:macos_arm64 @16fbd2f86248
 pass/facts/checked_predicate_disjoint_loans_through_field_indexed_predicate_exit checked 1301ms check-target:macos_arm64 @15cba48fc191
 pass/facts/checked_predicate_disjoint_loans_through_field_record_predicate_exit checked 1416ms check-target:macos_arm64 @baad519176fe
+pass/facts/checked_predicate_disjoint_loans_through_field_runtime_index_predicate_exit checked 2177ms check-target:macos_arm64 @b9c54be6f576
 pass/facts/checked_predicate_disjoint_loans_through_field_unary_predicate_exit checked 748ms check-target:macos_arm64 @16fbd2f86248
 pass/facts/checked_predicate_disjoint_loans_through_local_exclusive_call_exit checked 748ms check-target:macos_arm64 @16fbd2f86248
 pass/facts/checked_predicate_disjoint_loans_through_local_exit checked 740ms check-target:macos_arm64 @16fbd2f86248
 pass/facts/checked_predicate_disjoint_loans_through_local_indexed_predicate_exit checked 1299ms check-target:macos_arm64 @15cba48fc191
 pass/facts/checked_predicate_disjoint_loans_through_local_record_predicate_exit checked 1400ms check-target:macos_arm64 @baad519176fe
+pass/facts/checked_predicate_disjoint_loans_through_local_runtime_index_predicate_exit checked 2040ms check-target:macos_arm64 @b9c54be6f576
 pass/facts/checked_predicate_disjoint_loans_through_local_unary_predicate_exit checked 792ms check-target:macos_arm64 @16fbd2f86248
 pass/facts/checked_predicate_disjoint_loans_through_match_join_exclusive_call_exit checked 794ms check-target:macos_arm64 @16fbd2f86248
 pass/facts/checked_predicate_disjoint_loans_through_match_join_exit checked 784ms check-target:macos_arm64 @16fbd2f86248
 pass/facts/checked_predicate_disjoint_loans_through_match_join_indexed_predicate_exit checked 1303ms check-target:macos_arm64 @15cba48fc191
 pass/facts/checked_predicate_disjoint_loans_through_match_join_record_predicate_exit checked 1428ms check-target:macos_arm64 @baad519176fe
+pass/facts/checked_predicate_disjoint_loans_through_match_join_runtime_index_predicate_exit checked 2024ms check-target:macos_arm64 @b9c54be6f576
 pass/facts/checked_predicate_disjoint_loans_through_match_join_unary_predicate_exit checked 782ms check-target:macos_arm64 @16fbd2f86248
 pass/facts/checked_predicate_disjoint_loans_through_other_machine_exclusive_call_exit checked 753ms check-target:macos_arm64 @16fbd2f86248
 pass/facts/checked_predicate_disjoint_loans_through_other_machine_exit checked 750ms check-target:macos_arm64 @16fbd2f86248
 pass/facts/checked_predicate_disjoint_loans_through_other_machine_indexed_predicate_exit checked 1290ms check-target:macos_arm64 @15cba48fc191
 pass/facts/checked_predicate_disjoint_loans_through_other_machine_record_predicate_exit checked 1431ms check-target:macos_arm64 @baad519176fe
+pass/facts/checked_predicate_disjoint_loans_through_other_machine_runtime_index_predicate_exit checked 1978ms check-target:macos_arm64 @b9c54be6f576
 pass/facts/checked_predicate_disjoint_loans_through_other_machine_unary_predicate_exit checked 750ms check-target:macos_arm64 @16fbd2f86248
 pass/facts/checked_predicate_disjoint_loans_through_other_state_exclusive_call_exit checked 752ms check-target:macos_arm64 @16fbd2f86248
 pass/facts/checked_predicate_disjoint_loans_through_other_state_exit checked 772ms check-target:macos_arm64 @16fbd2f86248
 pass/facts/checked_predicate_disjoint_loans_through_other_state_indexed_predicate_exit checked 1277ms check-target:macos_arm64 @15cba48fc191
 pass/facts/checked_predicate_disjoint_loans_through_other_state_record_predicate_exit checked 1501ms check-target:macos_arm64 @baad519176fe
+pass/facts/checked_predicate_disjoint_loans_through_other_state_runtime_index_predicate_exit checked 1968ms check-target:macos_arm64 @b9c54be6f576
 pass/facts/checked_predicate_disjoint_loans_through_other_state_unary_predicate_exit checked 768ms check-target:macos_arm64 @16fbd2f86248
 pass/facts/checked_predicate_disjoint_loans_through_parameter_exclusive_call_exit checked 753ms check-target:macos_arm64 @16fbd2f86248
 pass/facts/checked_predicate_disjoint_loans_through_parameter_exit checked 753ms check-target:macos_arm64 @16fbd2f86248
 pass/facts/checked_predicate_disjoint_loans_through_parameter_indexed_predicate_exit checked 1295ms check-target:macos_arm64 @15cba48fc191
 pass/facts/checked_predicate_disjoint_loans_through_parameter_record_predicate_exit checked 1498ms check-target:macos_arm64 @baad519176fe
+pass/facts/checked_predicate_disjoint_loans_through_parameter_runtime_index_predicate_exit checked 1949ms check-target:macos_arm64 @b9c54be6f576
 pass/facts/checked_predicate_disjoint_loans_through_parameter_unary_predicate_exit checked 732ms check-target:macos_arm64 @16fbd2f86248
 pass/facts/checked_predicate_disjoint_loans_through_target_body_exclusive_call_exit checked 778ms check-target:macos_arm64 @16fbd2f86248
 pass/facts/checked_predicate_disjoint_loans_through_target_body_exit checked 746ms check-target:macos_arm64 @16fbd2f86248
 pass/facts/checked_predicate_disjoint_loans_through_target_body_indexed_predicate_exit checked 1305ms check-target:macos_arm64 @15cba48fc191
 pass/facts/checked_predicate_disjoint_loans_through_target_body_record_predicate_exit checked 1444ms check-target:macos_arm64 @baad519176fe
+pass/facts/checked_predicate_disjoint_loans_through_target_body_runtime_index_predicate_exit checked 4359ms check-target:macos_arm64 @b9c54be6f576
 pass/facts/checked_predicate_disjoint_loans_through_target_body_unary_predicate_exit checked 772ms check-target:macos_arm64 @16fbd2f86248
 pass/facts/closed_integer_bound_through_call_result_exit checked 2905ms check-target:macos_arm64 @a92f16431042
 pass/facts/closed_integer_bound_through_const_name_exit checked 2899ms check-target:macos_arm64 @a92f16431042
