@@ -1,0 +1,99 @@
+// Every feasible private arrival carries offset < limit, so the helper can form offset + 1.
+// Expected exit: 0
+windows_x86_64 machine probe(limit: u64, offset: u64, first: u8) -> u64 {
+    transition offset < limit {
+        true -> lead(limit, offset, first)
+        false -> (0)
+    }
+    machine lead(limit: u64, offset: u64, first: u8) -> u64 {
+        transition first > 0 && first < 128 {
+            true -> (0)
+            false -> multibyte(limit, offset, first)
+        }
+    }
+    machine multibyte(limit: u64, offset: u64, first: u8) -> u64 {
+        let next: u64 = offset + 1;
+        transition first >= 194 && first <= 244 && next < limit {
+            true -> second(limit, next)
+            false -> (0)
+        }
+    }
+    machine second(limit: u64, offset: u64) -> u64 { offset + 1 }
+}
+
+linux_x86_64 machine probe(limit: u64, offset: u64, first: u8) -> u64 {
+    transition offset < limit {
+        true -> lead(limit, offset, first)
+        false -> (0)
+    }
+    machine lead(limit: u64, offset: u64, first: u8) -> u64 {
+        transition first > 0 && first < 128 {
+            true -> (0)
+            false -> multibyte(limit, offset, first)
+        }
+    }
+    machine multibyte(limit: u64, offset: u64, first: u8) -> u64 {
+        let next: u64 = offset + 1;
+        transition first >= 194 && first <= 244 && next < limit {
+            true -> second(limit, next)
+            false -> (0)
+        }
+    }
+    machine second(limit: u64, offset: u64) -> u64 { offset + 1 }
+}
+
+linux_arm64 machine probe(limit: u64, offset: u64, first: u8) -> u64 {
+    transition offset < limit {
+        true -> lead(limit, offset, first)
+        false -> (0)
+    }
+    machine lead(limit: u64, offset: u64, first: u8) -> u64 {
+        transition first > 0 && first < 128 {
+            true -> (0)
+            false -> multibyte(limit, offset, first)
+        }
+    }
+    machine multibyte(limit: u64, offset: u64, first: u8) -> u64 {
+        let next: u64 = offset + 1;
+        transition first >= 194 && first <= 244 && next < limit {
+            true -> second(limit, next)
+            false -> (0)
+        }
+    }
+    machine second(limit: u64, offset: u64) -> u64 { offset + 1 }
+}
+
+macos_arm64 machine probe(limit: u64, offset: u64, first: u8) -> u64 {
+    transition offset < limit {
+        true -> lead(limit, offset, first)
+        false -> (0)
+    }
+    machine lead(limit: u64, offset: u64, first: u8) -> u64 {
+        transition first > 0 && first < 128 {
+            true -> (0)
+            false -> multibyte(limit, offset, first)
+        }
+    }
+    machine multibyte(limit: u64, offset: u64, first: u8) -> u64 {
+        let next: u64 = offset + 1;
+        transition first >= 194 && first <= 244 && next < limit {
+            true -> second(limit, next)
+            false -> (0)
+        }
+    }
+    machine second(limit: u64, offset: u64) -> u64 { offset + 1 }
+}
+machine main() crashes Trap {
+    let first: u64 = probe(20, 4, 194);
+    let second: u64 = probe(20, 8, 241);
+    let ascii: u64 = probe(20, 3, 65);
+    let nul: u64 = probe(20, 3, 0);
+    let invalid: u64 = probe(20, 3, 255);
+    let no_room: u64 = probe(20, 19, 194);
+    let outside: u64 = probe(0, 0, 194);
+    transition first == 6 && second == 10 && ascii == 0 && nul == 0 && invalid == 0 && no_room == 0 && outside == 0 {
+        true -> done() false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}
