@@ -159,6 +159,7 @@ pub(crate) fn machine_state_by_symbol(
     if !symbol.is_valid() {
         return None;
     }
+    let symbol = crate::call_target_entry_symbol(program, symbol);
     let machine_symbol = program.symbols.get(symbol).parent;
     let machine = program.machine_by_symbol(machine_symbol)?;
     program

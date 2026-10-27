@@ -630,6 +630,10 @@ fn bound_sources_at_call(
         .control
         .state(machine, state.symbol)
         .ok_or("caller argument binding has no owning state flow")?;
+    let entered_target = validation::call_target_entry_symbol(
+        program,
+        validation::call_target_symbol(program, call),
+    );
     let mut matching = facts
         .flow
         .control
@@ -639,7 +643,7 @@ fn bound_sources_at_call(
         .filter(|row| {
             row.statement_index == statement
                 && row.call_ordinal == ordinal
-                && row.target_symbol == call.target_symbol
+                && row.target_symbol == entered_target
                 && row.authored_expression == expression
         });
     let captured = matching
@@ -686,7 +690,7 @@ fn bound_sources_at_call(
         source: PermissionEventSource::Call {
             statement_index: statement,
             call_ordinal: ordinal,
-            target_symbol: call.target_symbol,
+            target_symbol: captured.target_symbol,
         },
     };
     let mut conditions = crate::flow::SelectionConditions::new();

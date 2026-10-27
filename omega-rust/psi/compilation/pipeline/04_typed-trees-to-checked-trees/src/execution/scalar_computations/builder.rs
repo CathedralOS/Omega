@@ -793,8 +793,12 @@ impl Builder<'_, '_> {
                     }
                     return self.boundary_call(expression, &call, target, expected_type);
                 }
+                let entered_target = validation::call_target_entry_symbol(
+                    self.program,
+                    validation::call_target_symbol(self.program, &call),
+                );
                 let (target_machine, target_state) =
-                    validation::find_machine_by_entry_state(self.program, call.target_symbol)?;
+                    validation::find_machine_by_entry_state(self.program, entered_target)?;
                 if static_requirement_dispatch.is_some()
                     && target_machine.supply_mode
                         != language_semantics::MachineSupplyMode::CheckedBody
