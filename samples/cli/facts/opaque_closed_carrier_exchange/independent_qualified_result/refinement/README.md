@@ -24,12 +24,31 @@ The omission twin also rejects. The initial prototype changed the issuer’s exa
 result declaration and was itself invalid; those raw setup observations remain
 separate from the corrected baseline.
 
-This continuation is unfinished. Acceptance requires source proof composition,
-complete retained parent obligations, exact independent-catalog joins and
-raw-host provenance guards, then native/Terminal agreement and fact-sensitive
-rejection across matching hosts. Empty local predicates and direct issuer lists
-must never hide inherited routes. Rich policies/views and the full parent remain
-open.
+The bounded repair passes on macOS ARM64 with optimized producer
+`998120d1519` (SHA256
+`c1280bbfbb33048ff4eab0b350ee07a4019d5c24f3da1ee97138f63e302e3753`).
+All nine source variants and pinned copies execute native/Terminal 0, and all
+18 issuer-omission observations reject for their authored reason. Both match
+arms are exercised with different host values; nonzero same-width scalar
+canaries immediately bracket the replaced field and are checked afterward.
+The larger matching-host cohort records 70 native/Terminal agreements and 65
+intended rejections, including existing scalar tags and routed/alias inheritance.
+Direct and wrapped raw child results source-check but reject native admission
+at the exact `UncheckedFactory::make` provenance boundary.
+
+The implementation retains carrier-bound conjunctive parent graphs separately
+from complete transitive value predicates. Checked formation precedes receiving
+writes; independent catalog joins compare nominal theories and every parent
+issuer group. A checked component return may present `Parent + Child` as `Child`
+only after graph entailment succeeds in both directions. Raw host result
+validation keeps its separate provenance gate.
+
+Linux x64, Linux ARM64 and Windows x64 qualification remains in progress on
+source `909be0f0af5`; it is not claimed by this macOS landing evidence. Strict
+opaque const storage, rich policies/views and the full parent capability remain
+open. Raw build receipts, historical refusals, independent source reviews and
+actual native products are retained in
+`/Users/zcanann/Omega-build/opaque-domain-theory-2026-10-27/`.
 
 The direct raw-host control at this baseline source-checks successfully and
 executes natively at exit zero despite never invoking the parent issuer.
