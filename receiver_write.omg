@@ -1,0 +1,17 @@
+machine observe<'source>(source: &'source mut u64) -> &'source mut u64 ensures source == 7 { source = 7; source }
+// A saved observation of an unwritten array element stays equal to 7 across a write to a disjoint element.
+// Expected exit: 0
+machine agree(observed: u64, current: u64) -> u64
+requires observed == current && observed == 7
+{
+    observed
+}
+
+machine main() crashes Trap {
+    let mut items: [u64; 2] = [3, 1];
+    let saved: u64 = observe(&mut items[0]);
+    items[1] = 4;
+    transition agree(saved, items[0]) == 7 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

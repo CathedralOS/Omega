@@ -1,0 +1,83 @@
+[
+  {
+    "name": "receiver_write",
+    "positive": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-numeric-observation/producer-3/omega",
+      "run",
+      "--both",
+      "build/generic-numeric-observation/controls/receiver_write/main.omg"
+    ],
+    "source_sha256": "fd5e251a1a74df875eab24c32ca5a5d183876b6bf891de06f10eecbec6a9c01b",
+    "exit": 200,
+    "stdout": "",
+    "stderr": "native compile FAILED:\n  error: cannot compile admitted project: checked compilation failed for package `saved_observation_snapshot_through_local` with 1 diagnostic(s)\n  error: cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n"
+  },
+  {
+    "name": "receiver_write_invalid",
+    "positive": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-numeric-observation/producer-3/omega",
+      "--check",
+      "build/generic-numeric-observation/controls/receiver_write_invalid/main.omg"
+    ],
+    "source_sha256": "acc2e2addf81511b34e9e025d1def43932ec1249a8eedab076380f72024048f6",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `saved_observation_snapshot_through_local` with 1 diagnostic(s)\n  error: cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n"
+  },
+  {
+    "name": "stale_pre_call",
+    "positive": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-numeric-observation/producer-3/omega",
+      "--check",
+      "build/generic-numeric-observation/controls/stale_pre_call/main.omg"
+    ],
+    "source_sha256": "433b481a0852e009a28d7f0ff61dcfda495c179a3da5a29c09c119a2750b39f0",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `saved_observation_snapshot_through_local` with 1 diagnostic(s)\n  error: cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n"
+  },
+  {
+    "name": "saved_copy",
+    "positive": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-numeric-observation/producer-3/omega",
+      "run",
+      "--both",
+      "build/generic-numeric-observation/controls/saved_copy/main.omg"
+    ],
+    "source_sha256": "26384f902fe6c31f506be6b36840ac91a29d346aed774058bf3aff6f4898438a",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "name": "range_contract",
+    "positive": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-numeric-observation/producer-3/omega",
+      "run",
+      "--both",
+      "build/generic-numeric-observation/controls/range_contract/main.omg"
+    ],
+    "source_sha256": "a53a7320a3101acc67f672592cb03b3d7f4648db9b11e59b0b7b901ec908db9b",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "name": "range_contract_invalid",
+    "positive": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-numeric-observation/producer-3/omega",
+      "--check",
+      "build/generic-numeric-observation/controls/range_contract_invalid/main.omg"
+    ],
+    "source_sha256": "414c87b3e22318c995dda60929fd009b2939ff5bfaaa54c0bedc5ed2a27aca7d",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `saved_observation_snapshot_through_local` with 1 diagnostic(s)\n  error: cannot prove requires contract for call bound from probe: saved >= 7 && saved <= 9 (needs fact `value >= 7 && value <= 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n"
+  }
+]

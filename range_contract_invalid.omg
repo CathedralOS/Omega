@@ -1,0 +1,19 @@
+// Expected exit: 0
+machine capture<'source, View>(source: View) -> View where View == &'source u64 { source }
+machine bound(value: u64) -> u64 requires value >= 7 && value <= 9 { value }
+machine probe(items: &mut [u64; 2]) -> u64
+requires items[0] >= 6 && items[0] <= 9
+{
+    let saved: u64 = capture<&u64>(&items[0]);
+    items[1] = 4;
+    bound(saved)
+}
+machine main() crashes Trap {
+    let mut first: [u64; 2] = [7, 1];
+    let mut second: [u64; 2] = [9, 1];
+    let low: u64 = probe(&mut first);
+    let high: u64 = probe(&mut second);
+    transition low == 7 && high == 9 && first[1] == 4 && second[1] == 4 { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

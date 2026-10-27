@@ -1,0 +1,7 @@
+{
+  "base": "62228749501b42e644eb43371f1bf38b4444baf8",
+  "parent": "STATE-LOCAL-VALUE-FRONTIER",
+  "requirement": "Generic/reference numeric snapshots retain exact observed storage identity across disjoint writes; overlapping twins lose equality to current storage.",
+  "host": "macOS ARM64",
+  "target": "macos_arm64"
+}

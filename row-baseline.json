@@ -1,0 +1,250 @@
+{
+  "cli": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-numeric-observation/producer-baseline/omega",
+  "producer_sha256": "3fbb3b70027d2be80ae510e44f778a6a127b31b9ab04d8192d9187b8716735f6",
+  "profile": "{\"schema\":\"omega-compiler-build-profile-v1\",\"opt_level\":\"1\"}\n",
+  "rows": [
+    {
+      "name": "local",
+      "invalid": false,
+      "source_sha256": "6c0b072e358d31fb6731e6fb826d6ee19d563624c7945a9541d3a6a73ecc0fe3",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-numeric-observation/producer-baseline/omega",
+        "run",
+        "--both",
+        "samples/cli/facts/saved_observation_snapshot/local/main.omg"
+      ],
+      "exit": 200,
+      "stdout": "",
+      "stderr": "native compile FAILED:\n  error: cannot compile admitted project: checked compilation failed for package `saved_observation_snapshot_through_local` with 1 diagnostic(s)\n  error: cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n"
+    },
+    {
+      "name": "local",
+      "invalid": true,
+      "source_sha256": "aa3bca1af7f24a857708cec4e3b7c37728b507405c99985d3f8dad1c7ca4b67d",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-numeric-observation/producer-baseline/omega",
+        "--check",
+        "samples/cli/facts/saved_observation_snapshot/local/invalid/main.omg"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot compile admitted project: checked compilation failed for package `saved_observation_snapshot_local_invalid` with 1 diagnostic(s)\n  error: cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n"
+    },
+    {
+      "name": "field",
+      "invalid": false,
+      "source_sha256": "980638962f507d84cc4ed43862783398f5e7f5cdc48d7da8a7cee4e6ba7f0bb3",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-numeric-observation/producer-baseline/omega",
+        "run",
+        "--both",
+        "samples/cli/facts/saved_observation_snapshot/field/main.omg"
+      ],
+      "exit": 200,
+      "stdout": "",
+      "stderr": "native compile FAILED:\n  error: cannot compile admitted project: checked compilation failed for package `saved_observation_snapshot_through_field` with 1 diagnostic(s)\n  error: cannot prove requires contract for call agree from main: note.observed == items[0] && note.observed == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n"
+    },
+    {
+      "name": "field",
+      "invalid": true,
+      "source_sha256": "1e22fcd9f2762c68367b4e2cc0bf974e6d6e372c9d384cd0ae4c56cba7f58a1c",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-numeric-observation/producer-baseline/omega",
+        "--check",
+        "samples/cli/facts/saved_observation_snapshot/field/invalid/main.omg"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot compile admitted project: checked compilation failed for package `saved_observation_snapshot_through_field_invalid` with 1 diagnostic(s)\n  error: cannot prove requires contract for call agree from main: note.observed == items[0] && note.observed == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n"
+    },
+    {
+      "name": "parameter",
+      "invalid": false,
+      "source_sha256": "471e177262700d1b6b6708f28fd119d52fc50e1b5eb13b9be01632377f7639d3",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-numeric-observation/producer-baseline/omega",
+        "run",
+        "--both",
+        "samples/cli/facts/saved_observation_snapshot/parameter/main.omg"
+      ],
+      "exit": 200,
+      "stdout": "",
+      "stderr": "native compile FAILED:\n  error: cannot compile admitted project: checked compilation failed for package `saved_observation_snapshot_through_parameter` with 1 diagnostic(s)\n  error: cannot prove requires contract for call hold from main: saved == items[0] && saved == 7 (needs fact `observed == items[0] && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n"
+    },
+    {
+      "name": "parameter",
+      "invalid": true,
+      "source_sha256": "43d74d0b8d338a629e8dc14112cd51ddca8f83a0f47a326076c5b2b5df54ec08",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-numeric-observation/producer-baseline/omega",
+        "--check",
+        "samples/cli/facts/saved_observation_snapshot/parameter/invalid/main.omg"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot compile admitted project: checked compilation failed for package `saved_observation_snapshot_through_parameter_invalid` with 2 diagnostic(s)\n  error: cannot prove requires contract for call agree from hold: observed == items[0] && observed == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n  error: cannot prove requires contract for call hold from main: saved == items[0] && saved == 7 (needs fact `observed == items[0] && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n"
+    },
+    {
+      "name": "call_result",
+      "invalid": false,
+      "source_sha256": "750256a3e3004747e20281770a2bb0173e7247958762488e9245afbb0b014345",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-numeric-observation/producer-baseline/omega",
+        "run",
+        "--both",
+        "samples/cli/facts/saved_observation_snapshot/call_result/main.omg"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": "native exit 0\ninterp exit: 0\n"
+    },
+    {
+      "name": "call_result",
+      "invalid": true,
+      "source_sha256": "f65798ad7d8e946afc5fb8e8af8c739f9b315ad3a03b14573c9bcd263a0e832f",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-numeric-observation/producer-baseline/omega",
+        "--check",
+        "samples/cli/facts/saved_observation_snapshot/call_result/invalid/main.omg"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot compile admitted project: checked compilation failed for package `saved_observation_snapshot_through_call_result_invalid` with 1 diagnostic(s)\n  error: cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n"
+    },
+    {
+      "name": "match_join",
+      "invalid": false,
+      "source_sha256": "8a90040897ed5cdb31d2f01fa74db39bd617324526e6aa3ffe56ad421ebd3a54",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-numeric-observation/producer-baseline/omega",
+        "run",
+        "--both",
+        "samples/cli/facts/saved_observation_snapshot/match_join/main.omg"
+      ],
+      "exit": 200,
+      "stdout": "",
+      "stderr": "native compile FAILED:\n  error: cannot compile admitted project: checked compilation failed for package `saved_observation_snapshot_through_match_join` with 1 diagnostic(s)\n  error: cannot prove requires contract for call agree from probe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n"
+    },
+    {
+      "name": "match_join",
+      "invalid": true,
+      "source_sha256": "12aedb48e2ee67bf3e0b941a0f353934d43beba58f18290c28ed696bc999d0a4",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-numeric-observation/producer-baseline/omega",
+        "--check",
+        "samples/cli/facts/saved_observation_snapshot/match_join/invalid/main.omg"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot compile admitted project: checked compilation failed for package `saved_observation_snapshot_through_match_join_invalid` with 1 diagnostic(s)\n  error: cannot prove requires contract for call agree from probe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n"
+    },
+    {
+      "name": "const_name",
+      "invalid": false,
+      "source_sha256": "b013d8f3873010692dcc27a8ae6f440217a9168a5ec1f88b84e7fa7d859d8d6a",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-numeric-observation/producer-baseline/omega",
+        "run",
+        "--both",
+        "samples/cli/facts/saved_observation_snapshot/const_name/main.omg"
+      ],
+      "exit": 200,
+      "stdout": "",
+      "stderr": "native compile FAILED:\n  error: cannot compile admitted project: checked compilation failed for package `saved_observation_snapshot_through_const_name` with 1 diagnostic(s)\n  error: cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n"
+    },
+    {
+      "name": "const_name",
+      "invalid": true,
+      "source_sha256": "8eceeb287d5149502dd8bdd801b19842fbb034d1908e1b6158b3f8dcce93f0e5",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-numeric-observation/producer-baseline/omega",
+        "--check",
+        "samples/cli/facts/saved_observation_snapshot/const_name/invalid/main.omg"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot compile admitted project: checked compilation failed for package `saved_observation_snapshot_through_const_name_invalid` with 1 diagnostic(s)\n  error: cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n"
+    },
+    {
+      "name": "other_state",
+      "invalid": false,
+      "source_sha256": "699c063ae7c440c2f286d73777551e74dc5a6b5bc41cfa4ee2b398e23425755f",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-numeric-observation/producer-baseline/omega",
+        "run",
+        "--both",
+        "samples/cli/facts/saved_observation_snapshot/other_state/main.omg"
+      ],
+      "exit": 200,
+      "stdout": "",
+      "stderr": "native compile FAILED:\n  error: cannot compile admitted project: checked compilation failed for package `saved_observation_snapshot_through_other_state` with 1 diagnostic(s)\n  error: cannot prove requires contract for call check from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n"
+    },
+    {
+      "name": "other_state",
+      "invalid": true,
+      "source_sha256": "b56d770eacf67fef0dd66cfc21c0cb2acf2093e06f91c5a3566b27c9086bc2e1",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-numeric-observation/producer-baseline/omega",
+        "--check",
+        "samples/cli/facts/saved_observation_snapshot/other_state/invalid/main.omg"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot compile admitted project: checked compilation failed for package `saved_observation_snapshot_through_other_state_invalid` with 1 diagnostic(s)\n  error: cannot prove requires contract for call check from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n"
+    },
+    {
+      "name": "other_machine",
+      "invalid": false,
+      "source_sha256": "2b6097d0126d8ab6145fd16c920163b3b12a7846f552ec52155287b54459c719",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-numeric-observation/producer-baseline/omega",
+        "run",
+        "--both",
+        "samples/cli/facts/saved_observation_snapshot/other_machine/main.omg"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": "native exit 0\ninterp exit: 0\n"
+    },
+    {
+      "name": "other_machine",
+      "invalid": true,
+      "source_sha256": "4423242535276f08a713c6c393e09dc00221960df808801bf4b15f31c4311cf8",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-numeric-observation/producer-baseline/omega",
+        "--check",
+        "samples/cli/facts/saved_observation_snapshot/other_machine/invalid/main.omg"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot compile admitted project: checked compilation failed for package `saved_observation_snapshot_through_other_machine_invalid` with 1 diagnostic(s)\n  error: cannot prove ensures contract for exit from read_kept at statement 3: result == items[0] && result == 7\n"
+    },
+    {
+      "name": "target_body",
+      "invalid": false,
+      "source_sha256": "44f59f0ae15fecf90c06f234354cabede6c2bc4e0e3fb4dc90dda7b9721bafab",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-numeric-observation/producer-baseline/omega",
+        "run",
+        "--both",
+        "samples/cli/facts/saved_observation_snapshot/target_body/main.omg"
+      ],
+      "exit": 200,
+      "stdout": "",
+      "stderr": "native compile FAILED:\n  error: cannot compile admitted project: checked compilation failed for package `saved_observation_snapshot_through_target_body` with 4 diagnostic(s)\n  error: cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n  error: cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n  error: cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n  error: cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n"
+    },
+    {
+      "name": "target_body",
+      "invalid": true,
+      "source_sha256": "deefd16e66418998cac6d2f8932ce9618e0525b22675d6a7dda574b9b998dfec",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-numeric-observation/producer-baseline/omega",
+        "--check",
+        "samples/cli/facts/saved_observation_snapshot/target_body/invalid/main.omg"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot compile admitted project: checked compilation failed for package `saved_observation_snapshot_through_target_body_invalid` with 4 diagnostic(s)\n  error: cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n  error: cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n  error: cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n  error: cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n"
+    }
+  ]
+}

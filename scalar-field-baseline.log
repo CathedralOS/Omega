@@ -1,0 +1,4 @@
+native compile FAILED:
+  error: cannot compile admitted project: checked compilation failed for package `scalar_field_snapshot_selector_writes_payload` with 2 diagnostic(s)
+  error: cannot prove requires contract for call demand_same from inspect: observed == after (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+  error: cannot prove requires contract for call demand_same from inspect_stored: observed == after (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
