@@ -1090,6 +1090,7 @@ fn fact_call_targets(
     }
 }
 
+pub(crate) use structural_terms::immutable_entry_boolean_projection;
 pub(crate) use structural_terms::source_operations_have_same_meaning;
 
 pub use structural_terms::{

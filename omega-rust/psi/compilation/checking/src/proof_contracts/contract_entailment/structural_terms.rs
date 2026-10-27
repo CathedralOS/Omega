@@ -19,6 +19,7 @@ pub(super) use collection_measures::{
     observed_collection_measure, reference_argument_observation,
 };
 mod constructors;
+pub(crate) use entry_reads::immutable_entry_boolean_projection;
 mod entry_reads;
 mod equality;
 pub use entry_reads::{

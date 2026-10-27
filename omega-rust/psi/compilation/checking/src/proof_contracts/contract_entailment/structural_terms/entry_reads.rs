@@ -39,17 +39,37 @@ pub fn immutable_entry_integer_projection(
     predicate: SymbolHandle,
     expression: ExpressionHandle,
 ) -> Option<(usize, Vec<facts::PlaceSegment>)> {
+    let (position, projection, reference) =
+        immutable_entry_scalar_projection(program, predicate, expression)?;
+    (program
+        .primitive_type_reference(reference)?
+        .is_fixed_integer()
+        && program.arithmetic_domain_for_type_reference(reference)
+            == numerics::arithmetic::ArithmeticDomain::Exact)
+        .then_some((position, projection))
+}
+
+/// A typed Boolean entry leaf, with the same immutable access and full path
+/// authority as integer coordinates. It carries no solver integer identity.
+pub(crate) fn immutable_entry_boolean_projection(
+    program: &dyn crate::CheckingInput,
+    predicate: SymbolHandle,
+    expression: ExpressionHandle,
+) -> Option<(usize, Vec<facts::PlaceSegment>)> {
+    let (position, projection, reference) =
+        immutable_entry_scalar_projection(program, predicate, expression)?;
+    (program.primitive_type_reference(reference)? == typed_trees::types::PrimitiveType::Bool)
+        .then_some((position, projection))
+}
+
+fn immutable_entry_scalar_projection(
+    program: &dyn crate::CheckingInput,
+    predicate: SymbolHandle,
+    expression: ExpressionHandle,
+) -> Option<(usize, Vec<facts::PlaceSegment>, TypeReferenceHandle)> {
     let machine = program.machine(predicate)?;
     let entry = program.machine_states(machine).first()?;
     let reference = immutable_formal_expression(program, machine, entry, expression, 0)?;
-    if !program
-        .primitive_type_reference(reference)?
-        .is_fixed_integer()
-        || program.arithmetic_domain_for_type_reference(reference)
-            != numerics::arithmetic::ArithmeticDomain::Exact
-    {
-        return None;
-    }
     let place = crate::value_custody::places::canonical_place_from_expression(program, expression)?;
     if !place.segments.iter().all(|segment| {
         matches!(
@@ -63,7 +83,7 @@ pub fn immutable_entry_integer_projection(
         .state_parameters(entry)
         .iter()
         .position(|parameter| Some(parameter.symbol) == place.root.as_symbol())?;
-    Some((position, place.segments))
+    Some((position, place.segments, reference))
 }
 
 pub fn immutable_entry_indexed_read_identity(

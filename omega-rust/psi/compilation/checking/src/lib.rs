@@ -99,10 +99,10 @@ pub use proof_contracts::arithmetic_domains::{
     selected_scalar_interval,
 };
 pub use proof_contracts::collection_predicates::{
-    PredicateIntegerOperand, PredicateIntegerReadSubject, PredicateIntegerSubject,
-    exact_predicate_conjunction, exact_predicate_intervals, exact_predicate_ordering,
-    length_member, predicate_integer_operand, predicate_ordering_consequences,
-    premises_prove_expression,
+    PredicateBooleanSubject, PredicateCondition, PredicateIntegerOperand,
+    PredicateIntegerReadSubject, PredicateIntegerSubject, exact_predicate_conjunction,
+    exact_predicate_intervals, exact_predicate_ordering, length_member, predicate_integer_operand,
+    predicate_ordering_consequences, premises_prove_expression,
 };
 pub use proof_contracts::contract_entailment::call_projection_identity::{
     captured_call_argument_index_matches, captured_call_index_value,
@@ -119,6 +119,7 @@ pub use proof_contracts::contract_entailment::content_conservation::{
     completed_value_has_content_conservation_candidate, completed_value_preserves_entry_projection,
     completed_value_proves_backing_addresses, completed_value_proves_content_conservation,
 };
+pub(crate) use proof_contracts::contract_entailment::immutable_entry_boolean_projection;
 pub use proof_contracts::contract_entailment::numeric_observations::{
     CapturedIntegerOperation, CapturedNumericObservations, CapturedScalarObservation,
     NumericObservationDemand, captured_numeric_observations,
