@@ -191,15 +191,13 @@ pub fn filesystem_host_permission_rows(
 pub(crate) fn filesystem_mechanism_row(
     mechanism: TerminalMechanismIdentity,
     method: &ServiceMethod,
-) -> Result<TerminalAuthorityPolicyRow, UnsettledFilesystemRequirement> {
-    match settled_filesystem_cohort(&method.name) {
-        Some(FilesystemCohortDisposition::Facets(facets)) => Ok(TerminalAuthorityPolicyRow::new(
-            mechanism,
-            TerminalAuthorityDisposition::from_filesystem_facets(facets.iter().copied()),
-        )),
-        Some(FilesystemCohortDisposition::OrdinaryReleaseContract) => {
-            Err(UnsettledFilesystemRequirement::OrdinaryReleaseContract)
-        }
-        None => Err(UnsettledFilesystemRequirement::UnknownRequirement),
-    }
+) -> Option<TerminalAuthorityPolicyRow> {
+    let FilesystemCohortDisposition::Facets(facets) = settled_filesystem_cohort(&method.name)?
+    else {
+        return None;
+    };
+    Some(TerminalAuthorityPolicyRow::new(
+        mechanism,
+        TerminalAuthorityDisposition::from_filesystem_facets(facets.iter().copied()),
+    ))
 }
