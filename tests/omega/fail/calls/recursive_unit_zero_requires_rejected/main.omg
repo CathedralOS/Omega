@@ -4,7 +4,7 @@ machine recurse(value: u64)
 requires value > 0
 {
     transition value > 1 { true -> next(value) false -> done() }
-    machine next(value: u64) { recurse(value - 1); }
+    machine next(value: u64) requires value > 1; { transition { _ -> recurse(value - 1) } }
     machine done() { }
 }
 data Main { }

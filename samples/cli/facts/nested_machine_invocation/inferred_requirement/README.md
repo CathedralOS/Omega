@@ -64,3 +64,9 @@ or qualify the entire declaration migration. The parent task retains the
 Omega-written parser/resolver, linked customer migration, full affected corpus
 migration and remaining invocation/custody/stack acceptance. Private requirements
 through opaque or effectful bodies remain conservative rather than assumed.
+
+Call-premise inference does not yet supply arithmetic-formation obligations
+inside an unannotated private helper. The parent task retains that gap (for
+example, proving `value - 1` from every guarded predecessor). The recursive
+precondition control publishes the helper bound and spells the closing edge as
+an explicit terminal transfer so only the invalid root invocation is at issue.
