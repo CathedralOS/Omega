@@ -149,6 +149,12 @@ impl StructuralPrefixVisitor for Bounds {
         };
         self.proven &= !entries.is_empty();
         for entry in entries {
+            if super::struct_trace() {
+                eprintln!(
+                    "STRUCT collection-operands machine={} values={:?}",
+                    machine.name, entry.arguments
+                );
+            }
             let Some(collection) = entry.arguments.first().and_then(Option::as_ref) else {
                 self.proven = false;
                 return;

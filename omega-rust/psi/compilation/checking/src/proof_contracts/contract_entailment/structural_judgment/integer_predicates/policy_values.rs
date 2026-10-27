@@ -20,6 +20,9 @@ pub(super) struct ObservedPolicyValue {
 impl<'program> IntegerObservations<'program> {
     pub(super) fn defer_policy_value(&mut self, position: usize, representative: Polynomial) {
         let source = &self.atoms[position];
+        if crate::proof_contracts::contract_entailment::struct_trace() {
+            eprintln!("STRUCT policy-operand source={source:?}");
+        }
         let StructuralTerm::ScalarBinary {
             operator, meaning, ..
         } = source
@@ -50,8 +53,20 @@ impl<'program> IntegerObservations<'program> {
             let mut candidate = self.clone();
             candidate.policy_values[index].expanded = true;
             let Some(value) = completed_value(judge, &pending.source, &mut candidate) else {
+                if crate::proof_contracts::contract_entailment::struct_trace() {
+                    eprintln!(
+                        "STRUCT policy-projection-declined source={:?}",
+                        pending.source
+                    );
+                }
                 continue;
             };
+            if crate::proof_contracts::contract_entailment::struct_trace() {
+                eprintln!(
+                    "STRUCT policy-projected source={:?} value={value:?}",
+                    pending.source
+                );
+            }
             if !candidate.engine.install_hypotheses(vec![(
                 BinaryOperator::Equal,
                 pending.representative,
