@@ -20,6 +20,34 @@ pub(crate) fn guard_canonical(
     Ok(())
 }
 
+/// Request registration shared by the byte-loop forms (`CopyBytes`,
+/// `ZeroBytes`, `ScanByteSequence`, `CompareByteSequences`): the canonical
+/// model, the form's single `family` alternative, the exact operand count,
+/// and the early-clobber rule. Every scratch register from `preserved` on is
+/// written before the inputs after it are read, so a scratch may not reuse a
+/// preserved input or an earlier scratch.
+pub(super) fn byte_loop_registers<const N: usize>(
+    physical: &ValidatedPhysicalRegisterModel,
+    requested: MachineAlternativeKey,
+    family: MachineAlternativeFamily,
+    operands: &[RegisterViewId],
+    preserved: usize,
+) -> Result<[u8; N], X86_64SelectedFormEncodingError> {
+    guard_canonical(physical)?;
+    if requested != (MachineAlternativeKey { family, variant: 0 }) {
+        return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
+    }
+    let registers: [u8; N] = resolve_registers(physical, operands)?
+        .try_into()
+        .map_err(|_| X86_64SelectedFormEncodingError::OperandCountMismatch)?;
+    for position in preserved..N {
+        if registers[..position].contains(&registers[position]) {
+            return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
+        }
+    }
+    Ok(registers)
+}
+
 pub(crate) fn validate_request(
     physical: &ValidatedPhysicalRegisterModel,
     kind: SelectedInstructionKind,

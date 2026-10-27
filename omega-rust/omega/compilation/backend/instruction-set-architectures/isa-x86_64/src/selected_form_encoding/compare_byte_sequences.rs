@@ -15,7 +15,7 @@ use super::{
     X86_64SelectedFormEncodingError,
 };
 use crate::selected_form_encoding::instruction_bytes::{assemble_labeled_stream, modrm, rex};
-use crate::selected_form_encoding::request_validation::resolve_registers;
+use crate::selected_form_encoding::request_validation::byte_loop_registers;
 
 /// Branch-condition suffix of the near `0F 8x` conditional-jump form.
 const CC_E: u8 = 0x84;
@@ -327,31 +327,16 @@ fn request(
     operands: &[RegisterViewId],
     displacement: u32,
 ) -> Result<[u8; 8], X86_64SelectedFormEncodingError> {
-    super::request_validation::guard_canonical(physical)?;
-    if displacement != 0
-        || alternative
-            != (MachineAlternativeKey {
-                family: MachineAlternativeFamily::CompareByteSequences,
-                variant: 0,
-            })
-    {
-        return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
-    }
-    let registers: [u8; 8] = resolve_registers(physical, operands)?
-        .try_into()
-        .map_err(|_| X86_64SelectedFormEncodingError::OperandCountMismatch)?;
+    let registers = byte_loop_registers::<8>(
+        physical,
+        alternative,
+        MachineAlternativeFamily::CompareByteSequences,
+        operands,
+        4,
+    )?;
     // `rsp` cannot encode the SIB index the loop's byte loads use, so the
-    // cursor may never land there.
-    if registers[4] == 4 {
-        return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
-    }
-    // Early-clobber writes may never land on a preserved input or on a
-    // scratch written earlier in the sequence.
-    if registers[..4].contains(&registers[4])
-        || registers[..5].contains(&registers[5])
-        || registers[..6].contains(&registers[6])
-        || registers[..7].contains(&registers[7])
-    {
+    // cursor may never land there, and the form holds one zero displacement.
+    if displacement != 0 || registers[4] == 4 {
         return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
     }
     Ok(registers)

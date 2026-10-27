@@ -9,7 +9,7 @@ use super::{
 };
 use crate::selected_form_encoding::copy_bytes::register_instruction;
 use crate::selected_form_encoding::instruction_bytes::{modrm, rex};
-use crate::selected_form_encoding::request_validation::resolve_registers;
+use crate::selected_form_encoding::request_validation::byte_loop_registers;
 
 /// xor(3) + test(3) + jz(2) + store(9) + inc(3) + cmp(3) + jb(2).
 const ENCODED_BYTES: usize = 25;
@@ -116,23 +116,14 @@ fn request(
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
 ) -> Result<[u8; 3], X86_64SelectedFormEncodingError> {
-    super::request_validation::guard_canonical(physical)?;
-    if alternative
-        != (MachineAlternativeKey {
-            family: MachineAlternativeFamily::ZeroBytes,
-            variant: 0,
-        })
-    {
-        return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
-    }
-    let registers: [u8; 3] = resolve_registers(physical, operands)?
-        .try_into()
-        .map_err(|_| X86_64SelectedFormEncodingError::OperandCountMismatch)?;
     // The cursor is written before either input is read.
-    if registers[..2].contains(&registers[2]) {
-        return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
-    }
-    Ok(registers)
+    byte_loop_registers::<3>(
+        physical,
+        alternative,
+        MachineAlternativeFamily::ZeroBytes,
+        operands,
+        2,
+    )
 }
 
 #[cfg(test)]

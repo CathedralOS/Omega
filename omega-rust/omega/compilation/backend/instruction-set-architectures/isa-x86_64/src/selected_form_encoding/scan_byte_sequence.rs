@@ -16,7 +16,7 @@ use super::{
     X86_64SelectedFormEncodingError,
 };
 use crate::selected_form_encoding::instruction_bytes::{assemble_labeled_stream, modrm, rex};
-use crate::selected_form_encoding::request_validation::resolve_registers;
+use crate::selected_form_encoding::request_validation::byte_loop_registers;
 use selected_instructions::ByteSequencePredicate;
 
 /// Branch-condition suffix of the near `0F 8x` conditional-jump form.
@@ -896,28 +896,17 @@ fn request(
     operands: &[RegisterViewId],
     displacement: u32,
 ) -> Result<[u8; 5], X86_64SelectedFormEncodingError> {
-    super::request_validation::guard_canonical(physical)?;
-    if displacement != 0
-        || alternative
-            != (MachineAlternativeKey {
-                family: MachineAlternativeFamily::ScanByteSequence,
-                variant: 0,
-            })
-    {
-        return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
-    }
-    let registers: [u8; 5] = resolve_registers(physical, operands)?
-        .try_into()
-        .map_err(|_| X86_64SelectedFormEncodingError::OperandCountMismatch)?;
-    // `rsp` cannot encode the SIB index or the disp8 LEA base the loop
-    // uses, so the cursor and byte scratch may never land there.
-    if registers[2] == 4 || registers[3] == 4 {
-        return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
-    }
-    if registers[..2].contains(&registers[2])
-        || registers[..3].contains(&registers[3])
-        || registers[..4].contains(&registers[4])
-    {
+    let registers = byte_loop_registers::<5>(
+        physical,
+        alternative,
+        MachineAlternativeFamily::ScanByteSequence,
+        operands,
+        2,
+    )?;
+    // `rsp` cannot encode the SIB index or the disp8 LEA base the loop uses,
+    // so the cursor and byte scratch may never land there, and the form holds
+    // one zero displacement.
+    if displacement != 0 || registers[2] == 4 || registers[3] == 4 {
         return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
     }
     Ok(registers)
