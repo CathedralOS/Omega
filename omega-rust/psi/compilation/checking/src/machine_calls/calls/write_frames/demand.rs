@@ -9,7 +9,7 @@ mod normal_subjects;
 mod result_transport;
 mod transfer_operands;
 
-pub(crate) use normal_subjects::InvocationReferenceSubject;
+pub(crate) use normal_subjects::{InvocationEntrySubject, InvocationReferenceSubject};
 
 use super::boundary_calls::receiver_requires_boundary_frame;
 use super::caller_aliases::{

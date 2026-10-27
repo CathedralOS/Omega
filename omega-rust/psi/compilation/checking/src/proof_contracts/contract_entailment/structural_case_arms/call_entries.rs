@@ -82,23 +82,37 @@ pub(super) fn observe_statement<'program>(
                 Some(site),
             )?
         };
+        let subjects = if judge.requires_value_preservation() {
+            let frames = judge.frame_resolver()?;
+            match site {
+                crate::CallSite::Expression { expression, .. } => {
+                    frames.expression_entry_reference_subjects(invocation, expression, parameters)
+                }
+                crate::CallSite::Statement(call) => {
+                    frames.statement_entry_reference_subjects(invocation, call, parameters)
+                }
+                _ => None,
+            }
+        } else {
+            None
+        }
+        .unwrap_or_default();
         for frame in frames {
             let arguments = frame.observed_arguments()?;
-            if arguments.len() != parameters.len() {
-                return None;
-            }
-            let incoming = parameters
-                .iter()
-                .zip(arguments)
-                .map(|(parameter, value)| (parameter.name.as_str().to_owned(), value))
-                .collect();
+            let (incoming, captured) = frame.judge.bind_invocation(
+                entry,
+                &arguments,
+                &subjects,
+                environment,
+                (invocation, state, state.return_type),
+            )?;
             if let Some(observer) = requirement.as_deref_mut() {
                 observer.entered_body(state.symbol, statement_index, expression, entry.symbol);
             }
             recognize_structural_state_leaves(
                 program,
                 theorem,
-                &frame.judge,
+                &captured,
                 classification,
                 diagnostics,
                 states,

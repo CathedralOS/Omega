@@ -61,8 +61,7 @@ The evidence establishes these specification requirements:
 - Encoding and emission: direct macOS ARM64 execution agrees with Terminal Psi
   for all nine places, checking storage, tag paths and returned results.
 
-The parent migration remains open. Live mutable referent-field bounds require
-an authenticated body-entry/storage correspondence; the retained disjoint-field
-probe still refuses and is not counted here. This row establishes the independent
-scalar snapshot. Product compiler source migration, remaining invocation
-obligations and other-host qualification also remain open.
+This production establishes the independent scalar snapshot. The
+[borrowed-field production](../borrowed/README.md) exercises live referent
+correspondence and disjoint writes. Product compiler source migration, remaining
+invocation obligations and other-host qualification remain on the parent task.

@@ -1794,46 +1794,52 @@ fn recognize_structural_state_leaves_from<'a>(
                         continue;
                     }
                     let target_parameters = program.state_parameters(target_state);
-                    let target_frames = if let Some(expression) = call_expression {
-                        judge.normal_operation_entries(
-                            statement_index,
-                            expression,
+                    let target_frames =
+                        if let Some(expression) = call_expression {
+                            judge.normal_operation_entries(
+                            statement_index, expression,
                             super::structural_judgment::normal_returns::OperationOperandDemand::All,
+                            &branch_environment, (invocation, state, state.return_type),
+                        )?
+                        } else {
+                            judge.normal_argument_entries(
+                                argument_handles,
+                                target_parameters,
+                                &branch_environment,
+                                (invocation, state, state.return_type),
+                                None,
+                            )?
+                        };
+                    let subjects = if judge.requires_value_preservation() {
+                        let frames = judge.frame_resolver()?;
+                        if let Some(expression) = call_expression {
+                            frames.expression_entry_reference_subjects(
+                                invocation,
+                                expression,
+                                target_parameters,
+                            )
+                        } else {
+                            transition.source_target.and_then(|target| {
+                                frames.transition_entry_reference_subjects(
+                                    invocation,
+                                    target,
+                                    target_parameters,
+                                )
+                            })
+                        }
+                    } else {
+                        None
+                    }
+                    .unwrap_or_default();
+                    for frame in target_frames {
+                        let arguments = frame.observed_arguments()?;
+                        let (target_environment, captured) = frame.judge.bind_invocation(
+                            target_state,
+                            &arguments,
+                            &subjects,
                             &branch_environment,
                             (invocation, state, state.return_type),
-                        )?.into_iter().map(|entry| {
-                            let arguments = entry.observed_arguments()?;
-                            (arguments.len() == target_parameters.len()).then_some(())?;
-                            let environment = target_parameters.iter().zip(arguments)
-                                .map(|(parameter, value)| (parameter.name.as_str().to_owned(), value))
-                                .collect();
-                            Some((environment, entry.judge))
-                        }).collect::<Option<Vec<_>>>()?
-                    } else {
-                        if target_parameters.len() != argument_handles.len() {
-                            return None;
-                        }
-                        let mut frames = vec![(Vec::new(), judge.clone())];
-                        for (parameter, argument) in target_parameters.iter().zip(argument_handles)
-                        {
-                            let mut next = Vec::new();
-                            for (environment, captured) in frames {
-                                for outcome in captured.normal_return_paths(
-                                    *argument,
-                                    &branch_environment,
-                                    (invocation, state, parameter.type_reference),
-                                )? {
-                                    let mut environment = environment.clone();
-                                    environment
-                                        .push((parameter.name.as_str().to_owned(), outcome.value));
-                                    next.push((environment, outcome.judge));
-                                }
-                            }
-                            frames = next;
-                        }
-                        frames
-                    };
-                    for (target_environment, captured) in target_frames {
+                        )?;
                         if let Some(observer) = requirement.as_deref_mut() {
                             observer.entered_body(
                                 state.symbol,
