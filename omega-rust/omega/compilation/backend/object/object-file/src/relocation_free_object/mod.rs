@@ -563,11 +563,7 @@ fn encode_plan_content(
     crate::codec_bytes::push_encoded(&mut output, object.text_section.byte_count.to_le_bytes());
     encode_bytes(&mut output, &object.text_section.bytes)?;
     output.push(1);
-    output.extend_from_slice(
-        &u64::try_from(object.symbols.len())
-            .map_err(|_| RelocationFreeObjectError::LengthOverflow)?
-            .to_le_bytes(),
-    );
+    crate::codec_bytes::push_count_u64(&mut output, object.symbols.len());
     for symbol in &object.symbols {
         crate::codec_bytes::push_encoded(&mut output, symbol.symbol.get().to_le_bytes());
         crate::codec_bytes::push_encoded(&mut output, symbol.source_function_index.to_le_bytes());
@@ -586,21 +582,16 @@ fn encode_plan_content(
         &mut output,
         object.semantic_entry_symbol.get().to_le_bytes(),
     );
-    output.extend_from_slice(
-        &u64::try_from(object.normalized_imports.len())
-            .map_err(|_| RelocationFreeObjectError::LengthOverflow)?
-            .to_le_bytes(),
-    );
+    crate::codec_bytes::push_count_u64(&mut output, object.normalized_imports.len());
     for import in &object.normalized_imports {
         crate::codec_bytes::push_encoded(&mut output, import.symbol.get().to_le_bytes());
         crate::codec_bytes::push_encoded(&mut output, import.boundary.get().to_le_bytes());
         crate::codec_bytes::push_encoded(&mut output, import.ordinal.to_le_bytes());
         encode_string(&mut output, &import.name)?;
     }
-    output.extend_from_slice(
-        &u64::try_from(object.unresolved_normalized_foreign_calls.len())
-            .map_err(|_| RelocationFreeObjectError::LengthOverflow)?
-            .to_le_bytes(),
+    crate::codec_bytes::push_count_u64(
+        &mut output,
+        object.unresolved_normalized_foreign_calls.len(),
     );
     for field in &object.unresolved_normalized_foreign_calls {
         crate::codec_bytes::push_encoded(&mut output, field.symbol.get().to_le_bytes());
@@ -619,11 +610,7 @@ fn encode_plan_content(
     if object.relocation_requirements
         == RelocationFreeObjectRelocationRequirements::UnresolvedObjectSymbolFieldsV1
     {
-        output.extend_from_slice(
-            &u64::try_from(object.unresolved_image_addresses.len())
-                .map_err(|_| RelocationFreeObjectError::LengthOverflow)?
-                .to_le_bytes(),
-        );
+        crate::codec_bytes::push_count_u64(&mut output, object.unresolved_image_addresses.len());
         for address in &object.unresolved_image_addresses {
             address.encode_identity(&mut output);
         }
@@ -734,7 +721,7 @@ fn encode_placed_callback_materializations(
     output: &mut Vec<u8>,
     materializations: &[PlacedCallbackAddressMaterialization],
 ) {
-    crate::codec_bytes::push_encoded(output, (materializations.len() as u64).to_le_bytes());
+    crate::codec_bytes::push_count_u64(output, materializations.len());
     for materialization in materializations {
         match materialization.destination {
             machine_code::CallbackAddressDestination::Register(register) => {
@@ -1077,11 +1064,7 @@ fn encode_string(output: &mut Vec<u8>, value: &str) -> Result<(), RelocationFree
 }
 
 fn encode_bytes(output: &mut Vec<u8>, value: &[u8]) -> Result<(), RelocationFreeObjectError> {
-    output.extend_from_slice(
-        &u64::try_from(value.len())
-            .map_err(|_| RelocationFreeObjectError::LengthOverflow)?
-            .to_le_bytes(),
-    );
+    crate::codec_bytes::push_count_u64(output, value.len());
     output.extend_from_slice(value);
     Ok(())
 }
