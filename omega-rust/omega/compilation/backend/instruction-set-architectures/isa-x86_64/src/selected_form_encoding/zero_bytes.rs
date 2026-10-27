@@ -8,7 +8,9 @@ use super::{
     X86_64SelectedFormEncodingError,
 };
 use crate::selected_form_encoding::copy_bytes::register_instruction;
-use crate::selected_form_encoding::instruction_bytes::{modrm, rex};
+use crate::selected_form_encoding::instruction_bytes::{
+    append_increment, append_register_compare, append_self_clear, append_self_test, modrm, rex,
+};
 use crate::selected_form_encoding::request_validation::byte_loop_registers;
 
 /// xor(3) + test(3) + jz(2) + store(9) + inc(3) + cmp(3) + jb(2).
@@ -24,15 +26,10 @@ pub(super) fn encode(
     let [destination, count, cursor] = request(physical, alternative, operands)?;
     let mut bytes = Vec::with_capacity(ENCODED_BYTES);
     // xor cursor, cursor
-    bytes.extend_from_slice(&[rex(cursor, 0, cursor), 0x31, modrm(3, cursor, cursor)]);
+    append_self_clear(&mut bytes, cursor);
     // test count, count; jz end
-    bytes.extend_from_slice(&[
-        rex(count, 0, count),
-        0x85,
-        modrm(3, count, count),
-        0x74,
-        (ENCODED_BYTES - STORE) as u8,
-    ]);
+    append_self_test(&mut bytes, count);
+    bytes.extend([0x74, (ENCODED_BYTES - STORE) as u8]);
     // mov byte [destination + cursor + 0], 0 — REX without W: C6 /0 is a byte store.
     bytes.extend_from_slice(&[
         rex(0, cursor, destination) & !8,
@@ -46,15 +43,10 @@ pub(super) fn encode(
         0,
     ]);
     // inc cursor
-    bytes.extend_from_slice(&[rex(0, 0, cursor), 0xff, modrm(3, 0, cursor)]);
+    append_increment(&mut bytes, cursor);
     // cmp cursor, count; jb store
-    bytes.extend_from_slice(&[
-        rex(count, 0, cursor),
-        0x39,
-        modrm(3, count, cursor),
-        0x72,
-        (STORE as i8 - ENCODED_BYTES as i8) as u8,
-    ]);
+    append_register_compare(&mut bytes, count, cursor);
+    bytes.extend([0x72, (STORE as i8 - ENCODED_BYTES as i8) as u8]);
     validate(physical, alternative, operands, &bytes)
 }
 

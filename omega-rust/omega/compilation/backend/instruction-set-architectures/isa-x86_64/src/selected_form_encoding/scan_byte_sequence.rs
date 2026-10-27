@@ -15,7 +15,10 @@ use super::{
     ValidatedPhysicalRegisterModel, ValidatedX86_64SelectedFormEncoding,
     X86_64SelectedFormEncodingError,
 };
-use crate::selected_form_encoding::instruction_bytes::{assemble_labeled_stream, modrm, rex};
+use crate::selected_form_encoding::instruction_bytes::{
+    append_indexed_byte_load, append_increment, append_register_compare, append_self_clear,
+    append_self_test, assemble_labeled_stream, modrm, rex,
+};
 use crate::selected_form_encoding::request_validation::byte_loop_registers;
 use selected_instructions::ByteSequencePredicate;
 
@@ -463,22 +466,12 @@ fn emit_instruction(
     patches: &mut Vec<(usize, Label)>,
 ) {
     match instruction {
-        Instruction::XorSelf(register) => bytes.extend([
-            rex(register, 0, register),
-            0x31,
-            modrm(3, register, register),
-        ]),
-        Instruction::Inc(register) => {
-            bytes.extend([rex(0, 0, register), 0xff, modrm(3, 0, register)])
-        }
+        Instruction::XorSelf(register) => append_self_clear(bytes, register),
+        Instruction::Inc(register) => append_increment(bytes, register),
         Instruction::AddImmediate(register, immediate) => {
             bytes.extend([rex(0, 0, register), 0x83, modrm(3, 0, register), immediate])
         }
-        Instruction::TestSelf64(register) => bytes.extend([
-            rex(register, 0, register),
-            0x85,
-            modrm(3, register, register),
-        ]),
+        Instruction::TestSelf64(register) => append_self_test(bytes, register),
         Instruction::TestSelf8(register) => {
             bytes.extend([rex8_pair(register), 0x84, modrm(3, register, register)])
         }
@@ -489,23 +482,14 @@ fn emit_instruction(
             bytes.extend([rex8(register), 0x80, modrm(3, 7, register), immediate])
         }
         Instruction::CompareRegister64 { source, operand } => {
-            bytes.extend([rex(source, 0, operand), 0x39, modrm(3, source, operand)])
+            append_register_compare(bytes, source, operand)
         }
         Instruction::LoadByte {
             value,
             base,
             index,
             offset,
-        } => {
-            bytes.extend([
-                rex(value, index, base),
-                0x0f,
-                0xb6,
-                modrm(2, value, 4),
-                ((index & 7) << 3) | (base & 7),
-            ]);
-            bytes.extend(offset.to_le_bytes());
-        }
+        } => append_indexed_byte_load(bytes, value, base, index, offset),
         Instruction::SetNotEqual8(register) => {
             bytes.extend([rex8(register), 0x0f, 0x95, modrm(3, 0, register)])
         }
