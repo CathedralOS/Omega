@@ -46,20 +46,25 @@ impl TerminalExecution<'_> {
         use crate::byte_sequences::read::TerminalByteRead;
         match storage.home {
             ArrayStorageHome::Runtime => {
-                let bytes = self
-                    .structural_byte_storage
-                    .get(&storage.referent)
-                    .ok_or_else(malformed)?;
+                let Some(bytes) = self.structural_byte_storage.get(&storage.referent) else {
+                    if start == 0
+                        && end == 0
+                        && self.initialized_empty_byte_array(&storage.referent)?
+                    {
+                        return Ok(TerminalByteRead::contiguous(&[]));
+                    }
+                    return Err(malformed());
+                };
                 let window = bytes.bytes().get(start..end).ok_or_else(malformed)?;
                 Ok(TerminalByteRead::contiguous(window))
             }
             ArrayStorageHome::Frame { depth, place, .. } => {
-                let (_, length) = self.frame_byte_array_window(storage)?;
-                if start > end || end > length {
+                let (base, limit) = self.frame_byte_array_window(storage)?;
+                if start > end || end > limit - base {
                     return Err(malformed());
                 }
                 let values = self.frame_array(depth, place).ok_or_else(malformed)?;
-                TerminalByteRead::scalars(&values.elements()[start..end])
+                TerminalByteRead::scalars(&values.elements()[base + start..base + end])
             }
         }
     }
@@ -94,22 +99,54 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         };
         let array = self.frame_array(depth, place).ok_or_else(malformed)?;
-        let count = super::byte_array_length(&self.program.structural_types(), structural_type)
-            .ok_or_else(malformed)?;
+        let types = self.program.structural_types();
+        let (scalar, count) =
+            terminal_semantics::scalar_array_leaf_shape(types.values(), structural_type)
+                .ok_or_else(malformed)?;
         if array.structural_type != structural_type
             || u64::try_from(array.elements().len()).ok() != Some(count)
-            || !storage.referent.path.is_empty()
-            || !matches!(
-                self.program
-                    .structural_types()
-                    .get(&structural_type)
-                    .map(|declaration| &declaration.shape),
-                Some(terminal_psi::StructuralTypeShape::FixedArray { .. })
-            )
+            || !matches!(scalar, semantic_vocabulary::ScalarType::Integer(integer) if integer.bits() == 8 && !integer.is_address() && integer.sign() == IntegerSign::Unsigned)
         {
             return Err(malformed());
         }
-        Ok((0, array.elements().len()))
+        let mut selected = structural_type;
+        let mut offset = 0usize;
+        for segment in &storage.referent.path {
+            let terminal_psi::StructuralPathSegment::FixedIndex(index) = segment else {
+                return Err(malformed());
+            };
+            let terminal_psi::StructuralTypeShape::FixedArray { element, length } =
+                types.get(&selected).ok_or_else(malformed)?.shape
+            else {
+                return Err(malformed());
+            };
+            if *index >= length {
+                return Err(malformed());
+            }
+            let child_count = match types.get(&element).ok_or_else(malformed)?.shape {
+                terminal_psi::StructuralTypeShape::PrimitiveScalar(_) => 1,
+                _ => {
+                    terminal_semantics::scalar_array_leaf_shape(types.values(), element)
+                        .ok_or_else(malformed)?
+                        .1
+                }
+            };
+            offset = offset
+                .checked_add(
+                    usize::try_from(index.checked_mul(child_count).ok_or_else(malformed)?)
+                        .map_err(|_| malformed())?,
+                )
+                .ok_or_else(malformed)?;
+            selected = element;
+        }
+        let length =
+            usize::try_from(super::byte_array_length(&types, selected).ok_or_else(malformed)?)
+                .map_err(|_| malformed())?;
+        let end = offset
+            .checked_add(length)
+            .filter(|end| *end <= array.elements().len())
+            .ok_or_else(malformed)?;
+        Ok((offset, end))
     }
 
     pub(crate) fn stored_byte_array_length(
@@ -117,11 +154,15 @@ impl TerminalExecution<'_> {
         storage: &ArrayStorage,
     ) -> Result<usize, TerminalInterpretError> {
         match storage.home {
-            ArrayStorageHome::Runtime => self
-                .structural_byte_storage
-                .get(&storage.referent)
-                .map(ByteSequenceView::len)
-                .ok_or(malformed()),
+            ArrayStorageHome::Runtime => {
+                if let Some(bytes) = self.structural_byte_storage.get(&storage.referent) {
+                    Ok(bytes.len())
+                } else if self.initialized_empty_byte_array(&storage.referent)? {
+                    Ok(0)
+                } else {
+                    Err(malformed())
+                }
+            }
             ArrayStorageHome::Frame { .. } => self
                 .frame_byte_array_window(storage)
                 .map(|(start, end)| end - start),
@@ -206,6 +247,17 @@ impl TerminalExecution<'_> {
         end: usize,
     ) -> Result<ByteSequenceView, TerminalInterpretError> {
         if let ArrayStorageHome::Runtime = storage.home {
+            if !self.structural_byte_storage.contains_key(&storage.referent)
+                && start == 0
+                && end == 0
+                && self.initialized_empty_byte_array(&storage.referent)?
+            {
+                return Ok(ByteSequenceView::new(ByteSequenceStorage::from_values(
+                    0,
+                    std::iter::empty(),
+                    self.account.as_ref(),
+                )?));
+            }
             return self
                 .structural_byte_storage
                 .get(&storage.referent)
@@ -218,9 +270,10 @@ impl TerminalExecution<'_> {
         let ArrayStorageHome::Frame { depth, place, .. } = storage.home else {
             return Err(malformed());
         };
+        let (base, _) = self.frame_byte_array_window(storage)?;
         let values = self
             .frame_array(depth, place)
-            .and_then(|array| array.elements().get(start..end))
+            .and_then(|array| array.elements().get(base + start..base + end))
             .ok_or_else(malformed)?
             .iter()
             .map(scalar_byte);
@@ -229,6 +282,17 @@ impl TerminalExecution<'_> {
             values,
             self.account.as_ref(),
         )?))
+    }
+
+    pub(crate) fn initialized_empty_byte_array(
+        &self,
+        home: &StructuralRuntimePlace,
+    ) -> Result<bool, TerminalInterpretError> {
+        self.empty_array_storage.initialized_byte_array(
+            &self.program.structural_types(),
+            &self.structural_byte_storage,
+            home,
+        )
     }
 }
 

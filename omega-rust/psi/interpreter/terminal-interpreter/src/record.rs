@@ -166,7 +166,7 @@ impl TerminalExecution<'_> {
         let retirement = self.prepare_constructor_operands(frontier, &consumed, claims)?;
         storage.publish(self)?;
         self.structural_values.insert(result.place, value)?;
-        retirement.commit(self);
+        retirement.commit(self)?;
         Ok(())
     }
     /// Give each independent owned copy its own storage identity. Composite

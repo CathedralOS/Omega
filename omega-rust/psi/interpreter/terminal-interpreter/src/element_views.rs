@@ -392,6 +392,32 @@ impl ElementView {
         Some(home.storage.scalar_array_frame())
     }
 
+    /// A complete fixed-array projection retains its original packed frame,
+    /// even when the selected row has no scalar payload.
+    pub(crate) fn complete_scalar_array_frame(
+        &self,
+        types: &crate::program::ProgramDeclarations<'_, terminal_psi::StructuralTypeDeclaration>,
+    ) -> Option<(
+        usize,
+        semantic_vocabulary::PlaceId,
+        semantic_vocabulary::StructuralTypeId,
+    )> {
+        let home = self.home.as_ref()?;
+        let ElementViewBacking::Structural { collection } = &self.backing else {
+            return None;
+        };
+        let (depth, place, root) = home.storage.scalar_array_frame();
+        let selected =
+            terminal_semantics::runtime_structural_path_tip(types.values(), root, &home.path)?;
+        let StructuralTypeShape::FixedArray { length, .. } = selected.shape else {
+            return None;
+        };
+        (selected.id == collection.structural_type
+            && self.window.start == 0
+            && u64::try_from(self.window.end).ok() == Some(length))
+        .then_some((depth, place, root))
+    }
+
     pub(crate) fn access(&self) -> StructuralAccess {
         self.access
     }
@@ -451,6 +477,51 @@ impl ElementView {
 
     /// Select original scalar storage below a collection loan. No snapshot or
     /// byte geometry participates; the owner's accessor checks the frame home.
+    pub(crate) fn initialized_empty_scalar_array(
+        &self,
+        execution: &TerminalExecution,
+        path: &[StructuralPathSegment],
+        expected: semantic_vocabulary::StructuralTypeId,
+    ) -> Result<bool, TerminalInterpretError> {
+        if !StructuralAccess::SharedBorrow.admits_referent(self.access) {
+            return Err(malformed());
+        }
+        let types = execution.program.structural_types();
+        let (collection, projection) = if path.is_empty() {
+            let ElementViewBacking::Structural { collection } = &self.backing else {
+                return Err(malformed());
+            };
+            let StructuralTypeShape::FixedArray { length, .. } = types
+                .get(&collection.structural_type)
+                .ok_or_else(malformed)?
+                .shape
+            else {
+                return Err(malformed());
+            };
+            if self.window.start != 0 || u64::try_from(self.window.end).ok() != Some(length) {
+                return Err(malformed());
+            }
+            (collection.clone(), Vec::new())
+        } else {
+            self.structural_projection(&types, path, false)?
+        };
+        if let Some(home) = &self.home {
+            let mut selected = home.path.clone();
+            selected.extend(projection);
+            execution.initialized_empty_array_in_frame(home.storage, &selected, expected)
+        } else {
+            let selected =
+                crate::custody::project_structural_value(&types, &collection, &projection)?;
+            if selected.structural_type != expected {
+                return Err(malformed());
+            }
+            execution.initialized_empty_scalar_array(
+                &crate::values::StructuralRuntimePlace::from(&selected),
+                expected,
+            )
+        }
+    }
+
     pub(crate) fn scalar_storage(
         &self,
         execution: &TerminalExecution,
