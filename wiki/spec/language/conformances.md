@@ -47,12 +47,16 @@ data Counter { value: i32; }
 
 public SaturatingIncrement satisfies Incrementable<Counter> {
     machine increment(counter: &mut Counter) {
-        if counter.value < i32::Maximum {
+        if counter.value < integer::max<i32>() {
             counter.value = counter.value + 1;
         }
     }
 }
 ```
+
+The endpoint query is ordinary core library vocabulary under
+[numeric values](numeric_values.md#core-integer-and-float-apis); its implementation
+remains `CORE-INTEGER-FLOAT-APIS` work, not a primitive-member alias.
 
 `SaturatingIncrement` is the implementation name, `Incrementable<Counter>`
 is the contract, and `Counter` is an ordinary type argument. The named
