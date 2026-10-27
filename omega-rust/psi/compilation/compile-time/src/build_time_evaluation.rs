@@ -553,7 +553,11 @@ impl PreCheckEvaluation {
         )? || data_layout_queries::pending_layout_queries_need_operator_selection(
             typed,
             self.domain.work(),
-        ) {
+        ) || typed.const_declarations().iter().any(|declaration| {
+            self.domain.contains(declaration.symbol)
+                && declaration.pending_target_observation
+                && declaration.evaluated_value.is_none()
+        }) {
             range_endpoints::defer_pending_endpoint_calls_in(typed, &self.domain)?;
             const_applications::defer_pending_const_applications(typed, &self.domain)?;
             // A const-generic application of a recipe call becomes a symbolic

@@ -510,6 +510,7 @@ impl Lowerer<'_> {
                 is_public: declaration.is_public,
                 declared_type,
                 initializer_source_span: declaration.initializer_source_span,
+                pending_target_observation: declaration.pending_target_observation,
                 evaluated_value: declaration.evaluated_value.clone(),
                 authored_initializer: typed_trees::expression::ExpressionHandle::invalid(),
                 materialized_initializer: typed_trees::expression::ExpressionHandle::invalid(),

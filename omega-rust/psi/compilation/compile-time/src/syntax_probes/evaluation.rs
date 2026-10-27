@@ -292,6 +292,29 @@ fn declaration_dependencies(
         }
     }
     loop {
+        let mut changed = false;
+        // A family declaration is one checking unit. Retain its members and
+        // their exact helper, operator, type and proof dependencies in the
+        // private projection. Projection alone grants no invocation authority.
+        for family in &program.target_machine_families {
+            if selection.contains(family.canonical)
+                || family
+                    .members
+                    .iter()
+                    .any(|member| selection.contains(member.machine))
+            {
+                if !selection.contains(family.canonical) {
+                    selection.include(family.canonical);
+                    changed = true;
+                }
+                for member in &family.members {
+                    if !selection.contains(member.machine) {
+                        selection.include(member.machine);
+                        changed = true;
+                    }
+                }
+            }
+        }
         let references = collect_selected_program_references(program, &selection);
         let mut referenced_symbols = references.symbols;
         // Operator meaning is selected from operand types, not necessarily a
@@ -321,7 +344,6 @@ fn declaration_dependencies(
                 })
                 .map(|(_, operator_use)| operator_use.selected_operator_symbol),
         );
-        let mut changed = false;
         for mut symbol in referenced_symbols {
             while symbol.is_valid() {
                 if roster.contains(symbol) && !selection.contains(symbol) {

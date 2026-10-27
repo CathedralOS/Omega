@@ -1,0 +1,2 @@
+does not refine `Callback`
+its ensures facts are not a conservative refinement
