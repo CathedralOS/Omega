@@ -383,6 +383,16 @@ fn math_literal_value(literal: IntegerMathLiteral) -> Option<IntegerValue> {
     }
 }
 
+/// One `IntegerValue` in the unbounded integer domain the numeral checks
+/// compute in: signed and unsigned literals compare, subtract and divide in
+/// one range, so a check never branches on the value's variant.
+fn unbounded_integer(value: IntegerValue) -> BigInt {
+    match value {
+        IntegerValue::Signed(value) => BigInt::from_i128(value),
+        IntegerValue::Unsigned(value) => BigInt::from_u128(value),
+    }
+}
+
 /// Denote one bounded certificate — `goal`, `assumptions`,
 /// `semantic_axioms` and `proof` exactly as `accept_certificate` takes
 /// them — into the mathematical-core judgment `Γ ⊢ t : ⟦goal⟧`.

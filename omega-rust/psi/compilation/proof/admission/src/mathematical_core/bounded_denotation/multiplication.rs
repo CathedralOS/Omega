@@ -28,7 +28,6 @@
 
 use std::collections::BTreeMap;
 
-use numerics::bignum::BigInt;
 use semantic_vocabulary::{
     IntegerCarrier, IntegerMathTerm, IntegerType, IntegerValue, Proposition, ScalarTerm,
 };
@@ -38,7 +37,7 @@ use super::denotation::math_less_or_equal_sides;
 use super::integer_operations::IntegerOperation;
 use super::{
     BoundedDenotationError, Denotation, IntegerLaw, Term, TermHandle, affine_equality_for,
-    affine_witness_root_expression,
+    affine_witness_root_expression, unbounded_integer,
 };
 
 #[cfg(test)]
@@ -254,11 +253,7 @@ impl Denotation {
                 )
                 .map(Some);
         }
-        let as_integer = |value: IntegerValue| match value {
-            IntegerValue::Signed(value) => BigInt::from_i128(value),
-            IntegerValue::Unsigned(value) => BigInt::from_u128(value),
-        };
-        if as_integer(lower) >= as_integer(upper) {
+        if unbounded_integer(lower) >= unbounded_integer(upper) {
             return Ok(None);
         }
         let strict = self.literal_order(lower, upper)?;
@@ -316,14 +311,11 @@ impl Denotation {
         divisor_term: TermHandle,
         quotient_term: TermHandle,
     ) -> Result<Option<TermHandle>, BoundedDenotationError> {
-        let as_integer = |value: IntegerValue| match value {
-            IntegerValue::Signed(value) => BigInt::from_i128(value),
-            IntegerValue::Unsigned(value) => BigInt::from_u128(value),
-        };
-        let Some((exact, _)) = as_integer(dividend).div_rem(&as_integer(divisor)) else {
+        let Some((exact, _)) = unbounded_integer(dividend).div_rem(&unbounded_integer(divisor))
+        else {
             return Ok(None);
         };
-        if exact != as_integer(quotient) {
+        if exact != unbounded_integer(quotient) {
             return Ok(None);
         }
         let key = (integer_type, dividend, divisor, quotient);
@@ -397,12 +389,8 @@ impl Denotation {
         };
         // Math literals canonicalize non-negative values to `Unsigned`,
         // so the endpoint comparison is numeric, not by variant.
-        let as_integer = |value: IntegerValue| match value {
-            IntegerValue::Signed(value) => BigInt::from_i128(value),
-            IntegerValue::Unsigned(value) => BigInt::from_u128(value),
-        };
-        if super::math_literal_value(*bound_literal).map(as_integer)
-            != Some(as_integer(endpoint_value))
+        if super::math_literal_value(*bound_literal).map(unbounded_integer)
+            != Some(unbounded_integer(endpoint_value))
         {
             return Ok(None);
         }
