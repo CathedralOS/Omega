@@ -13,8 +13,8 @@ machine release_keeper<const Code: u64>(keeper: &mut Keeper) requires keeper.cod
 machine observe(keeper: &Keeper) {}
 machine check(output: &Counter) crashes Trap {
     transition output.value == 7 && output.invocations == 1 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine consume(keeper: Keeper in Held & Label) {}
 machine main() crashes Trap {

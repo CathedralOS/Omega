@@ -6,7 +6,7 @@ requires a <= 50
 ensures result <= 2500
 {
     transition { _ -> product(a, b) }
-    state product(left: u64, right: u64) -> u64
+    machine product(left: u64, right: u64) -> u64
     requires left <= 50
     {
         left * right
@@ -25,6 +25,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

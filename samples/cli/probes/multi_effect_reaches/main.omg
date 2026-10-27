@@ -42,7 +42,7 @@ machine Main::main(main: &mut Main) {
     main.hits = 0;
     Client::run(&mut main.client);
     transition { _ -> done(main) }
-    state done(main: &mut Main) { main.hits = 1; }
+    machine done(main: &mut Main) { main.hits = 1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

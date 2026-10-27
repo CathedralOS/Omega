@@ -167,14 +167,14 @@ impl ReturnedBuild {
         {
             return Err("joined source graph contains unrequested dependency selections".into());
         }
-        for provider in &self.provider_sources {
+        for demanded in &self.demanded_sources {
             if !selections.iter().any(|selected| {
-                selected.purpose == provider.purpose
-                    && selected.request_ordinal == provider.request_ordinal
-                    && selected.package == provider.package
+                selected.purpose == demanded.purpose
+                    && selected.request_ordinal == demanded.request_ordinal
+                    && selected.package == demanded.package
             }) {
                 return Err(
-                    "joined source graph differs from a provider executed during Build".into(),
+                    "joined source graph differs from a dependency used during Build".into(),
                 );
             }
         }

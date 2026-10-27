@@ -19,6 +19,6 @@ machine Main::main(main: &mut Main) crashes Trap {
  let bytes: &mut [u8] = choose(selected, &mut main.first, &mut main.second);
  main.first[0] = 33;
  transition bytes.len == 2 { true -> store(bytes) false -> bad() }
- state store(bytes: &mut [u8]) requires bytes.len == 2 { bytes[0] = 19; }
- state bad() { crash Trap; }
+ machine store(bytes: &mut [u8]) requires bytes.len == 2 { bytes[0] = 19; }
+ machine bad() { crash Trap; }
 }

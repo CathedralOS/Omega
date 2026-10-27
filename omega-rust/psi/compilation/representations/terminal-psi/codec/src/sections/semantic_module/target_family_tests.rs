@@ -187,6 +187,7 @@ pub(super) fn unit_machine(machine: MachineId) -> TerminalMachine {
         }),
         nominal_cleanup_subject: None,
         parameters: Vec::new(),
+        parameter_order: Vec::new(),
         structural_parameters: Vec::new(),
         ranked_scc: None,
         result: TerminalMachineResult::Unit,

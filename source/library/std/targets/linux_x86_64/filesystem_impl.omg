@@ -69,7 +69,7 @@ linux_x86_64 machine PosixFilesystem::decode_metadata(filesystem: &mut PosixFile
         true -> decode(stat, blocks, blksize)
         _ -> MetadataResult::Error { kind: ErrorKind::InvalidInput }
     }
-    state decode(stat: &StatView, block_count: i64, block_size: i64) -> MetadataResult
+    machine decode(stat: &StatView, block_count: i64, block_size: i64) -> MetadataResult
     requires block_count >= 0 && block_size >= 0;
     {
         let mode: u32 = stat.value.mode;

@@ -19,7 +19,7 @@ machine Main::main(main: &mut Main) {
         true -> done()
         false -> done()
     }
-    state done() { }
+    machine done() { }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

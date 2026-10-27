@@ -17,19 +17,19 @@ data Main { c: Counter; }
 machine Main::main(main: &mut Main) reaches Console {
     transition { _ -> enter(main, &mut main.c) }
 
-    state enter(main: &mut Main, c: &mut Counter) {
+    machine enter(main: &mut Main, c: &mut Counter) {
         transition { _ -> step(main, c) }
     }
-    state step(main: &mut Main, c: &mut Counter) {
+    machine step(main: &mut Main, c: &mut Counter) {
         c.n = c.n + 59;
         transition { _ -> verify(main) }
     }
-    state verify(main: &mut Main) {
+    machine verify(main: &mut Main) {
         transition main.c.n == 59 { true -> good(main) _ -> bad(main) }
     }
 
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main)  { Console::exit_process(71); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main)  { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

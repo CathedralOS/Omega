@@ -11,7 +11,7 @@ machine Main::main(main: &mut Main) crashes Trap {
     main.expected = 1.000_000_119_209_289_550_781_25;
     transition { _ -> check(main, 1.0 + 0.0000000596046483281043038005) }
 
-    state check(main: &mut Main, got: f32) {
+    machine check(main: &mut Main, got: f32) {
         let decimal: f64 = 1_250.5_0;
         let exponent: f64 = 1.25e+0_3;
         let negative: f64 = -1_25.0E-0_2;
@@ -30,8 +30,8 @@ machine Main::main(main: &mut Main) crashes Trap {
         }
     }
 
-    state good(main: &mut Main) {}
-    state bad(main: &mut Main) { crash Trap; }
+    machine good(main: &mut Main) {}
+    machine bad(main: &mut Main) { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

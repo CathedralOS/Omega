@@ -5,11 +5,10 @@
 //! permission to rerun a call. Each continuation retains the exact captured
 //! descriptor inventory, constraints and write prefix of its actual route.
 
-use super::{EvaluatedWritePrefix, Execution};
+use super::{EvaluatedOperand, EvaluatedWritePrefix, Execution};
 use arena::{Handle, HandleSpan};
 use checked_trees::{FlowConstraintRef, FlowOperandReferent, FlowSemanticContextRef};
 use typed_trees::expression::{BinaryOperator, TableBinaryExpression};
-use typed_trees::types::TypeReferenceHandle;
 
 #[derive(Clone, Copy)]
 struct BooleanContinuation {
@@ -172,16 +171,36 @@ impl Execution<'_, '_, '_> {
     pub(super) fn logical_expression(
         &mut self,
         binary: &TableBinaryExpression,
-        known_left: Option<bool>,
-        left_completion: Handle<BooleanCompletions>,
+        evaluated_left: EvaluatedOperand,
         contexts: &mut HandleSpan<FlowSemanticContextRef>,
         constraints: &mut HandleSpan<FlowConstraintRef>,
-    ) -> (Option<bool>, Handle<BooleanCompletions>) {
+    ) -> (
+        Option<bool>,
+        Handle<BooleanCompletions>,
+        HandleSpan<checked_trees::FlowOperandFact>,
+        Option<usize>,
+    ) {
         let evaluate_when = binary.operator == BinaryOperator::And;
-        let left = self.boolean_paths(left_completion, known_left, *contexts, *constraints);
+        let left = self.boolean_paths(
+            evaluated_left.boolean_completion,
+            evaluated_left.boolean,
+            *contexts,
+            *constraints,
+        );
         let skipped = left.selected(!evaluate_when);
+        let conditional_inputs_from = skipped.is_some().then_some(1);
         let Some(selected) = left.selected(evaluate_when) else {
-            return (left.known_value(), self.boolean_completions.insert(left));
+            let inputs = self
+                .context
+                .control
+                .operands
+                .insert_many([evaluated_left.capture]);
+            return (
+                left.known_value(),
+                self.boolean_completions.insert(left),
+                inputs,
+                None,
+            );
         };
         self.select_boolean_path(selected, contexts, constraints);
         super::super::exits::append_predicate_context(
@@ -205,15 +224,13 @@ impl Execution<'_, '_, '_> {
             contexts,
             constraints,
         );
-        let (known_right, completed) = self.expression_result(
-            binary.right,
-            TypeReferenceHandle::invalid(),
-            contexts,
-            constraints,
-        );
+        // Retain both evaluated children just like other operators. The right
+        // capture keeps its selected route's constraints; this roster does not
+        // assert that a short-circuited operand ran on every path.
+        let evaluated_right = self.evaluated_operand(binary.right, contexts, constraints);
         let right = self.boolean_paths(
-            completed.boolean_completion,
-            known_right,
+            evaluated_right.boolean_completion,
+            evaluated_right.boolean,
             *contexts,
             *constraints,
         );
@@ -235,6 +252,11 @@ impl Execution<'_, '_, '_> {
         (
             completions.known_value(),
             self.boolean_completions.insert(completions),
+            self.context
+                .control
+                .operands
+                .insert_many([evaluated_left.capture, evaluated_right.capture]),
+            conditional_inputs_from,
         )
     }
 }

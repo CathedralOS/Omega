@@ -41,7 +41,7 @@ machine Main::main(main: &mut Main) reaches Console {
 
     transition { _ -> done(main) }
 
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         Console::write_line("result: the padding count, 6 for this 10-char message (the exit code)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);

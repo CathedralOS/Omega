@@ -17,7 +17,7 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> infer(main, &pedigree)
         _ -> invalid(main)
     }
-    state infer(main: &mut Main, pedigree: &Pedigree) {
+    machine infer(main: &mut Main, pedigree: &Pedigree) {
         let mut result: Inference;
         initialize(pedigree, &mut result);
         enumerate(pedigree, &mut result);
@@ -26,16 +26,16 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> complete(main, pedigree, &result)
         }
     }
-    state impossible(main: &mut Main, pedigree: &Pedigree, result: &mut Inference) {
+    machine impossible(main: &mut Main, pedigree: &Pedigree, result: &mut Inference) {
         contradiction(pedigree, result);
         emit(pedigree, result);
         Console::exit_process(2);
     }
-    state complete(main: &mut Main, pedigree: &Pedigree, result: &Inference) {
+    machine complete(main: &mut Main, pedigree: &Pedigree, result: &Inference) {
         emit(pedigree, result);
         Console::exit_process(0);
     }
-    state invalid(main: &mut Main) {
+    machine invalid(main: &mut Main) {
         Console::write_line("INVALID INPUT");
         Console::exit_process(64);
     }

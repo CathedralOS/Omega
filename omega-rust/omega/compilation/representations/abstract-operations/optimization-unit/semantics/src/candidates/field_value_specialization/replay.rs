@@ -29,7 +29,7 @@ use crate::candidates::state_specialization::cyclic_machines;
 use crate::candidates::structural_bindings::bound_place;
 use crate::candidates::{
     accept_region_rewrite, candidate_function, canonicalize_provenance, rebuild_node_metadata,
-    set_node_effect_link,
+    receiver_custody_distinct, retirable_scalar_node, retire_node_custody, set_node_effect_link,
 };
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
 use abstract_operations::AbstractOperation as O;
@@ -37,7 +37,7 @@ use optimization_unit::{
     FieldEvidence, FieldValueResolution, FieldValueRow, FoldedFieldValue, ForwardedFieldValue,
     FunctionAnalysis, OptimizationNode, ProvenanceRewrite, PsiOptimizationFunction,
     PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch,
-    ScalarSubstitution, ValueDefinition, ValueDefinitionSite, field_evidence, function_analysis,
+    ScalarSubstitution, ValueDefinitionSite, field_evidence, function_analysis,
 };
 use semantic_vocabulary::{BlockId, ScalarType, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -93,27 +93,10 @@ fn forwarded_resolution(
     if definition.scalar_type != scalar_type {
         return None;
     }
-    let node_index_u32 = u32::try_from(node_index).ok()?;
-    if node.definitions
-        != [ValueDefinition {
-            value: result,
-            scalar_type,
-            site: ValueDefinitionSite::Node {
-                block: block.id,
-                node: node_index_u32,
-            },
-        }]
-        || !node.successors.is_empty()
-        || !node.ownership.is_empty()
-    {
+    if !retirable_scalar_node(block, node_index, node, result, scalar_type) {
         return None;
     }
-    let receiver = block.nodes.get(node_index.checked_add(1)?)?;
-    if receiver
-        .provenance
-        .iter()
-        .any(|source| node.provenance.contains(source))
-    {
+    if !receiver_custody_distinct(block, node_index, node) {
         return None;
     }
     // Every site that references the read's result: the tracked scalar-operand
@@ -500,13 +483,7 @@ pub(super) fn validate(
                 for site in sites.iter().rev() {
                     let index = usize::try_from(*site)
                         .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
-                    let removed = block.nodes.remove(index);
-                    let receiver = block
-                        .nodes
-                        .get_mut(index)
-                        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-                    receiver.provenance.extend_from_slice(&removed.provenance);
-                    receiver.fuel.extend_from_slice(&removed.fuel);
+                    retire_node_custody(block, index)?;
                 }
             }
             let mut effect = 0u64;

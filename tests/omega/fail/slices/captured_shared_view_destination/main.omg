@@ -12,11 +12,11 @@ machine overwrite<'storage>(home: Bundle<'storage>, replacement: &'storage [u8])
         true -> store(home, replacement)
         false -> done()
     }
-    state store(mut home: Bundle<'storage>, replacement: &'storage [u8])
+    machine store(mut home: Bundle<'storage>, replacement: &'storage [u8])
     requires home.raw.len > 0 {
         home.raw[0] = replace_carrier(&write home, replacement);
     }
-    state done() {}
+    machine done() {}
 }
 
 machine main() {

@@ -57,10 +57,9 @@ impl SymbolTable {
         occurrence: SourceSpan,
         alias: &str,
     ) -> Option<PackageKeyIdentity> {
-        let requester = self.source_file(occurrence)?.package_identity?;
         self.sources
             .as_deref()?
-            .product_dependency_target(requester, alias)
+            .product_dependency_at(occurrence, alias)
     }
 
     /// Executed Build descriptions keep their original source occurrence.

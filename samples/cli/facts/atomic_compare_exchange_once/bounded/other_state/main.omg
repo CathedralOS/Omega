@@ -8,7 +8,7 @@ machine probe(cells: &Cells, expected: u32, want_success: bool) -> bool {
     cells.untouched.store(17, NoOrdering);
     let outcome: AtomicCompareExchangeOnceOutcome<u32> = cells.selected.compare_exchange_once(expected, 99, ReceivePublish, Receive);
     transition { _ -> inspect(outcome, cells, want_success) }
-    state inspect(outcome: AtomicCompareExchangeOnceOutcome<u32>, cells: &Cells, want_success: bool) -> bool {
+    machine inspect(outcome: AtomicCompareExchangeOnceOutcome<u32>, cells: &Cells, want_success: bool) -> bool {
         let after: u32 = cells.selected.load(NoOrdering);
         let sibling: u32 = cells.untouched.load(NoOrdering);
         transition outcome {
@@ -21,6 +21,6 @@ machine probe(cells: &Cells, expected: u32, want_success: bool) -> bool {
 machine main() crashes Trap {
     let cells: Cells;
     transition probe(&cells, 10, true) && probe(&cells, 9, false) { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

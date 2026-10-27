@@ -90,13 +90,13 @@ machine CommandParser::find_exit_at(
     }
 
 
-    state inspect_exit(
+    machine inspect_exit(
         command_parser: &mut CommandParser,
         exits: &[Exit],
         exit_count: u64 in Wrapping,
         command: &[u8] in Utf8,
         index: u64 in Wrapping
-    ) {
+    ) -> Navigation {
         let found: bool = CommandParser::direction_matches(exits[index].direction, command);
         let next_index: u64 in Wrapping = index + 1;
         let has_next: bool = next_index < exit_count && next_index < exits.len;

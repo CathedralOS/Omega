@@ -47,7 +47,7 @@ reaches ParseNumber {
 machine repeat<'source>(source: &'source TerminatedInput, output: &mut Output<'source>) -> i64
 reaches ParseNumber {
     transition { _ -> again(source, output, 2) }
-    state again(source: &'source TerminatedInput, output: &mut Output<'source>, remaining: u64) -> i64
+    machine again(source: &'source TerminatedInput, output: &mut Output<'source>, remaining: u64) -> i64
     requires remaining > 0 {
         let number: i64 = ParseNumber::parse(source, output, 10);
         transition remaining == 1 {
@@ -55,7 +55,7 @@ reaches ParseNumber {
             false -> again(source, output, remaining - 1)
         }
     }
-    state done(number: i64) -> i64 { number }
+    machine done(number: i64) -> i64 { number }
 }
 
 data Main {}
@@ -74,8 +74,8 @@ machine Main::main(main: &mut Main) reaches ParseNumber crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

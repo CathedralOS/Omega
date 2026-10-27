@@ -7,14 +7,14 @@ data Level [copy] { rooms: [Room; 16]; }
 machine lookup(level: Level, output: &mut Room) {
     let rooms: &[Room] = &level.rooms[..];
     transition { _ -> search(rooms, output, 0) }
-    state search(rooms: &[Room], output: &mut Room, index: u64 in Wrapping)
+    machine search(rooms: &[Room], output: &mut Room, index: u64 in Wrapping)
     requires index < 16 {
         transition rooms[index].marker == 0 {
             true -> apply(rooms[index], output)
             false -> {}
         }
     }
-    state apply(room: Room, output: &mut Room) {
+    machine apply(room: Room, output: &mut Room) {
         output.marker = room.marker;
         output.label = room.label;
     }
@@ -28,6 +28,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

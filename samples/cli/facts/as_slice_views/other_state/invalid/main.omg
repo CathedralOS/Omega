@@ -8,13 +8,13 @@ requires length == 4
 machine extent(entries: &[Entry; 3]) -> u64 {
     let view: &[Entry] = &entries[..];
     transition { _ -> measure(view) }
-    state measure(view: &[Entry]) -> u64
+    machine measure(view: &[Entry]) -> u64
     requires view.len == 3
     { require_four(view.len) }
 }
 machine main() crashes Trap {
     let entries: [Entry; 3] = [Entry { value: 7 }, Entry { value: 8 }, Entry { value: 9 }];
     transition extent(&entries) == 4 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

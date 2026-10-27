@@ -11,6 +11,6 @@ machine main() crashes Trap {
     let mut grid: Grid;
     let count: u64 = count(&grid.cells[..]);
     transition count == 4 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

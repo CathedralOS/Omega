@@ -164,6 +164,6 @@ machine main() crashes Trap {
         _ -> failed()
     }
 
-    state passed() {}
-    state failed() { crash Trap; }
+    machine passed() {}
+    machine failed() { crash Trap; }
 }

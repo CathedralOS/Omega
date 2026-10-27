@@ -15,6 +15,6 @@ requires index < items.len;
 machine main() crashes Trap {
     let bytes: [u8; 4] = [9, 8, 7, 6];
     transition indexed(1, &bytes[..]) == 8 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

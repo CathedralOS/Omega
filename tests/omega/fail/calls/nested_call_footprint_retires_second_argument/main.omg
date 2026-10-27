@@ -13,9 +13,9 @@ machine main() {
         true -> write(&mut cells)
         false -> done()
     }
-    state write(cells: &mut Cells) requires cells.second <= 8 {
+    machine write(cells: &mut Cells) requires cells.second <= 8 {
         let completed: bool = both(replace(&mut cells.first, 3), replace(&mut cells.second, 9));
         bounded(cells.second);
     }
-    state done() {}
+    machine done() {}
 }

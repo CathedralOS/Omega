@@ -29,13 +29,13 @@ machine Report::number(value: i32 in Saturating) reaches Console {
         true -> digits(value)
         false -> invalid()
     }
-    state digits(value: i32 in Saturating) {
+    machine digits(value: i32 in Saturating) {
         let tens: i32 in Saturating = value / 10 + 48;
         let units: i32 in Saturating = value % 10 + 48;
         Console::write_byte(tens as i32);
         Console::write_byte(units as i32);
     }
-    state invalid() {
+    machine invalid() {
         Console::write("??");
     }
 }
@@ -45,8 +45,8 @@ machine Report::lid(closed: bool) reaches Console {
         true -> shut()
         false -> open()
     }
-    state shut() { Console::write("closed"); }
-    state open() { Console::write("open"); }
+    machine shut() { Console::write("closed"); }
+    machine open() { Console::write("open"); }
 }
 
 machine Report::decision(decision: i32) reaches Console {
@@ -66,18 +66,18 @@ machine Report::decision(decision: i32) reaches Console {
         13 -> emergency()
         _ -> invalid()
     }
-    state acquired() { Console::write("ALLOW acquire"); }
-    state loaded() { Console::write("ALLOW load"); }
-    state started() { Console::write("ALLOW start interlock=closed"); }
-    state advanced() { Console::write("ALLOW advance deadline=pending"); }
-    state completed() { Console::write("ALLOW finish lease=released"); }
-    state cancelled() { Console::write("ABORT cancel lease=retained"); }
-    state recovered() { Console::write("ALLOW recover lease=released"); }
-    state lid_changed() { Console::write("ALLOW lid"); }
-    state conflict() { Console::write("DENY resource_owner"); }
-    state phase() { Console::write("DENY phase"); }
-    state interlock() { Console::write("DENY interlock=open"); }
-    state timeout() { Console::write("ABORT timeout lease=retained"); }
-    state emergency() { Console::write("ABORT interlock=open lease=retained"); }
-    state invalid() { Console::write("DENY input"); }
+    machine acquired() { Console::write("ALLOW acquire"); }
+    machine loaded() { Console::write("ALLOW load"); }
+    machine started() { Console::write("ALLOW start interlock=closed"); }
+    machine advanced() { Console::write("ALLOW advance deadline=pending"); }
+    machine completed() { Console::write("ALLOW finish lease=released"); }
+    machine cancelled() { Console::write("ABORT cancel lease=retained"); }
+    machine recovered() { Console::write("ALLOW recover lease=released"); }
+    machine lid_changed() { Console::write("ALLOW lid"); }
+    machine conflict() { Console::write("DENY resource_owner"); }
+    machine phase() { Console::write("DENY phase"); }
+    machine interlock() { Console::write("DENY interlock=open"); }
+    machine timeout() { Console::write("ABORT timeout lease=retained"); }
+    machine emergency() { Console::write("ABORT interlock=open lease=retained"); }
+    machine invalid() { Console::write("DENY input"); }
 }

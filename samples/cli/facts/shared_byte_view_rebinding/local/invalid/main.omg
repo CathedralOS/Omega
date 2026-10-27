@@ -14,8 +14,8 @@ requires original.len == 1 && replacement.len == 1 {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine main() crashes Trap {
     let original: [u8; 1] = [5];

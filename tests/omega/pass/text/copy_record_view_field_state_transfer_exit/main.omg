@@ -25,29 +25,29 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> render(main)
     }
 
-    state render(main: &mut Main) {
+    machine render(main: &mut Main) {
         transition main.source.label.len == 4 {
             true -> contents(main, main.source)
             false -> wrong_extent(main)
         }
     }
 
-    state contents(main: &mut Main, source: Room) {
+    machine contents(main: &mut Main, source: Room) {
         transition source.label == "Gate" {
             true -> good(main)
             false -> wrong_bytes(main)
         }
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::exit_process(70);
     }
 
-    state wrong_extent(main: &mut Main) {
+    machine wrong_extent(main: &mut Main) {
         Console::exit_process(71);
     }
 
-    state wrong_bytes(main: &mut Main) {
+    machine wrong_bytes(main: &mut Main) {
         Console::exit_process(72);
     }
 }

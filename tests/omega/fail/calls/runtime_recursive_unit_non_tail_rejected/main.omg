@@ -1,0 +1,22 @@
+// Runtime recursion cannot retain a continuation that needs another caller frame.
+use omega_language_std::console;
+use omega::language::core::numeric_conversion;
+machine descend(value: u64) reaches Console {
+    transition value > 0 {
+        true -> next(value)
+        false -> done()
+    }
+    machine next(value: u64)
+    requires value > 0;
+    {
+        Console::write_byte(narrow_u64_to_i32_trapping(value % 10 + 48));
+        descend(value - 1);
+        Console::write_byte(narrow_u64_to_i32_trapping(value % 10 + 48));
+    }
+    machine done() { }
+}
+machine main() reaches Console {
+    descend(3);
+    Console::write_line("");
+    Console::exit_process(70);
+}

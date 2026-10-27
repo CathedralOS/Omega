@@ -11,8 +11,8 @@ crashes Trap {
         true -> accepted(number)
         false -> refused()
     }
-    state accepted(number: u64) -> u64 requires number > 0 { number }
-    state refused() { crash Trap; }
+    machine accepted(number: u64) -> u64 requires number > 0 { number }
+    machine refused() -> u64 { crash Trap; }
 }
 
 machine identity(amount: Amount) -> Amount

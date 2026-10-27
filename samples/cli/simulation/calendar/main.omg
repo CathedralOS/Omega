@@ -40,10 +40,10 @@ machine Main::main(main: &mut Main) reaches Console {
     Console::write_line(main.header);
     transition { _ -> day_loop(main) }
 
-    state day_loop(main: &mut Main) {
+    machine day_loop(main: &mut Main) {
         transition main.d >= 1 && main.d <= 30 { true -> place(main) _ -> flush(main) }
     }
-    state place(main: &mut Main) {
+    machine place(main: &mut Main) {
         main.o = main.col * 3;
         main.o1 = main.o + 1;
         main.tens = main.d / 10;
@@ -51,65 +51,65 @@ machine Main::main(main: &mut Main) reaches Console {
         main.oc = narrow_i32_to_u8_trapping((main.ones + 48) as i32);
         transition main.tens > 0 { true -> place_tens(main) _ -> place_space(main) }
     }
-    state place_tens(main: &mut Main) {
+    machine place_tens(main: &mut Main) {
         main.tc = narrow_i32_to_u8_trapping((main.tens + 48) as i32);
         transition { _ -> place_guard(main) }
     }
-    state place_space(main: &mut Main) {
+    machine place_space(main: &mut Main) {
         main.tc = 32;
         transition { _ -> place_guard(main) }
     }
-    state place_guard(main: &mut Main) {
+    machine place_guard(main: &mut Main) {
         transition main.o >= 0 && main.o < 21 && main.o1 >= 0 && main.o1 < 21 {
             true -> place_write(main)
             _ -> bad(main)
         }
     }
-    state place_write(main: &mut Main) {
+    machine place_write(main: &mut Main) {
         main.line[main.o] = main.tc;
         main.line[main.o1] = main.oc;
         main.col = main.col + 1;
         transition { _ -> advance(main) }
     }
-    state advance(main: &mut Main) {
+    machine advance(main: &mut Main) {
         transition main.col >= 7 { true -> emit_week(main) _ -> next_d(main) }
     }
-    state emit_week(main: &mut Main) {
+    machine emit_week(main: &mut Main) {
         Console::write_line(main.line);
         main.k = 0;
         transition { _ -> clear_loop(main) }
     }
-    state clear_loop(main: &mut Main) {
+    machine clear_loop(main: &mut Main) {
         transition main.k >= 0 && main.k < 21 { true -> clear_cell(main) _ -> reset_col(main) }
     }
-    state clear_cell(main: &mut Main) {
+    machine clear_cell(main: &mut Main) {
         main.line[main.k] = 32;
         main.k = main.k + 1;
         transition { _ -> clear_loop(main) }
     }
-    state reset_col(main: &mut Main) {
+    machine reset_col(main: &mut Main) {
         main.col = 0;
         transition { _ -> next_d(main) }
     }
-    state next_d(main: &mut Main) {
+    machine next_d(main: &mut Main) {
         main.d = main.d + 1;
         transition { _ -> day_loop(main) }
     }
 
-    state flush(main: &mut Main) {
+    machine flush(main: &mut Main) {
         transition main.col > 0 { true -> emit_partial(main) _ -> finish(main) }
     }
-    state emit_partial(main: &mut Main) {
+    machine emit_partial(main: &mut Main) {
         Console::write_line(main.line);
         transition { _ -> finish(main) }
     }
-    state finish(main: &mut Main) {
+    machine finish(main: &mut Main) {
         Console::write_line("done: all 30 dates laid out and flushed (exit 0)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(0);
     }
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::write_line("FAIL: a column offset left the 21-byte line (exit 1)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);

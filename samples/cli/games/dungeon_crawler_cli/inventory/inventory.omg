@@ -22,7 +22,7 @@ machine InventorySystem::add_reward(
     }
 
 
-    state add_gold(
+    machine add_gold(
         inventory_system: &mut InventorySystem,
         inventory: &mut Inventory,
         amount: u32 in Wrapping
@@ -30,7 +30,7 @@ machine InventorySystem::add_reward(
         InventorySystem::add_gold(inventory, amount);
     }
 
-    state add_item(
+    machine add_item(
         inventory_system: &mut InventorySystem,
         inventory: &mut Inventory,
         kind: ItemKind
@@ -38,7 +38,7 @@ machine InventorySystem::add_reward(
         InventorySystem::add_item(inventory_system, inventory, kind);
     }
 
-    state add_gold_and_item(
+    machine add_gold_and_item(
         inventory_system: &mut InventorySystem,
         inventory: &mut Inventory,
         reward: Reward
@@ -70,7 +70,7 @@ machine InventorySystem::add_item(
     }
 
 
-    state increment_existing(
+    machine increment_existing(
         inventory_system: &mut InventorySystem,
         inventory: &mut Inventory,
         kind: ItemKind,
@@ -82,7 +82,7 @@ machine InventorySystem::add_item(
         }
     }
 
-    state append_item(
+    machine append_item(
         inventory_system: &mut InventorySystem,
         inventory: &mut Inventory,
         kind: ItemKind
@@ -90,7 +90,7 @@ machine InventorySystem::add_item(
         InventorySystem::append_item(inventory, kind);
     }
 
-    state increment_item(
+    machine increment_item(
         inventory_system: &mut InventorySystem,
         item: &mut InventoryItem,
         amount: u32 in Wrapping
@@ -109,7 +109,7 @@ machine InventorySystem::append_item(inventory: &mut Inventory,
     }
 
 
-    state append_item_at(inventory: &mut Inventory,
+    machine append_item_at(inventory: &mut Inventory,
         kind: ItemKind,
         index: u64 in Wrapping) {
         inventory.items[index] = InventoryItem { kind: kind, count: 1 };
@@ -139,9 +139,9 @@ machine InventorySystem::find_item_at(items: &[InventoryItem],
     }
 
 
-    state inspect_item(items: &[InventoryItem],
+    machine inspect_item(items: &[InventoryItem],
         kind: ItemKind,
-        index: u64 in Wrapping) {
+        index: u64 in Wrapping) -> u64 {
         let found: bool = items[index].kind == kind;
         let next_index: u64 in Wrapping = index + 1;
 
@@ -156,9 +156,9 @@ machine InventorySystem::find_item_at(items: &[InventoryItem],
     // ruling (machine call cycles require tail admission; states are loops).
     // The same scan is now an in-machine state pair: inspect_item <-> scan_next is a
     // state-transition LOOP (constant stack), the blessed spelling.
-    state scan_next(items: &[InventoryItem],
+    machine scan_next(items: &[InventoryItem],
         kind: ItemKind,
-        next_index: u64 in Wrapping) {
+        next_index: u64 in Wrapping) -> u64 {
         transition next_index < items.len {
             true -> inspect_item(items, kind, next_index)
             false -> (32)

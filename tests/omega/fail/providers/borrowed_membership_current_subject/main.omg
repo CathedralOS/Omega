@@ -25,13 +25,13 @@ machine partial_branch(item: &mut Item, selected: bool) reaches Reader {
         true -> valid(item)
         _ -> invalid(item)
     }
-    state valid(item: &mut Item) {
+    machine valid(item: &mut Item) {
         item.value = 7;
         transition { _ -> join(item) }
     }
-    state invalid(item: &mut Item) {
+    machine invalid(item: &mut Item) {
         item.value = 8;
         transition { _ -> join(item) }
     }
-    state join(item: &mut Item) { Reader::read(item); }
+    machine join(item: &mut Item) { Reader::read(item); }
 }

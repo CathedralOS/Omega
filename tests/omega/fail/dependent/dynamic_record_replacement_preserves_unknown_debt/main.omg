@@ -17,7 +17,7 @@ machine stale_snapshot(stale: &mut Grid, index: u64) requires index < 2 {
 machine transported_snapshot(transport: &mut Grid, index: u64) requires index < 2 {
     transport.cells[0] = Cell { left: 1, right: 1 };
     transition { _ -> finish(transport, index) }
-    state finish(transport: &mut Grid, index: u64) requires index < 2 {
+    machine finish(transport: &mut Grid, index: u64) requires index < 2 {
         transport.cells[index] = Cell { left: 2, right: 2 };
         transport.cells[0].left = 1;
     }

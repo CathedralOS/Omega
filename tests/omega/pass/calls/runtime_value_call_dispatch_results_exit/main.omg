@@ -13,33 +13,33 @@ data Vec2 { x: i32 in Wrapping; y: i32 in Wrapping; }
 data Main { d: i32; v: i32; vec: Vec2; }
 machine Main::delta(main: &Main, d: i32) -> Vec2 {
     transition d == 1 { true -> pos() _ -> neg() }
-    state pos() -> Vec2 { Vec2 { x: 3, y: 4 } }
-    state neg() -> Vec2 { Vec2 { x: 7, y: 9 } }
+    machine pos() -> Vec2 { Vec2 { x: 3, y: 4 } }
+    machine neg() -> Vec2 { Vec2 { x: 7, y: 9 } }
 }
 machine pick(x: i32) -> i32 {
     transition x > 0 { true -> hi() _ -> lo() }
-    state hi() -> i32 { 100 }
-    state lo() -> i32 { 200 }
+    machine hi() -> i32 { 100 }
+    machine lo() -> i32 { 200 }
 }
 machine Main::main(main: &mut Main) reaches Console {
     main.d = 1;
     let d_value: i32 = main.d;
     main.vec = Main::delta(main, d_value);
     transition main.vec.x == 3 { true -> chk_y(main) _ -> bad(main, 71) }
-    state chk_y(main: &mut Main) {
+    machine chk_y(main: &mut Main) {
         transition main.vec.y == 4 { true -> chk_pick(main) _ -> bad(main, 72) }
     }
-    state chk_pick(main: &mut Main) {
+    machine chk_pick(main: &mut Main) {
         main.v = 0 - 5;
         let n: i32 = pick(main.v);
         transition n == 200 { true -> chk_pick_hi(main) _ -> bad(main, 73) }
     }
-    state chk_pick_hi(main: &mut Main) {
+    machine chk_pick_hi(main: &mut Main) {
         let m: i32 = pick(9);
         transition m == 100 { true -> good(main) _ -> bad(main, 74) }
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

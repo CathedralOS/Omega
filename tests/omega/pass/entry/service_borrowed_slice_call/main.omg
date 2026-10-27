@@ -22,13 +22,13 @@ machine Worker::drain(buf: &mut [u64], filter: &Filter, index: u64) {
         _ -> probe(&mut buf, filter, index)
     }
 
-    state probe(buf: &mut [u64], filter: &Filter, index: u64) {
+    machine probe(buf: &mut [u64], filter: &Filter, index: u64) {
         transition {
             _ -> done()
         }
     }
 
-    state done() {
+    machine done() {
     }
 }
 

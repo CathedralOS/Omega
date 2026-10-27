@@ -17,13 +17,13 @@ satisfies WindowsFilesystemHost::directory_nth
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery {
     let handle: i64 in WindowsPrivateNonalertFileOrAbsent = block windows_directory_open(path);
     transition handle != 0 { true -> query(handle, ordinal) false -> (windows_directory_entry_error()) }
-    state query(handle: i64 in WindowsPrivateNonalertFileOrAbsent, ordinal: u64) -> WindowsDirectoryEntryResult
+    machine query(handle: i64 in WindowsPrivateNonalertFileOrAbsent, ordinal: u64) -> WindowsDirectoryEntryResult
     requires handle != 0 {
         let result: WindowsDirectoryEntryResult = block windows_directory_select(handle, ordinal);
         let released: i32 = block WindowsFilesystemNativeProvider::close_handle(narrow_i64_to_u64_wrapping(handle as i64));
         transition released == 0 { true -> (result) false -> failed_close(result) }
     }
-    state failed_close(result: WindowsDirectoryEntryResult) -> WindowsDirectoryEntryResult {
+    machine failed_close(result: WindowsDirectoryEntryResult) -> WindowsDirectoryEntryResult {
         transition result {
             WindowsDirectoryEntryResult::Error { code } -> (WindowsDirectoryEntryResult::Error { code: code })
             _ -> (windows_directory_entry_error())
@@ -44,7 +44,7 @@ requires handle != 0
 reaches DirectoryEnumeration + FilesystemMetadataQuery {
     let mut output: WindowsNativeDirectoryEntryInfo;
     transition { _ -> next(handle, ordinal, &mut output, 0) }
-    state next(handle: i64 in WindowsPrivateNonalertFileOrAbsent, ordinal: u64,
+    machine next(handle: i64 in WindowsPrivateNonalertFileOrAbsent, ordinal: u64,
         output: &mut WindowsNativeDirectoryEntryInfo, position: u64) -> WindowsDirectoryEntryResult
     requires handle != 0 && position <= ordinal {
         let step: WindowsDirectoryStep = block windows_directory_next_entry(handle, output, 0);
@@ -54,7 +54,7 @@ reaches DirectoryEnumeration + FilesystemMetadataQuery {
             WindowsDirectoryStep::Name { length } -> name(handle, ordinal, output, position, length)
         }
     }
-    state name(handle: i64 in WindowsPrivateNonalertFileOrAbsent, ordinal: u64,
+    machine name(handle: i64 in WindowsPrivateNonalertFileOrAbsent, ordinal: u64,
         output: &mut WindowsNativeDirectoryEntryInfo, position: u64, length: u64) -> WindowsDirectoryEntryResult
     requires handle != 0 && position <= ordinal {
         transition windows_directory_entry_dot(output, length) {
@@ -62,7 +62,7 @@ reaches DirectoryEnumeration + FilesystemMetadataQuery {
             false -> selected(handle, ordinal, output, position, length)
         }
     }
-    state selected(handle: i64 in WindowsPrivateNonalertFileOrAbsent, ordinal: u64,
+    machine selected(handle: i64 in WindowsPrivateNonalertFileOrAbsent, ordinal: u64,
         output: &mut WindowsNativeDirectoryEntryInfo, position: u64, length: u64) -> WindowsDirectoryEntryResult
     requires handle != 0 && position <= ordinal {
         transition position < ordinal {
@@ -82,13 +82,13 @@ reaches DirectoryEnumeration + FilesystemMetadataQuery {
         true -> (windows_directory_decode_entry(output, completion.information))
         false -> other(status)
     }
-    state other(status: i32) -> WindowsDirectoryStep {
+    machine other(status: i32) -> WindowsDirectoryStep {
         transition status == -2147483642 || status == -1073741809 {
             true -> WindowsDirectoryStep::End
             false -> failed(status)
         }
     }
-    state failed(status: i32) -> WindowsDirectoryStep {
+    machine failed(status: i32) -> WindowsDirectoryStep {
         WindowsDirectoryStep::Error { code: WindowsFilesystemIo::c_status_to_error(status) }
     }
 }
@@ -98,7 +98,7 @@ machine windows_directory_decode_entry(output: &WindowsNativeDirectoryEntryInfo,
         true -> record(output, returned)
         false -> (WindowsDirectoryStep::Error { code: 122 })
     }
-    state record(output: &WindowsNativeDirectoryEntryInfo, returned: u64) -> WindowsDirectoryStep
+    machine record(output: &WindowsNativeDirectoryEntryInfo, returned: u64) -> WindowsDirectoryStep
     requires returned >= 64 && returned <= 8256 {
         let bytes: u64 = widen_u32_to_u64(output.name_bytes);
         transition (output.control & 4294967295) == 0 && bytes > 0 && bytes <= 8192
@@ -111,10 +111,10 @@ machine windows_directory_decode_entry(output: &WindowsNativeDirectoryEntryInfo,
 
 machine windows_directory_entry_dot(output: &WindowsNativeDirectoryEntryInfo, length: u64) -> bool {
     transition length == 1 || length == 2 { true -> first(output, length) false -> false }
-    state first(output: &WindowsNativeDirectoryEntryInfo, length: u64) -> bool {
+    machine first(output: &WindowsNativeDirectoryEntryInfo, length: u64) -> bool {
         transition output.characters[0] == 46 { true -> second(output, length) false -> false }
     }
-    state second(output: &WindowsNativeDirectoryEntryInfo, length: u64) -> bool {
+    machine second(output: &WindowsNativeDirectoryEntryInfo, length: u64) -> bool {
         length == 1 || output.characters[1] == 46
     }
 }
@@ -124,7 +124,7 @@ windows_x86_64 machine windows_directory_encode_entry(source: &WindowsNativeDire
         true -> encode(source, characters)
         false -> (WindowsDirectoryEntryResult::Error { code: 31 })
     }
-    state encode(source: &WindowsNativeDirectoryEntryInfo, characters: u64) -> WindowsDirectoryEntryResult
+    machine encode(source: &WindowsNativeDirectoryEntryInfo, characters: u64) -> WindowsDirectoryEntryResult
     requires characters > 0 && characters <= 4096 {
         let mut encoded: [u8; 12288];
         let native_count: i32 = narrow_u64_to_i32_exact(characters);
@@ -135,7 +135,7 @@ windows_x86_64 machine windows_directory_encode_entry(source: &WindowsNativeDire
             false -> (windows_directory_entry_error())
         }
     }
-    state extent(encoded: &[u8; 12288], written: i32, attributes: u32) -> WindowsDirectoryEntryResult
+    machine extent(encoded: &[u8; 12288], written: i32, attributes: u32) -> WindowsDirectoryEntryResult
     requires written > 0 {
         let count: u64 = narrow_i32_to_u64_exact(written);
         transition count <= 256 {
@@ -157,14 +157,14 @@ requires count <= 256 {
 machine windows_directory_copy_name(source: &[u8; 12288], count: u64, name: &mut [u8; 256])
 requires count <= 256 {
     transition { _ -> copy(source, count, name, 0) }
-    state copy(source: &[u8; 12288], count: u64, name: &mut [u8; 256], position: u64)
+    machine copy(source: &[u8; 12288], count: u64, name: &mut [u8; 256], position: u64)
     requires count <= 256 {
         transition position < count { true -> store(source, count, name, position) false -> complete() }
     }
-    state store(source: &[u8; 12288], count: u64, name: &mut [u8; 256], position: u64)
+    machine store(source: &[u8; 12288], count: u64, name: &mut [u8; 256], position: u64)
     requires count <= 256 && position < count {
         name[position] = source[position];
         transition { _ -> copy(source, count, name, position + 1) }
     }
-    state complete() {}
+    machine complete() {}
 }

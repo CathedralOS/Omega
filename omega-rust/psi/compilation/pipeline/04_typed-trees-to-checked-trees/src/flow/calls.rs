@@ -152,6 +152,7 @@ pub(super) fn build_call_flow_fact<'plans>(
     phase_profile::scope("05.d.3.b.flow.call.5_referent_domains", || {
         append_call_referent_field_domain_facts(
             program,
+            borrow,
             semantic,
             build,
             machine,
@@ -407,9 +408,7 @@ fn append_one_to_one_call_carry_facts<'plans>(
             {
                 continue;
             }
-            if !transfers.contains(&(payload, fact.evidence)) {
-                transfers.push((payload, fact.evidence));
-            }
+            crate::collections::push_unique(&mut transfers, (payload, fact.evidence));
         }
     }
     if transfers.is_empty() {
@@ -977,9 +976,7 @@ fn append_ensures_result_rows(
                 membership.domain_symbol,
                 membership.semantic_domain,
             );
-            if !domains.contains(&row) {
-                domains.push(row);
-            }
+            crate::collections::push_unique(&mut *domains, row);
         }
     }
 }
@@ -1078,9 +1075,7 @@ fn parameter_identity_rows(
                 membership.domain_symbol,
                 membership.semantic_domain,
             );
-            if !rows.contains(&row) {
-                rows.push(row);
-            }
+            crate::collections::push_unique(&mut rows, row);
         }
     }
     rows

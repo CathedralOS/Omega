@@ -29,7 +29,7 @@ reaches Console
         Slot::Found { value } -> found(main, holder.value, value)
         Slot::Empty -> invalid(main)
     }
-    state found(main: &mut Main, common: u64, payload: u64)
+    machine found(main: &mut Main, common: u64, payload: u64)
     requires common <= 5 && payload <= 5
     {
         transition value == 99 {
@@ -37,12 +37,12 @@ reaches Console
             false -> invalid(main)
         }
     }
-    state done(main: &mut Main, common: u64, payload: u64)
+    machine done(main: &mut Main, common: u64, payload: u64)
     requires common <= 5 && payload <= 5
     {
         Console::exit_process((common + payload) as i32);
     }
-    state invalid(main: &mut Main) { Console::exit_process(99); }
+    machine invalid(main: &mut Main) { Console::exit_process(99); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

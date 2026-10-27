@@ -32,22 +32,22 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> check_touches(main, &integer_cell, &boolean_cell)
         false -> no(main)
     }
-    state check_touches(main: &mut Main, integer_cell: &Cell<i32>, boolean_cell: &Cell<bool>) {
+    machine check_touches(main: &mut Main, integer_cell: &Cell<i32>, boolean_cell: &Cell<bool>) {
         let touches: i32 in Wrapping = Cell::touch_count(integer_cell);
         transition touches == 2 {
             true -> check_bool(main, boolean_cell)
             false -> no(main)
         }
     }
-    state check_bool(main: &mut Main, boolean_cell: &Cell<bool>) {
+    machine check_bool(main: &mut Main, boolean_cell: &Cell<bool>) {
         let observed: bool = Cell::get(boolean_cell);
         transition observed {
             true -> yes(main)
             false -> no(main)
         }
     }
-    state yes(main: &mut Main) { Console::exit_process(1); }
-    state no(main: &mut Main) { Console::exit_process(2); }
+    machine yes(main: &mut Main) { Console::exit_process(1); }
+    machine no(main: &mut Main) { Console::exit_process(2); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

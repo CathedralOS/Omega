@@ -34,7 +34,7 @@ machine WrongUefiPolicy::plan(
         _ -> reject()
     }
 
-    state select_surface(signature: BoundarySignature) -> BoundaryPlanResult {
+    machine select_surface(signature: BoundarySignature) -> BoundaryPlanResult {
         transition signature.has_result {
             true -> accept_physical(
                 signature,
@@ -50,7 +50,7 @@ machine WrongUefiPolicy::plan(
         }
     }
 
-    state accept_semantic(
+    machine accept_semantic(
         signature: BoundarySignature,
         image: u64,
         initial_storage: u64
@@ -61,7 +61,7 @@ machine WrongUefiPolicy::plan(
         }
     }
 
-    state build(
+    machine build(
         signature: BoundarySignature,
         image: u64,
         initial_storage: u64
@@ -121,7 +121,7 @@ machine WrongUefiPolicy::plan(
         BoundaryPlanResult::Accepted { plan: output }
     }
 
-    state accept_physical(
+    machine accept_physical(
         signature: BoundarySignature,
         image_handle: u64,
         system_table: u64,
@@ -133,7 +133,7 @@ machine WrongUefiPolicy::plan(
         }
     }
 
-    state build_physical(
+    machine build_physical(
         signature: BoundarySignature,
         image_handle: u64,
         system_table: u64,
@@ -195,7 +195,7 @@ machine WrongUefiPolicy::plan(
         BoundaryPlanResult::Accepted { plan: output }
     }
 
-    state reject() -> BoundaryPlanResult {
+    machine reject() -> BoundaryPlanResult {
         BoundaryPlanResult::Rejected {
             reason: CallingPolicyRejection {
                 reason: "wrong UEFI policy requires two program-storage roots",
@@ -215,7 +215,7 @@ machine launch(
         _ -> retain(image as Extent, initial_storage as Extent)
     }
 
-    state retain(image: Extent, initial_storage: Extent) {
+    machine retain(image: Extent, initial_storage: Extent) {
         transition {
             _ -> retain(image, initial_storage)
         }

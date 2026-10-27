@@ -7,7 +7,7 @@ terminates by remaining -> Nat::Descending in 0..=indirect.target.remaining;
 -> u64 {
     transition { _ -> iterate(indirect, remaining, other) }
 
-    state iterate(held: Indirect, pending: u64, spare: Indirect)
+    machine iterate(held: Indirect, pending: u64, spare: Indirect) -> u64
         requires 0 <= pending && pending <= 4
     {
         transition pending > 0 {

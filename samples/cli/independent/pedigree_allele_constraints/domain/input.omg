@@ -18,7 +18,7 @@ crashes Trap
         true -> header(pedigree, &tokens)
         _ -> false
     }
-    state header(pedigree: &mut Pedigree, tokens: &Tokens) -> bool {
+    machine header(pedigree: &mut Pedigree, tokens: &Tokens) -> bool {
         pedigree.count = tokens.values[0] as i32 in Wrapping;
         transition pedigree.count >= 1 && pedigree.count <= 6 &&
                    tokens.count == 1 + 3 * pedigree.count {
@@ -26,7 +26,7 @@ crashes Trap
             _ -> false
         }
     }
-    state row(pedigree: &mut Pedigree, tokens: &Tokens, index: i32 in Wrapping) -> bool {
+    machine row(pedigree: &mut Pedigree, tokens: &Tokens, index: i32 in Wrapping) -> bool {
         let position: i32 in Wrapping = 1 + 3 * index;
         transition index >= 0 && index < pedigree.count && index < 6 &&
                    position >= 1 && position + 2 < 19 {
@@ -34,14 +34,14 @@ crashes Trap
             _ -> valid(pedigree)
         }
     }
-    state copy(pedigree: &mut Pedigree, tokens: &Tokens, index: i32 in Wrapping,
+    machine copy(pedigree: &mut Pedigree, tokens: &Tokens, index: i32 in Wrapping,
                first: i32 in Wrapping, second: i32 in Wrapping, third: i32 in Wrapping) -> bool {
         transition first >= 0 && first < 19 && second >= 0 && second < 19 && third >= 0 && third < 19 {
             true -> store(pedigree, tokens, index, first, second, third)
             _ -> false
         }
     }
-    state store(pedigree: &mut Pedigree, tokens: &Tokens, index: i32 in Wrapping,
+    machine store(pedigree: &mut Pedigree, tokens: &Tokens, index: i32 in Wrapping,
                 first: i32 in Wrapping, second: i32 in Wrapping, third: i32 in Wrapping) -> bool {
         pedigree.father[index] = tokens.values[first];
         pedigree.mother[index] = tokens.values[second];
@@ -52,30 +52,30 @@ crashes Trap
 
 machine scan(tokens: &mut Tokens) -> bool reaches Console {
     transition { _ -> byte(tokens) }
-    state byte(tokens: &mut Tokens) -> bool {
+    machine byte(tokens: &mut Tokens) -> bool {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
             ByteRead::Eof -> true
             ByteRead::Byte { value } -> classify(tokens, value)
         }
     }
-    state classify(tokens: &mut Tokens, value: i32) -> bool {
+    machine classify(tokens: &mut Tokens, value: i32) -> bool {
         transition value == 32 || value == 10 || value == 13 || value == 9 {
             true -> space(tokens)
             _ -> digit(tokens, value)
         }
     }
-    state space(tokens: &mut Tokens) -> bool {
+    machine space(tokens: &mut Tokens) -> bool {
         tokens.separated = true;
         transition { _ -> byte(tokens) }
     }
-    state digit(tokens: &mut Tokens, value: i32) -> bool {
+    machine digit(tokens: &mut Tokens, value: i32) -> bool {
         transition value >= 48 && value <= 57 && tokens.separated && tokens.count >= 0 && tokens.count < 19 {
             true -> store(tokens, value - 48)
             _ -> false
         }
     }
-    state store(tokens: &mut Tokens, value: i32) -> bool {
+    machine store(tokens: &mut Tokens, value: i32) -> bool {
         tokens.values[tokens.count] = value;
         tokens.count = tokens.count + 1;
         tokens.separated = false;

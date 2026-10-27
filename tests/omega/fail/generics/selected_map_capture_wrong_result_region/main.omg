@@ -19,5 +19,5 @@ machine main() crashes Trap {
     let first: &i32 = observed<u8>(&value, &scratch);
     let second: &i32 = observed<i32>(&value, &scratch);
     transition first as i32 == 37 && second as i32 == 37 { true -> done() _ -> bad() }
-    state done() {} state bad() { crash Trap; }
+    machine done() {} machine bad() { crash Trap; }
 }

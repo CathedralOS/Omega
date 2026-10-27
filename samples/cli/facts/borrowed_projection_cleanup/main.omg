@@ -15,8 +15,8 @@ machine read_captured(receipt: &CapturedReceipt) -> u64 {
 }
 machine verify_captured(code: u64, counter: &[u64; 1]) crashes Trap {
     transition code == 7 && counter[0] == 1 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 data CapturedToken [linear] { code: u64; }
 machine CapturedToken::drop(token: &mut CapturedToken) requires token.code == 7 {}
@@ -46,8 +46,8 @@ machine observe(receipt: &Receipt, expected: u64) crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 machine main() crashes Trap {
@@ -76,6 +76,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

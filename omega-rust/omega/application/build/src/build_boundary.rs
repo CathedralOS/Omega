@@ -179,7 +179,7 @@ fn source_and_package_execution_have_one_application_owner() {
         }
     }
     let package = include_str!("build_execution.rs");
-    assert!(package.contains("execute_build(invocation.execution())"));
+    assert!(package.contains("execute_build(invocation.execution(), Some(&mut queries))"));
 }
 
 #[test]

@@ -27,17 +27,17 @@ machine Main::main(main: &mut Main) crashes Trap {
         true -> inspect(packet.choice)
         false -> bad()
     }
-    state inspect(choice: Choice) {
+    machine inspect(choice: Choice) {
         transition choice {
             Choice::Selected { value } -> check(value)
             _ -> bad()
         }
     }
-    state check(value: u64) {
+    machine check(value: u64) {
         transition value == 5 { true -> done() false -> bad() }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

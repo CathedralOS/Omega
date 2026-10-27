@@ -11,7 +11,7 @@ ensures result in Issued
 machine inspect(envelope: &mut Envelope) -> u64 {
     envelope.counter = 1;
     transition { _ -> forwarded(envelope) }
-    state forwarded(envelope: &mut Envelope) -> u64 { observe(envelope) }
+    machine forwarded(envelope: &mut Envelope) -> u64 { observe(envelope) }
 }
 
 machine observe(envelope: &Envelope) -> u64 {
@@ -27,15 +27,15 @@ machine main() crashes Trap {
         true -> forward(envelope)
         _ -> wrong()
     }
-    state forward(envelope: Envelope) {
+    machine forward(envelope: Envelope) {
         transition envelope.choice {
             Choice::Ready { ticket } -> verify(ticket)
             Choice::Empty -> wrong()
         }
     }
-    state verify(ticket: Ticket in Issued) {
+    machine verify(ticket: Ticket in Issued) {
         transition ticket.value == 73 { true -> done() _ -> wrong() }
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

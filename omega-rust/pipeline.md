@@ -151,7 +151,10 @@ the same borrowed production facts without a second producer mode. Demanded
 components and lazy review descriptions enter the same product sequence as root
 compilation. Component completion owns its exported plans, description and
 permission evidence, not a second Terminal batch loop or public checked-source
-publication entrance.
+publication entrance. Terminal cohorts retain each admitted application beside
+its exact entry, callback roots and exclusion policy. Source-sharing comparisons
+use those requests directly; only caller order is restored after cohort work,
+without parallel entry tables or empty outcome slots.
 Package preparation advances dependency-first rounds across target rosters;
 demanded component continuations enter the same source batch as their siblings,
 rather than completing one target's entire dependency chain first.
@@ -242,6 +245,19 @@ Target/Build companion inputs travel explicitly; consumers cannot reopen checked
 source. Matching compilation inputs may share work; host Build and product
 contexts are not interchangeable merely because source bytes match.
 
+Callback and physical-entry adapters now join their exact selected declarations
+to canonical Terminal bodies. Each body retains its combined scalar/structural
+runtime order, so native preparation derives the formal correspondence from
+the artifact itself, including after reload. There is no late Psi signature query
+for these adapters. Other checked-source inputs to product coordination remain
+part of the migration; this does not claim the entire driver is source-free.
+
+Component publication prepares its exported calling applications before Terminal
+production. The retained product carries those complete applications to the
+ordinary provider catalog join, which checks agreement with imported and explicit
+boundary policies without reopening typed source. Native proposal construction
+does not materialize component policies or maintain a second catalog merge.
+
 An anonymous Build runs before its final source graph has a declaration owner.
 The Psi production request therefore distinguishes invocation-only code from
 portable publication, using the same stages, Terminal representation and
@@ -264,6 +280,19 @@ while Build runs; waiting resumes the same activation without replaying effects.
 Build return joins all requests before product completion. Product bindings are
 inert during Build. Generated source cannot change admitted authored meaning.
 Ordinary Build helpers need Psi execution, not native product compilation.
+
+Demanded Product descriptions pause that same activation while the
+application acquires and settles its issued Product dependencies. The compiler's
+opaque query context shares the captured source prefix, loads authored Product
+declarations through the source-assembly owner and answers under the query
+author's lexical scope. It neither assigns an unfinished root its final package
+identity nor executes Product bodies. Final binding rejoins the selected source
+declaration rather than reusing an old arena handle or looking up its name.
+Query dependencies join the same demanded-source ledger as executed helpers,
+including purpose-qualified workspace-catalog records. Entry, data-schema and
+named-implementation provider descriptions share lexical resolution; role-specific
+inspection authenticates the activation's issued description and returns an
+accounted immutable byte view. It does not reopen source or execute Product code.
 
 Execution preparation and Product completion carry different inputs. Source
 inventories, named inputs, required outputs, resource sponsors and restricted

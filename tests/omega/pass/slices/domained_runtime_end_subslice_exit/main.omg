@@ -29,7 +29,7 @@ machine Main::check(main: &Main, path: &[u8] in Path) reaches Console {
         true -> Main::verify(main, path[0..main.k])
         false -> bad(main)
     }
-    state bad(main: &Main) {
+    machine bad(main: &Main) {
         Console::exit_process(71);
     }
 }
@@ -39,10 +39,10 @@ machine Main::verify(main: &Main, prefix: &[u8] in Path) reaches Console {
         true -> good(main)
         false -> wrong(main)
     }
-    state good(main: &Main) {
+    machine good(main: &Main) {
         Console::exit_process(70);
     }
-    state wrong(main: &Main) {
+    machine wrong(main: &Main) {
         Console::exit_process(71);
     }
 }

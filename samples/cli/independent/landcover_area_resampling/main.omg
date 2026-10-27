@@ -26,15 +26,15 @@ machine Main::main(main: &mut Main) reaches Console {
         LineReadResult::LineComplete { count } -> length(main, count)
         _ -> invalid(main)
     }
-    state length(main: &mut Main, count: u64) {
+    machine length(main: &mut Main, count: u64) {
         transition count == 2 { true -> parse(main) false -> invalid(main) }
     }
-    state parse(main: &mut Main) {
+    machine parse(main: &mut Main) {
         transition main.input[0] >= 49 && main.input[0] <= 57 && main.input[1] == 10 {
             true -> setup(main) false -> invalid(main)
         }
     }
-    state setup(main: &mut Main) {
+    machine setup(main: &mut Main) {
         configure(&mut main.config, main.input[0]);
         transition main.config.grid.width > 0 && main.config.grid.width <= 4 &&
             main.config.grid.height > 0 && main.config.grid.height <= 4 &&
@@ -47,14 +47,14 @@ machine Main::main(main: &mut Main) reaches Console {
             true -> start(main) false -> invalid(main)
         }
     }
-    state start(main: &mut Main) {
+    machine start(main: &mut Main) {
         main.column = 0; main.row = 0; main.outside_total = 0;
         main.totals.forest = 0; main.totals.water = 0; main.totals.urban = 0; main.totals.nodata = 0;
         main.area = main.config.grid.width * main.config.grid.height;
         Console::write_line("CELL row col forest water urban nodata outside dominant (fractions of full cell)");
         transition { _ -> cell(main) }
     }
-    state cell(main: &mut Main) {
+    machine cell(main: &mut Main) {
         let x: i32 in Wrapping = main.config.grid.x + main.column * main.config.grid.width;
         let y: i32 in Wrapping = main.config.grid.y + main.row * main.config.grid.height;
         resample(&mut main.cell, x, y, main.config.grid.width, main.config.grid.height,
@@ -62,7 +62,7 @@ machine Main::main(main: &mut Main) reaches Console {
         main.outside = main.area - main.cell.forest - main.cell.water - main.cell.urban - main.cell.nodata;
         transition main.outside >= 0 { true -> report(main) false -> failed(main) }
     }
-    state report(main: &mut Main) {
+    machine report(main: &mut Main) {
         // Stage immutable report values before borrowing the complete context.
         let row: i32 in Wrapping = main.row;
         let column: i32 in Wrapping = main.column;
@@ -85,11 +85,11 @@ machine Main::main(main: &mut Main) reaches Console {
         main.column = main.column + 1;
         transition main.column < main.config.grid.columns { true -> cell(main) false -> next_row(main) }
     }
-    state next_row(main: &mut Main) {
+    machine next_row(main: &mut Main) {
         main.column = 0; main.row = main.row + 1;
         transition main.row < main.config.grid.rows { true -> cell(main) false -> audit(main) }
     }
-    state audit(main: &mut Main) {
+    machine audit(main: &mut Main) {
         // Independent conservation calculation clips each source rectangle once
         // against the complete destination footprint, rather than summing cells.
         let width: i32 in Wrapping = main.config.grid.width * main.config.grid.columns;
@@ -103,7 +103,7 @@ machine Main::main(main: &mut Main) reaches Console {
             true -> passed(main, total_area) false -> failed(main)
         }
     }
-    state passed(main: &mut Main, total_area: i32 in Wrapping) {
+    machine passed(main: &mut Main, total_area: i32 in Wrapping) {
         let forest: i32 in Wrapping = main.totals.forest;
         let water: i32 in Wrapping = main.totals.water;
         let urban: i32 in Wrapping = main.totals.urban;
@@ -116,8 +116,8 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("AUDIT PASS: class conservation and full-area closure; tolerance=0");
         Console::exit_process(0);
     }
-    state invalid(main: &mut Main) { Console::write_line("INVALID: bounded fixture input or model admission"); Console::exit_process(64); }
-    state failed(main: &mut Main) { Console::write_line("AUDIT FAIL"); Console::exit_process(1); }
+    machine invalid(main: &mut Main) { Console::write_line("INVALID: bounded fixture input or model admission"); Console::exit_process(64); }
+    machine failed(main: &mut Main) { Console::write_line("AUDIT FAIL"); Console::exit_process(1); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

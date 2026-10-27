@@ -12,6 +12,7 @@ mod build_bindings;
 mod build_filesystem;
 mod build_protocol;
 mod build_provider;
+mod build_queries;
 mod build_requests;
 mod composition_admission;
 mod custody;
@@ -26,6 +27,7 @@ pub use build_filesystem::{
     TerminalBuildFilesystem, TerminalBuildFilesystemCall, TerminalBuildFilesystemOperation,
 };
 pub use build_provider::{BuildProviderProductionRequest, ProducedBuildProvider};
+pub use build_queries::{TerminalBuildQueryCall, TerminalBuildQueryOperation};
 pub use build_requests::{
     TerminalBuildRequestCall, TerminalBuildRequestOperation, TerminalBuildRequests,
 };
@@ -34,6 +36,5 @@ pub use composition_admission::TerminalCompositionAdmission;
 pub use custody::{ProducedTerminalProgram, TerminalApplicationCustody, TerminalProductionCustody};
 pub use observation::{PsiCompilationObserver, PsiCompilationStage, UnmeasuredProduction};
 pub use terminal_production::{
-    ProgramEntryTerminalReceiptError, RetainedCallableSignature, TerminalArtifactProductionError,
-    TerminalProductionRequest, retained_callable_signature,
+    ProgramEntryTerminalReceiptError, TerminalArtifactProductionError, TerminalProductionRequest,
 };

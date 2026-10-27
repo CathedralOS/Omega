@@ -30,25 +30,25 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> good_msg(main)
         _ -> not_hundred(main)
     }
-    state good_msg(main: &mut Main) {
+    machine good_msg(main: &mut Main) {
         Console::write_line("PASS: counter saturated at the bound, value == 100 (exit 70)");
         transition { _ -> report(main, 70) }
     }
-    state not_hundred(main: &mut Main) {
+    machine not_hundred(main: &mut Main) {
         transition main.counter.value == 120 {
             true -> bad_sat_msg(main)   // saturation didn't apply
             _ -> bad_other_msg(main)    // some other wrong value
         }
     }
-    state bad_sat_msg(main: &mut Main) {
+    machine bad_sat_msg(main: &mut Main) {
         Console::write_line("FAIL: counter reached 120 -- saturation did not apply (exit 81)");
         transition { _ -> report(main, 81) }
     }
-    state bad_other_msg(main: &mut Main) {
+    machine bad_other_msg(main: &mut Main) {
         Console::write_line("FAIL: counter holds an unexpected value -- neither 100 nor 120 (exit 82)");
         transition { _ -> report(main, 82) }
     }
-    state report(main: &mut Main, code: i32) {
+    machine report(main: &mut Main, code: i32) {
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(code);
@@ -63,10 +63,10 @@ machine Main::add(main: &mut Main, amount: i32 in Saturating) {
         true -> saturate(main)
         _ -> set_value(main, next)
     }
-    state saturate(main: &mut Main) {
+    machine saturate(main: &mut Main) {
         main.counter.value = main.counter.bound;
     }
-    state set_value(main: &mut Main, next: i32 in Saturating) {
+    machine set_value(main: &mut Main, next: i32 in Saturating) {
         main.counter.value = next;
     }
 }

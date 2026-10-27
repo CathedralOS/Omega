@@ -22,6 +22,6 @@ machine main() crashes Trap {
         field == address_of(&cell.first) && field != address_of(&cell.second) {
         true -> done() false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

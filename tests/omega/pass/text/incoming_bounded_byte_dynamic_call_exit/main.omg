@@ -3,17 +3,17 @@ machine sink(bytes: &[u8]) crashes Trap {
         true -> read(bytes)
         _ -> bad()
     }
-    state read(bytes: &[u8]) requires bytes.len == 21 {
+    machine read(bytes: &[u8]) requires bytes.len == 21 {
         transition bytes[0] == 43 && bytes[14] == 46 && bytes[20] == 48 {
             true -> done()
             _ -> bad()
         }
     }
-    state done() { }
-    state bad() { crash Trap; }
+    machine done() { }
+    machine bad() { crash Trap; }
 }
 machine main() crashes Trap {
     let bytes: [u8; 21] = "+0000000000000.000000";
     transition { _ -> emit(&bytes) }
-    state emit(bytes: &[u8; 21]) { sink(bytes); }
+    machine emit(bytes: &[u8; 21]) { sink(bytes); }
 }

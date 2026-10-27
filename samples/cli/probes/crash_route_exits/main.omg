@@ -20,11 +20,11 @@ crashes Trap {
         _ -> good()
     }
 
-    state good() {
+    machine good() -> bool {
         transition { _ -> true }
     }
 
-    state bad() {
+    machine bad() -> bool {
         crash Trap;
     }
 }
@@ -41,5 +41,5 @@ machine crash_route_exits() crashes Trap {
         _ -> done(71)
     }
 
-    state done(code: i32) {}
+    machine done(code: i32) {}
 }

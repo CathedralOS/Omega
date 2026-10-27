@@ -10,7 +10,7 @@ machine inspect(choice: Choice) {
         Choice::A { item } -> done()
         Choice::B { item } -> selected(item)
     }
-    state selected(item: Plain) { need(item.value); }
-    state done() {}
+    machine selected(item: Plain) { need(item.value); }
+    machine done() {}
 }
 machine main() { inspect(Choice::B { item: Plain { value: 100 } }); }

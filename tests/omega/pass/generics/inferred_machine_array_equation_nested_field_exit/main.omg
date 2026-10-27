@@ -9,7 +9,7 @@ machine main(context: &mut Outer) crashes Trap {
     context.inner.items[1] = 11;
     let observed: u64 = capacity(context.inner.items);
     transition observed == 2 { true -> done() _ -> bad() }
-    state done() {} state bad() { crash Trap; }
+    machine done() {} machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -32,26 +32,26 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
     main.maximum = 0;
     main.eof = false;
     transition { _ -> read(main) }
-    state read(main: &mut Main) {
+    machine read(main: &mut Main) {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
             ByteRead::Byte { value } -> byte(main, value)
             _ -> finish_input(main)
         }
     }
-    state byte(main: &mut Main, value: i32) {
+    machine byte(main: &mut Main, value: i32) {
         transition value == 10 {
             true -> close(main)
             _ -> validate(main, value)
         }
     }
-    state validate(main: &mut Main, value: i32) {
+    machine validate(main: &mut Main, value: i32) {
         transition value >= 48 && value <= 57 && main.length >= 0 && main.length < 32 && main.frame < 16 {
             true -> store(main, value)
             _ -> bad(main)
         }
     }
-    state store(main: &mut Main, value: i32) {
+    machine store(main: &mut Main, value: i32) {
         let sample: i32 in Wrapping = (value as i32 in Wrapping) - 48;
         main.samples[main.length] = sample;
         main.minimum = match sample < main.minimum { true -> sample _ -> main.minimum };
@@ -59,17 +59,17 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
         main.length = main.length + 1;
         transition { _ -> read(main) }
     }
-    state finish_input(main: &mut Main) {
+    machine finish_input(main: &mut Main) {
         main.eof = true;
         transition main.length > 0 { true -> close(main) _ -> end(main) }
     }
-    state close(main: &mut Main) {
+    machine close(main: &mut Main) {
         transition main.length > 0 && main.frame < 16 {
             true -> begin_frame(main)
             _ -> bad(main)
         }
     }
-    state begin_frame(main: &mut Main) {
+    machine begin_frame(main: &mut Main) {
         Console::write("FRAME "); number(main.frame);
         Console::write(" "); number(main.length); Console::write_line("");
         main.best_lag = 0;
@@ -80,13 +80,13 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
         main.ties = 0;
         transition main.length >= 12 { true -> score(main) _ -> track(main) }
     }
-    state score(main: &mut Main) {
+    machine score(main: &mut Main) {
         transition main.lag <= 8 {
             true -> calculate(main)
             _ -> classify(main)
         }
     }
-    state calculate(main: &mut Main) {
+    machine calculate(main: &mut Main) {
         main.sum = lag_sum(&main.samples, main.length, main.lag);
         main.pairs = main.length - main.lag;
         Console::write("LAG "); number(main.lag);
@@ -97,22 +97,22 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
             _ -> tie(main)
         }
     }
-    state better(main: &mut Main) {
+    machine better(main: &mut Main) {
         main.best_lag = main.lag;
         main.best_sum = main.sum;
         main.best_pairs = main.pairs;
         main.ties = 1;
         transition { _ -> next_lag(main) }
     }
-    state tie(main: &mut Main) {
+    machine tie(main: &mut Main) {
         main.ties = match main.sum * main.best_pairs == main.best_sum * main.pairs { true -> main.ties + 1 _ -> main.ties };
         transition { _ -> next_lag(main) }
     }
-    state next_lag(main: &mut Main) {
+    machine next_lag(main: &mut Main) {
         main.lag = main.lag + 1;
         transition { _ -> score(main) }
     }
-    state classify(main: &mut Main) {
+    machine classify(main: &mut Main) {
         main.status = match main.minimum == main.maximum {
             true -> 0
             _ -> match main.best_sum > main.best_pairs {
@@ -123,47 +123,47 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
         main.best_lag = match main.status == 0 || main.status == 4 { true -> 0 _ -> main.best_lag };
         transition { _ -> track(main) }
     }
-    state track(main: &mut Main) {
+    machine track(main: &mut Main) {
         Console::write("TRACK "); number(main.frame);
         Console::write(" "); number(main.best_lag);
         Console::write(" ");
         transition main.best_lag > 0 { true -> pitch(main) _ -> no_pitch(main) }
     }
-    state pitch(main: &mut Main) {
+    machine pitch(main: &mut Main) {
         number(8000 / main.best_lag);
         transition { _ -> status(main) }
     }
-    state no_pitch(main: &mut Main) {
+    machine no_pitch(main: &mut Main) {
         number(0);
         transition { _ -> status(main) }
     }
-    state status(main: &mut Main) {
+    machine status(main: &mut Main) {
         Console::write(" "); number(main.status); Console::write_line("");
         transition main.previous > 0 && main.best_lag > 0 && main.previous != main.best_lag {
             true -> change(main)
             _ -> uncertainty(main)
         }
     }
-    state change(main: &mut Main) {
+    machine change(main: &mut Main) {
         Console::write("CHANGE "); number(main.frame);
         Console::write(" "); number(main.previous);
         Console::write(" "); number(main.best_lag); Console::write_line("");
         transition { _ -> uncertainty(main) }
     }
-    state uncertainty(main: &mut Main) {
+    machine uncertainty(main: &mut Main) {
         main.previous = main.best_lag;
         transition main.status == 1 && main.uncertain_start >= 0 {
             true -> segment(main)
             _ -> remember(main)
         }
     }
-    state segment(main: &mut Main) {
+    machine segment(main: &mut Main) {
         Console::write("SEGMENT "); number(main.uncertain_start);
         Console::write(" "); number(main.frame); Console::write_line("");
         main.uncertain_start = -1;
         transition { _ -> remember(main) }
     }
-    state remember(main: &mut Main) {
+    machine remember(main: &mut Main) {
         main.uncertain_start = match main.status != 1 && main.uncertain_start < 0 { true -> main.frame _ -> main.uncertain_start };
         main.frame = main.frame + 1;
         main.length = 0;
@@ -171,25 +171,25 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
         main.maximum = 0;
         transition main.eof { true -> end(main) _ -> read(main) }
     }
-    state end(main: &mut Main) {
+    machine end(main: &mut Main) {
         transition main.frame > 0 {
             true -> end_segment(main)
             _ -> bad(main)
         }
     }
-    state end_segment(main: &mut Main) {
+    machine end_segment(main: &mut Main) {
         transition main.uncertain_start >= 0 {
             true -> final_segment(main)
             _ -> good(main)
         }
     }
-    state final_segment(main: &mut Main) {
+    machine final_segment(main: &mut Main) {
         Console::write("SEGMENT "); number(main.uncertain_start);
         Console::write(" "); number(main.frame); Console::write_line("");
         transition { _ -> good(main) }
     }
-    state good(main: &mut Main) { Console::exit_process(0); }
-    state bad(main: &mut Main) { Console::write_line("ERROR input"); Console::exit_process(64); }
+    machine good(main: &mut Main) { Console::exit_process(0); }
+    machine bad(main: &mut Main) { Console::write_line("ERROR input"); Console::exit_process(64); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

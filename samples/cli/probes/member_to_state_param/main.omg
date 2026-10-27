@@ -16,17 +16,17 @@ machine Main::main(main: &mut Main) {
         Shape::Line { inner, tag } -> use_inner(main, inner)
         _ -> bad(main)
     }
-    state use_inner(main: &mut Main, inner: Inner) {
+    machine use_inner(main: &mut Main, inner: Inner) {
         transition { _ -> read_leaf(main, &inner.leaf) }
     }
-    state read_leaf(main: &mut Main, leaf: &Leaf) {
+    machine read_leaf(main: &mut Main, leaf: &Leaf) {
         transition leaf.v == 7 {
             true -> done(main)
             false -> bad(main)
         }
     }
-    state done(main: &mut Main) { }
-    state bad(main: &mut Main) { }
+    machine done(main: &mut Main) { }
+    machine bad(main: &mut Main) { }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

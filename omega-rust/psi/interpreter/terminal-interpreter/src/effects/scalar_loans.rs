@@ -395,14 +395,25 @@ impl TerminalExecution<'_> {
         let owns_target = |value: &TerminalStructuralValue| {
             value.opaque_identity == target.opaque_identity && target.path.starts_with(&value.path)
         };
-        let covered = |value: &TerminalStructuralValue,
-                       qualifications: &[semantic_vocabulary::StructuralDomainId],
-                       projected_empty: bool| {
-            projected_empty
-                && (qualifications.is_empty()
-                    || (value.path == owner.path
-                        && qualifications.iter().all(|domain| normal.contains(domain))))
-        };
+        let covered =
+            |value: &TerminalStructuralValue,
+             qualifications: &[semantic_vocabulary::StructuralDomainId],
+             projected: &[terminal_psi::StructuralPathQualification]| {
+                let intrinsic = |path: &[terminal_psi::StructuralPathSegment], domain| {
+                    terminal_semantics::scalar_projection_entails_membership(
+                        self.program.structural_types().values(),
+                        self.program.catalogs.structural_domains.iter(),
+                        value.structural_type,
+                        path,
+                        domain,
+                    )
+                };
+                projected.iter().all(|row| intrinsic(&row.path, row.domain))
+                    && qualifications.iter().all(|domain| {
+                        intrinsic(&[], *domain)
+                            || (value.path == owner.path && normal.contains(domain))
+                    })
+            };
         let unsupported = || {
             TerminalInterpretError::UnsupportedSemanticVariant(
                 "mutable host storage has an uncovered original qualification or owner",
@@ -424,7 +435,7 @@ impl TerminalExecution<'_> {
                 if !covered(
                     value,
                     &value.qualifications,
-                    value.projected_qualifications.is_empty(),
+                    &value.projected_qualifications,
                 ) || machine
                     .structural_parameters
                     .iter()
@@ -434,7 +445,7 @@ impl TerminalExecution<'_> {
                             && !covered(
                                 value,
                                 &parameter.qualifications,
-                                parameter.projected_qualifications.is_empty(),
+                                &parameter.projected_qualifications,
                             )
                     })
                     || machine
@@ -445,7 +456,7 @@ impl TerminalExecution<'_> {
                                 && !covered(
                                     value,
                                     &result.qualifications,
-                                    result.projected_qualifications.is_empty(),
+                                    &result.projected_qualifications,
                                 )
                         })
                 {
@@ -458,7 +469,7 @@ impl TerminalExecution<'_> {
                 && !covered(
                     &value.view,
                     &value.view.qualifications,
-                    value.view.projected_qualifications.is_empty(),
+                    &value.view.projected_qualifications,
                 )
         }) {
             return Err(unsupported());

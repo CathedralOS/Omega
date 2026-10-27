@@ -18,7 +18,7 @@ machine accepted(value: Pair) -> bool {
     transition wrapped.value {
         Envelope::Wrapped { value } -> inspect(value)
     }
-    state inspect(result: Checked) -> bool {
+    machine inspect(result: Checked) -> bool {
         transition result {
             Checked::Ready { value } -> (true)
             Checked::Rejected -> (false)
@@ -59,6 +59,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

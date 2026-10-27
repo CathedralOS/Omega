@@ -19,7 +19,7 @@ machine exercise(envelope: &mut Envelope) -> bool {
 
 machine exercise_composed(envelope: &mut Envelope) -> bool {
     transition { _ -> nested(envelope) }
-    state nested(envelope: &mut Envelope) -> bool {
+    machine nested(envelope: &mut Envelope) -> bool {
         envelope.cursor = 1;
         let cell: &mut Cell = &mut envelope.cells[envelope.cursor];
         let selected: &mut i32 = forward(forward(pick(cell)));
@@ -50,6 +50,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

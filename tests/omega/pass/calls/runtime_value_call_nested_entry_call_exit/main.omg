@@ -15,22 +15,22 @@ data Helper { seen: i32; }
 machine Helper::check(helper: &mut Helper, x: i32) -> bool {
     helper.seen = x;
     transition helper.seen == 1 { true -> yes() _ -> no() }
-    state yes() -> bool { true }
-    state no() -> bool { false }
+    machine yes() -> bool { true }
+    machine no() -> bool { false }
 }
 data Probe { helper: Helper; flag: bool; }
 machine Probe::make(probe: &mut Probe) -> Verdict {
     probe.flag = Helper::check(&mut probe.helper, 1);
     transition probe.flag { true -> mk_yes() _ -> mk_no() }
-    state mk_yes() -> Verdict { Verdict::Yes }
-    state mk_no() -> Verdict { Verdict::No }
+    machine mk_yes() -> Verdict { Verdict::Yes }
+    machine mk_no() -> Verdict { Verdict::No }
 }
 data Sensor { seen: i32; }
 machine Sensor::check(sensor: &mut Sensor, x: i32) -> bool {
     sensor.seen = x;
     transition sensor.seen == 2 { true -> yes() _ -> no() }
-    state yes() -> bool { true }
-    state no() -> bool { false }
+    machine yes() -> bool { true }
+    machine no() -> bool { false }
 }
 data Bracket { sensor: Sensor; a: i32; flag: bool; b: i32; }
 machine Bracket::make(bracket: &mut Bracket) -> Verdict {
@@ -38,19 +38,19 @@ machine Bracket::make(bracket: &mut Bracket) -> Verdict {
     bracket.flag = Sensor::check(&mut bracket.sensor, 2);
     bracket.b = 3;
     transition bracket.flag { true -> mk_yes() _ -> mk_no() }
-    state mk_yes() -> Verdict { Verdict::Yes }
-    state mk_no() -> Verdict { Verdict::No }
+    machine mk_yes() -> Verdict { Verdict::Yes }
+    machine mk_no() -> Verdict { Verdict::No }
 }
 data Main { probe: Probe; bracket: Bracket; v1: Verdict; v2: Verdict; }
 machine Main::main(main: &mut Main) reaches Console {
     main.v1 = Probe::make(&mut main.probe);
     transition main.v1 { Verdict::Yes -> step2(main) _ -> bad(main, 71) }
-    state step2(main: &mut Main) {
+    machine step2(main: &mut Main) {
         main.v2 = Bracket::make(&mut main.bracket);
         transition main.v2 { Verdict::Yes -> good(main) _ -> bad(main, 72) }
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

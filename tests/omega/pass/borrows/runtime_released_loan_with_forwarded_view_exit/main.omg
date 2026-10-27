@@ -6,11 +6,11 @@ data Counter { count: u64; }
 // extend that loan into a state which mutates its former referent.
 machine Counter::update(counter: &mut Counter, bytes: &[u8]) {
     transition { _ -> snapshot(counter, &counter.count, bytes) }
-    state snapshot(counter: &mut Counter, count: &u64, bytes: &[u8]) {
+    machine snapshot(counter: &mut Counter, count: &u64, bytes: &[u8]) {
         let saved: u64 = count;
         transition { _ -> writeback(counter, saved, bytes) }
     }
-    state writeback(counter: &mut Counter, saved: u64, bytes: &[u8]) {
+    machine writeback(counter: &mut Counter, saved: u64, bytes: &[u8]) {
         counter.count = ((saved as u64 in Wrapping) + (bytes.len as u64 in Wrapping)) as u64;
     }
 }
@@ -25,10 +25,10 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> matched()
         false -> mismatched()
     }
-    state matched() {
+    machine matched() {
         Console::exit_process(70);
     }
-    state mismatched() {
+    machine mismatched() {
         Console::exit_process(71);
     }
 }

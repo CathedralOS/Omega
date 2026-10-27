@@ -194,7 +194,7 @@ impl<'a> Reviewer<'a> {
                             selected_plan.provider_type
                         )
                     })?;
-                let schema = selected_plan.schema.identity_digest();
+                let schema = selected_plan.schema_identity_digest();
                 let provider_plan = selected_plan.identity_digest();
                 let nested = self
                     .context
@@ -221,7 +221,7 @@ impl<'a> Reviewer<'a> {
                 let mechanism = self
                     .context
                     .exact_mechanism(boundary, &selected_row.binding)?;
-                let schema = selected_plan.schema.identity_digest();
+                let schema = selected_plan.schema_identity_digest();
                 self.admit_leaf(
                     schema,
                     selected_plan

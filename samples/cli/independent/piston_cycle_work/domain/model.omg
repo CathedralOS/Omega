@@ -22,10 +22,10 @@ public machine pressure_at(stage: &Stage, volume: f64) -> f64 {
         2 -> square(stage, ratio)
         _ -> cube(stage, ratio)
     }
-    state rising(stage: &Stage, ratio: f64) -> f64 { stage.pressure / ratio }
-    state constant(stage: &Stage) -> f64 { stage.pressure }
-    state square(stage: &Stage, ratio: f64) -> f64 { stage.pressure * ratio * ratio }
-    state cube(stage: &Stage, ratio: f64) -> f64 { stage.pressure * ratio * ratio * ratio }
+    machine rising(stage: &Stage, ratio: f64) -> f64 { stage.pressure / ratio }
+    machine constant(stage: &Stage) -> f64 { stage.pressure }
+    machine square(stage: &Stage, ratio: f64) -> f64 { stage.pressure * ratio * ratio }
+    machine cube(stage: &Stage, ratio: f64) -> f64 { stage.pressure * ratio * ratio * ratio }
 }
 
 public machine evaluate(stage: &mut Stage) -> bool {
@@ -35,13 +35,13 @@ public machine evaluate(stage: &mut Stage) -> bool {
         true -> kind(stage)
         _ -> reject()
     }
-    state kind(stage: &mut Stage) -> bool {
+    machine kind(stage: &mut Stage) -> bool {
         transition stage.isochoric {
             true -> hold(stage)
             _ -> exponent(stage)
         }
     }
-    state hold(stage: &mut Stage) -> bool {
+    machine hold(stage: &mut Stage) -> bool {
         stage.work = 0.0;
         stage.exponent = 0;
         transition stage.volume == stage.end_volume
@@ -50,14 +50,14 @@ public machine evaluate(stage: &mut Stage) -> bool {
             _ -> reject()
         }
     }
-    state exponent(stage: &mut Stage) -> bool {
+    machine exponent(stage: &mut Stage) -> bool {
         transition stage.exponent == -1 || stage.exponent == 0
             || stage.exponent == 2 || stage.exponent == 3 {
             true -> integrate(stage)
             _ -> reject()
         }
     }
-    state integrate(stage: &mut Stage) -> bool {
+    machine integrate(stage: &mut Stage) -> bool {
         stage.end_pressure = pressure_at(stage, stage.end_volume);
         transition stage.exponent {
             -1 -> rising_work(stage)
@@ -66,24 +66,24 @@ public machine evaluate(stage: &mut Stage) -> bool {
             _ -> cube_work(stage)
         }
     }
-    state rising_work(stage: &mut Stage) -> bool {
+    machine rising_work(stage: &mut Stage) -> bool {
         stage.work = (stage.end_pressure * stage.end_volume - stage.pressure * stage.volume) / 2.0;
         true
     }
-    state constant_work(stage: &mut Stage) -> bool {
+    machine constant_work(stage: &mut Stage) -> bool {
         stage.work = stage.pressure * (stage.end_volume - stage.volume);
         true
     }
-    state square_work(stage: &mut Stage) -> bool {
+    machine square_work(stage: &mut Stage) -> bool {
         stage.work = stage.pressure * stage.volume - stage.end_pressure * stage.end_volume;
         true
     }
-    state cube_work(stage: &mut Stage) -> bool {
+    machine cube_work(stage: &mut Stage) -> bool {
         stage.work = (stage.pressure * stage.volume - stage.end_pressure * stage.end_volume) / 2.0;
         true
     }
-    state accept() -> bool { true }
-    state reject() -> bool { false }
+    machine accept() -> bool { true }
+    machine reject() -> bool { false }
 }
 
 public machine near(left: f64, right: f64) -> bool {

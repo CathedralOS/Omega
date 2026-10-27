@@ -33,28 +33,28 @@ machine Main::main(main: &mut Main) reaches Registrar + Console invokes Registra
   Outcome::Rejected { capacity } -> retry(capacity)
   Outcome::Accepted { capacity } -> wrong(capacity)
  }
- state retry(capacity: Capacity in Capacity::Held) {
+ machine retry(capacity: Capacity in Capacity::Held) {
   let second: Outcome = Registrar::exchange(capacity, true);
   transition second {
    Outcome::Accepted { capacity } -> replace(capacity)
    Outcome::Rejected { capacity } -> wrong(capacity)
   }
  }
- state replace(capacity: Capacity in Capacity::Held) {
+ machine replace(capacity: Capacity in Capacity::Held) {
   let third: Outcome = Registrar::exchange(capacity, true);
   transition third {
    Outcome::Accepted { capacity } -> finish(capacity)
    Outcome::Rejected { capacity } -> wrong(capacity)
   }
  }
- state finish(capacity: Capacity in Capacity::Held) {
+ machine finish(capacity: Capacity in Capacity::Held) {
   let serial: u64 = capacity.serial;
   drop(capacity);
   transition serial == 17 { true -> good() _ -> bad() }
  }
- state wrong(capacity: Capacity in Capacity::Held) { drop(capacity); Console::exit_process(71); }
- state good() { Console::exit_process(70); }
- state bad() { Console::exit_process(72); }
+ machine wrong(capacity: Capacity in Capacity::Held) { drop(capacity); Console::exit_process(71); }
+ machine good() { Console::exit_process(70); }
+ machine bad() { Console::exit_process(72); }
 }
 
 ProviderRegistrarImplementation satisfies Registrar {

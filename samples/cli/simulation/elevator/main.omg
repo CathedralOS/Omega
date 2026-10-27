@@ -63,42 +63,42 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> bad_floor(main)
     }
 
-    state check_moves(main: &mut Main) {
+    machine check_moves(main: &mut Main) {
         transition main.lift.moves == 3 {
             true -> check_door(main)
             _ -> bad_moves(main)
         }
     }
 
-    state check_door(main: &mut Main) {
+    machine check_door(main: &mut Main) {
         transition main.lift.door_open == 1 {
             true -> good(main)
             _ -> bad_door(main)
         }
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::write_line("PASS: ends at floor 1 after 3 moves with the door open (exit 70)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(70);
     }
 
-    state bad_floor(main: &mut Main) {
+    machine bad_floor(main: &mut Main) {
         Console::write_line("FAIL: final floor != 1 (exit 71)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(71);
     }
 
-    state bad_moves(main: &mut Main) {
+    machine bad_moves(main: &mut Main) {
         Console::write_line("FAIL: move count != 3 -- door-closed gating wrong (exit 72)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(72);
     }
 
-    state bad_door(main: &mut Main) {
+    machine bad_door(main: &mut Main) {
         Console::write_line("FAIL: door not open at the end (exit 73)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
@@ -116,27 +116,27 @@ machine Main::send(main: &mut Main, cmd: Command) {
     }
 
     // GoTo: only move if door is closed.
-    state handle_goto(main: &mut Main, floor: i32) {
+    machine handle_goto(main: &mut Main, floor: i32) {
         transition main.lift.door_open == 0 {
             true -> do_move(main, floor)
             _ -> done()
         }
     }
 
-    state do_move(main: &mut Main, floor: i32) {
+    machine do_move(main: &mut Main, floor: i32) {
         main.lift.floor = floor;
         main.lift.moves = (main.lift.moves % 101 + 1) % 101;
     }
 
-    state handle_open(main: &mut Main) {
+    machine handle_open(main: &mut Main) {
         main.lift.door_open = 1;
     }
 
-    state handle_close(main: &mut Main) {
+    machine handle_close(main: &mut Main) {
         main.lift.door_open = 0;
     }
 
-    state done() {
+    machine done() {
     }
 }
 

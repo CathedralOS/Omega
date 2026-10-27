@@ -14,8 +14,8 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> nonnegative(main)
     }
 
-    state negative(main: &mut Main) { Console::exit_process(71); }
-    state nonnegative(main: &mut Main) { Console::exit_process(70); }
+    machine negative(main: &mut Main) { Console::exit_process(71); }
+    machine nonnegative(main: &mut Main) { Console::exit_process(70); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

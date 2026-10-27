@@ -23,12 +23,12 @@ machine main() crashes Trap {
     let value: u64 = token.value;
     let ready: bool = token.ready;
     transition { _ -> observe(value, ready) }
-    state observe(value: u64, ready: bool) {
+    machine observe(value: u64, ready: bool) {
         transition value == 9 && ready {
             true -> done()
             false -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

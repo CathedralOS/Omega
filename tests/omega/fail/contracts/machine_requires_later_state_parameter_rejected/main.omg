@@ -7,7 +7,7 @@ requires later_bound < values.len;
 {
     transition { _ -> finish(values[0], 1) }
 
-    state finish(value: u8, later_bound: u64) -> u8 {
+    machine finish(value: u8, later_bound: u64) -> u8 {
         transition { _ -> (value) }
     }
 }

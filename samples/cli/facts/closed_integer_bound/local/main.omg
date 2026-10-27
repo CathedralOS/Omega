@@ -6,6 +6,6 @@ machine main() crashes Trap {
     value = 3;
     let remaining: u64 = 5u64 - value;
     transition remaining == 2 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

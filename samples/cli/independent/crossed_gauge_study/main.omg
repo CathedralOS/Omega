@@ -7,39 +7,39 @@ data Main { study: study::model::Study; }
 
 machine Main::number(main: &mut Main, value: i32 in Wrapping) reaches Console {
     transition value < 0 { true -> negative(main, value) _ -> leading(main, value) }
-    state negative(main: &mut Main, value: i32 in Wrapping) {
+    machine negative(main: &mut Main, value: i32 in Wrapping) {
         Console::write("-");
         transition { _ -> leading(main, 0-value) }
     }
-    state leading(main: &mut Main, value: i32 in Wrapping) {
+    machine leading(main: &mut Main, value: i32 in Wrapping) {
         transition value >= 10000 { true -> ten_thousands(main, value) _ -> check_thousands(main, value) }
     }
-    state ten_thousands(main: &mut Main, value: i32 in Wrapping) {
+    machine ten_thousands(main: &mut Main, value: i32 in Wrapping) {
         Console::write_byte((value / 10000 + 48) as i32);
         transition { _ -> thousands(main, value) }
     }
-    state check_thousands(main: &mut Main, value: i32 in Wrapping) {
+    machine check_thousands(main: &mut Main, value: i32 in Wrapping) {
         transition value >= 1000 { true -> thousands(main, value) _ -> check_hundreds(main, value) }
     }
-    state thousands(main: &mut Main, value: i32 in Wrapping) {
+    machine thousands(main: &mut Main, value: i32 in Wrapping) {
         Console::write_byte((value / 1000 % 10 + 48) as i32);
         transition { _ -> hundreds(main, value) }
     }
-    state check_hundreds(main: &mut Main, value: i32 in Wrapping) {
+    machine check_hundreds(main: &mut Main, value: i32 in Wrapping) {
         transition value >= 100 { true -> hundreds(main, value) _ -> check_tens(main, value) }
     }
-    state hundreds(main: &mut Main, value: i32 in Wrapping) {
+    machine hundreds(main: &mut Main, value: i32 in Wrapping) {
         Console::write_byte((value / 100 % 10 + 48) as i32);
         transition { _ -> tens(main, value) }
     }
-    state check_tens(main: &mut Main, value: i32 in Wrapping) {
+    machine check_tens(main: &mut Main, value: i32 in Wrapping) {
         transition value >= 10 { true -> tens(main, value) _ -> ones(main, value) }
     }
-    state tens(main: &mut Main, value: i32 in Wrapping) {
+    machine tens(main: &mut Main, value: i32 in Wrapping) {
         Console::write_byte((value / 10 % 10 + 48) as i32);
         transition { _ -> ones(main, value) }
     }
-    state ones(main: &mut Main, value: i32 in Wrapping) {
+    machine ones(main: &mut Main, value: i32 in Wrapping) {
         Console::write_byte((value % 10 + 48) as i32);
         Console::write_line("");
     }
@@ -48,14 +48,14 @@ machine Main::number(main: &mut Main, value: i32 in Wrapping) reaches Console {
 machine Main::main(main: &mut Main) reaches Console {
     Console::write_line("crossed_gauge_study: exact crossed random-effects sample; all numbers /32");
     transition { _ -> header(main) }
-    state header(main: &mut Main) {
+    machine header(main: &mut Main) {
         let byte: ByteRead = block Console::read_byte();
         transition byte {
             ByteRead::Byte { value } -> header_byte(main, value)
             _ -> invalid(main)
         }
     }
-    state header_byte(main: &mut Main, value: i32) {
+    machine header_byte(main: &mut Main, value: i32) {
         transition value {
             50 -> read(main, 0)
             49 -> insufficient(main)
@@ -65,55 +65,55 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> invalid(main)
         }
     }
-    state read(main: &mut Main, index: i32 in Wrapping) {
+    machine read(main: &mut Main, index: i32 in Wrapping) {
         let byte: ByteRead = block Console::read_byte();
         transition byte {
             ByteRead::Byte { value } -> token(main, index, value)
             ByteRead::Eof -> finish(main, index)
         }
     }
-    state token(main: &mut Main, index: i32 in Wrapping, value: i32) {
+    machine token(main: &mut Main, index: i32 in Wrapping, value: i32) {
         transition value == 32 || value == 10 || value == 13 {
             true -> read(main, index)
             _ -> extent(main, index, value)
         }
     }
-    state extent(main: &mut Main, index: i32 in Wrapping, value: i32) {
+    machine extent(main: &mut Main, index: i32 in Wrapping, value: i32) {
         transition index >= 0 && index < 8 {
             true -> measurement(main, index, value)
             _ -> invalid(main)
         }
     }
-    state measurement(main: &mut Main, index: i32 in Wrapping, value: i32) {
+    machine measurement(main: &mut Main, index: i32 in Wrapping, value: i32) {
         transition value >= 48 && value <= 57 {
             true -> store(main, index, value)
             _ -> missing(main, index, value)
         }
     }
-    state store(main: &mut Main, index: i32 in Wrapping, value: i32) {
+    machine store(main: &mut Main, index: i32 in Wrapping, value: i32) {
         main.study.values[index] = (value as i32 in Wrapping) - 48;
         main.study.present[index] = 1;
         transition { _ -> read(main, index + 1) }
     }
-    state missing(main: &mut Main, index: i32 in Wrapping, value: i32) {
+    machine missing(main: &mut Main, index: i32 in Wrapping, value: i32) {
         transition value == 109 {
             true -> absent(main, index)
             _ -> invalid(main)
         }
     }
-    state absent(main: &mut Main, index: i32 in Wrapping) {
+    machine absent(main: &mut Main, index: i32 in Wrapping) {
         main.study.values[index] = 0;
         main.study.present[index] = 0;
         transition { _ -> read(main, index + 1) }
     }
-    state finish(main: &mut Main, index: i32 in Wrapping) {
+    machine finish(main: &mut Main, index: i32 in Wrapping) {
         transition index == 8 { true -> analyze(main) _ -> invalid(main) }
     }
-    state analyze(main: &mut Main) {
+    machine analyze(main: &mut Main) {
         let status: i32 = study::model::analyze(&mut main.study);
         transition status { 0 -> report(main) 3 -> missing_cell(main) 5 -> insufficient(main) _ -> unequal(main) }
     }
-    state report(main: &mut Main) {
+    machine report(main: &mut Main) {
         Console::write_line("identifiable: parts=2 operators=2 repeats=2; df=1,1,1,4 total=7");
         Console::write("ss_part=");
         let part_sum_of_squares: i32 in Wrapping = main.study.part;
@@ -160,19 +160,19 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("interaction: retained; negative components clamped individually; no pooling");
         Console::exit_process(0);
     }
-    state invalid(main: &mut Main) {
+    machine invalid(main: &mut Main) {
         Console::write_line("invalid input: expected header 2 and exactly eight digit/m slots");
         Console::exit_process(2);
     }
-    state insufficient(main: &mut Main) {
+    machine insufficient(main: &mut Main) {
         Console::write_line("not identifiable: one repeat cannot separate interaction from repeatability");
         Console::exit_process(5);
     }
-    state missing_cell(main: &mut Main) {
+    machine missing_cell(main: &mut Main) {
         Console::write_line("not identifiable: missing part/operator cell; balanced ANOVA refused");
         Console::exit_process(3);
     }
-    state unequal(main: &mut Main) {
+    machine unequal(main: &mut Main) {
         Console::write_line("not identifiable: unequal replication; balanced ANOVA refused");
         Console::exit_process(4);
     }

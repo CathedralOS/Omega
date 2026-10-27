@@ -5,14 +5,14 @@ machine main() crashes Trap {
     first.value = 7;
     let mut second: Record = Record { value: 8 };
     transition { _ -> consume(&mut first, &mut second) }
-    state consume(first: &mut Record, second: &mut Record) {
+    machine consume(first: &mut Record, second: &mut Record) {
         update(first);
         second.array[0] = first.value;
         transition { _ -> observe(first, second) }
     }
-    state observe(first: &Record, second: &Record) {
+    machine observe(first: &Record, second: &Record) {
         transition first.value == 9 && second.array[0] == 9 && second.value == 8 { true -> done() false -> bad() }
     }
-    state done() { }
-    state bad() { crash Trap; }
+    machine done() { }
+    machine bad() { crash Trap; }
 }

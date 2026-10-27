@@ -22,6 +22,6 @@ machine Main::apply(main: &mut Main, m: Msg) {
         Msg::Move { dx as step } if step == 30 -> good(main, step)
         _ -> bad(main)
     }
-    state good(main: &mut Main, step: i32) requires step >= 0 && step <= 50 { let code: i32 = step + 40; Console::exit_process(code); }
-    state bad(main: &mut Main) { Console::exit_process(1); }
+    machine good(main: &mut Main, step: i32) requires step >= 0 && step <= 50 { let code: i32 = step + 40; Console::exit_process(code); }
+    machine bad(main: &mut Main) { Console::exit_process(1); }
 }

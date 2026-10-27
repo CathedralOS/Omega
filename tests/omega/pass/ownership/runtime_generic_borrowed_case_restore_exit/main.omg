@@ -12,7 +12,7 @@ machine try_transform<'storage>(envelope: Envelope<&'storage i32>, succeed: bool
         true -> success(envelope)
         false -> Attempt::Failure { envelope: envelope }
     }
-    state success(envelope: Envelope<&'storage i32>) -> Attempt<&'storage i32> {
+    machine success(envelope: Envelope<&'storage i32>) -> Attempt<&'storage i32> {
         let value: u64 = envelope.value;
         let reference: &'storage i32 = envelope.reference;
         drop(envelope);
@@ -54,6 +54,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -13,6 +13,6 @@ machine forward(index: Index) -> u32 { Supplied::get(index) }
 machine main() crashes Trap {
     let observed: u32 = forward(Index { value: 1 });
     transition observed == 11 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

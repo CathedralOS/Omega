@@ -12,7 +12,7 @@ machine append<'storage>(output: &mut Matches<'storage>, value: i32) -> bool {
         true -> store(output, value)
         false -> false
     }
-    state store(output: &mut Matches<'storage>, value: i32) -> bool
+    machine store(output: &mut Matches<'storage>, value: i32) -> bool
     requires output.count < output.values.len {
         output.values[output.count] = value;
         output.count = output.count + 1;
@@ -34,21 +34,21 @@ Tagged<'storage> satisfies Visitor<Matches<'storage>> {
 
 machine scan<'storage>(visitor: dyn Visitor<Matches<'storage>>, input: &[i32], output: &mut Matches<'storage>) -> u64 {
     transition { _ -> next(visitor, input, output, 0) }
-    state next(visitor: dyn Visitor<Matches<'storage>>, input: &[i32], output: &mut Matches<'storage>, position: u64) -> u64
+    machine next(visitor: dyn Visitor<Matches<'storage>>, input: &[i32], output: &mut Matches<'storage>, position: u64) -> u64
     requires position <= input.len {
         transition position < input.len {
             true -> inspect(visitor, input, output, position)
             false -> output.count
         }
     }
-    state inspect(visitor: dyn Visitor<Matches<'storage>>, input: &[i32], output: &mut Matches<'storage>, position: u64) -> u64
+    machine inspect(visitor: dyn Visitor<Matches<'storage>>, input: &[i32], output: &mut Matches<'storage>, position: u64) -> u64
     requires position < input.len {
         transition input[position] > 0 {
             true -> emit(visitor, input, output, position)
             false -> next(visitor, input, output, position + 1)
         }
     }
-    state emit(visitor: dyn Visitor<Matches<'storage>>, input: &[i32], output: &mut Matches<'storage>, position: u64) -> u64
+    machine emit(visitor: dyn Visitor<Matches<'storage>>, input: &[i32], output: &mut Matches<'storage>, position: u64) -> u64
     requires position < input.len {
         let accepted: bool = Visitor::emit(visitor, output, input[position]);
         transition accepted {
@@ -78,6 +78,6 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

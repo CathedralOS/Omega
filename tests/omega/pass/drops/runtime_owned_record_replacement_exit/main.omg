@@ -5,12 +5,12 @@ machine main() crashes Trap {
     token = Token { value: 9 };
     let observed: u64 = token.value;
     transition { _ -> observe(observed) }
-    state observe(observed: u64) {
+    machine observe(observed: u64) {
         transition observed == 9 {
             true -> done()
             false -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

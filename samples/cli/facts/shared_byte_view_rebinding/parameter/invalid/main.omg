@@ -14,8 +14,8 @@ requires original.len == 1 && replacement.len == 1 {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine from_parameter(selected: &[u8], replacement: &[u8]) -> u8
 requires selected.len == 1 && replacement.len == 1 { replace(selected, replacement) }

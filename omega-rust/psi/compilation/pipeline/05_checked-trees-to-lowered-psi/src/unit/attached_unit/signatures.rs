@@ -31,6 +31,7 @@ pub(crate) struct MachineSignature {
     pub source: SymbolHandle,
     pub parameters: Vec<StructuralParameterDeclaration>,
     pub scalar_parameters: Vec<ValueDeclaration>,
+    pub parameter_order: Vec<terminal_psi::BoundaryParameterKind>,
     /// The declared scalar result, tags included, for a body that completes
     /// with a scalar; a scalar call's result value republishes this type.
     pub scalar_result: Option<semantic_vocabulary::QualifiedScalarType>,
@@ -157,6 +158,10 @@ pub(super) fn lower(
             source: plan.machine,
             parameters,
             scalar_parameters,
+            parameter_order: super::parameters::lower_runtime_parameter_order(
+                plan.scalar_parameters,
+                plan.structural_parameters,
+            )?,
             scalar_result,
             erased_scalar_parameters,
             erased_proof_parameters,

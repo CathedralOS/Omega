@@ -7,10 +7,10 @@ machine maybe_replace<'a>(choice: bool, holder: &mut Holder<'a>, replacement: &'
         true -> write(holder, replacement)
         false -> done()
     }
-    state write(holder: &mut Holder<'a>, replacement: &'a u64) {
+    machine write(holder: &mut Holder<'a>, replacement: &'a u64) {
         holder.value = replacement;
     }
-    state done() {}
+    machine done() {}
 }
 
 machine selected(choice: bool) -> bool {
@@ -33,6 +33,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

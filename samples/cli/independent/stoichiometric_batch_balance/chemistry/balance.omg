@@ -69,7 +69,7 @@ requires window.len >= 1 {
 
 machine divisor(left: i64 in Wrapping, right: i64 in Wrapping) -> i64 in Wrapping {
     transition { _ -> reduce(left, right) }
-    state reduce(left: i64 in Wrapping, right: i64 in Wrapping) -> i64 in Wrapping {
+    machine reduce(left: i64 in Wrapping, right: i64 in Wrapping) -> i64 in Wrapping {
         transition right != 0 {
             true -> reduce(right, left % right)
             false -> left
@@ -92,13 +92,13 @@ machine solve(reaction: &chemistry::model::Reaction, result: &mut chemistry::mod
     result.solutions = 0;
     result.sum = 33;
     transition { _ -> scan(reaction, result, 0) }
-    state scan(reaction: &chemistry::model::Reaction, result: &mut chemistry::model::Balance, ordinal: i64 in Wrapping) {
+    machine scan(reaction: &chemistry::model::Reaction, result: &mut chemistry::model::Balance, ordinal: i64 in Wrapping) {
         transition ordinal < 4096 {
             true -> decode(reaction, result, ordinal)
             false -> done()
         }
     }
-    state decode(reaction: &chemistry::model::Reaction, result: &mut chemistry::model::Balance, ordinal: i64 in Wrapping) {
+    machine decode(reaction: &chemistry::model::Reaction, result: &mut chemistry::model::Balance, ordinal: i64 in Wrapping) {
         let coefficient_first: i64 in Wrapping = ordinal / 512 + 1;
         let coefficient_second: i64 in Wrapping = (ordinal / 64) % 8 + 1;
         let coefficient_third: i64 in Wrapping = (ordinal / 8) % 8 + 1;
@@ -108,25 +108,25 @@ machine solve(reaction: &chemistry::model::Reaction, result: &mut chemistry::mod
             false -> scan(reaction, result, ordinal + 1)
         }
     }
-    state fourth(reaction: &chemistry::model::Reaction, result: &mut chemistry::model::Balance, ordinal: i64 in Wrapping, coefficient_first: i64 in Wrapping, coefficient_second: i64 in Wrapping, coefficient_third: i64 in Wrapping, coefficient_fourth: i64 in Wrapping) {
+    machine fourth(reaction: &chemistry::model::Reaction, result: &mut chemistry::model::Balance, ordinal: i64 in Wrapping, coefficient_first: i64 in Wrapping, coefficient_second: i64 in Wrapping, coefficient_third: i64 in Wrapping, coefficient_fourth: i64 in Wrapping) {
         transition reaction.species == 3 {
             true -> absent(reaction, result, ordinal, coefficient_first, coefficient_second, coefficient_third, coefficient_fourth)
             false -> present(reaction, result, ordinal, coefficient_first, coefficient_second, coefficient_third, coefficient_fourth)
         }
     }
-    state absent(reaction: &chemistry::model::Reaction, result: &mut chemistry::model::Balance, ordinal: i64 in Wrapping, coefficient_first: i64 in Wrapping, coefficient_second: i64 in Wrapping, coefficient_third: i64 in Wrapping, coefficient_fourth: i64 in Wrapping) {
+    machine absent(reaction: &chemistry::model::Reaction, result: &mut chemistry::model::Balance, ordinal: i64 in Wrapping, coefficient_first: i64 in Wrapping, coefficient_second: i64 in Wrapping, coefficient_third: i64 in Wrapping, coefficient_fourth: i64 in Wrapping) {
         transition coefficient_fourth == 1 {
             true -> consider(reaction, result, ordinal, coefficient_first, coefficient_second, coefficient_third, 0)
             false -> scan(reaction, result, ordinal + 1)
         }
     }
-    state present(reaction: &chemistry::model::Reaction, result: &mut chemistry::model::Balance, ordinal: i64 in Wrapping, coefficient_first: i64 in Wrapping, coefficient_second: i64 in Wrapping, coefficient_third: i64 in Wrapping, coefficient_fourth: i64 in Wrapping) {
+    machine present(reaction: &chemistry::model::Reaction, result: &mut chemistry::model::Balance, ordinal: i64 in Wrapping, coefficient_first: i64 in Wrapping, coefficient_second: i64 in Wrapping, coefficient_third: i64 in Wrapping, coefficient_fourth: i64 in Wrapping) {
         transition coefficient_fourth <= reaction.bound {
             true -> consider(reaction, result, ordinal, coefficient_first, coefficient_second, coefficient_third, coefficient_fourth)
             false -> scan(reaction, result, ordinal + 1)
         }
     }
-    state consider(reaction: &chemistry::model::Reaction, result: &mut chemistry::model::Balance, ordinal: i64 in Wrapping, coefficient_first: i64 in Wrapping, coefficient_second: i64 in Wrapping, coefficient_third: i64 in Wrapping, coefficient_fourth: i64 in Wrapping) {
+    machine consider(reaction: &chemistry::model::Reaction, result: &mut chemistry::model::Balance, ordinal: i64 in Wrapping, coefficient_first: i64 in Wrapping, coefficient_second: i64 in Wrapping, coefficient_third: i64 in Wrapping, coefficient_fourth: i64 in Wrapping) {
         let signature: chemistry::model::Signature = signature_of(reaction.species, coefficient_first, coefficient_second, coefficient_third, coefficient_fourth);
         let pair: i64 in Wrapping = divisor(coefficient_first, coefficient_second);
         let triple: i64 in Wrapping = divisor(pair, coefficient_third);
@@ -142,7 +142,7 @@ machine solve(reaction: &chemistry::model::Reaction, result: &mut chemistry::mod
             false -> scan(reaction, result, ordinal + 1)
         }
     }
-    state accept(reaction: &chemistry::model::Reaction, result: &mut chemistry::model::Balance, ordinal: i64 in Wrapping, coefficient_first: i64 in Wrapping, coefficient_second: i64 in Wrapping, coefficient_third: i64 in Wrapping, coefficient_fourth: i64 in Wrapping) {
+    machine accept(reaction: &chemistry::model::Reaction, result: &mut chemistry::model::Balance, ordinal: i64 in Wrapping, coefficient_first: i64 in Wrapping, coefficient_second: i64 in Wrapping, coefficient_third: i64 in Wrapping, coefficient_fourth: i64 in Wrapping) {
         result.solutions = result.solutions + 1;
         let sum: i64 in Wrapping = coefficient_first + coefficient_second + coefficient_third + coefficient_fourth;
         transition sum < result.sum {
@@ -150,7 +150,7 @@ machine solve(reaction: &chemistry::model::Reaction, result: &mut chemistry::mod
             false -> scan(reaction, result, ordinal + 1)
         }
     }
-    state select(reaction: &chemistry::model::Reaction, result: &mut chemistry::model::Balance, ordinal: i64 in Wrapping, coefficient_first: i64 in Wrapping, coefficient_second: i64 in Wrapping, coefficient_third: i64 in Wrapping, coefficient_fourth: i64 in Wrapping, sum: i64 in Wrapping) {
+    machine select(reaction: &chemistry::model::Reaction, result: &mut chemistry::model::Balance, ordinal: i64 in Wrapping, coefficient_first: i64 in Wrapping, coefficient_second: i64 in Wrapping, coefficient_third: i64 in Wrapping, coefficient_fourth: i64 in Wrapping, sum: i64 in Wrapping) {
         result.coefficients[0] = coefficient_first;
         result.coefficients[1] = coefficient_second;
         result.coefficients[2] = coefficient_third;
@@ -158,5 +158,5 @@ machine solve(reaction: &chemistry::model::Reaction, result: &mut chemistry::mod
         result.sum = sum;
         transition { _ -> scan(reaction, result, ordinal + 1) }
     }
-    state done() { }
+    machine done() { }
 }

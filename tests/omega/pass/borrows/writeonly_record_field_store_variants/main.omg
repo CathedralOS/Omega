@@ -25,18 +25,18 @@ machine Main::main(main: &mut Main) reaches Console {
     r.tag = 3;
     transition main.node.inner.value == 7 { true -> later(main) _ -> bad(main) }
 
-    state later(main: &mut Main) {
+    machine later(main: &mut Main) {
         let n: &write Node = &write main.node;
         n.count = 11;
         n.inner.tag = 5;
         transition main.node.count == 11 && main.node.inner.tag == 5 { true -> done(main) _ -> bad(main) }
     }
 
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         Console::exit_process(181);
     }
 
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::exit_process(71);
     }
 }

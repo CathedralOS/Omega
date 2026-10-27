@@ -14,11 +14,11 @@ data Picker {}
 data Main { picker: Picker; tally: Tally; v: i32; }
 machine Picker::pick(x: i32, tally: &mut Tally) -> i32 {
     transition x > 0 { true -> hi(tally) _ -> lo(tally) }
-    state hi(tally: &mut Tally) -> i32 {
+    machine hi(tally: &mut Tally) -> i32 {
         tally.count = tally.count + 1;
         100
     }
-    state lo(tally: &mut Tally) -> i32 {
+    machine lo(tally: &mut Tally) -> i32 {
         tally.count = tally.count + 10;
         200
     }
@@ -27,8 +27,8 @@ machine Main::main(main: &mut Main) reaches Console {
     main.v = 5;
     let n: i32 = Picker::pick(main.v, &mut main.tally);
     transition n == 100 { true -> report(main) _ -> bad(main, 99) }
-    state report(main: &mut Main) { Console::exit_process(main.tally.count as i32); }
-    state bad(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine report(main: &mut Main) { Console::exit_process(main.tally.count as i32); }
+    machine bad(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

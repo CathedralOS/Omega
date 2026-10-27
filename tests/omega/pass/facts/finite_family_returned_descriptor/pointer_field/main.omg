@@ -19,6 +19,6 @@ machine main() crashes Trap {
  let packet: Packet = Packet { bytes: &source };
  let result: Packet = dispatch(selected, &packet, 16);
  transition result.bytes == 11 { true -> done() false -> bad() }
- state done() {}
- state bad() { crash Trap; }
+ machine done() {}
+ machine bad() { crash Trap; }
 }

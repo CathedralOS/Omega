@@ -171,6 +171,24 @@ fn package_batches_carry_owners_instead_of_parallel_result_tables() {
 }
 
 #[test]
+fn terminal_cohorts_retain_admitted_applications() {
+    let source = include_str!("terminal/terminal_artifact.rs");
+    assert!(source.contains("struct AdmittedTerminalApplication"));
+    for forbidden in [
+        "requests[",
+        "entries[",
+        "results[",
+        "Vec<Vec<usize>>",
+        "unwrap_or_else(|_| target::TargetProfile::host())",
+    ] {
+        assert!(
+            !source.contains(forbidden),
+            "cohort reconstructs {forbidden}"
+        );
+    }
+}
+
+#[test]
 fn components_use_the_shared_product_sequence() {
     for source in [
         include_str!("checked/package_compilation.rs"),
@@ -185,6 +203,21 @@ fn components_use_the_shared_product_sequence() {
     assert!(!component.contains("TerminalProductionRequest"));
     assert!(component.contains("finish_terminal_application("));
     assert!(component.contains("accepted_terminal_authority_permission_policy("));
+    let (preparation, completion) = component
+        .split_once("pub(crate) fn finish(")
+        .expect("component preparation precedes completion");
+    assert!(preparation.contains("component_calling_applications("));
+    assert!(!completion.contains("component_calling_applications("));
+    let terminal = include_str!("terminal/terminal_artifact.rs");
+    let completion = terminal
+        .split_once("pub(crate) fn finish_terminal_application(")
+        .expect("retained application completion")
+        .1
+        .split_once("fn publish_target_providers(")
+        .expect("provider publication")
+        .0;
+    assert!(!completion.contains("program.typed"));
+    assert!(!completion.contains("component_calling_applications("));
     assert!(!include_str!("lib.rs").contains("publish_checked_component"));
     assert!(!include_str!("compiler.rs").contains("mod package"));
 }

@@ -15,14 +15,14 @@ machine direct(outcome: Outcome) -> u64 {
         Outcome::Ready { item } -> consume(item)
         Outcome::Empty -> (0)
     }
-    state consume(item: Item in Positive) -> u64 { item.value }
+    machine consume(item: Item in Positive) -> u64 { item.value }
 }
 machine nested(envelope: Envelope) -> u64 {
     transition envelope.outcome {
         Outcome::Ready { item } -> consume(item)
         Outcome::Empty -> (0)
     }
-    state consume(item: Item in Positive) -> u64 { item.value }
+    machine consume(item: Item in Positive) -> u64 { item.value }
 }
 machine main() crashes Trap {
     let local: Outcome = checked(41);
@@ -33,6 +33,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

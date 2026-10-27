@@ -322,10 +322,11 @@ impl TerminalNativeRealizationProposal {
         // Selection may reorder plans when executable direct dependencies
         // join. Rejoin complete plans, then derive every builtin in that one
         // namespace; no saved plan ordinal crosses this selection boundary.
-        let executions = selection
+        let non_intrinsic_execution = [None];
+        let intrinsic_provenance = selection
             .plans()
             .iter()
-            .map(|plan| {
+            .map(|plan| -> Result<_, Vec<Diagnostic>> {
                 if let Some(position) = self
                     .providers()
                     .selection
@@ -333,16 +334,20 @@ impl TerminalNativeRealizationProposal {
                     .iter()
                     .position(|original| original == plan)
                 {
-                    return self
+                    let row_executions = self
                         .providers()
                         .intrinsic_executions
                         .get(position)
-                        .cloned()
                         .ok_or_else(|| {
                             vec![Diagnostic::error(
                                 "native execution lost original intrinsic row custody",
                             )]
-                        });
+                        })?;
+                    return Ok(crate::provider_admission::CompilerIntrinsicPlanProvenance {
+                        plan,
+                        semantic_schema: &plan.schema,
+                        row_executions,
+                    });
                 }
                 let leaf = self
                     .providers()
@@ -354,25 +359,26 @@ impl TerminalNativeRealizationProposal {
                             "native execution has an unowned direct plan",
                         )]
                     })?;
-                Ok(vec![match leaf.execution {
-                    backend_plan::DirectBoundaryExecution::Intrinsic(identity) => identity,
-                    backend_plan::DirectBoundaryExecution::Foreign(_) => None,
-                }])
+                let row_executions: &[Option<effects::CompilerIntrinsicExecutionIdentity>] =
+                    match &leaf.execution {
+                        backend_plan::DirectBoundaryExecution::Intrinsic(identity) => {
+                            std::slice::from_ref(identity)
+                        }
+                        backend_plan::DirectBoundaryExecution::Foreign(_) => {
+                            &non_intrinsic_execution
+                        }
+                    };
+                Ok(crate::provider_admission::CompilerIntrinsicPlanProvenance {
+                    plan,
+                    semantic_schema: &leaf.satisfied_schema,
+                    row_executions,
+                })
             })
             .collect::<Result<Vec<_>, _>>()?;
         let compiler_builtins =
             crate::provider_admission::derive_selected_intrinsic_settlement_proposals(
                 &selection,
-                selection
-                    .plans()
-                    .iter()
-                    .zip(&executions)
-                    .map(|(plan, row_executions)| {
-                        crate::provider_admission::CompilerIntrinsicPlanProvenance {
-                            plan,
-                            row_executions,
-                        }
-                    }),
+                intrinsic_provenance.into_iter(),
                 &demands,
                 &module.boundary_machines,
                 &module.identities,

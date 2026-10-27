@@ -21,6 +21,6 @@ machine main() crashes Trap {
     let saved: f64 = read_kept(&item);
     transition agree(saved, item.kept) == KEPT { true -> done() _ -> bad() }
 
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

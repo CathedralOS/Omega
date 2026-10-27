@@ -17,7 +17,7 @@ machine inspect(checked: CheckedExtent) -> bool {
         CheckedExtent::Ready { extent } -> retained(extent)
         CheckedExtent::Rejected -> (false)
     }
-    state retained(extent: Extent in Nonempty) -> bool {
+    machine retained(extent: Extent in Nonempty) -> bool {
         extent.base == 4096 && extent.length == 8192
     }
 }
@@ -27,7 +27,7 @@ machine inspect_nested(envelope: Envelope) -> bool {
         CheckedExtent::Ready { extent } -> retained(extent, envelope.stamp)
         CheckedExtent::Rejected -> (false)
     }
-    state retained(extent: Extent in Nonempty, stamp: u64) -> bool {
+    machine retained(extent: Extent in Nonempty, stamp: u64) -> bool {
         stamp == 17 && extent.base == 4096 && extent.length == 8192
     }
 }
@@ -43,6 +43,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

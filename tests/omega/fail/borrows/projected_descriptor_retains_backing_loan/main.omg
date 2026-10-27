@@ -10,10 +10,10 @@ machine main() crashes Trap {
         true -> inspect(&envelope)
         false -> done()
     }
-    state inspect(envelope: &Envelope)
+    machine inspect(envelope: &Envelope)
     requires envelope.window.cells.len > 1
     {
         let observed: i32 = envelope.window.cells[1].value;
     }
-    state done() {}
+    machine done() {}
 }

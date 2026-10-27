@@ -20,22 +20,22 @@ satisfies WindowsFilesystemHost::lock_file {
         true -> flags(duplicate, exclusive, nonblocking)
         false -> (WindowsFilesystemNativeProvider::failure_i32())
     }
-    state flags(duplicate: i64 in WindowsSynchronousFileOrAbsent, exclusive: bool, nonblocking: bool) -> i32
+    machine flags(duplicate: i64 in WindowsSynchronousFileOrAbsent, exclusive: bool, nonblocking: bool) -> i32
     requires duplicate != 0 {
         transition exclusive {
             true -> exclusive_mode(duplicate, nonblocking)
             false -> shared_mode(duplicate, nonblocking)
         }
     }
-    state exclusive_mode(duplicate: i64 in WindowsSynchronousFileOrAbsent, nonblocking: bool) -> i32
+    machine exclusive_mode(duplicate: i64 in WindowsSynchronousFileOrAbsent, nonblocking: bool) -> i32
     requires duplicate != 0 {
         transition nonblocking { true -> acquire(duplicate, 3) false -> acquire(duplicate, 2) }
     }
-    state shared_mode(duplicate: i64 in WindowsSynchronousFileOrAbsent, nonblocking: bool) -> i32
+    machine shared_mode(duplicate: i64 in WindowsSynchronousFileOrAbsent, nonblocking: bool) -> i32
     requires duplicate != 0 {
         transition nonblocking { true -> acquire(duplicate, 1) false -> acquire(duplicate, 0) }
     }
-    state acquire(duplicate: i64 in WindowsSynchronousFileOrAbsent, flags: u32) -> i32
+    machine acquire(duplicate: i64 in WindowsSynchronousFileOrAbsent, flags: u32) -> i32
     requires duplicate != 0 && flags <= 3 {
         let mut request: WindowsNativeLockRequest;
         let succeeded: i32 = block WindowsFilesystemLockIo::acquire(duplicate, flags, 0, 4294967295, 4294967295, &mut request);
@@ -51,7 +51,7 @@ satisfies WindowsFilesystemHost::unlock_file {
         true -> release(duplicate)
         false -> (WindowsFilesystemNativeProvider::failure_i32())
     }
-    state release(duplicate: i64 in WindowsSynchronousFileOrAbsent) -> i32
+    machine release(duplicate: i64 in WindowsSynchronousFileOrAbsent) -> i32
     requires duplicate != 0 {
         let succeeded: i32 = block WindowsFilesystemLockIo::release(duplicate, 0, 0, 4294967295, 4294967295);
         let status: i32 = WindowsFilesystemNativeProvider::completion_status(succeeded);

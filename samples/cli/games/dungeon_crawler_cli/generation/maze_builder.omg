@@ -38,7 +38,7 @@ machine MazeBuilder::build(
     }
 
 
-    state build_main_hall_1(
+    machine build_main_hall_1(
         maze_builder: &mut MazeBuilder,
         level: &mut Level,
         random: &mut RandomState
@@ -50,7 +50,7 @@ machine MazeBuilder::build(
         }
     }
 
-    state maybe_side_room_1(
+    machine maybe_side_room_1(
         maze_builder: &mut MazeBuilder,
         level: &mut Level,
         random: &mut RandomState
@@ -61,7 +61,7 @@ machine MazeBuilder::build(
         }
     }
 
-    state build_side_room_1(
+    machine build_side_room_1(
         maze_builder: &mut MazeBuilder,
         level: &mut Level,
         random: &mut RandomState
@@ -73,7 +73,7 @@ machine MazeBuilder::build(
         }
     }
 
-    state build_main_hall_2(
+    machine build_main_hall_2(
         maze_builder: &mut MazeBuilder,
         level: &mut Level,
         random: &mut RandomState
@@ -85,7 +85,7 @@ machine MazeBuilder::build(
         }
     }
 
-    state maybe_side_room_2(
+    machine maybe_side_room_2(
         maze_builder: &mut MazeBuilder,
         level: &mut Level,
         random: &mut RandomState
@@ -96,7 +96,7 @@ machine MazeBuilder::build(
         }
     }
 
-    state build_side_room_2(
+    machine build_side_room_2(
         maze_builder: &mut MazeBuilder,
         level: &mut Level,
         random: &mut RandomState
@@ -108,7 +108,7 @@ machine MazeBuilder::build(
         }
     }
 
-    state build_main_hall_3(
+    machine build_main_hall_3(
         maze_builder: &mut MazeBuilder,
         level: &mut Level,
         random: &mut RandomState
@@ -120,7 +120,7 @@ machine MazeBuilder::build(
         }
     }
 
-    state maybe_side_room_3(
+    machine maybe_side_room_3(
         maze_builder: &mut MazeBuilder,
         level: &mut Level,
         random: &mut RandomState
@@ -131,7 +131,7 @@ machine MazeBuilder::build(
         }
     }
 
-    state build_side_room_3(
+    machine build_side_room_3(
         maze_builder: &mut MazeBuilder,
         level: &mut Level,
         random: &mut RandomState
@@ -143,7 +143,7 @@ machine MazeBuilder::build(
         }
     }
 
-    state build_main_hall_4(
+    machine build_main_hall_4(
         maze_builder: &mut MazeBuilder,
         level: &mut Level,
         random: &mut RandomState

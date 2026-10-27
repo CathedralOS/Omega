@@ -38,7 +38,7 @@ machine constructed(first: u64, second: u64) -> u64 {
 machine handed_off(first: u64, second: u64) -> u64 {
     let result: Payload = supply(first, second).first;
     transition { _ -> after(result) }
-    state after(result: Payload) -> u64 { result.right }
+    machine after(result: Payload) -> u64 { result.right }
 }
 
 machine argument(first: u64, second: u64) -> u64 {
@@ -55,6 +55,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

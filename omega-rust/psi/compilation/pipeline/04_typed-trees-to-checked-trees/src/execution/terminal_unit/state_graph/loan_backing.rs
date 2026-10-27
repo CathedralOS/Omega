@@ -348,9 +348,7 @@ fn retained_parents(
         let retained = shared_leaf_lifetime_roots(program, facts, capture, path)
             .ok_or("state loan parents: captured reference leaves have no resources")?;
         for root in retained {
-            if !shared_backings.contains(&root) {
-                shared_backings.push(root);
-            }
+            crate::collections::push_unique(&mut shared_backings, root);
         }
     }
     if roots.is_empty() && shared_backings.is_empty() && address_source.is_none() {
@@ -498,9 +496,7 @@ fn retained_parents(
             continue;
         };
         let relation = (dependent, parent);
-        if !parents.contains(&relation) {
-            parents.push(relation);
-        }
+        crate::collections::push_unique(&mut parents, relation);
     }
     Ok((parents, operand_parents))
 }

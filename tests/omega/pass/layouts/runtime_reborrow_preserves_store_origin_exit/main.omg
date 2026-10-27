@@ -69,8 +69,8 @@ machine Main::main(context: &mut Main) reaches Console {
         true -> done(context)
         _ -> bad(context)
     }
-    state done(context: &mut Main) { Console::exit_process(70); }
-    state bad(context: &mut Main) { Console::exit_process(71); }
+    machine done(context: &mut Main) { Console::exit_process(70); }
+    machine bad(context: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

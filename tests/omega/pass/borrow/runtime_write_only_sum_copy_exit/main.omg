@@ -9,20 +9,20 @@ machine Main::main(main: &mut Main) crashes Trap {
         Reading::Pair { first, second } -> pair(main, first, second)
         _ -> bad()
     }
-    state pair(main: &mut Main, first: i64, second: i64) {
+    machine pair(main: &mut Main, first: i64, second: i64) {
         transition first == 11 && second == 23 {
             true -> clear(main)
             _ -> bad()
         }
     }
-    state clear(main: &mut Main) {
+    machine clear(main: &mut Main) {
         replace(&write main.reading, Reading::Empty);
         transition main.reading {
             Reading::Empty -> refill(main)
             _ -> bad()
         }
     }
-    state refill(main: &mut Main) {
+    machine refill(main: &mut Main) {
         let incoming: Reading = Reading::Single { value: -17 };
         replace(&write main.reading, incoming);
         transition main.reading {
@@ -30,14 +30,14 @@ machine Main::main(main: &mut Main) crashes Trap {
             _ -> bad()
         }
     }
-    state check(main: &mut Main, value: i64) {
+    machine check(main: &mut Main, value: i64) {
         transition value == -17 && main.neighbor == 85 {
             true -> done()
             _ -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

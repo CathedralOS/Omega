@@ -11,7 +11,7 @@ requires lhs >= 10i16 && lhs <= 21i16 && rhs >= 5i16 && rhs <= 10i16
     transition {
         _ -> step(prod_sat as i16)
     }
-    state step(prod: i16) -> i32
+    machine step(prod: i16) -> i32
     requires prod >= 50i16 && prod <= 200i16
     {
         let headroom: i16 = 200i16 - prod;
@@ -29,6 +29,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

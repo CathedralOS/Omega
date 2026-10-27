@@ -12,7 +12,7 @@ machine load_case(problem: &mut Problem, selector: i32) {
         7 -> case_7(problem)
         _ -> done()
     }
-    state case_0(problem: &mut Problem) {
+    machine case_0(problem: &mut Problem) {
         problem.horizon = 4;
         problem.initial = 3;
         problem.target = 0;
@@ -26,7 +26,7 @@ machine load_case(problem: &mut Problem, selector: i32) {
         problem.drift = 0;
         problem.exact_terminal = false;
     }
-    state case_1(problem: &mut Problem) {
+    machine case_1(problem: &mut Problem) {
         problem.horizon = 4;
         problem.initial = 0;
         problem.target = 3;
@@ -40,7 +40,7 @@ machine load_case(problem: &mut Problem, selector: i32) {
         problem.drift = 0;
         problem.exact_terminal = false;
     }
-    state case_2(problem: &mut Problem) {
+    machine case_2(problem: &mut Problem) {
         problem.horizon = 2;
         problem.initial = 0;
         problem.target = 0;
@@ -54,7 +54,7 @@ machine load_case(problem: &mut Problem, selector: i32) {
         problem.drift = 0;
         problem.exact_terminal = false;
     }
-    state case_3(problem: &mut Problem) {
+    machine case_3(problem: &mut Problem) {
         problem.horizon = 2;
         problem.initial = 0;
         problem.target = 3;
@@ -68,7 +68,7 @@ machine load_case(problem: &mut Problem, selector: i32) {
         problem.drift = 0;
         problem.exact_terminal = true;
     }
-    state case_4(problem: &mut Problem) {
+    machine case_4(problem: &mut Problem) {
         problem.horizon = 5;
         problem.initial = 0;
         problem.target = 1;
@@ -82,7 +82,7 @@ machine load_case(problem: &mut Problem, selector: i32) {
         problem.drift = 1;
         problem.exact_terminal = true;
     }
-    state case_5(problem: &mut Problem) {
+    machine case_5(problem: &mut Problem) {
         problem.horizon = 3;
         problem.initial = 0;
         problem.target = 0;
@@ -96,7 +96,7 @@ machine load_case(problem: &mut Problem, selector: i32) {
         problem.drift = 1;
         problem.exact_terminal = false;
     }
-    state case_6(problem: &mut Problem) {
+    machine case_6(problem: &mut Problem) {
         problem.horizon = 6;
         problem.initial = 0;
         problem.target = 0;
@@ -110,7 +110,7 @@ machine load_case(problem: &mut Problem, selector: i32) {
         problem.drift = 0;
         problem.exact_terminal = false;
     }
-    state case_7(problem: &mut Problem) {
+    machine case_7(problem: &mut Problem) {
         problem.horizon = 3;
         problem.initial = 0;
         problem.target = 0;
@@ -124,5 +124,5 @@ machine load_case(problem: &mut Problem, selector: i32) {
         problem.drift = 0;
         problem.exact_terminal = false;
     }
-    state done() { }
+    machine done() { }
 }

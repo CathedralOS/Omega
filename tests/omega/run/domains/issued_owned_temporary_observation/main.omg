@@ -8,6 +8,6 @@ machine read() -> u64 { acquire(73).identity }
 machine main() crashes Trap {
     let identity: u64 = read();
     transition identity == 73 { true -> done() false -> wrong() }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

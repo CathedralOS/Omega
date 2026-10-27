@@ -207,9 +207,7 @@ pub(in crate::flow) fn completed_output_retention(
             if !known {
                 return None;
             }
-            if !roots.contains(&loan.root) {
-                roots.push(loan.root);
-            }
+            crate::collections::push_unique(&mut roots, loan.root);
         }
     }
     Some(roots)

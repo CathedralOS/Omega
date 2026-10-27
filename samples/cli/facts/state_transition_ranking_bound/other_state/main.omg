@@ -12,7 +12,7 @@ ensures result <= 60
         false -> step(current)
     }
 
-    state step(c: u64) -> u64
+    machine step(c: u64) -> u64
     requires c <= 100 && c > 60
     {
         let next: u64 = c - 10;
@@ -22,7 +22,7 @@ ensures result <= 60
         }
     }
 
-    state done(rem: u64) -> u64
+    machine done(rem: u64) -> u64
     requires rem <= 60
     {
         rem
@@ -33,7 +33,7 @@ machine probe() -> i32 {
     transition {
         _ -> step(ranked_loop(100u64))
     }
-    state step(rem: u64) -> i32
+    machine step(rem: u64) -> i32
     requires rem <= 60
     {
         let diff: u64 = 60u64 - rem;
@@ -46,6 +46,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -12,16 +12,16 @@ requires panels >= 1 && panels <= 320
     let divisor: f64 = panels as f64;
     let width: f64 = span / divisor;
     transition { _ -> panel(lower, width, panels, 0, 0.0, contrast, difference) }
-    state panel(lower: f64, width: f64, panels: u64, index: u64, sum: f64, contrast: f64, difference: bool) -> f64 {
+    machine panel(lower: f64, width: f64, panels: u64, index: u64, sum: f64, contrast: f64, difference: bool) -> f64 {
         transition index < panels {
             true -> bounded(lower, width, panels, index, sum, contrast, difference)
             false -> (sum)
         }
     }
-    state bounded(lower: f64, width: f64, panels: u64, index: u64, sum: f64, contrast: f64, difference: bool) -> f64 {
+    machine bounded(lower: f64, width: f64, panels: u64, index: u64, sum: f64, contrast: f64, difference: bool) -> f64 {
         transition index <= 320 { true -> evaluate(lower, width, panels, index, sum, contrast, difference) false -> (sum) }
     }
-    state evaluate(lower: f64, width: f64, panels: u64, index: u64, sum: f64, contrast: f64, difference: bool) -> f64
+    machine evaluate(lower: f64, width: f64, panels: u64, index: u64, sum: f64, contrast: f64, difference: bool) -> f64
     requires index <= 320
     {
         let position: f64 = index as f64;
@@ -42,7 +42,7 @@ machine kernel(x: f64, contrast: f64, difference: bool) -> f64 {
     let decay: f64 = exponential(0.0 - x);
     let numerator: f64 = x * x * x * decay;
     transition difference { true -> net(x, contrast, decay, numerator) false -> (numerator / (1.0 - decay)) }
-    state net(x: f64, contrast: f64, decay: f64, numerator: f64) -> f64 {
+    machine net(x: f64, contrast: f64, decay: f64, numerator: f64) -> f64 {
         let delta: f64 = x * contrast;
         let excess: f64 = one_minus_decay(delta);
         let denominator: f64 = (1.0 - decay) * (1.0 - decay + decay * excess);
@@ -55,15 +55,15 @@ machine kernel(x: f64, contrast: f64, difference: bool) -> f64 {
 // common integration coordinate, so delta is nonnegative.
 machine one_minus_decay(delta: f64) -> f64 {
     transition delta < 1.0 { true -> series(delta, delta, delta, 2.0, 2) false -> large(delta) }
-    state series(delta: f64, sum: f64, previous: f64, denominator: f64, count: u64) -> f64 {
+    machine series(delta: f64, sum: f64, previous: f64, denominator: f64, count: u64) -> f64 {
         let next: f64 = previous * (0.0 - delta) / denominator;
         let total: f64 = sum + next;
         transition count < 20 { true -> series(delta, total, next, denominator + 1.0, count + 1) false -> (total) }
     }
-    state large(delta: f64) -> f64 {
+    machine large(delta: f64) -> f64 {
         transition delta > 80.0 { true -> (1.0) false -> ordinary(delta) }
     }
-    state ordinary(delta: f64) -> f64 {
+    machine ordinary(delta: f64) -> f64 {
         let decay: f64 = exponential(0.0 - delta);
         1.0 - decay
     }
@@ -74,7 +74,7 @@ machine one_minus_decay(delta: f64) -> f64 {
 machine exponential(value: f64) -> f64 {
     let reduced: f64 = value / 128.0;
     transition { _ -> term(reduced, 1.0, 1.0, 1.0, 1) }
-    state term(reduced: f64, sum: f64, previous: f64, denominator: f64, count: u64) -> f64 {
+    machine term(reduced: f64, sum: f64, previous: f64, denominator: f64, count: u64) -> f64 {
         let next: f64 = previous * reduced / denominator;
         let total: f64 = sum + next;
         transition count < 20 {
@@ -82,7 +82,7 @@ machine exponential(value: f64) -> f64 {
             false -> square(total)
         }
     }
-    state square(value: f64) -> f64 {
+    machine square(value: f64) -> f64 {
         let power2: f64 = value * value;
         let power4: f64 = power2 * power2;
         let power8: f64 = power4 * power4;
@@ -95,20 +95,20 @@ machine exponential(value: f64) -> f64 {
 
 public machine band(temperature: f64, minimum: f64, maximum: f64, contrast: f64, difference: bool) -> f64 {
     transition temperature == 0.0 { true -> (0.0) false -> bounds(temperature, minimum, maximum, contrast, difference) }
-    state bounds(temperature: f64, minimum: f64, maximum: f64, contrast: f64, difference: bool) -> f64 {
+    machine bounds(temperature: f64, minimum: f64, maximum: f64, contrast: f64, difference: bool) -> f64 {
         let lower: f64 = 14387.768775039337 / (maximum * temperature);
         // Compute width directly: subtracting reciprocal endpoints needlessly
         // loses precision when the wavelength interval is narrow.
         let span: f64 = 14387.768775039337 * (maximum - minimum) / (minimum * maximum * temperature);
         transition lower >= 80.0 { true -> (0.0) false -> clamp(lower, span, contrast, difference) }
     }
-    state clamp(lower: f64, span: f64, contrast: f64, difference: bool) -> f64 {
+    machine clamp(lower: f64, span: f64, contrast: f64, difference: bool) -> f64 {
         transition lower + span > 80.0 { true -> partition(lower, 80.0 - lower, 1, contrast, difference) false -> partition(lower, span, 1, contrast, difference) }
     }
-    state partition(lower: f64, span: f64, panels: u64, contrast: f64, difference: bool) -> f64 {
+    machine partition(lower: f64, span: f64, panels: u64, contrast: f64, difference: bool) -> f64 {
         transition panels >= 1 && panels <= 320 { true -> resolved(lower, span, panels, contrast, difference) false -> (0.0) }
     }
-    state resolved(lower: f64, span: f64, panels: u64, contrast: f64, difference: bool) -> f64
+    machine resolved(lower: f64, span: f64, panels: u64, contrast: f64, difference: bool) -> f64
     requires panels >= 1 && panels <= 320
     {
         let count: f64 = panels as f64;
@@ -123,11 +123,11 @@ public machine net_exitance(emitter: f64, ambient: f64, minimum: f64, maximum: f
         emitter > ambient -> hotter(emitter, ambient, minimum, maximum, 1.0)
         _ -> hotter(ambient, emitter, minimum, maximum, -1.0)
     }
-    state absolute(temperature: f64, minimum: f64, maximum: f64) -> f64 {
+    machine absolute(temperature: f64, minimum: f64, maximum: f64) -> f64 {
         let result: f64 = band(temperature, minimum, maximum, 0.0, false);
         0.000000056703744191844294 * temperature * temperature * temperature * temperature * result / 6.4939394022668291
     }
-    state hotter(hot: f64, cold: f64, minimum: f64, maximum: f64, sign: f64) -> f64 {
+    machine hotter(hot: f64, cold: f64, minimum: f64, maximum: f64, sign: f64) -> f64 {
         let contrast: f64 = (hot - cold) / cold;
         let result: f64 = band(hot, minimum, maximum, contrast, true);
         sign * 0.000000056703744191844294 * hot * hot * hot * hot * result / 6.4939394022668291

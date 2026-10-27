@@ -32,26 +32,26 @@ windows_x86_64 machine WindowsFilesystemNativeProvider::read_link(path: &[u8] in
 satisfies WindowsFilesystemHost::read_link
 reaches FilesystemMetadataQuery {
     transition count > 0 && count <= output.len { true -> path(path, output, count) false -> (-87) }
-    state path(path: &[u8] in Path, output: &mut [u8], count: u64) -> i64 {
+    machine path(path: &[u8] in Path, output: &mut [u8], count: u64) -> i64 {
         let mut wide: [u16; 4096];
         let units: i64 = windows_wide_path(path, &mut wide);
         wide[4095] = 0;
         transition units > 0 { true -> open(wide, output, count) false -> (-87) }
     }
-    state open(path: [u16; 4096] in WindowsNativePath, output: &mut [u8], count: u64) -> i64 {
+    machine open(path: [u16; 4096] in WindowsNativePath, output: &mut [u8], count: u64) -> i64 {
         let handle: i64 in WindowsPrivateNonalertFileOrAbsent = block windows_open_reparse(&path);
         transition handle != 0 {
             true -> query(handle, output, count)
             false -> (WindowsFilesystemNativeProvider::failure_i64())
         }
     }
-    state query(handle: i64 in WindowsPrivateNonalertFileOrAbsent, output: &mut [u8], count: u64) -> i64
+    machine query(handle: i64 in WindowsPrivateNonalertFileOrAbsent, output: &mut [u8], count: u64) -> i64
     requires handle != 0 {
         let result: i64 = block windows_reparse_query(handle, output, count);
         let released: i32 = block WindowsFilesystemNativeProvider::close_handle(narrow_i64_to_u64_wrapping(handle as i64));
         transition result < 0 { true -> (result) false -> complete(result, released) }
     }
-    state complete(result: i64, released: i32) -> i64 {
+    machine complete(result: i64, released: i32) -> i64 {
         transition released < 0 { true -> (widen_i32_to_i64(released)) false -> (result) }
     }
 }
@@ -66,15 +66,15 @@ reaches FilesystemMetadataQuery {
         true -> decode(data, returned, output, count)
         false -> (WindowsFilesystemNativeProvider::failure_i64())
     }
-    state decode(data: WindowsNativeReparseData, returned: u32, output: &mut [u8], count: u64) -> i64 {
+    machine decode(data: WindowsNativeReparseData, returned: u32, output: &mut [u8], count: u64) -> i64 {
         let mut target: [u16; 8192];
         let units: i64 = windows_reparse_target(&data, returned, &mut target);
         transition units > 0 && units < 8192 { true -> encode(target, units, output, count) false -> failed_decode(units) }
     }
-    state failed_decode(units: i64) -> i64 {
+    machine failed_decode(units: i64) -> i64 {
         transition units < 0 { true -> (units) false -> (-31) }
     }
-    state encode(target: [u16; 8192], units: i64, output: &mut [u8], count: u64) -> i64
+    machine encode(target: [u16; 8192], units: i64, output: &mut [u8], count: u64) -> i64
     requires units > 0 && units < 8192 {
         let native_units: i32 = narrow_i64_to_i32_exact(units);
         let mut encoded: [u8; 24576];
@@ -84,7 +84,7 @@ reaches FilesystemMetadataQuery {
             false -> (WindowsFilesystemNativeProvider::failure_i64())
         }
     }
-    state extent(encoded: &[u8; 24576], written: i32, output: &mut [u8], count: u64) -> i64
+    machine extent(encoded: &[u8; 24576], written: i32, output: &mut [u8], count: u64) -> i64
     requires written > 0 {
         transition written <= 24576 {
             true -> (windows_reparse_copy_bytes(encoded, written, output, count))
@@ -100,15 +100,15 @@ requires written > 0 && written <= 24576 {
         true -> limit(source, length, output, count)
         false -> (-87)
     }
-    state limit(source: &[u8; 24576], length: u64, output: &mut [u8], count: u64) -> i64
+    machine limit(source: &[u8; 24576], length: u64, output: &mut [u8], count: u64) -> i64
     requires length <= 24576 && count <= output.len {
         transition length < count { true -> copy(source, output, length, 0) false -> copy(source, output, count, 0) }
     }
-    state copy(source: &[u8; 24576], output: &mut [u8], count: u64, position: u64) -> i64
+    machine copy(source: &[u8; 24576], output: &mut [u8], count: u64, position: u64) -> i64
     requires count <= 24576 && count <= output.len {
         transition position < count { true -> store(source, output, count, position) false -> (narrow_u64_to_i64_exact(count)) }
     }
-    state store(source: &[u8; 24576], output: &mut [u8], count: u64, position: u64) -> i64
+    machine store(source: &[u8; 24576], output: &mut [u8], count: u64, position: u64) -> i64
     requires count <= 24576 && count <= output.len && position < count {
         output[position] = source[position];
         transition { _ -> copy(source, output, count, position + 1) }

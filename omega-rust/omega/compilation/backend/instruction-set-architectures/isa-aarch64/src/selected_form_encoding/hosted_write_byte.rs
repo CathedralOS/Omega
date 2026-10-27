@@ -11,6 +11,7 @@ use super::{
     ValidatedAarch64SelectedFormEncoding,
 };
 use crate::immediate_offset::{MAX_ADDRESS_BYTES, address_words, decode_address_words};
+use crate::machine_effects::form_alternative;
 use crate::selected_form_encoding::selected_forms::resolve_registers;
 use register_model::RegisterConstraintKey;
 use register_model::RegisterViewId;
@@ -74,13 +75,9 @@ pub(crate) fn declaration(
         barrier: MachineBarrier::ExternalEffect,
         call: MachineCallEffect::NoneV1,
         cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey {
-                family: MachineAlternativeFamily::HostedWriteByteI32,
-                variant: 0,
-            },
-            applicability: MachineAlternativeApplicability::Always,
-            size: {
+        alternatives: form_alternative!(
+            MachineAlternativeFamily::HostedWriteByteI32,
+            {
                 let short = if target == NativeTarget::macos_arm64() {
                     40
                 } else {
@@ -91,9 +88,8 @@ pub(crate) fn declaration(
                     maximum_bytes: Some(short + MAX_ADDRESS_BYTES),
                 }
             },
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded: effects(target),
-        }],
+            effects(target)
+        ),
     }
 }
 
@@ -296,6 +292,7 @@ mod tests {
         NativeTarget, decode, effects, encode_aarch64_selected_hosted_write_byte_form,
         validate_aarch64_selected_hosted_write_byte_form,
     };
+    use crate::test_support::reject_every_bit_flip;
     use selected_instructions::{
         LocalStorageSlotId, MachineAlternativeFamily, MachineAlternativeKey,
         MachineEncodedStackEffect, SelectedInstructionKind,
@@ -356,23 +353,18 @@ mod tests {
                         encoded.footprint().encoded.stack,
                         MachineEncodedStackEffect::UnchangedV1
                     );
-                    for bit in 0..encoded.bytes().len() * 8 {
-                        let mut changed = encoded.bytes().to_vec();
-                        changed[bit / 8] ^= 1 << (bit % 8);
-                        assert!(
-                            validate_aarch64_selected_hosted_write_byte_form(
-                                target,
-                                &physical,
-                                kind,
-                                alternative,
-                                &operands,
-                                displacement,
-                                &changed
-                            )
-                            .is_err(),
-                            "encoded bit {bit}"
-                        );
-                    }
+                    reject_every_bit_flip(encoded.bytes(), &format!("{kind:?}"), |changed| {
+                        validate_aarch64_selected_hosted_write_byte_form(
+                            target,
+                            &physical,
+                            kind,
+                            alternative,
+                            &operands,
+                            displacement,
+                            &changed,
+                        )
+                        .is_err()
+                    });
                     assert!(
                         validate_aarch64_selected_hosted_write_byte_form(
                             target,

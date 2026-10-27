@@ -34,6 +34,21 @@ pub(crate) fn entry_contract_seeds(
     package_inputs: Option<&PackageCompilationInputs>,
     source_storage: &SourceStorage,
 ) -> Result<Vec<EntryContractSeed>, Vec<diagnostics::Diagnostic>> {
+    entry_contract_seeds_from_graphs(
+        package_inputs,
+        &package_inputs.into_iter().collect::<Vec<_>>(),
+        source_storage,
+    )
+}
+
+/// A paused query may see several settled dependency graphs before its own
+/// package exists. Supplier selection is the same operation as final assembly;
+/// only an already admitted root can contribute an accepted selection.
+pub(super) fn entry_contract_seeds_from_graphs(
+    original: Option<&PackageCompilationInputs>,
+    graphs: &[&PackageCompilationInputs],
+    source_storage: &SourceStorage,
+) -> Result<Vec<EntryContractSeed>, Vec<diagnostics::Diagnostic>> {
     let bundled_root = crate::source_imports::bundled_omega_root()?.join("std");
     let mut seeds = Vec::new();
     for profile in target::TargetProfile::ALL {
@@ -53,14 +68,22 @@ pub(crate) fn entry_contract_seeds(
         {
             continue;
         }
-        if let Some(seed) = contract_seed(
-            contract_package,
-            relative_source,
-            package_inputs,
-            &bundled_root,
-        ) {
-            seeds.push(seed);
-        }
+        let selected = EntryContractSource::select_from_graphs(contract_package, original, graphs);
+        let (root, closed_subtree) = match selected {
+            EntryContractSource::Bundled => (bundled_root.as_path(), true),
+            EntryContractSource::Package(package) => {
+                let Some(root) = graphs.iter().find_map(|graph| graph.package_root(package)) else {
+                    continue;
+                };
+                (root, false)
+            }
+            EntryContractSource::Unavailable => continue,
+        };
+        seeds.push(EntryContractSeed {
+            source: root.join(relative_source),
+            root: root.to_path_buf(),
+            closed_subtree,
+        });
     }
     Ok(seeds)
 }
@@ -81,19 +104,39 @@ impl EntryContractSource {
         contract: target::ProgramEntryPhysicalContractPackage,
         package_inputs: Option<&PackageCompilationInputs>,
     ) -> Self {
-        let Some(inputs) = package_inputs else {
-            return Self::Bundled;
-        };
-        let accepted_package = inputs
-            .accepted_semantic_binding(crate::program_entry_semantic_binding_role(contract))
+        Self::select_from_graphs(
+            contract,
+            package_inputs,
+            &package_inputs.into_iter().collect::<Vec<_>>(),
+        )
+    }
+
+    fn select_from_graphs(
+        contract: target::ProgramEntryPhysicalContractPackage,
+        original: Option<&PackageCompilationInputs>,
+        graphs: &[&PackageCompilationInputs],
+    ) -> Self {
+        let accepted_package = original
+            .and_then(|inputs| {
+                inputs
+                    .accepted_semantic_binding(crate::program_entry_semantic_binding_role(contract))
+            })
             .map(|binding| binding.package());
-        let filesystem = inputs.source_filesystem();
-        let mut suppliers = inputs
-            .packages()
-            .filter(|(_, root)| filesystem.is_file(&root.join(contract.package_relative_source())))
-            .map(|(identity, _)| identity)
+        let mut suppliers = graphs
+            .iter()
+            .flat_map(|inputs| {
+                inputs
+                    .packages()
+                    .filter(|(_, root)| {
+                        inputs
+                            .source_filesystem()
+                            .is_file(&root.join(contract.package_relative_source()))
+                    })
+                    .map(|(identity, _)| identity)
+            })
             .collect::<Vec<_>>();
         suppliers.sort();
+        suppliers.dedup();
         match suppliers.as_slice() {
             [single] => Self::Package(*single),
             [] if accepted_package.is_none() => Self::Bundled,
@@ -102,23 +145,4 @@ impl EntryContractSource {
                 .map_or(Self::Unavailable, Self::Package),
         }
     }
-}
-
-fn contract_seed(
-    contract_package: target::ProgramEntryPhysicalContractPackage,
-    relative_source: &str,
-    package_inputs: Option<&PackageCompilationInputs>,
-    bundled_root: &std::path::Path,
-) -> Option<EntryContractSeed> {
-    let (root, closed_subtree) = match EntryContractSource::select(contract_package, package_inputs)
-    {
-        EntryContractSource::Bundled => (bundled_root, true),
-        EntryContractSource::Package(package) => (package_inputs?.package_root(package)?, false),
-        EntryContractSource::Unavailable => return None,
-    };
-    Some(EntryContractSeed {
-        source: root.join(relative_source),
-        root: root.to_path_buf(),
-        closed_subtree,
-    })
 }

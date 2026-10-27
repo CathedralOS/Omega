@@ -40,8 +40,8 @@ machine exercise(which: i64, flag: bool) crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine main() crashes Trap {
     exercise(0, true);

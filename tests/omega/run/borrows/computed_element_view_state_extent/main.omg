@@ -28,7 +28,7 @@ machine Main::main(main: &mut Main) crashes Trap {
         true -> inspect(held.values, whole)
         false -> bad()
     }
-    state inspect(window: &[u32], whole: &[u32])
+    machine inspect(window: &[u32], whole: &[u32])
     requires window.len == 2 && whole.len == 4;
     {
         transition window[0] == 70 && window[1] == 71
@@ -37,8 +37,8 @@ machine Main::main(main: &mut Main) crashes Trap {
             false -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

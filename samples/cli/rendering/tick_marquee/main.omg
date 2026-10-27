@@ -26,38 +26,38 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
     main.t_start = Time::now(&mut main.time);
     main.frame = 0;
     transition { _ -> frame_loop(main) }
-    state frame_loop(main: &mut Main) {
+    machine frame_loop(main: &mut Main) {
         transition main.frame < 24 { true -> draw(main) _ -> finish(main) }
     }
-    state draw(main: &mut Main) {
+    machine draw(main: &mut Main) {
         main.line = "            ";
         main.pos = main.frame % 12;
         transition main.pos < 12 { true -> put(main) _ -> finish(main) }
     }
-    state put(main: &mut Main) {
+    machine put(main: &mut Main) {
         main.line[main.pos] = 35;
         Console::write_line(main.line);
         Clock::sleep(15);
         main.frame = main.frame + 1;
         transition { _ -> frame_loop(main) }
     }
-    state finish(main: &mut Main) {
+    machine finish(main: &mut Main) {
         let elapsed: Duration = Time::elapsed_since(&mut main.time, main.t_start);
         transition elapsed.seconds == 0 {
             true -> check_subsecond(main, elapsed.subsecond_nanoseconds)
             false -> ok(main)
         }
     }
-    state check_subsecond(main: &mut Main, subsecond_nanoseconds: u32) {
+    machine check_subsecond(main: &mut Main, subsecond_nanoseconds: u32) {
         transition subsecond_nanoseconds >= 100000000 { true -> ok(main) _ -> bad(main) }
     }
-    state ok(main: &mut Main)  {
+    machine ok(main: &mut Main)  {
         Console::write_line("PASS: 24 frames drawn and elapsed time >= 100ms (exit 0)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(0);
     }
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::write_line("FAIL: elapsed time came in under 100ms (exit 1)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);

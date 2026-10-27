@@ -101,8 +101,7 @@ pub(crate) use write_frames::{
     statement_value_expression_roots,
 };
 pub(crate) use write_frames::{
-    named_state_may_reach, named_state_transition_subgraph_is_acyclic,
-    named_transition_target_state,
+    named_state_transition_subgraph_is_acyclic, named_transition_target_state,
 };
 
 /// What every statement-call check reads: the program, the call, the

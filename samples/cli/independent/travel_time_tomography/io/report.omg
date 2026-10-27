@@ -10,14 +10,14 @@ invokes Console;
     let converted: i64 in Saturating = I64::from_f64(value * 1000000.0);
     let units: i64 = (converted as i64) % 2000000000000000;
     transition units < 0 { true -> negative(output, units) false -> positive(output, units) }
-    state negative(output: &mut Output, units: i64) requires units > -2000000000000000 requires units < 0 {
+    machine negative(output: &mut Output, units: i64) requires units > -2000000000000000 requires units < 0 {
         Console::write("-");
         transition { _ -> digits(output, 0 - units, 1000000000000000, false) }
     }
-    state positive(output: &mut Output, units: i64) requires units >= 0 requires units < 2000000000000000 {
+    machine positive(output: &mut Output, units: i64) requires units >= 0 requires units < 2000000000000000 {
         transition { _ -> digits(output, units, 1000000000000000, false) }
     }
-    state digits(output: &mut Output, units: i64, divisor: i64, started: bool)
+    machine digits(output: &mut Output, units: i64, divisor: i64, started: bool)
     requires units >= 0 requires units < 2000000000000000 requires divisor >= 1 requires divisor <= 1000000000000000 {
         let digit: i64 = (units / divisor) % 10;
         transition digit != 0 || started || divisor == 1 {
@@ -25,16 +25,16 @@ invokes Console;
             false -> advance(output, units, divisor, false)
         }
     }
-    state emit(output: &mut Output, units: i64, divisor: i64, digit: i64)
+    machine emit(output: &mut Output, units: i64, divisor: i64, digit: i64)
     requires units >= 0 requires units < 2000000000000000 requires divisor >= 1 requires divisor <= 1000000000000000 requires digit >= 0 requires digit <= 9 {
         Console::write_byte((digit as i32) + 48);
         transition { _ -> advance(output, units, divisor, true) }
     }
-    state advance(output: &mut Output, units: i64, divisor: i64, started: bool)
+    machine advance(output: &mut Output, units: i64, divisor: i64, started: bool)
     requires units >= 0 requires units < 2000000000000000 requires divisor >= 1 requires divisor <= 1000000000000000 {
         transition divisor >= 10 { true -> digits(output, units, divisor / 10, started) false -> done(output) }
     }
-    state done(output: &mut Output) { Console::write_line(""); }
+    machine done(output: &mut Output) { Console::write_line(""); }
 }
 public machine report(output: &mut Output, problem: &Problem, fit: &Fit) reaches Console
 invokes Console;
@@ -49,54 +49,54 @@ invokes Console;
     Console::write("null_first_micro="); write_scaled(output, fit.null_first);
     Console::write("null_second_micro="); write_scaled(output, fit.null_second);
     transition fit.rank == 2 { true -> full(output, problem, fit) false -> deficient(output, problem, fit) }
-    state full(output: &mut Output, problem: &Problem, fit: &Fit) {
+    machine full(output: &mut Output, problem: &Problem, fit: &Fit) {
         Console::write_line("rank=2; nullity=0; identifiable=yes");
         transition { _ -> first_bound(output, problem, fit) }
     }
-    state deficient(output: &mut Output, problem: &Problem, fit: &Fit) {
+    machine deficient(output: &mut Output, problem: &Problem, fit: &Fit) {
         transition fit.rank == 1 { true -> one(output, problem, fit) false -> zero(output, problem, fit) }
     }
-    state one(output: &mut Output, problem: &Problem, fit: &Fit) {
+    machine one(output: &mut Output, problem: &Problem, fit: &Fit) {
         Console::write_line("rank=1; nullity=1; identifiable=no; null vector reported above");
         transition { _ -> first_bound(output, problem, fit) }
     }
-    state zero(output: &mut Output, problem: &Problem, fit: &Fit) {
+    machine zero(output: &mut Output, problem: &Problem, fit: &Fit) {
         Console::write_line("rank=0; nullity=2; identifiable=no; second null vector=(0,1)");
         transition { _ -> first_bound(output, problem, fit) }
     }
-    state first_bound(output: &mut Output, problem: &Problem, fit: &Fit) {
+    machine first_bound(output: &mut Output, problem: &Problem, fit: &Fit) {
         transition fit.first == problem.low_first { true -> first_low(output, problem, fit) false -> first_upper_test(output, problem, fit) }
     }
-    state first_low(output: &mut Output, problem: &Problem, fit: &Fit) {
+    machine first_low(output: &mut Output, problem: &Problem, fit: &Fit) {
         Console::write_line("active_first=lower"); transition { _ -> second_bound(output, problem, fit) }
     }
-    state first_upper_test(output: &mut Output, problem: &Problem, fit: &Fit) {
+    machine first_upper_test(output: &mut Output, problem: &Problem, fit: &Fit) {
         transition fit.first == problem.high_first { true -> first_high(output, problem, fit) false -> first_free(output, problem, fit) }
     }
-    state first_high(output: &mut Output, problem: &Problem, fit: &Fit) {
+    machine first_high(output: &mut Output, problem: &Problem, fit: &Fit) {
         Console::write_line("active_first=upper"); transition { _ -> second_bound(output, problem, fit) }
     }
-    state first_free(output: &mut Output, problem: &Problem, fit: &Fit) {
+    machine first_free(output: &mut Output, problem: &Problem, fit: &Fit) {
         Console::write_line("active_first=free"); transition { _ -> second_bound(output, problem, fit) }
     }
-    state second_bound(output: &mut Output, problem: &Problem, fit: &Fit) {
+    machine second_bound(output: &mut Output, problem: &Problem, fit: &Fit) {
         transition fit.second == problem.low_second { true -> second_low(output, fit) false -> second_upper_test(output, problem, fit) }
     }
-    state second_low(output: &mut Output, fit: &Fit) {
+    machine second_low(output: &mut Output, fit: &Fit) {
         Console::write_line("active_second=lower"); transition { _ -> consistency(output, fit) }
     }
-    state second_upper_test(output: &mut Output, problem: &Problem, fit: &Fit) {
+    machine second_upper_test(output: &mut Output, problem: &Problem, fit: &Fit) {
         transition fit.second == problem.high_second { true -> second_high(output, fit) false -> second_free(output, fit) }
     }
-    state second_high(output: &mut Output, fit: &Fit) {
+    machine second_high(output: &mut Output, fit: &Fit) {
         Console::write_line("active_second=upper"); transition { _ -> consistency(output, fit) }
     }
-    state second_free(output: &mut Output, fit: &Fit) {
+    machine second_free(output: &mut Output, fit: &Fit) {
         Console::write_line("active_second=free"); transition { _ -> consistency(output, fit) }
     }
-    state consistency(output: &mut Output, fit: &Fit) {
+    machine consistency(output: &mut Output, fit: &Fit) {
         transition fit.objective < 0.000000000001 { true -> exact(output) false -> inconsistent(output) }
     }
-    state exact(output: &mut Output) { Console::write_line("fit=consistent_within_1e-12_sse"); }
-    state inconsistent(output: &mut Output) { Console::write_line("fit=inconsistent_or_bound_limited"); }
+    machine exact(output: &mut Output) { Console::write_line("fit=consistent_within_1e-12_sse"); }
+    machine inconsistent(output: &mut Output) { Console::write_line("fit=inconsistent_or_bound_limited"); }
 }

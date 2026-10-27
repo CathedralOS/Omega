@@ -5,10 +5,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use abstract_operations::AbstractOperation as O;
-use optimization_core::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationRuleContract,
-    OptimizationSafetyClass,
-};
+use optimization_core::{AnalysisKind, AnalysisSet, OptimizationRuleContract};
 use optimization_unit::{
     NodeLocation, NonAdjacentBlockMergeRewrite, OptimizationBlock, ProvenanceRewrite,
     PsiOptimizationFunction, PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
@@ -17,7 +14,6 @@ use optimization_unit::{
 use semantic_vocabulary::BlockId;
 
 use crate::analyses::block_dominates;
-use crate::rules::CONTROL_FLOW_CLEANUP_PASS_NAME;
 use crate::rules::control_flow_cleanup::block_merge_substitutions::merge_substitutions;
 use crate::rules::control_flow_cleanup::descriptor_telescope_free;
 use crate::rules::control_flow_cleanup::merge_boundary_ownership::merge_boundary_ownership_is_identity;
@@ -26,9 +22,8 @@ use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposal
 
 psi_rule_contract!(
     NonAdjacentBlockMergeRule,
-    crate::rules::standard_rule_contract(
+    crate::rules::control_flow_cleanup::control_flow_cleanup_rule_contract(
         b"omega.psi-rule.non-adjacent-unique-predecessor-block-merge.v1",
-        CONTROL_FLOW_CLEANUP_PASS_NAME,
         1,
         AnalysisSet::new([
             AnalysisKind::ControlFlowGraph,
@@ -36,126 +31,111 @@ psi_rule_contract!(
             AnalysisKind::UseDefinition,
             AnalysisKind::OwnershipFrontiers,
         ]),
-        AnalysisInvalidationSet::new([
-            AnalysisKind::ControlFlowGraph,
-            AnalysisKind::UseDefinition,
-            AnalysisKind::EffectSummaries,
-        ]),
-        OptimizationSafetyClass::StructuralIdentity
     ),
 );
 
-impl PsiOptimizationRule for NonAdjacentBlockMergeRule {
-    psi_rule_contract!(@adapter);
+psi_rule_impl!(NonAdjacentBlockMergeRule, |unit, analyses| {
+    required_analysis!(analyses, AnalysisKind::ControlFlowGraph => Some(_));
+    required_analysis!(analyses, AnalysisKind::Dominators => Some(AnalysisProduct::Dominators(dominators)));
+    required_analysis!(analyses, AnalysisKind::UseDefinition => Some(AnalysisProduct::UseDefinition(use_definitions)));
+    required_analysis!(analyses, AnalysisKind::OwnershipFrontiers => Some(AnalysisProduct::OwnershipFrontiers(frontiers)));
 
-    fn propose(
-        &self,
-        unit: &PsiOptimizationUnit,
-        analyses: RuleAnalysisView<'_>,
-    ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
-        required_analysis!(analyses, AnalysisKind::ControlFlowGraph => Some(_));
-        required_analysis!(analyses, AnalysisKind::Dominators => Some(AnalysisProduct::Dominators(dominators)));
-        required_analysis!(analyses, AnalysisKind::UseDefinition => Some(AnalysisProduct::UseDefinition(use_definitions)));
-        required_analysis!(analyses, AnalysisKind::OwnershipFrontiers => Some(AnalysisProduct::OwnershipFrontiers(frontiers)));
-
-        let mut candidates = Vec::new();
-        for function in &unit.functions {
-            // Descriptor telescopes require structural substitution, outside this scalar rewrite.
-            if !descriptor_telescope_free(function) {
+    let mut candidates = Vec::new();
+    for function in &unit.functions {
+        // Descriptor telescopes require structural substitution, outside this scalar rewrite.
+        if !descriptor_telescope_free(function) {
+            continue;
+        }
+        let machine_dominators = dominators
+            .function(function.machine)
+            .map(|(_, rows)| rows.as_slice())
+            .unwrap_or_default();
+        for (predecessor_position, predecessor) in function.blocks.iter().enumerate() {
+            let Some((predecessor_index, predecessor_node)) =
+                predecessor.nodes.iter().enumerate().last()
+            else {
+                continue;
+            };
+            let O::Jump {
+                structural_bindings: _,
+                psi_edge: incoming_edge,
+                target: target_id,
+                bindings,
+                cleanup_actions,
+            } = &predecessor_node.operation
+            else {
+                continue;
+            };
+            let Some((target_position, target)) = function
+                .blocks
+                .iter()
+                .enumerate()
+                .find(|(_, block)| block.id == *target_id)
+            else {
+                continue;
+            };
+            if !cleanup_actions.is_empty()
+                || target.id == function.entry
+                || target_position == predecessor_position.saturating_add(1)
+                || !non_adjacent_merge_target_is_nonempty(target)
+                || !block_dominates(machine_dominators, predecessor.id, target.id)
+                || function
+                    .block_edges()
+                    .filter(|edge| edge.target == target.id)
+                    .count()
+                    != 1
+                || !merge_boundary_ownership_is_identity(
+                    unit,
+                    function,
+                    frontiers,
+                    *incoming_edge,
+                    target.id,
+                )
+            {
                 continue;
             }
-            let machine_dominators = dominators
-                .function(function.machine)
-                .map(|(_, rows)| rows.as_slice())
-                .unwrap_or_default();
-            for (predecessor_position, predecessor) in function.blocks.iter().enumerate() {
-                let Some((predecessor_index, predecessor_node)) =
-                    predecessor.nodes.iter().enumerate().last()
-                else {
-                    continue;
-                };
-                let O::Jump {
-                    structural_bindings: _,
-                    psi_edge: incoming_edge,
-                    target: target_id,
-                    bindings,
-                    cleanup_actions,
-                } = &predecessor_node.operation
-                else {
-                    continue;
-                };
-                let Some((target_position, target)) = function
-                    .blocks
-                    .iter()
-                    .enumerate()
-                    .find(|(_, block)| block.id == *target_id)
-                else {
-                    continue;
-                };
-                if !cleanup_actions.is_empty()
-                    || target.id == function.entry
-                    || target_position == predecessor_position.saturating_add(1)
-                    || !non_adjacent_merge_target_is_nonempty(target)
-                    || !block_dominates(machine_dominators, predecessor.id, target.id)
-                    || function
-                        .block_edges()
-                        .filter(|edge| edge.target == target.id)
-                        .count()
-                        != 1
-                    || !merge_boundary_ownership_is_identity(
-                        unit,
-                        function,
-                        frontiers,
-                        *incoming_edge,
-                        target.id,
-                    )
-                {
-                    continue;
-                }
-                let Some(substitutions) = merge_substitutions(
-                    function.machine,
-                    target,
-                    bindings,
-                    machine_dominators,
-                    use_definitions,
-                ) else {
-                    continue;
-                };
-                let predecessor_location = NodeLocation {
-                    machine: function.machine,
-                    block: predecessor.id,
-                    node: u32::try_from(predecessor_index)
-                        .expect("optimization node index fits u32"),
-                };
-                let Some((affected_blocks, provenance)) = non_adjacent_merge_accounting(
-                    function,
-                    predecessor_location,
-                    target.id,
-                    &substitutions,
-                ) else {
-                    continue;
-                };
-                candidates.push(
-                    PsiRewriteCandidate::new_non_adjacent_block_merge(
-                        unit.identity,
-                        Self::contract(),
-                        affected_blocks,
-                        substitutions,
-                        provenance,
-                        -2,
-                        NonAdjacentBlockMergeRewrite {
-                            predecessor: predecessor_location,
-                            incoming_edge: *incoming_edge,
-                            target: target.id,
-                        },
-                    )
-                    .map_err(RuleProposalError::InvalidCandidate)?,
-                );
-            }
+            let Some(substitutions) = merge_substitutions(
+                function.machine,
+                target,
+                bindings,
+                machine_dominators,
+                use_definitions,
+            ) else {
+                continue;
+            };
+            let predecessor_location = NodeLocation {
+                machine: function.machine,
+                block: predecessor.id,
+                node: u32::try_from(predecessor_index).expect("optimization node index fits u32"),
+            };
+            let Some((affected_blocks, provenance)) = non_adjacent_merge_accounting(
+                function,
+                predecessor_location,
+                target.id,
+                &substitutions,
+            ) else {
+                continue;
+            };
+            candidates.push(
+                PsiRewriteCandidate::new_non_adjacent_block_merge(
+                    unit.identity,
+                    Self::contract(),
+                    affected_blocks,
+                    substitutions,
+                    provenance,
+                    -2,
+                    NonAdjacentBlockMergeRewrite {
+                        predecessor: predecessor_location,
+                        incoming_edge: *incoming_edge,
+                        target: target.id,
+                    },
+                )
+                .map_err(RuleProposalError::InvalidCandidate)?,
+            );
         }
-        Ok(candidates)
     }
-}
+    Ok(candidates)
+});
 
 fn non_adjacent_merge_target_is_nonempty(target: &OptimizationBlock) -> bool {
     !target.nodes.is_empty()

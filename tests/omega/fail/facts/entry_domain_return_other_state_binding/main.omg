@@ -4,5 +4,5 @@ machine invalid(counter: Counter in One, other: Counter) -> u64
 ensures result == 1
 {
     transition { _ -> replaced(other) }
-    state replaced(counter: Counter) -> u64 { counter.value }
+    machine replaced(counter: Counter) -> u64 { counter.value }
 }

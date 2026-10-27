@@ -42,11 +42,11 @@ machine Main::main(context: &mut Main) reaches Console {
         _ -> bad(context)
     }
 
-    state good(context: &mut Main) {
+    machine good(context: &mut Main) {
         Console::exit_process(70);
     }
 
-    state bad(context: &mut Main) {
+    machine bad(context: &mut Main) {
         Console::exit_process(71);
     }
 }

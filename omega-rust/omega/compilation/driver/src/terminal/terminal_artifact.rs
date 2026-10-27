@@ -8,7 +8,6 @@ use super::behavior_exclusions::TerminalBehaviorExclusions;
 use crate::checked::CheckedCompilation;
 use crate::execution_settlement::SelectedProviderCustody;
 use crate::observations::PsiStageTimings;
-use crate::terminal::native_proposal;
 use artifacts::compile_timings::{CompileTimings, StageMeta};
 use diagnostics::Diagnostic;
 use optimization_core::OptimizationSelections;
@@ -91,276 +90,250 @@ pub(crate) struct ProducedTerminalApplication {
     pub receipt: terminal_psi::CheckedProgramEntryTerminalReceipt,
 }
 
-struct TerminalEntry {
+/// Admission retains the request's entry and composition policy together.
+/// The position is only for restoring caller order after source-cohort work;
+/// it never indexes another table to recover semantic identity.
+struct AdmittedTerminalApplication<'a> {
+    position: usize,
+    request: TerminalProductRequest<'a>,
     selected_machine: symbols::SymbolHandle,
     signature_identity: [u8; 32],
-    target: target::TargetProfile,
+    admission_roots: Vec<symbols::SymbolHandle>,
+    policy: Option<TerminalBehaviorExclusions<'a>>,
+}
+
+impl<'a> AdmittedTerminalApplication<'a> {
+    fn admit(
+        position: usize,
+        request: TerminalProductRequest<'a>,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let view = &request.view;
+        let entry = admit_terminal_production(
+            view.entry,
+            view.provenance,
+            view.native_components,
+            view.component_verdicts,
+        )?;
+        let selected_machine = entry.machine_symbol();
+        let signature_identity = entry.source_signature().identity().bytes();
+        let policy = TerminalBehaviorExclusions::new(
+            view.build.config.behavior_exclusions.as_slice(),
+            view.plan_facts,
+            entry.source_signature().target_slot().owner,
+        );
+        // Firmware starts in the selected adapter, not the semantic continuation.
+        // Admit its behavior and callbacks while retaining the semantic receipt.
+        let admission_roots = view
+            .callbacks
+            .iter()
+            .map(|placement| placement.selected_machine)
+            .chain(entry.physical_adapter())
+            .collect();
+        Ok(Self {
+            position,
+            request,
+            selected_machine,
+            signature_identity,
+            admission_roots,
+            policy,
+        })
+    }
+
+    fn shares_production(&self, other: &Self) -> bool {
+        crate::execution_settlement::same_checked_program(
+            self.request.view.program,
+            other.request.view.program,
+        ) && self.request.view.sources == other.request.view.sources
+            && self.request.selections.project_psi() == other.request.selections.project_psi()
+    }
+
+    fn custody(&self) -> TerminalApplicationCustody<'_> {
+        TerminalApplicationCustody {
+            admission_roots: &self.admission_roots,
+            entry_identity: Some(self.signature_identity),
+            entry_machine: Some(psi_compiler::TerminalMachineSelection::Symbol(
+                self.selected_machine,
+            )),
+            admission: self
+                .policy
+                .as_ref()
+                .map(|policy| policy as &dyn psi_compiler::TerminalCompositionAdmission),
+        }
+    }
 }
 
 /// Invocation-local sharing, not a cache: source custody and checked arenas
-/// must identify the same checked owner and exact consumed source. The small
-/// target roster is grouped by direct scans; no source hashing or copying.
+/// must identify the same checked owner and exact consumed source. Admission
+/// keeps each request with its policy; cohorts own applications, not indices.
 pub(crate) fn produce_retained_terminal_artifacts(
-    mut requests: Vec<TerminalProductRequest<'_>>,
+    requests: Vec<TerminalProductRequest<'_>>,
 ) -> Vec<Result<ProducedTerminalApplication, Vec<Diagnostic>>> {
-    let entries: Vec<_> = requests
-        .iter()
-        .map(|request| {
-            admit_terminal_production(
-                request.view.entry,
-                request.view.provenance,
-                request.view.native_components,
-                request.view.component_verdicts,
-            )
-            .map(|entry| {
-                let selected_machine = entry.machine_symbol();
-                TerminalEntry {
-                    selected_machine,
-                    signature_identity: entry.source_signature().identity().bytes(),
-                    target: entry.source_signature().target_slot().owner,
-                }
-            })
-        })
-        .collect();
-    let mut groups: Vec<Vec<usize>> = Vec::new();
-    let mut results: Vec<_> = entries
-        .iter()
-        .map(|entry| entry.as_ref().err().cloned().map(Err))
-        .collect();
-    for (request_index, entry) in entries.iter().enumerate() {
-        let Ok(_) = entry else {
-            continue;
+    let mut outcomes = Vec::with_capacity(requests.len());
+    let mut cohorts: Vec<Vec<AdmittedTerminalApplication<'_>>> = Vec::new();
+    for (position, request) in requests.into_iter().enumerate() {
+        let application = match AdmittedTerminalApplication::admit(position, request) {
+            Ok(application) => application,
+            Err(diagnostics) => {
+                outcomes.push((position, Err(diagnostics)));
+                continue;
+            }
         };
-        let request = &requests[request_index];
-        let group = groups.iter_mut().find(|group| {
-            let first_index = group[0];
-            let first = &requests[first_index];
-            crate::execution_settlement::same_checked_program(
-                first.view.program,
-                request.view.program,
-            ) && first.view.sources == request.view.sources
-                && first.selections.project_psi() == request.selections.project_psi()
-        });
-        if let Some(group) = group {
-            group.push(request_index);
-        } else {
-            groups.push(vec![request_index]);
+        // Every cohort starts with its first admitted application. A direct scan
+        // is sufficient for the small target roster; no source hashing or copying.
+        match cohorts
+            .iter_mut()
+            .find(|cohort| cohort[0].shares_production(&application))
+        {
+            Some(cohort) => cohort.push(application),
+            None => cohorts.push(vec![application]),
         }
     }
 
-    for group in groups {
-        let first_index = group[0];
-        let mut timings = std::mem::take(&mut *requests[first_index].view.timings);
+    for mut cohort in cohorts {
+        let mut timings = std::mem::take(cohort[0].request.view.timings);
         timings.add_completed(TERMINAL_PRODUCTION_STAGE, 0);
         let started = std::time::Instant::now();
-        let admission_roots: Vec<Vec<_>> = group
-            .iter()
-            .map(|&request_index| {
-                requests[request_index]
-                    .view
-                    .callbacks
-                    .iter()
-                    .map(|placement| placement.selected_machine)
-                    // Firmware starts in the selected adapter, not in the
-                    // semantic continuation. Admit its complete behavior before
-                    // optimization while retaining the semantic entry receipt.
-                    .chain(
-                        requests[request_index]
-                            .view
-                            .entry
-                            .and_then(|entry| entry.physical_adapter()),
-                    )
-                    .collect()
-            })
-            .collect();
-        // The product owns each exclusion policy; the application row lends it
-        // to Psi as that row's composition admission.
-        let policies: Vec<_> = group
-            .iter()
-            .map(|&request_index| {
-                let view = &requests[request_index].view;
-                TerminalBehaviorExclusions::new(
-                    view.build.config.behavior_exclusions.as_slice(),
-                    view.plan_facts,
-                    entries[request_index]
-                        .as_ref()
-                        .map(|entry| entry.target)
-                        .unwrap_or_else(|_| target::TargetProfile::host()),
-                )
-            })
-            .collect();
-        let applications: Vec<_> = group
-            .iter()
-            .zip(&admission_roots)
-            .zip(&policies)
-            .map(
-                |((&request_index, admission_roots), policy)| TerminalApplicationCustody {
-                    admission_roots,
-                    entry_identity: entries[request_index]
-                        .as_ref()
-                        .ok()
-                        .map(|entry| entry.signature_identity),
-                    entry_machine: entries[request_index].as_ref().ok().map(|entry| {
-                        psi_compiler::TerminalMachineSelection::Symbol(entry.selected_machine)
-                    }),
-                    admission: policy
-                        .as_ref()
-                        .map(|policy| policy as &dyn psi_compiler::TerminalCompositionAdmission),
-                },
-            )
-            .collect();
-        // Groups contain only admitted entries. Keep a diagnostic if internal
-        // request assembly ever violates that property, never guess a root.
-        let produced = match &entries[first_index] {
-            Ok(entry) => {
-                let first = &requests[first_index];
-                let checked_program = first.view.program;
-                let program_typed = &checked_program.typed;
-                let context = provider_planning::ProviderPlanningContext::new(
-                    program_typed,
-                    source::DependencyScope::Product,
-                );
-                provider_planning::target_machines::provider_selection_roots(
-                    context,
-                    first
-                        .view
-                        .provider_defaults
-                        .iter()
-                        .flat_map(|row| &row.selections)
-                        .chain(&first.view.build.config.provider_selections),
-                )
-                .and_then(|mut boundary_roots| {
-                    // Nonexecuting assumption operands retain both declarations,
-                    // including intermediate links without an authored call.
-                    // Installation still owns runtime supply and root consent.
-                    for relationship in &first.view.build.config.assumed_bindings {
-                        boundary_roots.extend([relationship.required, relationship.supplied]);
-                    }
-                    // Folded uses can be the last reference to these requirements.
-                    // Retain their ordinary catalog custody without inventing calls.
-                    boundary_roots.extend(
-                        program_typed
-                            .constant_recipe_closure
-                            .receipts
-                            .iter()
-                            .filter(|receipt| receipt.provider_machine.is_valid())
-                            .map(|receipt| receipt.requirement),
-                    );
-                    boundary_roots
-                        .sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
-                    boundary_roots.dedup();
-                    let mut machines = first.view.build.config.program_roots();
-                    if machines.is_empty() {
-                        machines.push(entry.selected_machine);
-                    }
-                    machines.extend(
-                        program_typed
-                            .constant_recipe_closure
-                            .receipts
-                            .iter()
-                            .filter(|receipt| receipt.provider_machine.is_valid())
-                            .map(|receipt| receipt.provider_machine),
-                    );
-                    // Normalize the default to its portable family head; exact
-                    // application receipts still name the selected declaration.
-                    let typed = program_typed;
-                    let default = machines[0];
-                    let default = typed
-                        .target_machine_families
-                        .iter()
-                        .find(|family| {
-                            (family.canonical == default
-                                || family
-                                    .members
-                                    .iter()
-                                    .any(|member| member.machine == default))
-                                && typed
-                                    .machine_by_symbol(family.canonical)
-                                    .is_some_and(|machine| machine.target_family_interface)
-                        })
-                        .map_or(default, |family| family.canonical);
-                    psi_compiler::TerminalProductionRequest {
-                        publication: terminal_codec::TerminalPublication::Portable,
-                        checked: checked_program,
-                        exact_toolchain_sources: first.view.sources.exact_toolchain_sources(),
-                        machine: psi_compiler::TerminalMachineSelection::Symbol(default),
-                        roots: psi_compiler::TerminalProgramRoots {
-                            machines: &machines,
-                            boundaries: &boundary_roots,
-                        },
-                        optimization_selections: first
-                            .selections
-                            .project_psi()
-                            .selections()
-                            .clone(),
-                    }
-                    .produce(
-                        TerminalProductionCustody {
-                            applications: &applications,
-                        },
-                        &mut PsiStageTimings::new(&mut timings),
-                    )
-                    .map_err(|error| error.diagnostics())
-                })
-            }
-            Err(diagnostics) => Err(diagnostics.clone()),
-        };
-        drop(applications);
+        let produced = produce_shared_terminal(&cohort, &mut timings);
         let elapsed = started.elapsed().as_micros();
         timings.add_completed(TERMINAL_PRODUCTION_STAGE, elapsed);
-        *requests[first_index].view.timings = timings;
-        for &request_index in &group[1..] {
-            // The shared cost is visible in each product report; per-leg rows
-            // remain on the producing request, not fabricated executions.
-            requests[request_index]
+        *cohort[0].request.view.timings = timings;
+        for application in &mut cohort[1..] {
+            // Each report shows the shared cost; stage rows remain on the
+            // producing request, not fabricated per-target executions.
+            application
+                .request
                 .view
                 .timings
                 .add_completed(TERMINAL_PRODUCTION_STAGE, elapsed);
         }
-        match produced {
+        match produced.and_then(|produced| {
+            produced
+                .into_parts()
+                .map_err(|error| vec![Diagnostic::error(error.to_string())])
+        }) {
             Err(diagnostics) => {
-                for request_index in group {
-                    results[request_index] = Some(Err(diagnostics.clone()));
+                for application in cohort {
+                    outcomes.push((application.position, Err(diagnostics.clone())));
                 }
             }
-            Ok(produced) => {
-                let (artifact, applications) = match produced.into_parts() {
-                    Ok(parts) => parts,
-                    Err(error) => {
-                        for request_index in group {
-                            results[request_index] =
-                                Some(Err(vec![Diagnostic::error(error.to_string())]));
-                        }
-                        continue;
-                    }
-                };
+            Ok((artifact, applications)) => {
                 let artifact = Arc::new(artifact);
-                for (request_index, application) in group.into_iter().zip(applications) {
-                    results[request_index] = Some(application.and_then(|receipt| {
-                        let receipt = receipt.ok_or_else(|| {
-                            vec![Diagnostic::error(
-                                "terminal-artifact production retained no checked ProgramEntry receipt",
-                            )]
-                        })?;
-                        Ok(ProducedTerminalApplication {
-                            artifact: Arc::clone(&artifact),
-                            receipt,
-                        })
-                    }));
+                let mut applications = applications.into_iter();
+                for application in cohort {
+                    let outcome = match applications.next() {
+                        Some(receipt) => receipt.and_then(|receipt| {
+                            let receipt = receipt.ok_or_else(|| {
+                                vec![Diagnostic::error(
+                                    "terminal-artifact production retained no checked ProgramEntry receipt",
+                                )]
+                            })?;
+                            Ok(ProducedTerminalApplication {
+                                artifact: Arc::clone(&artifact),
+                                receipt,
+                            })
+                        }),
+                        None => Err(vec![Diagnostic::error(
+                            "Terminal production lost an application outcome",
+                        )]),
+                    };
+                    outcomes.push((application.position, outcome));
                 }
             }
         }
     }
-    results
-        .into_iter()
-        .map(|result| {
-            result.unwrap_or_else(|| {
-                Err(vec![Diagnostic::error(
-                    "Terminal production lost an application outcome",
-                )])
-            })
+    // Cohorts can interleave in the input. Restore only the externally promised
+    // request order; all semantic associations traveled with the application.
+    outcomes.sort_unstable_by_key(|(position, _)| *position);
+    outcomes.into_iter().map(|(_, outcome)| outcome).collect()
+}
+
+/// Produce one nonempty source cohort. Application-specific admission borrows
+/// each member's retained policy; portable roots and optimization are shared.
+fn produce_shared_terminal(
+    cohort: &[AdmittedTerminalApplication<'_>],
+    timings: &mut CompileTimings,
+) -> Result<psi_compiler::ProducedTerminalProgram, Vec<Diagnostic>> {
+    let first = &cohort[0];
+    let view = &first.request.view;
+    let checked_program = view.program;
+    let typed = &checked_program.typed;
+    let context =
+        provider_planning::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
+    let mut boundary_roots = provider_planning::target_machines::provider_selection_roots(
+        context,
+        view.provider_defaults
+            .iter()
+            .flat_map(|row| &row.selections)
+            .chain(&view.build.config.provider_selections),
+    )?;
+    // Nonexecuting assumption operands retain both declarations, including
+    // intermediate links. Installation owns runtime supply and root consent.
+    for relationship in &view.build.config.assumed_bindings {
+        boundary_roots.extend([relationship.required, relationship.supplied]);
+    }
+    // Folded uses may be the last reference to these requirements. Retain their
+    // catalog custody without inventing calls.
+    boundary_roots.extend(
+        typed
+            .constant_recipe_closure
+            .receipts
+            .iter()
+            .filter(|receipt| receipt.provider_machine.is_valid())
+            .map(|receipt| receipt.requirement),
+    );
+    boundary_roots.sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
+    boundary_roots.dedup();
+    let mut machines = view.build.config.program_roots();
+    if machines.is_empty() {
+        machines.push(first.selected_machine);
+    }
+    machines.extend(
+        typed
+            .constant_recipe_closure
+            .receipts
+            .iter()
+            .filter(|receipt| receipt.provider_machine.is_valid())
+            .map(|receipt| receipt.provider_machine),
+    );
+    // Normalize the default to its portable family head; application receipts
+    // still name the exact selected declaration.
+    let default = machines[0];
+    let default = typed
+        .target_machine_families
+        .iter()
+        .find(|family| {
+            (family.canonical == default
+                || family
+                    .members
+                    .iter()
+                    .any(|member| member.machine == default))
+                && typed
+                    .machine_by_symbol(family.canonical)
+                    .is_some_and(|machine| machine.target_family_interface)
         })
-        .collect()
+        .map_or(default, |family| family.canonical);
+    let applications = cohort
+        .iter()
+        .map(AdmittedTerminalApplication::custody)
+        .collect::<Vec<_>>();
+    psi_compiler::TerminalProductionRequest {
+        publication: terminal_codec::TerminalPublication::Portable,
+        checked: checked_program,
+        exact_toolchain_sources: view.sources.exact_toolchain_sources(),
+        machine: psi_compiler::TerminalMachineSelection::Symbol(default),
+        roots: psi_compiler::TerminalProgramRoots {
+            machines: &machines,
+            boundaries: &boundary_roots,
+        },
+        optimization_selections: first.request.selections.project_psi().selections().clone(),
+    }
+    .produce(
+        TerminalProductionCustody {
+            applications: &applications,
+        },
+        &mut PsiStageTimings::new(timings),
+    )
+    .map_err(|error| error.diagnostics())
 }
 
 /// Bare Terminal publication still has no component process carrier. A native
@@ -434,15 +407,27 @@ pub(crate) fn finish_terminal_application(
     checked: &CheckedCompilation,
     produced: ProducedTerminalApplication,
     selections: &OptimizationSelections,
-    exported_provider_plans: &[&effects::provider_plan::ProviderPlan],
+    exported_calling_applications: &[calling_conventions::BoundaryCallingApplication],
 ) -> Result<compilation_products::RetainedTerminalArtifact, Vec<Diagnostic>> {
-    let proposal = native_proposal::project_terminal_native_realization_proposal(
-        checked,
-        &produced.artifact,
-        produced.receipt,
-        selections,
-        exported_provider_plans,
-    )?;
+    let request =
+        checked.terminal_native_proposal_request(selections, exported_calling_applications)?;
+    let mut proposal =
+        terminal_psi_to_abstract_operations::project_terminal_native_realization_proposal(
+            &produced.artifact,
+            produced.receipt,
+            request,
+        )?;
+    if checked
+        .execution()
+        .selected_program_entry
+        .as_ref()
+        .and_then(|entry| entry.physical_adapter())
+        .is_some()
+    {
+        proposal
+            .bind_physical_adapter(&produced.artifact)
+            .map_err(|message| vec![Diagnostic::error(message)])?;
+    }
     let providers = publish_target_providers(checked, &produced.artifact, selections);
     Ok(
         compilation_products::RetainedTerminalArtifact::new_with_native_realization_proposal(

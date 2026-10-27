@@ -392,7 +392,24 @@ fn operand_fits_at_occurrence(
         &mut visitor,
     )
     .is_some();
-    if recognized && visitor.seen {
+    let local = if recognized && visitor.seen {
+        visitor.judgment.unwrap_or(CarrierFit::Unknown)
+    } else {
+        CarrierFit::Unknown
+    };
+    if !matches!(local, CarrierFit::Unknown) {
+        return local;
+    }
+    // A private entry's actual arrivals may supply facts absent from its
+    // authored signature. Reuse this same operand judgment in every incoming
+    // frame; incomplete coverage or a single unproved path remains unknown.
+    // No inferred destination or completed result participates in formation.
+    visitor.seen = false;
+    visitor.judgment = None;
+    if super::structural_prefix::observe_private_arrivals(program, machine, &mut visitor, false)
+        == Some(true)
+        && visitor.seen
+    {
         visitor.judgment.unwrap_or(CarrierFit::Unknown)
     } else {
         CarrierFit::Unknown

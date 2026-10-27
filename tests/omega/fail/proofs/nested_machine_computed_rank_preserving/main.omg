@@ -1,0 +1,16 @@
+// Subtracting zero through an ordinary helper does not decrease the rank.
+use omega::language::core::nat;
+
+machine descend(value: Nat) -> Nat
+terminates by value;
+requires saturating_sub(value, value) == Nat::Zero
+{
+    transition { _ -> forward(value) }
+
+    machine forward(value: Nat) -> Nat {
+        let next: Nat = saturating_sub(value, Nat::Zero);
+        transition { _ -> descend(next) }
+    }
+}
+
+machine main() {}

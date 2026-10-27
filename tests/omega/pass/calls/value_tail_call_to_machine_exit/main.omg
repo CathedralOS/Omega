@@ -42,7 +42,7 @@ machine Main::staged(main: &mut Main, value: i32) -> i32
 requires 0 <= value && value <= 100;
 {
     transition { _ -> adding(main, value) }
-    state adding(main: &mut Main, value: i32) -> i32
+    machine adding(main: &mut Main, value: i32) -> i32
     requires 0 <= value && value <= 100;
     {
         transition { _ -> Main::add(main, value, 7) }
@@ -73,20 +73,20 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> check_staged(main, staged, staged_argument, picked)
         false -> fail(main, 71)
     }
-    state check_staged(main: &mut Main, staged: i32, staged_argument: i32, picked: i32) {
+    machine check_staged(main: &mut Main, staged: i32, staged_argument: i32, picked: i32) {
         transition staged == 27 && staged_argument == 20 {
             true -> check_picked(main, picked)
             false -> fail(main, 72)
         }
     }
-    state check_picked(main: &mut Main, picked: i32) {
+    machine check_picked(main: &mut Main, picked: i32) {
         transition picked == 30 {
             true -> done(main)
             false -> fail(main, 73)
         }
     }
-    state done(main: &mut Main) { Console::exit_process(70); }
-    state fail(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine done(main: &mut Main) { Console::exit_process(70); }
+    machine fail(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

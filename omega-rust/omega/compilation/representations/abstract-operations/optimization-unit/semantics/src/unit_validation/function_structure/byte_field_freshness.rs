@@ -156,14 +156,8 @@ pub fn byte_field_root(
         StructuralPlaceKind::Parameter { .. }
             | StructuralPlaceKind::BlockParameter { .. }
             | StructuralPlaceKind::OperationResult { .. }
-    ) || function
-        .entry_claim_declarations
-        .iter()
-        .any(|claim| claim.input == root)
-        || function
-            .content_entry_claims
-            .iter()
-            .any(|claim| claim.input.root == root)
+    ) || function.entry_claim_declared(root)
+        || function.content_entry_claim_declared(root)
     {
         return None;
     }

@@ -37,11 +37,11 @@ machine wound(player: &mut Player) {
         _ -> done()
     }
 
-    state subtracted(player: &mut Player) {
+    machine subtracted(player: &mut Player) {
         player.health = player.health - 30;
     }
 
-    state done() {}
+    machine done() {}
 }
 
 machine gated_data_bounds() {
@@ -54,5 +54,5 @@ machine gated_data_bounds() {
         _ -> done(71)
     }
 
-    state done(code: i32) {}
+    machine done(code: i32) {}
 }

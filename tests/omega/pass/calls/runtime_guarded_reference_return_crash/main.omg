@@ -1,7 +1,7 @@
 data Node { value: u64; }
 machine choose(node: &mut Node, take: bool) -> &mut Node crashes Trap {
     transition take { true -> (node) false -> failed() }
-    state failed() { crash Trap; }
+    machine failed() -> &mut Node { crash Trap; }
 }
 // A normal return must finish successfully, so only choose's authored crash
 // can satisfy the trap oracle. A wrong returned value must not hide behind

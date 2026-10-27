@@ -16,3 +16,18 @@ macro_rules! decode_error_display {
         impl std::error::Error for $error {}
     };
 }
+
+/// One decode error's whole declaration: the display/error surface above and
+/// the two cursor adapters every framed decoder in this crate needs. A member
+/// names its own error type and description; the adapter pair is the
+/// family's, so it is declared here rather than restated beside each enum.
+#[macro_export]
+macro_rules! decode_error {
+    ($error:ty, $description:literal) => {
+        $crate::decode_error_display!($error, $description);
+
+        optimization_core::truncated_from_adapter!($error);
+
+        optimization_core::take_error_from_adapter!($error);
+    };
+}

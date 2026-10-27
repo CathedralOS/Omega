@@ -11,7 +11,7 @@ machine Main::main(main: &mut Main) {
         _ -> warm(main)
     }
 
-    state frozen(main: &mut Main) { main.answer = 70; }
-    state zero(main: &mut Main) { main.answer = 71; }
-    state warm(main: &mut Main) { main.answer = 72; }
+    machine frozen(main: &mut Main) { main.answer = 70; }
+    machine zero(main: &mut Main) { main.answer = 71; }
+    machine warm(main: &mut Main) { main.answer = 72; }
 }

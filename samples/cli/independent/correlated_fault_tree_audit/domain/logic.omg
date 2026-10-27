@@ -8,13 +8,13 @@ public machine contains_events(assignment: i32, term: i32) -> bool {
 
 public machine fails(terms: &[i32; 4], count: i32, assignment: i32) -> bool {
     transition { _ -> scan(terms, count, assignment, 0) }
-    state scan(terms: &[i32; 4], count: i32, assignment: i32, index: i32) -> bool {
+    machine scan(terms: &[i32; 4], count: i32, assignment: i32, index: i32) -> bool {
         transition index >= 0 && index < 4 && index < count {
             true -> test(terms, count, assignment, index)
             _ -> false
         }
     }
-    state test(terms: &[i32; 4], count: i32, assignment: i32, index: i32) -> bool
+    machine test(terms: &[i32; 4], count: i32, assignment: i32, index: i32) -> bool
     requires index >= 0 && index < 4 {
         transition contains_events(assignment, terms[index]) {
             true -> true
@@ -30,13 +30,13 @@ public machine minimal_cut(terms: &[i32; 4], count: i32, candidate: i32) -> bool
         true -> scan(terms, count, candidate, 0)
         _ -> false
     }
-    state scan(terms: &[i32; 4], count: i32, candidate: i32, subset: i32) -> bool {
+    machine scan(terms: &[i32; 4], count: i32, candidate: i32, subset: i32) -> bool {
         transition subset >= 0 && subset < 8 {
             true -> test(terms, count, candidate, subset)
             _ -> true
         }
     }
-    state test(terms: &[i32; 4], count: i32, candidate: i32, subset: i32) -> bool
+    machine test(terms: &[i32; 4], count: i32, candidate: i32, subset: i32) -> bool
     requires subset >= 0 && subset < 8 {
         transition subset != candidate && contains_events(candidate, subset) && fails(terms, count, subset) {
             true -> false
@@ -51,7 +51,7 @@ public machine force_event(assignment: i32, event: i32, present: bool) -> i32 {
         1 -> change(assignment, 2, present)
         _ -> change(assignment, 4, present)
     }
-    state change(assignment: i32, bit: i32, present: bool) -> i32
+    machine change(assignment: i32, bit: i32, present: bool) -> i32
     requires bit > 0 {
         let occupied: bool = (assignment / bit) % 2 == 1;
         transition occupied == present {
@@ -59,7 +59,7 @@ public machine force_event(assignment: i32, event: i32, present: bool) -> i32 {
             _ -> alter(assignment, bit, present)
         }
     }
-    state alter(assignment: i32, bit: i32, present: bool) -> i32 {
+    machine alter(assignment: i32, bit: i32, present: bool) -> i32 {
         transition present {
             true -> ((assignment as i32 in Wrapping) + (bit as i32 in Wrapping)) as i32
             _ -> ((assignment as i32 in Wrapping) - (bit as i32 in Wrapping)) as i32

@@ -29,14 +29,14 @@ crashes Trap
     let tree: Expression = SyntaxTrees::expression(syntax, root);
     transition { _ -> next(typer, sources, syntax, resolution, root, tree.first_row) }
 
-    state next(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, root: u64 in Trapping, index: u64 in Trapping) {
+    machine next(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, root: u64 in Trapping, index: u64 in Trapping) {
         transition index <= root && typer.output.accepted {
             true -> node(typer, sources, syntax, resolution, root, index)
             _ -> done()
         }
     }
 
-    state node(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, root: u64 in Trapping, index: u64 in Trapping) {
+    machine node(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, root: u64 in Trapping, index: u64 in Trapping) {
         let typed: bool = Typer::is_typed(typer, index);
         transition typed {
             true -> next(typer, sources, syntax, resolution, root, index + 1)
@@ -44,13 +44,13 @@ crashes Trap
         }
     }
 
-    state untyped(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, root: u64 in Trapping, index: u64 in Trapping) {
+    machine untyped(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, root: u64 in Trapping, index: u64 in Trapping) {
         Typer::mark_typed(typer, index, true);
         Typer::type_expression(typer, sources, syntax, resolution, index);
         transition { _ -> next(typer, sources, syntax, resolution, root, index + 1) }
     }
 
-    state done() {}
+    machine done() {}
 }
 
 machine Typer::lesser(left: u64 in Trapping, right: u64 in Trapping) -> u64 in Trapping {
@@ -59,7 +59,7 @@ machine Typer::lesser(left: u64 in Trapping, right: u64 in Trapping) -> u64 in T
         _ -> first(right)
     }
 
-    state first(value: u64 in Trapping) -> u64 in Trapping {
+    machine first(value: u64 in Trapping) -> u64 in Trapping {
         value
     }
 }
@@ -89,39 +89,39 @@ crashes Trap
         ExpressionKind::Array -> array(typer, syntax, index, expression)
     }
 
-    state membership(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression) {
+    machine membership(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression) {
         Typer::type_membership(typer, syntax, resolution, index, expression);
     }
 
-    state array(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression) {
+    machine array(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression) {
         Typer::type_array(typer, syntax, index, expression);
     }
 
-    state range(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression) {
+    machine range(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression) {
         Typer::type_range(typer, syntax, index, expression);
     }
 
-    state matched(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression) {
+    machine matched(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression) {
         Typer::type_match(typer, sources, syntax, resolution, index, expression);
     }
 
     // A static application `path<arguments>` names a machine application
     // for its call to select; like a callee name it is not a value.
-    state application() {}
+    machine application() {}
 
     // An unsuffixed decimal literal is anonymous until a float destination
     // lands it.
-    state float_literal(typer: &mut Typer, index: u64 in Trapping) {
+    machine float_literal(typer: &mut Typer, index: u64 in Trapping) {
         let anonymous_float_type: u64 in Trapping = typer.output.anonymous_float;
         Typing::set_expression_type(&mut typer.output, index, anonymous_float_type);
     }
 
-    state named(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression) {
+    machine named(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression) {
         let handle: u64 in Trapping = Typer::binding_type(typer, syntax, resolution, index);
         Typing::set_expression_type(&mut typer.output, index, handle);
     }
 
-    state integer(typer: &mut Typer, sources: &SourceSet, index: u64 in Trapping, expression: Expression) {
+    machine integer(typer: &mut Typer, sources: &SourceSet, index: u64 in Trapping, expression: Expression) {
         let value: LiteralValue = Typer::literal_value(sources, expression.name.source_span);
         let anonymous: ExactInteger = ExactInteger { negative: false, magnitude: value.magnitude };
         transition value.valid {
@@ -130,7 +130,7 @@ crashes Trap
         }
     }
 
-    state integer_valid(typer: &mut Typer, index: u64 in Trapping, expression: Expression, value: LiteralValue, anonymous: ExactInteger) {
+    machine integer_valid(typer: &mut Typer, index: u64 in Trapping, expression: Expression, value: LiteralValue, anonymous: ExactInteger) {
         Typing::set_value(&mut typer.output, index, anonymous);
         transition value.has_suffix {
             true -> suffixed(typer, index, expression, value, anonymous)
@@ -138,13 +138,13 @@ crashes Trap
         }
     }
 
-    state unsuffixed(typer: &mut Typer, index: u64 in Trapping) {
+    machine unsuffixed(typer: &mut Typer, index: u64 in Trapping) {
         let anonymous_type: u64 in Trapping = typer.output.anonymous;
         Typing::set_expression_type(&mut typer.output, index, anonymous_type);
     }
 
     // A suffix lands its literal at that occurrence.
-    state suffixed(typer: &mut Typer, index: u64 in Trapping, expression: Expression, value: LiteralValue, anonymous: ExactInteger) {
+    machine suffixed(typer: &mut Typer, index: u64 in Trapping, expression: Expression, value: LiteralValue, anonymous: ExactInteger) {
         let fits: bool = ExactInteger::fits(value.suffix, anonymous);
         let mut row: TypeRow = TypeRow::of(TypeKind::Builtin);
         row.builtin = value.suffix;
@@ -154,12 +154,12 @@ crashes Trap
         }
     }
 
-    state suffixed_type(typer: &mut Typer, index: u64 in Trapping, expression: Expression, row: TypeRow) {
+    machine suffixed_type(typer: &mut Typer, index: u64 in Trapping, expression: Expression, row: TypeRow) {
         let handle: u64 in Trapping = Typer::intern(typer, row, expression.source_span);
         Typing::set_expression_type(&mut typer.output, index, handle);
     }
 
-    state boolean(typer: &mut Typer, index: u64 in Trapping) {
+    machine boolean(typer: &mut Typer, index: u64 in Trapping) {
         let boolean_type: u64 in Trapping = typer.output.boolean;
         Typing::set_expression_type(&mut typer.output, index, boolean_type);
     }
@@ -167,7 +167,7 @@ crashes Trap
     // A quoted literal is a shared byte view, `&[u8]`
     // (wiki/spec/language/data_and_literals.md#quoted-bytes); its value is
     // its byte count, for a fixed byte array it copies into.
-    state string(typer: &mut Typer, sources: &SourceSet, index: u64 in Trapping, expression: Expression) {
+    machine string(typer: &mut Typer, sources: &SourceSet, index: u64 in Trapping, expression: Expression) {
         let mut byte_row: TypeRow = TypeRow::of(TypeKind::Builtin);
         byte_row.builtin = BuiltinType::U8;
         let byte: u64 in Trapping = Typer::intern(typer, byte_row, expression.source_span);
@@ -184,43 +184,43 @@ crashes Trap
         Typing::set_roster(&mut typer.output, index, roster);
     }
 
-    state field(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression) {
+    machine field(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression) {
         Typer::type_field(typer, sources, syntax, index, expression);
     }
 
-    state indexed(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression) {
+    machine indexed(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression) {
         Typer::type_index(typer, syntax, index, expression);
     }
 
-    state unary(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression) {
+    machine unary(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression) {
         Typer::type_unary(typer, syntax, resolution, index, expression);
     }
 
-    state binary(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression) {
+    machine binary(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression) {
         Typer::type_binary(typer, sources, syntax, resolution, index, expression);
     }
 
-    state cast(typer: &mut Typer, index: u64 in Trapping, expression: Expression) {
+    machine cast(typer: &mut Typer, index: u64 in Trapping, expression: Expression) {
         Typer::type_cast(typer, index, expression);
     }
 
-    state call(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression) {
+    machine call(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression) {
         Typer::type_call(typer, sources, syntax, resolution, index, expression);
     }
 
-    state construct(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression) {
+    machine construct(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression) {
         Typer::type_construct(typer, sources, syntax, resolution, index, expression);
     }
 
-    state unsupported(typer: &mut Typer, expression: Expression) {
+    machine unsupported(typer: &mut Typer, expression: Expression) {
         Typing::reject(&mut typer.output, TypeDiagnosticCode::UnsupportedExpression, expression.source_span);
     }
 
-    state literal_rejected(typer: &mut Typer, expression: Expression) {
+    machine literal_rejected(typer: &mut Typer, expression: Expression) {
         Typing::reject(&mut typer.output, TypeDiagnosticCode::UnsupportedLiteral, expression.source_span);
     }
 
-    state out_of_range(typer: &mut Typer, expression: Expression) {
+    machine out_of_range(typer: &mut Typer, expression: Expression) {
         Typing::reject(&mut typer.output, TypeDiagnosticCode::LiteralOutOfRange, expression.source_span);
     }
 }
@@ -249,27 +249,27 @@ crashes Trap
     }
 
     // A domain's subject binder has its carrier's type.
-    state subject(typer: &mut Typer, syntax: &SyntaxTrees, domain: u64 in Trapping) -> u64 in Trapping {
+    machine subject(typer: &mut Typer, syntax: &SyntaxTrees, domain: u64 in Trapping) -> u64 in Trapping {
         let item: DomainItem = SyntaxTrees::domain_item(syntax, domain);
         let handle: u64 in Trapping = Typing::reference_type(&typer.output, item.carrier);
         handle
     }
 
-    state returned(typer: &mut Typer, syntax: &SyntaxTrees, machine: u64 in Trapping) -> u64 in Trapping {
+    machine returned(typer: &mut Typer, syntax: &SyntaxTrees, machine: u64 in Trapping) -> u64 in Trapping {
         let item: MachineItem = SyntaxTrees::machine_item(syntax, machine);
         let handle: u64 in Trapping = Typer::declared_result(typer, item.has_return_type, item.return_type, typer.output.unit);
         handle
     }
 
     // A data fact's field name has the field's declared type.
-    state field(typer: &mut Typer, syntax: &SyntaxTrees, field: u64 in Trapping) -> u64 in Trapping {
+    machine field(typer: &mut Typer, syntax: &SyntaxTrees, field: u64 in Trapping) -> u64 in Trapping {
         let declared: DataField = SyntaxTrees::field(syntax, field);
         let handle: u64 in Trapping = Typing::reference_type(&typer.output, declared.type_reference);
         handle
     }
 
     // A case fact's payload name has the payload field's declared type.
-    state payload_field(typer: &mut Typer, syntax: &SyntaxTrees, field: u64 in Trapping) -> u64 in Trapping {
+    machine payload_field(typer: &mut Typer, syntax: &SyntaxTrees, field: u64 in Trapping) -> u64 in Trapping {
         let declared: DataField = SyntaxTrees::payload_field(syntax, field);
         let handle: u64 in Trapping = Typing::reference_type(&typer.output, declared.type_reference);
         handle
@@ -277,14 +277,14 @@ crashes Trap
 
     // A constant is a value of its declared type; its initializer types
     // against that type (`Typer::type_constants`).
-    state constant_value(typer: &mut Typer, syntax: &SyntaxTrees, constant: u64 in Trapping) -> u64 in Trapping {
+    machine constant_value(typer: &mut Typer, syntax: &SyntaxTrees, constant: u64 in Trapping) -> u64 in Trapping {
         let declaration: ConstantItem = SyntaxTrees::constant_item(syntax, constant);
         Typing::reference_type(&typer.output, declaration.type_reference)
     }
 
     // A value binder (`Count: u32`, `const N: u64`) has its annotation's
     // type; a machine binder denotes no value.
-    state generic_value(typer: &mut Typer, syntax: &SyntaxTrees, parameter: u64 in Trapping) -> u64 in Trapping {
+    machine generic_value(typer: &mut Typer, syntax: &SyntaxTrees, parameter: u64 in Trapping) -> u64 in Trapping {
         let generic: GenericParameter = SyntaxTrees::generic_parameter(syntax, parameter);
         transition generic.has_type_reference {
             true -> annotated(typer, generic)
@@ -292,28 +292,28 @@ crashes Trap
         }
     }
 
-    state annotated(typer: &mut Typer, generic: GenericParameter) -> u64 in Trapping {
+    machine annotated(typer: &mut Typer, generic: GenericParameter) -> u64 in Trapping {
         let handle: u64 in Trapping = Typing::reference_type(&typer.output, generic.type_reference);
         handle
     }
 
-    state local(typer: &mut Typer, syntax: &SyntaxTrees, statement: u64 in Trapping) -> u64 in Trapping {
+    machine local(typer: &mut Typer, syntax: &SyntaxTrees, statement: u64 in Trapping) -> u64 in Trapping {
         let declaration: Statement = SyntaxTrees::statement(syntax, statement);
         Typing::reference_type(&typer.output, declaration.type_reference)
     }
 
-    state parameter(typer: &mut Typer, syntax: &SyntaxTrees, parameter: u64 in Trapping) -> u64 in Trapping {
+    machine parameter(typer: &mut Typer, syntax: &SyntaxTrees, parameter: u64 in Trapping) -> u64 in Trapping {
         let declaration: Parameter = SyntaxTrees::parameter(syntax, parameter);
         Typing::reference_type(&typer.output, declaration.type_reference)
     }
 
-    state binder(typer: &mut Typer, field: u64 in Trapping) -> u64 in Trapping {
+    machine binder(typer: &mut Typer, field: u64 in Trapping) -> u64 in Trapping {
         Typing::binder_type(&typer.output, field)
     }
 
     // `Type::Case` is a value only when the case carries no payload
     // (wiki/spec/language/data_and_literals.md, `bare-case-value-names`).
-    state data_case(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, item: u64 in Trapping, data_case: u64 in Trapping) -> u64 in Trapping {
+    machine data_case(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, item: u64 in Trapping, data_case: u64 in Trapping) -> u64 in Trapping {
         let declared: DataCase = SyntaxTrees::data_case(syntax, data_case);
         let expression: Expression = SyntaxTrees::expression(syntax, index);
         let mut row: TypeRow = TypeRow::of(TypeKind::Data);
@@ -324,12 +324,12 @@ crashes Trap
         }
     }
 
-    state data_type(typer: &mut Typer, row: TypeRow, expression: Expression) -> u64 in Trapping {
+    machine data_type(typer: &mut Typer, row: TypeRow, expression: Expression) -> u64 in Trapping {
         let handle: u64 in Trapping = Typer::intern(typer, row, expression.source_span);
         handle
     }
 
-    state absent() -> u64 in Trapping {
+    machine absent() -> u64 in Trapping {
         0
     }
 }
@@ -346,7 +346,7 @@ crashes Trap
         _ -> not_a_value(typer, syntax, expression.left)
     }
 
-    state projected(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, receiver: u64 in Trapping) {
+    machine projected(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, receiver: u64 in Trapping) {
         let base: u64 in Trapping = Typer::referent(typer, receiver);
         let row: TypeRow = TypeTable::row(&typer.output.types, base);
         transition row.kind == TypeKind::Data {
@@ -357,7 +357,7 @@ crashes Trap
 
     // A slice or array has one projection, its `u64` element count `.len`
     // (wiki/spec/language/counts_and_addresses.md).
-    state collection(typer: &mut Typer, sources: &SourceSet, index: u64 in Trapping, expression: Expression, row: TypeRow) {
+    machine collection(typer: &mut Typer, sources: &SourceSet, index: u64 in Trapping, expression: Expression, row: TypeRow) {
         let length: bool = SourceSet::span_spells(sources, expression.name.source_span, "len");
         transition (row.kind == TypeKind::Slice || row.kind == TypeKind::Array) && length {
             true -> counted(typer, index, expression)
@@ -365,7 +365,7 @@ crashes Trap
         }
     }
 
-    state counted(typer: &mut Typer, index: u64 in Trapping, expression: Expression) {
+    machine counted(typer: &mut Typer, index: u64 in Trapping, expression: Expression) {
         let mut count_row: TypeRow = TypeRow::of(TypeKind::Builtin);
         count_row.builtin = BuiltinType::U64;
         let count: u64 in Trapping = Typer::intern(typer, count_row, expression.source_span);
@@ -373,19 +373,19 @@ crashes Trap
         Typing::set_selection(&mut typer.output, index, Selection::Length);
     }
 
-    state data(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, row: TypeRow) {
+    machine data(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, row: TypeRow) {
         let item: DataItem = SyntaxTrees::data_item(syntax, row.item);
         transition { _ -> candidate(typer, sources, syntax, index, expression, row, item, 0) }
     }
 
-    state candidate(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, row: TypeRow, item: DataItem, offset: u64 in Trapping) {
+    machine candidate(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, row: TypeRow, item: DataItem, offset: u64 in Trapping) {
         transition offset < item.field_count {
             true -> compare(typer, sources, syntax, index, expression, row, item, offset)
             _ -> unknown(typer, expression)
         }
     }
 
-    state compare(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, row: TypeRow, item: DataItem, offset: u64 in Trapping) {
+    machine compare(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, row: TypeRow, item: DataItem, offset: u64 in Trapping) {
         let declared: DataField = SyntaxTrees::field(syntax, item.first_field + offset);
         let spelled: bool = SourceSet::spans_equal(sources, declared.name.source_span, expression.name.source_span);
         transition spelled {
@@ -394,23 +394,23 @@ crashes Trap
         }
     }
 
-    state found(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, row: TypeRow, handle: u64 in Trapping, declared: DataField) {
+    machine found(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, row: TypeRow, handle: u64 in Trapping, declared: DataField) {
         let field_type: u64 in Trapping = Typing::reference_type(&typer.output, declared.type_reference);
         let substituted: u64 in Trapping = Typer::substitute(typer, syntax, field_type, row, expression.source_span);
         Typing::set_expression_type(&mut typer.output, index, substituted);
         Typing::set_selection(&mut typer.output, index, Selection::Field { field: handle });
     }
 
-    state not_a_value(typer: &mut Typer, syntax: &SyntaxTrees, child: u64 in Trapping) {
+    machine not_a_value(typer: &mut Typer, syntax: &SyntaxTrees, child: u64 in Trapping) {
         let child_expression: Expression = SyntaxTrees::expression(syntax, child);
         Typing::reject(&mut typer.output, TypeDiagnosticCode::NotAValue, child_expression.source_span);
     }
 
-    state not_data(typer: &mut Typer, expression: Expression) {
+    machine not_data(typer: &mut Typer, expression: Expression) {
         Typing::reject(&mut typer.output, TypeDiagnosticCode::ProjectionOfNonData, expression.source_span);
     }
 
-    state unknown(typer: &mut Typer, expression: Expression) {
+    machine unknown(typer: &mut Typer, expression: Expression) {
         Typing::reject(&mut typer.output, TypeDiagnosticCode::UnknownField, expression.name.source_span);
     }
 }
@@ -432,7 +432,7 @@ crashes Trap
         _ -> single(typer, syntax, index, expression, collection, selector)
     }
 
-    state single(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, collection: u64 in Trapping, selector: u64 in Trapping) {
+    machine single(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, collection: u64 in Trapping, selector: u64 in Trapping) {
         Typer::record_scalar_read(typer, expression.right, selector);
         transition collection > 0 && selector > 0 {
             true -> typed(typer, syntax, index, expression, collection, selector)
@@ -444,7 +444,7 @@ crashes Trap
     // of its elements, under the collection's qualifier; a borrow or a
     // shared lending makes it a view (wiki/spec/language/expressions.md,
     // Indexing and ranges).
-    state sliced(typer: &mut Typer, index: u64 in Trapping, expression: Expression, collection: u64 in Trapping) {
+    machine sliced(typer: &mut Typer, index: u64 in Trapping, expression: Expression, collection: u64 in Trapping) {
         let base: u64 in Trapping = Typer::referent(typer, collection);
         let row: TypeRow = TypeTable::row(&typer.output.types, base);
         transition row.kind == TypeKind::Array || row.kind == TypeKind::Slice {
@@ -453,7 +453,7 @@ crashes Trap
         }
     }
 
-    state view(typer: &mut Typer, index: u64 in Trapping, expression: Expression, row: TypeRow) {
+    machine view(typer: &mut Typer, index: u64 in Trapping, expression: Expression, row: TypeRow) {
         let mut slice_row: TypeRow = TypeRow::of(TypeKind::Slice);
         slice_row.inner = row.inner;
         slice_row.domain = row.domain;
@@ -461,7 +461,7 @@ crashes Trap
         Typing::set_expression_type(&mut typer.output, index, handle);
     }
 
-    state typed(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, collection: u64 in Trapping, selector: u64 in Trapping) {
+    machine typed(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, collection: u64 in Trapping, selector: u64 in Trapping) {
         let base: u64 in Trapping = Typer::referent(typer, collection);
         let row: TypeRow = TypeTable::row(&typer.output.types, base);
         transition row.kind == TypeKind::Array || row.kind == TypeKind::Slice {
@@ -470,7 +470,7 @@ crashes Trap
         }
     }
 
-    state element(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, row: TypeRow, selector: u64 in Trapping) {
+    machine element(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, row: TypeRow, selector: u64 in Trapping) {
         let integer: bool = Typer::integer_type(typer, selector);
         let anonymous: bool = selector == typer.output.anonymous;
         let read: u64 in Trapping = Typer::element_read(typer, row, expression.source_span);
@@ -481,34 +481,34 @@ crashes Trap
         }
     }
 
-    state anonymous_index(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, anonymous: bool) {
+    machine anonymous_index(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, anonymous: bool) {
         transition anonymous {
             true -> land(typer, syntax, expression)
             _ -> not_integer(typer, syntax, expression)
         }
     }
 
-    state land(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression) {
+    machine land(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression) {
         let mut row: TypeRow = TypeRow::of(TypeKind::Builtin);
         row.builtin = BuiltinType::U64;
         let destination: u64 in Trapping = Typer::intern(typer, row, expression.source_span);
         let admitted: bool = Typer::admit(typer, syntax, destination, expression.right, false);
     }
 
-    state not_a_value(typer: &mut Typer, expression: Expression) {
+    machine not_a_value(typer: &mut Typer, expression: Expression) {
         Typing::reject(&mut typer.output, TypeDiagnosticCode::NotAValue, expression.source_span);
     }
 
-    state not_collection(typer: &mut Typer, expression: Expression) {
+    machine not_collection(typer: &mut Typer, expression: Expression) {
         Typing::reject(&mut typer.output, TypeDiagnosticCode::IndexOfNonCollection, expression.source_span);
     }
 
-    state not_integer(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression) {
+    machine not_integer(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression) {
         let selector_expression: Expression = SyntaxTrees::expression(syntax, expression.right);
         Typing::reject(&mut typer.output, TypeDiagnosticCode::NonIntegerIndex, selector_expression.source_span);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // A range slice's endpoints index their collection: each an integer, an
@@ -524,23 +524,23 @@ crashes Trap
         _ -> end(typer, syntax, expression)
     }
 
-    state start(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression) {
+    machine start(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression) {
         Typer::type_endpoint(typer, syntax, expression.left);
         transition { _ -> end(typer, syntax, expression) }
     }
 
-    state end(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression) {
+    machine end(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression) {
         transition expression.count == 1 && typer.output.accepted {
             true -> ended(typer, syntax, expression)
             _ -> done()
         }
     }
 
-    state ended(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression) {
+    machine ended(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression) {
         Typer::type_endpoint(typer, syntax, expression.right);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // One range endpoint: an integer, or an anonymous literal landed at `u64`.
@@ -554,14 +554,14 @@ crashes Trap
         _ -> other(typer, syntax, endpoint, typed == typer.output.anonymous)
     }
 
-    state other(typer: &mut Typer, syntax: &SyntaxTrees, endpoint: u64 in Trapping, anonymous: bool) {
+    machine other(typer: &mut Typer, syntax: &SyntaxTrees, endpoint: u64 in Trapping, anonymous: bool) {
         transition anonymous {
             true -> land(typer, syntax, endpoint)
             _ -> not_integer(typer, syntax, endpoint)
         }
     }
 
-    state land(typer: &mut Typer, syntax: &SyntaxTrees, endpoint: u64 in Trapping) {
+    machine land(typer: &mut Typer, syntax: &SyntaxTrees, endpoint: u64 in Trapping) {
         let written: Expression = SyntaxTrees::expression(syntax, endpoint);
         let mut row: TypeRow = TypeRow::of(TypeKind::Builtin);
         row.builtin = BuiltinType::U64;
@@ -569,12 +569,12 @@ crashes Trap
         let admitted: bool = Typer::admit(typer, syntax, destination, endpoint, false);
     }
 
-    state not_integer(typer: &mut Typer, syntax: &SyntaxTrees, endpoint: u64 in Trapping) {
+    machine not_integer(typer: &mut Typer, syntax: &SyntaxTrees, endpoint: u64 in Trapping) {
         let written: Expression = SyntaxTrees::expression(syntax, endpoint);
         Typing::reject(&mut typer.output, TypeDiagnosticCode::NonIntegerIndex, written.source_span);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // The type a read of `collection`'s element has: an unqualified integer or
@@ -590,7 +590,7 @@ crashes Trap
         _ -> stored(collection)
     }
 
-    state qualified(typer: &mut Typer, collection: TypeRow, element: TypeRow, source_span: SourceSpan) -> u64 in Trapping {
+    machine qualified(typer: &mut Typer, collection: TypeRow, element: TypeRow, source_span: SourceSpan) -> u64 in Trapping {
         let mut row: TypeRow = TypeRow::of(TypeKind::Builtin);
         row.builtin = element.builtin;
         row.domain = collection.domain;
@@ -598,7 +598,7 @@ crashes Trap
         handle
     }
 
-    state stored(collection: TypeRow) -> u64 in Trapping {
+    machine stored(collection: TypeRow) -> u64 in Trapping {
         collection.inner
     }
 }
@@ -621,7 +621,7 @@ crashes Trap
     // A name holding an exclusive or write-only loan denotes the original
     // storage (wiki/spec/language/ownership.md, Borrows and aliases):
     // assigning it writes the referent.
-    state named(typer: &Typer, typed: u64 in Trapping) -> u64 in Trapping {
+    machine named(typer: &Typer, typed: u64 in Trapping) -> u64 in Trapping {
         let row: TypeRow = TypeTable::row(&typer.output.types, typed);
         transition row.kind == TypeKind::Reference && row.access != ReferenceAccess::Shared {
             true -> result(row.inner)
@@ -629,7 +629,7 @@ crashes Trap
         }
     }
 
-    state indexed(typer: &mut Typer, expression: Expression) -> u64 in Trapping {
+    machine indexed(typer: &mut Typer, expression: Expression) -> u64 in Trapping {
         let collection: u64 in Trapping = Typing::expression_type(&typer.output, expression.left);
         let base: u64 in Trapping = Typer::referent(typer, collection);
         let row: TypeRow = TypeTable::row(&typer.output.types, base);
@@ -637,7 +637,7 @@ crashes Trap
         read
     }
 
-    state result(handle: u64 in Trapping) -> u64 in Trapping {
+    machine result(handle: u64 in Trapping) -> u64 in Trapping {
         handle
     }
 }
@@ -652,12 +652,12 @@ crashes Trap
         _ -> no()
     }
 
-    state builtin(row: TypeRow) -> bool {
+    machine builtin(row: TypeRow) -> bool {
         let fixed: bool = Typer::fixed_integer(row.builtin);
         fixed
     }
 
-    state no() -> bool {
+    machine no() -> bool {
         false
     }
 }
@@ -686,7 +686,7 @@ crashes Trap
     }
 
     // `!`, `-` and `~` read a scalar through references.
-    state typed(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
+    machine typed(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
         let read: u64 in Trapping = Typer::read_type(typer, operand);
         transition expression.operator {
             OperatorKind::Not -> not(typer, index, expression, read)
@@ -699,7 +699,7 @@ crashes Trap
         }
     }
 
-    state not(typer: &mut Typer, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
+    machine not(typer: &mut Typer, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
         Typer::record_scalar_read(typer, expression.left, operand);
         Typing::set_expression_type(&mut typer.output, index, operand);
         transition operand == typer.output.boolean {
@@ -708,7 +708,7 @@ crashes Trap
         }
     }
 
-    state negate(typer: &mut Typer, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
+    machine negate(typer: &mut Typer, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
         Typer::record_scalar_read(typer, expression.left, operand);
         let signed_integer: bool = Typer::signed_type(typer, operand);
         let float: bool = Typer::float_like(typer, operand);
@@ -720,20 +720,20 @@ crashes Trap
         }
     }
 
-    state negate_anonymous(typer: &mut Typer, index: u64 in Trapping, expression: Expression) {
+    machine negate_anonymous(typer: &mut Typer, index: u64 in Trapping, expression: Expression) {
         let value: ExactInteger = Typing::value(&typer.output, expression.left);
         let negated: ExactInteger = ExactInteger::negate(value);
         Typing::set_value(&mut typer.output, index, negated);
     }
 
-    state negate_typed(typer: &mut Typer, expression: Expression, signed: bool) {
+    machine negate_typed(typer: &mut Typer, expression: Expression, signed: bool) {
         transition signed {
             true -> done()
             _ -> mismatch(typer, expression)
         }
     }
 
-    state complement(typer: &mut Typer, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
+    machine complement(typer: &mut Typer, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
         Typer::record_scalar_read(typer, expression.left, operand);
         let integer: bool = Typer::integer_type(typer, operand);
         Typing::set_expression_type(&mut typer.output, index, operand);
@@ -745,7 +745,7 @@ crashes Trap
 
     // A place of reference type denotes its referent's storage, so a borrow
     // of it reborrows the referent rather than lending the reference.
-    state borrow(typer: &mut Typer, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping, access: ReferenceAccess) {
+    machine borrow(typer: &mut Typer, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping, access: ReferenceAccess) {
         let referent: u64 in Trapping = Typer::referent(typer, operand);
         let mut row: TypeRow = TypeRow::of(TypeKind::Reference);
         row.access = access;
@@ -756,7 +756,7 @@ crashes Trap
         }
     }
 
-    state borrowed(typer: &mut Typer, index: u64 in Trapping, expression: Expression, row: TypeRow) {
+    machine borrowed(typer: &mut Typer, index: u64 in Trapping, expression: Expression, row: TypeRow) {
         let handle: u64 in Trapping = Typer::intern(typer, row, expression.source_span);
         Typing::set_expression_type(&mut typer.output, index, handle);
     }
@@ -764,7 +764,7 @@ crashes Trap
     // `&mut place` lends exclusive access the place's storage already
     // permits: a place reached through a shared reference cannot be lent
     // exclusively (wiki/spec/language/expressions.md#borrowed-range-access).
-    state borrow_mutable(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
+    machine borrow_mutable(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
         let place: bool = Typer::is_place(syntax, resolution, expression.left);
         let shared: bool = Typer::through_shared(typer, syntax, expression.left);
         transition place {
@@ -773,7 +773,7 @@ crashes Trap
         }
     }
 
-    state exclusive_source(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping, shared: bool) {
+    machine exclusive_source(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping, shared: bool) {
         transition shared {
             true -> immutable_source(typer, syntax, expression)
             _ -> borrow(typer, index, expression, operand, ReferenceAccess::Mutable)
@@ -783,7 +783,7 @@ crashes Trap
     // `&write place` lends exclusive mutation without observation
     // (wiki/spec/language/ownership.md#borrows-and-aliases) of a place an
     // assignment could write.
-    state borrow_write(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
+    machine borrow_write(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
         let place: bool = Typer::is_place(syntax, resolution, expression.left);
         transition place {
             true -> write_source(typer, syntax, resolution, index, expression, operand)
@@ -791,7 +791,7 @@ crashes Trap
         }
     }
 
-    state write_source(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
+    machine write_source(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
         let writable: bool = Typer::writable_place(typer, syntax, resolution, expression.left);
         transition writable {
             true -> borrow(typer, index, expression, operand, ReferenceAccess::WriteOnly)
@@ -799,12 +799,12 @@ crashes Trap
         }
     }
 
-    state immutable_source(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression) {
+    machine immutable_source(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression) {
         let operand_expression: Expression = SyntaxTrees::expression(syntax, expression.left);
         Typing::reject(&mut typer.output, TypeDiagnosticCode::ImmutablePlace, operand_expression.source_span);
     }
 
-    state acknowledged(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
+    machine acknowledged(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
         let operand_expression: Expression = SyntaxTrees::expression(syntax, expression.left);
         Typing::set_expression_type(&mut typer.output, index, operand);
         transition operand_expression.kind == ExpressionKind::Call {
@@ -813,23 +813,23 @@ crashes Trap
         }
     }
 
-    state not_a_value(typer: &mut Typer, expression: Expression) {
+    machine not_a_value(typer: &mut Typer, expression: Expression) {
         Typing::reject(&mut typer.output, TypeDiagnosticCode::NotAValue, expression.source_span);
     }
 
-    state not_boolean(typer: &mut Typer, expression: Expression) {
+    machine not_boolean(typer: &mut Typer, expression: Expression) {
         Typing::reject(&mut typer.output, TypeDiagnosticCode::NotBoolean, expression.source_span);
     }
 
-    state not_a_place(typer: &mut Typer, expression: Expression) {
+    machine not_a_place(typer: &mut Typer, expression: Expression) {
         Typing::reject(&mut typer.output, TypeDiagnosticCode::NotAPlace, expression.source_span);
     }
 
-    state mismatch(typer: &mut Typer, expression: Expression) {
+    machine mismatch(typer: &mut Typer, expression: Expression) {
         Typing::reject(&mut typer.output, TypeDiagnosticCode::OperandMismatch, expression.source_span);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // Whether `index` names storage: a local, parameter or binder, or a field
@@ -843,7 +843,7 @@ crashes Trap
         _ -> root(resolution, index)
     }
 
-    state projected(syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) -> bool {
+    machine projected(syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) -> bool {
         let expression: Expression = SyntaxTrees::expression(syntax, index);
         transition expression.kind == ExpressionKind::Field || expression.kind == ExpressionKind::Index {
             true -> projected(syntax, resolution, expression.left)
@@ -851,7 +851,7 @@ crashes Trap
         }
     }
 
-    state root(resolution: &NameResolution, index: u64 in Trapping) -> bool {
+    machine root(resolution: &NameResolution, index: u64 in Trapping) -> bool {
         let binding: ValueBinding = NameResolution::value_binding(resolution, index);
         transition binding {
             ValueBinding::Local { statement } -> yes()
@@ -861,11 +861,11 @@ crashes Trap
         }
     }
 
-    state yes() -> bool {
+    machine yes() -> bool {
         true
     }
 
-    state no() -> bool {
+    machine no() -> bool {
         false
     }
 }
@@ -878,7 +878,7 @@ crashes Trap
 {
     transition { _ -> step(typer, syntax, index, 0) }
 
-    state step(typer: &Typer, syntax: &SyntaxTrees, handle: u64 in Trapping, walked: u64 in Trapping) -> bool {
+    machine step(typer: &Typer, syntax: &SyntaxTrees, handle: u64 in Trapping, walked: u64 in Trapping) -> bool {
         let expression: Expression = SyntaxTrees::expression(syntax, handle);
         let handle_type: u64 in Trapping = Typing::expression_type(&typer.output, handle);
         let row: TypeRow = TypeTable::row(&typer.output.types, handle_type);
@@ -890,14 +890,14 @@ crashes Trap
         }
     }
 
-    state deeper(typer: &Typer, syntax: &SyntaxTrees, base: u64 in Trapping, walked: u64 in Trapping, projected: bool) -> bool {
+    machine deeper(typer: &Typer, syntax: &SyntaxTrees, base: u64 in Trapping, walked: u64 in Trapping, projected: bool) -> bool {
         transition projected && walked < 64 {
             true -> step(typer, syntax, base, walked + 1)
             _ -> answer(false)
         }
     }
 
-    state answer(shared: bool) -> bool {
+    machine answer(shared: bool) -> bool {
         shared
     }
 }
@@ -912,7 +912,7 @@ crashes Trap
 {
     transition { _ -> step(typer, syntax, resolution, index) }
 
-    state step(typer: &Typer, syntax: &SyntaxTrees, resolution: &NameResolution, handle: u64 in Trapping) -> bool {
+    machine step(typer: &Typer, syntax: &SyntaxTrees, resolution: &NameResolution, handle: u64 in Trapping) -> bool {
         let expression: Expression = SyntaxTrees::expression(syntax, handle);
         let handle_type: u64 in Trapping = Typing::expression_type(&typer.output, handle);
         let row: TypeRow = TypeTable::row(&typer.output.types, handle_type);
@@ -924,14 +924,14 @@ crashes Trap
         }
     }
 
-    state inner(typer: &Typer, syntax: &SyntaxTrees, resolution: &NameResolution, handle: u64 in Trapping, expression: Expression, projected: bool) -> bool {
+    machine inner(typer: &Typer, syntax: &SyntaxTrees, resolution: &NameResolution, handle: u64 in Trapping, expression: Expression, projected: bool) -> bool {
         transition projected {
             true -> step(typer, syntax, resolution, expression.left)
             _ -> root(syntax, resolution, handle)
         }
     }
 
-    state root(syntax: &SyntaxTrees, resolution: &NameResolution, handle: u64 in Trapping) -> bool {
+    machine root(syntax: &SyntaxTrees, resolution: &NameResolution, handle: u64 in Trapping) -> bool {
         let binding: ValueBinding = NameResolution::value_binding(resolution, handle);
         transition binding {
             ValueBinding::Local { statement } -> local(syntax, statement)
@@ -940,17 +940,17 @@ crashes Trap
         }
     }
 
-    state local(syntax: &SyntaxTrees, statement: u64 in Trapping) -> bool {
+    machine local(syntax: &SyntaxTrees, statement: u64 in Trapping) -> bool {
         let declaration: Statement = SyntaxTrees::statement(syntax, statement);
         transition { _ -> answer(declaration.is_mutable) }
     }
 
-    state parameter(syntax: &SyntaxTrees, parameter: u64 in Trapping) -> bool {
+    machine parameter(syntax: &SyntaxTrees, parameter: u64 in Trapping) -> bool {
         let declaration: Parameter = SyntaxTrees::parameter(syntax, parameter);
         transition { _ -> answer(declaration.is_mutable) }
     }
 
-    state answer(writable: bool) -> bool {
+    machine answer(writable: bool) -> bool {
         writable
     }
 }
@@ -982,7 +982,7 @@ crashes Trap
 
     // An arithmetic or order operator with a data operand selects a machine
     // binding its token (operators.omg); every other operator is builtin.
-    state typed(
+    machine typed(
         typer: &mut Typer,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -1001,11 +1001,11 @@ crashes Trap
         }
     }
 
-    state declared(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression) {
+    machine declared(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression) {
         Typer::type_operator_call(typer, sources, syntax, resolution, index, expression);
     }
 
-    state builtin(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, left: u64 in Trapping, right: u64 in Trapping) {
+    machine builtin(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, left: u64 in Trapping, right: u64 in Trapping) {
         Typer::record_scalar_read(typer, expression.left, left);
         Typer::record_scalar_read(typer, expression.right, right);
         transition expression.operator {
@@ -1023,7 +1023,7 @@ crashes Trap
         }
     }
 
-    state logical(typer: &mut Typer, index: u64 in Trapping, expression: Expression, left: u64 in Trapping, right: u64 in Trapping) {
+    machine logical(typer: &mut Typer, index: u64 in Trapping, expression: Expression, left: u64 in Trapping, right: u64 in Trapping) {
         let boolean_type: u64 in Trapping = typer.output.boolean;
         Typing::set_expression_type(&mut typer.output, index, boolean_type);
         transition left == typer.output.boolean && right == typer.output.boolean {
@@ -1034,7 +1034,7 @@ crashes Trap
 
     // Byte sequences compare their bytes and lengths independently of
     // qualification. A fixed array contributes its complete fixed extent.
-    state equality(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, left: u64 in Trapping, right: u64 in Trapping) {
+    machine equality(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, left: u64 in Trapping, right: u64 in Trapping) {
         let comparable: bool = Typer::intrinsic_equality(typer, syntax, left);
         let sequences: bool = Typer::byte_sequence(typer, left) && Typer::byte_sequence(typer, right);
         transition (left == right && comparable) || sequences {
@@ -1043,7 +1043,7 @@ crashes Trap
         }
     }
 
-    state order(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, left: u64 in Trapping, right: u64 in Trapping) {
+    machine order(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, left: u64 in Trapping, right: u64 in Trapping) {
         let left_integer: bool = Typer::integer_like(typer, left);
         let right_integer: bool = Typer::integer_like(typer, right);
         let boolean_type: u64 in Trapping = typer.output.boolean;
@@ -1056,7 +1056,7 @@ crashes Trap
 
     // Floats compare under IEEE order within one format; an anonymous
     // operand lands at the typed one's format.
-    state float_comparison(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, left: u64 in Trapping, right: u64 in Trapping) {
+    machine float_comparison(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, left: u64 in Trapping, right: u64 in Trapping) {
         let left_float: bool = Typer::float_like(typer, left);
         let right_float: bool = Typer::float_like(typer, right);
         let left_anonymous: bool = left == typer.output.anonymous || left == typer.output.anonymous_float;
@@ -1067,14 +1067,14 @@ crashes Trap
         }
     }
 
-    state float_operands(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, left: u64 in Trapping, right: u64 in Trapping, left_anonymous: bool, right_anonymous: bool) {
+    machine float_operands(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, left: u64 in Trapping, right: u64 in Trapping, left_anonymous: bool, right_anonymous: bool) {
         transition left_anonymous && right_anonymous {
             true -> done()
             _ -> float_landing(typer, syntax, expression, left, right, left_anonymous)
         }
     }
 
-    state float_landing(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, left: u64 in Trapping, right: u64 in Trapping, left_anonymous: bool) {
+    machine float_landing(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, left: u64 in Trapping, right: u64 in Trapping, left_anonymous: bool) {
         transition left_anonymous {
             true -> admit_left(typer, syntax, expression, right)
             _ -> admit_right(typer, syntax, expression, left)
@@ -1083,43 +1083,43 @@ crashes Trap
 
     // An anonymous operand lands at a typed one's carrier; two anonymous
     // operands compare exactly.
-    state integer_order(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, left: u64 in Trapping, right: u64 in Trapping) {
+    machine integer_order(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, left: u64 in Trapping, right: u64 in Trapping) {
         transition left == typer.output.anonymous {
             true -> land_left(typer, syntax, expression, left, right)
             _ -> land_right(typer, syntax, expression, left, right)
         }
     }
 
-    state land_left(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, left: u64 in Trapping, right: u64 in Trapping) {
+    machine land_left(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, left: u64 in Trapping, right: u64 in Trapping) {
         transition right == typer.output.anonymous {
             true -> done()
             _ -> admit_left(typer, syntax, expression, right)
         }
     }
 
-    state admit_left(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, right: u64 in Trapping) {
+    machine admit_left(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, right: u64 in Trapping) {
         let admitted: bool = Typer::admit(typer, syntax, right, expression.left, false);
     }
 
-    state land_right(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, left: u64 in Trapping, right: u64 in Trapping) {
+    machine land_right(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, left: u64 in Trapping, right: u64 in Trapping) {
         transition right == typer.output.anonymous {
             true -> admit_right(typer, syntax, expression, left)
             _ -> done()
         }
     }
 
-    state admit_right(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, left: u64 in Trapping) {
+    machine admit_right(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, left: u64 in Trapping) {
         let admitted: bool = Typer::admit(typer, syntax, left, expression.right, false);
     }
 
-    state compared(typer: &mut Typer, index: u64 in Trapping) {
+    machine compared(typer: &mut Typer, index: u64 in Trapping) {
         let boolean_type: u64 in Trapping = typer.output.boolean;
         Typing::set_expression_type(&mut typer.output, index, boolean_type);
     }
 
     // A shift count is any integer; an anonymous count lands at the shifted
     // carrier.
-    state shift(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, left: u64 in Trapping, right: u64 in Trapping) {
+    machine shift(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, left: u64 in Trapping, right: u64 in Trapping) {
         let left_integer: bool = Typer::integer_type(typer, left);
         let right_integer: bool = Typer::integer_like(typer, right);
         Typing::set_expression_type(&mut typer.output, index, left);
@@ -1129,7 +1129,7 @@ crashes Trap
         }
     }
 
-    state arithmetic(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, left: u64 in Trapping, right: u64 in Trapping) {
+    machine arithmetic(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, left: u64 in Trapping, right: u64 in Trapping) {
         let left_anonymous: bool = left == typer.output.anonymous || left == typer.output.anonymous_float;
         let right_anonymous: bool = right == typer.output.anonymous || right == typer.output.anonymous_float;
         transition left == typer.output.anonymous && right == typer.output.anonymous {
@@ -1140,7 +1140,7 @@ crashes Trap
 
     // Anonymous arithmetic involving a decimal stays an anonymous float; its
     // exact value is evaluation's.
-    state mixed_arithmetic(
+    machine mixed_arithmetic(
         typer: &mut Typer,
         syntax: &SyntaxTrees,
         index: u64 in Trapping,
@@ -1156,19 +1156,19 @@ crashes Trap
         }
     }
 
-    state anonymous_float_result(typer: &mut Typer, index: u64 in Trapping) {
+    machine anonymous_float_result(typer: &mut Typer, index: u64 in Trapping) {
         let anonymous_float_type: u64 in Trapping = typer.output.anonymous_float;
         Typing::set_expression_type(&mut typer.output, index, anonymous_float_type);
     }
 
-    state typed_arithmetic(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, left: u64 in Trapping, right: u64 in Trapping, left_anonymous: bool) {
+    machine typed_arithmetic(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, left: u64 in Trapping, right: u64 in Trapping, left_anonymous: bool) {
         transition left_anonymous {
             true -> typed_carrier(typer, syntax, index, expression, right)
             _ -> typed_carrier(typer, syntax, index, expression, left)
         }
     }
 
-    state typed_carrier(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, carrier: u64 in Trapping) {
+    machine typed_carrier(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, carrier: u64 in Trapping) {
         let numeric: bool = Typer::numeric_type(typer, carrier);
         Typing::set_expression_type(&mut typer.output, index, carrier);
         transition numeric {
@@ -1177,7 +1177,7 @@ crashes Trap
         }
     }
 
-    state operands(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, carrier: u64 in Trapping) {
+    machine operands(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, carrier: u64 in Trapping) {
         let left_admitted: bool = Typer::admit(typer, syntax, carrier, expression.left, false);
         transition left_admitted {
             true -> right_operand(typer, syntax, expression, carrier)
@@ -1185,7 +1185,7 @@ crashes Trap
         }
     }
 
-    state right_operand(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, carrier: u64 in Trapping) {
+    machine right_operand(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, carrier: u64 in Trapping) {
         let admitted: bool = Typer::admit(typer, syntax, carrier, expression.right, false);
     }
 
@@ -1193,7 +1193,7 @@ crashes Trap
     // included; landing requires an integral value
     // (wiki/spec/language/numeric_values.md). A result beyond the magnitude
     // range is out of range; a zero divisor has no value.
-    state fold(typer: &mut Typer, index: u64 in Trapping, expression: Expression) {
+    machine fold(typer: &mut Typer, index: u64 in Trapping, expression: Expression) {
         let left: Rational = Typing::rational(&typer.output, expression.left);
         let right: Rational = Typing::rational(&typer.output, expression.right);
         let sum: RationalResult = Rational::add(left, right);
@@ -1212,7 +1212,7 @@ crashes Trap
         }
     }
 
-    state folded(typer: &mut Typer, index: u64 in Trapping, expression: Expression, result: RationalResult) {
+    machine folded(typer: &mut Typer, index: u64 in Trapping, expression: Expression, result: RationalResult) {
         Typing::set_rational(&mut typer.output, index, result.value);
         transition result.valid {
             true -> done()
@@ -1220,7 +1220,7 @@ crashes Trap
         }
     }
 
-    state divided(typer: &mut Typer, index: u64 in Trapping, expression: Expression, result: RationalResult, divisor: Rational) {
+    machine divided(typer: &mut Typer, index: u64 in Trapping, expression: Expression, result: RationalResult, divisor: Rational) {
         Typing::set_rational(&mut typer.output, index, result.value);
         transition result.valid {
             true -> done()
@@ -1228,42 +1228,42 @@ crashes Trap
         }
     }
 
-    state undivided(typer: &mut Typer, expression: Expression, divisor: Rational) {
+    machine undivided(typer: &mut Typer, expression: Expression, divisor: Rational) {
         transition divisor.numerator.magnitude == 0 {
             true -> fraction(typer, expression)
             _ -> out_of_range(typer, expression)
         }
     }
 
-    state not_a_value(typer: &mut Typer, expression: Expression) {
+    machine not_a_value(typer: &mut Typer, expression: Expression) {
         Typing::reject(&mut typer.output, TypeDiagnosticCode::NotAValue, expression.source_span);
     }
 
-    state not_boolean(typer: &mut Typer, expression: Expression) {
+    machine not_boolean(typer: &mut Typer, expression: Expression) {
         Typing::reject(&mut typer.output, TypeDiagnosticCode::NotBoolean, expression.source_span);
     }
 
-    state unsupported_comparison(typer: &mut Typer, expression: Expression) {
+    machine unsupported_comparison(typer: &mut Typer, expression: Expression) {
         Typing::reject(&mut typer.output, TypeDiagnosticCode::UnsupportedEquality, expression.source_span);
     }
 
-    state mismatch(typer: &mut Typer, expression: Expression) {
+    machine mismatch(typer: &mut Typer, expression: Expression) {
         Typing::reject(&mut typer.output, TypeDiagnosticCode::OperandMismatch, expression.source_span);
     }
 
-    state remainder(typer: &mut Typer, expression: Expression) {
+    machine remainder(typer: &mut Typer, expression: Expression) {
         Typing::reject(&mut typer.output, TypeDiagnosticCode::AnonymousRemainder, expression.source_span);
     }
 
-    state out_of_range(typer: &mut Typer, expression: Expression) {
+    machine out_of_range(typer: &mut Typer, expression: Expression) {
         Typing::reject(&mut typer.output, TypeDiagnosticCode::AnonymousValueOutOfRange, expression.source_span);
     }
 
-    state fraction(typer: &mut Typer, expression: Expression) {
+    machine fraction(typer: &mut Typer, expression: Expression) {
         Typing::reject(&mut typer.output, TypeDiagnosticCode::AnonymousFraction, expression.source_span);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // A fixed integer of any carrier, or an anonymous integer.
@@ -1309,13 +1309,13 @@ crashes Trap
         _ -> answer(false)
     }
 
-    state elements(typer: &Typer, row: TypeRow) -> bool {
+    machine elements(typer: &Typer, row: TypeRow) -> bool {
         let element: TypeRow = TypeTable::row(&typer.output.types, row.inner);
         let bytes: bool = element.kind == TypeKind::Builtin && element.builtin == BuiltinType::U8;
         transition { _ -> answer(bytes) }
     }
 
-    state answer(sequence: bool) -> bool {
+    machine answer(sequence: bool) -> bool {
         sequence
     }
 }
@@ -1331,17 +1331,17 @@ crashes Trap
         _ -> no()
     }
 
-    state builtin(row: TypeRow) -> bool {
+    machine builtin(row: TypeRow) -> bool {
         let integer: bool = Typer::fixed_integer(row.builtin);
         integer || row.builtin == BuiltinType::Bool || row.builtin == BuiltinType::Address
     }
 
     // An anonymous integer compares by its exact value.
-    state exact() -> bool {
+    machine exact() -> bool {
         true
     }
 
-    state data(syntax: &SyntaxTrees, row: TypeRow) -> bool {
+    machine data(syntax: &SyntaxTrees, row: TypeRow) -> bool {
         let item: DataItem = SyntaxTrees::data_item(syntax, row.item);
         transition item.field_count == 0 && item.case_count > 0 {
             true -> cases(syntax, item, 0)
@@ -1349,14 +1349,14 @@ crashes Trap
         }
     }
 
-    state cases(syntax: &SyntaxTrees, item: DataItem, offset: u64 in Trapping) -> bool {
+    machine cases(syntax: &SyntaxTrees, item: DataItem, offset: u64 in Trapping) -> bool {
         transition offset < item.case_count {
             true -> payload(syntax, item, offset)
             _ -> yes()
         }
     }
 
-    state payload(syntax: &SyntaxTrees, item: DataItem, offset: u64 in Trapping) -> bool {
+    machine payload(syntax: &SyntaxTrees, item: DataItem, offset: u64 in Trapping) -> bool {
         let declared: DataCase = SyntaxTrees::data_case(syntax, item.first_case + offset);
         transition declared.payload_field_count == 0 {
             true -> cases(syntax, item, offset + 1)
@@ -1364,11 +1364,11 @@ crashes Trap
         }
     }
 
-    state yes() -> bool {
+    machine yes() -> bool {
         true
     }
 
-    state no() -> bool {
+    machine no() -> bool {
         false
     }
 }
@@ -1397,7 +1397,7 @@ crashes Trap
         _ -> plain(typer, index, expression, source, target, source_integer, target_integer)
     }
 
-    state plain(typer: &mut Typer, index: u64 in Trapping, expression: Expression, source: u64 in Trapping, target: u64 in Trapping, source_integer: bool, target_integer: bool) {
+    machine plain(typer: &mut Typer, index: u64 in Trapping, expression: Expression, source: u64 in Trapping, target: u64 in Trapping, source_integer: bool, target_integer: bool) {
         transition source == target {
             true -> done()
             _ -> converted(typer, index, expression, source, target, source_integer, target_integer)
@@ -1407,7 +1407,7 @@ crashes Trap
     // A recast's operand is a reference of the target's access (`&x as &T`
     // or `&mut x as &mut T`), and both referents are the one type or scalars
     // of one width; checking judges their representations.
-    state recast(typer: &mut Typer, expression: Expression, written: u64 in Trapping, target_row: TypeRow) {
+    machine recast(typer: &mut Typer, expression: Expression, written: u64 in Trapping, target_row: TypeRow) {
         let given: TypeRow = TypeTable::row(&typer.output.types, written);
         transition given.kind == TypeKind::Reference {
             true -> recast_referents(typer, expression, given, target_row)
@@ -1415,7 +1415,7 @@ crashes Trap
         }
     }
 
-    state recast_referents(typer: &mut Typer, expression: Expression, given: TypeRow, target_row: TypeRow) {
+    machine recast_referents(typer: &mut Typer, expression: Expression, given: TypeRow, target_row: TypeRow) {
         let source_referent: TypeRow = TypeTable::row(&typer.output.types, given.inner);
         let target_referent: TypeRow = TypeTable::row(&typer.output.types, target_row.inner);
         let source_width: u64 in Trapping = TypeTable::carrier_width(source_referent);
@@ -1428,7 +1428,7 @@ crashes Trap
         }
     }
 
-    state converted(
+    machine converted(
         typer: &mut Typer,
         index: u64 in Trapping,
         expression: Expression,
@@ -1443,7 +1443,7 @@ crashes Trap
         }
     }
 
-    state requalified(typer: &mut Typer, expression: Expression, source: u64 in Trapping, target: u64 in Trapping, target_integer: bool) {
+    machine requalified(typer: &mut Typer, expression: Expression, source: u64 in Trapping, target: u64 in Trapping, target_integer: bool) {
         let source_row: TypeRow = TypeTable::row(&typer.output.types, source);
         let target_row: TypeRow = TypeTable::row(&typer.output.types, target);
         let same: bool = TypeTable::same_carrier(&typer.output.types, source_row, target_row);
@@ -1453,14 +1453,14 @@ crashes Trap
         }
     }
 
-    state anonymous(typer: &mut Typer, expression: Expression, source: u64 in Trapping, target: u64 in Trapping, target_integer: bool) {
+    machine anonymous(typer: &mut Typer, expression: Expression, source: u64 in Trapping, target: u64 in Trapping, target_integer: bool) {
         transition target_integer && source == typer.output.anonymous {
             true -> land(typer, expression, target)
             _ -> invalid(typer, expression)
         }
     }
 
-    state land(typer: &mut Typer, expression: Expression, target: u64 in Trapping) {
+    machine land(typer: &mut Typer, expression: Expression, target: u64 in Trapping) {
         let value: ExactInteger = Typing::value(&typer.output, expression.left);
         let denominator: u64 in Trapping = Typing::denominator(&typer.output, expression.left);
         let row: TypeRow = TypeTable::row(&typer.output.types, target);
@@ -1471,31 +1471,31 @@ crashes Trap
         }
     }
 
-    state integral(typer: &mut Typer, expression: Expression, target: u64 in Trapping, fits: bool) {
+    machine integral(typer: &mut Typer, expression: Expression, target: u64 in Trapping, fits: bool) {
         transition fits {
             true -> landed(typer, expression, target)
             _ -> out_of_range(typer, expression)
         }
     }
 
-    state fractional(typer: &mut Typer, expression: Expression) {
+    machine fractional(typer: &mut Typer, expression: Expression) {
         Typing::reject(&mut typer.output, TypeDiagnosticCode::AnonymousFraction, expression.source_span);
     }
 
-    state landed(typer: &mut Typer, expression: Expression, target: u64 in Trapping) {
+    machine landed(typer: &mut Typer, expression: Expression, target: u64 in Trapping) {
         Typing::set_expression_type(&mut typer.output, expression.left, target);
         Typing::set_adaptation(&mut typer.output, expression.left, Adaptation::Landed);
     }
 
-    state invalid(typer: &mut Typer, expression: Expression) {
+    machine invalid(typer: &mut Typer, expression: Expression) {
         Typing::reject(&mut typer.output, TypeDiagnosticCode::InvalidCast, expression.source_span);
     }
 
-    state out_of_range(typer: &mut Typer, expression: Expression) {
+    machine out_of_range(typer: &mut Typer, expression: Expression) {
         Typing::reject(&mut typer.output, TypeDiagnosticCode::LiteralOutOfRange, expression.source_span);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // Builtin operators and selectors consume scalars just as admission to a
@@ -1511,11 +1511,11 @@ crashes Trap
         _ -> done()
     }
 
-    state recorded(typer: &mut Typer, expression: u64 in Trapping) {
+    machine recorded(typer: &mut Typer, expression: u64 in Trapping) {
         Typing::set_adaptation(&mut typer.output, expression, Adaptation::Read);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // What a cast converts: its operand read through references, unless the
@@ -1530,7 +1530,7 @@ crashes Trap
         _ -> answer(read)
     }
 
-    state answer(source: u64 in Trapping) -> u64 in Trapping {
+    machine answer(source: u64 in Trapping) -> u64 in Trapping {
         source
     }
 }
@@ -1546,14 +1546,14 @@ crashes Trap
         _ -> unchanged(handle)
     }
 
-    state applied(typer: &mut Typer, syntax: &SyntaxTrees, handle: u64 in Trapping, owner: TypeRow, source_span: SourceSpan) -> u64 in Trapping {
+    machine applied(typer: &mut Typer, syntax: &SyntaxTrees, handle: u64 in Trapping, owner: TypeRow, source_span: SourceSpan) -> u64 in Trapping {
         Typer::begin_bindings(typer);
         Typer::bind_data_arguments(typer, syntax, owner);
         let substituted: u64 in Trapping = Typer::substitute_bound(typer, handle, source_span);
         substituted
     }
 
-    state unchanged(handle: u64 in Trapping) -> u64 in Trapping {
+    machine unchanged(handle: u64 in Trapping) -> u64 in Trapping {
         handle
     }
 }

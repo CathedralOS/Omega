@@ -13,14 +13,14 @@ machine Main::main(context: &mut Main) reaches Console {
     // The first field must snapshot before evaluation of the second field.
     context.packet = Packet { samples: context.samples, stamp: stamp(context) };
     transition { _ -> inspect(context) }
-    state inspect(context: &mut Main) {
+    machine inspect(context: &mut Main) {
         transition context.packet.samples[0] == 30 && context.packet.samples[1] == 40
             && context.packet.stamp == 7 && context.samples[0] == 90 {
             true -> finish(context, 70)
             false -> finish(context, 1)
         }
     }
-    state finish(context: &mut Main, code: i32) {
+    machine finish(context: &mut Main, code: i32) {
         Console::exit_process(code);
     }
 }

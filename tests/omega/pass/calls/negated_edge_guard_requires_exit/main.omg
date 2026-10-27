@@ -22,11 +22,11 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> bad(main)
         _ -> then(main, v)
     }
-    state then(main: &mut Main, v: u64) {
+    machine then(main: &mut Main, v: u64) {
         check(v);
         Console::exit_process(70);
     }
-    state bad(main: &mut Main) { Console::exit_process(1); }
+    machine bad(main: &mut Main) { Console::exit_process(1); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -37,6 +37,6 @@ machine main() crashes Trap {
     overwrite(&mut observed);
     let matched: u64 = choose(carriers.left, carriers.right);
     transition hold(direct) && matched == 11 && count.value == 2u64 && observed.value { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

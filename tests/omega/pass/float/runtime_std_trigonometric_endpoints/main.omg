@@ -8,20 +8,20 @@ machine Main::main(main: &mut Main) reaches Console {
     main.angle = 1.5707963267948966;
     let value: f64 = cos(0.0);
     transition value > 0.9999999999999 && value < 1.0000000000001 { true -> positive(main, main.angle) _ -> failure(main) }
-    state positive(main: &mut Main, angle: f64) {
+    machine positive(main: &mut Main, angle: f64) {
         let value: f64 = sin(angle);
         transition value > 0.9999999999999 && value < 1.0000000000001 { true -> negative(main, 0.0 - angle) _ -> failure(main) }
     }
-    state negative(main: &mut Main, angle: f64) {
+    machine negative(main: &mut Main, angle: f64) {
         let value: f64 = sin(angle);
         transition value > -1.0000000000001 && value < -0.9999999999999 { true -> folded(main) _ -> failure(main) }
     }
-    state folded(main: &mut Main) {
+    machine folded(main: &mut Main) {
         let value: f64 = cos(3.141592653589793);
         transition value > -1.0000000000001 && value < -0.9999999999999 { true -> success(main) _ -> failure(main) }
     }
-    state success(main: &mut Main) { Console::exit_process(0); }
-    state failure(main: &mut Main) { Console::exit_process(19); }
+    machine success(main: &mut Main) { Console::exit_process(0); }
+    machine failure(main: &mut Main) { Console::exit_process(19); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

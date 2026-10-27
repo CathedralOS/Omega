@@ -71,4 +71,38 @@ Proposed solutions below are recommendations, not owner rulings. The owner
 removes an entry once it is answered; unfinished implementation stays on its
 owning task.
 
-None.
+### Q1. Dependency input agreement when Build discovers the graph
+
+**Customer:** a shared generator package receives caller-captured templates or
+configuration through named Build inputs. Two consumers of that generator must
+not accidentally combine their input grants or reuse a result built with a
+different complete input map.
+
+**Contracts checked:** [scoped execution](wiki/spec/build/scoped_execution.md)
+requires incoming edge assignments, including an unassigned edge, to agree
+before any affected Build executes. The same document permits dependency
+requests in ordinary conditionals and discovers their immutable closures while
+Build runs; [provider readiness](wiki/spec/build/provider_selection.md#build-provider-readiness)
+resumes that same activation after its explicitly selected provider runs.
+
+For example, A requests generator G and awaits its provider. A calls G, then
+uses its result to decide whether to request B. B's Build also requests G, with
+no assigned inputs, while A's edge assigned a template. The conflict is only
+discovered after G ran. Comparing maps when G is reused cannot meet the stated
+pre-execution guarantee; replaying A to discover its graph violates Build-once.
+
+**Proposed decision:** dependency input assignments require a caller-supplied,
+closed prerequisite graph before execution. Preflight all complete maps against
+that graph; constrain discovery to its exact source/edge roster and refuse a
+changed roster rather than widening it. Ordinary discovery without dependency
+input assignments remains available. This makes the prerequisite graph an
+execution constraint, not merely a previous lock's observed dependency list.
+
+**Alternative:** admit inputs at each newly discovered edge, reject a conflict
+before reusing the dependency, and explicitly allow that an earlier activation
+already ran. This weakens only the timing guarantee, but must not be presented
+as rejection before the affected Build executed.
+
+Which contract should apply? The existing specification names a pre-execution
+prerequisite graph but does not settle whether supplied assignments require
+that graph to be closed and authoritative over later conditional discovery.

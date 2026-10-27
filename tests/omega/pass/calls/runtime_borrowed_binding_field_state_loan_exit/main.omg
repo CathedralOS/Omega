@@ -15,7 +15,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.count = 3;
     transition { _ -> speak(main.count) }
 
-    state speak(count: u64) {
+    machine speak(count: u64) {
         Console::write_line("first");
         transition count == 3 {
             true -> finish(70)
@@ -23,7 +23,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state finish(code: i32) {
+    machine finish(code: i32) {
         Console::write_line("second");
         Console::exit_process(code);
     }

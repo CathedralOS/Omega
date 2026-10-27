@@ -5,7 +5,7 @@ public data TransportInput { values: [i32; 15]; }
 
 public machine parse_transport(bytes: &[u8], input: &mut TransportInput) -> bool {
     transition { _ -> scan(bytes, input, 0, 0, 0, false, false, false) }
-    state scan(bytes: &[u8], input: &mut TransportInput, position: u64,
+    machine scan(bytes: &[u8], input: &mut TransportInput, position: u64,
                token: u64, value: i32 in Wrapping, negative: bool,
                started: bool, digit_seen: bool) -> bool {
         transition position < bytes.len {
@@ -13,7 +13,7 @@ public machine parse_transport(bytes: &[u8], input: &mut TransportInput) -> bool
             false -> end(input, token, value, negative, started, digit_seen)
         }
     }
-    state character(bytes: &[u8], input: &mut TransportInput, position: u64,
+    machine character(bytes: &[u8], input: &mut TransportInput, position: u64,
                     token: u64, value: i32 in Wrapping, negative: bool,
                     started: bool, digit_seen: bool, character: u8) -> bool {
         transition character == 32 || character == 9 || character == 13 || character == 10 {
@@ -21,7 +21,7 @@ public machine parse_transport(bytes: &[u8], input: &mut TransportInput) -> bool
             false -> nonspace(bytes, input, position, token, value, negative, started, digit_seen, character)
         }
     }
-    state nonspace(bytes: &[u8], input: &mut TransportInput, position: u64,
+    machine nonspace(bytes: &[u8], input: &mut TransportInput, position: u64,
                    token: u64, value: i32 in Wrapping, negative: bool,
                    started: bool, digit_seen: bool, character: u8) -> bool {
         transition character == 45 && !started {
@@ -29,7 +29,7 @@ public machine parse_transport(bytes: &[u8], input: &mut TransportInput) -> bool
             false -> decimal(bytes, input, position, token, value, negative, character)
         }
     }
-    state decimal(bytes: &[u8], input: &mut TransportInput, position: u64,
+    machine decimal(bytes: &[u8], input: &mut TransportInput, position: u64,
                   token: u64, value: i32 in Wrapping, negative: bool, character: u8) -> bool {
         transition character >= 48 && character <= 57 && value <= 9 {
             true -> scan(bytes, input, position + 1, token,
@@ -37,7 +37,7 @@ public machine parse_transport(bytes: &[u8], input: &mut TransportInput) -> bool
             false -> false
         }
     }
-    state separator(bytes: &[u8], input: &mut TransportInput, position: u64,
+    machine separator(bytes: &[u8], input: &mut TransportInput, position: u64,
                     token: u64, value: i32 in Wrapping, negative: bool,
                     started: bool, digit_seen: bool) -> bool {
         transition started {
@@ -45,34 +45,34 @@ public machine parse_transport(bytes: &[u8], input: &mut TransportInput) -> bool
             false -> scan(bytes, input, position + 1, token, 0, false, false, false)
         }
     }
-    state finish_token(bytes: &[u8], input: &mut TransportInput, position: u64,
+    machine finish_token(bytes: &[u8], input: &mut TransportInput, position: u64,
                        token: u64, value: i32 in Wrapping, negative: bool, digit_seen: bool) -> bool {
         transition token < 15 && digit_seen {
             true -> store(bytes, input, position, token, value, negative)
             false -> false
         }
     }
-    state store(bytes: &[u8], input: &mut TransportInput, position: u64,
+    machine store(bytes: &[u8], input: &mut TransportInput, position: u64,
                 token: u64, value: i32 in Wrapping, negative: bool) -> bool {
         let signed: i32 in Wrapping = signed_value(value, negative);
         input.values[token] = signed as i32;
         transition { _ -> scan(bytes, input, position + 1, token + 1, 0, false, false, false) }
     }
-    state end(input: &mut TransportInput, token: u64, value: i32 in Wrapping,
+    machine end(input: &mut TransportInput, token: u64, value: i32 in Wrapping,
               negative: bool, started: bool, digit_seen: bool) -> bool {
         transition started {
             true -> last(input, token, value, negative, digit_seen)
             false -> (token == 15)
         }
     }
-    state last(input: &mut TransportInput, token: u64, value: i32 in Wrapping,
+    machine last(input: &mut TransportInput, token: u64, value: i32 in Wrapping,
                negative: bool, digit_seen: bool) -> bool {
         transition token == 14 && digit_seen {
             true -> last_store(input, token, value, negative)
             false -> false
         }
     }
-    state last_store(input: &mut TransportInput, token: u64, value: i32 in Wrapping,
+    machine last_store(input: &mut TransportInput, token: u64, value: i32 in Wrapping,
                      negative: bool) -> bool {
         let signed: i32 in Wrapping = signed_value(value, negative);
         input.values[token] = signed as i32;
@@ -85,13 +85,13 @@ machine signed_value(value: i32 in Wrapping, negative: bool) -> i32 in Wrapping 
 
 public machine valid_margins(input: &TransportInput) -> bool {
     transition { _ -> item(input, 0) }
-    state item(input: &TransportInput, index: u64) -> bool {
+    machine item(input: &TransportInput, index: u64) -> bool {
         transition index < 6 {
             true -> check(input, index, input.values[index])
             false -> true
         }
     }
-    state check(input: &TransportInput, index: u64, value: i32) -> bool {
+    machine check(input: &TransportInput, index: u64, value: i32) -> bool {
         transition value >= 0 && value <= 9 {
             true -> item(input, index + 1)
             false -> false

@@ -17,8 +17,8 @@ machine inspect_computed() -> bool {
         Point { horizontal, vertical } if horizontal == 30 && vertical == 40 -> verify(counter)
         _ -> bad()
     }
-    state verify(counter: Counter) -> bool { counter.calls == 1 }
-    state bad() -> bool { false }
+    machine verify(counter: Counter) -> bool { counter.calls == 1 }
+    machine bad() -> bool { false }
 }
 machine inspect(point: Point in Screen) -> bool {
     let { horizontal, vertical as height } = point;
@@ -29,8 +29,8 @@ machine inspect_arm(point: Point in Screen) -> bool {
         Point { horizontal, vertical as height } if horizontal == 30 && height == 40 -> good()
         _ -> bad()
     }
-    state good() -> bool { true }
-    state bad() -> bool { false }
+    machine good() -> bool { true }
+    machine bad() -> bool { false }
 }
 machine main() crashes Trap {
     let point: Point in Screen = screen();
@@ -47,8 +47,8 @@ machine main() crashes Trap {
         true -> done(point)
         _ -> bad()
     }
-    state done(point: Point in Screen) {
+    machine done(point: Point in Screen) {
         let { horizontal as _, vertical as _ } = point;
     }
-    state bad() { crash Trap; }
+    machine bad() { crash Trap; }
 }

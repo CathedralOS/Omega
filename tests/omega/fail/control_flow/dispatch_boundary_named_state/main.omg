@@ -2,7 +2,7 @@
 // or separate block cannot supply the missing outcome.
 machine choose(take: bool) -> u64 crashes Trap {
  transition { _ -> selected(take) }
- state selected(take: bool) -> u64 {
+ machine selected(take: bool) -> u64 {
   transition take { true -> (70) }
   crash Trap;
  }

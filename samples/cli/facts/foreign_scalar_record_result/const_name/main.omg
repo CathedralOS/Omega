@@ -35,6 +35,6 @@ machine observe() -> bool reaches IntegerDivision { receive(IntegerDivision::div
 
 machine main() reaches IntegerDivision crashes Trap {
  transition observe() { true -> done() _ -> failed() }
- state done() {}
- state failed() { crash Trap; }
+ machine done() {}
+ machine failed() { crash Trap; }
 }

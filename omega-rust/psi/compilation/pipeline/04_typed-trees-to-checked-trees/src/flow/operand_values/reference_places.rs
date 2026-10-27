@@ -143,9 +143,7 @@ fn collect_operand_reference_places(
         for referent in referents {
             let place =
                 CapturedReferencePlace::from_referent(control, referent)?.projected(projection)?;
-            if !places.contains(&place) {
-                places.push(place);
-            }
+            crate::collections::push_unique(&mut *places, place);
         }
         return Some(());
     }
@@ -183,9 +181,7 @@ fn collect_leaf_places(
     }
     for referent in referents {
         let place = CapturedReferencePlace::from_referent(control, referent)?.projected(suffix)?;
-        if !places.contains(&place) {
-            places.push(place);
-        }
+        crate::collections::push_unique(&mut *places, place);
     }
     Some(())
 }

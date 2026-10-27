@@ -102,7 +102,6 @@ impl TerminalNativeRealizationProposal {
     pub fn bind_physical_adapter(
         &mut self,
         artifact: &terminal_codec::CanonicalTerminalArtifact,
-        machine: semantic_vocabulary::MachineId,
     ) -> Result<(), &'static str> {
         let application = self
             .program_entry
@@ -112,7 +111,6 @@ impl TerminalNativeRealizationProposal {
             artifact,
             application,
             &self.providers.checked_adapters,
-            machine,
         )?;
         self.program_entry.physical_adapter = Some(physical);
         Ok(())

@@ -44,7 +44,7 @@ machine Main::main(main: &mut Main) reaches Console {
         DecodeResult::Sound { value } -> inspect(main, value)
         DecodeResult::Invalid -> refused(main)
     }
-    state inspect(main: &mut Main, relayed: Relayed<LocalMessage>) {
+    machine inspect(main: &mut Main, relayed: Relayed<LocalMessage>) {
         main.buffer[1] = 0;
         transition relayed.value.value == 41
             && relayed.remainder.codec_identity == 7
@@ -53,33 +53,33 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> disagreement(main)
         }
     }
-    state tail_first(main: &mut Main, tail: &[u8], i: u64) {
+    machine tail_first(main: &mut Main, tail: &[u8], i: u64) {
         transition i < tail.len {
             true -> tail_first_byte(main, tail, tail[i])
             false -> disagreement(main)
         }
     }
-    state tail_first_byte(main: &mut Main, tail: &[u8], b: u8) {
+    machine tail_first_byte(main: &mut Main, tail: &[u8], b: u8) {
         transition b == 171 {
             true -> tail_second(main, tail, 1)
             false -> disagreement(main)
         }
     }
-    state tail_second(main: &mut Main, tail: &[u8], i: u64) {
+    machine tail_second(main: &mut Main, tail: &[u8], i: u64) {
         transition i < tail.len {
             true -> tail_second_byte(main, tail[i])
             false -> disagreement(main)
         }
     }
-    state tail_second_byte(main: &mut Main, b: u8) {
+    machine tail_second_byte(main: &mut Main, b: u8) {
         transition b == 205 {
             true -> good(main)
             false -> disagreement(main)
         }
     }
-    state good(main: &mut Main)         { Console::exit_process(70); }
-    state refused(main: &mut Main)      { Console::exit_process(71); }
-    state disagreement(main: &mut Main) { Console::exit_process(72); }
+    machine good(main: &mut Main)         { Console::exit_process(70); }
+    machine refused(main: &mut Main)      { Console::exit_process(71); }
+    machine disagreement(main: &mut Main) { Console::exit_process(72); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

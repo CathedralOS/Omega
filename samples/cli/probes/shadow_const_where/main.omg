@@ -37,14 +37,14 @@ machine Main::main(main: &mut Main) {
         Slot::Found { value } -> check(main, value)
         _ -> fail(main)
     }
-    state check(main: &mut Main, found: u64) {
+    machine check(main: &mut Main, found: u64) {
         transition found <= 5 {
             true -> pass(main)
             _ -> fail(main)
         }
     }
-    state pass(main: &mut Main) { main.hits = 1; }
-    state fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: &mut Main) { main.hits = 1; }
+    machine fail(main: &mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

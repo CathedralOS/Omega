@@ -825,6 +825,39 @@ impl TerminalExecution<'_> {
                 self.structural_cases.as_map(),
                 &required_paths,
             )?;
+        // Declaration-owned field predicates are existing typed invariants,
+        // independently of temporal memberships on the physical home's birth
+        // declaration. Entailment cannot introduce an issuer or a new policy.
+        for domain in &required_whole {
+            if !referent.qualifications.contains(domain)
+                && terminal_semantics::scalar_projection_entails_membership(
+                    self.program.structural_types().values(),
+                    self.program.catalogs.structural_domains.iter(),
+                    referent.structural_type,
+                    &[],
+                    *domain,
+                )
+            {
+                referent.qualifications.push(*domain);
+            }
+        }
+        for row in &required_paths {
+            if !referent.projected_qualifications.contains(row)
+                && terminal_semantics::scalar_projection_entails_membership(
+                    self.program.structural_types().values(),
+                    self.program.catalogs.structural_domains.iter(),
+                    referent.structural_type,
+                    &row.path,
+                    row.domain,
+                )
+            {
+                referent.projected_qualifications.push(row.clone());
+            }
+        }
+        referent.qualifications.sort();
+        referent.qualifications.dedup();
+        referent.projected_qualifications.sort();
+        referent.projected_qualifications.dedup();
         let mut required_projected = Vec::new();
         terminal_psi::StructuralPathQualification::append_under(
             &required_whole,

@@ -13,7 +13,6 @@ pub(in crate::interpreter::evaluator) mod behavior_exclusions;
 pub(in crate::interpreter::evaluator) mod log;
 pub(in crate::interpreter::evaluator) mod output_obligations;
 pub(in crate::interpreter::evaluator) mod paths;
-pub(in crate::interpreter::evaluator) mod product_declarations;
 pub(in crate::interpreter::evaluator) mod product_entries;
 pub(in crate::interpreter::evaluator) mod product_providers;
 pub(in crate::interpreter::evaluator) mod product_schemas;

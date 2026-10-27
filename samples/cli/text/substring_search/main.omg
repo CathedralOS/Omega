@@ -38,36 +38,36 @@ machine Main::main(main: &mut Main) reaches Console {
     main.found = 0 - 1;
     transition { _ -> outer(main) }
 
-    state outer(main: &mut Main) {
+    machine outer(main: &mut Main) {
         transition main.found < 0 {
             true -> outer_pos(main)
             false -> done(main)
         }
     }
-    state outer_pos(main: &mut Main) {
+    machine outer_pos(main: &mut Main) {
         transition main.i < main.text.len {
             true -> start_inner(main)
             false -> done(main)
         }
     }
-    state start_inner(main: &mut Main) {
+    machine start_inner(main: &mut Main) {
         main.j = 0;
         main.k = main.i;
         transition { _ -> inner(main) }
     }
-    state inner(main: &mut Main) {
+    machine inner(main: &mut Main) {
         transition main.j < main.pat.len {
             true -> check_bound(main)
             false -> matched(main)
         }
     }
-    state check_bound(main: &mut Main) {
+    machine check_bound(main: &mut Main) {
         transition main.k < main.text.len {
             true -> compare(main)
             false -> mismatch(main)
         }
     }
-    state compare(main: &mut Main) {
+    machine compare(main: &mut Main) {
         main.tb = main.text[main.k] as u8 in Wrapping;
         main.pb = main.pat[main.j] as u8 in Wrapping;
         transition main.tb == main.pb {
@@ -75,20 +75,20 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> mismatch(main)
         }
     }
-    state adv_inner(main: &mut Main) {
+    machine adv_inner(main: &mut Main) {
         main.k = main.k + 1;
         main.j = main.j + 1;
         transition { _ -> inner(main) }
     }
-    state matched(main: &mut Main) {
+    machine matched(main: &mut Main) {
         main.found = narrow_u32_to_i32_trapping(main.i as u32) as i32 in Wrapping;
         transition { _ -> done(main) }
     }
-    state mismatch(main: &mut Main) {
+    machine mismatch(main: &mut Main) {
         main.i = main.i + 1;
         transition { _ -> outer(main) }
     }
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         Console::write_line("result: the match index, 4 for cad in abracadabra (the exit code)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);

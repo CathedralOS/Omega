@@ -207,9 +207,7 @@ impl ReadWalk<'_, '_, '_> {
         {
             place.root = facts::PlaceRoot::Symbol(value);
         }
-        if !self.reads.contains(&place) {
-            self.reads.push(place);
-        }
+        crate::collections::push_unique(&mut self.reads, place);
         true
     }
 }

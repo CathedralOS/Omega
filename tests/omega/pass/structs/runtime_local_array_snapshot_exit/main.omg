@@ -17,7 +17,7 @@ machine Main::main(context: &mut Main) reaches Console {
         true -> finish(context, 70)
         false -> finish(context, 1)
     }
-    state finish(context: &mut Main, code: i32) {
+    machine finish(context: &mut Main, code: i32) {
         Console::exit_process(code);
     }
 }

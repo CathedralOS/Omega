@@ -41,14 +41,14 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> hex_loop(main)
     }
 
-    state hex_loop(main: &mut Main) {
+    machine hex_loop(main: &mut Main) {
         transition main.i < 16 {
             true -> read_byte(main)
             _ -> gutter_start(main)
         }
     }
 
-    state read_byte(main: &mut Main) {
+    machine read_byte(main: &mut Main) {
         main.b = main.data[main.i];
         main.bw = widen_u8_to_u32(main.b) as u32 in Wrapping;
         main.hi = main.bw / 16;
@@ -58,56 +58,56 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state hi_digit(main: &mut Main) {
+    machine hi_digit(main: &mut Main) {
         transition main.hi < 10 {
             true -> hi_num(main)
             _ -> hi_alpha(main)
         }
     }
 
-    state hi_num(main: &mut Main) {
+    machine hi_num(main: &mut Main) {
         main.chi = narrow_u32_to_i32_trapping((main.hi + 48) as u32);
         transition {
             _ -> write_hi(main)
         }
     }
 
-    state hi_alpha(main: &mut Main) {
+    machine hi_alpha(main: &mut Main) {
         main.chi = narrow_u32_to_i32_trapping((main.hi + 87) as u32);
         transition {
             _ -> write_hi(main)
         }
     }
 
-    state write_hi(main: &mut Main) {
+    machine write_hi(main: &mut Main) {
         Console::write_byte(main.chi);
         transition {
             _ -> lo_digit(main)
         }
     }
 
-    state lo_digit(main: &mut Main) {
+    machine lo_digit(main: &mut Main) {
         transition main.lo < 10 {
             true -> lo_num(main)
             _ -> lo_alpha(main)
         }
     }
 
-    state lo_num(main: &mut Main) {
+    machine lo_num(main: &mut Main) {
         main.chi = narrow_u32_to_i32_trapping((main.lo + 48) as u32);
         transition {
             _ -> write_lo(main)
         }
     }
 
-    state lo_alpha(main: &mut Main) {
+    machine lo_alpha(main: &mut Main) {
         main.chi = narrow_u32_to_i32_trapping((main.lo + 87) as u32);
         transition {
             _ -> write_lo(main)
         }
     }
 
-    state write_lo(main: &mut Main) {
+    machine write_lo(main: &mut Main) {
         Console::write_byte(main.chi);
         Console::write_byte(32);
         main.i = main.i + 1;
@@ -116,7 +116,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state gutter_start(main: &mut Main) {
+    machine gutter_start(main: &mut Main) {
         Console::write(" ");
         main.i = 0;
         transition {
@@ -124,14 +124,14 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state gutter_loop(main: &mut Main) {
+    machine gutter_loop(main: &mut Main) {
         transition main.i < 16 {
             true -> read_glyph(main)
             _ -> finish(main)
         }
     }
 
-    state read_glyph(main: &mut Main) {
+    machine read_glyph(main: &mut Main) {
         main.b = main.data[main.i];
         main.bw = widen_u8_to_u32(main.b) as u32 in Wrapping;
         transition main.bw >= 32 && main.bw < 127 {
@@ -140,7 +140,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state keep_glyph(main: &mut Main) {
+    machine keep_glyph(main: &mut Main) {
         Console::write_byte(main.b as i32);
         main.i = main.i + 1;
         transition {
@@ -148,7 +148,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state dot_glyph(main: &mut Main) {
+    machine dot_glyph(main: &mut Main) {
         Console::write_byte(46);
         main.i = main.i + 1;
         transition {
@@ -156,7 +156,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state finish(main: &mut Main) {
+    machine finish(main: &mut Main) {
         Console::write_line("");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);

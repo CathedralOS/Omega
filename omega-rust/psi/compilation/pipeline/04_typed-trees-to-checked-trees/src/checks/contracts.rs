@@ -361,9 +361,7 @@ pub(super) fn check_flow_call_contracts(
             );
             let mut reported = Vec::new();
             for diagnostic in diagnostics.split_off(exit_diagnostics) {
-                if !reported.contains(&diagnostic) {
-                    reported.push(diagnostic);
-                }
+                crate::collections::push_unique(&mut reported, diagnostic);
             }
             diagnostics.extend(reported);
         }

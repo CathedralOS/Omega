@@ -115,6 +115,25 @@ macro_rules! psi_rule_contract {
     };
 }
 
+/// The closed proposal surface every handwritten adapter rule exposes: the
+/// contract forwarding plus a `propose` that reads the unit and analyses from
+/// the registry call and runs the rule's own body. One declarative row per
+/// rule replaces the impl header every adapter rule restated; rules whose
+/// whole proposal is a shared helper keep the `propose = <fn>` arm above.
+macro_rules! psi_rule_impl {
+    ($name:ident, |$unit:ident, $analyses:ident| $body:block $(,)?) => {
+        impl PsiOptimizationRule for $name {
+            psi_rule_contract!(@adapter);
+
+            fn propose(
+                &self,
+                $unit: &PsiOptimizationUnit,
+                $analyses: RuleAnalysisView<'_>,
+            ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> $body
+        }
+    };
+}
+
 /// The shared missing-analysis requirement:
 /// `required_analysis!(view, AnalysisKind::K => Some(AnalysisProduct::K(b)))`
 /// reads product `K` through the view's first-match lookup or returns the

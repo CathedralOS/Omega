@@ -10,13 +10,13 @@ machine Main::main() -> i32 {
         _ -> 0
     }
 
-    state choose(entries: &[Entry], index: u64) -> i32 {
+    machine choose(entries: &[Entry], index: u64) -> i32 {
         transition {
             _ -> accept(entries[index].value)
         }
     }
 
-    state accept(value: i32) -> i32 {
+    machine accept(value: i32) -> i32 {
         transition {
             _ -> value
         }

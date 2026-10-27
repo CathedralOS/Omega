@@ -26,6 +26,7 @@ pub(super) fn analyze(
     walk: &ExpressionWalk,
     expression: ExpressionHandle,
     call: &TableCallExpression,
+    child_values: Option<&[super::CheckedIntegerValue]>,
 ) -> Analysis {
     // The shared expression walk has checked receiver and argument formation,
     // including calls whose result folds before reaching this result query.
@@ -34,8 +35,8 @@ pub(super) fn analyze(
         let mut cached_actuals = None;
         [
             selected_const_call_result(walk, expression),
-            declared_return_range(walk, expression, call, &mut cached_actuals),
-            inferred_return_range(walk, call, &mut cached_actuals),
+            declared_return_range(walk, expression, call, child_values, &mut cached_actuals),
+            inferred_return_range(walk, call, child_values, &mut cached_actuals),
             returned_referent_range(walk, expression, call),
         ]
         .into_iter()
@@ -262,6 +263,7 @@ fn declared_return_range(
     walk: &ExpressionWalk,
     expression: ExpressionHandle,
     call: &TableCallExpression,
+    child_values: Option<&[super::CheckedIntegerValue]>,
     cached_actuals: &mut Option<
         Vec<(
             symbols::SymbolHandle,
@@ -274,32 +276,51 @@ fn declared_return_range(
     let return_type = call_return_type(program, call)?;
     let primitive = program.primitive_type_reference(return_type);
     let declared = range_constraint_interval(program, return_type);
-    let actuals = cached_actuals
-        .get_or_insert_with(|| exact_ordinary_actual_intervals(walk, call).unwrap_or_default())
-        .as_slice();
-    let values: Vec<_> = actuals
-        .iter()
-        .map(|(symbol, interval, _)| (*symbol, *interval))
-        .collect();
-    let lengths = argument_collection_lengths(walk, call);
-    let concrete = super::super::call_result_bounds::ArgumentBounds { values, lengths };
-    let ensured =
+    let is_independent =
+        crate::machine_calls::contract_dependencies::independent_call_application(
+            program,
+            walk.lexical_owner,
+            call.target_symbol,
+            typed_trees::references::StaticArgumentCall::Expression(expression, call),
+        );
+    let callee = is_independent
+        .then(|| crate::machine_calls::calls::callee_entry_contract(program, call.target_symbol))
+        .flatten();
+    let can_have_ensured = is_independent
+        && (callee.as_ref().is_some_and(|callee| {
+            callee.contracts.iter().any(|contract| {
+                contract.kind == typed_trees::signature::SignatureContractKind::Ensures
+            })
+        }) || crate::machine_calls::calls::machine_state_by_symbol(
+            program,
+            call.target_symbol,
+        )
+        .is_some_and(|(machine, _)| machine.target_family_interface));
+    let ensured = if can_have_ensured {
+        let actuals = cached_actuals
+            .get_or_insert_with(|| {
+                exact_ordinary_actual_intervals(walk, call, child_values).unwrap_or_default()
+            })
+            .as_slice();
+        let values: Vec<_> = actuals
+            .iter()
+            .map(|(symbol, interval, _)| (*symbol, *interval))
+            .collect();
+        let lengths = argument_collection_lengths(walk, call);
+        let concrete = super::super::call_result_bounds::ArgumentBounds { values, lengths };
         ensured_call_result_interval(program, walk.lexical_owner, expression, call, &concrete).map(
             |ensured| {
                 primitive
                     .and_then(primitive_range)
                     .map_or(ensured, |carrier| ensured.intersect(carrier))
             },
-        );
-    let recipe = crate::machine_calls::contract_dependencies::independent_call_application(
-        program,
-        walk.lexical_owner,
-        call.target_symbol,
-        typed_trees::references::StaticArgumentCall::Expression(expression, call),
-    )
-    .then(|| crate::machine_calls::calls::callee_entry_contract(program, call.target_symbol))
-    .flatten()
-    .and_then(|callee| super::super::call_result_bounds::normal_return_recipe(program, &callee));
+        )
+    } else {
+        None
+    };
+    let recipe = callee
+        .as_ref()
+        .and_then(|callee| super::super::call_result_bounds::normal_return_recipe(program, callee));
     let interval = match (declared, ensured) {
         (Some(declared), Some(ensured)) => Some(declared.intersect(ensured)),
         (declared, ensured) => declared.or(ensured),
@@ -408,6 +429,7 @@ fn argument_collection_lengths(
 fn exact_ordinary_actual_intervals(
     walk: &ExpressionWalk,
     call: &TableCallExpression,
+    child_values: Option<&[super::CheckedIntegerValue]>,
 ) -> Option<
     Vec<(
         symbols::SymbolHandle,
@@ -444,6 +466,18 @@ fn exact_ordinary_actual_intervals(
             {
                 return Some(None);
             }
+            if let Some(values) = child_values
+                && let Some(found) = values
+                    .iter()
+                    .rev()
+                    .find(|value| value.expression == *argument)
+            {
+                return Some(Some((
+                    parameter.symbol,
+                    found.interval,
+                    found.recipe.clone(),
+                )));
+            }
             let mut diagnostics = Vec::new();
             let analysis = operand_walk.analyze(
                 *argument,
@@ -465,6 +499,7 @@ fn exact_ordinary_actual_intervals(
 fn inferred_return_range(
     walk: &ExpressionWalk,
     call: &TableCallExpression,
+    child_values: Option<&[super::CheckedIntegerValue]>,
     cached_actuals: &mut Option<
         Vec<(
             symbols::SymbolHandle,
@@ -485,15 +520,19 @@ fn inferred_return_range(
     if !program.machine_type_parameters(callee).is_empty() {
         return None;
     }
-    let primitive = program.primitive_type_reference(state.return_type);
+    let primitive = program.primitive_type_reference(state.return_type)?;
+    primitive_range(primitive)?;
     let actuals = cached_actuals
-        .get_or_insert_with(|| exact_ordinary_actual_intervals(walk, call).unwrap_or_default())
+        .get_or_insert_with(|| {
+            exact_ordinary_actual_intervals(walk, call, child_values).unwrap_or_default()
+        })
         .as_slice();
-    let (interval, recipe) = infer_return_interval(program, callee, state, primitive, actuals)?;
+    let (interval, recipe) =
+        infer_return_interval(program, callee, state, Some(primitive), actuals)?;
     Some(Analysis {
         recipe,
         domain: None,
         interval,
-        primitive,
+        primitive: Some(primitive),
     })
 }

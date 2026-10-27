@@ -37,6 +37,6 @@ machine main() crashes Trap {
     transition observed && view.bytes.len == 5 {
         true -> done() false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

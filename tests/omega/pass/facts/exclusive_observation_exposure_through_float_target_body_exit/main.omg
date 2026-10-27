@@ -18,7 +18,7 @@ requires item.kept == 7.0
     let held: f64 = expose(&mut item.other);
     let agreed: f64 = agree(saved, item.kept);
     transition { _ -> finish(agreed, held) }
-    state finish(agreed: f64, held: f64) -> f64 {
+    machine finish(agreed: f64, held: f64) -> f64 {
         transition held == held { true -> agreed _ -> agreed }
     }
 }
@@ -30,7 +30,7 @@ requires item.kept == 7.0
     let held: f64 = expose(&mut item.other);
     let agreed: f64 = agree(saved, item.kept);
     transition { _ -> finish(agreed, held) }
-    state finish(agreed: f64, held: f64) -> f64 {
+    machine finish(agreed: f64, held: f64) -> f64 {
         transition held == held { true -> agreed _ -> agreed }
     }
 }
@@ -42,7 +42,7 @@ requires item.kept == 7.0
     let held: f64 = expose(&mut item.other);
     let agreed: f64 = agree(saved, item.kept);
     transition { _ -> finish(agreed, held) }
-    state finish(agreed: f64, held: f64) -> f64 {
+    machine finish(agreed: f64, held: f64) -> f64 {
         transition held == held { true -> agreed _ -> agreed }
     }
 }
@@ -54,7 +54,7 @@ requires item.kept == 7.0
     let held: f64 = expose(&mut item.other);
     let agreed: f64 = agree(saved, item.kept);
     transition { _ -> finish(agreed, held) }
-    state finish(agreed: f64, held: f64) -> f64 {
+    machine finish(agreed: f64, held: f64) -> f64 {
         transition held == held { true -> agreed _ -> agreed }
     }
 }
@@ -62,6 +62,6 @@ requires item.kept == 7.0
 machine main() crashes Trap {
     let mut item: Ends = Ends { kept: 7.0, other: 1.0 };
     transition observe(&mut item) == 7.0 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

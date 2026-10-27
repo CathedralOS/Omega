@@ -1064,6 +1064,18 @@ pub(super) fn lower_unit_structural_domains(
     LoweringError,
 > {
     let mut selected = Vec::new();
+    for (_, region) in checked.facts.flow.ownership.loan_completions.iter() {
+        if !closure.contains(&region.machine) {
+            continue;
+        }
+        for fact in crate::emission::loan_completions::qualification_facts(checked, region) {
+            if let Some((_, _, _, domain)) = fact.payload.domain_membership()
+                && !selected.contains(&domain)
+            {
+                selected.push(domain);
+            }
+        }
+    }
     for symbol in closure {
         let body = UnitBody::find(plans, *symbol)?;
         // A callable publishes its result contract even when its only caller

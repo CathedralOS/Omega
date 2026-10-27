@@ -14,19 +14,19 @@ machine Main::main(main: &mut Main) reaches Console {
         LineReadResult::EndOfInput { count } -> eof(main, &bytes, count)
         _ -> invalid(main)
     }
-    state line(main: &mut Main, bytes: &[u8; 32], count: u64) {
+    machine line(main: &mut Main, bytes: &[u8; 32], count: u64) {
         transition count == 26 && bytes[25] == 10 {
             true -> parse_orders(main, bytes)
             _ -> invalid(main)
         }
     }
-    state eof(main: &mut Main, bytes: &[u8; 32], count: u64) {
+    machine eof(main: &mut Main, bytes: &[u8; 32], count: u64) {
         transition count == 25 {
             true -> parse_orders(main, bytes)
             _ -> invalid(main)
         }
     }
-    state parse_orders(main: &mut Main, bytes: &[u8; 32]) {
+    machine parse_orders(main: &mut Main, bytes: &[u8; 32]) {
         let mut orders: model::Orders;
         let valid: bool = input::parse(bytes, &mut orders);
         transition valid {
@@ -34,7 +34,7 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> invalid(main)
         }
     }
-    state plan(main: &mut Main, orders: &model::Orders) {
+    machine plan(main: &mut Main, orders: &model::Orders) {
         let mut best: model::Plan;
         planner::solve(orders, &mut best);
         let conserved: bool = report::emit(orders, &best);
@@ -43,12 +43,12 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> internal(main)
         }
     }
-    state done(main: &mut Main) { Console::exit_process(0); }
-    state internal(main: &mut Main) {
+    machine done(main: &mut Main) { Console::exit_process(0); }
+    machine internal(main: &mut Main) {
         Console::write_line("INTERNAL: conservation certificate failed");
         Console::exit_process(70);
     }
-    state invalid(main: &mut Main) {
+    machine invalid(main: &mut Main) {
         Console::write_line("INVALID: expected SSS RRR K LLL LLL LLL LLL; stock and orders must be positive");
         Console::exit_process(64);
     }

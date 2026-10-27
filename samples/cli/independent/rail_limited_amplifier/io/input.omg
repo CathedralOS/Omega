@@ -14,38 +14,38 @@ public machine parse(bytes: &[u8]) -> Inputs {
     let mut input: Inputs;
     input.valid = true;
     transition { _ -> scan(bytes, 0, input) }
-    state scan(bytes: &[u8], index: u64, input: Inputs) -> Inputs {
+    machine scan(bytes: &[u8], index: u64, input: Inputs) -> Inputs {
         transition index < bytes.len {
             true -> character(bytes, index, input)
             false -> finish(input)
         }
     }
-    state character(bytes: &[u8], index: u64, input: Inputs) -> Inputs {
+    machine character(bytes: &[u8], index: u64, input: Inputs) -> Inputs {
         let byte: i32 = widen_u8_to_i32(bytes[index]);
         transition byte == 32 || byte == 9 || byte == 10 || byte == 13 {
             true -> separator(bytes, index, input)
             false -> nonspace(bytes, index, input, byte)
         }
     }
-    state nonspace(bytes: &[u8], index: u64, input: Inputs, byte: i32) -> Inputs {
+    machine nonspace(bytes: &[u8], index: u64, input: Inputs, byte: i32) -> Inputs {
         transition byte == 45 && !input.started {
             true -> sign(bytes, index, input)
             false -> digit(bytes, index, input, byte)
         }
     }
-    state sign(bytes: &[u8], index: u64, input: Inputs) -> Inputs {
+    machine sign(bytes: &[u8], index: u64, input: Inputs) -> Inputs {
         let mut changed: Inputs = input;
         changed.negative = true;
         changed.started = true;
         transition { _ -> next(bytes, index, changed) }
     }
-    state digit(bytes: &[u8], index: u64, input: Inputs, byte: i32) -> Inputs {
+    machine digit(bytes: &[u8], index: u64, input: Inputs, byte: i32) -> Inputs {
         transition byte >= 48 && byte <= 57 {
             true -> accumulate(bytes, index, input, byte)
             false -> invalid(input)
         }
     }
-    state accumulate(bytes: &[u8], index: u64, input: Inputs, byte: i32) -> Inputs {
+    machine accumulate(bytes: &[u8], index: u64, input: Inputs, byte: i32) -> Inputs {
         let mut changed: Inputs = input;
         changed.magnitude = changed.magnitude * 10 + ((byte as i32 in Wrapping) - 48);
         changed.started = true;
@@ -55,25 +55,25 @@ public machine parse(bytes: &[u8]) -> Inputs {
             false -> invalid(changed)
         }
     }
-    state separator(bytes: &[u8], index: u64, input: Inputs) -> Inputs {
+    machine separator(bytes: &[u8], index: u64, input: Inputs) -> Inputs {
         let changed: Inputs = commit(input);
         transition changed.valid {
             true -> next(bytes, index, changed)
             false -> (changed)
         }
     }
-    state next(bytes: &[u8], index: u64, input: Inputs) -> Inputs {
+    machine next(bytes: &[u8], index: u64, input: Inputs) -> Inputs {
         transition index < bytes.len {
             true -> scan(bytes, index + 1, input)
             false -> finish(input)
         }
     }
-    state finish(input: Inputs) -> Inputs {
+    machine finish(input: Inputs) -> Inputs {
         let mut changed: Inputs = commit(input);
         changed.valid = changed.valid && changed.count == 10;
         changed
     }
-    state invalid(input: Inputs) -> Inputs {
+    machine invalid(input: Inputs) -> Inputs {
         let mut changed: Inputs = input;
         changed.valid = false;
         changed
@@ -84,13 +84,13 @@ machine commit(input: Inputs) -> Inputs {
         false -> (input)
         true -> check(input)
     }
-    state check(input: Inputs) -> Inputs {
+    machine check(input: Inputs) -> Inputs {
         transition input.digits && input.count >= 0 && input.count < 10 {
             true -> store(input)
             false -> invalid(input)
         }
     }
-    state store(input: Inputs) -> Inputs {
+    machine store(input: Inputs) -> Inputs {
         let mut changed: Inputs = input;
         let slot: i32 = changed.count as i32;
         let value: i32 in Wrapping = match changed.negative {
@@ -105,7 +105,7 @@ machine commit(input: Inputs) -> Inputs {
         changed.digits = false;
         changed
     }
-    state invalid(input: Inputs) -> Inputs {
+    machine invalid(input: Inputs) -> Inputs {
         let mut changed: Inputs = input;
         changed.valid = false;
         changed

@@ -22,7 +22,7 @@ terminates;
     let local_left: Token = left;
     holder.value = &local_left;
     transition { _ -> arrive(holder, calls) }
-    state arrive(held: Holder, calls: &mut u64) -> u64 {
+    machine arrive(held: Holder, calls: &mut u64) -> u64 {
         consume(held.value, calls)
     }
 }
@@ -35,6 +35,6 @@ machine main() reaches Grants crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

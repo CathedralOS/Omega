@@ -7,11 +7,11 @@ requires slots.len == 2 {
         true -> write(slots, replacement)
         false -> done()
     }
-    state write(slots: &'carrier mut [Held<'input>], replacement: &'input Cell)
+    machine write(slots: &'carrier mut [Held<'input>], replacement: &'input Cell)
     requires slots.len == 2 {
         slots[0].target = replacement;
     }
-    state done() {}
+    machine done() {}
 }
 
 machine read(slots: &[Held], position: u64) -> u32
@@ -36,6 +36,6 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

@@ -3,7 +3,7 @@ use crate::unit_validation::operation_contracts::plain_calls::plain_structural_c
 use crate::unit_validation::structural_catalog::resolve_structural_path;
 use abstract_operations::AbstractOperation as O;
 use abstract_operations::AbstractStructuralCallResult;
-use optimization_unit::PsiOptimizationFunction;
+use optimization_unit::{PsiOptimizationFunction, operation_result_placement};
 use semantic_vocabulary::{StructuralPlaceKind, StructuralTypeId};
 use std::collections::BTreeMap;
 use terminal_semantics::structural_paths_may_overlap;
@@ -63,16 +63,7 @@ pub(crate) fn case_establishment_matches(
     else {
         return false;
     };
-    function.structural_places.iter().any(|place| {
-        place.id == result.place
-            && matches!(
-                place.kind,
-                StructuralPlaceKind::OperationResult {
-                    producer,
-                    structural_type,
-                } if producer == *psi_operation && structural_type == result.structural_type
-            )
-    }) && matches!(
+    operation_result_placement(function, result, *psi_operation) && matches!(
         result.multiplicity,
         terminal_psi::StructuralMultiplicity::Unrestricted
             | terminal_psi::StructuralMultiplicity::Affine

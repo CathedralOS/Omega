@@ -19,8 +19,8 @@ macos_arm64 machine platform() crashes Trap {
     let bytes: [u8; 8] = [17, 0, 0, 0, 34, 0, 0, 0];
     let view: &View = &bytes[0] as &View;
     transition observe(view) == 34 { true -> good() false -> bad() }
-    state good() {}
-    state bad() { crash Trap; }
+    machine good() {}
+    machine bad() { crash Trap; }
 }
 windows_x86_64 machine platform() crashes Trap {}
 linux_x86_64 machine platform() crashes Trap {}

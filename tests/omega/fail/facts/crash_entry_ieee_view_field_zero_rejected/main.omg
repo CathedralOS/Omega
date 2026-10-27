@@ -3,7 +3,7 @@ machine maybe_zero(value: f32) -> f32
 crashes Trap value == 0.0
 {
     transition value == 0.0 { true -> bad() false -> (value) }
-    state bad() { crash Trap; }
+    machine bad() -> f32 { crash Trap; }
 }
 public data Packet { bits: i32; marker: i32; }
 public machine read_bits(packet: &Packet) -> f32
@@ -17,5 +17,5 @@ machine main() crashes Trap {
     let packet: Packet = Packet { bits: 0, marker: 11 };
     let observed: f32 = read_bits(&packet);
     transition observed == 1.0 { true -> done() _ -> bad() }
-    state done() {} state bad() { crash Trap; }
+    machine done() {} machine bad() { crash Trap; }
 }

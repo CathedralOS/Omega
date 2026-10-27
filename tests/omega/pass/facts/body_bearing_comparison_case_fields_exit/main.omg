@@ -25,11 +25,11 @@ data Carriers [copy] { case Pair(left: f64 in Marked, right: f64 in Marked); }
 machine main() crashes Trap {
     let carriers: Carriers = Carriers::Pair { left: 1.0, right: 1.0 };
     transition carriers { Carriers::Pair { left, right } -> check(left, right) }
-    state check(left: f64 in Marked, right: f64 in Marked) {
+    machine check(left: f64 in Marked, right: f64 in Marked) {
         let direct: bool = compare(left, right);
         let matched: u64 = choose(left, right);
         transition hold(direct) && matched == 11 { true -> done() _ -> bad() }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

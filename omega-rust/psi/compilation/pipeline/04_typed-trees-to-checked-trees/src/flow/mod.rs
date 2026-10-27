@@ -90,6 +90,7 @@ mod transfers;
 mod boundaries;
 mod call_phases;
 pub(crate) mod calls;
+mod retained_borrows;
 
 // What a write drops: the places a statement or call writes, the facts over them
 // and their domain dependencies, and borrow loans that expire or are overwritten.

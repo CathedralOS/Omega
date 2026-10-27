@@ -29,6 +29,12 @@ pub struct PreparedCompilation {
 }
 
 impl PreparedCompilation {
+    pub fn product_queries(&self) -> Option<crate::ProductQueries> {
+        match &self.source {
+            Some(Ok(source)) => Some(source.product_queries()),
+            _ => None,
+        }
+    }
     pub fn execution(&mut self) -> Option<&mut build_evaluation::PreparedBuildExecution> {
         match &mut self.source {
             Some(Ok(source)) => source.execution(),

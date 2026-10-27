@@ -5,7 +5,7 @@ machine walk(remaining: u32, base: u32, step: u32)
 terminates by remaining in 0..=5;
 -> u32 {
     transition { _ -> tally(remaining, base + step) }
-    state tally(count: u32, total: u32)
+    machine tally(count: u32, total: u32) -> u32
         requires 0 <= count && count <= 5 && 0 <= total && total <= 10
     {
         transition count > 0 {

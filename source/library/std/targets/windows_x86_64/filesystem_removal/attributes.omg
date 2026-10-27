@@ -20,7 +20,7 @@ reaches FilesystemMetadataQuery {
     let file: i64 in WindowsDiskFileOrAbsent = block windows_classify_metadata_disk_file(
         narrow_i64_to_u64_wrapping(handle as i64));
     transition file != 0 { true -> query(file) false -> failed() }
-    state query(file: i64 in WindowsDiskFileOrAbsent) -> WindowsRemovalAttributes
+    machine query(file: i64 in WindowsDiskFileOrAbsent) -> WindowsRemovalAttributes
     requires file != 0 {
         let mut information: WindowsNativeFileAttributeTagInfo;
         let succeeded: i32 = block WindowsFilesystemMetadataIo::attribute_tag(file, 9, &mut information, 8);
@@ -29,7 +29,7 @@ reaches FilesystemMetadataQuery {
             false -> failed()
         }
     }
-    state failed() -> WindowsRemovalAttributes {
+    machine failed() -> WindowsRemovalAttributes {
         WindowsRemovalAttributes::Error { code: windows_removal_error(WindowsFilesystemIo::c_get_last_error()) }
     }
 }

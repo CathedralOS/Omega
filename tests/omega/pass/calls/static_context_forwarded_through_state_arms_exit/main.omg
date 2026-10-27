@@ -35,14 +35,14 @@ machine Main::read(context: &mut Main, index: i32) -> i32 in Wrapping {
         _ -> second(context, index)
     }
 
-    state second(context: &mut Main, index: i32) {
+    machine second(context: &mut Main, index: i32) -> i32 in Wrapping {
         transition index == 1 {
             true -> (context.values[1])
             _ -> third(context, index)
         }
     }
 
-    state third(context: &mut Main, index: i32) {
+    machine third(context: &mut Main, index: i32) -> i32 in Wrapping {
         transition index == 2 {
             true -> (context.values[2])
             _ -> (context.values[3])
@@ -64,14 +64,14 @@ machine Main::move_to_front(context: &mut Main, index: i32) {
         _ -> shift(context, index)
     }
 
-    state shift(context: &mut Main, index: i32) {
+    machine shift(context: &mut Main, index: i32) {
         let value: i32 in Wrapping = Main::take(context, index);
         let front: i32 in Wrapping = Main::read(context, 0);
         context.values[0] = value;
         context.values[1] = front;
     }
 
-    state done(context: &mut Main) {}
+    machine done(context: &mut Main) {}
 }
 
 // Record result: the forwarded loan is read in the last state's arms.
@@ -81,7 +81,7 @@ machine Main::pair(context: &mut Main, index: i32) -> Pair {
         _ -> next(context, index)
     }
 
-    state next(context: &mut Main, index: i32) {
+    machine next(context: &mut Main, index: i32) -> Pair {
         transition index == 1 {
             true -> (Pair { low: context.values[1], high: context.values[2] })
             _ -> (Pair { low: context.values[2], high: context.values[3] })

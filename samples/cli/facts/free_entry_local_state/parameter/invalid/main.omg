@@ -10,8 +10,8 @@ machine settle(mark: &Mark) {}
 machine finish(tally: &mut Tally, code: u64) requires code == 7 crashes Trap {
     settle(&Mark { slot: tally, code: code });
     transition tally.total == 7 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine start(unprovided: &mut Unprovided) crashes Trap {
     let mut tally: Tally = Tally { total: 0 };

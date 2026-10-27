@@ -8,21 +8,21 @@ machine update<'storage>(groups: &mut [Group<'storage>], group_position: u64, wi
         true -> in_group(groups, group_position, window_position, position)
         false -> false
     }
-    state in_group(groups: &mut [Group<'storage>], group_position: u64, window_position: u64, position: u64) -> bool
+    machine in_group(groups: &mut [Group<'storage>], group_position: u64, window_position: u64, position: u64) -> bool
     requires group_position < groups.len {
         transition window_position < groups[group_position].windows.len {
             true -> in_window(groups, group_position, window_position, position)
             false -> false
         }
     }
-    state in_window(groups: &mut [Group<'storage>], group_position: u64, window_position: u64, position: u64) -> bool
+    machine in_window(groups: &mut [Group<'storage>], group_position: u64, window_position: u64, position: u64) -> bool
     requires group_position < groups.len && window_position < groups[group_position].windows.len {
         transition position < groups[group_position].windows[window_position].values.len {
             true -> store(groups, group_position, window_position, position)
             false -> false
         }
     }
-    state store(groups: &mut [Group<'storage>], group_position: u64, window_position: u64, position: u64) -> bool
+    machine store(groups: &mut [Group<'storage>], group_position: u64, window_position: u64, position: u64) -> bool
     requires group_position < groups.len && window_position < groups[group_position].windows.len
         && position < groups[group_position].windows[window_position].values.len {
         groups[group_position].windows[window_position].values[position] = Cell { value: 73 };
@@ -43,6 +43,6 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

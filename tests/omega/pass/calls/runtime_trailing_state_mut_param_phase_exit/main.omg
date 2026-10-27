@@ -21,7 +21,7 @@ machine draw(random: &mut Rng) -> u32 {
         true -> after(random)
         _ -> (71)
     }
-    state after(random: &mut Rng) -> u32 {
+    machine after(random: &mut Rng) -> u32 {
         bump(random);
         transition random.calls == 3 {
             true -> (70)
@@ -36,8 +36,8 @@ machine Main::main(context: &mut Main) reaches Console {
         true -> good(context)
         _ -> bad(context)
     }
-    state good(context: &mut Main) { Console::exit_process(70); }
-    state bad(context: &mut Main) { Console::exit_process(71); }
+    machine good(context: &mut Main) { Console::exit_process(70); }
+    machine bad(context: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

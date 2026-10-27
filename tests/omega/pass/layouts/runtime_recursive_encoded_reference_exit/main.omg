@@ -79,7 +79,7 @@ terminates by remaining -> Nat::Descending in 0..=4; {
         true -> write_repeatedly(value, remaining - 1)
         _ -> done(value, remaining)
     }
-    state done(value: &mut i64, remaining: u64) {}
+    machine done(value: &mut i64, remaining: u64) {}
 }
 
 machine Main::main(main: &mut Main) crashes Trap {
@@ -103,8 +103,8 @@ machine Main::main(main: &mut Main) crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

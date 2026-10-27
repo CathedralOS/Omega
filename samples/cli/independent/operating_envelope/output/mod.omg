@@ -12,31 +12,31 @@ invokes Console;
         true -> negative(value as i32 in Wrapping)
         _ -> digits(value as i32 in Wrapping, 1000000000, false)
     }
-    state negative(value: i32 in Wrapping) {
+    machine negative(value: i32 in Wrapping) {
         Console::write_byte(45);
         transition { _ -> digits(0 - value, 1000000000, false) }
     }
-    state digits(value: i32 in Wrapping, divisor: i32 in Wrapping, started: bool) {
+    machine digits(value: i32 in Wrapping, divisor: i32 in Wrapping, started: bool) {
         transition divisor > 0 {
             true -> quotient(value, divisor, started)
             _ -> done()
         }
     }
-    state quotient(value: i32 in Wrapping, divisor: i32 in Wrapping, started: bool) {
+    machine quotient(value: i32 in Wrapping, divisor: i32 in Wrapping, started: bool) {
         let digit: i32 in Wrapping = value / divisor;
         transition digit != 0 || started || divisor == 1 {
             true -> emit(value, divisor, digit)
             _ -> digits(value, divisor / 10, false)
         }
     }
-    state emit(value: i32 in Wrapping, divisor: i32 in Wrapping, digit: i32 in Wrapping) {
+    machine emit(value: i32 in Wrapping, divisor: i32 in Wrapping, digit: i32 in Wrapping) {
         Console::write_byte((digit + 48) as i32);
         transition divisor > 1 {
             true -> digits(value % divisor, divisor / 10, true)
             _ -> done()
         }
     }
-    state done() { }
+    machine done() { }
 }
 public machine micro(value: f64) reaches Console
 invokes Console;
@@ -51,25 +51,25 @@ invokes Console;
         true -> empty(envelope)
         _ -> window(envelope)
     }
-    state empty(envelope: &geometry::Envelope) {
+    machine empty(envelope: &geometry::Envelope) {
         Console::write_line("status empty-in-window");
         transition { _ -> summary(envelope) }
     }
-    state window(envelope: &geometry::Envelope) {
+    machine window(envelope: &geometry::Envelope) {
         transition envelope.window_active {
             true -> limited(envelope)
             _ -> bounded(envelope)
         }
     }
-    state limited(envelope: &geometry::Envelope) {
+    machine limited(envelope: &geometry::Envelope) {
         Console::write_line("status window-limited-unboundedness-undetermined");
         transition { _ -> summary(envelope) }
     }
-    state bounded(envelope: &geometry::Envelope) {
+    machine bounded(envelope: &geometry::Envelope) {
         Console::write_line("status bounded");
         transition { _ -> summary(envelope) }
     }
-    state summary(envelope: &geometry::Envelope) {
+    machine summary(envelope: &geometry::Envelope) {
         Console::write("vertices "); integer(envelope.count as i32); Console::write_byte(10);
         // Split area at its integral part: the maximum 40000 square units
         // cannot fit in i32 micro-units as a single number.
@@ -79,18 +79,18 @@ invokes Console;
         micro(envelope.area - F64::from_i32(whole as i32)); Console::write_byte(10);
         transition { _ -> vertex(envelope, 0) }
     }
-    state vertex(envelope: &geometry::Envelope, index: i32 in Wrapping) {
+    machine vertex(envelope: &geometry::Envelope, index: i32 in Wrapping) {
         transition index >= 0 && index < envelope.count && index < 32 {
             true -> emit_vertex(envelope, index)
             _ -> done()
         }
     }
-    state emit_vertex(envelope: &geometry::Envelope, index: i32 in Wrapping) {
+    machine emit_vertex(envelope: &geometry::Envelope, index: i32 in Wrapping) {
         Console::write("vertex "); integer(index as i32); Console::write_byte(32);
         micro(envelope.x[index]); Console::write_byte(32); micro(envelope.y[index]); Console::write_byte(10);
         transition { _ -> certificate(envelope, index, 0) }
     }
-    state certificate(
+    machine certificate(
         envelope: &geometry::Envelope,
         vertex: i32 in Wrapping,
         constraint: i32 in Wrapping
@@ -100,7 +100,7 @@ invokes Console;
             _ -> next_vertex(envelope, vertex)
         }
     }
-    state residual(
+    machine residual(
         envelope: &geometry::Envelope,
         vertex: i32 in Wrapping,
         constraint: i32 in Wrapping
@@ -114,7 +114,7 @@ invokes Console;
             _ -> certificate(envelope, vertex, constraint + 1)
         }
     }
-    state active(
+    machine active(
         envelope: &geometry::Envelope,
         vertex: i32 in Wrapping,
         constraint: i32 in Wrapping
@@ -123,8 +123,8 @@ invokes Console;
         integer(constraint as i32); Console::write_byte(10);
         transition { _ -> certificate(envelope, vertex, constraint + 1) }
     }
-    state next_vertex(envelope: &geometry::Envelope, vertex: i32 in Wrapping) {
+    machine next_vertex(envelope: &geometry::Envelope, vertex: i32 in Wrapping) {
         transition { _ -> vertex(envelope, vertex + 1) }
     }
-    state done() { }
+    machine done() { }
 }

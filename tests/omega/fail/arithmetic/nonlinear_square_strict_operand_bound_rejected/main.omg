@@ -7,6 +7,6 @@ ensures result > value;
 machine main() crashes Trap {
     let observed: u32 = square(65535);
     transition observed == 4294836225 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

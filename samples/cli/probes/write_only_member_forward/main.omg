@@ -22,10 +22,10 @@ machine forward(destination: &write Pair, choose_left: bool, value: i32) {
         true -> left(&write destination, value)
         false -> right(&write destination, value)
     }
-    state left(destination: &write Pair, value: i32) {
+    machine left(destination: &write Pair, value: i32) {
         replace(&write destination.left, value);
     }
-    state right(destination: &write Pair, value: i32) {
+    machine right(destination: &write Pair, value: i32) {
         replace(&write destination.right, value);
     }
 }
@@ -41,8 +41,8 @@ machine Main::main(main: &mut Main) {
         true -> pass(main)
         _ -> fail(main)
     }
-    state pass(main: &mut Main) { main.hits = 1; }
-    state fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: &mut Main) { main.hits = 1; }
+    machine fail(main: &mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

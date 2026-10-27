@@ -7,10 +7,10 @@ machine choose_entry(options: &mut Build, enabled: bool) {
         enabled -> selected(options)
         _ -> ignored(options)
     }
-    state selected(options: &mut Build) {
+    machine selected(options: &mut Build) {
         Build::bind(options, windows_x86_64::ProgramEntry, launch);
     }
-    state ignored(options: &mut Build) {
+    machine ignored(options: &mut Build) {
         Build::bind(options, windows_x86_64::ProgramEntry, missing);
     }
 }

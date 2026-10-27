@@ -7,13 +7,13 @@ machine bounded_integer(value: f64) -> i64 {
         true -> bounded(value)
         false -> rejected()
     }
-    state bounded(value: f64) -> i64
+    machine bounded(value: f64) -> i64
     requires value == value && value >= -100.0 && value <= 100.0
     {
         let converted: i64 = I64::from_f64(value);
         transition { _ -> (converted) }
     }
-    state rejected() -> i64 { transition { _ -> (0) } }
+    machine rejected() -> i64 { transition { _ -> (0) } }
 }
 
 machine main() crashes Trap {
@@ -24,6 +24,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

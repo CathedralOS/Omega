@@ -4,8 +4,8 @@ machine double(value: i32) -> i32 {
         false -> calculate(value)
         true -> empty()
     }
-    state calculate(value: i32) -> i32 { value * 2i32 }
-    state empty() -> i32 { 0 }
+    machine calculate(value: i32) -> i32 { value * 2i32 }
+    machine empty() -> i32 { 0 }
 }
 
 machine main() crashes Trap {
@@ -16,6 +16,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

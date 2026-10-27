@@ -10,5 +10,5 @@ machine probe(limit:u32)->u32 requires limit >= 8 && limit <= 9 {
 machine main() crashes Trap {
  let observed:u32=probe(9);
  transition observed == 10 { true -> done() _ -> bad() }
- state done(){} state bad(){crash Trap;}
+ machine done(){} machine bad(){crash Trap;}
 }

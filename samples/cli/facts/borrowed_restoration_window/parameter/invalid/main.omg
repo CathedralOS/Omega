@@ -24,10 +24,10 @@ machine main() crashes Trap {
         true -> done(val)
         _ -> bad()
     }
-    state done(v: u64) {
+    machine done(v: u64) {
         let diff: u64 = v - 100u64;
     }
-    state bad() {
+    machine bad() {
         crash Trap;
     }
 }

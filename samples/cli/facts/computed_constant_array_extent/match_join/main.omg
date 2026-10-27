@@ -6,6 +6,6 @@ const ALIAS: [u64; 1] = SOURCE;
 const MATCHED: [u64; SIZE] = match true { true -> ALIAS, false -> SOURCE };
 machine main() crashes Trap {
     transition MATCHED[0] == 3 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -23,8 +23,8 @@ machine Main::main(main: &mut Main) crashes Trap {
     let marker: Marker = Marker {};
     let result: i32 = observed(&main.item, marker);
     transition result == 37 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

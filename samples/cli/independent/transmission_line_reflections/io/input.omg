@@ -20,33 +20,33 @@ crashes Trap
         ByteRead::Byte { value } -> identifier(value)
         _ -> (Request { valid: false, identifier: 0, horizon: 0 })
     }
-    state identifier(value: i32) -> Request {
+    machine identifier(value: i32) -> Request {
         transition value >= 48 && value <= 53 {
             true -> separator((value - 48) as u64 in Saturating)
             false -> invalid()
         }
     }
-    state separator(identifier: u64 in Saturating) -> Request {
+    machine separator(identifier: u64 in Saturating) -> Request {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
             ByteRead::Byte { value: 32 } -> first(identifier)
             _ -> invalid()
         }
     }
-    state first(identifier: u64 in Saturating) -> Request {
+    machine first(identifier: u64 in Saturating) -> Request {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
             ByteRead::Byte { value } -> digit(identifier, value)
             _ -> invalid()
         }
     }
-    state digit(identifier: u64 in Saturating, value: i32) -> Request {
+    machine digit(identifier: u64 in Saturating, value: i32) -> Request {
         transition value >= 49 && value <= 57 {
             true -> second(identifier, (value - 48) as u64 in Saturating)
             false -> invalid()
         }
     }
-    state second(identifier: u64 in Saturating, horizon: u64 in Saturating) -> Request {
+    machine second(identifier: u64 in Saturating, horizon: u64 in Saturating) -> Request {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
             ByteRead::Byte { value: 10 } -> valid(identifier, horizon)
@@ -54,24 +54,24 @@ crashes Trap
             _ -> invalid()
         }
     }
-    state second_digit(identifier: u64 in Saturating, horizon: u64 in Saturating, value: i32) -> Request {
+    machine second_digit(identifier: u64 in Saturating, horizon: u64 in Saturating, value: i32) -> Request {
         transition value >= 48 && value <= 57 {
             true -> newline(identifier, horizon * 10 + ((value - 48) as u64 in Saturating))
             false -> invalid()
         }
     }
-    state newline(identifier: u64 in Saturating, horizon: u64 in Saturating) -> Request {
+    machine newline(identifier: u64 in Saturating, horizon: u64 in Saturating) -> Request {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
             ByteRead::Byte { value: 10 } -> valid(identifier, horizon)
             _ -> invalid()
         }
     }
-    state valid(identifier: u64 in Saturating, horizon: u64 in Saturating) -> Request {
+    machine valid(identifier: u64 in Saturating, horizon: u64 in Saturating) -> Request {
         transition horizon >= 1 && horizon <= 24 {
             true -> (Request { valid: true, identifier: identifier, horizon: horizon })
             false -> invalid()
         }
     }
-    state invalid() -> Request { (Request { valid: false, identifier: 0, horizon: 0 }) }
+    machine invalid() -> Request { (Request { valid: false, identifier: 0, horizon: 0 }) }
 }

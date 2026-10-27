@@ -58,7 +58,7 @@ reaches ExtentPartition
 
     // Allocation already happened inside the request. This arm returns both
     // selected claims to the partition boundary for exact recomposition.
-    state reuse(strategy: Bump, allocation: Extent in Granted & Vacant) -> Extent
+    machine reuse(strategy: Bump, allocation: Extent in Granted & Vacant) -> Extent
     {
         let new_tail: Extent in Granted & Vacant = strategy.tail;
         let recomposed: Extent in Granted & Vacant = ExtentPartition::merge(Split {
@@ -70,7 +70,7 @@ reaches ExtentPartition
 
     // The rejected arm returns the recomposed backing untouched — the
     // request never happened, so the caller's custody is unchanged.
-    state rejected(strategy: Bump) -> Extent {
+    machine rejected(strategy: Bump) -> Extent {
         strategy.tail as Extent
     }
 }
@@ -165,7 +165,7 @@ reaches ExtentPartition
         Growth::Rejected { vec } -> finish(vec)
     }
 
-    state retry(vec: BumpVec) -> Extent {
+    machine retry(vec: BumpVec) -> Extent {
         let second: Growth = grow(vec, 1);
         transition second {
             Growth::Grown { vec } -> finish(vec)
@@ -173,7 +173,7 @@ reaches ExtentPartition
         }
     }
 
-    state finish(vec: BumpVec) -> Extent {
+    machine finish(vec: BumpVec) -> Extent {
         let recomposed: Recomposed = close(vec);
         recomposed.backing as Extent
     }
@@ -212,7 +212,7 @@ reaches ExtentPartition
 
     // The rejected container kept its live buffer and its empty retained
     // slot; a demand that fits the residual still grows it.
-    state retry_within(vec: BumpVec) -> Extent {
+    machine retry_within(vec: BumpVec) -> Extent {
         let second: Growth = grow(vec, 8);
         transition second {
             Growth::Grown { vec } -> finish(vec)
@@ -220,7 +220,7 @@ reaches ExtentPartition
         }
     }
 
-    state finish(vec: BumpVec) -> Extent {
+    machine finish(vec: BumpVec) -> Extent {
         let recomposed: Recomposed = close(vec);
         recomposed.backing as Extent
     }
@@ -245,7 +245,7 @@ reaches ExtentPartition
         Truncation::Rejected { vec } -> finish(vec)
     }
 
-    state again(vec: BumpVec) -> Extent {
+    machine again(vec: BumpVec) -> Extent {
         let second: Truncation = shrink(vec, 0);
         transition second {
             Truncation::Truncated { vec } -> grown(vec)
@@ -253,7 +253,7 @@ reaches ExtentPartition
         }
     }
 
-    state grown(vec: BumpVec) -> Extent {
+    machine grown(vec: BumpVec) -> Extent {
         let growth: Growth = grow(vec, 8);
         transition growth {
             Growth::Grown { vec } -> finish(vec)
@@ -261,7 +261,7 @@ reaches ExtentPartition
         }
     }
 
-    state finish(vec: BumpVec) -> Extent {
+    machine finish(vec: BumpVec) -> Extent {
         let recomposed: Recomposed = close(vec);
         recomposed.backing as Extent
     }

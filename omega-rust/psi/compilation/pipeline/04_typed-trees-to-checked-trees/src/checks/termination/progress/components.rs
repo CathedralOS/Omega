@@ -21,7 +21,7 @@ pub(super) fn derive_summaries(
     flow: &FlowFacts,
     semantic: &facts::FactPlan,
     cleanup_dependencies: &arena::Arena<flow_effects::CleanupDependency>,
-    proof_components: &[validation::ValidatedProofRecursiveComponent],
+    proof_components: &[validation::ValidatedProofCallComponent],
     self_call_descents: &[validation::ValidatedSelfCallDescent],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     rank_arrivals: &checked_trees::CheckedRankArrivalPlan,
@@ -60,13 +60,11 @@ pub(super) fn derive_summaries(
             )
         },
     ));
-    components.extend(proof_components.iter().map(|component| {
-        component
-            .members
+    components.extend(
+        proof_components
             .iter()
-            .map(|member| member.machine)
-            .collect::<Vec<_>>()
-    }));
+            .map(|component| component.members.clone()),
+    );
     // Only actual source-judged call descent closes a singleton assumption.
     // A ranked state cycle alone says nothing about a separate self call.
     let proof_only = validation::proof_only_classification(program);

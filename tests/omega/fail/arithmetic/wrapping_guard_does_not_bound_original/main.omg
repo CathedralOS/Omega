@@ -7,9 +7,9 @@ machine Values::store(values: &mut Values) {
         true -> bounded(values)
         _ -> done()
     }
-    state bounded(values: &mut Values) {
+    machine bounded(values: &mut Values) {
         values.result = values.source;
         transition { _ -> done() }
     }
-    state done() { }
+    machine done() { }
 }

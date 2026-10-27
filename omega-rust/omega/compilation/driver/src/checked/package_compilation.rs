@@ -191,6 +191,9 @@ impl CompletedBuild {
 }
 
 impl PackageBuildInvocation {
+    pub fn product_queries(&self) -> super::checking::ProductQueries {
+        self.source.product_queries()
+    }
     pub fn observe_declaration(
         &self,
         returned: &build_evaluation::ReturnedBuild,

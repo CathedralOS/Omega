@@ -19,16 +19,16 @@ data Main {
 machine Main::replace(main: &mut Main, choice: u8, byte: u8) {
     main.label = "Gate";
     transition choice == 0 { true -> supplied(main, byte) _ -> space(main) }
-    state supplied(main: &mut Main, byte: u8) {
+    machine supplied(main: &mut Main, byte: u8) {
         main.byte = byte;
         transition main.byte < 128 { true -> write(main) _ -> done() }
     }
-    state space(main: &mut Main) {
+    machine space(main: &mut Main) {
         main.byte = 32;
         transition main.byte < 128 { true -> write(main) _ -> done() }
     }
-    state write(main: &mut Main) { main.label[1] = main.byte; }
-    state done() { }
+    machine write(main: &mut Main) { main.label[1] = main.byte; }
+    machine done() { }
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -39,26 +39,26 @@ machine Main::main(main: &mut Main) reaches Console {
         false -> bad(main)
     }
 
-    state supplied(main: &mut Main) {
+    machine supplied(main: &mut Main) {
         Main::replace(main, 0, 111);
         transition main.label == "Gote" { true -> space(main) _ -> bad(main) }
     }
 
-    state space(main: &mut Main) {
+    machine space(main: &mut Main) {
         Main::replace(main, 1, 200);
         transition main.label == "G te" { true -> non_ascii(main) _ -> bad(main) }
     }
 
-    state non_ascii(main: &mut Main) {
+    machine non_ascii(main: &mut Main) {
         Main::replace(main, 0, 200);
         transition main.label == "Gate" { true -> good(main) _ -> bad(main) }
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::exit_process(70);
     }
 
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::exit_process(71);
     }
 }

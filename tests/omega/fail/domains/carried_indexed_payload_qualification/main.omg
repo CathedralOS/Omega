@@ -8,15 +8,15 @@ machine main() crashes Trap {
     let mut envelope: Envelope;
     envelope.entries[0] = Choice::Ready { ticket: Ticket { value: 73 } };
     transition { _ -> forward(envelope) }
-    state forward(envelope: Envelope) {
+    machine forward(envelope: Envelope) {
         transition envelope.entries[0] {
             Choice::Ready { ticket } -> verify(ticket)
             Choice::Empty -> wrong()
         }
     }
-    state verify(ticket: Ticket in Issued) {
+    machine verify(ticket: Ticket in Issued) {
         transition ticket.value == 73 { true -> done() _ -> wrong() }
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

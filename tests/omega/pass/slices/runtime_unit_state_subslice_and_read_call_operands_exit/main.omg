@@ -25,7 +25,7 @@ machine Main::confirm(tail: &[Entry], chosen: i32) -> i32 {
         false -> chosen
     }
 
-    state emit(first: i32) -> i32 {
+    machine emit(first: i32) -> i32 {
         transition {
             _ -> first
         }
@@ -39,14 +39,14 @@ machine Main::confirm_after(chosen: i32, tail: &[Entry]) -> i32 {
         false -> 1
     }
 
-    state check(tail: &[Entry]) -> i32 {
+    machine check(tail: &[Entry]) -> i32 {
         transition tail.len >= 2 {
             true -> emit(tail[1].value)
             false -> 2
         }
     }
 
-    state emit(second: i32) -> i32 {
+    machine emit(second: i32) -> i32 {
         transition {
             _ -> second
         }
@@ -62,14 +62,14 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> picked(main, view)
     }
 
-    state picked(main: &Main, sub: &[Entry]) {
+    machine picked(main: &Main, sub: &[Entry]) {
         transition sub.len >= 2 {
             true -> chosen(main, sub)
             false -> bad(main)
         }
     }
 
-    state chosen(main: &Main, sub: &[Entry]) {
+    machine chosen(main: &Main, sub: &[Entry]) {
         let first: i32 = Main::confirm(sub[1..], sub[1].value);
         let second: i32 = Main::confirm_after(sub[1].value, sub[1..]);
         transition first == 9 {
@@ -78,11 +78,11 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state report(main: &Main, value: i32) {
+    machine report(main: &Main, value: i32) {
         Console::exit_process(value);
     }
 
-    state bad(main: &Main) {
+    machine bad(main: &Main) {
         Console::exit_process(3);
     }
 }

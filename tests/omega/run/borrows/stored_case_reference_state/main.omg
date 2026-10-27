@@ -12,7 +12,7 @@ machine observe(cell: &Cell) -> u64 {
         Optional::Some { value } -> read(value)
         Optional::None -> 0
     }
-    state read(value: &Cell) -> u64 { value.value }
+    machine read(value: &Cell) -> u64 { value.value }
 }
 machine main() crashes Trap {
     let cell: Cell = Cell { value: 41 };
@@ -21,6 +21,6 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

@@ -87,9 +87,7 @@ pub(crate) fn signature_ceiling_regions(
                 resolver,
             );
             for region in residents? {
-                if !places.contains(&region) {
-                    places.push(region);
-                }
+                crate::collections::push_unique(&mut places, region);
             }
             if !is_exclusive_reference(program, parameter.type_reference) {
                 // Declared reference-free storage cannot reach the caller. A
@@ -138,14 +136,10 @@ pub(crate) fn signature_ceiling_regions(
                                         granted: owner.granted,
                                         resident: owner.resident,
                                     };
-                                    if !places.contains(&content) {
-                                        places.push(content);
-                                    }
+                                    crate::collections::push_unique(&mut places, content);
                                 }
                             }
-                            if !places.contains(&region) {
-                                places.push(region);
-                            }
+                            crate::collections::push_unique(&mut places, region);
                         }
                     }
                 }
@@ -182,9 +176,7 @@ pub(crate) fn signature_ceiling_regions(
             )
         })?;
         for storage in storage {
-            if !places.contains(&storage) {
-                places.push(storage);
-            }
+            crate::collections::push_unique(&mut places, storage);
         }
         // Access routes belong to borrow checking and observation aliases.
         // Lending a captured view does not lend replacement of its descriptor
@@ -198,9 +190,7 @@ pub(crate) fn signature_ceiling_regions(
             borrow,
             borrow_call,
         )? {
-            if !places.contains(&region) {
-                places.push(region);
-            }
+            crate::collections::push_unique(&mut places, region);
         }
     }
     Some(places)
@@ -355,9 +345,7 @@ fn resident_owners_in_type(
     }
     let mut paths = vec![Vec::new()];
     for (path, _, _) in roster.identities {
-        if !paths.contains(&path) {
-            paths.push(path);
-        }
+        crate::collections::push_unique(&mut paths, path);
     }
     for path in paths {
         let projected =
@@ -563,9 +551,7 @@ pub(super) fn retained_loan_write_regions(
             root: loan.root,
             segments: borrow.loan_segments(loan).to_vec(),
         });
-        if !regions.contains(&region) {
-            regions.push(region);
-        }
+        crate::collections::push_unique(&mut regions, region);
     }
     Some(regions)
 }

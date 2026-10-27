@@ -88,9 +88,10 @@ pub(super) fn decode(
     let requirement_identity = terminal_psi::TerminalIdentityIndex(cursor.u32()?);
     let source_requirement_identity = terminal_psi::TerminalIdentityIndex(cursor.u32()?);
     let receiving_application = terminal_psi::TerminalIdentityIndex(cursor.u32()?);
-    let receiving_region_arguments = decode_list(cursor, |cursor| {
-        Ok(terminal_psi::TerminalIdentityIndex(cursor.u32()?))
-    })?;
+    let receiving_region_arguments =
+        decode_list::<_, FixedViewCopyDecodeError>(cursor, |cursor| {
+            Ok(terminal_psi::TerminalIdentityIndex(cursor.u32()?))
+        })?;
     let provider_identity = terminal_psi::TerminalIdentityIndex(cursor.u32()?);
     let provider_declaration = terminal_psi::NominalDeclarationIdentity::new(
         terminal_psi::TerminalIdentityIndex(cursor.u32()?),
@@ -106,7 +107,7 @@ pub(super) fn decode(
         FixedViewCopyDecodeError::UnknownOption,
     )?;
     let candidate = decode_id(cursor, MachineId::new)?;
-    let parameters = decode_list(cursor, |cursor| {
+    let parameters = decode_list::<_, FixedViewCopyDecodeError>(cursor, |cursor| {
         Ok(ProviderSignatureParameter {
             position: cursor.u32()?,
             structural_type: decode_id(cursor, StructuralTypeId::new)?,
@@ -116,13 +117,13 @@ pub(super) fn decode(
             projected_qualifications: decode_projected(cursor, retain_projected_qualifications)?,
         })
     })?;
-    let positional_parameters = decode_list(cursor, |cursor| {
+    let positional_parameters = decode_list::<_, FixedViewCopyDecodeError>(cursor, |cursor| {
         Ok(ProviderParameterRefinement {
             boundary_index: cursor.u32()?,
             candidate_index: cursor.u32()?,
         })
     })?;
-    let required_domains = decode_list(cursor, |cursor| {
+    let required_domains = decode_list::<_, FixedViewCopyDecodeError>(cursor, |cursor| {
         Ok(StructuralDomainRequirement {
             argument_index: cursor.u32()?,
             domain: decode_id(cursor, semantic_vocabulary::StructuralDomainId::new)?,

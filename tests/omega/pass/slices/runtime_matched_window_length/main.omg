@@ -17,11 +17,11 @@ machine lane_state<'row>(bytes: &'row mut [u8; 8], count: u64, which: u64) -> &'
 requires count >= 1 requires count <= 4 requires which <= 1
 ensures result.len == count {
     transition which == 0 { true -> front(bytes, count) false -> back(bytes, count) }
-    state front(bytes: &'row mut [u8; 8], count: u64) -> &'row mut [u8]
+    machine front(bytes: &'row mut [u8; 8], count: u64) -> &'row mut [u8]
     requires count >= 1 requires count <= 4 {
         &mut bytes[0..count]
     }
-    state back(bytes: &'row mut [u8; 8], count: u64) -> &'row mut [u8]
+    machine back(bytes: &'row mut [u8; 8], count: u64) -> &'row mut [u8]
     requires count >= 1 requires count <= 4 {
         &mut bytes[4..4 + count]
     }
@@ -30,12 +30,12 @@ ensures result.len == count {
 machine write_count(window: &mut [u8], count: u64)
 requires window.len == count requires count >= 1 requires count <= 4 {
     transition { _ -> place(window, count, 0) }
-    state place(window: &mut [u8], count: u64, index: u64)
+    machine place(window: &mut [u8], count: u64, index: u64)
     requires window.len == count requires count >= 1 requires count <= 4 requires index < count {
         window[index] = ((index + 1) as u8);
         transition index + 1 < count { true -> place(window, count, index + 1) false -> placed() }
     }
-    state placed() {}
+    machine placed() {}
 }
 
 machine main() crashes Trap {
@@ -51,6 +51,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

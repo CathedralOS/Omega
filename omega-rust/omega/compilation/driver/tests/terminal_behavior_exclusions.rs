@@ -128,6 +128,7 @@ fn exclusion_tickets_reject_foreign_receivers_and_replay(checked: &compiler::Che
         artifact,
         produced.build_bindings(),
         original.clone(),
+        None,
     )
     .unwrap();
     let calls = produced.build_bindings().calls_for(artifact).unwrap();
@@ -209,6 +210,20 @@ fn executed_crash_selection_rejects_only_the_trapping_target() {
     let outcomes = omega_build::compile_sources(&mut CompilationSession::default(), request)
         .expect("target batch")
         .into_outcomes();
+    assert_eq!(
+        outcomes.len(),
+        2,
+        "an admission refusal cannot drop its sibling"
+    );
+    assert_eq!(
+        outcomes
+            .iter()
+            .map(|outcome| outcome.target_profile().unwrap().target_name())
+            .collect::<Vec<_>>(),
+        // CompileRequest validation admits targets in TargetProfile::ALL order.
+        vec!["macos_arm64", "windows_x86_64"],
+        "application results must keep the admitted target order"
+    );
     for outcome in outcomes {
         let target = outcome.target_profile().unwrap().target_name();
         match outcome.into_result() {

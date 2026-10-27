@@ -80,12 +80,12 @@ machine bucket_contract_chain() {
         _ -> done(71)
     }
 
-    state judge(popped: u8) {
+    machine judge(popped: u8) {
         transition popped == 7 {
             true -> done(70)
             _ -> done(72)
         }
     }
 
-    state done(code: i32) {}
+    machine done(code: i32) {}
 }

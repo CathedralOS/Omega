@@ -20,7 +20,7 @@ machine converted_wrapping(value: u8 in Wrapping) -> f32 {
 
 machine nested(value: i32) -> f32 {
     transition { _ -> convert(value) }
-    state convert(input: i32) {
+    machine convert(input: i32) -> f32 {
         finite_value(F32::from_i32(input))
     }
 }
@@ -54,6 +54,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

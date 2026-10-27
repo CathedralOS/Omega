@@ -15,7 +15,7 @@ machine prepare(counter: &mut Counter) -> u64 {
 machine internal(counter: &mut Counter) -> u64 {
     let cleanup: Cleanup = Cleanup { counter: counter };
     transition { _ -> entered(prepare(counter), counter) }
-    state entered(captured: u64, counter: &mut Counter) -> u64 {
+    machine entered(captured: u64, counter: &mut Counter) -> u64 {
         counter.value = 29;
         captured
     }

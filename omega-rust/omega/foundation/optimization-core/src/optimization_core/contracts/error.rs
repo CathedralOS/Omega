@@ -1,5 +1,3 @@
-use std::fmt;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CoreContractDecodeError {
     WrongLength { expected: usize, actual: usize },
@@ -14,13 +12,7 @@ pub enum CoreContractDecodeError {
     ZeroRuleVersion,
 }
 
-impl fmt::Display for CoreContractDecodeError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            formatter,
-            "invalid optimization core contract encoding: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for CoreContractDecodeError {}
+crate::invalid_error_display!(
+    CoreContractDecodeError,
+    "optimization core contract encoding"
+);

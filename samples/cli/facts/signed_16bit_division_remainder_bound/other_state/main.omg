@@ -15,7 +15,7 @@ requires dividend >= 0i16 && dividend <= 100i16 && divisor >= 16i16 && divisor <
     transition {
         _ -> step(dividend % divisor)
     }
-    state step(rem: i16) -> i32
+    machine step(rem: i16) -> i32
     requires rem >= 0i16 && rem <= 15i16
     {
         verify_rem(rem)
@@ -31,6 +31,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

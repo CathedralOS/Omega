@@ -8,13 +8,13 @@ machine fit_clock(acquisition: &mut Acquisition) {
     acquisition.denominator = 0;
     acquisition.residual = 0;
     transition { _ -> accumulate(acquisition, 1) }
-    state accumulate(acquisition: &mut Acquisition, index: i64 in Wrapping) {
+    machine accumulate(acquisition: &mut Acquisition, index: i64 in Wrapping) {
         transition index >= 1 && index < 16 && index < acquisition.count {
             true -> add(acquisition, index)
             false -> residual(acquisition, 1)
         }
     }
-    state add(acquisition: &mut Acquisition, index: i64 in Wrapping)
+    machine add(acquisition: &mut Acquisition, index: i64 in Wrapping)
     requires index >= 1 && index < 16
     {
         let ticks: i64 in Wrapping = acquisition.elapsed[index];
@@ -23,13 +23,13 @@ machine fit_clock(acquisition: &mut Acquisition) {
         acquisition.denominator = acquisition.denominator + ticks * ticks;
         transition { _ -> accumulate(acquisition, index + 1) }
     }
-    state residual(acquisition: &mut Acquisition, index: i64 in Wrapping) {
+    machine residual(acquisition: &mut Acquisition, index: i64 in Wrapping) {
         transition index >= 1 && index < 16 && index < acquisition.count {
             true -> measure(acquisition, index)
             false -> done()
         }
     }
-    state measure(acquisition: &mut Acquisition, index: i64 in Wrapping)
+    machine measure(acquisition: &mut Acquisition, index: i64 in Wrapping)
     requires index >= 1 && index < 16
     {
         let scaled: i64 in Wrapping = (acquisition.host[index] - acquisition.host[0]) * acquisition.denominator - acquisition.elapsed[index] * acquisition.numerator;
@@ -38,7 +38,7 @@ machine fit_clock(acquisition: &mut Acquisition) {
             false -> maximum(acquisition, index, scaled)
         }
     }
-    state maximum(acquisition: &mut Acquisition, index: i64 in Wrapping, scaled: i64 in Wrapping)
+    machine maximum(acquisition: &mut Acquisition, index: i64 in Wrapping, scaled: i64 in Wrapping)
     requires index >= 1 && index < 16
     {
         transition scaled > acquisition.residual {
@@ -46,11 +46,11 @@ machine fit_clock(acquisition: &mut Acquisition) {
             false -> residual(acquisition, index + 1)
         }
     }
-    state update(acquisition: &mut Acquisition, index: i64 in Wrapping, scaled: i64 in Wrapping)
+    machine update(acquisition: &mut Acquisition, index: i64 in Wrapping, scaled: i64 in Wrapping)
     requires index >= 1 && index < 16
     {
         acquisition.residual = scaled;
         transition { _ -> residual(acquisition, index + 1) }
     }
-    state done() { }
+    machine done() { }
 }

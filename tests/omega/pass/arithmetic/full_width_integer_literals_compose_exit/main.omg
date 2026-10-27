@@ -21,9 +21,9 @@ machine main() crashes Trap {
         true -> delivered(18446744073709551615u64)
         _ -> bad()
     }
-    state delivered(value: u64) {
+    machine delivered(value: u64) {
         transition value == 18446744073709551615u64 { true -> done() _ -> bad() }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

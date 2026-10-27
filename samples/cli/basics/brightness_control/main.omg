@@ -31,14 +31,14 @@ machine Main::main(main: &mut Main) reaches Console {
         Command::Off                -> apply(main, 0)
     }
 
-    state apply(main: &mut Main, target: i32)
+    machine apply(main: &mut Main, target: i32)
     requires target >= 0 && target <= 100;
     {
         main.brightness = target;
         transition { _ -> report(main) }
     }
 
-    state report(main: &mut Main) {
+    machine report(main: &mut Main) {
         Console::write_line("brightness settled at the applied level (the exit code)");
         Console::exit_process(main.brightness);
     }

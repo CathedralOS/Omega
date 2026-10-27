@@ -132,7 +132,7 @@ crashes Trap
     checker.ownership.ended = false;
     transition { _ -> parameter(checker, syntax, resolution, typing, first_parameter, first_parameter + parameter_count, first_statement, first_statement + statement_count, source_span) }
 
-    state parameter(
+    machine parameter(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -149,7 +149,7 @@ crashes Trap
         }
     }
 
-    state uses(
+    machine uses(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -162,7 +162,7 @@ crashes Trap
         transition { _ -> statement(checker, syntax, resolution, typing, first_statement, statement_end, source_span) }
     }
 
-    state owe_parameter(
+    machine owe_parameter(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -180,7 +180,7 @@ crashes Trap
         transition { _ -> parameter(checker, syntax, resolution, typing, index + 1, parameter_end, first_statement, statement_end, source_span) }
     }
 
-    state statement(
+    machine statement(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -195,7 +195,7 @@ crashes Trap
         }
     }
 
-    state walk(
+    machine walk(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -209,18 +209,18 @@ crashes Trap
         transition { _ -> statement(checker, syntax, resolution, typing, index + 1, end, source_span) }
     }
 
-    state finished(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, source_span: SourceSpan) {
+    machine finished(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, source_span: SourceSpan) {
         transition checker.output.machine_accepted && !checker.ownership.ended {
             true -> exit(checker, syntax, resolution, typing, source_span)
             _ -> done()
         }
     }
 
-    state exit(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, source_span: SourceSpan) {
+    machine exit(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, source_span: SourceSpan) {
         Checker::own_exit(checker, syntax, resolution, typing, source_span);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 machine Checker::own_statement(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping)
@@ -236,7 +236,7 @@ crashes Trap
         _ -> evaluated(checker, syntax, resolution, typing, statement)
     }
 
-    state binding(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, statement: Statement) {
+    machine binding(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, statement: Statement) {
         transition statement.has_value {
             true -> initialized(checker, syntax, resolution, typing, index, statement)
             _ -> done()
@@ -245,7 +245,7 @@ crashes Trap
 
     // An initialized linear local is owed; a declared one establishes no
     // obligation until it is assigned.
-    state initialized(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, statement: Statement) {
+    machine initialized(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, statement: Statement) {
         Checker::own_tree(checker, syntax, resolution, typing, statement.value, UseRole::Value);
         let type_handle: u64 in Trapping = Typing::expression_type(typing, statement.value);
         let multiplicity: DataMultiplicity = Checker::multiplicity(syntax, typing, type_handle);
@@ -254,7 +254,7 @@ crashes Trap
     }
 
     // The value is evaluated before the place it is stored in.
-    state assignment(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement) {
+    machine assignment(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement) {
         Checker::own_tree(checker, syntax, resolution, typing, statement.value, UseRole::Value);
         let previous_count: u64 = checker.ownership.loan_count;
         let holder: u64 in Trapping = Checker::capture_local_loans(checker, syntax, resolution, typing, statement);
@@ -264,27 +264,27 @@ crashes Trap
         Ownership::replace_loan_holder(&mut checker.ownership, holder, previous_count);
     }
 
-    state tail(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement) {
+    machine tail(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement) {
         Checker::own_tree(checker, syntax, resolution, typing, statement.value, UseRole::Value);
         Checker::own_escape(checker, syntax, resolution, typing, statement.value);
         Checker::own_exit(checker, syntax, resolution, typing, statement.source_span);
         checker.ownership.ended = true;
     }
 
-    state crashed(checker: &mut Checker) {
+    machine crashed(checker: &mut Checker) {
         checker.ownership.ended = true;
     }
 
-    state transition_statement(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement) {
+    machine transition_statement(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement) {
         Checker::own_transition(checker, syntax, resolution, typing, statement);
         checker.ownership.ended = true;
     }
 
-    state evaluated(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement) {
+    machine evaluated(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement) {
         Checker::own_tree(checker, syntax, resolution, typing, statement.value, UseRole::Drop);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // A transition's subject is inspected; each arm is a path of its own, after
@@ -297,13 +297,13 @@ crashes Trap
         _ -> arm(checker, syntax, resolution, typing, statement, false, 0)
     }
 
-    state subject(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement) {
+    machine subject(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement) {
         Checker::own_tree(checker, syntax, resolution, typing, statement.value, UseRole::Inspect);
         let borrowed: bool = Checker::borrowed_subject(syntax, typing, statement.value);
         transition { _ -> arm(checker, syntax, resolution, typing, statement, borrowed, 0) }
     }
 
-    state arm(
+    machine arm(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -318,7 +318,7 @@ crashes Trap
         }
     }
 
-    state guarded(
+    machine guarded(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -334,7 +334,7 @@ crashes Trap
         }
     }
 
-    state guard(
+    machine guard(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -349,7 +349,7 @@ crashes Trap
     }
 
     // An arm's `if` guard inspects as a guard pattern does.
-    state clause(
+    machine clause(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -365,7 +365,7 @@ crashes Trap
         }
     }
 
-    state clause_owned(
+    machine clause_owned(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -379,7 +379,7 @@ crashes Trap
         transition { _ -> selected(checker, syntax, resolution, typing, statement, borrowed, offset, arm) }
     }
 
-    state selected(
+    machine selected(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -396,7 +396,7 @@ crashes Trap
         transition { _ -> arm(checker, syntax, resolution, typing, statement, borrowed, offset + 1) }
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // An arm's target: a jump or terminal call moves its arguments, a terminal
@@ -410,7 +410,7 @@ crashes Trap
     }
 
     // A terminal call or value leaves the body; a jump stays in it.
-    state evaluated(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, arm: TransitionArm) {
+    machine evaluated(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, arm: TransitionArm) {
         Checker::own_tree(checker, syntax, resolution, typing, arm.target, UseRole::Value);
         let selection: Selection = Typing::selection(typing, arm.target);
         transition selection {
@@ -419,23 +419,23 @@ crashes Trap
         }
     }
 
-    state terminal(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, arm: TransitionArm) {
+    machine terminal(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, arm: TransitionArm) {
         Checker::own_escape(checker, syntax, resolution, typing, arm.target);
         transition { _ -> exit(checker, syntax, resolution, typing, arm) }
     }
 
-    state exit(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, arm: TransitionArm) {
+    machine exit(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, arm: TransitionArm) {
         transition checker.output.machine_accepted {
             true -> owed(checker, syntax, resolution, typing, arm)
             _ -> done()
         }
     }
 
-    state owed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, arm: TransitionArm) {
+    machine owed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, arm: TransitionArm) {
         Checker::own_exit(checker, syntax, resolution, typing, arm.source_span);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // Whether a dispatch subject is borrowed: a reference, or a place reached
@@ -449,7 +449,7 @@ crashes Trap
     let borrowed: bool = row.kind == TypeKind::Reference || through;
     transition { _ -> answer(borrowed) }
 
-    state answer(borrowed: bool) -> bool {
+    machine answer(borrowed: bool) -> bool {
         borrowed
     }
 }
@@ -463,14 +463,14 @@ crashes Trap
         _ -> done()
     }
 
-    state next(checker: &mut Checker, arm: TransitionArm, index: u64 in Trapping) {
+    machine next(checker: &mut Checker, arm: TransitionArm, index: u64 in Trapping) {
         transition index < arm.first_field + arm.field_count {
             true -> bind(checker, arm, index)
             _ -> done()
         }
     }
 
-    state bind(checker: &mut Checker, arm: TransitionArm, index: u64 in Trapping) {
+    machine bind(checker: &mut Checker, arm: TransitionArm, index: u64 in Trapping) {
         let kept: bool = Ownership::borrow_binder(&mut checker.ownership, index * 4 + 3);
         transition kept {
             true -> next(checker, arm, index + 1)
@@ -478,11 +478,11 @@ crashes Trap
         }
     }
 
-    state full(checker: &mut Checker, arm: TransitionArm) {
+    machine full(checker: &mut Checker, arm: TransitionArm) {
         Checks::reject(&mut checker.output, CheckDiagnosticCode::CheckCapacityExceeded, arm.source_span);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // An exit: every owed linear place must have moved whole on this path.
@@ -491,14 +491,14 @@ crashes Trap
 {
     transition { _ -> next(checker, syntax, resolution, typing, source_span, 0) }
 
-    state next(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, source_span: SourceSpan, index: u64 in Trapping) {
+    machine next(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, source_span: SourceSpan, index: u64 in Trapping) {
         transition index < checker.ownership.owed_count && checker.output.machine_accepted {
             true -> owed(checker, syntax, resolution, typing, source_span, index)
             _ -> done()
         }
     }
 
-    state owed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, source_span: SourceSpan, index: u64 in Trapping) {
+    machine owed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, source_span: SourceSpan, index: u64 in Trapping) {
         let key: u64 in Trapping = Ownership::owed_at(&checker.ownership, index);
         let moved: bool = Checker::root_moved(checker, syntax, resolution, typing, key);
         transition moved {
@@ -507,11 +507,11 @@ crashes Trap
         }
     }
 
-    state unconsumed(checker: &mut Checker, source_span: SourceSpan) {
+    machine unconsumed(checker: &mut Checker, source_span: SourceSpan) {
         Checks::reject(&mut checker.output, CheckDiagnosticCode::LinearUnconsumed, source_span);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // Owe a linear place from here on.
@@ -523,7 +523,7 @@ crashes Trap
         _ -> done()
     }
 
-    state owe(checker: &mut Checker, key: u64 in Trapping, source_span: SourceSpan) {
+    machine owe(checker: &mut Checker, key: u64 in Trapping, source_span: SourceSpan) {
         let kept: bool = Ownership::owe(&mut checker.ownership, key);
         transition kept {
             true -> done()
@@ -531,11 +531,11 @@ crashes Trap
         }
     }
 
-    state full(checker: &mut Checker, source_span: SourceSpan) {
+    machine full(checker: &mut Checker, source_span: SourceSpan) {
         Checks::reject(&mut checker.output, CheckDiagnosticCode::CheckCapacityExceeded, source_span);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // One statement-level tree: its nodes' roles from `role` at its root, then
@@ -551,7 +551,7 @@ crashes Trap
         _ -> oversized(checker, tree)
     }
 
-    state sized(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, root: u64 in Trapping, low: u64 in Trapping, role: UseRole) {
+    machine sized(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, root: u64 in Trapping, low: u64 in Trapping, role: UseRole) {
         checker.ownership.low = low;
         checker.ownership.conditional_count = 0;
         checker.ownership.match_count = 0;
@@ -560,14 +560,14 @@ crashes Trap
         transition { _ -> node(checker, syntax, resolution, typing, root, low) }
     }
 
-    state node(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, root: u64 in Trapping, handle: u64 in Trapping) {
+    machine node(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, root: u64 in Trapping, handle: u64 in Trapping) {
         transition handle <= root && checker.output.machine_accepted {
             true -> visit(checker, syntax, resolution, typing, root, handle)
             _ -> done()
         }
     }
 
-    state visit(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, root: u64 in Trapping, handle: u64 in Trapping) {
+    machine visit(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, root: u64 in Trapping, handle: u64 in Trapping) {
         Checker::own_match_events(checker, syntax, resolution, typing, handle);
         Checker::own_node(checker, syntax, resolution, typing, handle);
         Checker::replace_lent_holders(checker, syntax, resolution, typing, handle);
@@ -576,11 +576,11 @@ crashes Trap
         transition { _ -> node(checker, syntax, resolution, typing, root, handle + 1) }
     }
 
-    state oversized(checker: &mut Checker, tree: Expression) {
+    machine oversized(checker: &mut Checker, tree: Expression) {
         Checks::reject(&mut checker.output, CheckDiagnosticCode::CheckCapacityExceeded, tree.source_span);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // Every node of a tree inspects, its root takes `role`, and each node then
@@ -591,24 +591,24 @@ crashes Trap
 {
     transition { _ -> clear(checker, syntax, typing, root, low, role, low) }
 
-    state clear(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, root: u64 in Trapping, low: u64 in Trapping, role: UseRole, handle: u64 in Trapping) {
+    machine clear(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, root: u64 in Trapping, low: u64 in Trapping, role: UseRole, handle: u64 in Trapping) {
         transition handle <= root {
             true -> cleared(checker, syntax, typing, root, low, role, handle)
             _ -> rooted(checker, syntax, typing, root, low, role)
         }
     }
 
-    state cleared(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, root: u64 in Trapping, low: u64 in Trapping, role: UseRole, handle: u64 in Trapping) {
+    machine cleared(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, root: u64 in Trapping, low: u64 in Trapping, role: UseRole, handle: u64 in Trapping) {
         Checker::set_role(checker, handle, UseRole::Inspect);
         transition { _ -> clear(checker, syntax, typing, root, low, role, handle + 1) }
     }
 
-    state rooted(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, root: u64 in Trapping, low: u64 in Trapping, role: UseRole) {
+    machine rooted(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, root: u64 in Trapping, low: u64 in Trapping, role: UseRole) {
         Checker::set_role(checker, root, role);
         transition { _ -> descend(checker, syntax, typing, low, root) }
     }
 
-    state descend(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, low: u64 in Trapping, handle: u64 in Trapping) {
+    machine descend(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, low: u64 in Trapping, handle: u64 in Trapping) {
         Checker::pass_role(checker, syntax, typing, handle);
         transition handle > low {
             true -> descend(checker, syntax, typing, low, handle - 1)
@@ -616,7 +616,7 @@ crashes Trap
         }
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // A node passes its children their roles. Only roles that can move or lend
@@ -641,7 +641,7 @@ crashes Trap
     }
 
     // `.len` measures its base.
-    state field(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, expression: Expression) {
+    machine field(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, expression: Expression) {
         let place: bool = Checker::field_place(typing, handle, expression);
         transition place {
             true -> child(checker, typing, expression.left, UseRole::Base)
@@ -649,7 +649,7 @@ crashes Trap
         }
     }
 
-    state unary(checker: &mut Checker, typing: &Typing, expression: Expression, role: UseRole) {
+    machine unary(checker: &mut Checker, typing: &Typing, expression: Expression, role: UseRole) {
         let wraps: bool = expression.operator == OperatorKind::Suspend
             || expression.operator == OperatorKind::Block
             || expression.operator == OperatorKind::SuspendBlock;
@@ -661,57 +661,57 @@ crashes Trap
         }
     }
 
-    state wrapped(checker: &mut Checker, typing: &Typing, expression: Expression, role: UseRole, wraps: bool) {
+    machine wrapped(checker: &mut Checker, typing: &Typing, expression: Expression, role: UseRole, wraps: bool) {
         transition wraps {
             true -> child(checker, typing, expression.left, role)
             _ -> done()
         }
     }
 
-    state child(checker: &mut Checker, typing: &Typing, node: u64 in Trapping, role: UseRole) {
+    machine child(checker: &mut Checker, typing: &Typing, node: u64 in Trapping, role: UseRole) {
         Checker::set_child_role(checker, typing, node, role);
     }
 
-    state elements(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, index: u64 in Trapping, end: u64 in Trapping, role: UseRole) {
+    machine elements(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, index: u64 in Trapping, end: u64 in Trapping, role: UseRole) {
         transition index < end {
             true -> element(checker, syntax, typing, index, end, role)
             _ -> done()
         }
     }
 
-    state element(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, index: u64 in Trapping, end: u64 in Trapping, role: UseRole) {
+    machine element(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, index: u64 in Trapping, end: u64 in Trapping, role: UseRole) {
         let node: u64 in Trapping = SyntaxTrees::argument(syntax, index);
         Checker::set_child_role(checker, typing, node, role);
         transition { _ -> elements(checker, syntax, typing, index + 1, end, role) }
     }
 
-    state fields(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, index: u64 in Trapping, end: u64 in Trapping) {
+    machine fields(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, index: u64 in Trapping, end: u64 in Trapping) {
         transition index < end {
             true -> construct_field(checker, syntax, typing, index, end)
             _ -> done()
         }
     }
 
-    state construct_field(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, index: u64 in Trapping, end: u64 in Trapping) {
+    machine construct_field(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, index: u64 in Trapping, end: u64 in Trapping) {
         let field: ConstructField = SyntaxTrees::construct_field(syntax, index);
         Checker::set_child_role(checker, typing, field.value, UseRole::Value);
         transition { _ -> fields(checker, syntax, typing, index + 1, end) }
     }
 
-    state arms(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, index: u64 in Trapping, end: u64 in Trapping, role: UseRole) {
+    machine arms(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, index: u64 in Trapping, end: u64 in Trapping, role: UseRole) {
         transition index < end {
             true -> arm(checker, syntax, typing, index, end, role)
             _ -> done()
         }
     }
 
-    state arm(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, index: u64 in Trapping, end: u64 in Trapping, role: UseRole) {
+    machine arm(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, index: u64 in Trapping, end: u64 in Trapping, role: UseRole) {
         let arm: TransitionArm = SyntaxTrees::match_arm(syntax, index);
         Checker::set_child_role(checker, typing, arm.target, role);
         transition { _ -> arms(checker, syntax, typing, index + 1, end, role) }
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // A child's role, unless typing lends it implicitly to a shared-reference
@@ -725,7 +725,7 @@ crashes Trap
         _ -> set(checker, node, role)
     }
 
-    state set(checker: &mut Checker, node: u64 in Trapping, role: UseRole) {
+    machine set(checker: &mut Checker, node: u64 in Trapping, role: UseRole) {
         Checker::set_role(checker, node, role);
     }
 }
@@ -739,20 +739,20 @@ crashes Trap
         _ -> done()
     }
 
-    state offset(checker: &mut Checker, offset: u64 in Trapping, role: UseRole) {
+    machine offset(checker: &mut Checker, offset: u64 in Trapping, role: UseRole) {
         transition offset < 4096 {
             true -> write(checker, offset, role)
             _ -> done()
         }
     }
 
-    state write(checker: &mut Checker, offset: u64 in Trapping, role: UseRole)
+    machine write(checker: &mut Checker, offset: u64 in Trapping, role: UseRole)
     requires offset < 4096
     {
         checker.ownership.roles[offset] = role;
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // A node's role in the tree being walked; a node outside it inspects.
@@ -765,21 +765,21 @@ crashes Trap
         _ -> answer(UseRole::Inspect)
     }
 
-    state offset(checker: &Checker, offset: u64 in Trapping) -> UseRole {
+    machine offset(checker: &Checker, offset: u64 in Trapping) -> UseRole {
         transition offset < 4096 {
             true -> read(checker, offset)
             _ -> answer(UseRole::Inspect)
         }
     }
 
-    state read(checker: &Checker, offset: u64 in Trapping) -> UseRole
+    machine read(checker: &Checker, offset: u64 in Trapping) -> UseRole
     requires offset < 4096
     {
         let role: UseRole = checker.ownership.roles[offset];
         transition { _ -> answer(role) }
     }
 
-    state answer(role: UseRole) -> UseRole {
+    machine answer(role: UseRole) -> UseRole {
         role
     }
 }
@@ -790,14 +790,14 @@ crashes Trap
 {
     transition { _ -> next(checker, syntax, root, low) }
 
-    state next(checker: &mut Checker, syntax: &SyntaxTrees, root: u64 in Trapping, handle: u64 in Trapping) {
+    machine next(checker: &mut Checker, syntax: &SyntaxTrees, root: u64 in Trapping, handle: u64 in Trapping) {
         transition handle <= root && checker.output.machine_accepted {
             true -> scan(checker, syntax, root, handle)
             _ -> done()
         }
     }
 
-    state scan(checker: &mut Checker, syntax: &SyntaxTrees, root: u64 in Trapping, handle: u64 in Trapping) {
+    machine scan(checker: &mut Checker, syntax: &SyntaxTrees, root: u64 in Trapping, handle: u64 in Trapping) {
         let expression: Expression = SyntaxTrees::expression(syntax, handle);
         let logical: bool = expression.kind == ExpressionKind::Binary
             && (expression.operator == OperatorKind::And || expression.operator == OperatorKind::Or);
@@ -807,7 +807,7 @@ crashes Trap
         }
     }
 
-    state conditional(checker: &mut Checker, syntax: &SyntaxTrees, root: u64 in Trapping, handle: u64 in Trapping, expression: Expression) {
+    machine conditional(checker: &mut Checker, syntax: &SyntaxTrees, root: u64 in Trapping, handle: u64 in Trapping, expression: Expression) {
         let operand: Expression = SyntaxTrees::expression(syntax, expression.right);
         let kept: bool = Ownership::add_conditional(&mut checker.ownership, operand.first_row, expression.right);
         transition kept {
@@ -816,14 +816,14 @@ crashes Trap
         }
     }
 
-    state matched(checker: &mut Checker, syntax: &SyntaxTrees, root: u64 in Trapping, handle: u64 in Trapping, expression: Expression) {
+    machine matched(checker: &mut Checker, syntax: &SyntaxTrees, root: u64 in Trapping, handle: u64 in Trapping, expression: Expression) {
         transition expression.kind == ExpressionKind::Match {
             true -> add_match(checker, syntax, root, handle, expression)
             _ -> next(checker, syntax, root, handle + 1)
         }
     }
 
-    state add_match(checker: &mut Checker, syntax: &SyntaxTrees, root: u64 in Trapping, handle: u64 in Trapping, expression: Expression) {
+    machine add_match(checker: &mut Checker, syntax: &SyntaxTrees, root: u64 in Trapping, handle: u64 in Trapping, expression: Expression) {
         let kept: bool = Ownership::add_match(&mut checker.ownership, handle);
         transition kept {
             true -> next(checker, syntax, root, handle + 1)
@@ -831,11 +831,11 @@ crashes Trap
         }
     }
 
-    state full(checker: &mut Checker, expression: Expression) {
+    machine full(checker: &mut Checker, expression: Expression) {
         Checks::reject(&mut checker.output, CheckDiagnosticCode::CheckCapacityExceeded, expression.source_span);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // One node's use. A place used other than as a base must not overlap a
@@ -850,11 +850,11 @@ crashes Trap
         _ -> used(checker, syntax, resolution, typing, handle, role)
     }
 
-    state written(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping) {
+    machine written(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping) {
         Checker::own_write(checker, syntax, resolution, typing, handle);
     }
 
-    state used(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, role: UseRole) {
+    machine used(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, role: UseRole) {
         let root: u64 in Trapping = Checker::place_root(syntax, resolution, typing, handle);
         let through: bool = Checker::borrowed_place(syntax, typing, handle);
         let binder: bool = Ownership::borrows(&checker.ownership, root);
@@ -868,7 +868,7 @@ crashes Trap
     // A place reached through a write-only reference is written or lent
     // `&write`, never read, borrowed otherwise, or inspected
     // (wiki/spec/language/ownership.md#borrows-and-aliases).
-    state place(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, role: UseRole, borrowed: bool) {
+    machine place(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, role: UseRole, borrowed: bool) {
         let observes: bool = role != UseRole::WriteLend && role != UseRole::Measure
             && Checker::through_write_only(syntax, typing, handle);
         transition observes {
@@ -877,7 +877,7 @@ crashes Trap
         }
     }
 
-    state accessed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, role: UseRole, borrowed: bool) {
+    machine accessed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, role: UseRole, borrowed: bool) {
         let excludes: bool = Checker::access_excludes(syntax, typing, handle, role);
         Checker::loan_access(checker, syntax, resolution, typing, handle, excludes);
         let conflict: bool = Checker::moved_conflict(checker, syntax, resolution, typing, handle);
@@ -888,14 +888,14 @@ crashes Trap
         }
     }
 
-    state taken_place(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, role: UseRole, borrowed: bool, taken: bool) {
+    machine taken_place(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, role: UseRole, borrowed: bool, taken: bool) {
         transition taken {
             true -> by_value(checker, syntax, typing, handle, role, borrowed)
             _ -> done()
         }
     }
 
-    state by_value(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, role: UseRole, borrowed: bool) {
+    machine by_value(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, role: UseRole, borrowed: bool) {
         let type_handle: u64 in Trapping = Typing::expression_type(typing, handle);
         let multiplicity: DataMultiplicity = Checker::multiplicity(syntax, typing, type_handle);
         transition multiplicity {
@@ -907,7 +907,7 @@ crashes Trap
 
     // A linear place moves only into a destination, and only where every
     // path through the tree moves it.
-    state linear(checker: &mut Checker, syntax: &SyntaxTrees, handle: u64 in Trapping, role: UseRole, borrowed: bool) {
+    machine linear(checker: &mut Checker, syntax: &SyntaxTrees, handle: u64 in Trapping, role: UseRole, borrowed: bool) {
         let conditional: bool = Ownership::conditional(&checker.ownership, handle);
         let discarded: bool = role == UseRole::Drop || conditional;
         transition discarded && !borrowed {
@@ -916,14 +916,14 @@ crashes Trap
         }
     }
 
-    state moves(checker: &mut Checker, syntax: &SyntaxTrees, handle: u64 in Trapping, borrowed: bool) {
+    machine moves(checker: &mut Checker, syntax: &SyntaxTrees, handle: u64 in Trapping, borrowed: bool) {
         transition borrowed {
             true -> rejected(checker, syntax, handle, CheckDiagnosticCode::MoveOutOfBorrow)
             _ -> record(checker, syntax, handle)
         }
     }
 
-    state record(checker: &mut Checker, syntax: &SyntaxTrees, handle: u64 in Trapping) {
+    machine record(checker: &mut Checker, syntax: &SyntaxTrees, handle: u64 in Trapping) {
         let kept: bool = MovedSet::add(&mut checker.ownership.moved, handle);
         transition kept {
             true -> done()
@@ -931,7 +931,7 @@ crashes Trap
         }
     }
 
-    state value(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, role: UseRole) {
+    machine value(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, role: UseRole) {
         transition role == UseRole::Drop {
             true -> temporary(checker, syntax, typing, handle)
             _ -> done()
@@ -940,7 +940,7 @@ crashes Trap
 
     // A temporary a statement discards or a projection reads from is
     // dropped: a linear one is lost.
-    state temporary(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping) {
+    machine temporary(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping) {
         let expression: Expression = SyntaxTrees::expression(syntax, handle);
         let produced: bool = expression.kind == ExpressionKind::Call
             || expression.kind == ExpressionKind::Construct
@@ -952,7 +952,7 @@ crashes Trap
         }
     }
 
-    state produced_value(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping) {
+    machine produced_value(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping) {
         let type_handle: u64 in Trapping = Typing::expression_type(typing, handle);
         let multiplicity: DataMultiplicity = Checker::multiplicity(syntax, typing, type_handle);
         transition multiplicity == DataMultiplicity::Linear {
@@ -961,12 +961,12 @@ crashes Trap
         }
     }
 
-    state rejected(checker: &mut Checker, syntax: &SyntaxTrees, handle: u64 in Trapping, code: CheckDiagnosticCode) {
+    machine rejected(checker: &mut Checker, syntax: &SyntaxTrees, handle: u64 in Trapping, code: CheckDiagnosticCode) {
         let expression: Expression = SyntaxTrees::expression(syntax, handle);
         Checks::reject(&mut checker.output, code, expression.source_span);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // An assignment's target place. Writing inside a moved place rejects;
@@ -983,7 +983,7 @@ crashes Trap
         _ -> done()
     }
 
-    state owned(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, root: u64 in Trapping) {
+    machine owned(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, root: u64 in Trapping) {
         let cover: PlaceCover = Checker::moved_cover(checker, syntax, resolution, typing, handle);
         let type_handle: u64 in Trapping = Typing::expression_type(typing, handle);
         let multiplicity: DataMultiplicity = Checker::multiplicity(syntax, typing, type_handle);
@@ -994,7 +994,7 @@ crashes Trap
         }
     }
 
-    state live(
+    machine live(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -1010,7 +1010,7 @@ crashes Trap
         }
     }
 
-    state replaced(
+    machine replaced(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -1028,16 +1028,16 @@ crashes Trap
         }
     }
 
-    state owe(checker: &mut Checker, root: u64 in Trapping, multiplicity: DataMultiplicity, expression: Expression) {
+    machine owe(checker: &mut Checker, root: u64 in Trapping, multiplicity: DataMultiplicity, expression: Expression) {
         Checker::owe_linear(checker, multiplicity, root, expression.source_span);
     }
 
-    state rejected(checker: &mut Checker, syntax: &SyntaxTrees, handle: u64 in Trapping, code: CheckDiagnosticCode) {
+    machine rejected(checker: &mut Checker, syntax: &SyntaxTrees, handle: u64 in Trapping, code: CheckDiagnosticCode) {
         let expression: Expression = SyntaxTrees::expression(syntax, handle);
         Checks::reject(&mut checker.output, code, expression.source_span);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // Whether a used place overlaps a moved one: lies within it, is it, or
@@ -1047,14 +1047,14 @@ crashes Trap
 {
     transition { _ -> next(checker, syntax, resolution, typing, handle, 0) }
 
-    state next(checker: &Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, index: u64 in Trapping) -> bool {
+    machine next(checker: &Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, index: u64 in Trapping) -> bool {
         transition index < checker.ownership.moved.count {
             true -> entry(checker, syntax, resolution, typing, handle, index)
             _ -> answer(false)
         }
     }
 
-    state entry(checker: &Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, index: u64 in Trapping) -> bool {
+    machine entry(checker: &Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, index: u64 in Trapping) -> bool {
         let moved: u64 in Trapping = MovedSet::at(&checker.ownership.moved, index);
         let relation: PlaceRelation = Checker::place_relation(syntax, resolution, typing, handle, moved);
         transition relation {
@@ -1063,7 +1063,7 @@ crashes Trap
         }
     }
 
-    state answer(conflict: bool) -> bool {
+    machine answer(conflict: bool) -> bool {
         conflict
     }
 }
@@ -1075,7 +1075,7 @@ crashes Trap
     let depth: u64 in Trapping = Checker::place_depth(syntax, handle);
     transition { _ -> next(checker, syntax, resolution, typing, handle, depth, 0, PlaceCover::Uncovered) }
 
-    state next(
+    machine next(
         checker: &Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -1091,7 +1091,7 @@ crashes Trap
         }
     }
 
-    state entry(
+    machine entry(
         checker: &Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -1110,7 +1110,7 @@ crashes Trap
         }
     }
 
-    state inside(
+    machine inside(
         checker: &Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -1130,7 +1130,7 @@ crashes Trap
     // At the moved place's own field path, a store through more index steps
     // than the moved place has writes inside it: an element of a moved
     // collection is not the whole value that re-establishes it.
-    state level(
+    machine level(
         checker: &Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -1148,7 +1148,7 @@ crashes Trap
         }
     }
 
-    state answer(cover: PlaceCover) -> PlaceCover {
+    machine answer(cover: PlaceCover) -> PlaceCover {
         cover
     }
 }
@@ -1160,14 +1160,14 @@ crashes Trap
 {
     transition { _ -> next(checker, syntax, resolution, typing, handle, 0) }
 
-    state next(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, index: u64 in Trapping) {
+    machine next(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, index: u64 in Trapping) {
         transition index < checker.ownership.moved.count {
             true -> entry(checker, syntax, resolution, typing, handle, index)
             _ -> done()
         }
     }
 
-    state entry(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, index: u64 in Trapping) {
+    machine entry(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, index: u64 in Trapping) {
         let moved: u64 in Trapping = MovedSet::at(&checker.ownership.moved, index);
         let relation: PlaceRelation = Checker::place_relation(syntax, resolution, typing, moved, handle);
         transition relation == PlaceRelation::Inside {
@@ -1177,12 +1177,12 @@ crashes Trap
     }
 
     // The last place takes the removed one's slot and is examined next.
-    state removed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, index: u64 in Trapping) {
+    machine removed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, index: u64 in Trapping) {
         MovedSet::remove(&mut checker.ownership.moved, index);
         transition { _ -> next(checker, syntax, resolution, typing, handle, index) }
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // Whether a moved place is the whole root `key`.
@@ -1191,14 +1191,14 @@ crashes Trap
 {
     transition { _ -> next(checker, syntax, resolution, typing, key, 0) }
 
-    state next(checker: &Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, key: u64 in Trapping, index: u64 in Trapping) -> bool {
+    machine next(checker: &Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, key: u64 in Trapping, index: u64 in Trapping) -> bool {
         transition index < checker.ownership.moved.count {
             true -> entry(checker, syntax, resolution, typing, key, index)
             _ -> answer(false)
         }
     }
 
-    state entry(checker: &Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, key: u64 in Trapping, index: u64 in Trapping) -> bool {
+    machine entry(checker: &Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, key: u64 in Trapping, index: u64 in Trapping) -> bool {
         let moved: u64 in Trapping = MovedSet::at(&checker.ownership.moved, index);
         let root: u64 in Trapping = Checker::place_root(syntax, resolution, typing, moved);
         let depth: u64 in Trapping = Checker::place_depth(syntax, moved);
@@ -1209,7 +1209,7 @@ crashes Trap
         }
     }
 
-    state answer(moved: bool) -> bool {
+    machine answer(moved: bool) -> bool {
         moved
     }
 }
@@ -1224,14 +1224,14 @@ crashes Trap
     let count: u64 in Trapping = checker.ownership.match_count as u64 in Trapping;
     transition { _ -> next(checker, syntax, resolution, typing, handle, count) }
 
-    state next(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, remaining: u64 in Trapping) {
+    machine next(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, remaining: u64 in Trapping) {
         transition remaining > 0 && checker.output.machine_accepted {
             true -> matched_slot(checker, syntax, resolution, typing, handle, remaining - 1)
             _ -> done()
         }
     }
 
-    state matched_slot(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, slot: u64 in Trapping) {
+    machine matched_slot(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, slot: u64 in Trapping) {
         let match_handle: u64 in Trapping = Ownership::match_at(&checker.ownership, slot);
         let next_arm: u64 in Trapping = Ownership::match_arm_at(&checker.ownership, slot);
         let expression: Expression = SyntaxTrees::expression(syntax, match_handle);
@@ -1241,7 +1241,7 @@ crashes Trap
         }
     }
 
-    state pending(
+    machine pending(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -1259,7 +1259,7 @@ crashes Trap
         }
     }
 
-    state begin(
+    machine begin(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -1279,12 +1279,12 @@ crashes Trap
         }
     }
 
-    state first(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, slot: u64 in Trapping) {
+    machine first(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, slot: u64 in Trapping) {
         Ownership::open_match(&mut checker.ownership, slot);
         transition { _ -> next(checker, syntax, resolution, typing, handle, slot) }
     }
 
-    state later(
+    machine later(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -1298,7 +1298,7 @@ crashes Trap
         transition { _ -> next(checker, syntax, resolution, typing, handle, slot) }
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // Where a match arm begins: its pattern's first node, or its value's for
@@ -1311,7 +1311,7 @@ crashes Trap
         _ -> at(syntax, arm.pattern)
     }
 
-    state at(syntax: &SyntaxTrees, node: u64 in Trapping) -> u64 in Trapping {
+    machine at(syntax: &SyntaxTrees, node: u64 in Trapping) -> u64 in Trapping {
         let expression: Expression = SyntaxTrees::expression(syntax, node);
         expression.first_row
     }
@@ -1329,7 +1329,7 @@ crashes Trap
         _ -> done()
     }
 
-    state find(
+    machine find(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -1344,7 +1344,7 @@ crashes Trap
         }
     }
 
-    state candidate(
+    machine candidate(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -1360,13 +1360,13 @@ crashes Trap
         }
     }
 
-    state close(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, expression: Expression, slot: u64 in Trapping) {
+    machine close(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, expression: Expression, slot: u64 in Trapping) {
         Checker::end_owned_arm(checker, syntax, resolution, typing, slot, expression);
         Ownership::take_join(&mut checker.ownership, slot);
         Checker::require_joined_linear(checker, syntax, typing, slot, expression);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // Join an ended arm's moved places into its match's join: each joined
@@ -1377,7 +1377,7 @@ crashes Trap
     Ownership::load_join(&mut checker.ownership, slot);
     transition { _ -> next(checker, syntax, resolution, typing, slot, expression, 0) }
 
-    state next(
+    machine next(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -1392,7 +1392,7 @@ crashes Trap
         }
     }
 
-    state entry(
+    machine entry(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -1409,7 +1409,7 @@ crashes Trap
         }
     }
 
-    state vote(
+    machine vote(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -1423,7 +1423,7 @@ crashes Trap
         transition { _ -> next(checker, syntax, resolution, typing, slot, expression, index + 1) }
     }
 
-    state join(
+    machine join(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -1441,7 +1441,7 @@ crashes Trap
         }
     }
 
-    state first_vote(
+    machine first_vote(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -1455,11 +1455,11 @@ crashes Trap
         transition { _ -> next(checker, syntax, resolution, typing, slot, expression, index + 1) }
     }
 
-    state ended(checker: &mut Checker, slot: u64 in Trapping) {
+    machine ended(checker: &mut Checker, slot: u64 in Trapping) {
         Ownership::store_join(&mut checker.ownership, slot);
     }
 
-    state full(checker: &mut Checker, expression: Expression) {
+    machine full(checker: &mut Checker, expression: Expression) {
         Checks::reject(&mut checker.output, CheckDiagnosticCode::CheckCapacityExceeded, expression.source_span);
     }
 }
@@ -1471,14 +1471,14 @@ crashes Trap
 {
     transition { _ -> next(checker, syntax, resolution, typing, place, 0) }
 
-    state next(checker: &Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, place: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
+    machine next(checker: &Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, place: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
         transition index < checker.ownership.joining.count {
             true -> entry(checker, syntax, resolution, typing, place, index)
             _ -> answer(0)
         }
     }
 
-    state entry(checker: &Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, place: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
+    machine entry(checker: &Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, place: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
         let joined: u64 in Trapping = MovedSet::at(&checker.ownership.joining, index);
         let same: bool = Checker::same_owned_place(syntax, resolution, typing, place, joined);
         transition same {
@@ -1487,7 +1487,7 @@ crashes Trap
         }
     }
 
-    state answer(found: u64 in Trapping) -> u64 in Trapping {
+    machine answer(found: u64 in Trapping) -> u64 in Trapping {
         found
     }
 }
@@ -1499,14 +1499,14 @@ crashes Trap
     let arms: u64 in Trapping = Ownership::match_ended_at(&checker.ownership, slot);
     transition { _ -> next(checker, syntax, typing, slot, expression, arms, 0) }
 
-    state next(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, slot: u64 in Trapping, expression: Expression, arms: u64 in Trapping, index: u64 in Trapping) {
+    machine next(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, slot: u64 in Trapping, expression: Expression, arms: u64 in Trapping, index: u64 in Trapping) {
         transition index < checker.ownership.moved.count && checker.output.machine_accepted {
             true -> entry(checker, syntax, typing, slot, expression, arms, index)
             _ -> done()
         }
     }
 
-    state entry(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, slot: u64 in Trapping, expression: Expression, arms: u64 in Trapping, index: u64 in Trapping) {
+    machine entry(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, slot: u64 in Trapping, expression: Expression, arms: u64 in Trapping, index: u64 in Trapping) {
         let votes: u64 in Trapping = Ownership::votes_at(&checker.ownership, slot, index);
         transition votes < arms {
             true -> partial(checker, syntax, typing, slot, expression, arms, index)
@@ -1514,7 +1514,7 @@ crashes Trap
         }
     }
 
-    state partial(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, slot: u64 in Trapping, expression: Expression, arms: u64 in Trapping, index: u64 in Trapping) {
+    machine partial(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, slot: u64 in Trapping, expression: Expression, arms: u64 in Trapping, index: u64 in Trapping) {
         let place: u64 in Trapping = MovedSet::at(&checker.ownership.moved, index);
         let type_handle: u64 in Trapping = Typing::expression_type(typing, place);
         let multiplicity: DataMultiplicity = Checker::multiplicity(syntax, typing, type_handle);
@@ -1524,11 +1524,11 @@ crashes Trap
         }
     }
 
-    state unconsumed(checker: &mut Checker, expression: Expression) {
+    machine unconsumed(checker: &mut Checker, expression: Expression) {
         Checks::reject(&mut checker.output, CheckDiagnosticCode::LinearUnconsumed, expression.source_span);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // The moved place at `index`.
@@ -1540,14 +1540,14 @@ crashes Trap
         _ -> invalid()
     }
 
-    state read(set: &MovedSet, index: u64 in Trapping) -> u64 in Trapping
+    machine read(set: &MovedSet, index: u64 in Trapping) -> u64 in Trapping
     requires index < 64
     {
         let place: u64 = set.places[index];
         place as u64 in Trapping
     }
 
-    state invalid() -> u64 in Trapping {
+    machine invalid() -> u64 in Trapping {
         crash Trap;
     }
 }
@@ -1561,7 +1561,7 @@ crashes Trap
         _ -> full()
     }
 
-    state write(set: &mut MovedSet, place: u64 in Trapping, index: u64) -> bool
+    machine write(set: &mut MovedSet, place: u64 in Trapping, index: u64) -> bool
     requires index < 64
     {
         set.places[index] = place as u64;
@@ -1569,7 +1569,7 @@ crashes Trap
         true
     }
 
-    state full() -> bool {
+    machine full() -> bool {
         false
     }
 }
@@ -1583,14 +1583,14 @@ crashes Trap
         _ -> invalid()
     }
 
-    state remove_at(set: &mut MovedSet, index: u64 in Trapping, final_index: u64) {
+    machine remove_at(set: &mut MovedSet, index: u64 in Trapping, final_index: u64) {
         transition index < 64 && final_index < 64 {
             true -> write(set, index, final_index)
             _ -> invalid()
         }
     }
 
-    state write(set: &mut MovedSet, index: u64 in Trapping, final_index: u64)
+    machine write(set: &mut MovedSet, index: u64 in Trapping, final_index: u64)
     requires index < 64, final_index < 64
     {
         let place: u64 = set.places[final_index];
@@ -1598,7 +1598,7 @@ crashes Trap
         set.count = final_index;
     }
 
-    state invalid() {
+    machine invalid() {
         crash Trap;
     }
 }
@@ -1609,14 +1609,14 @@ crashes Trap
 {
     transition { _ -> next(ownership, key, 0) }
 
-    state next(ownership: &Ownership, key: u64 in Trapping, index: u64 in Trapping) -> bool {
+    machine next(ownership: &Ownership, key: u64 in Trapping, index: u64 in Trapping) -> bool {
         transition index < ownership.owed_count && index < 64 {
             true -> entry(ownership, key, index)
             _ -> answer(false)
         }
     }
 
-    state entry(ownership: &Ownership, key: u64 in Trapping, index: u64 in Trapping) -> bool
+    machine entry(ownership: &Ownership, key: u64 in Trapping, index: u64 in Trapping) -> bool
     requires index < 64
     {
         let owed: u64 = ownership.owed[index];
@@ -1626,7 +1626,7 @@ crashes Trap
         }
     }
 
-    state answer(owed: bool) -> bool {
+    machine answer(owed: bool) -> bool {
         owed
     }
 }
@@ -1641,14 +1641,14 @@ crashes Trap
         _ -> add(ownership, key, ownership.owed_count)
     }
 
-    state add(ownership: &mut Ownership, key: u64 in Trapping, index: u64) -> bool {
+    machine add(ownership: &mut Ownership, key: u64 in Trapping, index: u64) -> bool {
         transition index < 64 {
             true -> write(ownership, key, index)
             _ -> answer(false)
         }
     }
 
-    state write(ownership: &mut Ownership, key: u64 in Trapping, index: u64) -> bool
+    machine write(ownership: &mut Ownership, key: u64 in Trapping, index: u64) -> bool
     requires index < 64
     {
         ownership.owed[index] = key as u64;
@@ -1656,7 +1656,7 @@ crashes Trap
         true
     }
 
-    state answer(kept: bool) -> bool {
+    machine answer(kept: bool) -> bool {
         kept
     }
 }
@@ -1670,14 +1670,14 @@ crashes Trap
         _ -> invalid()
     }
 
-    state read(ownership: &Ownership, index: u64 in Trapping) -> u64 in Trapping
+    machine read(ownership: &Ownership, index: u64 in Trapping) -> u64 in Trapping
     requires index < 64
     {
         let key: u64 = ownership.owed[index];
         key as u64 in Trapping
     }
 
-    state invalid() -> u64 in Trapping {
+    machine invalid() -> u64 in Trapping {
         crash Trap;
     }
 }
@@ -1688,14 +1688,14 @@ crashes Trap
 {
     transition { _ -> next(ownership, key, 0) }
 
-    state next(ownership: &Ownership, key: u64 in Trapping, index: u64 in Trapping) -> bool {
+    machine next(ownership: &Ownership, key: u64 in Trapping, index: u64 in Trapping) -> bool {
         transition index < ownership.borrowed_count && index < 64 {
             true -> entry(ownership, key, index)
             _ -> answer(false)
         }
     }
 
-    state entry(ownership: &Ownership, key: u64 in Trapping, index: u64 in Trapping) -> bool
+    machine entry(ownership: &Ownership, key: u64 in Trapping, index: u64 in Trapping) -> bool
     requires index < 64
     {
         let borrowed: u64 = ownership.borrowed[index];
@@ -1705,7 +1705,7 @@ crashes Trap
         }
     }
 
-    state answer(borrowed: bool) -> bool {
+    machine answer(borrowed: bool) -> bool {
         borrowed
     }
 }
@@ -1720,14 +1720,14 @@ crashes Trap
         _ -> add(ownership, key, ownership.borrowed_count)
     }
 
-    state add(ownership: &mut Ownership, key: u64 in Trapping, index: u64) -> bool {
+    machine add(ownership: &mut Ownership, key: u64 in Trapping, index: u64) -> bool {
         transition index < 64 {
             true -> write(ownership, key, index)
             _ -> answer(false)
         }
     }
 
-    state write(ownership: &mut Ownership, key: u64 in Trapping, index: u64) -> bool
+    machine write(ownership: &mut Ownership, key: u64 in Trapping, index: u64) -> bool
     requires index < 64
     {
         ownership.borrowed[index] = key as u64;
@@ -1735,7 +1735,7 @@ crashes Trap
         true
     }
 
-    state answer(kept: bool) -> bool {
+    machine answer(kept: bool) -> bool {
         kept
     }
 }
@@ -1750,7 +1750,7 @@ crashes Trap
         _ -> full()
     }
 
-    state write(ownership: &mut Ownership, start: u64 in Trapping, end: u64 in Trapping, index: u64) -> bool
+    machine write(ownership: &mut Ownership, start: u64 in Trapping, end: u64 in Trapping, index: u64) -> bool
     requires index < 32
     {
         ownership.conditional_starts[index] = start as u64;
@@ -1759,7 +1759,7 @@ crashes Trap
         true
     }
 
-    state full() -> bool {
+    machine full() -> bool {
         false
     }
 }
@@ -1771,14 +1771,14 @@ crashes Trap
 {
     transition { _ -> next(ownership, handle, 0) }
 
-    state next(ownership: &Ownership, handle: u64 in Trapping, index: u64 in Trapping) -> bool {
+    machine next(ownership: &Ownership, handle: u64 in Trapping, index: u64 in Trapping) -> bool {
         transition index < ownership.conditional_count && index < 32 {
             true -> entry(ownership, handle, index)
             _ -> answer(false)
         }
     }
 
-    state entry(ownership: &Ownership, handle: u64 in Trapping, index: u64 in Trapping) -> bool
+    machine entry(ownership: &Ownership, handle: u64 in Trapping, index: u64 in Trapping) -> bool
     requires index < 32
     {
         let start: u64 = ownership.conditional_starts[index];
@@ -1790,7 +1790,7 @@ crashes Trap
         }
     }
 
-    state answer(within: bool) -> bool {
+    machine answer(within: bool) -> bool {
         within
     }
 }
@@ -1805,7 +1805,7 @@ crashes Trap
         _ -> full()
     }
 
-    state write(ownership: &mut Ownership, handle: u64 in Trapping, index: u64) -> bool
+    machine write(ownership: &mut Ownership, handle: u64 in Trapping, index: u64) -> bool
     requires index < 8
     {
         ownership.matches[index] = handle as u64;
@@ -1815,7 +1815,7 @@ crashes Trap
         true
     }
 
-    state full() -> bool {
+    machine full() -> bool {
         false
     }
 }
@@ -1828,14 +1828,14 @@ crashes Trap
         _ -> invalid()
     }
 
-    state read(ownership: &Ownership, slot: u64 in Trapping) -> u64 in Trapping
+    machine read(ownership: &Ownership, slot: u64 in Trapping) -> u64 in Trapping
     requires slot < 8
     {
         let handle: u64 = ownership.matches[slot];
         handle as u64 in Trapping
     }
 
-    state invalid() -> u64 in Trapping {
+    machine invalid() -> u64 in Trapping {
         crash Trap;
     }
 }
@@ -1848,14 +1848,14 @@ crashes Trap
         _ -> invalid()
     }
 
-    state read(ownership: &Ownership, slot: u64 in Trapping) -> u64 in Trapping
+    machine read(ownership: &Ownership, slot: u64 in Trapping) -> u64 in Trapping
     requires slot < 8
     {
         let arm: u64 = ownership.match_arms[slot];
         arm as u64 in Trapping
     }
 
-    state invalid() -> u64 in Trapping {
+    machine invalid() -> u64 in Trapping {
         crash Trap;
     }
 }
@@ -1868,14 +1868,14 @@ crashes Trap
         _ -> invalid()
     }
 
-    state read(ownership: &Ownership, slot: u64 in Trapping) -> u64 in Trapping
+    machine read(ownership: &Ownership, slot: u64 in Trapping) -> u64 in Trapping
     requires slot < 8
     {
         let ended: u64 = ownership.match_ended[slot];
         ended as u64 in Trapping
     }
 
-    state invalid() -> u64 in Trapping {
+    machine invalid() -> u64 in Trapping {
         crash Trap;
     }
 }
@@ -1888,13 +1888,13 @@ crashes Trap
         _ -> invalid()
     }
 
-    state write(ownership: &mut Ownership, slot: u64 in Trapping, arm: u64 in Trapping)
+    machine write(ownership: &mut Ownership, slot: u64 in Trapping, arm: u64 in Trapping)
     requires slot < 8
     {
         ownership.match_arms[slot] = arm as u64;
     }
 
-    state invalid() {
+    machine invalid() {
         crash Trap;
     }
 }
@@ -1909,7 +1909,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    state write(ownership: &mut Ownership, slot: u64 in Trapping)
+    machine write(ownership: &mut Ownership, slot: u64 in Trapping)
     requires slot < 8
     {
         ownership.before[slot] = ownership.moved;
@@ -1919,7 +1919,7 @@ crashes Trap
         ownership.match_ended[slot] = 0;
     }
 
-    state invalid() {
+    machine invalid() {
         crash Trap;
     }
 }
@@ -1933,13 +1933,13 @@ crashes Trap
         _ -> invalid()
     }
 
-    state write(ownership: &mut Ownership, slot: u64 in Trapping)
+    machine write(ownership: &mut Ownership, slot: u64 in Trapping)
     requires slot < 8
     {
         ownership.moved = ownership.before[slot];
     }
 
-    state invalid() {
+    machine invalid() {
         crash Trap;
     }
 }
@@ -1952,13 +1952,13 @@ crashes Trap
         _ -> invalid()
     }
 
-    state write(ownership: &mut Ownership, slot: u64 in Trapping)
+    machine write(ownership: &mut Ownership, slot: u64 in Trapping)
     requires slot < 8
     {
         ownership.joining = ownership.joined[slot];
     }
 
-    state invalid() {
+    machine invalid() {
         crash Trap;
     }
 }
@@ -1972,7 +1972,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    state write(ownership: &mut Ownership, slot: u64 in Trapping)
+    machine write(ownership: &mut Ownership, slot: u64 in Trapping)
     requires slot < 8
     {
         let ended: u64 = ownership.match_ended[slot];
@@ -1984,13 +1984,13 @@ crashes Trap
     }
 
     // A match has at most 1,024 arms.
-    state counted(ownership: &mut Ownership, slot: u64 in Trapping, ended: u64)
+    machine counted(ownership: &mut Ownership, slot: u64 in Trapping, ended: u64)
     requires slot < 8, ended < 1024
     {
         ownership.match_ended[slot] = ended + 1;
     }
 
-    state invalid() {
+    machine invalid() {
         crash Trap;
     }
 }
@@ -2004,13 +2004,13 @@ crashes Trap
         _ -> invalid()
     }
 
-    state write(ownership: &mut Ownership, slot: u64 in Trapping)
+    machine write(ownership: &mut Ownership, slot: u64 in Trapping)
     requires slot < 8
     {
         ownership.moved = ownership.joined[slot];
     }
 
-    state invalid() {
+    machine invalid() {
         crash Trap;
     }
 }
@@ -2025,14 +2025,14 @@ crashes Trap
         _ -> invalid()
     }
 
-    state located(ownership: &mut Ownership, cell: u64 in Trapping, first: bool) {
+    machine located(ownership: &mut Ownership, cell: u64 in Trapping, first: bool) {
         transition cell < 512 {
             true -> write(ownership, cell, first)
             _ -> invalid()
         }
     }
 
-    state write(ownership: &mut Ownership, cell: u64 in Trapping, first: bool)
+    machine write(ownership: &mut Ownership, cell: u64 in Trapping, first: bool)
     requires cell < 512
     {
         let votes: u64 = ownership.votes[cell];
@@ -2042,7 +2042,7 @@ crashes Trap
         }
     }
 
-    state bounded(ownership: &mut Ownership, cell: u64 in Trapping, votes: u64)
+    machine bounded(ownership: &mut Ownership, cell: u64 in Trapping, votes: u64)
     requires cell < 512
     {
         transition votes < 1024 {
@@ -2053,19 +2053,19 @@ crashes Trap
 
     // An arm votes once per joined place, and a match has at most 1,024
     // arms.
-    state counted(ownership: &mut Ownership, cell: u64 in Trapping, votes: u64)
+    machine counted(ownership: &mut Ownership, cell: u64 in Trapping, votes: u64)
     requires cell < 512, votes < 1024
     {
         ownership.votes[cell] = votes + 1;
     }
 
-    state store(ownership: &mut Ownership, cell: u64 in Trapping, votes: u64)
+    machine store(ownership: &mut Ownership, cell: u64 in Trapping, votes: u64)
     requires cell < 512
     {
         ownership.votes[cell] = votes;
     }
 
-    state invalid() {
+    machine invalid() {
         crash Trap;
     }
 }
@@ -2078,21 +2078,21 @@ crashes Trap
         _ -> invalid()
     }
 
-    state located(ownership: &Ownership, cell: u64 in Trapping) -> u64 in Trapping {
+    machine located(ownership: &Ownership, cell: u64 in Trapping) -> u64 in Trapping {
         transition cell < 512 {
             true -> read(ownership, cell)
             _ -> invalid()
         }
     }
 
-    state read(ownership: &Ownership, cell: u64 in Trapping) -> u64 in Trapping
+    machine read(ownership: &Ownership, cell: u64 in Trapping) -> u64 in Trapping
     requires cell < 512
     {
         let votes: u64 = ownership.votes[cell];
         votes as u64 in Trapping
     }
 
-    state invalid() -> u64 in Trapping {
+    machine invalid() -> u64 in Trapping {
         crash Trap;
     }
 }

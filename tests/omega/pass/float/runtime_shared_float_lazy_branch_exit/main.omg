@@ -9,14 +9,14 @@ machine tick(values:&mut Values)->f64 {values.value=values.value+1.0;values.valu
 machine Main::main(main:&mut Main) reaches Console {
  let byte:ByteRead=block Console::read_byte();
  transition byte {ByteRead::Byte{value} -> lazy(main,value) _ -> fail(main)}
- state lazy(main:&mut Main,value:i32) {
+ machine lazy(main:&mut Main,value:i32) {
   main.values.value=F64::from_i32(value)-49.0;
   let left:bool=main.values.value < 0.0 && abs_f64(tick(&mut main.values)) > 0.0;
   let right:bool=main.values.value >= 0.0 || abs_f64(tick(&mut main.values)) > 0.0;
   transition !left && right && main.values.value == 0.0 {true -> good(main) _ -> fail(main)}
  }
- state good(main:&mut Main) {Console::exit_process(70);}
- state fail(main:&mut Main) {Console::exit_process(71);}
+ machine good(main:&mut Main) {Console::exit_process(70);}
+ machine fail(main:&mut Main) {Console::exit_process(71);}
 }
 
 // The entry owns ordinary local state; selection supplies no context.

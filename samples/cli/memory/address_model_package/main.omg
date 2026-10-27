@@ -15,8 +15,8 @@ requires addr::Bound == 18446744073709551616
         true -> done()
         _ -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

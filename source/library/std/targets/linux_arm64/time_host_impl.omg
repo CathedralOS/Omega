@@ -79,11 +79,11 @@ reaches TimeHost
         _ -> degraded()
     }
 
-    state measured(seconds: i64, nanoseconds: i64) -> u64 {
+    machine measured(seconds: i64, nanoseconds: i64) -> u64 {
         linux_arm64_time_host_ticks(seconds, nanoseconds)
     }
 
-    state degraded() -> u64 { 0 }
+    machine degraded() -> u64 { 0 }
 }
 
 linux_arm64 machine TimeHostNativeProvider::monotonic_ticks_per_second() -> u64
@@ -103,11 +103,11 @@ reaches TimeHost
         _ -> degraded()
     }
 
-    state measured(seconds: i64, nanoseconds: i64) -> u64 {
+    machine measured(seconds: i64, nanoseconds: i64) -> u64 {
         linux_arm64_time_host_ticks(seconds, nanoseconds)
     }
 
-    state degraded() -> u64 { 0 }
+    machine degraded() -> u64 { 0 }
 }
 
 // CLOCK_REALTIME is already Unix-epoch nanoseconds, so the units are 10^9 and
@@ -136,7 +136,7 @@ blocks;
 {
     transition { _ -> wait(milliseconds) }
 
-    state wait(milliseconds: u32) {
+    machine wait(milliseconds: u32) {
         let request: LinuxArm64TimeHostInstant = LinuxArm64TimeHostInstant {
             seconds: widen_u32_to_i64(milliseconds / 1000),
             nanoseconds: widen_u32_to_i64(milliseconds % 1000) * 1000000
@@ -148,7 +148,7 @@ blocks;
         }
     }
 
-    state done() { }
+    machine done() { }
 }
 
 linux_arm64 machine TimeHostNativeProvider::provider_defaults(defaults: &mut TimeHostNativeProvider) {

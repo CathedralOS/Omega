@@ -12,7 +12,10 @@
 pub mod codec_bytes;
 pub mod cursor;
 pub mod digest_encoder;
+pub mod error_display;
 mod optimization_core;
+pub mod record_views;
+pub mod tagged_vocabulary;
 pub mod variant_accessors;
 
 pub(crate) use optimization_core::DuplicateOptimization;

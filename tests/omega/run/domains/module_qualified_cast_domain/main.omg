@@ -25,9 +25,9 @@ machine main() crashes Trap {
         true -> later(7 as u64 in units::u64::Distance)
         false -> wrong()
     }
-    state later(d: u64 in units::u64::Distance) {
+    machine later(d: u64 in units::u64::Distance) {
         transition measure(d) == 7 { true -> done() false -> wrong() }
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

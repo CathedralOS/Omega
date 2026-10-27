@@ -9,9 +9,9 @@ ensures ticket in Issued
         true -> replace(ticket)
         _ -> finish()
     }
-    state replace(renamed: &mut Ticket) -> bool {
+    machine replace(renamed: &mut Ticket) -> bool {
         renamed = Ticket { number: 7 };
         transition { _ -> finish() }
     }
-    state finish() -> bool { true }
+    machine finish() -> bool { true }
 }

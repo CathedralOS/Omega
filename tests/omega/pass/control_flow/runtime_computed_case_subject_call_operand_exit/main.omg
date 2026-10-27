@@ -33,13 +33,13 @@ machine Main::main(main: &mut Main) reaches Console {
         Pick::First { .. } -> done(main, 71)
         Pick::Second { v } -> second(main, v, counter.flags)
     }
-    state second(main: &mut Main, v: i32, flags: u32 in Wrapping) {
+    machine second(main: &mut Main, v: i32, flags: u32 in Wrapping) {
         transition v == 20 && flags == 1 && main.picks == 1 {
             true -> done(main, 70)
             _ -> done(main, 72)
         }
     }
-    state done(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine done(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -32,11 +32,11 @@ machine Main::main(main: &mut Main) reaches Console {
         Command::Interactive -> matched(main)
     }
 
-    state matched(main: &mut Main) {
+    machine matched(main: &mut Main) {
         Console::exit_process(70);
     }
 
-    state missed(main: &mut Main) {
+    machine missed(main: &mut Main) {
         Console::exit_process(71);
     }
 }

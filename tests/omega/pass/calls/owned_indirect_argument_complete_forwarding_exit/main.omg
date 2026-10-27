@@ -7,8 +7,8 @@ machine observe(payload: Payload) crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 machine relay(payload: Payload) crashes Trap { observe(payload); }
@@ -19,8 +19,8 @@ machine mixed(marker: i32, payload: Payload) crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 machine main() crashes Trap {

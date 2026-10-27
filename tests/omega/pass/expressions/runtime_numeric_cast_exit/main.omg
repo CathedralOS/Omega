@@ -29,7 +29,7 @@ machine Main::main(main: &mut Main) reaches Console {
         false -> bad(main)
     }
 
-    state check_int_to_float(main: &mut Main) {
+    machine check_int_to_float(main: &mut Main) {
         // int -> float (4 -> 4.0).
         main.widened = main.truncated as f64;
         transition main.widened == 4.0 {
@@ -38,7 +38,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state check_signed_widen(main: &mut Main) {
+    machine check_signed_widen(main: &mut Main) {
         main.narrow_source = -100;
         // signed integer widening sign-extends (-100 stays -100, not 2^32-100).
         main.widened_int = main.narrow_source as i64;
@@ -48,11 +48,11 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::exit_process(70);
     }
 
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::exit_process(71);
     }
 }

@@ -51,7 +51,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     // Loop head: partition until the white cursor meets the blue fence.
-    state head(main: &mut Main) {
+    machine head(main: &mut Main) {
         transition main.w < main.b {
             true -> w_guard(main)
             _ -> check0(main)
@@ -60,14 +60,14 @@ machine Main::main(main: &mut Main) reaches Console {
 
     // Literal re-guard: dominates every items[main.w] access downstream
     // (classify, red_swap, blue_swap -- no state between rewrites w).
-    state w_guard(main: &mut Main) {
+    machine w_guard(main: &mut Main) {
         transition main.w < 3 {
             true -> classify(main)
             _ -> confused(main, 96)
         }
     }
 
-    state classify(main: &mut Main) {
+    machine classify(main: &mut Main) {
         transition main.items[main.w] {
             Color::Red -> r_guard(main)
             Color::White -> w_bump_guard(main)
@@ -75,7 +75,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state r_guard(main: &mut Main) {
+    machine r_guard(main: &mut Main) {
         transition main.r < 3 {
             true -> red_swap(main)
             _ -> confused(main, 97)
@@ -85,7 +85,7 @@ machine Main::main(main: &mut Main) reaches Console {
     // Red at the cursor: swap it into the red prefix, grow the prefix
     // (`r + 1` proves on the DIRECT edge from r_guard), then join the
     // white path to bump the cursor.
-    state red_swap(main: &mut Main) {
+    machine red_swap(main: &mut Main) {
         main.t = main.items[main.r];
         main.items[main.r] = main.items[main.w];
         main.items[main.w] = main.t;
@@ -98,21 +98,21 @@ machine Main::main(main: &mut Main) reaches Console {
     // Re-guard before the increment: the bound must sit on the DIRECT edge
     // for the `+ 1` to prove (the bubble_sort `advance` idiom). Both the
     // red and white arms join here.
-    state w_bump_guard(main: &mut Main) {
+    machine w_bump_guard(main: &mut Main) {
         transition main.w < 3 {
             true -> w_bump(main)
             _ -> confused(main, 95)
         }
     }
 
-    state w_bump(main: &mut Main) {
+    machine w_bump(main: &mut Main) {
         main.w = main.w + 1;
         transition {
             _ -> head(main)
         }
     }
 
-    state b_guard(main: &mut Main) {
+    machine b_guard(main: &mut Main) {
         transition main.b > 0 {
             true -> blue_swap(main)
             _ -> confused(main, 98)
@@ -123,7 +123,7 @@ machine Main::main(main: &mut Main) reaches Console {
     // The decremented fence lands in `bp`, whose DECLARED range [0..=2]
     // carries the index proof (the stored `b` itself would read back at
     // its wider [0..=3] range).
-    state blue_swap(main: &mut Main) {
+    machine blue_swap(main: &mut Main) {
         main.bp = main.b - 1;
         main.t = main.items[main.w];
         main.items[main.w] = main.items[main.bp];
@@ -135,31 +135,31 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     // Verify [Red, White, Blue] element by element via case dispatch.
-    state check0(main: &mut Main) {
+    machine check0(main: &mut Main) {
         transition main.items[0] {
             Color::Red -> check1(main)
             _ -> bad(main, 71)
         }
     }
-    state check1(main: &mut Main) {
+    machine check1(main: &mut Main) {
         transition main.items[1] {
             Color::White -> check2(main)
             _ -> bad(main, 72)
         }
     }
-    state check2(main: &mut Main) {
+    machine check2(main: &mut Main) {
         transition main.items[2] {
             Color::Blue -> good(main)
             _ -> bad(main, 73)
         }
     }
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::exit_process(70);
     }
-    state bad(main: &mut Main, code: i32) {
+    machine bad(main: &mut Main, code: i32) {
         Console::exit_process(code);
     }
-    state confused(main: &mut Main, code: i32) {
+    machine confused(main: &mut Main, code: i32) {
         Console::exit_process(code);
     }
 }

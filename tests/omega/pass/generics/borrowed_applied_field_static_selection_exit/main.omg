@@ -3,7 +3,7 @@ machine count<T, machine Predicate>(values: &[T]) -> u64
 where machine Predicate(value: &T) -> bool;
 {
     transition { _ -> next(values, 0, 0) }
-    state next(values: &[T], position: u64, matched: u64) -> u64
+    machine next(values: &[T], position: u64, matched: u64) -> u64
     requires matched <= position && position <= values.len
     {
         transition position < values.len {
@@ -11,7 +11,7 @@ where machine Predicate(value: &T) -> bool;
             false -> (matched)
         }
     }
-    state inspect(values: &[T], position: u64, matched: u64) -> u64
+    machine inspect(values: &[T], position: u64, matched: u64) -> u64
     requires matched <= position && position < values.len
     {
         transition Predicate(&values[position]) {
@@ -35,7 +35,7 @@ machine scan_state<T, const Capacity: u64, machine Predicate>(batch: &Batch<T, C
 where machine Predicate(value: &T) -> bool;
 {
  transition { _ -> scan(batch) }
- state scan(batch: &Batch<T, Capacity>) -> u64 { count<Predicate>(&batch.values) }
+ machine scan(batch: &Batch<T, Capacity>) -> u64 { count<Predicate>(&batch.values) }
 }
 machine make_batch<T,const Capacity: u64>(values: [T;Capacity], guard: u64) -> Batch<T,Capacity> { Batch { values: values, guard: guard } }
 machine scan_result() -> u64 {
@@ -53,5 +53,5 @@ machine main() crashes Trap {
      && signed.guard == 73 && bytes.guard == 19 {
   true -> done() false -> wrong()
  }
- state done() {} state wrong() { crash Trap; }
+ machine done() {} machine wrong() { crash Trap; }
 }

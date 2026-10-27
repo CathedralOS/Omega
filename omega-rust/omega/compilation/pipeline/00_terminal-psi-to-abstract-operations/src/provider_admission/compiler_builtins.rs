@@ -178,8 +178,14 @@ pub(super) fn settle_compiler_builtins<'request>(
                     boundary.id,
                 )
                 .map_err(|reason| vec![Diagnostic::error(reason)])?;
-                placed_schema::validate(module, boundary, proposal.provider_plan, &demand)
-                    .map_err(|reason| vec![Diagnostic::error(reason)])?;
+                placed_schema::validate(
+                    module,
+                    boundary,
+                    proposal.provider_plan,
+                    proposal.semantic_schema,
+                    &demand,
+                )
+                .map_err(|reason| vec![Diagnostic::error(reason)])?;
                 require_placed_backing_origins(input, boundary.id)
                     .map_err(|reason| vec![Diagnostic::error(reason)])?;
                 let compiler_operation = placed_operation(operation);
@@ -188,7 +194,7 @@ pub(super) fn settle_compiler_builtins<'request>(
                     || demand.operation != operation
                     || operation == terminal_psi::TerminalPlacedAccessorKind::Take
                     || effects::compiler_placed_scalar_contract_identity(
-                        proposal.provider_plan.schema.identity_digest(),
+                        proposal.provider_plan.schema_identity_digest(),
                         placement_commitment,
                         access_slot,
                         compiler_operation,
@@ -281,9 +287,14 @@ pub(super) fn boundary_contract_matches_selected_schema(
     plan: &effects::provider_plan::ProviderPlan,
     requirement: &str,
 ) -> bool {
-    let mut matching = plan.schema.methods.iter().filter(|method| {
-        plan.schema.identities.id_at(requirement.as_ref()) == Some(method.requirement_identity)
-    });
+    let Some(requirement_id) = plan.schema.identities.id_at(requirement.as_ref()) else {
+        return false;
+    };
+    let mut matching = plan
+        .schema
+        .methods
+        .iter()
+        .filter(|method| method.requirement_identity == requirement_id);
     matching.next().is_some_and(|method| {
         method.completion == boundary.completion
             && boundary.unconditional_termination

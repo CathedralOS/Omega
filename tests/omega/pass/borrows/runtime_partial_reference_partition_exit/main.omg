@@ -11,6 +11,6 @@ machine main() crashes Trap {
     transition pair.first.value == 11 {
         true -> done() false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

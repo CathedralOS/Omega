@@ -409,6 +409,25 @@ pub fn aarch64_selected_constraint_keys(target: NativeTarget) -> Option<Selected
     })
 }
 
+/// The single alternative every AArch64 form admits: one always-applicable
+/// encoding, named by its family, its byte size and its encoded effects row.
+/// Forms that admit more than one variant name the key themselves.
+macro_rules! form_alternative {
+    ($family:expr, $size:expr, $encoded:expr) => {
+        vec![MachineAlternative {
+            key: MachineAlternativeKey {
+                family: $family,
+                variant: 0,
+            },
+            applicability: MachineAlternativeApplicability::Always,
+            size: $size,
+            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
+            encoded: $encoded,
+        }]
+    };
+}
+pub(crate) use form_alternative;
+
 fn declaration(
     semantic: MachineSemanticKind,
     keys: &SelectedConstraintKeys,
@@ -499,16 +518,7 @@ fn declaration(
         },
         call: MachineCallEffect::NoneV1,
         cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey {
-                family: semantic.into(),
-                variant: 0,
-            },
-            applicability: MachineAlternativeApplicability::Always,
-            size: size(semantic),
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded: encoded_effects(semantic),
-        }],
+        alternatives: form_alternative!(semantic.into(), size(semantic), encoded_effects(semantic)),
     }
 }
 

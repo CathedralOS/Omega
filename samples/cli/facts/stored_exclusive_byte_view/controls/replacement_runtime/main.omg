@@ -8,6 +8,6 @@ machine main() crashes Trap {
     let fresh: u64 = windows[0].len;
     let observed: bool = fresh == 0 && saved == 1;
     transition observed { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

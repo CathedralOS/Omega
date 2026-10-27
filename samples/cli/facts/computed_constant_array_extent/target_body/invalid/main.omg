@@ -8,6 +8,6 @@ macos_arm64 machine select_val() -> u64 { ALIAS[1] }
 linux_arm64 machine select_val() -> u64 { ALIAS[1] }
 machine main() crashes Trap {
     transition select_val() == 3 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

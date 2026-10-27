@@ -7,7 +7,7 @@ requires items.len >= 3 {
         true -> store(child, 17)
         false -> store(child, 23)
     }
-    state store(child: &mut [i32], value: i32)
+    machine store(child: &mut [i32], value: i32)
     requires child.len == 1 {
         child[0] = value;
     }
@@ -23,6 +23,6 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

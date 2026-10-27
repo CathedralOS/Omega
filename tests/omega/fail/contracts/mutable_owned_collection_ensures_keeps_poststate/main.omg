@@ -10,6 +10,6 @@ machine main() crashes Trap {
     let view: &[u8] = window(1u64, &values);
     asm { observed requires view.len == 1u64: nop }
     transition view.len == 2u64 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

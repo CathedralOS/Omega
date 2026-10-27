@@ -23,8 +23,8 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine exchange(view: &mut Placed<StablePlacement, Values>, row: u64, column: u64) -> bool
 requires row < 2 && column < 3

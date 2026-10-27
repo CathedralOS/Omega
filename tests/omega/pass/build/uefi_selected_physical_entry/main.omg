@@ -31,7 +31,7 @@ machine reject_image(image_handle: EfiImageHandle) -> EfiStatus {
 
 machine kernel_entry(image: Extent in Granted, storage: Extent in Granted) {
     transition { _ -> retain(image as Extent, storage as Extent) }
-    state retain(image: Extent, storage: Extent) {
+    machine retain(image: Extent, storage: Extent) {
         transition { _ -> retain(image, storage) }
     }
 }

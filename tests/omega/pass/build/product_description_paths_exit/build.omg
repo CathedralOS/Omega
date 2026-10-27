@@ -1,6 +1,6 @@
 data OrdinaryPath {}
 data Visits { value: u64 in Wrapping; }
-machine OrdinaryPath::path(value: &OrdinaryPath, visits: &mut Visits) -> u64 {
+machine path(value: &OrdinaryPath, visits: &mut Visits) -> u64 {
     visits.value = visits.value + 1;
     7
 }
@@ -13,8 +13,8 @@ machine build(builder: &mut Build) {
     let mut visits: Visits = Visits { value: 0 };
     let schema_path: &[u8] = ProductTypeSchema::path(&schema);
     let provider_path: &[u8] = ProductProviderRef::path(&provider);
-    let ordinary_path: u64 = OrdinaryPath::path(&ordinary, &mut visits);
-    _ = OrdinaryPath::path(&ordinary, &mut visits);
+    let ordinary_path: u64 = path(&ordinary, &mut visits);
+    _ = path(&ordinary, &mut visits);
     _ = ProductTypeSchema::path(&schema);
     _ = ProductProviderRef::path(&provider);
     choose(builder, schema_path == "payload::Packet" && provider_path == "payload::Provider" && ordinary_path == 7 && visits.value == 2);
@@ -22,13 +22,13 @@ machine build(builder: &mut Build) {
 
 machine choose(builder: &mut Build, correct: bool) {
     transition correct { true -> good(builder) _ -> bad(builder) }
-    state good(builder: &mut Build) {
+    machine good(builder: &mut Build) {
         Build::bind(builder, macos_arm64::ProgramEntry, main);
         Build::bind(builder, linux_arm64::ProgramEntry, main);
         Build::bind(builder, linux_x86_64::ProgramEntry, main);
         Build::bind(builder, windows_x86_64::ProgramEntry, main);
     }
-    state bad(builder: &mut Build) {
+    machine bad(builder: &mut Build) {
         // Fail during Build, before root-binding discovery can produce a product.
         _ = BuildProduct::entry(&builder.product, "incorrect_description_path", "macos_arm64::ProgramEntry");
     }

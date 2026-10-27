@@ -49,115 +49,115 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> bad1(main)
     }
 
-    state check_unsigned_exact_wide(main: &mut Main) {
+    machine check_unsigned_exact_wide(main: &mut Main) {
         transition main.unsigned_exact_wide == 5000000000 {
             true -> check_unsigned_wrapping(main)
             _ -> bad2(main)
         }
     }
 
-    state check_unsigned_wrapping(main: &mut Main) {
+    machine check_unsigned_wrapping(main: &mut Main) {
         transition main.unsigned_wrapping == 0 - 1 {
             true -> check_unsigned_saturating(main)
             _ -> bad3(main)
         }
     }
 
-    state check_unsigned_saturating(main: &mut Main) {
+    machine check_unsigned_saturating(main: &mut Main) {
         transition main.unsigned_saturating == 127 {
             true -> check_unsigned_saturating_wide(main)
             _ -> bad4(main)
         }
     }
 
-    state check_unsigned_saturating_wide(main: &mut Main) {
+    machine check_unsigned_saturating_wide(main: &mut Main) {
         transition main.unsigned_saturating_wide == main.expected_i64 {
             true -> check_unsigned_trapping(main)
             _ -> bad5(main)
         }
     }
 
-    state check_unsigned_trapping(main: &mut Main) {
+    machine check_unsigned_trapping(main: &mut Main) {
         transition main.unsigned_trapping == 70 {
             true -> check_unsigned_widening(main)
             _ -> bad6(main)
         }
     }
 
-    state check_unsigned_widening(main: &mut Main) {
+    machine check_unsigned_widening(main: &mut Main) {
         transition main.unsigned_widening == 65535 {
             true -> check_signed_exact(main)
             _ -> bad7(main)
         }
     }
 
-    state check_signed_exact(main: &mut Main) {
+    machine check_signed_exact(main: &mut Main) {
         transition main.signed_exact == 200 {
             true -> check_signed_exact_wide(main)
             _ -> bad8(main)
         }
     }
 
-    state check_signed_exact_wide(main: &mut Main) {
+    machine check_signed_exact_wide(main: &mut Main) {
         transition main.signed_exact_wide == 5000000000 {
             true -> check_signed_wrapping(main)
             _ -> bad9(main)
         }
     }
 
-    state check_signed_wrapping(main: &mut Main) {
+    machine check_signed_wrapping(main: &mut Main) {
         transition main.signed_wrapping == 255 {
             true -> check_signed_wrapping_wide(main)
             _ -> bad10(main)
         }
     }
 
-    state check_signed_wrapping_wide(main: &mut Main) {
+    machine check_signed_wrapping_wide(main: &mut Main) {
         transition main.signed_wrapping_wide == main.expected_u64 {
             true -> check_signed_saturating_low(main)
             _ -> bad11(main)
         }
     }
 
-    state check_signed_saturating_low(main: &mut Main) {
+    machine check_signed_saturating_low(main: &mut Main) {
         transition main.signed_saturating_low == 0 {
             true -> check_signed_saturating_high(main)
             _ -> bad12(main)
         }
     }
 
-    state check_signed_saturating_high(main: &mut Main) {
+    machine check_signed_saturating_high(main: &mut Main) {
         transition main.signed_saturating_high == 255 {
             true -> check_signed_trapping(main)
             _ -> bad13(main)
         }
     }
 
-    state check_signed_trapping(main: &mut Main) {
+    machine check_signed_trapping(main: &mut Main) {
         transition main.signed_trapping == 70 {
             true -> good(main)
             _ -> bad14(main)
         }
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::exit_process(70);
     }
 
-    state bad1(main: &mut Main) { Console::exit_process(81); }
-    state bad2(main: &mut Main) { Console::exit_process(82); }
-    state bad3(main: &mut Main) { Console::exit_process(83); }
-    state bad4(main: &mut Main) { Console::exit_process(84); }
-    state bad5(main: &mut Main) { Console::exit_process(85); }
-    state bad6(main: &mut Main) { Console::exit_process(86); }
-    state bad7(main: &mut Main) { Console::exit_process(87); }
-    state bad8(main: &mut Main) { Console::exit_process(88); }
-    state bad9(main: &mut Main) { Console::exit_process(89); }
-    state bad10(main: &mut Main) { Console::exit_process(90); }
-    state bad11(main: &mut Main) { Console::exit_process(91); }
-    state bad12(main: &mut Main) { Console::exit_process(92); }
-    state bad13(main: &mut Main) { Console::exit_process(93); }
-    state bad14(main: &mut Main) { Console::exit_process(94); }
+    machine bad1(main: &mut Main) { Console::exit_process(81); }
+    machine bad2(main: &mut Main) { Console::exit_process(82); }
+    machine bad3(main: &mut Main) { Console::exit_process(83); }
+    machine bad4(main: &mut Main) { Console::exit_process(84); }
+    machine bad5(main: &mut Main) { Console::exit_process(85); }
+    machine bad6(main: &mut Main) { Console::exit_process(86); }
+    machine bad7(main: &mut Main) { Console::exit_process(87); }
+    machine bad8(main: &mut Main) { Console::exit_process(88); }
+    machine bad9(main: &mut Main) { Console::exit_process(89); }
+    machine bad10(main: &mut Main) { Console::exit_process(90); }
+    machine bad11(main: &mut Main) { Console::exit_process(91); }
+    machine bad12(main: &mut Main) { Console::exit_process(92); }
+    machine bad13(main: &mut Main) { Console::exit_process(93); }
+    machine bad14(main: &mut Main) { Console::exit_process(94); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

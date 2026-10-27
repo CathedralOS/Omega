@@ -34,6 +34,9 @@ fn module() -> TerminalModule {
     let mut machine = unit_machine(machine_id);
     machine.declaration.as_mut().unwrap().callable = TerminalIdentityIndex(3);
     machine.declaration.as_mut().unwrap().semantic_declaration = TerminalIdentityIndex(1);
+    machine
+        .parameter_order
+        .push(terminal_psi::BoundaryParameterKind::Scalar);
     machine.parameters.push(ValueDeclaration {
         id: subject,
         scalar_type,

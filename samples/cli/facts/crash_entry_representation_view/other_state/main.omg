@@ -4,13 +4,13 @@ machine maybe_zero(value: i64) -> i64
 crashes Trap value == 0
 {
     transition value == 0 { true -> bad() false -> (value) }
-    state bad() { crash Trap; }
+    machine bad() -> i64 { crash Trap; }
 }
 public machine read_bits(value: u64) -> i64
 requires value == 7
 {
     transition { _ -> step(value) }
-    state step(value: u64) -> i64 requires value == 7 {
+    machine step(value: u64) -> i64 requires value == 7 {
     let view: &i64 = &value as &i64;
     let observed: i64 = view;
     maybe_zero(observed)
@@ -19,5 +19,5 @@ requires value == 7
 machine main() crashes Trap {
     let observed: i64 = read_bits(7);
     transition observed == 7 { true -> done() _ -> bad() }
-    state done() {} state bad() { crash Trap; }
+    machine done() {} machine bad() { crash Trap; }
 }

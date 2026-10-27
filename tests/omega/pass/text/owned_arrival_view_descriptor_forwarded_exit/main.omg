@@ -32,35 +32,35 @@ machine Main::main(main: &mut Main) reaches Console {
     main.badge.rank = 9;
     transition { _ -> inspect(main, main.badge) }
 
-    state inspect(main: &mut Main, badge: Badge) {
+    machine inspect(main: &mut Main, badge: Badge) {
         transition badge.label.len == 5 && badge.rank == 9 {
             true -> confirm(main, badge)
             false -> finish(main, 71)
         }
     }
 
-    state confirm(main: &mut Main, badge: Badge) {
+    machine confirm(main: &mut Main, badge: Badge) {
         transition badge.label == "north" && badge.rank == 9 {
             true -> last_byte(main, badge)
             false -> finish(main, 72)
         }
     }
 
-    state last_byte(main: &mut Main, badge: Badge) {
+    machine last_byte(main: &mut Main, badge: Badge) {
         transition badge.label.len > 4 {
             true -> matched(main, badge.label[4] == 104)
             false -> finish(main, 73)
         }
     }
 
-    state matched(main: &mut Main, same: bool) {
+    machine matched(main: &mut Main, same: bool) {
         transition same {
             true -> finish(main, 70)
             false -> finish(main, 73)
         }
     }
 
-    state finish(main: &mut Main, code: i32) {
+    machine finish(main: &mut Main, code: i32) {
         Console::exit_process(code);
     }
 }

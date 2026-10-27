@@ -19,14 +19,14 @@ machine exercise(lhs: u8 in Saturating, rhs: u8 in Saturating) -> u8 crashes Tra
         true -> step(diff, true)
         _ -> bad()
     }
-    state step(d: u8, flag: bool) -> u8 {
+    machine step(d: u8, flag: bool) -> u8 {
         let joined: u8 = match flag {
             true -> d
             false -> d
         };
         verify_diff(joined)
     }
-    state bad() { crash Trap; }
+    machine bad() -> u8 { crash Trap; }
 }
 
 machine main() crashes Trap {
@@ -35,6 +35,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

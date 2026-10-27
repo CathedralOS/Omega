@@ -49,7 +49,7 @@ reaches CleanupAudit
     CleanupAudit::finish();
     context.phase = 17;
     transition { _ -> retain(image, storage) }
-    state retain(image: Extent in Granted, storage: Extent in Granted) {
+    machine retain(image: Extent in Granted, storage: Extent in Granted) {
         transition { _ -> retain(image, storage) }
     }
 }

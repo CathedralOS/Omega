@@ -38,8 +38,8 @@ machine Main::main(main: &mut Main) crashes Trap {
         && bag.rows[1].marker == 41 && bag.rows[2].marker == 41 {
         true -> done() false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

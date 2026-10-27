@@ -3,5 +3,5 @@ machine size() -> u32 in Wrapping { (65536 as u32 in Wrapping) * (65536 as u32 i
 machine main() crashes Trap {
  let slots: [u8; size()];
  transition slots.len == 0 { true -> done() _ -> bad() }
- state done() { } state bad() { crash Trap; }
+ machine done() { } machine bad() { crash Trap; }
 }

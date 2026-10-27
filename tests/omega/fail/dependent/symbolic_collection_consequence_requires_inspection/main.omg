@@ -24,7 +24,7 @@ terminates;
 terminates by remaining in 0..=values.len;
 {
     transition remaining > 0 { true -> inspect(values, remaining) false -> (true) }
-    state inspect(values: &[i32], remaining: u64) -> bool
+    machine inspect(values: &[i32], remaining: u64) -> bool
     requires remaining > 0 && remaining <= values.len
     {
         let selected: u64 = remaining - 1;

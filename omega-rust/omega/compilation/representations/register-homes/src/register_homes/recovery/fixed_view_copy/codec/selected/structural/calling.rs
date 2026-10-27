@@ -7,7 +7,7 @@ use calling_conventions::{
 
 use crate::FixedViewCopyDecodeError;
 
-use crate::register_homes::recovery::fixed_view_copy::codec::primitives::Cursor;
+use crate::register_homes::recovery::fixed_view_copy::codec::primitives::{Cursor, decode_list};
 
 #[cfg(test)]
 #[test]
@@ -59,26 +59,14 @@ pub(super) fn decode_call_plan(
         5 => CallingPolicy::LinuxSyscallAarch64,
         tag => return Err(FixedViewCopyDecodeError::UnknownCallingPolicy(tag)),
     };
-    let parameter_count = cursor.length()?;
-    let mut parameters = Vec::with_capacity(parameter_count.min(cursor.remaining()));
-    for _ in 0..parameter_count {
-        parameters.push(decode_placement(cursor)?);
-    }
+    let parameters = decode_list(cursor, decode_placement)?;
     let result = crate::cursor::optional(
         cursor,
         |c| Ok(decode_placement(c)?),
         FixedViewCopyDecodeError::UnknownOption,
     )?;
-    let callback_count = cursor.length()?;
-    let mut callback_materializations = Vec::with_capacity(callback_count.min(cursor.remaining()));
-    for _ in 0..callback_count {
-        callback_materializations.push(decode_callback(cursor)?);
-    }
-    let clobber_count = cursor.length()?;
-    let mut ordinary_clobbers = Vec::with_capacity(clobber_count.min(cursor.remaining()));
-    for _ in 0..clobber_count {
-        ordinary_clobbers.push(decode_machine_register(cursor)?);
-    }
+    let callback_materializations = decode_list(cursor, decode_callback)?;
+    let ordinary_clobbers = decode_list(cursor, decode_machine_register)?;
     let stack_alignment = cursor.u16()?;
     let shadow_bytes = cursor.u16()?;
     let entry_control = match cursor.byte()? {
@@ -123,11 +111,8 @@ pub(super) fn decode_native_place(
         2 => {
             let parameter = decode_nominal(cursor, NativeParameterId::new)?;
             let layout = decode_nominal(cursor, LayoutPlanId::new)?;
-            let count = cursor.length()?;
-            let mut field_path = Vec::with_capacity(count.min(cursor.remaining()));
-            for _ in 0..count {
-                field_path.push(decode_nominal(cursor, LayoutSlotId::new)?);
-            }
+            let field_path =
+                decode_list(cursor, |cursor| decode_nominal(cursor, LayoutSlotId::new))?;
             Ok(NativePlace::Field {
                 parameter,
                 layout,

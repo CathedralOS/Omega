@@ -347,9 +347,7 @@ fn machine_groups(
                     .chain(family.members.iter().map(|member| member.machine))
                 {
                     if let Some(position) = program.machine_position_by_symbol(member) {
-                        if !callees.contains(&position) {
-                            callees.push(position);
-                        }
+                        crate::collections::push_unique(&mut callees, position);
                     }
                 }
             }

@@ -29,7 +29,7 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> bad_literal(main)
     }
 
-    state copied(main: &mut Main) {
+    machine copied(main: &mut Main) {
         adopt(&mut main.point, Point { x: 30, y: 40 });
         transition main.point.x == 30 && main.point.y == 40 {
             true -> good(main)
@@ -37,15 +37,15 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::exit_process(70);
     }
 
-    state bad_literal(main: &mut Main) {
+    machine bad_literal(main: &mut Main) {
         Console::exit_process(71);
     }
 
-    state bad_copy(main: &mut Main) {
+    machine bad_copy(main: &mut Main) {
         Console::exit_process(72);
     }
 }

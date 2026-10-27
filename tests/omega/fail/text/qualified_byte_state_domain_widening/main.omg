@@ -3,7 +3,7 @@ domain [u8; 2]::Ascii(bytes) requires ascii_only(bytes);
 
 machine relay(value: [u8; 2] in Utf8) {
     transition { _ -> narrowed(value) }
-    state narrowed(value: [u8; 2] in Ascii) {}
+    machine narrowed(value: [u8; 2] in Ascii) {}
 }
 
 machine main() { relay("é"); }

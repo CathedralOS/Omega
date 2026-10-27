@@ -10,7 +10,7 @@ ensures result == 0;
 terminates by remaining;
 {
     transition remaining > 0 { true -> step(remaining) false -> 0 }
-    state step(remaining: u64) -> u64 requires remaining > 0 && remaining <= 4 {
+    machine step(remaining: u64) -> u64 requires remaining > 0 && remaining <= 4 {
         let ready: bool = block tick();
         transition ready { true -> block Walker::walk(remaining - 1) false -> 0 }
     }
@@ -22,7 +22,7 @@ ensures result == 0;
 terminates by remaining;
 {
     transition remaining > 0 { true -> step(remaining) false -> 0 }
-    state step(remaining: u64) -> u64 requires remaining > 0 && remaining <= 4 {
+    machine step(remaining: u64) -> u64 requires remaining > 0 && remaining <= 4 {
         let ready: bool = block tick();
         transition ready { true -> block Walker::walk(remaining - 1) false -> 0 }
     }
@@ -34,7 +34,7 @@ ensures result == 0;
 terminates by remaining;
 {
     transition remaining > 0 { true -> step(remaining) false -> 0 }
-    state step(remaining: u64) -> u64 requires remaining > 0 && remaining <= 4 {
+    machine step(remaining: u64) -> u64 requires remaining > 0 && remaining <= 4 {
         let ready: bool = block tick();
         transition ready { true -> block Walker::walk(remaining - 1) false -> 0 }
     }
@@ -46,7 +46,7 @@ ensures result == 0;
 terminates by remaining;
 {
     transition remaining > 0 { true -> step(remaining) false -> 0 }
-    state step(remaining: u64) -> u64 requires remaining > 0 && remaining <= 4 {
+    machine step(remaining: u64) -> u64 requires remaining > 0 && remaining <= 4 {
         let ready: bool = block tick();
         transition ready { true -> block Walker::walk(remaining - 1) false -> 0 }
     }
@@ -54,12 +54,12 @@ terminates by remaining;
 
 machine Walker::unrelated() -> u64 {
     transition { _ -> walk() }
-    state walk() -> u64 { 1 }
+    machine walk() -> u64 { 1 }
 }
 machine main() crashes Trap {
     let value: u64 = block Walker::walk(4);
     let other: u64 = Walker::unrelated();
     transition value == 0 && other == 1 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -27,9 +27,10 @@ impl SelectedProviderPlanFacts {
         &self,
         requirement: &str,
     ) -> Option<&SelectedExternalRequirementApplication> {
+        let index = self.identities.index_of(requirement)?;
         self.external_requirement_applications
             .iter()
-            .find(|row| self.identities.text(row.requirement_identity) == Some(requirement))
+            .find(|row| row.requirement_identity == index)
     }
 
     /// Attach source-authenticated coordinates without rewriting selected rows.

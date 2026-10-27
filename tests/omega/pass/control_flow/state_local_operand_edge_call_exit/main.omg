@@ -57,12 +57,12 @@ machine Main::main(context: &mut Main) reaches Console {
     context.total = 0;
     transition { _ -> copied(context) }
 
-    state copied(context: &mut Main) {
+    machine copied(context: &mut Main) {
         let seed: Pair = Pair { a: 1, b: 2 };
         transition { _ -> take_copy(Main::shift(&mut context.counter, seed, 10), context) }
     }
 
-    state take_copy(pair: Pair, context: &mut Main) {
+    machine take_copy(pair: Pair, context: &mut Main) {
         context.total = context.total + pair.a + pair.b;
         let made: Pair = Main::shift(&mut context.counter, pair, 1);
         transition context.total == 23 {
@@ -71,14 +71,14 @@ machine Main::main(context: &mut Main) reaches Console {
         }
     }
 
-    state take_result(pair: Pair, context: &mut Main) {
+    machine take_result(pair: Pair, context: &mut Main) {
         context.total = context.total + pair.a + pair.b;
         transition { _ -> keep_first(context) }
     }
 
     // `owned` dies on the selected edge here; the unselected sibling edge
     // would have moved it into `settle`, whose call must not run.
-    state keep_first(context: &mut Main) {
+    machine keep_first(context: &mut Main) {
         let owned: Owned = Owned { value: 50 };
         transition context.total == 52 {
             true -> settle_second(context)
@@ -88,7 +88,7 @@ machine Main::main(context: &mut Main) reaches Console {
 
     // The selected edge moves `owned` into `settle`; the unselected sibling
     // edge would have disposed of it instead.
-    state settle_second(context: &mut Main) {
+    machine settle_second(context: &mut Main) {
         let owned: Owned = Owned { value: 6 };
         transition context.total == 52 {
             true -> take_settled(Main::settle(&mut context.counter, owned), context)
@@ -96,12 +96,12 @@ machine Main::main(context: &mut Main) reaches Console {
         }
     }
 
-    state take_settled(pair: Pair, context: &mut Main) {
+    machine take_settled(pair: Pair, context: &mut Main) {
         context.total = context.total + pair.a + pair.b;
         transition { _ -> finish((context.total + context.counter.calls) as i32, context) }
     }
 
-    state finish(code: i32, context: &mut Main) {
+    machine finish(code: i32, context: &mut Main) {
         Console::exit_process(code);
     }
 }

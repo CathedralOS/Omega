@@ -17,6 +17,6 @@ machine main() crashes Trap {
     transition ALIAS[0][0] == 3 && MATCHED[0] == 3 && KEPT.items[0] == 3 {
         true -> done() _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

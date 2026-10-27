@@ -10,6 +10,6 @@ machine main() crashes Trap {
     let value: Prepared<16> = Prepared { bytes: [11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 23] };
     let result: Prepared<16> = Family::row<16>(Selected as dyn Family, value);
     transition result.bytes[0] == 11 && result.bytes[15] == 23 { true -> done() false -> bad() }
-    state done() {} state bad() { crash Trap; }
+    machine done() {} machine bad() { crash Trap; }
 }
 linux_arm64 machine target_only<const Width: u64>(value: Prepared<Width>) -> Prepared<Width> { value }

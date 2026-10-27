@@ -135,11 +135,11 @@ machine choose(first_path: bool) reaches Console {
         true -> first_done(outgoing())
         _ -> second_done(outgoing())
     }
-    state first_done(captured: i32) {
+    machine first_done(captured: i32) {
         Console::write_byte(captured);
         Console::write_byte(69);
     }
-    state second_done(captured: i32) {
+    machine second_done(captured: i32) {
         Console::write_byte(captured);
         Console::write_byte(70);
     }

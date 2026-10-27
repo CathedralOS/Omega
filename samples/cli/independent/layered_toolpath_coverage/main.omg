@@ -14,22 +14,22 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> generate(main, &mut job)
         _ -> invalid(main)
     }
-    state generate(main: &mut Main, job: &mut Job) {
+    machine generate(main: &mut Main, job: &mut Job) {
         let complete: bool = paths(job);
         transition complete {
             true -> success(main, job)
             _ -> internal(main)
         }
     }
-    state success(main: &mut Main, job: &Job) {
+    machine success(main: &mut Main, job: &Job) {
         audit(job);
         Console::exit_process(0);
     }
-    state invalid(main: &mut Main) {
+    machine invalid(main: &mut Main) {
         Console::write_line("ERROR input");
         Console::exit_process(64);
     }
-    state internal(main: &mut Main) {
+    machine internal(main: &mut Main) {
         Console::write_line("ERROR internal bounds");
         Console::exit_process(70);
     }

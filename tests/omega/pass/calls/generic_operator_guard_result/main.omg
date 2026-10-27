@@ -9,13 +9,13 @@ machine inspect(context: &Context, value: i32) {
         true -> another(context, value)
         false -> done()
     }
-    state another(context: &Context, value: i32) {
+    machine another(context: &Context, value: i32) {
         transition second<i32, f64>(value, context.real) == context.real
             && second(value, context.real) == context.real {
             true -> done()
             false -> done()
         }
     }
-    state done() {}
+    machine done() {}
 }
 machine main() {}

@@ -11,6 +11,6 @@ machine main() crashes Trap {
     let mut storage: Storage in Issued = issue(0);
     write(&write storage);
     transition storage.value == 73 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

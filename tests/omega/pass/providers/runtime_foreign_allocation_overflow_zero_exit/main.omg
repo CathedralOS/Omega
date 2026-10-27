@@ -26,12 +26,12 @@ machine Main::main(context: &mut Main) reaches NativeBytes crashes Trap {
         true -> zero()
         _ -> failed()
     }
-    state zero() {
+    machine zero() {
         let empty: addr = NativeBytes::allocate(0u64, 18446744073709551615u64);
         NativeBytes::release(empty);
         NativeBytes::release(0);
     }
-    state failed() { crash Trap; }
+    machine failed() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

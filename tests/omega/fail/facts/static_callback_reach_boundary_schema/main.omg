@@ -64,6 +64,6 @@ machine main() reaches Console crashes Trap {
     let pure: u64 = pure_observer();
     let external: u64 = ordinary<boundary_step, unused>(37);
     transition margin == 34 && pure == 3 && external == 3 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

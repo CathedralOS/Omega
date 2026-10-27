@@ -6,7 +6,7 @@ machine read_element(arr: [u64; 128], idx: u64) -> u64
     requires idx <= 128
 {
     transition { _ -> element(arr, idx) }
-    state element(passed_arr: [u64; 128], passed_idx: u64) -> u64
+    machine element(passed_arr: [u64; 128], passed_idx: u64) -> u64
         requires passed_idx <= 128
     {
         passed_arr[passed_idx]
@@ -29,6 +29,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -6,13 +6,13 @@ machine main() crashes Trap {
     let saved: f64 = item.kept;
     let held: f64 = expose(&mut item.kept);
     transition { _ -> check(saved, item.kept, held) }
-    state check(observed: f64, current: f64, held: f64)
+    machine check(observed: f64, current: f64, held: f64)
     requires observed == current && observed == 7.0
     {
         transition observed == 7.0 && held == held { true -> done() _ -> bad() }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 machine agree(observed: f64, current: f64) -> f64

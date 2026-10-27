@@ -11,11 +11,11 @@ machine guarded(value: i64) -> f64 {
         true -> convert(value)
         false -> unused()
     }
-    state convert(value: i64) {
+    machine convert(value: i64) -> f64 {
         let selected: f64 in Trapping = value as f64 in Trapping;
         selected as f64
     }
-    state unused() { 0.0f64 }
+    machine unused() -> f64 { 0.0f64 }
 }
 
 machine bounded(value: i32) -> f32
@@ -44,6 +44,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

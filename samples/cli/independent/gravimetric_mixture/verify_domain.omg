@@ -11,7 +11,7 @@ data Main { result: Mixture; }
 
 machine Main::main(main: &mut Main) reaches Console {
     transition { _ -> case_0(main) }
-    state case_0(main: &mut Main) {
+    machine case_0(main: &mut Main) {
         Console::write_line("domain case: nominal");
         correct(&mut main.result, 3.0, 5.0, 1.0, 1.0, true);
         transition main.result.status == 0 {
@@ -19,176 +19,176 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> bad(main)
         }
     }
-    state case_0_metric_0_lower(main: &mut Main) {
+    machine case_0_metric_0_lower(main: &mut Main) {
         let observed: f64 = main.result.mass_a * 1000000.0;
         transition observed >= 2000000.0 - 1.0 {
             true -> case_0_metric_0_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_0_metric_0_upper(main: &mut Main, observed: f64) {
+    machine case_0_metric_0_upper(main: &mut Main, observed: f64) {
         transition observed <= 2000000.0 + 1.0 {
             true -> case_0_metric_1_lower(main)
             false -> bad(main)
         }
     }
-    state case_0_metric_1_lower(main: &mut Main) {
+    machine case_0_metric_1_lower(main: &mut Main) {
         let observed: f64 = main.result.mass_b * 1000000.0;
         transition observed >= 4000000.0 - 1.0 {
             true -> case_0_metric_1_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_0_metric_1_upper(main: &mut Main, observed: f64) {
+    machine case_0_metric_1_upper(main: &mut Main, observed: f64) {
         transition observed <= 4000000.0 + 1.0 {
             true -> case_0_metric_2_lower(main)
             false -> bad(main)
         }
     }
-    state case_0_metric_2_lower(main: &mut Main) {
+    machine case_0_metric_2_lower(main: &mut Main) {
         let observed: f64 = main.result.total * 1000000.0;
         transition observed >= 6000000.0 - 1.0 {
             true -> case_0_metric_2_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_0_metric_2_upper(main: &mut Main, observed: f64) {
+    machine case_0_metric_2_upper(main: &mut Main, observed: f64) {
         transition observed <= 6000000.0 + 1.0 {
             true -> case_0_metric_3_lower(main)
             false -> bad(main)
         }
     }
-    state case_0_metric_3_lower(main: &mut Main) {
+    machine case_0_metric_3_lower(main: &mut Main) {
         let observed: f64 = main.result.mass_variance * 1000000000.0;
         transition observed >= 50000000.00 - 1.0 {
             true -> case_0_metric_3_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_0_metric_3_upper(main: &mut Main, observed: f64) {
+    machine case_0_metric_3_upper(main: &mut Main, observed: f64) {
         transition observed <= 50000000.00 + 1.0 {
             true -> case_0_metric_4_lower(main)
             false -> bad(main)
         }
     }
-    state case_0_metric_4_lower(main: &mut Main) {
+    machine case_0_metric_4_lower(main: &mut Main) {
         let observed: f64 = main.result.covariance * 1000000000.0;
         transition observed >= 40000000.00 - 1.0 {
             true -> case_0_metric_4_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_0_metric_4_upper(main: &mut Main, observed: f64) {
+    machine case_0_metric_4_upper(main: &mut Main, observed: f64) {
         transition observed <= 40000000.00 + 1.0 {
             true -> case_0_metric_5_lower(main)
             false -> bad(main)
         }
     }
-    state case_0_metric_5_lower(main: &mut Main) {
+    machine case_0_metric_5_lower(main: &mut Main) {
         let observed: f64 = main.result.total_variance * 1000000000.0;
         transition observed >= 180000000.00 - 1.0 {
             true -> case_0_metric_5_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_0_metric_5_upper(main: &mut Main, observed: f64) {
+    machine case_0_metric_5_upper(main: &mut Main, observed: f64) {
         transition observed <= 180000000.00 + 1.0 {
             true -> case_0_metric_6_lower(main)
             false -> bad(main)
         }
     }
-    state case_0_metric_6_lower(main: &mut Main) {
+    machine case_0_metric_6_lower(main: &mut Main) {
         let observed: f64 = main.result.fraction_a * 1000000.0;
         transition observed >= 333333.3333333333333333333333333333333333333333333333333333333333333333 - 1.0 {
             true -> case_0_metric_6_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_0_metric_6_upper(main: &mut Main, observed: f64) {
+    machine case_0_metric_6_upper(main: &mut Main, observed: f64) {
         transition observed <= 333333.3333333333333333333333333333333333333333333333333333333333333333 + 1.0 {
             true -> case_0_metric_7_lower(main)
             false -> bad(main)
         }
     }
-    state case_0_metric_7_lower(main: &mut Main) {
+    machine case_0_metric_7_lower(main: &mut Main) {
         let observed: f64 = main.result.fraction_b * 1000000.0;
         transition observed >= 666666.6666666666666666666666666666666666666666666666666666666666666667 - 1.0 {
             true -> case_0_metric_7_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_0_metric_7_upper(main: &mut Main, observed: f64) {
+    machine case_0_metric_7_upper(main: &mut Main, observed: f64) {
         transition observed <= 666666.6666666666666666666666666666666666666666666666666666666666666667 + 1.0 {
             true -> case_0_metric_8_lower(main)
             false -> bad(main)
         }
     }
-    state case_0_metric_8_lower(main: &mut Main) {
+    machine case_0_metric_8_lower(main: &mut Main) {
         let observed: f64 = main.result.fraction_variance * 1000000000.0;
         transition observed >= 277777.7777777777777777777777777777777777777777777777777777777777777778 - 1.0 {
             true -> case_0_metric_8_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_0_metric_8_upper(main: &mut Main, observed: f64) {
+    machine case_0_metric_8_upper(main: &mut Main, observed: f64) {
         transition observed <= 277777.7777777777777777777777777777777777777777777777777777777777777778 + 1.0 {
             true -> case_0_metric_9_lower(main)
             false -> bad(main)
         }
     }
-    state case_0_metric_9_lower(main: &mut Main) {
+    machine case_0_metric_9_lower(main: &mut Main) {
         let observed: f64 = main.result.uncertainty * 1000000.0;
         transition observed >= 16666.66666666666666666666666666666666666666666666666666666666666666667 - 1.0 {
             true -> case_0_metric_9_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_0_metric_9_upper(main: &mut Main, observed: f64) {
+    machine case_0_metric_9_upper(main: &mut Main, observed: f64) {
         transition observed <= 16666.66666666666666666666666666666666666666666666666666666666666666667 + 1.0 {
             true -> case_0_metric_10_lower(main)
             false -> bad(main)
         }
     }
-    state case_0_metric_10_lower(main: &mut Main) {
+    machine case_0_metric_10_lower(main: &mut Main) {
         let observed: f64 = main.result.expanded * 1000000.0;
         transition observed >= 33333.33333333333333333333333333333333333333333333333333333333333333334 - 1.0 {
             true -> case_0_metric_10_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_0_metric_10_upper(main: &mut Main, observed: f64) {
+    machine case_0_metric_10_upper(main: &mut Main, observed: f64) {
         transition observed <= 33333.33333333333333333333333333333333333333333333333333333333333333334 + 1.0 {
             true -> case_0_metric_11_lower(main)
             false -> bad(main)
         }
     }
-    state case_0_metric_11_lower(main: &mut Main) {
+    machine case_0_metric_11_lower(main: &mut Main) {
         let observed: f64 = main.result.lower * 1000000.0;
         transition observed >= 300000.0000000000000000000000000000000000000000000000000000000000000000 - 1.0 {
             true -> case_0_metric_11_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_0_metric_11_upper(main: &mut Main, observed: f64) {
+    machine case_0_metric_11_upper(main: &mut Main, observed: f64) {
         transition observed <= 300000.0000000000000000000000000000000000000000000000000000000000000000 + 1.0 {
             true -> case_0_metric_12_lower(main)
             false -> bad(main)
         }
     }
-    state case_0_metric_12_lower(main: &mut Main) {
+    machine case_0_metric_12_lower(main: &mut Main) {
         let observed: f64 = main.result.upper * 1000000.0;
         transition observed >= 366666.6666666666666666666666666666666666666666666666666666666666666666 - 1.0 {
             true -> case_0_metric_12_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_0_metric_12_upper(main: &mut Main, observed: f64) {
+    machine case_0_metric_12_upper(main: &mut Main, observed: f64) {
         transition observed <= 366666.6666666666666666666666666666666666666666666666666666666666666666 + 1.0 {
             true -> case_1(main)
             false -> bad(main)
         }
     }
-    state case_1(main: &mut Main) {
+    machine case_1(main: &mut Main) {
         Console::write_line("domain case: independent_tares");
         correct(&mut main.result, 3.0, 5.0, 1.0, 1.0, false);
         transition main.result.status == 1 {
@@ -196,176 +196,176 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> bad(main)
         }
     }
-    state case_1_metric_0_lower(main: &mut Main) {
+    machine case_1_metric_0_lower(main: &mut Main) {
         let observed: f64 = main.result.mass_a * 1000000.0;
         transition observed >= 2000000.0 - 1.0 {
             true -> case_1_metric_0_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_1_metric_0_upper(main: &mut Main, observed: f64) {
+    machine case_1_metric_0_upper(main: &mut Main, observed: f64) {
         transition observed <= 2000000.0 + 1.0 {
             true -> case_1_metric_1_lower(main)
             false -> bad(main)
         }
     }
-    state case_1_metric_1_lower(main: &mut Main) {
+    machine case_1_metric_1_lower(main: &mut Main) {
         let observed: f64 = main.result.mass_b * 1000000.0;
         transition observed >= 4000000.0 - 1.0 {
             true -> case_1_metric_1_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_1_metric_1_upper(main: &mut Main, observed: f64) {
+    machine case_1_metric_1_upper(main: &mut Main, observed: f64) {
         transition observed <= 4000000.0 + 1.0 {
             true -> case_1_metric_2_lower(main)
             false -> bad(main)
         }
     }
-    state case_1_metric_2_lower(main: &mut Main) {
+    machine case_1_metric_2_lower(main: &mut Main) {
         let observed: f64 = main.result.total * 1000000.0;
         transition observed >= 6000000.0 - 1.0 {
             true -> case_1_metric_2_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_1_metric_2_upper(main: &mut Main, observed: f64) {
+    machine case_1_metric_2_upper(main: &mut Main, observed: f64) {
         transition observed <= 6000000.0 + 1.0 {
             true -> case_1_metric_3_lower(main)
             false -> bad(main)
         }
     }
-    state case_1_metric_3_lower(main: &mut Main) {
+    machine case_1_metric_3_lower(main: &mut Main) {
         let observed: f64 = main.result.mass_variance * 1000000000.0;
         transition observed >= 50000000.00 - 1.0 {
             true -> case_1_metric_3_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_1_metric_3_upper(main: &mut Main, observed: f64) {
+    machine case_1_metric_3_upper(main: &mut Main, observed: f64) {
         transition observed <= 50000000.00 + 1.0 {
             true -> case_1_metric_4_lower(main)
             false -> bad(main)
         }
     }
-    state case_1_metric_4_lower(main: &mut Main) {
+    machine case_1_metric_4_lower(main: &mut Main) {
         let observed: f64 = main.result.covariance * 1000000000.0;
         transition observed >= 0.0 - 1.0 {
             true -> case_1_metric_4_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_1_metric_4_upper(main: &mut Main, observed: f64) {
+    machine case_1_metric_4_upper(main: &mut Main, observed: f64) {
         transition observed <= 0.0 + 1.0 {
             true -> case_1_metric_5_lower(main)
             false -> bad(main)
         }
     }
-    state case_1_metric_5_lower(main: &mut Main) {
+    machine case_1_metric_5_lower(main: &mut Main) {
         let observed: f64 = main.result.total_variance * 1000000000.0;
         transition observed >= 100000000.0 - 1.0 {
             true -> case_1_metric_5_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_1_metric_5_upper(main: &mut Main, observed: f64) {
+    machine case_1_metric_5_upper(main: &mut Main, observed: f64) {
         transition observed <= 100000000.0 + 1.0 {
             true -> case_1_metric_6_lower(main)
             false -> bad(main)
         }
     }
-    state case_1_metric_6_lower(main: &mut Main) {
+    machine case_1_metric_6_lower(main: &mut Main) {
         let observed: f64 = main.result.fraction_a * 1000000.0;
         transition observed >= 333333.3333333333333333333333333333333333333333333333333333333333333333 - 1.0 {
             true -> case_1_metric_6_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_1_metric_6_upper(main: &mut Main, observed: f64) {
+    machine case_1_metric_6_upper(main: &mut Main, observed: f64) {
         transition observed <= 333333.3333333333333333333333333333333333333333333333333333333333333333 + 1.0 {
             true -> case_1_metric_7_lower(main)
             false -> bad(main)
         }
     }
-    state case_1_metric_7_lower(main: &mut Main) {
+    machine case_1_metric_7_lower(main: &mut Main) {
         let observed: f64 = main.result.fraction_b * 1000000.0;
         transition observed >= 666666.6666666666666666666666666666666666666666666666666666666666666667 - 1.0 {
             true -> case_1_metric_7_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_1_metric_7_upper(main: &mut Main, observed: f64) {
+    machine case_1_metric_7_upper(main: &mut Main, observed: f64) {
         transition observed <= 666666.6666666666666666666666666666666666666666666666666666666666666667 + 1.0 {
             true -> case_1_metric_8_lower(main)
             false -> bad(main)
         }
     }
-    state case_1_metric_8_lower(main: &mut Main) {
+    machine case_1_metric_8_lower(main: &mut Main) {
         let observed: f64 = main.result.fraction_variance * 1000000000.0;
         transition observed >= 771604.9382716049382716049382716049382716049382716049382716049382716049 - 1.0 {
             true -> case_1_metric_8_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_1_metric_8_upper(main: &mut Main, observed: f64) {
+    machine case_1_metric_8_upper(main: &mut Main, observed: f64) {
         transition observed <= 771604.9382716049382716049382716049382716049382716049382716049382716049 + 1.0 {
             true -> case_1_metric_9_lower(main)
             false -> bad(main)
         }
     }
-    state case_1_metric_9_lower(main: &mut Main) {
+    machine case_1_metric_9_lower(main: &mut Main) {
         let observed: f64 = main.result.uncertainty * 1000000.0;
         transition observed >= 27777.77777777777777777777777777777777777777777777777777777777777777778 - 1.0 {
             true -> case_1_metric_9_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_1_metric_9_upper(main: &mut Main, observed: f64) {
+    machine case_1_metric_9_upper(main: &mut Main, observed: f64) {
         transition observed <= 27777.77777777777777777777777777777777777777777777777777777777777777778 + 1.0 {
             true -> case_1_metric_10_lower(main)
             false -> bad(main)
         }
     }
-    state case_1_metric_10_lower(main: &mut Main) {
+    machine case_1_metric_10_lower(main: &mut Main) {
         let observed: f64 = main.result.expanded * 1000000.0;
         transition observed >= 55555.55555555555555555555555555555555555555555555555555555555555555556 - 1.0 {
             true -> case_1_metric_10_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_1_metric_10_upper(main: &mut Main, observed: f64) {
+    machine case_1_metric_10_upper(main: &mut Main, observed: f64) {
         transition observed <= 55555.55555555555555555555555555555555555555555555555555555555555555556 + 1.0 {
             true -> case_1_metric_11_lower(main)
             false -> bad(main)
         }
     }
-    state case_1_metric_11_lower(main: &mut Main) {
+    machine case_1_metric_11_lower(main: &mut Main) {
         let observed: f64 = main.result.lower * 1000000.0;
         transition observed >= 277777.7777777777777777777777777777777777777777777777777777777777777777 - 1.0 {
             true -> case_1_metric_11_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_1_metric_11_upper(main: &mut Main, observed: f64) {
+    machine case_1_metric_11_upper(main: &mut Main, observed: f64) {
         transition observed <= 277777.7777777777777777777777777777777777777777777777777777777777777777 + 1.0 {
             true -> case_1_metric_12_lower(main)
             false -> bad(main)
         }
     }
-    state case_1_metric_12_lower(main: &mut Main) {
+    machine case_1_metric_12_lower(main: &mut Main) {
         let observed: f64 = main.result.upper * 1000000.0;
         transition observed >= 388888.8888888888888888888888888888888888888888888888888888888888888889 - 1.0 {
             true -> case_1_metric_12_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_1_metric_12_upper(main: &mut Main, observed: f64) {
+    machine case_1_metric_12_upper(main: &mut Main, observed: f64) {
         transition observed <= 388888.8888888888888888888888888888888888888888888888888888888888888889 + 1.0 {
             true -> case_2(main)
             false -> bad(main)
         }
     }
-    state case_2(main: &mut Main) {
+    machine case_2(main: &mut Main) {
         Console::write_line("domain case: equal_shared");
         correct(&mut main.result, 3.0, 3.0, 1.0, 1.0, true);
         transition main.result.status == 1 {
@@ -373,176 +373,176 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> bad(main)
         }
     }
-    state case_2_metric_0_lower(main: &mut Main) {
+    machine case_2_metric_0_lower(main: &mut Main) {
         let observed: f64 = main.result.mass_a * 1000000.0;
         transition observed >= 2000000.0 - 1.0 {
             true -> case_2_metric_0_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_2_metric_0_upper(main: &mut Main, observed: f64) {
+    machine case_2_metric_0_upper(main: &mut Main, observed: f64) {
         transition observed <= 2000000.0 + 1.0 {
             true -> case_2_metric_1_lower(main)
             false -> bad(main)
         }
     }
-    state case_2_metric_1_lower(main: &mut Main) {
+    machine case_2_metric_1_lower(main: &mut Main) {
         let observed: f64 = main.result.mass_b * 1000000.0;
         transition observed >= 2000000.0 - 1.0 {
             true -> case_2_metric_1_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_2_metric_1_upper(main: &mut Main, observed: f64) {
+    machine case_2_metric_1_upper(main: &mut Main, observed: f64) {
         transition observed <= 2000000.0 + 1.0 {
             true -> case_2_metric_2_lower(main)
             false -> bad(main)
         }
     }
-    state case_2_metric_2_lower(main: &mut Main) {
+    machine case_2_metric_2_lower(main: &mut Main) {
         let observed: f64 = main.result.total * 1000000.0;
         transition observed >= 4000000.0 - 1.0 {
             true -> case_2_metric_2_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_2_metric_2_upper(main: &mut Main, observed: f64) {
+    machine case_2_metric_2_upper(main: &mut Main, observed: f64) {
         transition observed <= 4000000.0 + 1.0 {
             true -> case_2_metric_3_lower(main)
             false -> bad(main)
         }
     }
-    state case_2_metric_3_lower(main: &mut Main) {
+    machine case_2_metric_3_lower(main: &mut Main) {
         let observed: f64 = main.result.mass_variance * 1000000000.0;
         transition observed >= 50000000.00 - 1.0 {
             true -> case_2_metric_3_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_2_metric_3_upper(main: &mut Main, observed: f64) {
+    machine case_2_metric_3_upper(main: &mut Main, observed: f64) {
         transition observed <= 50000000.00 + 1.0 {
             true -> case_2_metric_4_lower(main)
             false -> bad(main)
         }
     }
-    state case_2_metric_4_lower(main: &mut Main) {
+    machine case_2_metric_4_lower(main: &mut Main) {
         let observed: f64 = main.result.covariance * 1000000000.0;
         transition observed >= 40000000.00 - 1.0 {
             true -> case_2_metric_4_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_2_metric_4_upper(main: &mut Main, observed: f64) {
+    machine case_2_metric_4_upper(main: &mut Main, observed: f64) {
         transition observed <= 40000000.00 + 1.0 {
             true -> case_2_metric_5_lower(main)
             false -> bad(main)
         }
     }
-    state case_2_metric_5_lower(main: &mut Main) {
+    machine case_2_metric_5_lower(main: &mut Main) {
         let observed: f64 = main.result.total_variance * 1000000000.0;
         transition observed >= 180000000.00 - 1.0 {
             true -> case_2_metric_5_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_2_metric_5_upper(main: &mut Main, observed: f64) {
+    machine case_2_metric_5_upper(main: &mut Main, observed: f64) {
         transition observed <= 180000000.00 + 1.0 {
             true -> case_2_metric_6_lower(main)
             false -> bad(main)
         }
     }
-    state case_2_metric_6_lower(main: &mut Main) {
+    machine case_2_metric_6_lower(main: &mut Main) {
         let observed: f64 = main.result.fraction_a * 1000000.0;
         transition observed >= 500000.0 - 1.0 {
             true -> case_2_metric_6_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_2_metric_6_upper(main: &mut Main, observed: f64) {
+    machine case_2_metric_6_upper(main: &mut Main, observed: f64) {
         transition observed <= 500000.0 + 1.0 {
             true -> case_2_metric_7_lower(main)
             false -> bad(main)
         }
     }
-    state case_2_metric_7_lower(main: &mut Main) {
+    machine case_2_metric_7_lower(main: &mut Main) {
         let observed: f64 = main.result.fraction_b * 1000000.0;
         transition observed >= 500000.0 - 1.0 {
             true -> case_2_metric_7_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_2_metric_7_upper(main: &mut Main, observed: f64) {
+    machine case_2_metric_7_upper(main: &mut Main, observed: f64) {
         transition observed <= 500000.0 + 1.0 {
             true -> case_2_metric_8_lower(main)
             false -> bad(main)
         }
     }
-    state case_2_metric_8_lower(main: &mut Main) {
+    machine case_2_metric_8_lower(main: &mut Main) {
         let observed: f64 = main.result.fraction_variance * 1000000000.0;
         transition observed >= 312500.0000000 - 1.0 {
             true -> case_2_metric_8_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_2_metric_8_upper(main: &mut Main, observed: f64) {
+    machine case_2_metric_8_upper(main: &mut Main, observed: f64) {
         transition observed <= 312500.0000000 + 1.0 {
             true -> case_2_metric_9_lower(main)
             false -> bad(main)
         }
     }
-    state case_2_metric_9_lower(main: &mut Main) {
+    machine case_2_metric_9_lower(main: &mut Main) {
         let observed: f64 = main.result.uncertainty * 1000000.0;
         transition observed >= 17677.66952966368811002110905262122598212089844221185091470849672488416 - 1.0 {
             true -> case_2_metric_9_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_2_metric_9_upper(main: &mut Main, observed: f64) {
+    machine case_2_metric_9_upper(main: &mut Main, observed: f64) {
         transition observed <= 17677.66952966368811002110905262122598212089844221185091470849672488416 + 1.0 {
             true -> case_2_metric_10_lower(main)
             false -> bad(main)
         }
     }
-    state case_2_metric_10_lower(main: &mut Main) {
+    machine case_2_metric_10_lower(main: &mut Main) {
         let observed: f64 = main.result.expanded * 1000000.0;
         transition observed >= 35355.33905932737622004221810524245196424179688442370182941699344976832 - 1.0 {
             true -> case_2_metric_10_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_2_metric_10_upper(main: &mut Main, observed: f64) {
+    machine case_2_metric_10_upper(main: &mut Main, observed: f64) {
         transition observed <= 35355.33905932737622004221810524245196424179688442370182941699344976832 + 1.0 {
             true -> case_2_metric_11_lower(main)
             false -> bad(main)
         }
     }
-    state case_2_metric_11_lower(main: &mut Main) {
+    machine case_2_metric_11_lower(main: &mut Main) {
         let observed: f64 = main.result.lower * 1000000.0;
         transition observed >= 464644.6609406726237799577818947575480357582031155762981705830065502317 - 1.0 {
             true -> case_2_metric_11_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_2_metric_11_upper(main: &mut Main, observed: f64) {
+    machine case_2_metric_11_upper(main: &mut Main, observed: f64) {
         transition observed <= 464644.6609406726237799577818947575480357582031155762981705830065502317 + 1.0 {
             true -> case_2_metric_12_lower(main)
             false -> bad(main)
         }
     }
-    state case_2_metric_12_lower(main: &mut Main) {
+    machine case_2_metric_12_lower(main: &mut Main) {
         let observed: f64 = main.result.upper * 1000000.0;
         transition observed >= 535355.3390593273762200422181052424519642417968844237018294169934497683 - 1.0 {
             true -> case_2_metric_12_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_2_metric_12_upper(main: &mut Main, observed: f64) {
+    machine case_2_metric_12_upper(main: &mut Main, observed: f64) {
         transition observed <= 535355.3390593273762200422181052424519642417968844237018294169934497683 + 1.0 {
             true -> case_3(main)
             false -> bad(main)
         }
     }
-    state case_3(main: &mut Main) {
+    machine case_3(main: &mut Main) {
         Console::write_line("domain case: equal_independent");
         correct(&mut main.result, 3.0, 3.0, 1.0, 1.0, false);
         transition main.result.status == 1 {
@@ -550,176 +550,176 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> bad(main)
         }
     }
-    state case_3_metric_0_lower(main: &mut Main) {
+    machine case_3_metric_0_lower(main: &mut Main) {
         let observed: f64 = main.result.mass_a * 1000000.0;
         transition observed >= 2000000.0 - 1.0 {
             true -> case_3_metric_0_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_3_metric_0_upper(main: &mut Main, observed: f64) {
+    machine case_3_metric_0_upper(main: &mut Main, observed: f64) {
         transition observed <= 2000000.0 + 1.0 {
             true -> case_3_metric_1_lower(main)
             false -> bad(main)
         }
     }
-    state case_3_metric_1_lower(main: &mut Main) {
+    machine case_3_metric_1_lower(main: &mut Main) {
         let observed: f64 = main.result.mass_b * 1000000.0;
         transition observed >= 2000000.0 - 1.0 {
             true -> case_3_metric_1_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_3_metric_1_upper(main: &mut Main, observed: f64) {
+    machine case_3_metric_1_upper(main: &mut Main, observed: f64) {
         transition observed <= 2000000.0 + 1.0 {
             true -> case_3_metric_2_lower(main)
             false -> bad(main)
         }
     }
-    state case_3_metric_2_lower(main: &mut Main) {
+    machine case_3_metric_2_lower(main: &mut Main) {
         let observed: f64 = main.result.total * 1000000.0;
         transition observed >= 4000000.0 - 1.0 {
             true -> case_3_metric_2_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_3_metric_2_upper(main: &mut Main, observed: f64) {
+    machine case_3_metric_2_upper(main: &mut Main, observed: f64) {
         transition observed <= 4000000.0 + 1.0 {
             true -> case_3_metric_3_lower(main)
             false -> bad(main)
         }
     }
-    state case_3_metric_3_lower(main: &mut Main) {
+    machine case_3_metric_3_lower(main: &mut Main) {
         let observed: f64 = main.result.mass_variance * 1000000000.0;
         transition observed >= 50000000.00 - 1.0 {
             true -> case_3_metric_3_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_3_metric_3_upper(main: &mut Main, observed: f64) {
+    machine case_3_metric_3_upper(main: &mut Main, observed: f64) {
         transition observed <= 50000000.00 + 1.0 {
             true -> case_3_metric_4_lower(main)
             false -> bad(main)
         }
     }
-    state case_3_metric_4_lower(main: &mut Main) {
+    machine case_3_metric_4_lower(main: &mut Main) {
         let observed: f64 = main.result.covariance * 1000000000.0;
         transition observed >= 0.0 - 1.0 {
             true -> case_3_metric_4_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_3_metric_4_upper(main: &mut Main, observed: f64) {
+    machine case_3_metric_4_upper(main: &mut Main, observed: f64) {
         transition observed <= 0.0 + 1.0 {
             true -> case_3_metric_5_lower(main)
             false -> bad(main)
         }
     }
-    state case_3_metric_5_lower(main: &mut Main) {
+    machine case_3_metric_5_lower(main: &mut Main) {
         let observed: f64 = main.result.total_variance * 1000000000.0;
         transition observed >= 100000000.0 - 1.0 {
             true -> case_3_metric_5_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_3_metric_5_upper(main: &mut Main, observed: f64) {
+    machine case_3_metric_5_upper(main: &mut Main, observed: f64) {
         transition observed <= 100000000.0 + 1.0 {
             true -> case_3_metric_6_lower(main)
             false -> bad(main)
         }
     }
-    state case_3_metric_6_lower(main: &mut Main) {
+    machine case_3_metric_6_lower(main: &mut Main) {
         let observed: f64 = main.result.fraction_a * 1000000.0;
         transition observed >= 500000.0 - 1.0 {
             true -> case_3_metric_6_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_3_metric_6_upper(main: &mut Main, observed: f64) {
+    machine case_3_metric_6_upper(main: &mut Main, observed: f64) {
         transition observed <= 500000.0 + 1.0 {
             true -> case_3_metric_7_lower(main)
             false -> bad(main)
         }
     }
-    state case_3_metric_7_lower(main: &mut Main) {
+    machine case_3_metric_7_lower(main: &mut Main) {
         let observed: f64 = main.result.fraction_b * 1000000.0;
         transition observed >= 500000.0 - 1.0 {
             true -> case_3_metric_7_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_3_metric_7_upper(main: &mut Main, observed: f64) {
+    machine case_3_metric_7_upper(main: &mut Main, observed: f64) {
         transition observed <= 500000.0 + 1.0 {
             true -> case_3_metric_8_lower(main)
             false -> bad(main)
         }
     }
-    state case_3_metric_8_lower(main: &mut Main) {
+    machine case_3_metric_8_lower(main: &mut Main) {
         let observed: f64 = main.result.fraction_variance * 1000000000.0;
         transition observed >= 1562500.0000000 - 1.0 {
             true -> case_3_metric_8_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_3_metric_8_upper(main: &mut Main, observed: f64) {
+    machine case_3_metric_8_upper(main: &mut Main, observed: f64) {
         transition observed <= 1562500.0000000 + 1.0 {
             true -> case_3_metric_9_lower(main)
             false -> bad(main)
         }
     }
-    state case_3_metric_9_lower(main: &mut Main) {
+    machine case_3_metric_9_lower(main: &mut Main) {
         let observed: f64 = main.result.uncertainty * 1000000.0;
         transition observed >= 39528.47075210474164998616930540898167149443924156521033571881065990743 - 1.0 {
             true -> case_3_metric_9_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_3_metric_9_upper(main: &mut Main, observed: f64) {
+    machine case_3_metric_9_upper(main: &mut Main, observed: f64) {
         transition observed <= 39528.47075210474164998616930540898167149443924156521033571881065990743 + 1.0 {
             true -> case_3_metric_10_lower(main)
             false -> bad(main)
         }
     }
-    state case_3_metric_10_lower(main: &mut Main) {
+    machine case_3_metric_10_lower(main: &mut Main) {
         let observed: f64 = main.result.expanded * 1000000.0;
         transition observed >= 79056.94150420948329997233861081796334298887848313042067143762131981486 - 1.0 {
             true -> case_3_metric_10_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_3_metric_10_upper(main: &mut Main, observed: f64) {
+    machine case_3_metric_10_upper(main: &mut Main, observed: f64) {
         transition observed <= 79056.94150420948329997233861081796334298887848313042067143762131981486 + 1.0 {
             true -> case_3_metric_11_lower(main)
             false -> bad(main)
         }
     }
-    state case_3_metric_11_lower(main: &mut Main) {
+    machine case_3_metric_11_lower(main: &mut Main) {
         let observed: f64 = main.result.lower * 1000000.0;
         transition observed >= 420943.0584957905167000276613891820366570111215168695793285623786801851 - 1.0 {
             true -> case_3_metric_11_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_3_metric_11_upper(main: &mut Main, observed: f64) {
+    machine case_3_metric_11_upper(main: &mut Main, observed: f64) {
         transition observed <= 420943.0584957905167000276613891820366570111215168695793285623786801851 + 1.0 {
             true -> case_3_metric_12_lower(main)
             false -> bad(main)
         }
     }
-    state case_3_metric_12_lower(main: &mut Main) {
+    machine case_3_metric_12_lower(main: &mut Main) {
         let observed: f64 = main.result.upper * 1000000.0;
         transition observed >= 579056.9415042094832999723386108179633429888784831304206714376213198149 - 1.0 {
             true -> case_3_metric_12_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_3_metric_12_upper(main: &mut Main, observed: f64) {
+    machine case_3_metric_12_upper(main: &mut Main, observed: f64) {
         transition observed <= 579056.9415042094832999723386108179633429888784831304206714376213198149 + 1.0 {
             true -> case_4(main)
             false -> bad(main)
         }
     }
-    state case_4(main: &mut Main) {
+    machine case_4(main: &mut Main) {
         Console::write_line("domain case: milligrams");
         correct(&mut main.result, 300.0, 500.0, 100.0, 0.001, true);
         transition main.result.status == 0 {
@@ -727,176 +727,176 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> bad(main)
         }
     }
-    state case_4_metric_0_lower(main: &mut Main) {
+    machine case_4_metric_0_lower(main: &mut Main) {
         let observed: f64 = main.result.mass_a * 1000000.0;
         transition observed >= 200000.0 - 1.0 {
             true -> case_4_metric_0_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_4_metric_0_upper(main: &mut Main, observed: f64) {
+    machine case_4_metric_0_upper(main: &mut Main, observed: f64) {
         transition observed <= 200000.0 + 1.0 {
             true -> case_4_metric_1_lower(main)
             false -> bad(main)
         }
     }
-    state case_4_metric_1_lower(main: &mut Main) {
+    machine case_4_metric_1_lower(main: &mut Main) {
         let observed: f64 = main.result.mass_b * 1000000.0;
         transition observed >= 400000.0 - 1.0 {
             true -> case_4_metric_1_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_4_metric_1_upper(main: &mut Main, observed: f64) {
+    machine case_4_metric_1_upper(main: &mut Main, observed: f64) {
         transition observed <= 400000.0 + 1.0 {
             true -> case_4_metric_2_lower(main)
             false -> bad(main)
         }
     }
-    state case_4_metric_2_lower(main: &mut Main) {
+    machine case_4_metric_2_lower(main: &mut Main) {
         let observed: f64 = main.result.total * 1000000.0;
         transition observed >= 600000.0 - 1.0 {
             true -> case_4_metric_2_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_4_metric_2_upper(main: &mut Main, observed: f64) {
+    machine case_4_metric_2_upper(main: &mut Main, observed: f64) {
         transition observed <= 600000.0 + 1.0 {
             true -> case_4_metric_3_lower(main)
             false -> bad(main)
         }
     }
-    state case_4_metric_3_lower(main: &mut Main) {
+    machine case_4_metric_3_lower(main: &mut Main) {
         let observed: f64 = main.result.mass_variance * 1000000000.0;
         transition observed >= 50.00000000 - 1.0 {
             true -> case_4_metric_3_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_4_metric_3_upper(main: &mut Main, observed: f64) {
+    machine case_4_metric_3_upper(main: &mut Main, observed: f64) {
         transition observed <= 50.00000000 + 1.0 {
             true -> case_4_metric_4_lower(main)
             false -> bad(main)
         }
     }
-    state case_4_metric_4_lower(main: &mut Main) {
+    machine case_4_metric_4_lower(main: &mut Main) {
         let observed: f64 = main.result.covariance * 1000000000.0;
         transition observed >= 40.00000000 - 1.0 {
             true -> case_4_metric_4_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_4_metric_4_upper(main: &mut Main, observed: f64) {
+    machine case_4_metric_4_upper(main: &mut Main, observed: f64) {
         transition observed <= 40.00000000 + 1.0 {
             true -> case_4_metric_5_lower(main)
             false -> bad(main)
         }
     }
-    state case_4_metric_5_lower(main: &mut Main) {
+    machine case_4_metric_5_lower(main: &mut Main) {
         let observed: f64 = main.result.total_variance * 1000000000.0;
         transition observed >= 180.00000000 - 1.0 {
             true -> case_4_metric_5_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_4_metric_5_upper(main: &mut Main, observed: f64) {
+    machine case_4_metric_5_upper(main: &mut Main, observed: f64) {
         transition observed <= 180.00000000 + 1.0 {
             true -> case_4_metric_6_lower(main)
             false -> bad(main)
         }
     }
-    state case_4_metric_6_lower(main: &mut Main) {
+    machine case_4_metric_6_lower(main: &mut Main) {
         let observed: f64 = main.result.fraction_a * 1000000.0;
         transition observed >= 333333.3333333333333333333333333333333333333333333333333333333333333333 - 1.0 {
             true -> case_4_metric_6_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_4_metric_6_upper(main: &mut Main, observed: f64) {
+    machine case_4_metric_6_upper(main: &mut Main, observed: f64) {
         transition observed <= 333333.3333333333333333333333333333333333333333333333333333333333333333 + 1.0 {
             true -> case_4_metric_7_lower(main)
             false -> bad(main)
         }
     }
-    state case_4_metric_7_lower(main: &mut Main) {
+    machine case_4_metric_7_lower(main: &mut Main) {
         let observed: f64 = main.result.fraction_b * 1000000.0;
         transition observed >= 666666.6666666666666666666666666666666666666666666666666666666666666667 - 1.0 {
             true -> case_4_metric_7_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_4_metric_7_upper(main: &mut Main, observed: f64) {
+    machine case_4_metric_7_upper(main: &mut Main, observed: f64) {
         transition observed <= 666666.6666666666666666666666666666666666666666666666666666666666666667 + 1.0 {
             true -> case_4_metric_8_lower(main)
             false -> bad(main)
         }
     }
-    state case_4_metric_8_lower(main: &mut Main) {
+    machine case_4_metric_8_lower(main: &mut Main) {
         let observed: f64 = main.result.fraction_variance * 1000000000.0;
         transition observed >= 27.77777777777777777777777777777777777777777777777777777777777777777778 - 1.0 {
             true -> case_4_metric_8_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_4_metric_8_upper(main: &mut Main, observed: f64) {
+    machine case_4_metric_8_upper(main: &mut Main, observed: f64) {
         transition observed <= 27.77777777777777777777777777777777777777777777777777777777777777777778 + 1.0 {
             true -> case_4_metric_9_lower(main)
             false -> bad(main)
         }
     }
-    state case_4_metric_9_lower(main: &mut Main) {
+    machine case_4_metric_9_lower(main: &mut Main) {
         let observed: f64 = main.result.uncertainty * 1000000.0;
         transition observed >= 166.6666666666666666666666666666666666666666666666666666666666666666667 - 1.0 {
             true -> case_4_metric_9_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_4_metric_9_upper(main: &mut Main, observed: f64) {
+    machine case_4_metric_9_upper(main: &mut Main, observed: f64) {
         transition observed <= 166.6666666666666666666666666666666666666666666666666666666666666666667 + 1.0 {
             true -> case_4_metric_10_lower(main)
             false -> bad(main)
         }
     }
-    state case_4_metric_10_lower(main: &mut Main) {
+    machine case_4_metric_10_lower(main: &mut Main) {
         let observed: f64 = main.result.expanded * 1000000.0;
         transition observed >= 333.3333333333333333333333333333333333333333333333333333333333333333334 - 1.0 {
             true -> case_4_metric_10_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_4_metric_10_upper(main: &mut Main, observed: f64) {
+    machine case_4_metric_10_upper(main: &mut Main, observed: f64) {
         transition observed <= 333.3333333333333333333333333333333333333333333333333333333333333333334 + 1.0 {
             true -> case_4_metric_11_lower(main)
             false -> bad(main)
         }
     }
-    state case_4_metric_11_lower(main: &mut Main) {
+    machine case_4_metric_11_lower(main: &mut Main) {
         let observed: f64 = main.result.lower * 1000000.0;
         transition observed >= 333000.0000000000000000000000000000000000000000000000000000000000000000 - 1.0 {
             true -> case_4_metric_11_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_4_metric_11_upper(main: &mut Main, observed: f64) {
+    machine case_4_metric_11_upper(main: &mut Main, observed: f64) {
         transition observed <= 333000.0000000000000000000000000000000000000000000000000000000000000000 + 1.0 {
             true -> case_4_metric_12_lower(main)
             false -> bad(main)
         }
     }
-    state case_4_metric_12_lower(main: &mut Main) {
+    machine case_4_metric_12_lower(main: &mut Main) {
         let observed: f64 = main.result.upper * 1000000.0;
         transition observed >= 333666.6666666666666666666666666666666666666666666666666666666666666666 - 1.0 {
             true -> case_4_metric_12_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_4_metric_12_upper(main: &mut Main, observed: f64) {
+    machine case_4_metric_12_upper(main: &mut Main, observed: f64) {
         transition observed <= 333666.6666666666666666666666666666666666666666666666666666666666666666 + 1.0 {
             true -> case_5(main)
             false -> bad(main)
         }
     }
-    state case_5(main: &mut Main) {
+    machine case_5(main: &mut Main) {
         Console::write_line("domain case: off_target");
         correct(&mut main.result, 3.0, 7.0, 1.0, 1.0, true);
         transition main.result.status == 1 {
@@ -904,176 +904,176 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> bad(main)
         }
     }
-    state case_5_metric_0_lower(main: &mut Main) {
+    machine case_5_metric_0_lower(main: &mut Main) {
         let observed: f64 = main.result.mass_a * 1000000.0;
         transition observed >= 2000000.0 - 1.0 {
             true -> case_5_metric_0_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_5_metric_0_upper(main: &mut Main, observed: f64) {
+    machine case_5_metric_0_upper(main: &mut Main, observed: f64) {
         transition observed <= 2000000.0 + 1.0 {
             true -> case_5_metric_1_lower(main)
             false -> bad(main)
         }
     }
-    state case_5_metric_1_lower(main: &mut Main) {
+    machine case_5_metric_1_lower(main: &mut Main) {
         let observed: f64 = main.result.mass_b * 1000000.0;
         transition observed >= 6000000.0 - 1.0 {
             true -> case_5_metric_1_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_5_metric_1_upper(main: &mut Main, observed: f64) {
+    machine case_5_metric_1_upper(main: &mut Main, observed: f64) {
         transition observed <= 6000000.0 + 1.0 {
             true -> case_5_metric_2_lower(main)
             false -> bad(main)
         }
     }
-    state case_5_metric_2_lower(main: &mut Main) {
+    machine case_5_metric_2_lower(main: &mut Main) {
         let observed: f64 = main.result.total * 1000000.0;
         transition observed >= 8000000.0 - 1.0 {
             true -> case_5_metric_2_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_5_metric_2_upper(main: &mut Main, observed: f64) {
+    machine case_5_metric_2_upper(main: &mut Main, observed: f64) {
         transition observed <= 8000000.0 + 1.0 {
             true -> case_5_metric_3_lower(main)
             false -> bad(main)
         }
     }
-    state case_5_metric_3_lower(main: &mut Main) {
+    machine case_5_metric_3_lower(main: &mut Main) {
         let observed: f64 = main.result.mass_variance * 1000000000.0;
         transition observed >= 50000000.00 - 1.0 {
             true -> case_5_metric_3_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_5_metric_3_upper(main: &mut Main, observed: f64) {
+    machine case_5_metric_3_upper(main: &mut Main, observed: f64) {
         transition observed <= 50000000.00 + 1.0 {
             true -> case_5_metric_4_lower(main)
             false -> bad(main)
         }
     }
-    state case_5_metric_4_lower(main: &mut Main) {
+    machine case_5_metric_4_lower(main: &mut Main) {
         let observed: f64 = main.result.covariance * 1000000000.0;
         transition observed >= 40000000.00 - 1.0 {
             true -> case_5_metric_4_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_5_metric_4_upper(main: &mut Main, observed: f64) {
+    machine case_5_metric_4_upper(main: &mut Main, observed: f64) {
         transition observed <= 40000000.00 + 1.0 {
             true -> case_5_metric_5_lower(main)
             false -> bad(main)
         }
     }
-    state case_5_metric_5_lower(main: &mut Main) {
+    machine case_5_metric_5_lower(main: &mut Main) {
         let observed: f64 = main.result.total_variance * 1000000000.0;
         transition observed >= 180000000.00 - 1.0 {
             true -> case_5_metric_5_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_5_metric_5_upper(main: &mut Main, observed: f64) {
+    machine case_5_metric_5_upper(main: &mut Main, observed: f64) {
         transition observed <= 180000000.00 + 1.0 {
             true -> case_5_metric_6_lower(main)
             false -> bad(main)
         }
     }
-    state case_5_metric_6_lower(main: &mut Main) {
+    machine case_5_metric_6_lower(main: &mut Main) {
         let observed: f64 = main.result.fraction_a * 1000000.0;
         transition observed >= 250000.00 - 1.0 {
             true -> case_5_metric_6_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_5_metric_6_upper(main: &mut Main, observed: f64) {
+    machine case_5_metric_6_upper(main: &mut Main, observed: f64) {
         transition observed <= 250000.00 + 1.0 {
             true -> case_5_metric_7_lower(main)
             false -> bad(main)
         }
     }
-    state case_5_metric_7_lower(main: &mut Main) {
+    machine case_5_metric_7_lower(main: &mut Main) {
         let observed: f64 = main.result.fraction_b * 1000000.0;
         transition observed >= 750000.00 - 1.0 {
             true -> case_5_metric_7_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_5_metric_7_upper(main: &mut Main, observed: f64) {
+    machine case_5_metric_7_upper(main: &mut Main, observed: f64) {
         transition observed <= 750000.00 + 1.0 {
             true -> case_5_metric_8_lower(main)
             false -> bad(main)
         }
     }
-    state case_5_metric_8_lower(main: &mut Main) {
+    machine case_5_metric_8_lower(main: &mut Main) {
         let observed: f64 = main.result.fraction_variance * 1000000000.0;
         transition observed >= 253906.25000000000 - 1.0 {
             true -> case_5_metric_8_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_5_metric_8_upper(main: &mut Main, observed: f64) {
+    machine case_5_metric_8_upper(main: &mut Main, observed: f64) {
         transition observed <= 253906.25000000000 + 1.0 {
             true -> case_5_metric_9_lower(main)
             false -> bad(main)
         }
     }
-    state case_5_metric_9_lower(main: &mut Main) {
+    machine case_5_metric_9_lower(main: &mut Main) {
         let observed: f64 = main.result.uncertainty * 1000000.0;
         transition observed >= 15934.43597997745259383820034069619371738678420656123877370303376383104 - 1.0 {
             true -> case_5_metric_9_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_5_metric_9_upper(main: &mut Main, observed: f64) {
+    machine case_5_metric_9_upper(main: &mut Main, observed: f64) {
         transition observed <= 15934.43597997745259383820034069619371738678420656123877370303376383104 + 1.0 {
             true -> case_5_metric_10_lower(main)
             false -> bad(main)
         }
     }
-    state case_5_metric_10_lower(main: &mut Main) {
+    machine case_5_metric_10_lower(main: &mut Main) {
         let observed: f64 = main.result.expanded * 1000000.0;
         transition observed >= 31868.87195995490518767640068139238743477356841312247754740606752766208 - 1.0 {
             true -> case_5_metric_10_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_5_metric_10_upper(main: &mut Main, observed: f64) {
+    machine case_5_metric_10_upper(main: &mut Main, observed: f64) {
         transition observed <= 31868.87195995490518767640068139238743477356841312247754740606752766208 + 1.0 {
             true -> case_5_metric_11_lower(main)
             false -> bad(main)
         }
     }
-    state case_5_metric_11_lower(main: &mut Main) {
+    machine case_5_metric_11_lower(main: &mut Main) {
         let observed: f64 = main.result.lower * 1000000.0;
         transition observed >= 218131.1280400450948123235993186076125652264315868775224525939324723379 - 1.0 {
             true -> case_5_metric_11_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_5_metric_11_upper(main: &mut Main, observed: f64) {
+    machine case_5_metric_11_upper(main: &mut Main, observed: f64) {
         transition observed <= 218131.1280400450948123235993186076125652264315868775224525939324723379 + 1.0 {
             true -> case_5_metric_12_lower(main)
             false -> bad(main)
         }
     }
-    state case_5_metric_12_lower(main: &mut Main) {
+    machine case_5_metric_12_lower(main: &mut Main) {
         let observed: f64 = main.result.upper * 1000000.0;
         transition observed >= 281868.8719599549051876764006813923874347735684131224775474060675276621 - 1.0 {
             true -> case_5_metric_12_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_5_metric_12_upper(main: &mut Main, observed: f64) {
+    machine case_5_metric_12_upper(main: &mut Main, observed: f64) {
         transition observed <= 281868.8719599549051876764006813923874347735684131224775474060675276621 + 1.0 {
             true -> case_6(main)
             false -> bad(main)
         }
     }
-    state case_6(main: &mut Main) {
+    machine case_6(main: &mut Main) {
         Console::write_line("domain case: large_batch");
         correct(&mut main.result, 21.0, 41.0, 1.0, 1.0, true);
         transition main.result.status == 0 {
@@ -1081,176 +1081,176 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> bad(main)
         }
     }
-    state case_6_metric_0_lower(main: &mut Main) {
+    machine case_6_metric_0_lower(main: &mut Main) {
         let observed: f64 = main.result.mass_a * 1000000.0;
         transition observed >= 20000000.0 - 1.0 {
             true -> case_6_metric_0_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_6_metric_0_upper(main: &mut Main, observed: f64) {
+    machine case_6_metric_0_upper(main: &mut Main, observed: f64) {
         transition observed <= 20000000.0 + 1.0 {
             true -> case_6_metric_1_lower(main)
             false -> bad(main)
         }
     }
-    state case_6_metric_1_lower(main: &mut Main) {
+    machine case_6_metric_1_lower(main: &mut Main) {
         let observed: f64 = main.result.mass_b * 1000000.0;
         transition observed >= 40000000.0 - 1.0 {
             true -> case_6_metric_1_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_6_metric_1_upper(main: &mut Main, observed: f64) {
+    machine case_6_metric_1_upper(main: &mut Main, observed: f64) {
         transition observed <= 40000000.0 + 1.0 {
             true -> case_6_metric_2_lower(main)
             false -> bad(main)
         }
     }
-    state case_6_metric_2_lower(main: &mut Main) {
+    machine case_6_metric_2_lower(main: &mut Main) {
         let observed: f64 = main.result.total * 1000000.0;
         transition observed >= 60000000.0 - 1.0 {
             true -> case_6_metric_2_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_6_metric_2_upper(main: &mut Main, observed: f64) {
+    machine case_6_metric_2_upper(main: &mut Main, observed: f64) {
         transition observed <= 60000000.0 + 1.0 {
             true -> case_6_metric_3_lower(main)
             false -> bad(main)
         }
     }
-    state case_6_metric_3_lower(main: &mut Main) {
+    machine case_6_metric_3_lower(main: &mut Main) {
         let observed: f64 = main.result.mass_variance * 1000000000.0;
         transition observed >= 50000000.00 - 1.0 {
             true -> case_6_metric_3_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_6_metric_3_upper(main: &mut Main, observed: f64) {
+    machine case_6_metric_3_upper(main: &mut Main, observed: f64) {
         transition observed <= 50000000.00 + 1.0 {
             true -> case_6_metric_4_lower(main)
             false -> bad(main)
         }
     }
-    state case_6_metric_4_lower(main: &mut Main) {
+    machine case_6_metric_4_lower(main: &mut Main) {
         let observed: f64 = main.result.covariance * 1000000000.0;
         transition observed >= 40000000.00 - 1.0 {
             true -> case_6_metric_4_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_6_metric_4_upper(main: &mut Main, observed: f64) {
+    machine case_6_metric_4_upper(main: &mut Main, observed: f64) {
         transition observed <= 40000000.00 + 1.0 {
             true -> case_6_metric_5_lower(main)
             false -> bad(main)
         }
     }
-    state case_6_metric_5_lower(main: &mut Main) {
+    machine case_6_metric_5_lower(main: &mut Main) {
         let observed: f64 = main.result.total_variance * 1000000000.0;
         transition observed >= 180000000.00 - 1.0 {
             true -> case_6_metric_5_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_6_metric_5_upper(main: &mut Main, observed: f64) {
+    machine case_6_metric_5_upper(main: &mut Main, observed: f64) {
         transition observed <= 180000000.00 + 1.0 {
             true -> case_6_metric_6_lower(main)
             false -> bad(main)
         }
     }
-    state case_6_metric_6_lower(main: &mut Main) {
+    machine case_6_metric_6_lower(main: &mut Main) {
         let observed: f64 = main.result.fraction_a * 1000000.0;
         transition observed >= 333333.3333333333333333333333333333333333333333333333333333333333333333 - 1.0 {
             true -> case_6_metric_6_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_6_metric_6_upper(main: &mut Main, observed: f64) {
+    machine case_6_metric_6_upper(main: &mut Main, observed: f64) {
         transition observed <= 333333.3333333333333333333333333333333333333333333333333333333333333333 + 1.0 {
             true -> case_6_metric_7_lower(main)
             false -> bad(main)
         }
     }
-    state case_6_metric_7_lower(main: &mut Main) {
+    machine case_6_metric_7_lower(main: &mut Main) {
         let observed: f64 = main.result.fraction_b * 1000000.0;
         transition observed >= 666666.6666666666666666666666666666666666666666666666666666666666666667 - 1.0 {
             true -> case_6_metric_7_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_6_metric_7_upper(main: &mut Main, observed: f64) {
+    machine case_6_metric_7_upper(main: &mut Main, observed: f64) {
         transition observed <= 666666.6666666666666666666666666666666666666666666666666666666666666667 + 1.0 {
             true -> case_6_metric_8_lower(main)
             false -> bad(main)
         }
     }
-    state case_6_metric_8_lower(main: &mut Main) {
+    machine case_6_metric_8_lower(main: &mut Main) {
         let observed: f64 = main.result.fraction_variance * 1000000000.0;
         transition observed >= 2777.777777777777777777777777777777777777777777777777777777777777777778 - 1.0 {
             true -> case_6_metric_8_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_6_metric_8_upper(main: &mut Main, observed: f64) {
+    machine case_6_metric_8_upper(main: &mut Main, observed: f64) {
         transition observed <= 2777.777777777777777777777777777777777777777777777777777777777777777778 + 1.0 {
             true -> case_6_metric_9_lower(main)
             false -> bad(main)
         }
     }
-    state case_6_metric_9_lower(main: &mut Main) {
+    machine case_6_metric_9_lower(main: &mut Main) {
         let observed: f64 = main.result.uncertainty * 1000000.0;
         transition observed >= 1666.666666666666666666666666666666666666666666666666666666666666666667 - 1.0 {
             true -> case_6_metric_9_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_6_metric_9_upper(main: &mut Main, observed: f64) {
+    machine case_6_metric_9_upper(main: &mut Main, observed: f64) {
         transition observed <= 1666.666666666666666666666666666666666666666666666666666666666666666667 + 1.0 {
             true -> case_6_metric_10_lower(main)
             false -> bad(main)
         }
     }
-    state case_6_metric_10_lower(main: &mut Main) {
+    machine case_6_metric_10_lower(main: &mut Main) {
         let observed: f64 = main.result.expanded * 1000000.0;
         transition observed >= 3333.333333333333333333333333333333333333333333333333333333333333333334 - 1.0 {
             true -> case_6_metric_10_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_6_metric_10_upper(main: &mut Main, observed: f64) {
+    machine case_6_metric_10_upper(main: &mut Main, observed: f64) {
         transition observed <= 3333.333333333333333333333333333333333333333333333333333333333333333334 + 1.0 {
             true -> case_6_metric_11_lower(main)
             false -> bad(main)
         }
     }
-    state case_6_metric_11_lower(main: &mut Main) {
+    machine case_6_metric_11_lower(main: &mut Main) {
         let observed: f64 = main.result.lower * 1000000.0;
         transition observed >= 330000.0000000000000000000000000000000000000000000000000000000000000000 - 1.0 {
             true -> case_6_metric_11_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_6_metric_11_upper(main: &mut Main, observed: f64) {
+    machine case_6_metric_11_upper(main: &mut Main, observed: f64) {
         transition observed <= 330000.0000000000000000000000000000000000000000000000000000000000000000 + 1.0 {
             true -> case_6_metric_12_lower(main)
             false -> bad(main)
         }
     }
-    state case_6_metric_12_lower(main: &mut Main) {
+    machine case_6_metric_12_lower(main: &mut Main) {
         let observed: f64 = main.result.upper * 1000000.0;
         transition observed >= 336666.6666666666666666666666666666666666666666666666666666666666666666 - 1.0 {
             true -> case_6_metric_12_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_6_metric_12_upper(main: &mut Main, observed: f64) {
+    machine case_6_metric_12_upper(main: &mut Main, observed: f64) {
         transition observed <= 336666.6666666666666666666666666666666666666666666666666666666666666666 + 1.0 {
             true -> case_7(main)
             false -> bad(main)
         }
     }
-    state case_7(main: &mut Main) {
+    machine case_7(main: &mut Main) {
         Console::write_line("domain case: zero_component");
         correct(&mut main.result, 1.0, 5.0, 1.0, 1.0, true);
         transition main.result.status == 1 {
@@ -1258,176 +1258,176 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> bad(main)
         }
     }
-    state case_7_metric_0_lower(main: &mut Main) {
+    machine case_7_metric_0_lower(main: &mut Main) {
         let observed: f64 = main.result.mass_a * 1000000.0;
         transition observed >= 0.0 - 1.0 {
             true -> case_7_metric_0_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_7_metric_0_upper(main: &mut Main, observed: f64) {
+    machine case_7_metric_0_upper(main: &mut Main, observed: f64) {
         transition observed <= 0.0 + 1.0 {
             true -> case_7_metric_1_lower(main)
             false -> bad(main)
         }
     }
-    state case_7_metric_1_lower(main: &mut Main) {
+    machine case_7_metric_1_lower(main: &mut Main) {
         let observed: f64 = main.result.mass_b * 1000000.0;
         transition observed >= 4000000.0 - 1.0 {
             true -> case_7_metric_1_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_7_metric_1_upper(main: &mut Main, observed: f64) {
+    machine case_7_metric_1_upper(main: &mut Main, observed: f64) {
         transition observed <= 4000000.0 + 1.0 {
             true -> case_7_metric_2_lower(main)
             false -> bad(main)
         }
     }
-    state case_7_metric_2_lower(main: &mut Main) {
+    machine case_7_metric_2_lower(main: &mut Main) {
         let observed: f64 = main.result.total * 1000000.0;
         transition observed >= 4000000.0 - 1.0 {
             true -> case_7_metric_2_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_7_metric_2_upper(main: &mut Main, observed: f64) {
+    machine case_7_metric_2_upper(main: &mut Main, observed: f64) {
         transition observed <= 4000000.0 + 1.0 {
             true -> case_7_metric_3_lower(main)
             false -> bad(main)
         }
     }
-    state case_7_metric_3_lower(main: &mut Main) {
+    machine case_7_metric_3_lower(main: &mut Main) {
         let observed: f64 = main.result.mass_variance * 1000000000.0;
         transition observed >= 50000000.00 - 1.0 {
             true -> case_7_metric_3_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_7_metric_3_upper(main: &mut Main, observed: f64) {
+    machine case_7_metric_3_upper(main: &mut Main, observed: f64) {
         transition observed <= 50000000.00 + 1.0 {
             true -> case_7_metric_4_lower(main)
             false -> bad(main)
         }
     }
-    state case_7_metric_4_lower(main: &mut Main) {
+    machine case_7_metric_4_lower(main: &mut Main) {
         let observed: f64 = main.result.covariance * 1000000000.0;
         transition observed >= 40000000.00 - 1.0 {
             true -> case_7_metric_4_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_7_metric_4_upper(main: &mut Main, observed: f64) {
+    machine case_7_metric_4_upper(main: &mut Main, observed: f64) {
         transition observed <= 40000000.00 + 1.0 {
             true -> case_7_metric_5_lower(main)
             false -> bad(main)
         }
     }
-    state case_7_metric_5_lower(main: &mut Main) {
+    machine case_7_metric_5_lower(main: &mut Main) {
         let observed: f64 = main.result.total_variance * 1000000000.0;
         transition observed >= 180000000.00 - 1.0 {
             true -> case_7_metric_5_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_7_metric_5_upper(main: &mut Main, observed: f64) {
+    machine case_7_metric_5_upper(main: &mut Main, observed: f64) {
         transition observed <= 180000000.00 + 1.0 {
             true -> case_7_metric_6_lower(main)
             false -> bad(main)
         }
     }
-    state case_7_metric_6_lower(main: &mut Main) {
+    machine case_7_metric_6_lower(main: &mut Main) {
         let observed: f64 = main.result.fraction_a * 1000000.0;
         transition observed >= 0.0 - 1.0 {
             true -> case_7_metric_6_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_7_metric_6_upper(main: &mut Main, observed: f64) {
+    machine case_7_metric_6_upper(main: &mut Main, observed: f64) {
         transition observed <= 0.0 + 1.0 {
             true -> case_7_metric_7_lower(main)
             false -> bad(main)
         }
     }
-    state case_7_metric_7_lower(main: &mut Main) {
+    machine case_7_metric_7_lower(main: &mut Main) {
         let observed: f64 = main.result.fraction_b * 1000000.0;
         transition observed >= 1000000.0 - 1.0 {
             true -> case_7_metric_7_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_7_metric_7_upper(main: &mut Main, observed: f64) {
+    machine case_7_metric_7_upper(main: &mut Main, observed: f64) {
         transition observed <= 1000000.0 + 1.0 {
             true -> case_7_metric_8_lower(main)
             false -> bad(main)
         }
     }
-    state case_7_metric_8_lower(main: &mut Main) {
+    machine case_7_metric_8_lower(main: &mut Main) {
         let observed: f64 = main.result.fraction_variance * 1000000000.0;
         transition observed >= 3125000.000000 - 1.0 {
             true -> case_7_metric_8_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_7_metric_8_upper(main: &mut Main, observed: f64) {
+    machine case_7_metric_8_upper(main: &mut Main, observed: f64) {
         transition observed <= 3125000.000000 + 1.0 {
             true -> case_7_metric_9_lower(main)
             false -> bad(main)
         }
     }
-    state case_7_metric_9_lower(main: &mut Main) {
+    machine case_7_metric_9_lower(main: &mut Main) {
         let observed: f64 = main.result.uncertainty * 1000000.0;
         transition observed >= 55901.69943749474241022934171828190588601545899028814310677243113526302 - 1.0 {
             true -> case_7_metric_9_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_7_metric_9_upper(main: &mut Main, observed: f64) {
+    machine case_7_metric_9_upper(main: &mut Main, observed: f64) {
         transition observed <= 55901.69943749474241022934171828190588601545899028814310677243113526302 + 1.0 {
             true -> case_7_metric_10_lower(main)
             false -> bad(main)
         }
     }
-    state case_7_metric_10_lower(main: &mut Main) {
+    machine case_7_metric_10_lower(main: &mut Main) {
         let observed: f64 = main.result.expanded * 1000000.0;
         transition observed >= 111803.3988749894848204586834365638117720309179805762862135448622705260 - 1.0 {
             true -> case_7_metric_10_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_7_metric_10_upper(main: &mut Main, observed: f64) {
+    machine case_7_metric_10_upper(main: &mut Main, observed: f64) {
         transition observed <= 111803.3988749894848204586834365638117720309179805762862135448622705260 + 1.0 {
             true -> case_7_metric_11_lower(main)
             false -> bad(main)
         }
     }
-    state case_7_metric_11_lower(main: &mut Main) {
+    machine case_7_metric_11_lower(main: &mut Main) {
         let observed: f64 = main.result.lower * 1000000.0;
         transition observed >= -111803.3988749894848204586834365638117720309179805762862135448622705260 - 1.0 {
             true -> case_7_metric_11_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_7_metric_11_upper(main: &mut Main, observed: f64) {
+    machine case_7_metric_11_upper(main: &mut Main, observed: f64) {
         transition observed <= -111803.3988749894848204586834365638117720309179805762862135448622705260 + 1.0 {
             true -> case_7_metric_12_lower(main)
             false -> bad(main)
         }
     }
-    state case_7_metric_12_lower(main: &mut Main) {
+    machine case_7_metric_12_lower(main: &mut Main) {
         let observed: f64 = main.result.upper * 1000000.0;
         transition observed >= 111803.3988749894848204586834365638117720309179805762862135448622705260 - 1.0 {
             true -> case_7_metric_12_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_7_metric_12_upper(main: &mut Main, observed: f64) {
+    machine case_7_metric_12_upper(main: &mut Main, observed: f64) {
         transition observed <= 111803.3988749894848204586834365638117720309179805762862135448622705260 + 1.0 {
             true -> case_8(main)
             false -> bad(main)
         }
     }
-    state case_8(main: &mut Main) {
+    machine case_8(main: &mut Main) {
         Console::write_line("domain case: threshold_exact");
         correct(&mut main.result, 5.0, 7.0, 1.0, 0.001, true);
         transition main.result.status == 1 {
@@ -1435,176 +1435,176 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> bad(main)
         }
     }
-    state case_8_metric_0_lower(main: &mut Main) {
+    machine case_8_metric_0_lower(main: &mut Main) {
         let observed: f64 = main.result.mass_a * 1000000.0;
         transition observed >= 4000.000 - 1.0 {
             true -> case_8_metric_0_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_8_metric_0_upper(main: &mut Main, observed: f64) {
+    machine case_8_metric_0_upper(main: &mut Main, observed: f64) {
         transition observed <= 4000.000 + 1.0 {
             true -> case_8_metric_1_lower(main)
             false -> bad(main)
         }
     }
-    state case_8_metric_1_lower(main: &mut Main) {
+    machine case_8_metric_1_lower(main: &mut Main) {
         let observed: f64 = main.result.mass_b * 1000000.0;
         transition observed >= 6000.000 - 1.0 {
             true -> case_8_metric_1_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_8_metric_1_upper(main: &mut Main, observed: f64) {
+    machine case_8_metric_1_upper(main: &mut Main, observed: f64) {
         transition observed <= 6000.000 + 1.0 {
             true -> case_8_metric_2_lower(main)
             false -> bad(main)
         }
     }
-    state case_8_metric_2_lower(main: &mut Main) {
+    machine case_8_metric_2_lower(main: &mut Main) {
         let observed: f64 = main.result.total * 1000000.0;
         transition observed >= 10000.00 - 1.0 {
             true -> case_8_metric_2_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_8_metric_2_upper(main: &mut Main, observed: f64) {
+    machine case_8_metric_2_upper(main: &mut Main, observed: f64) {
         transition observed <= 10000.00 + 1.0 {
             true -> case_8_metric_3_lower(main)
             false -> bad(main)
         }
     }
-    state case_8_metric_3_lower(main: &mut Main) {
+    machine case_8_metric_3_lower(main: &mut Main) {
         let observed: f64 = main.result.mass_variance * 1000000000.0;
         transition observed >= 50.00000000 - 1.0 {
             true -> case_8_metric_3_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_8_metric_3_upper(main: &mut Main, observed: f64) {
+    machine case_8_metric_3_upper(main: &mut Main, observed: f64) {
         transition observed <= 50.00000000 + 1.0 {
             true -> case_8_metric_4_lower(main)
             false -> bad(main)
         }
     }
-    state case_8_metric_4_lower(main: &mut Main) {
+    machine case_8_metric_4_lower(main: &mut Main) {
         let observed: f64 = main.result.covariance * 1000000000.0;
         transition observed >= 40.00000000 - 1.0 {
             true -> case_8_metric_4_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_8_metric_4_upper(main: &mut Main, observed: f64) {
+    machine case_8_metric_4_upper(main: &mut Main, observed: f64) {
         transition observed <= 40.00000000 + 1.0 {
             true -> case_8_metric_5_lower(main)
             false -> bad(main)
         }
     }
-    state case_8_metric_5_lower(main: &mut Main) {
+    machine case_8_metric_5_lower(main: &mut Main) {
         let observed: f64 = main.result.total_variance * 1000000000.0;
         transition observed >= 180.00000000 - 1.0 {
             true -> case_8_metric_5_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_8_metric_5_upper(main: &mut Main, observed: f64) {
+    machine case_8_metric_5_upper(main: &mut Main, observed: f64) {
         transition observed <= 180.00000000 + 1.0 {
             true -> case_8_metric_6_lower(main)
             false -> bad(main)
         }
     }
-    state case_8_metric_6_lower(main: &mut Main) {
+    machine case_8_metric_6_lower(main: &mut Main) {
         let observed: f64 = main.result.fraction_a * 1000000.0;
         transition observed >= 400000.0 - 1.0 {
             true -> case_8_metric_6_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_8_metric_6_upper(main: &mut Main, observed: f64) {
+    machine case_8_metric_6_upper(main: &mut Main, observed: f64) {
         transition observed <= 400000.0 + 1.0 {
             true -> case_8_metric_7_lower(main)
             false -> bad(main)
         }
     }
-    state case_8_metric_7_lower(main: &mut Main) {
+    machine case_8_metric_7_lower(main: &mut Main) {
         let observed: f64 = main.result.fraction_b * 1000000.0;
         transition observed >= 600000.0 - 1.0 {
             true -> case_8_metric_7_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_8_metric_7_upper(main: &mut Main, observed: f64) {
+    machine case_8_metric_7_upper(main: &mut Main, observed: f64) {
         transition observed <= 600000.0 + 1.0 {
             true -> case_8_metric_8_lower(main)
             false -> bad(main)
         }
     }
-    state case_8_metric_8_lower(main: &mut Main) {
+    machine case_8_metric_8_lower(main: &mut Main) {
         let observed: f64 = main.result.fraction_variance * 1000000000.0;
         transition observed >= 68000.000000 - 1.0 {
             true -> case_8_metric_8_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_8_metric_8_upper(main: &mut Main, observed: f64) {
+    machine case_8_metric_8_upper(main: &mut Main, observed: f64) {
         transition observed <= 68000.000000 + 1.0 {
             true -> case_8_metric_9_lower(main)
             false -> bad(main)
         }
     }
-    state case_8_metric_9_lower(main: &mut Main) {
+    machine case_8_metric_9_lower(main: &mut Main) {
         let observed: f64 = main.result.uncertainty * 1000000.0;
         transition observed >= 8246.211251235321099642819711948154050294398450747240868797267146189909 - 1.0 {
             true -> case_8_metric_9_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_8_metric_9_upper(main: &mut Main, observed: f64) {
+    machine case_8_metric_9_upper(main: &mut Main, observed: f64) {
         transition observed <= 8246.211251235321099642819711948154050294398450747240868797267146189909 + 1.0 {
             true -> case_8_metric_10_lower(main)
             false -> bad(main)
         }
     }
-    state case_8_metric_10_lower(main: &mut Main) {
+    machine case_8_metric_10_lower(main: &mut Main) {
         let observed: f64 = main.result.expanded * 1000000.0;
         transition observed >= 16492.42250247064219928563942389630810058879690149448173759453429237982 - 1.0 {
             true -> case_8_metric_10_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_8_metric_10_upper(main: &mut Main, observed: f64) {
+    machine case_8_metric_10_upper(main: &mut Main, observed: f64) {
         transition observed <= 16492.42250247064219928563942389630810058879690149448173759453429237982 + 1.0 {
             true -> case_8_metric_11_lower(main)
             false -> bad(main)
         }
     }
-    state case_8_metric_11_lower(main: &mut Main) {
+    machine case_8_metric_11_lower(main: &mut Main) {
         let observed: f64 = main.result.lower * 1000000.0;
         transition observed >= 383507.5774975293578007143605761036918994112030985055182624054657076202 - 1.0 {
             true -> case_8_metric_11_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_8_metric_11_upper(main: &mut Main, observed: f64) {
+    machine case_8_metric_11_upper(main: &mut Main, observed: f64) {
         transition observed <= 383507.5774975293578007143605761036918994112030985055182624054657076202 + 1.0 {
             true -> case_8_metric_12_lower(main)
             false -> bad(main)
         }
     }
-    state case_8_metric_12_lower(main: &mut Main) {
+    machine case_8_metric_12_lower(main: &mut Main) {
         let observed: f64 = main.result.upper * 1000000.0;
         transition observed >= 416492.4225024706421992856394238963081005887969014944817375945342923798 - 1.0 {
             true -> case_8_metric_12_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_8_metric_12_upper(main: &mut Main, observed: f64) {
+    machine case_8_metric_12_upper(main: &mut Main, observed: f64) {
         transition observed <= 416492.4225024706421992856394238963081005887969014944817375945342923798 + 1.0 {
             true -> case_9(main)
             false -> bad(main)
         }
     }
-    state case_9(main: &mut Main) {
+    machine case_9(main: &mut Main) {
         Console::write_line("domain case: near_zero");
         correct(&mut main.result, 1.0, 2.0, 0.0, 0.001, true);
         transition main.result.status == 4 {
@@ -1612,7 +1612,7 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> bad(main)
         }
     }
-    state case_10(main: &mut Main) {
+    machine case_10(main: &mut Main) {
         Console::write_line("domain case: zero_total");
         correct(&mut main.result, 1.0, 1.0, 1.0, 1.0, true);
         transition main.result.status == 4 {
@@ -1620,7 +1620,7 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> bad(main)
         }
     }
-    state case_11(main: &mut Main) {
+    machine case_11(main: &mut Main) {
         Console::write_line("domain case: negative");
         correct(&mut main.result, 0.0, 5.0, 1.0, 1.0, true);
         transition main.result.status == 3 {
@@ -1628,7 +1628,7 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> bad(main)
         }
     }
-    state case_12(main: &mut Main) {
+    machine case_12(main: &mut Main) {
         Console::write_line("domain case: maximum");
         correct(&mut main.result, 999.0, 999.0, 0.0, 1.0, true);
         transition main.result.status == 1 {
@@ -1636,177 +1636,177 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> bad(main)
         }
     }
-    state case_12_metric_0_lower(main: &mut Main) {
+    machine case_12_metric_0_lower(main: &mut Main) {
         let observed: f64 = main.result.mass_a * 1000000.0;
         transition observed >= 999000000.0 - 1.0 {
             true -> case_12_metric_0_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_12_metric_0_upper(main: &mut Main, observed: f64) {
+    machine case_12_metric_0_upper(main: &mut Main, observed: f64) {
         transition observed <= 999000000.0 + 1.0 {
             true -> case_12_metric_1_lower(main)
             false -> bad(main)
         }
     }
-    state case_12_metric_1_lower(main: &mut Main) {
+    machine case_12_metric_1_lower(main: &mut Main) {
         let observed: f64 = main.result.mass_b * 1000000.0;
         transition observed >= 999000000.0 - 1.0 {
             true -> case_12_metric_1_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_12_metric_1_upper(main: &mut Main, observed: f64) {
+    machine case_12_metric_1_upper(main: &mut Main, observed: f64) {
         transition observed <= 999000000.0 + 1.0 {
             true -> case_12_metric_2_lower(main)
             false -> bad(main)
         }
     }
-    state case_12_metric_2_lower(main: &mut Main) {
+    machine case_12_metric_2_lower(main: &mut Main) {
         let observed: f64 = main.result.total * 1000000.0;
         transition observed >= 1998000000.0 - 1.0 {
             true -> case_12_metric_2_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_12_metric_2_upper(main: &mut Main, observed: f64) {
+    machine case_12_metric_2_upper(main: &mut Main, observed: f64) {
         transition observed <= 1998000000.0 + 1.0 {
             true -> case_12_metric_3_lower(main)
             false -> bad(main)
         }
     }
-    state case_12_metric_3_lower(main: &mut Main) {
+    machine case_12_metric_3_lower(main: &mut Main) {
         let observed: f64 = main.result.mass_variance * 1000000000.0;
         transition observed >= 50000000.00 - 1.0 {
             true -> case_12_metric_3_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_12_metric_3_upper(main: &mut Main, observed: f64) {
+    machine case_12_metric_3_upper(main: &mut Main, observed: f64) {
         transition observed <= 50000000.00 + 1.0 {
             true -> case_12_metric_4_lower(main)
             false -> bad(main)
         }
     }
-    state case_12_metric_4_lower(main: &mut Main) {
+    machine case_12_metric_4_lower(main: &mut Main) {
         let observed: f64 = main.result.covariance * 1000000000.0;
         transition observed >= 40000000.00 - 1.0 {
             true -> case_12_metric_4_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_12_metric_4_upper(main: &mut Main, observed: f64) {
+    machine case_12_metric_4_upper(main: &mut Main, observed: f64) {
         transition observed <= 40000000.00 + 1.0 {
             true -> case_12_metric_5_lower(main)
             false -> bad(main)
         }
     }
-    state case_12_metric_5_lower(main: &mut Main) {
+    machine case_12_metric_5_lower(main: &mut Main) {
         let observed: f64 = main.result.total_variance * 1000000000.0;
         transition observed >= 180000000.00 - 1.0 {
             true -> case_12_metric_5_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_12_metric_5_upper(main: &mut Main, observed: f64) {
+    machine case_12_metric_5_upper(main: &mut Main, observed: f64) {
         transition observed <= 180000000.00 + 1.0 {
             true -> case_12_metric_6_lower(main)
             false -> bad(main)
         }
     }
-    state case_12_metric_6_lower(main: &mut Main) {
+    machine case_12_metric_6_lower(main: &mut Main) {
         let observed: f64 = main.result.fraction_a * 1000000.0;
         transition observed >= 500000.0 - 1.0 {
             true -> case_12_metric_6_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_12_metric_6_upper(main: &mut Main, observed: f64) {
+    machine case_12_metric_6_upper(main: &mut Main, observed: f64) {
         transition observed <= 500000.0 + 1.0 {
             true -> case_12_metric_7_lower(main)
             false -> bad(main)
         }
     }
-    state case_12_metric_7_lower(main: &mut Main) {
+    machine case_12_metric_7_lower(main: &mut Main) {
         let observed: f64 = main.result.fraction_b * 1000000.0;
         transition observed >= 500000.0 - 1.0 {
             true -> case_12_metric_7_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_12_metric_7_upper(main: &mut Main, observed: f64) {
+    machine case_12_metric_7_upper(main: &mut Main, observed: f64) {
         transition observed <= 500000.0 + 1.0 {
             true -> case_12_metric_8_lower(main)
             false -> bad(main)
         }
     }
-    state case_12_metric_8_lower(main: &mut Main) {
+    machine case_12_metric_8_lower(main: &mut Main) {
         let observed: f64 = main.result.fraction_variance * 1000000000.0;
         transition observed >= 1.252503755006257508760011262513765016267518770021272523775026277528780 - 1.0 {
             true -> case_12_metric_8_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_12_metric_8_upper(main: &mut Main, observed: f64) {
+    machine case_12_metric_8_upper(main: &mut Main, observed: f64) {
         transition observed <= 1.252503755006257508760011262513765016267518770021272523775026277528780 + 1.0 {
             true -> case_12_metric_9_lower(main)
             false -> bad(main)
         }
     }
-    state case_12_metric_9_lower(main: &mut Main) {
+    machine case_12_metric_9_lower(main: &mut Main) {
         let observed: f64 = main.result.uncertainty * 1000000.0;
         transition observed >= 35.39072978911649271275497307832077273697877566008378561503202547524356 - 1.0 {
             true -> case_12_metric_9_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_12_metric_9_upper(main: &mut Main, observed: f64) {
+    machine case_12_metric_9_upper(main: &mut Main, observed: f64) {
         transition observed <= 35.39072978911649271275497307832077273697877566008378561503202547524356 + 1.0 {
             true -> case_12_metric_10_lower(main)
             false -> bad(main)
         }
     }
-    state case_12_metric_10_lower(main: &mut Main) {
+    machine case_12_metric_10_lower(main: &mut Main) {
         let observed: f64 = main.result.expanded * 1000000.0;
         transition observed >= 70.78145957823298542550994615664154547395755132016757123006405095048712 - 1.0 {
             true -> case_12_metric_10_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_12_metric_10_upper(main: &mut Main, observed: f64) {
+    machine case_12_metric_10_upper(main: &mut Main, observed: f64) {
         transition observed <= 70.78145957823298542550994615664154547395755132016757123006405095048712 + 1.0 {
             true -> case_12_metric_11_lower(main)
             false -> bad(main)
         }
     }
-    state case_12_metric_11_lower(main: &mut Main) {
+    machine case_12_metric_11_lower(main: &mut Main) {
         let observed: f64 = main.result.lower * 1000000.0;
         transition observed >= 499929.2185404217670145744900538433584545260424486798324287699359490495 - 1.0 {
             true -> case_12_metric_11_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_12_metric_11_upper(main: &mut Main, observed: f64) {
+    machine case_12_metric_11_upper(main: &mut Main, observed: f64) {
         transition observed <= 499929.2185404217670145744900538433584545260424486798324287699359490495 + 1.0 {
             true -> case_12_metric_12_lower(main)
             false -> bad(main)
         }
     }
-    state case_12_metric_12_lower(main: &mut Main) {
+    machine case_12_metric_12_lower(main: &mut Main) {
         let observed: f64 = main.result.upper * 1000000.0;
         transition observed >= 500070.7814595782329854255099461566415454739575513201675712300640509505 - 1.0 {
             true -> case_12_metric_12_upper(main, observed)
             false -> bad(main)
         }
     }
-    state case_12_metric_12_upper(main: &mut Main, observed: f64) {
+    machine case_12_metric_12_upper(main: &mut Main, observed: f64) {
         transition observed <= 500070.7814595782329854255099461566415454739575513201675712300640509505 + 1.0 {
             true -> good(main)
             false -> bad(main)
         }
     }
-    state good(main: &mut Main) { Console::write_line("VERIFIED: domain_oracles"); Console::exit_process(0); }
-    state bad(main: &mut Main) { Console::write_line("FAIL: domain_oracles"); Console::exit_process(77); }
+    machine good(main: &mut Main) { Console::write_line("VERIFIED: domain_oracles"); Console::exit_process(0); }
+    machine bad(main: &mut Main) { Console::write_line("FAIL: domain_oracles"); Console::exit_process(77); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

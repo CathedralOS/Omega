@@ -84,7 +84,7 @@ machine MazeBuilder::build(
     }
 
 
-    state maybe_side(
+    machine maybe_side(
         maze_builder: &mut MazeBuilder,
         level: &mut Level,
         random: &mut RandomState
@@ -95,7 +95,7 @@ machine MazeBuilder::build(
         }
     }
 
-    state hall_two(
+    machine hall_two(
         maze_builder: &mut MazeBuilder,
         level: &mut Level,
         random: &mut RandomState
@@ -140,9 +140,9 @@ machine Main::run(main: &mut Main) -> i32 {
         _ -> probe_other(main)
     }
 
-    state probe_correct(main: &mut Main) -> i32 { 70 }
-    state probe_stalled(main: &mut Main) -> i32 { 2 }
-    state probe_other(main: &mut Main) -> i32 { 77 }
+    machine probe_correct(main: &mut Main) -> i32 { 70 }
+    machine probe_stalled(main: &mut Main) -> i32 { 2 }
+    machine probe_other(main: &mut Main) -> i32 { 77 }
 }
 
 machine Main::main(main: &mut Main) reaches Console {

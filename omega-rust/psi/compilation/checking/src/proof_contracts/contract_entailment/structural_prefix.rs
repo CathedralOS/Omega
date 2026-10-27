@@ -5,6 +5,10 @@
 //! statement or a recurrent successor. State Requires describe this invocation;
 //! machine Requires apply here only when this is the machine's entry state.
 
+mod private_arrivals;
+
+pub(super) use private_arrivals::observe_private_arrivals;
+
 use super::citations::{CitationFacts, machine_requires_facts};
 use super::structural_case_arms::{
     recognize_structural_case_arms, recognize_structural_state_prefix,
@@ -115,6 +119,24 @@ pub(super) type PrefixObservation<'a, 'program> = (
 pub(super) trait StructuralPrefixVisitor {
     fn site(&self) -> StructuralPrefixSite;
 
+    /// One authenticated body arrival after its actuals completed. Coverage
+    /// consumers distinguish these occurrences from lexical ancestry and from
+    /// an unexecuted callable selection.
+    fn entered_body(
+        &mut self,
+        _caller: SymbolHandle,
+        _statement: usize,
+        _expression: Option<typed_trees::expression::ExpressionHandle>,
+        _entry: SymbolHandle,
+    ) {
+    }
+
+    /// A ranked entry starts a fresh induction interval. Observers checking
+    /// that interval stop at the next ranked invocation, before its body.
+    fn stops_at_machine(&self, _machine: SymbolHandle) -> bool {
+        false
+    }
+
     /// True once no further path observation can change the visitor's verdict.
     fn is_complete(&self) -> bool {
         false
@@ -131,6 +153,17 @@ pub(super) trait StructuralPrefixVisitor {
     /// visitor that owns a different entry point overrides `visit` and leaves
     /// this unreachable.
     fn observe<'program>(&mut self, observation: PrefixObservation<'_, 'program>);
+
+    /// A closed private invocation supplies an independently checked enclosing
+    /// root and actual entry frame. Consumers own any additional theorem use:
+    /// operand formation does not acquire recursive conclusions from this hook.
+    fn observe_private_arrival<'program>(
+        &mut self,
+        _root: &Machine,
+        observation: PrefixObservation<'_, 'program>,
+    ) {
+        self.observe(observation);
+    }
 
     /// Establish this observation's premises - the arm's hypotheses and
     /// equations, its contradiction test, and the selected call's published

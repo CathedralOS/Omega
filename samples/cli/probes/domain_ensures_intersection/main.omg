@@ -65,19 +65,19 @@ machine Main::main(main: &mut Main) {
         true -> one(main)
         _ -> other(main)
     }
-    state one(main: &mut Main) {
+    machine one(main: &mut Main) {
         main.hits = 1;
         transition main.password.score >= 8 {
             true -> two(main)
             _ -> other(main)
         }
     }
-    state two(main: &mut Main) {
+    machine two(main: &mut Main) {
         main.hits = 2;
         Main::accept(main.password);
         main.hits = 3;
     }
-    state other(main: &mut Main) {
+    machine other(main: &mut Main) {
         main.hits = -1;
     }
 }

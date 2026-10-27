@@ -14,6 +14,7 @@
 
 mod builtin;
 mod fast_map;
+mod retained_declaration;
 mod symbol;
 mod table;
 
@@ -23,6 +24,7 @@ pub use builtin::{
     builtin_type_symbols, fixed_core_declaration_symbols,
 };
 pub use fast_map::{BuildSymbolHasher, SymbolHasher, SymbolKeyMap, SymbolMap};
+pub use retained_declaration::RetainedDeclaration;
 pub use symbol::kind::SymbolKind;
 pub use symbol::name::{SymbolName, SymbolNameRef};
 pub use symbol::path::SymbolPath;

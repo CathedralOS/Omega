@@ -32,7 +32,7 @@ public machine reconcile(frame: &Frame) -> Balance {
         result.moment_x < 0 - result.force * 150 || result.moment_x > result.force * 150 || result.moment_y < 0 - result.force * 75 || result.moment_y > result.force * 75 -> invalid(result, 5)
         _ -> invalid(result, 0)
     }
-    state invalid(result: Balance, status: i32) -> Balance {
+    machine invalid(result: Balance, status: i32) -> Balance {
         let mut completed: Balance = result;
         completed.status = status;
         completed

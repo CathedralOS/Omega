@@ -41,6 +41,9 @@ impl<'a> DescriptorAnalysis<'a> {
             })
             .flatten()
             .collect::<Vec<_>>();
+        if slots.is_empty() {
+            return BTreeMap::new();
+        }
         machine
             .flow
             .iter()

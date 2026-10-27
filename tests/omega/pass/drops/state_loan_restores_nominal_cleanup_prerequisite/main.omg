@@ -2,15 +2,15 @@ data Room { count: u32 in Wrapping; }
 machine Room::drop(room: &mut Room) requires room.count == 10 { room.count = 99; }
 machine restore(room: &mut Room) ensures room.count == 10 {
  transition { _ -> observe(room) }
- state observe(room: &mut Room) { room.count = 11; room.count = 10; }
+ machine observe(room: &mut Room) { room.count = 11; room.count = 10; }
 }
 data Main {}
 machine Main::main(main: &mut Main) crashes Trap {
  let room: Room = Room { count: 11 };
  restore(&mut room);
  transition room.count == 10 { true -> done() false -> bad() }
- state done() {}
- state bad() { crash Trap; }
+ machine done() {}
+ machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

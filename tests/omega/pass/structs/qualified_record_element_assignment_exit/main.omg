@@ -13,7 +13,7 @@ data Main { room: Room; command: [u8; 4] in Utf8; direction: Direction; }
 
 machine Room::install(room: &mut Room, command: [u8; 4] in Utf8, direction: Direction, coordinate: u64) {
     transition { _ -> write(room, command, direction, coordinate) }
-    state write(room: &mut Room, command: [u8; 4] in Utf8, direction: Direction, coordinate: u64) {
+    machine write(room: &mut Room, command: [u8; 4] in Utf8, direction: Direction, coordinate: u64) {
         room.exits[1] = Exit {
             command: command,
             direction: direction,
@@ -34,13 +34,13 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> verify_direction(main)
         false -> finish(main, 1)
     }
-    state verify_direction(main: &mut Main) {
+    machine verify_direction(main: &mut Main) {
         transition main.room.exits[1].direction {
             Direction::East -> finish(main, 70)
             Direction::None -> finish(main, 2)
         }
     }
-    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -4,7 +4,7 @@ machine unpack<Value>(result: &mut Extraction<Value>, fallback: u64) -> u64 {
         true -> replaced(result)
         false -> fallback
     }
-    state replaced(result: &mut Extraction<Value>) -> u64 {
+    machine replaced(result: &mut Extraction<Value>) -> u64 {
         result = Extraction::Empty {};
         result.stamp
     }

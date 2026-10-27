@@ -18,11 +18,11 @@ machine probe(gate: Gate) -> bool {
   Outcome::Success { ; selected: proof } -> accepted(gate, before; proof)
   _ -> (false)
  }
- state accepted(gate: Gate, count: u32)
+ machine accepted(gate: Gate, count: u32) -> bool
  requires incoming: pair(gate.threshold, count)
  { gate.threshold == 5 && count == 5 }
 }
 machine main() crashes Trap {
  transition probe(Gate { threshold: 5 }) { true -> done() _ -> bad() }
- state done() {} state bad() { crash Trap; }
+ machine done() {} machine bad() { crash Trap; }
 }

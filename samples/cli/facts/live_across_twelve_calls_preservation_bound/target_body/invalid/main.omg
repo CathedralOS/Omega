@@ -107,8 +107,8 @@ linux_x86_64 machine compute_target_body(saved: u64) -> i32
         true -> done()
         _ -> bad()
     }
-    state done() -> i32 { 0 }
-    state bad() -> i32 { 1 }
+    machine done() -> i32 { 0 }
+    machine bad() -> i32 { 1 }
 }
 
 linux_arm64 machine compute_target_body(saved: u64) -> i32
@@ -133,8 +133,8 @@ linux_arm64 machine compute_target_body(saved: u64) -> i32
         true -> done()
         _ -> bad()
     }
-    state done() -> i32 { 0 }
-    state bad() -> i32 { 1 }
+    machine done() -> i32 { 0 }
+    machine bad() -> i32 { 1 }
 }
 
 macos_arm64 machine compute_target_body(saved: u64) -> i32
@@ -159,8 +159,8 @@ macos_arm64 machine compute_target_body(saved: u64) -> i32
         true -> done()
         _ -> bad()
     }
-    state done() -> i32 { 0 }
-    state bad() -> i32 { 1 }
+    machine done() -> i32 { 0 }
+    machine bad() -> i32 { 1 }
 }
 
 windows_x86_64 machine compute_target_body(saved: u64) -> i32
@@ -185,8 +185,8 @@ windows_x86_64 machine compute_target_body(saved: u64) -> i32
         true -> done()
         _ -> bad()
     }
-    state done() -> i32 { 0 }
-    state bad() -> i32 { 1 }
+    machine done() -> i32 { 0 }
+    machine bad() -> i32 { 1 }
 }
 
 machine evaluate() -> i32 {
@@ -199,6 +199,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

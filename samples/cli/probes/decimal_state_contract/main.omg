@@ -9,7 +9,7 @@ machine decimal(value: u64 in Trapping) -> i32 {
         true -> hundreds(value, 0)
         _ -> 2
     }
-    state hundreds(rest: u64 in Trapping, count: u64 in Trapping)
+    machine hundreds(rest: u64 in Trapping, count: u64 in Trapping) -> i32
     requires count <= 9 && embed(rest) + embed(count) * 100 <= 999
     {
         transition rest >= 100 {
@@ -17,17 +17,17 @@ machine decimal(value: u64 in Trapping) -> i32 {
             _ -> hundreds_emit(rest, count)
         }
     }
-    state hundreds_emit(rest: u64 in Trapping, count: u64 in Trapping) {
+    machine hundreds_emit(rest: u64 in Trapping, count: u64 in Trapping) -> i32 {
         transition count == 0 {
             true -> loop(rest, 0)
             _ -> hundreds_digit(rest, 48 + count)
         }
     }
-    state hundreds_digit(rest: u64 in Trapping, code: u64 in Trapping) {
+    machine hundreds_digit(rest: u64 in Trapping, code: u64 in Trapping) -> i32 {
         digit(code);
         transition { _ -> loop(rest, 0) }
     }
-    state loop(rest: u64 in Trapping, count: u64 in Trapping)
+    machine loop(rest: u64 in Trapping, count: u64 in Trapping) -> i32
     requires count <= 9 && embed(rest) + embed(count) * 10 <= 99
     {
         transition rest >= 10 {
@@ -35,7 +35,7 @@ machine decimal(value: u64 in Trapping) -> i32 {
             _ -> emit(rest, count)
         }
     }
-    state emit(rest: u64 in Trapping, count: u64 in Trapping) {
+    machine emit(rest: u64 in Trapping, count: u64 in Trapping) -> i32 {
         digit(48 + count);
         digit(48 + rest);
         transition rest == 9 && count == 9 {
@@ -51,6 +51,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> wrong()
     }
-    state done() { }
-    state wrong() { crash Trap; }
+    machine done() { }
+    machine wrong() { crash Trap; }
 }

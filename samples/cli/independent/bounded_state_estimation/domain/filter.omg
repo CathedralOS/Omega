@@ -36,7 +36,7 @@ machine observe(filter: &mut Filter, measurement: f64, position_axis: bool) -> b
         true -> update(filter, measurement, Vector { position: 1.0, velocity: 0.0 })
         false -> update(filter, measurement, Vector { position: 0.0, velocity: 1.0 })
     }
-    state update(filter: &mut Filter, measurement: f64, axis: Vector) -> bool {
+    machine update(filter: &mut Filter, measurement: f64, axis: Vector) -> bool {
         let projection: Vector = apply(filter.covariance, axis);
         filter.innovation = measurement - axis.position * filter.estimate.position - axis.velocity * filter.estimate.velocity;
         filter.innovation_variance = axis.position * projection.position + axis.velocity * projection.velocity + filter.observation_noise;
@@ -45,7 +45,7 @@ machine observe(filter: &mut Filter, measurement: f64, position_axis: bool) -> b
             false -> false
         }
     }
-    state accepted(filter: &mut Filter, axis: Vector, projection: Vector) -> bool {
+    machine accepted(filter: &mut Filter, axis: Vector, projection: Vector) -> bool {
         let gain: Vector = Vector { position: projection.position / filter.innovation_variance,
             velocity: projection.velocity / filter.innovation_variance };
         let residual: Matrix = Matrix { a: 1.0 - gain.position * axis.position,

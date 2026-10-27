@@ -35,7 +35,7 @@ requires k < 4 {
         _ -> (1)
     }
 
-    state check_scale(scale: f32) -> i32 {
+    machine check_scale(scale: f32) -> i32 {
         transition scale < 2.0 {
             true -> (0)
             _ -> (2)
@@ -67,11 +67,11 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> refused(71)
     }
 
-    state done() {
+    machine done() {
         Console::exit_process(70);
     }
 
-    state refused(code: i32) {
+    machine refused(code: i32) {
         Console::exit_process(code);
     }
 }

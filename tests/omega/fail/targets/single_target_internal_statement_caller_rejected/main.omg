@@ -23,7 +23,7 @@ data Helper { seed: i32; }
 
 uefi_x86_64 machine Helper::record_paradigm_event() {
     transition { _ -> done() }
-    state done() { }
+    machine done() { }
 }
 
 data Main { helper: Helper; }

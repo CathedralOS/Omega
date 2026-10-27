@@ -788,9 +788,10 @@ impl SelectedProviderPlanFacts {
         &self,
         requirement_identity: &str,
     ) -> Option<&SelectedRequirementSpecialization> {
-        self.specialized_requirement_rows.iter().find(|row| {
-            self.identities.text(row.requirement_identity) == Some(requirement_identity)
-        })
+        let index = self.identities.index_of(requirement_identity)?;
+        self.specialized_requirement_rows
+            .iter()
+            .find(|row| row.requirement_identity == index)
     }
 
     /// The roster rows under one selected plan row — every closed requirement
@@ -801,10 +802,10 @@ impl SelectedProviderPlanFacts {
         provider_plan_report_identity: u64,
         selected_requirement_identity: &'a str,
     ) -> impl Iterator<Item = &'a SelectedRequirementSpecialization> + 'a {
+        let selected_index = self.identities.index_of(selected_requirement_identity);
         self.specialized_requirement_rows.iter().filter(move |row| {
             row.provider_plan_report_identity == provider_plan_report_identity
-                && self.identities.text(row.selected_requirement_identity)
-                    == Some(selected_requirement_identity)
+                && Some(row.selected_requirement_identity) == selected_index
         })
     }
 
@@ -816,6 +817,7 @@ impl SelectedProviderPlanFacts {
         provider_plan_report_identity: u64,
         row_requirement_identity: &'a str,
     ) -> Vec<&'a str> {
+        let row_index = self.identities.index_of(row_requirement_identity);
         let mut identities = self
             .specialized_requirement_rows_for_row(
                 provider_plan_report_identity,
@@ -832,8 +834,7 @@ impl SelectedProviderPlanFacts {
                 .iter()
                 .filter(|row| {
                     row.provider_plan_report_identity == provider_plan_report_identity
-                        && self.identities.text(row.selected_requirement_identity)
-                            == Some(row_requirement_identity)
+                        && Some(row.selected_requirement_identity) == row_index
                 })
                 .filter_map(|row| self.identities.text(row.requirement_identity)),
         );
@@ -842,8 +843,7 @@ impl SelectedProviderPlanFacts {
         }
         for row in &self.family_realization_rows {
             if row.provider_plan_report_identity == provider_plan_report_identity
-                && self.identities.text(row.selected_requirement_identity)
-                    == Some(row_requirement_identity)
+                && Some(row.selected_requirement_identity) == row_index
             {
                 identities.extend([
                     self.identities.text(row.head_identity).unwrap_or_default(),
@@ -917,16 +917,35 @@ impl SelectedProviderPlanFacts {
         &self,
         requirement: &str,
     ) -> Option<(&ProviderPlan, &crate::provider_plan::ProviderPlanRow)> {
+        let (target_requirement, target_plan_fingerprint) =
+            if let Some(row) = self.family_realization_row(requirement) {
+                (
+                    self.identities.text(row.selected_requirement_identity)?,
+                    Some(row.provider_plan_report_identity),
+                )
+            } else if let Some(row) = self.specialized_requirement_row(requirement) {
+                (
+                    self.identities.text(row.selected_requirement_identity)?,
+                    Some(row.provider_plan_report_identity),
+                )
+            } else if let Some(row) = self.external_requirement_application(requirement) {
+                (
+                    self.identities.text(row.selected_requirement_identity)?,
+                    Some(row.provider_plan_report_identity),
+                )
+            } else {
+                (requirement, None)
+            };
         self.plans.iter().find_map(|plan| {
+            if let Some(expected_fp) = target_plan_fingerprint
+                && plan.report_fingerprint() != expected_fp
+            {
+                return None;
+            }
+            let target_id = plan.identities.id_at(target_requirement)?;
             plan.rows
                 .iter()
-                .find(|row| {
-                    self.selected_row_matches_requirement(
-                        requirement,
-                        plan.identities.text(row.requirement_identity),
-                        plan.report_fingerprint(),
-                    )
-                })
+                .find(|row| row.requirement_identity == target_id)
                 .map(|row| (plan, row))
         })
     }
@@ -980,10 +999,10 @@ impl SelectedProviderPlanFacts {
         &self,
         identity: &str,
     ) -> Option<&SelectedTargetFamilyRealization> {
-        self.family_realization_rows.iter().find(|row| {
-            self.identities.text(row.head_identity) == Some(identity)
-                || self.identities.text(row.member_identity) == Some(identity)
-        })
+        let index = self.identities.index_of(identity)?;
+        self.family_realization_rows
+            .iter()
+            .find(|row| row.head_identity == index || row.member_identity == index)
     }
 
     fn validate_family_realization_rows(
@@ -1108,12 +1127,11 @@ impl SelectedProviderPlanFacts {
             );
         }
         let requirement_identity = self.selected_requirement_identity(requirement_identity);
+        let req_index = self.identities.index_of(requirement_identity)?;
         let mut matches = self
             .installation_reach_resolutions
             .iter()
-            .filter(|resolution| {
-                self.identities.text(resolution.requirement_identity) == Some(requirement_identity)
-            });
+            .filter(|resolution| resolution.requirement_identity == req_index);
         let resolution = matches.next()?;
         if matches.next().is_some() {
             return None;
@@ -1138,12 +1156,12 @@ impl SelectedProviderPlanFacts {
             return None;
         }
         let requirement_identity = self.selected_requirement_identity(requirement_identity);
+        let req_index = self.identities.index_of(requirement_identity)?;
         self.installation_reach_resolutions
             .iter()
             .find(|resolution| {
                 resolution.provider_plan_report_identity == provider_plan_report_identity
-                    && self.identities.text(resolution.requirement_identity)
-                        == Some(requirement_identity)
+                    && resolution.requirement_identity == req_index
             })
     }
 

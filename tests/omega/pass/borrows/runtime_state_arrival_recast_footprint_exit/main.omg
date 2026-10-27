@@ -4,18 +4,18 @@ data Storage { bytes: [u8; 8]; }
 machine through_parameter(bytes: &[u8; 8]) -> u64 {
  let view: &Word = &bytes[0] as &Word;
  transition { _ -> read(view) }
- state read(view: &Word) -> u64 { view.value }
+ machine read(view: &Word) -> u64 { view.value }
 }
 machine through_field(storage: &Storage) -> u64 {
  let view: &Word = &storage.bytes[0] as &Word;
  transition { _ -> read(view) }
- state read(view: &Word) -> u64 { view.value }
+ machine read(view: &Word) -> u64 { view.value }
 }
 machine through_local() -> u64 {
  let bytes: [u8; 8] = [37, 0, 0, 0, 0, 0, 0, 0];
  let view: &Word = &bytes[0] as &Word;
  transition { _ -> read(view) }
- state read(view: &Word) -> u64 { view.value }
+ machine read(view: &Word) -> u64 { view.value }
 }
 machine main() crashes Trap {
  let storage: Storage = Storage { bytes: [37, 0, 0, 0, 0, 0, 0, 0] };
@@ -26,6 +26,6 @@ machine main() crashes Trap {
   true -> done()
   false -> bad()
  }
- state done() {}
- state bad() { crash Trap; }
+ machine done() {}
+ machine bad() { crash Trap; }
 }

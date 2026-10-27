@@ -1478,6 +1478,8 @@ impl<'program> ShapeCollector<'program> {
             && matches!(
                 field_type,
                 CheckedUnitStructuralFieldType::Structural { .. }
+                    | CheckedUnitStructuralFieldType::BoundedInteger(_)
+                    | CheckedUnitStructuralFieldType::RefinedScalar { .. }
                     | CheckedUnitStructuralFieldType::ByteSequence(_)
                     | CheckedUnitStructuralFieldType::PredicateByteSequence { .. }
             )
@@ -1488,13 +1490,15 @@ impl<'program> ShapeCollector<'program> {
                 field_type_reference,
                 binders,
             )?;
-            // A structural field's carrier is its own retained type; a byte
-            // field names none, so its plan carries the carriers instead.
-            if field_type.byte_sequence_carrier().is_some() {
+            // Structural children retain their own type. Inline scalar and
+            // byte restrictions keep the exact qualification carrier here,
+            // independently of their physical scalar/byte representation.
+            if !matches!(
+                field_type,
+                CheckedUnitStructuralFieldType::Structural { .. }
+            ) {
                 for (_, carrier) in carriers {
-                    if !qualification_carriers.contains(&carrier) {
-                        qualification_carriers.push(carrier);
-                    }
+                    crate::collections::push_unique(&mut qualification_carriers, carrier);
                 }
             }
         }

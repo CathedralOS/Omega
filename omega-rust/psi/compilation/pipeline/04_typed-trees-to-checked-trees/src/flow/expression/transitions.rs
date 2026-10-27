@@ -144,7 +144,7 @@ impl Execution<'_, '_, '_> {
                 self.context.active_completed_copies,
             );
         }
-        let stores = self.invoke(
+        let completed = self.invoke(
             InvocationSite::Transition(target),
             super::InvocationInputs {
                 operands: &captured_operands,
@@ -153,7 +153,7 @@ impl Execution<'_, '_, '_> {
             contexts,
             constraints,
         );
-        self.install_call_stores(stores);
+        self.install_call_stores(completed.stores);
         self.context.active_completed_copies = previous_copies;
     }
 }

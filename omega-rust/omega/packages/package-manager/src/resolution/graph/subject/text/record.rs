@@ -21,6 +21,7 @@ use target::TargetProfile;
 
 /// Text record carrying purpose-split authored rows and purpose-tagged edges.
 const TEXT_VERSION: &str = "3";
+const QUERY_TEXT_VERSION: &str = "4";
 const PURPOSE_TEXT_VERSION: &str = "2";
 /// Legacy record: every authored row and edge is implicitly product purpose.
 const LEGACY_TEXT_VERSION: &str = "1";
@@ -73,6 +74,12 @@ impl CanonicalSourceClosureSubject {
             &mut writer,
             if self.catalog_dependencies.is_empty() {
                 PURPOSE_TEXT_VERSION
+            } else if self
+                .catalog_dependencies
+                .iter()
+                .any(|dependency| dependency.purpose != DependencyPurpose::Build)
+            {
+                QUERY_TEXT_VERSION
             } else {
                 TEXT_VERSION
             },
@@ -81,9 +88,21 @@ impl CanonicalSourceClosureSubject {
     }
 
     fn write_text(&self, writer: &mut Writer, version: &str) -> Result<(), Error> {
-        if version != TEXT_VERSION && !self.catalog_dependencies.is_empty() {
+        if !matches!(version, TEXT_VERSION | QUERY_TEXT_VERSION)
+            && !self.catalog_dependencies.is_empty()
+        {
             return Err(Error::new(
                 "legacy source-closure text cannot express catalog execution",
+            ));
+        }
+        if version != QUERY_TEXT_VERSION
+            && self
+                .catalog_dependencies
+                .iter()
+                .any(|dependency| dependency.purpose != DependencyPurpose::Build)
+        {
+            return Err(Error::new(
+                "legacy catalog text cannot express Product query dependencies",
             ));
         }
         match version {
@@ -107,6 +126,7 @@ impl CanonicalSourceClosureSubject {
             }
             PURPOSE_TEXT_VERSION => writer.row("omega-source-closure 2", &[])?,
             TEXT_VERSION => writer.row("omega-source-closure 3", &[])?,
+            QUERY_TEXT_VERSION => writer.row("omega-source-closure 4", &[])?,
             _ => {
                 return Err(Error::new("unsupported source-closure text version"));
             }
@@ -157,13 +177,16 @@ impl CanonicalSourceClosureSubject {
             writer.row("selected", &[])?;
             write_source(writer, edge.selected())?;
         }
-        if version == TEXT_VERSION {
+        if matches!(version, TEXT_VERSION | QUERY_TEXT_VERSION) {
             writer.number("catalog-dependencies", self.catalog_dependencies.len())?;
             for dependency in &self.catalog_dependencies {
                 writer.row("catalog-dependency", &[])?;
                 write_source(writer, &dependency.observer)?;
                 write_navigation(writer, &dependency.navigation)?;
                 writer.number("ordinal", dependency.ordinal)?;
+                if version == QUERY_TEXT_VERSION {
+                    writer.row("purpose", &[dependency.purpose.name().as_bytes()])?;
+                }
                 write_request(writer, Request::from(&dependency.request))?;
                 dependency
                     .provider
@@ -213,7 +236,7 @@ impl CanonicalSourceClosureSubject {
         let version = reader.atom()?;
         if !matches!(
             version,
-            LEGACY_TEXT_VERSION | PURPOSE_TEXT_VERSION | TEXT_VERSION
+            LEGACY_TEXT_VERSION | PURPOSE_TEXT_VERSION | TEXT_VERSION | QUERY_TEXT_VERSION
         ) {
             return Err(Error::new(
                 "unexpected source-closure text field or version",
@@ -281,7 +304,7 @@ impl CanonicalSourceClosureSubject {
             });
         }
         let mut catalog_dependencies = Vec::new();
-        if version == TEXT_VERSION {
+        if matches!(version, TEXT_VERSION | QUERY_TEXT_VERSION) {
             reader.expect("catalog-dependencies")?;
             let count = reader.count(if allow_catalog {
                 limits.maximum_dependency_requests
@@ -295,11 +318,22 @@ impl CanonicalSourceClosureSubject {
                 let navigation = read_navigation(reader, limits)?;
                 reader.expect("ordinal")?;
                 let ordinal = reader.number(u32::MAX as usize)?;
+                let purpose = if version == QUERY_TEXT_VERSION {
+                    reader.expect("purpose")?;
+                    match reader.string(64)?.as_str() {
+                        "product" => DependencyPurpose::Product,
+                        "build" => DependencyPurpose::Build,
+                        _ => return Err(Error::new("unknown catalog dependency purpose")),
+                    }
+                } else {
+                    DependencyPurpose::Build
+                };
                 let request = read_request(reader, limits)?;
                 let (provider, _) = Self::read_text(reader, limits, false)?;
                 catalog_dependencies.push(super::super::CanonicalCatalogDependency {
                     observer,
                     navigation,
+                    purpose,
                     ordinal,
                     request,
                     provider,

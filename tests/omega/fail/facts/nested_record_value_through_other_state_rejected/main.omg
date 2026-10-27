@@ -17,7 +17,7 @@ requires envelope.payload <= 50
 ensures result <= 100
 {
     transition { _ -> add(envelope) }
-    state add(env: Envelope) -> u64
+    machine add(env: Envelope) -> u64
     requires env.payload <= 50
     {
         env.header.limit + env.payload
@@ -41,6 +41,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

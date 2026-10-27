@@ -5,6 +5,6 @@ const SOURCE: [u64; SIZE] = [3 + 0];
 const ALIAS: [u64; 1] = SOURCE;
 machine main() crashes Trap {
     transition ALIAS[0] == 3 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

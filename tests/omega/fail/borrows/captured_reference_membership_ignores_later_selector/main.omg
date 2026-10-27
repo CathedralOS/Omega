@@ -9,6 +9,6 @@ machine stale(values: &[u64; 2], position: u64) requires position <= 1 {
         true -> consume(held.value)
         false -> done()
     }
-    state consume(value: &u64) requires value in Positive {}
-    state done() {}
+    machine consume(value: &u64) requires value in Positive {}
+    machine done() {}
 }

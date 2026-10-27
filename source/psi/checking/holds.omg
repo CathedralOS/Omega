@@ -42,7 +42,7 @@ crashes Trap
         _ -> done()
     }
 
-    state called(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, expression: Expression) {
+    machine called(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, expression: Expression) {
         let selection: Selection = Typing::selection(typing, handle);
         let first_parameter: u64 in Trapping = Checker::callee_parameters(syntax, selection);
         transition selection {
@@ -51,7 +51,7 @@ crashes Trap
         }
     }
 
-    state earlier(
+    machine earlier(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -67,7 +67,7 @@ crashes Trap
         }
     }
 
-    state held(
+    machine held(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -89,7 +89,7 @@ crashes Trap
         }
     }
 
-    state whole(
+    machine whole(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -106,7 +106,7 @@ crashes Trap
         transition { _ -> retained(checker, syntax, resolution, typing, expression, jump, first_parameter, index) }
     }
 
-    state retained(
+    machine retained(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -120,7 +120,7 @@ crashes Trap
         transition { _ -> earlier(checker, syntax, resolution, typing, expression, jump, first_parameter, index + 1) }
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // Argument `index`'s hold of `place` against every access of each later
@@ -141,7 +141,7 @@ crashes Trap
 {
     transition { _ -> later(checker, syntax, resolution, typing, expression, jump, place, exclusive, forwards, index + 1) }
 
-    state later(
+    machine later(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -161,7 +161,7 @@ crashes Trap
 
     // A forwarded data parent pairs only with a second forwarding of its
     // parameter.
-    state paired(
+    machine paired(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -181,7 +181,7 @@ crashes Trap
         }
     }
 
-    state forwarding(
+    machine forwarding(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -200,7 +200,7 @@ crashes Trap
         }
     }
 
-    state scanned(
+    machine scanned(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -217,7 +217,7 @@ crashes Trap
         transition { _ -> later(checker, syntax, resolution, typing, expression, jump, place, exclusive, forwards, other + 1) }
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // The places lent inside argument `index`, below its root, that it keeps
@@ -238,7 +238,7 @@ crashes Trap
     let tree: Expression = SyntaxTrees::expression(syntax, argument);
     transition { _ -> next(checker, syntax, resolution, typing, expression, jump, index, argument, tree.first_row) }
 
-    state next(
+    machine next(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -255,7 +255,7 @@ crashes Trap
         }
     }
 
-    state lends(
+    machine lends(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -274,7 +274,7 @@ crashes Trap
         }
     }
 
-    state lent(
+    machine lent(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -294,7 +294,7 @@ crashes Trap
         }
     }
 
-    state held(
+    machine held(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -311,7 +311,7 @@ crashes Trap
         transition { _ -> next(checker, syntax, resolution, typing, expression, jump, index, argument, node + 1) }
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // Whether a loan made at `node` reaches the call through nested results:
@@ -322,14 +322,14 @@ crashes Trap
 {
     transition { _ -> next(syntax, typing, node, root, node + 1, false) }
 
-    state next(syntax: &SyntaxTrees, typing: &Typing, node: u64 in Trapping, root: u64 in Trapping, enclosing: u64 in Trapping, found: bool) -> bool {
+    machine next(syntax: &SyntaxTrees, typing: &Typing, node: u64 in Trapping, root: u64 in Trapping, enclosing: u64 in Trapping, found: bool) -> bool {
         transition enclosing <= root {
             true -> enclosed(syntax, typing, node, root, enclosing, found)
             _ -> answer(found)
         }
     }
 
-    state enclosed(syntax: &SyntaxTrees, typing: &Typing, node: u64 in Trapping, root: u64 in Trapping, enclosing: u64 in Trapping, found: bool) -> bool {
+    machine enclosed(syntax: &SyntaxTrees, typing: &Typing, node: u64 in Trapping, root: u64 in Trapping, enclosing: u64 in Trapping, found: bool) -> bool {
         let expression: Expression = SyntaxTrees::expression(syntax, enclosing);
         let call: bool = expression.kind == ExpressionKind::Call && expression.first_row <= node;
         transition call {
@@ -338,7 +338,7 @@ crashes Trap
         }
     }
 
-    state completed(syntax: &SyntaxTrees, typing: &Typing, node: u64 in Trapping, root: u64 in Trapping, enclosing: u64 in Trapping) -> bool {
+    machine completed(syntax: &SyntaxTrees, typing: &Typing, node: u64 in Trapping, root: u64 in Trapping, enclosing: u64 in Trapping) -> bool {
         let result: u64 in Trapping = Typing::expression_type(typing, enclosing);
         let referencing: bool = Checker::holds_references(syntax, typing, result);
         transition referencing {
@@ -347,7 +347,7 @@ crashes Trap
         }
     }
 
-    state answer(outlives: bool) -> bool {
+    machine answer(outlives: bool) -> bool {
         outlives
     }
 }
@@ -366,7 +366,7 @@ crashes Trap
         _ -> lent(syntax, typing, argument, expression)
     }
 
-    state lent(syntax: &SyntaxTrees, typing: &Typing, argument: u64 in Trapping, expression: Expression) -> Hold {
+    machine lent(syntax: &SyntaxTrees, typing: &Typing, argument: u64 in Trapping, expression: Expression) -> Hold {
         transition expression.kind {
             ExpressionKind::Unary -> borrowed(typing, argument, expression)
             ExpressionKind::Cast -> recast(syntax, typing, argument, expression)
@@ -376,7 +376,7 @@ crashes Trap
 
     // A recast `operand as &T` holds what its operand lends: a borrow's
     // place, or a reference value's referent.
-    state recast(syntax: &SyntaxTrees, typing: &Typing, argument: u64 in Trapping, expression: Expression) -> Hold {
+    machine recast(syntax: &SyntaxTrees, typing: &Typing, argument: u64 in Trapping, expression: Expression) -> Hold {
         let operand: Expression = SyntaxTrees::expression(syntax, expression.left);
         transition operand.kind == ExpressionKind::Unary {
             true -> borrowed(typing, expression.left, operand)
@@ -384,7 +384,7 @@ crashes Trap
         }
     }
 
-    state borrowed(typing: &Typing, argument: u64 in Trapping, expression: Expression) -> Hold {
+    machine borrowed(typing: &Typing, argument: u64 in Trapping, expression: Expression) -> Hold {
         transition expression.operator {
             OperatorKind::Borrow -> answer(Hold::Shared { place: expression.left })
             OperatorKind::BorrowMutable -> answer(Hold::Exclusive { place: expression.left })
@@ -393,7 +393,7 @@ crashes Trap
         }
     }
 
-    state referenced(typing: &Typing, argument: u64 in Trapping) -> Hold {
+    machine referenced(typing: &Typing, argument: u64 in Trapping) -> Hold {
         let argument_type: u64 in Trapping = Typing::expression_type(typing, argument);
         let row: TypeRow = TypeTable::row(&typing.types, argument_type);
         let mutable: bool = row.access != ReferenceAccess::Shared;
@@ -403,14 +403,14 @@ crashes Trap
         }
     }
 
-    state reference(argument: u64 in Trapping, mutable: bool) -> Hold {
+    machine reference(argument: u64 in Trapping, mutable: bool) -> Hold {
         transition mutable {
             true -> answer(Hold::Exclusive { place: argument })
             _ -> answer(Hold::Shared { place: argument })
         }
     }
 
-    state answer(hold: Hold) -> Hold {
+    machine answer(hold: Hold) -> Hold {
         hold
     }
 }
@@ -425,7 +425,7 @@ crashes Trap
         _ -> answer(false)
     }
 
-    state named(resolution: &NameResolution, typing: &Typing, argument: u64 in Trapping) -> bool {
+    machine named(resolution: &NameResolution, typing: &Typing, argument: u64 in Trapping) -> bool {
         let binding: ValueBinding = NameResolution::value_binding(resolution, argument);
         let argument_type: u64 in Trapping = Typing::expression_type(typing, argument);
         let row: TypeRow = TypeTable::row(&typing.types, argument_type);
@@ -436,7 +436,7 @@ crashes Trap
         }
     }
 
-    state answer(forwards: bool) -> bool {
+    machine answer(forwards: bool) -> bool {
         forwards
     }
 }
@@ -457,7 +457,7 @@ crashes Trap
     let tree: Expression = SyntaxTrees::expression(syntax, argument);
     transition { _ -> next(checker, syntax, resolution, typing, argument, place, exclusive, tree.first_row) }
 
-    state next(
+    machine next(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -473,7 +473,7 @@ crashes Trap
         }
     }
 
-    state access(
+    machine access(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -491,7 +491,7 @@ crashes Trap
         }
     }
 
-    state overlapping(
+    machine overlapping(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -511,12 +511,12 @@ crashes Trap
         }
     }
 
-    state rejected(checker: &mut Checker, syntax: &SyntaxTrees, node: u64 in Trapping) {
+    machine rejected(checker: &mut Checker, syntax: &SyntaxTrees, node: u64 in Trapping) {
         let expression: Expression = SyntaxTrees::expression(syntax, node);
         Checks::reject(&mut checker.output, CheckDiagnosticCode::OverlappingArguments, expression.source_span);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // Whether a place access is exclusive: lent `&mut`, or an exclusive
@@ -532,7 +532,7 @@ crashes Trap
     let exclusive: bool = role == UseRole::Exclusive || role == UseRole::WriteLend || (role == UseRole::Value && reference);
     transition { _ -> answer(exclusive) }
 
-    state answer(exclusive: bool) -> bool {
+    machine answer(exclusive: bool) -> bool {
         exclusive
     }
 }
@@ -548,19 +548,19 @@ crashes Trap
         _ -> answer(0)
     }
 
-    state machine_parameters(syntax: &SyntaxTrees, handle: u64 in Trapping) -> u64 in Trapping {
+    machine machine_parameters(syntax: &SyntaxTrees, handle: u64 in Trapping) -> u64 in Trapping {
         let item: MachineItem = SyntaxTrees::machine_item(syntax, handle);
         let first: u64 in Trapping = item.first_parameter + 1;
         transition { _ -> answer(first) }
     }
 
-    state state_parameters(syntax: &SyntaxTrees, handle: u64 in Trapping) -> u64 in Trapping {
+    machine state_parameters(syntax: &SyntaxTrees, handle: u64 in Trapping) -> u64 in Trapping {
         let item: StateItem = SyntaxTrees::state_item(syntax, handle);
         let first: u64 in Trapping = item.first_parameter + 1;
         transition { _ -> answer(first) }
     }
 
-    state answer(first: u64 in Trapping) -> u64 in Trapping {
+    machine answer(first: u64 in Trapping) -> u64 in Trapping {
         first
     }
 }
@@ -575,12 +575,12 @@ crashes Trap
         _ -> answer(false)
     }
 
-    state located(syntax: &SyntaxTrees, typing: &Typing, first_parameter: u64 in Trapping, offset: u64 in Trapping) -> bool {
+    machine located(syntax: &SyntaxTrees, typing: &Typing, first_parameter: u64 in Trapping, offset: u64 in Trapping) -> bool {
         let index: u64 in Trapping = (first_parameter - 1) + offset;
         transition { _ -> declared(syntax, typing, index) }
     }
 
-    state declared(syntax: &SyntaxTrees, typing: &Typing, index: u64 in Trapping) -> bool {
+    machine declared(syntax: &SyntaxTrees, typing: &Typing, index: u64 in Trapping) -> bool {
         let parameter: Parameter = SyntaxTrees::parameter(syntax, index);
         let type_handle: u64 in Trapping = Typing::reference_type(typing, parameter.type_reference);
         let row: TypeRow = TypeTable::row(&typing.types, type_handle);
@@ -588,7 +588,7 @@ crashes Trap
         transition { _ -> answer(shared) }
     }
 
-    state answer(shared: bool) -> bool {
+    machine answer(shared: bool) -> bool {
         shared
     }
 }

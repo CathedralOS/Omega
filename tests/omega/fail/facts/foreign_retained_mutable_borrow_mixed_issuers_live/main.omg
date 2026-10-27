@@ -281,8 +281,8 @@ machine Main::main(main: &mut Main) reaches Reader, Writer crashes Trap {
     transition readable == 37 && shared_observed == 37 && mutable_observed == 73 && current == 73 && original == 37 {
         true -> done() _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine entry_start() reaches Reader, Writer crashes Trap {
     let mut entry_storage: Main;

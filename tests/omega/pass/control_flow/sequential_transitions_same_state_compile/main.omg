@@ -14,9 +14,9 @@ machine Main::main(main: &mut Main) {
         _ -> further(main)
     }
 
-    state zero(main: &mut Main) { main.answer = 70; }
+    machine zero(main: &mut Main) { main.answer = 70; }
 
-    state further(main: &mut Main) {
+    machine further(main: &mut Main) {
         main.flag = 2;
         transition main.flag {
             2 -> two(main)
@@ -24,5 +24,5 @@ machine Main::main(main: &mut Main) {
         }
     }
 
-    state two(main: &mut Main) { main.answer = 71; }
+    machine two(main: &mut Main) { main.answer = 71; }
 }

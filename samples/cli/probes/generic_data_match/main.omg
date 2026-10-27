@@ -43,7 +43,7 @@ machine generic_data_match() {
         _ -> done(71)
     }
 
-    state check_match(n: i32) {
+    machine check_match(n: i32) {
         let v: Verdict = classify(7);
         transition v {
             Verdict::Fresh { value } -> judge(n, value)
@@ -51,12 +51,12 @@ machine generic_data_match() {
         }
     }
 
-    state judge(n: i32, value: u64) {
+    machine judge(n: i32, value: u64) {
         transition n == 1 && value == 7 {
             true -> done(70)
             _ -> done(73)
         }
     }
 
-    state done(code: i32) {}
+    machine done(code: i32) {}
 }

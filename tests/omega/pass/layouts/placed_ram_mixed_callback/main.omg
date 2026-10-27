@@ -24,7 +24,7 @@ machine RegPlacement::plan(schema: Schema) -> PlacementPlan {
     let access: AccessPlan = AccessPlan::inaccessible(&schema);
     transition { _ -> place_status(schema, access, entries) }
 
-    state place_status(
+    machine place_status(
         schema: Schema,
         access: AccessPlan,
         entries: [FieldEntry; 64]
@@ -44,7 +44,7 @@ machine RegPlacement::plan(schema: Schema) -> PlacementPlan {
         ) }
     }
 
-    state place_transmit(
+    machine place_transmit(
         schema: Schema,
         access: AccessPlan,
         entries: [FieldEntry; 64]
@@ -63,7 +63,7 @@ machine RegPlacement::plan(schema: Schema) -> PlacementPlan {
         ) }
     }
 
-    state finish(
+    machine finish(
         access: AccessPlan,
         entries: [FieldEntry; 64]
     ) -> PlacementPlan {
@@ -106,7 +106,7 @@ satisfies CallingPolicy::plan
         true -> accept()
         _ -> reject()
     }
-    state accept() -> BoundaryPlanResult {
+    machine accept() -> BoundaryPlanResult {
         let mut plan: BoundaryEntryPlan;
         plan.call.parameter_count = 2;
         plan.call.parameters[0] = SortPolicies::word(8, 0);
@@ -116,7 +116,7 @@ satisfies CallingPolicy::plan
         plan.call.result.locations[0] = ValueLocation::Register { register: MachineRegister::X86Rax, value_byte_offset: 0, byte_size: 4 };
         SortPolicies::finish(plan)
     }
-    state reject() -> BoundaryPlanResult {
+    machine reject() -> BoundaryPlanResult {
         BoundaryPlanResult::Rejected {
             reason: CallingPolicyRejection { reason: "comparator requires two references and an integer result" },
         }
@@ -132,7 +132,7 @@ satisfies CallingPolicy::plan
         true -> accept(signature)
         _ -> reject()
     }
-    state accept(signature: BoundarySignature) -> BoundaryPlanResult {
+    machine accept(signature: BoundarySignature) -> BoundaryPlanResult {
         let mut plan: BoundaryEntryPlan;
         plan.call.parameter_count = signature.native_parameter_count;
         plan.call.parameters[0] = SortPolicies::word(8, 0);
@@ -144,7 +144,7 @@ satisfies CallingPolicy::plan
         plan.call.callback_materializations[0].destination = signature.callback_demands[0].destination;
         SortPolicies::finish(plan)
     }
-    state reject() -> BoundaryPlanResult {
+    machine reject() -> BoundaryPlanResult {
         BoundaryPlanResult::Rejected {
             reason: CallingPolicyRejection { reason: "invalid qsort telescope" },
         }
@@ -209,10 +209,10 @@ machine SortPolicies::finish(output: BoundaryEntryPlan) -> BoundaryPlanResult {
 
 machine SortPolicies::argument_register(register: u64) -> MachineRegister {
     transition register == 0 { true -> MachineRegister::X86Rdi _ -> second(register) }
-    state second(register: u64) -> MachineRegister {
+    machine second(register: u64) -> MachineRegister {
         transition register == 1 { true -> MachineRegister::X86Rsi _ -> third(register) }
     }
-    state third(register: u64) -> MachineRegister {
+    machine third(register: u64) -> MachineRegister {
         transition register == 2 { true -> MachineRegister::X86Rdx _ -> MachineRegister::X86Rcx }
     }
 }
@@ -235,8 +235,8 @@ satisfies Comparator::compare
     let first_status: u32 = first.status.read(&first.status);
     let second_status: u32 = second.status.read(&second.status);
     transition first_status == second_status { true -> equal() false -> unequal() }
-    state equal() { 0 }
-    state unequal() { 1 }
+    machine equal() -> i32 { 0 }
+    machine unequal() -> i32 { 1 }
 }
 linux_x86_64 machine sort_binding() -> ForeignBinding<9, 5, 11> {
     ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "qsort", version: "GLIBC_2.2.5" } }

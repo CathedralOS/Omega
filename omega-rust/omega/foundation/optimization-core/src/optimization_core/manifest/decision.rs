@@ -26,6 +26,22 @@ pub struct OptimizationDecisionRecord {
     validator: Option<OptimizationValidatorIdentity>,
 }
 
+crate::record_views! {
+    record OptimizationDecisionRecord;
+    shared {
+        identity: OptimizationDecisionIdentity,
+        input: OptimizationUnitIdentity,
+        candidate: OptimizationCandidateIdentity,
+        rule: OptimizationRuleIdentity,
+        verdict: OptimizationCandidateVerdict,
+        consumed_analyses: AnalysisSet,
+        validator: Option<OptimizationValidatorIdentity>,
+    }
+    slice {
+        consumed_facts: OptimizationFactReference,
+    }
+}
+
 impl OptimizationDecisionRecord {
     pub fn new(
         input: OptimizationUnitIdentity,
@@ -89,38 +105,6 @@ impl OptimizationDecisionRecord {
             }
         }
         encoded
-    }
-
-    pub const fn identity(&self) -> OptimizationDecisionIdentity {
-        self.identity
-    }
-
-    pub const fn input(&self) -> OptimizationUnitIdentity {
-        self.input
-    }
-
-    pub const fn candidate(&self) -> OptimizationCandidateIdentity {
-        self.candidate
-    }
-
-    pub const fn rule(&self) -> OptimizationRuleIdentity {
-        self.rule
-    }
-
-    pub const fn verdict(&self) -> OptimizationCandidateVerdict {
-        self.verdict
-    }
-
-    pub const fn consumed_analyses(&self) -> AnalysisSet {
-        self.consumed_analyses
-    }
-
-    pub fn consumed_facts(&self) -> &[OptimizationFactReference] {
-        &self.consumed_facts
-    }
-
-    pub const fn validator(&self) -> Option<OptimizationValidatorIdentity> {
-        self.validator
     }
 
     pub fn decode(encoded: &[u8]) -> Result<Self, OptimizationManifestDecodeError> {

@@ -50,6 +50,6 @@ machine main() reaches ProcessProbe crashes Trap {
         true -> accepted()
         _ -> rejected()
     }
-    state accepted() {}
-    state rejected() { crash Trap; }
+    machine accepted() {}
+    machine rejected() { crash Trap; }
 }

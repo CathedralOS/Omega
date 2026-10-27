@@ -33,10 +33,10 @@ use encoding::encode_hex;
 pub(super) const SOURCE_CLOSURE_SUBJECT_MAGIC: &[u8] = b"OMEGA-SOURCE-CLOSURE-SUBJECT\0";
 /// Version of the binary subject encoding.
 ///
-/// v8 adds catalog execution dependencies outside Product routing. Subjects
-/// without those rows retain their exact v7 encoding and historical decision
-/// fingerprints. Both versions retain purpose-qualified authored requests.
-pub(crate) const SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION: u16 = 8;
+/// v9 tags catalog dependencies by purpose for demand-time Product queries.
+/// Build-only catalog subjects retain v8; catalog-free subjects retain v7.
+/// Existing identities and decisions do not change merely for a new encoder.
+pub(crate) const SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION: u16 = 9;
 pub(super) const SOURCE_CLOSURE_SUBJECT_FINGERPRINT_DOMAIN: &[u8] =
     b"OMEGA-SOURCE-CLOSURE-SUBJECT-FINGERPRINT\0";
 
@@ -76,6 +76,7 @@ impl CanonicalSourceClosureSubject {
                 .all(|(left, right)| {
                     left.observer == right.observer
                         && left.navigation == right.navigation
+                        && left.purpose == right.purpose
                         && left.ordinal == right.ordinal
                         && left.request == right.request
                         && left.provider.same_source_graph(&right.provider)
@@ -150,6 +151,7 @@ impl CanonicalSourceClosureSubject {
 pub(crate) struct CanonicalCatalogDependency {
     pub(crate) observer: ResolvedSourceIdentity,
     pub(crate) navigation: PackageSourceNavigation,
+    pub(crate) purpose: DependencyPurpose,
     pub(crate) ordinal: usize,
     pub(crate) request: CanonicalDependencySourceRequest,
     pub(crate) provider: CanonicalSourceClosureSubject,

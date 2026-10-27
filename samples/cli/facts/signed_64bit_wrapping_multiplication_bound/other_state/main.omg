@@ -14,7 +14,7 @@ requires lhs >= 10 && lhs <= 20 && rhs >= 5 && rhs <= 10
     transition {
         _ -> step(lhs, rhs)
     }
-    state step(l: i64, r: i64) -> i64
+    machine step(l: i64, r: i64) -> i64
     requires l >= 10 && l <= 20 && r >= 5 && r <= 10
     {
         let a: i64 in Wrapping = l as i64 in Wrapping;
@@ -34,6 +34,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

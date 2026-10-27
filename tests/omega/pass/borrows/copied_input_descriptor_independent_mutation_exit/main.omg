@@ -10,6 +10,6 @@ machine main() crashes Trap {
     let mut counter: u64 = 0;
     let observed: i32 = relay(view, &mut counter);
     transition observed == 17 && counter == 1 {true -> done() false -> bad()}
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

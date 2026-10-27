@@ -43,6 +43,6 @@ requires from_index < 2
 }
 machine main() crashes Trap {
     transition exercise(0) && exercise(1) { true -> done() false -> wrong() }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

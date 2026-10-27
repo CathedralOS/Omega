@@ -37,7 +37,7 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> spin(main, &mut main.tally, 0, 50000000)
     }
 
-    state spin(
+    machine spin(
         main: &mut Main,
         tally: &mut Tally,
         // Defined-overflow counter: the unconditional `index + 1` increments a
@@ -56,18 +56,18 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state check(main: &mut Main) {
+    machine check(main: &mut Main) {
         transition main.tally.value == 50000000 {
             true -> full_count(main)
             false -> dropped_count(main)
         }
     }
 
-    state full_count(main: &mut Main) {
+    machine full_count(main: &mut Main) {
         Console::exit_process(70);
     }
 
-    state dropped_count(main: &mut Main) {
+    machine dropped_count(main: &mut Main) {
         Console::exit_process(71);
     }
 }

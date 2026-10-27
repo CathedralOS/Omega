@@ -34,6 +34,7 @@ pub(crate) struct ReachableAuthorityEdges {
 pub(crate) struct AuthorityGraph<'a> {
     input: &'a crate::VerifiedPsiOptimizationInput,
     functions: BTreeMap<MachineId, &'a AbstractFunction>,
+    machines: BTreeMap<MachineId, &'a terminal_psi::TerminalMachine>,
     dynamic_dispatch: &'a terminal_psi::TerminalDynamicDispatchCatalog,
     target_profile: target::TargetProfile,
 }
@@ -59,9 +60,14 @@ impl<'a> AuthorityGraph<'a> {
                 plan.entry
             ));
         }
+        let mut machines = BTreeMap::new();
+        for machine in &input.context().module().machines {
+            machines.entry(machine.id).or_insert(machine);
+        }
         Ok(Self {
             input,
             functions,
+            machines,
             dynamic_dispatch: &plan.dynamic_dispatch,
             target_profile,
         })
@@ -85,16 +91,9 @@ impl<'a> AuthorityGraph<'a> {
             // Current rewrites preserve reachable calls and their machine IDs.
             // Any future inlining/call-erasing transform must preserve catalog
             // applicability before this selected executable closure is walked.
-            let terminal_machine =
-                self.input
-                    .context()
-                    .module()
-                    .machine(machine)
-                    .ok_or_else(|| {
-                        format!(
-                            "reachable machine {machine:?} has no retained Terminal declaration"
-                        )
-                    })?;
+            let terminal_machine = self.machines.get(&machine).copied().ok_or_else(|| {
+                format!("reachable machine {machine:?} has no retained Terminal declaration")
+            })?;
             let requirement = terminal_machine.assembly_target_requirement;
             if !requirement.accepts_target_name(self.target_profile.target_name()) {
                 // `MachineId` is a table coordinate. The retained source

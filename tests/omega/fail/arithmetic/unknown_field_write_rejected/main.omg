@@ -14,7 +14,7 @@ data Main {
 machine Main::main(main: &mut Main) {
     main.cont = 5; // typo -- the field is `count`
     transition { _ -> done(main) }
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         Console::exit_process(main.count);
     }
 }

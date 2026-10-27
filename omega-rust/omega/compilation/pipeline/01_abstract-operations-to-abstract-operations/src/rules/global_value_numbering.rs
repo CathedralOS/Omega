@@ -26,8 +26,6 @@ use crate::EffectSummaryAnalysis;
 use crate::rules::GLOBAL_VALUE_NUMBERING_PASS_NAME;
 use crate::rules::catalog::BuiltInRuleRegistration;
 
-mod bitwise_absorbing_literal_identity;
-mod bitwise_neutral_literal_identity;
 mod dominator_proof_certified_compatible_policy_scalar_gvn;
 mod dominator_proof_certified_scalar_gvn;
 mod dominator_total_scalar_gvn;
@@ -39,15 +37,9 @@ mod phi_translated_proof_certified_scalar_gvn;
 mod same_block_proof_certified_compatible_policy_scalar_cse;
 mod same_block_proof_certified_scalar_cse;
 mod same_block_total_scalar_cse;
-mod saturating_multiply_zero_annihilation;
-mod saturating_neutral_arithmetic_identity;
 mod total_scalar_identities;
-mod wrapping_multiply_zero_annihilation;
-mod wrapping_neutral_arithmetic_identity;
-mod wrapping_shift_zero_count_identity;
+mod total_scalar_identity_rules;
 
-pub(crate) use bitwise_absorbing_literal_identity::BitwiseAbsorbingLiteralIdentityRule;
-pub(crate) use bitwise_neutral_literal_identity::BitwiseNeutralLiteralIdentityRule;
 pub(crate) use dominator_proof_certified_compatible_policy_scalar_gvn::DominatorProofCertifiedCompatiblePolicyScalarGvnRule;
 pub(crate) use dominator_proof_certified_scalar_gvn::DominatorProofCertifiedScalarGvnRule;
 pub(crate) use dominator_total_scalar_gvn::DominatorTotalScalarGvnRule;
@@ -57,11 +49,12 @@ pub(crate) use phi_translated_proof_certified_scalar_gvn::PhiTranslatedProofCert
 pub(crate) use same_block_proof_certified_compatible_policy_scalar_cse::SameBlockProofCertifiedCompatiblePolicyScalarCseRule;
 pub(crate) use same_block_proof_certified_scalar_cse::SameBlockProofCertifiedScalarCseRule;
 pub(crate) use same_block_total_scalar_cse::SameBlockTotalScalarCseRule;
-pub(crate) use saturating_multiply_zero_annihilation::SaturatingMultiplyZeroAnnihilationRule;
-pub(crate) use saturating_neutral_arithmetic_identity::SaturatingNeutralArithmeticIdentityRule;
-pub(crate) use wrapping_multiply_zero_annihilation::WrappingMultiplyZeroAnnihilationRule;
-pub(crate) use wrapping_neutral_arithmetic_identity::WrappingNeutralArithmeticIdentityRule;
-pub(crate) use wrapping_shift_zero_count_identity::WrappingShiftZeroCountIdentityRule;
+pub(crate) use total_scalar_identity_rules::{
+    BitwiseAbsorbingLiteralIdentityRule, BitwiseNeutralLiteralIdentityRule,
+    SaturatingMultiplyZeroAnnihilationRule, SaturatingNeutralArithmeticIdentityRule,
+    WrappingMultiplyZeroAnnihilationRule, WrappingNeutralArithmeticIdentityRule,
+    WrappingShiftZeroCountIdentityRule,
+};
 
 /// The exact local rule order for this pass.
 pub(super) fn built_in_registrations() -> Vec<BuiltInRuleRegistration> {

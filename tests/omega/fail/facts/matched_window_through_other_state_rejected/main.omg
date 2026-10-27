@@ -6,7 +6,7 @@ machine from_state<'row>(items: &'row mut [u8; 4], which: i64) -> &'row mut [u8]
     ensures result.len == 2
 {
     transition { _ -> pick(items, which) }
-    state pick(items: &'row mut [u8; 4], which: i64) -> &'row mut [u8] {
+    machine pick(items: &'row mut [u8; 4], which: i64) -> &'row mut [u8] {
         match which {
             0 -> &mut items[0..which + 1]
             _ -> &mut items[2..4]
@@ -29,6 +29,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

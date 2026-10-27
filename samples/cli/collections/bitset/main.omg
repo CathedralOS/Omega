@@ -26,13 +26,13 @@ machine Main::main(main: &mut Main) reaches Console {
     transition { _ -> ins_step(main) }
 
     // Insert each value: bits |= 1 << vals[i].
-    state ins_step(main: &mut Main) {
+    machine ins_step(main: &mut Main) {
         transition main.i < 3 {
             true -> insert(main)
             _ -> check5(main)
         }
     }
-    state insert(main: &mut Main) {
+    machine insert(main: &mut Main) {
         main.mask = 1;
         main.mask = main.mask << main.vals[main.i];
         main.bits = main.bits | main.mask;
@@ -41,28 +41,28 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     // Membership: (bits >> k) & 1.
-    state check5(main: &mut Main) {
+    machine check5(main: &mut Main) {
         main.test = main.bits >> 5;
         main.test = main.test & 1;
         transition main.test == 1 { true -> check4(main) _ -> bad(main) }
     }
-    state check4(main: &mut Main) {
+    machine check4(main: &mut Main) {
         main.test = main.bits >> 4;
         main.test = main.test & 1;
         transition main.test == 0 { true -> check7(main) _ -> bad(main) }
     }
-    state check7(main: &mut Main) {
+    machine check7(main: &mut Main) {
         main.test = main.bits >> 7;
         main.test = main.test & 1;
         transition main.test == 1 { true -> ok(main) _ -> bad(main) }
     }
-    state ok(main: &mut Main) {
+    machine ok(main: &mut Main) {
         Console::write_line("PASS: 5 in, 4 out, 7 in -- bits == 168 behaves as a set (exit 70)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(70);
     }
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::write_line("FAIL: a membership test gave the wrong bit (exit 71)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);

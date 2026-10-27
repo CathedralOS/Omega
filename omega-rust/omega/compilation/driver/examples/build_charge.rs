@@ -1877,6 +1877,36 @@ fn completed_build_target_fanout() {
         .complete_package_products(products)
         .unwrap();
     assert_eq!(outcomes.len(), 4);
+    assert_eq!(
+        outcomes.iter().map(|(owner, _)| *owner).collect::<Vec<_>>(),
+        vec![
+            (windows, false),
+            (linux, false),
+            (unbound_target, false),
+            (host, true)
+        ],
+        "grouping must preserve the caller's order, including a refused sibling"
+    );
+    // Inspect the complete roster before consuming reports for native execution.
+    // Equal bytes alone would not detect a redundant per-target production.
+    let artifacts = outcomes
+        .iter()
+        .filter_map(|(_, outcome)| match outcome {
+            Ok(compiler::CompilationOutput::Report(report)) => report.artifact().or_else(|| {
+                report
+                    .retained_native_artifact()
+                    .map(|native| native.psi_artifact())
+            }),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(artifacts.len(), 3);
+    assert!(
+        artifacts
+            .iter()
+            .all(|artifact| std::ptr::eq(*artifact, artifacts[0])),
+        "portable and native siblings must retain one canonical Terminal artifact"
+    );
     for ((profile, native), outcome) in outcomes {
         if profile == unbound_target {
             let diagnostics = outcome

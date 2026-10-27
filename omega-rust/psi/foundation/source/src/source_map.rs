@@ -23,6 +23,9 @@ pub struct SourceMap {
     /// (wiki/spec/build/scoped_execution.md, "Selecting product declarations
     /// without executing them").
     product_dependencies: BTreeMap<PackageKeyIdentity, BTreeMap<String, PackageKeyIdentity>>,
+    /// Invocation-local routing before Build has a final declaration owner.
+    /// This never assigns a package identity to the captured source.
+    query_dependencies: Option<(PathBuf, BTreeMap<String, PackageKeyIdentity>)>,
 }
 
 /// Backing coordinates survive across requests; activation does not. Ordinary
@@ -51,6 +54,7 @@ impl SourceCatalogue {
             selection: SourceSelection::Explicit(vec![false; self.backing.files.len()]),
             source_rejoins: Vec::new(),
             product_dependencies: BTreeMap::new(),
+            query_dependencies: None,
         }
     }
 
@@ -195,6 +199,7 @@ impl SourceMap {
             selection: SourceSelection::All,
             source_rejoins: Vec::new(),
             product_dependencies: BTreeMap::new(),
+            query_dependencies: None,
         }
     }
 
@@ -393,6 +398,41 @@ impl SourceMap {
             .get(&requester)?
             .get(alias)
             .copied()
+    }
+
+    pub fn retain_query_dependencies(
+        &mut self,
+        root: PathBuf,
+        dependencies: impl IntoIterator<Item = (String, PackageKeyIdentity)>,
+    ) -> Result<(), String> {
+        if self.query_dependencies.is_some() {
+            return Err("Product query source scope was already supplied".into());
+        }
+        let mut edges = BTreeMap::new();
+        for (alias, target) in dependencies {
+            if edges.insert(alias, target).is_some() {
+                return Err("Product query dependency alias is repeated".into());
+            }
+        }
+        self.query_dependencies = Some((root, edges));
+        Ok(())
+    }
+
+    /// A query author's Product aliases belong to its exact source scope, not
+    /// to the Build receiver's caller or an unowned toolchain declaration.
+    pub fn product_dependency_at(
+        &self,
+        occurrence: SourceSpan,
+        alias: &str,
+    ) -> Option<PackageKeyIdentity> {
+        let file = self.file_at(occurrence)?;
+        if let Some(owner) = file.package_identity {
+            return self.product_dependency_target(owner, alias);
+        }
+        let (root, dependencies) = self.query_dependencies.as_ref()?;
+        (file.origin == SourceOrigin::User && file.package_root == *root)
+            .then(|| dependencies.get(alias).copied())
+            .flatten()
     }
 
     pub fn add(&mut self, path: PathBuf, source: String) -> &SourceFile {
@@ -641,6 +681,81 @@ mod tests {
 
     use crate::{SourceId, SourceMap, SourceOrigin, SourceResolutionStratum, SourceSpan, Span};
     use semantic_vocabulary::PackageKeyIdentity;
+
+    #[test]
+    fn query_aliases_stay_in_the_unowned_authors_captured_scope() {
+        let mut sources = SourceMap::default();
+        let root = PathBuf::from("query-root");
+        let selected = PackageKeyIdentity::from_digest([3; 32]).unwrap();
+        let foreign = PackageKeyIdentity::from_digest([5; 32]).unwrap();
+        let foreign_target = PackageKeyIdentity::from_digest([7; 32]).unwrap();
+        let local = sources
+            .add_with_metadata(
+                root.join("build.omg"),
+                String::new(),
+                root.clone(),
+                None,
+                SourceOrigin::User,
+            )
+            .source_id;
+        let helper = sources
+            .add_with_metadata(
+                PathBuf::from("helper/build.omg"),
+                String::new(),
+                PathBuf::from("helper"),
+                Some(foreign),
+                SourceOrigin::User,
+            )
+            .source_id;
+        let toolchain = sources
+            .add_with_metadata(
+                root.join("prelude.omg"),
+                String::new(),
+                root.clone(),
+                None,
+                SourceOrigin::Toolchain,
+            )
+            .source_id;
+        let other = sources
+            .add_with_metadata(
+                PathBuf::from("unbound/build.omg"),
+                String::new(),
+                PathBuf::from("unbound"),
+                None,
+                SourceOrigin::User,
+            )
+            .source_id;
+        sources.retain_product_dependency_scope([(foreign, "dep", foreign_target)]);
+        sources
+            .retain_query_dependencies(root.clone(), [("dep".into(), selected)])
+            .unwrap();
+        let at = |source| SourceSpan::new(source, Span::new(0, 0));
+        assert_eq!(
+            sources.product_dependency_at(at(local), "dep"),
+            Some(selected)
+        );
+        assert_eq!(
+            sources.product_dependency_at(at(helper), "dep"),
+            Some(foreign_target)
+        );
+        assert_eq!(sources.product_dependency_at(at(toolchain), "dep"), None);
+        assert_eq!(sources.product_dependency_at(at(other), "dep"), None);
+        assert_eq!(sources.product_dependency_at(at(local), "missing"), None);
+        assert_eq!(
+            sources.get(local).unwrap().package_identity,
+            None,
+            "query routing must not assign a final declaration owner"
+        );
+        assert!(
+            sources
+                .retain_query_dependencies(root, [("dep".into(), foreign)])
+                .is_err()
+        );
+        assert_eq!(
+            sources.product_dependency_at(at(local), "dep"),
+            Some(selected)
+        );
+    }
 
     #[test]
     fn invalid_source_span_resolves_to_empty_text() {

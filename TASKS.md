@@ -582,11 +582,18 @@ defines the complete product bar.
     result/Unit postconditions, effects/markers, loans, invariant/hole
     restoration, cleanup, linear custody, and joint SCC ranking across
     nested/sibling/ancestor/top-level edges without ambient parent entry facts).
+    Private arithmetic formation now uses every closed actual arrival rather
+    than duplicated helper bounds: the [nine-place subtraction row](samples/cli/facts/nested_machine_invocation/private_arithmetic/README.md)
+    executes through Terminal Psi and native code with fact-sensitive rejects.
+    Public/escaping helpers and changed storage retain their proof obligations;
+    private cyclic inference remains conservative.
   - Update Terminal production, codecs/checking, both interpreters, native
     lowering, and WCSU together so runtime cycles remain constant-stack with all
     live backing accounted for.
   - Migrate affected bundled/product Omega source, samples, and fixtures and
     delete the retired `state` parser/declaration/dispatch paths.
+    The Omega-written parser/resolver and linked application repositories still
+    need the corresponding declaration-model migration.
   Acceptance: source-to-Terminal/native execution agreement (`omega run --both`)
   for three-level nesting, ordinary helper call with continuation,
   sibling/ancestor terminal cycles, generic enclosing declaration context and
@@ -894,10 +901,8 @@ narrows realization only.
   - Implement pre-execution dependency input assignment and shared-node conflict
     checks at dependency activation admission without inheriting the root's
     slots (keeping required-output path byte results refused).
-  - Complete accepted-lock round-trip qualification and demanded
-    Product-description queries.
-  - Complete [Build provider readiness](wiki/spec/build/provider_selection.md#build-provider-readiness)
-    for applied/inherited multi-slot requirements.
+  - Carry foreign-helper Product query fixtures through ordinary dependency discovery,
+    not only pre-admitted package contexts.
   - **BUILD-EVALUATES-ONCE / ONE-DRIVER-PER-STAGE:** evaluate `build.omg` once
     per compilation with no realized target observed, run Psi `00–07` once in
     `compiler.rs` to produce one canonical Terminal Psi artifact, and run Omega
@@ -1307,19 +1312,16 @@ decision (`SourceChecked`) into stage 05 and stage 00.
   under [calling plans](wiki/spec/build/calling_plans.md),
   [opaque representations](wiki/spec/build/opaque_representations.md), and
   [outbound custody](wiki/spec/build/foreign_storage.md#outbound-custody):
-  - Carry complete admitted direct-foreign calling applications into runtime
-    capture, projecting and recommitting the same exact boundary identity
-    without selecting an otherwise unused provider. The existing
-    `pass/calls/runtime_large_frame_foreign_call_floating_control_exit` witness
-    must restore native/Terminal agreement at exit 70; Terminal currently
-    declines the missing `abs` application despite native execution succeeding.
   - Qualify remaining borrowed descriptor carriers, original scalar-field
     backing through thin foreign export
     ([foreign_scalar_backing](samples/cli/facts/foreign_scalar_backing/README.md)),
     and C record-result host/ABI lanes beyond
     [foreign_scalar_record_result](samples/cli/facts/foreign_scalar_record_result/README.md)
     and
-    [foreign_indirect_float_record_result](samples/cli/facts/foreign_indirect_float_record_result/README.md)
+    [foreign_indirect_float_record_result](samples/cli/facts/foreign_indirect_float_record_result/README.md),
+    including matching-host qualification of
+    [recursive owned record input/results](samples/cli/facts/foreign_scalar_record_result/nested/README.md)
+    and [owned array descendants](samples/cli/facts/foreign_scalar_record_result/arrays/README.md),
     across Windows, macOS, and both Linux targets in Omega stages 02–03 and
     backend call-frame emission.
   - **OPAQUE-BY-VALUE-BOUNDARY-ABI:** connect
@@ -1329,11 +1331,12 @@ decision (`SourceChecked`) into stage 05 and stage 00.
     rejection.
   - **FOREIGN-RETAINED-ARGUMENT-BACKING:** complete installed-provider custody
     and native marshaling for protocol-owned backing, permitted snapshots, and
-    remaining resident/view codecs (arrays, tagged/dynamic carriers,
-    independently qualified descendants, and nested owned/result publication
-    beyond [foreign_nested_record_backing](samples/cli/facts/foreign_nested_record_backing/README.md))
+    remaining resident/view codecs (borrowed arrays, tagged/dynamic carriers,
+    independently qualified descendants and tagged/qualified owned results)
     through stage 05 `retention/retained_borrow_custody.rs` and the selected
     provider.
+  - Bound native codec preparation and ordinary storage materialization for
+    nested zero-sized arrays without expanding every empty outer element.
   Acceptance: `samples/cli/facts/opaque_closed_carrier_exchange`,
   `samples/cli/facts/foreign_retained_shared_borrow`,
   `samples/cli/facts/foreign_retained_mutable_borrow`,

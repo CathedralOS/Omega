@@ -24,15 +24,15 @@ machine Main::main(main: &mut Main) reaches Console {
         false -> fail(main, 71)
     }
 
-    state check_sum(main: &mut Main) {
+    machine check_sum(main: &mut Main) {
         transition main.sum == 5.0 {
             true -> good(main)
             false -> fail(main, 72)
         }
     }
 
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state fail(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine fail(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

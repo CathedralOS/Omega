@@ -16,7 +16,7 @@ ensures Owned::content(old(&whole)) == Owned::content(&result)
         true -> finish(whole, other)
         false -> finish(other, whole)
     }
-    state finish(selected: Region in Owned, discarded: Region in Owned) -> Region in Owned {
+    machine finish(selected: Region in Owned, discarded: Region in Owned) -> Region in Owned {
         drop(discarded);
         selected
     }

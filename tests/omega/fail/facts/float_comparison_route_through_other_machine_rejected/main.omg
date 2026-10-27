@@ -11,6 +11,6 @@ machine main() crashes Trap {
     let mut comparator: Comparator;
     let equal: bool = Comparator::equal(&mut comparator, 212.0, 2.0);
     transition equal { true -> bad() _ -> done() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

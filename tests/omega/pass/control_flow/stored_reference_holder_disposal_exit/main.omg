@@ -18,7 +18,7 @@ machine replace<'image>(image: &'image Image, output: &mut Output<'image>) -> St
 
 machine preserve() -> bool {
     transition { _ -> discover() }
-    state discover() -> bool {
+    machine discover() -> bool {
         let image: Image = Image { value: 23 };
         let mut output: Output = Output { image: &image };
         let status: Status = inspect_output(&mut output);
@@ -28,7 +28,7 @@ machine preserve() -> bool {
             false -> (false)
         }
     }
-    state found(observed: u64) -> bool { observed == 23 }
+    machine found(observed: u64) -> bool { observed == 23 }
 }
 
 machine replaced(image: &Image) -> bool {
@@ -41,7 +41,7 @@ machine replaced(image: &Image) -> bool {
         true -> found(observed)
         false -> (false)
     }
-    state found(observed: u64) -> bool { observed == 23 }
+    machine found(observed: u64) -> bool { observed == 23 }
 }
 
 machine main() crashes Trap {
@@ -50,6 +50,6 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

@@ -45,15 +45,15 @@ machine Main::main(main: &mut Main) {
         true -> region(main, main.k)
         _ -> fail(main)
     }
-    state region(main: &mut Main, offset: u32) {
+    machine region(main: &mut Main, offset: u32) {
         let pair: &i16 = &main.bytes[offset] as &i16;
         transition pair == -2 {
             true -> pass(main)
             _ -> fail(main)
         }
     }
-    state pass(main: &mut Main) { main.hits = 1; }
-    state fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: &mut Main) { main.hits = 1; }
+    machine fail(main: &mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

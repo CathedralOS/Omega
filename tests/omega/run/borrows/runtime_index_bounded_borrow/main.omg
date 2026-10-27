@@ -12,7 +12,7 @@ machine Main::main(main: &mut Main) reaches Console {
     let borrowed: &mut u8 = &mut main.buf[main.off];
     transition { _ -> done(main) }
 
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         Console::exit_process(0);
     }
 }

@@ -75,6 +75,20 @@ pub enum TerminalEffect {
 /// Injected semantic effect sink used by the oracle and tests. Native provider
 /// selection and hardware realization remain outside the Psi interpreter.
 pub trait TerminalEffectHandler {
+    /// Yield the executor while a synchronous host operation is being computed.
+    /// This is not program suspension: no guest task runs, storage is not lent
+    /// away, and no suspension evidence is created or consumed. As with a fuel
+    /// slice, the full invocation stays live until the same host computation
+    /// completes. External provider readiness must use `poll_effect_readiness`
+    /// instead, which requires the source's checked suspension crossing.
+    /// Polling must not repeat effects or mutate argument storage.
+    fn poll_host_computation(
+        &mut self,
+        _effect: &TerminalEffect,
+    ) -> Result<bool, TerminalEffectRejection> {
+        Ok(true)
+    }
+
     /// Poll readiness without invoking the operation or changing lent storage.
     /// A false answer parks only a checked suspending call. The interpreter
     /// retains its prepared arguments and polls this same invocation on resume;

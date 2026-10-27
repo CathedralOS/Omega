@@ -12,7 +12,7 @@ machine replace(destination: &write i32, value: i32) {
 machine forward(destination: &write i32, value: i32) {
     transition { _ -> write_value(&write destination, value) }
 
-    state write_value(destination: &write i32, value: i32) {
+    machine write_value(destination: &write i32, value: i32) {
         replace(&write destination, value);
     }
 }
@@ -25,8 +25,8 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> good(main)
         false -> bad(main)
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main) { Console::exit_process(71); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

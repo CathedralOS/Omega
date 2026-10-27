@@ -10,7 +10,7 @@ machine digit_sum(text: &[u8; 3] in Utf8) -> i32 in Wrapping {
     transition {
         _ -> step(text, 0, 0)
     }
-    state step(text: &[u8; 3] in Utf8, index: i32, sum: i32 in Wrapping) -> i32 in Wrapping
+    machine step(text: &[u8; 3] in Utf8, index: i32, sum: i32 in Wrapping) -> i32 in Wrapping
     requires index >= 0
     {
         transition index < text.len {
@@ -18,7 +18,7 @@ machine digit_sum(text: &[u8; 3] in Utf8) -> i32 in Wrapping {
             _ -> (sum)
         }
     }
-    state digit(text: &[u8; 3] in Utf8, index: i32, sum: i32 in Wrapping) -> i32 in Wrapping
+    machine digit(text: &[u8; 3] in Utf8, index: i32, sum: i32 in Wrapping) -> i32 in Wrapping
     requires index >= 0
     {
         let byte: u8 = text[index];
@@ -28,7 +28,7 @@ machine digit_sum(text: &[u8; 3] in Utf8) -> i32 in Wrapping {
             _ -> (sum + value)
         }
     }
-    state advance(text: &[u8; 3] in Utf8, index: i32, sum: i32 in Wrapping) -> i32 in Wrapping
+    machine advance(text: &[u8; 3] in Utf8, index: i32, sum: i32 in Wrapping) -> i32 in Wrapping
     requires index >= 0
     {
         transition {

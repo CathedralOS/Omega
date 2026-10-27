@@ -278,9 +278,7 @@ impl Execution<'_, '_, '_> {
                 continue;
             }
             let path = self.returned_slot_path(returned, &source.result_path)?;
-            if !paths.contains(&path) {
-                paths.push(path);
-            }
+            crate::collections::push_unique(&mut paths, path);
         }
         Some(paths)
     }

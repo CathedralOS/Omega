@@ -42,7 +42,7 @@ machine RewardTables::roll_enemy_reward(
     }
 
 
-    state enemy_item(
+    machine enemy_item(
         reward_tables: &mut RewardTables,
         enemy: Enemy,
         random: &mut RandomState,
@@ -53,7 +53,7 @@ machine RewardTables::roll_enemy_reward(
         reward.item = RewardTables::roll_item(reward_tables, enemy.depth, random);
     }
 
-    state enemy_gold(
+    machine enemy_gold(
         reward_tables: &mut RewardTables,
         enemy: Enemy,
         random: &mut RandomState,

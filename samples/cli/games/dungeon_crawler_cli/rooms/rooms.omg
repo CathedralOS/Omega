@@ -46,7 +46,7 @@ requires command.len <= 8
         _ -> {}
     }
 
-    state append_exit_slot_0(
+    machine append_exit_slot_0(
         room: &mut Room,
         command: &[u8] in Ascii,
         direction: Direction,
@@ -60,7 +60,7 @@ requires command.len <= 8
         room.exit_count = 1;
     }
 
-    state append_exit_slot_1(
+    machine append_exit_slot_1(
         room: &mut Room,
         command: &[u8] in Ascii,
         direction: Direction,
@@ -74,7 +74,7 @@ requires command.len <= 8
         room.exit_count = 2;
     }
 
-    state append_exit_slot_2(
+    machine append_exit_slot_2(
         room: &mut Room,
         command: &[u8] in Ascii,
         direction: Direction,
@@ -88,7 +88,7 @@ requires command.len <= 8
         room.exit_count = 3;
     }
 
-    state append_exit_slot_3(
+    machine append_exit_slot_3(
         room: &mut Room,
         command: &[u8] in Ascii,
         direction: Direction,

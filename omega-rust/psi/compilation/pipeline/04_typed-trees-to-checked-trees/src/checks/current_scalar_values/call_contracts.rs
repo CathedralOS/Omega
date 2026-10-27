@@ -352,9 +352,7 @@ impl CurrentScalarValues<'_> {
                 result,
             },
         ) {
-            if !self.hypotheses.contains(&hypothesis) {
-                self.hypotheses.push(hypothesis);
-            }
+            crate::collections::push_unique(&mut self.hypotheses, hypothesis);
         }
     }
 

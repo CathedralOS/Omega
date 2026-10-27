@@ -8,7 +8,7 @@ machine Main::main(main: &mut Main) -> i32 {
     }
     
 
-    state overwrite(input_value: i32) {
+    machine overwrite(input_value: i32) -> i32 {
         input_value = 2;
 
         transition {
@@ -16,7 +16,7 @@ machine Main::main(main: &mut Main) -> i32 {
         }
     }
 
-    state shutdown() {
+    machine shutdown() -> i32 {
         0
     }
 }

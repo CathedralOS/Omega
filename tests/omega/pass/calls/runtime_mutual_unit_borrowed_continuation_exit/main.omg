@@ -8,7 +8,7 @@ terminates by depth;
     counter.value = counter.value + (depth as u64 in Trapping);
     counter.value = counter.value + (depth as u64 in Trapping);
     transition depth == 0 { true -> done() _ -> right(counter, depth - 1) }
-    state done() { }
+    machine done() { }
 }
 machine right(counter: &mut Counter, depth: u64)
 terminates by depth;
@@ -16,7 +16,7 @@ terminates by depth;
     counter.value = counter.value + (depth as u64 in Trapping);
     counter.value = counter.value + (depth as u64 in Trapping);
     transition depth == 0 { true -> done() _ -> left(counter, depth - 1) }
-    state done() { }
+    machine done() { }
 }
 data Main { }
 machine Main::main(main: &mut Main) reaches Console {
@@ -25,8 +25,8 @@ machine Main::main(main: &mut Main) reaches Console {
     untouched.value = 100 as u64 in Trapping;
     left(&mut counter, 6);
     transition counter.value == 42 && untouched.value == 100 { true -> good() false -> bad() }
-    state good() { Console::write_line("mutual Unit frames: 42"); Console::exit_process(70); }
-    state bad() { Console::exit_process(71); }
+    machine good() { Console::write_line("mutual Unit frames: 42"); Console::exit_process(70); }
+    machine bad() { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

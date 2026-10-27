@@ -69,10 +69,12 @@ pub(super) fn capture(
         })?;
     Ok(calls
         .into_iter()
-        .map(|(operation, boundary, action)| TerminalBuildRequestCall {
-            operation,
-            boundary,
-            action,
-        })
+        .map(
+            |(operation, boundary, action, _)| TerminalBuildRequestCall {
+                operation,
+                boundary,
+                action,
+            },
+        )
         .collect())
 }

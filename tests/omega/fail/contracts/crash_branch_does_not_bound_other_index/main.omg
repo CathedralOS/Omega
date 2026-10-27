@@ -6,8 +6,8 @@ requires index < cells.len && cells.len > 0
         true -> bad()
         false -> receive(cells, index)
     }
-    state bad() { crash Trap; }
-    state receive(cells: &[i32], index: u64)
+    machine bad() { crash Trap; }
+    machine receive(cells: &[i32], index: u64)
     requires index < cells.len
     requires cells[index] >= 0 && cells[index] <= 255
     {}

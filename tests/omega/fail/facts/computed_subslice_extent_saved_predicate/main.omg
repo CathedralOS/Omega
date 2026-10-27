@@ -13,6 +13,6 @@ machine main() crashes Trap {
     let items: [u8; 4] = [11u8, 23u8, 37u8, 53u8];
     let mut cursor: Cursor = Cursor { low: 1 };
     transition read(&items, &mut cursor) == 37u8 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

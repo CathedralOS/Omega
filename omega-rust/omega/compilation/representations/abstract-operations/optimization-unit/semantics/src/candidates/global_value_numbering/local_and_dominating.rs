@@ -1,6 +1,7 @@
 //! Same-block and dominating scalar CSE validation and rewrite application.
 use crate::candidates::accept_region_rewrite;
 use crate::candidates::global_value_numbering::{ScalarCseProofClass, ScalarCseScope};
+use crate::candidates::retire_node_custody;
 use crate::candidates::rewrite_accounting::common_subexpression::reconstruct_local_cse_accounting;
 use crate::candidates::rewrite_accounting::preserve_edge_custody;
 use crate::candidates::rewrite_accounting::substitutions::rewrite_scalar_value_uses;
@@ -422,13 +423,7 @@ pub(super) fn validate_scalar_common_subexpression_candidate(
                 .iter_mut()
                 .find(|row| row.id == patch.redundant.block)
                 .expect("candidate block exists");
-            let removed = output_block.nodes.remove(redundant_index);
-            let receiver = output_block
-                .nodes
-                .get_mut(redundant_index)
-                .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-            receiver.provenance.extend_from_slice(&removed.provenance);
-            receiver.fuel.extend_from_slice(&removed.fuel);
+            retire_node_custody(output_block, redundant_index)?;
             let mut effect = 0u64;
             for block in &mut output_function.blocks {
                 for (node_index, node) in block.nodes.iter_mut().enumerate() {

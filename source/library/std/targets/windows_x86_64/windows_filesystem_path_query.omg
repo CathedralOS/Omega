@@ -19,14 +19,14 @@ reaches FilesystemMetadataQuery {
     let count: i64 = windows_wide_path(path, &mut wide);
     wide[4095] = 0;
     transition count > 0 { true -> open(wide, output) false -> (-87) }
-    state open(path: [u16; 4096] in WindowsNativePath, output: &mut [u8]) -> i32 {
+    machine open(path: [u16; 4096] in WindowsNativePath, output: &mut [u8]) -> i32 {
         let handle: i64 = block WindowsFilesystemMetadataIo::open_attributes(&path, 128, 7, 0, 3, 34603008, 0);
         transition handle != 0 && handle != -1 {
             true -> query(handle, output)
             false -> (WindowsFilesystemNativeProvider::failure_i32())
         }
     }
-    state query(handle: i64, output: &mut [u8]) -> i32 requires handle != 0 && handle != -1 {
+    machine query(handle: i64, output: &mut [u8]) -> i32 requires handle != 0 && handle != -1 {
         let result: i32 = block windows_canonical_query(handle, output);
         let released: i32 = block WindowsFilesystemNativeProvider::close_handle(narrow_i64_to_u64_wrapping(handle));
         transition result != 0 { true -> (result) false -> (released) }
@@ -42,7 +42,7 @@ reaches FilesystemMetadataQuery {
         true -> extent(resolved, characters, output)
         false -> (WindowsFilesystemNativeProvider::failure_i32())
     }
-    state extent(resolved: [u16; 4096], characters: u32, output: &mut [u8]) -> i32 {
+    machine extent(resolved: [u16; 4096], characters: u32, output: &mut [u8]) -> i32 {
         // A too-small native buffer reports required size INCLUDING the NUL;
         // a successful result excludes it. Only the latter authorizes reading.
         transition characters < 4096 {
@@ -50,7 +50,7 @@ reaches FilesystemMetadataQuery {
             false -> (-122)
         }
     }
-    state encode(resolved: [u16; 4096], characters: u32, output: &mut [u8]) -> i32
+    machine encode(resolved: [u16; 4096], characters: u32, output: &mut [u8]) -> i32
     requires characters < 4096 {
         let count: u64 = widen_u32_to_u64(characters) + 1;
         let mut encoded: [u8; 12288];
@@ -62,7 +62,7 @@ reaches FilesystemMetadataQuery {
             false -> (WindowsFilesystemNativeProvider::failure_i32())
         }
     }
-    state copy(encoded: [u8; 12288], written: i32, output: &mut [u8]) -> i32 requires written > 0 {
+    machine copy(encoded: [u8; 12288], written: i32, output: &mut [u8]) -> i32 requires written > 0 {
         let count: u64 = narrow_i32_to_u64_exact(written);
         transition count <= 12288 && count <= output.len {
             true -> (windows_copy_canonical_bytes(&encoded, output, count))
@@ -78,15 +78,15 @@ machine windows_copy_canonical_bytes(source: &[u8; 12288], output: &mut [u8], co
         true -> terminated(source, output, count)
         false -> (-122)
     }
-    state terminated(source: &[u8; 12288], output: &mut [u8], count: u64) -> i32
+    machine terminated(source: &[u8; 12288], output: &mut [u8], count: u64) -> i32
     requires count > 0 && count <= 12288 && count <= output.len {
         transition source[count - 1] == 0 { true -> copy(source, output, count, 0) false -> (-31) }
     }
-    state copy(source: &[u8; 12288], output: &mut [u8], count: u64, position: u64) -> i32
+    machine copy(source: &[u8; 12288], output: &mut [u8], count: u64, position: u64) -> i32
     requires count <= 12288 && count <= output.len {
         transition position < count { true -> store(source, output, count, position) false -> 0 }
     }
-    state store(source: &[u8; 12288], output: &mut [u8], count: u64, position: u64) -> i32
+    machine store(source: &[u8; 12288], output: &mut [u8], count: u64, position: u64) -> i32
     requires count <= 12288 && count <= output.len && position < count {
         output[position] = source[position];
         transition { _ -> copy(source, output, count, position + 1) }

@@ -23,10 +23,10 @@ machine Main::main(main: &mut Main) reaches Console {
         Certified::Proven { value, proof as _ } -> good(main, value)
         Certified::Pending -> bad(main)
     }
-    state good(main: &mut Main, value: i32) {
+    machine good(main: &mut Main, value: i32) {
         Console::exit_process(value);
     }
-    state bad(main: &mut Main) { Console::exit_process(71); }
+    machine bad(main: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

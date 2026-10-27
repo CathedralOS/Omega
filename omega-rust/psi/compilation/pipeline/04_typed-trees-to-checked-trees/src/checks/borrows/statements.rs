@@ -295,9 +295,7 @@ pub(super) fn check_statement_borrows<'p>(
                             )
                         });
                         for handle in call.completed_reference_loans.handles() {
-                            if !current_loans.contains(&handle) {
-                                current_loans.push(handle);
-                            }
+                            crate::collections::push_unique(&mut current_loans, handle);
                         }
                     }
                     for (handle, _) in facts.borrow.state_loans(borrow_state).filter(|(_, loan)| {
@@ -305,9 +303,7 @@ pub(super) fn check_statement_borrows<'p>(
                             && !loan.established_by_call.is_valid()
                             && loan.formation_expression == *expression
                     }) {
-                        if !current_loans.contains(&handle) {
-                            current_loans.push(handle);
-                        }
+                        crate::collections::push_unique(&mut current_loans, handle);
                     }
                 }
                 StatementStep::Move {

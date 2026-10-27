@@ -15,6 +15,7 @@ pub(crate) fn encode_proof_recursive_component(
 ) -> Result<(), CodecError> {
     writer.u8(match component.ranking_relation {
         TerminalProofRankingRelation::StructuralSubterm => 1,
+        TerminalProofRankingRelation::StructuralSubtermCycles => 2,
     });
     writer.u32(component.rank_type_identity.0);
     writer.len("proof recursive types", component.types.len())?;
@@ -82,6 +83,7 @@ pub(crate) fn decode_proof_recursive_component(
 ) -> Result<TerminalProofRecursiveComponent, CodecError> {
     let ranking_relation = match reader.u8()? {
         1 => TerminalProofRankingRelation::StructuralSubterm,
+        2 => TerminalProofRankingRelation::StructuralSubtermCycles,
         tag => return Err(CodecError::InvalidTag("TerminalProofRankingRelation", tag)),
     };
     let rank_type_identity = TerminalIdentityIndex(reader.u32()?);

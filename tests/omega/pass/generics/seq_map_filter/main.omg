@@ -45,7 +45,7 @@ terminates by items;
         )
     }
 
-    state choose(keep: bool, head: T, tail: Seq<T>) -> Seq<T> {
+    machine choose(keep: bool, head: T, tail: Seq<T>) -> Seq<T> {
         transition keep {
             true -> Seq::Cons { head: head, tail: tail }
             false -> tail
@@ -74,19 +74,19 @@ machine seq_map_filter() {
     let evens: Seq<u64> = filter<keep_even>(map<triple>(input()));
     transition { _ -> fold(evens, 0) }
 
-    state fold(items: Seq<u64>, sum: u64 in Wrapping) {
+    machine fold(items: Seq<u64>, sum: u64 in Wrapping) {
         transition items {
             Seq::Cons { head, tail } -> fold(tail, sum + (head as u64 in Wrapping))
             Seq::Empty -> judge(sum)
         }
     }
 
-    state judge(sum: u64 in Wrapping) {
+    machine judge(sum: u64 in Wrapping) {
         transition (sum as u64) == 18 {
             true -> done(70)
             _ -> done(71)
         }
     }
 
-    state done(code: i32) {}
+    machine done(code: i32) {}
 }

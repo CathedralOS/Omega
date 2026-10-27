@@ -9,7 +9,7 @@ machine probe() {
         nop
     }
     transition { _ -> small(value) }
-    state small(value: u64)
+    machine small(value: u64)
     requires value < 10
     {}
 }

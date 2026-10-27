@@ -6,7 +6,7 @@ use object_file::{RelocationOrigin, relocation_kind_tag};
 use semantic_vocabulary::{IntegerSign, ScalarType};
 use sha2::Digest;
 use sha2::Sha256;
-use target::{Architecture, NativeTarget, ObjectFormat};
+use target::NativeTarget;
 use target_operations::{
     BoundaryRealization, CallSiteOwner, CompilerBuiltinExecution, CompletionClaimSource,
 };
@@ -730,17 +730,7 @@ pub(crate) fn hash_target(
     digest: &mut crate::digest_encoder::DomainDigestEncoder,
     target: NativeTarget,
 ) {
-    digest.byte(match target.architecture {
-        Architecture::Aarch64 => 1,
-        Architecture::X86_64 => 2,
-    });
-    digest.byte(match target.object_format {
-        ObjectFormat::Elf => 1,
-        ObjectFormat::MachO => 2,
-        ObjectFormat::Coff => 3,
-    });
-    digest.raw(&canonical_usize(target.pointer_size));
-    digest.raw(&canonical_usize(target.pointer_alignment));
+    digest.raw(&target.wire_identity_bytes());
 }
 
 pub(crate) fn hash_object_symbol(

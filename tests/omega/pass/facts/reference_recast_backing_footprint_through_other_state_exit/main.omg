@@ -7,13 +7,13 @@ machine probe() -> bool {
     let original: addr = address_of(&bytes[1]);
     let view: &Pair = &bytes[1] as &Pair;
     transition { _ -> inspect(view, original) }
-    state inspect(view: &Pair, original: addr) -> bool {
+    machine inspect(view: &Pair, original: addr) -> bool {
         address_of(&view.first) == original && view.second == 37
     }
 }
 machine main() crashes Trap {
     let accepted: bool = probe();
     transition accepted { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

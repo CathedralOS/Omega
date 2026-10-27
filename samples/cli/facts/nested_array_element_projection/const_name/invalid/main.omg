@@ -28,13 +28,13 @@ machine main() crashes Trap {
         true -> run(row)
         _ -> bad()
     }
-    state run(r: Row) {
+    machine run(r: Row) {
         let spare: u64 = probe(r, 2);
         transition spare == 30 {
             true -> done()
             _ -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

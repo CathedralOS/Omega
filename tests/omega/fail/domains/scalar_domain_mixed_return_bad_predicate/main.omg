@@ -7,6 +7,6 @@ machine main() crashes Trap {
     let existing: i64 in Nonnegative = seed();
     let value: i64 in Nonnegative = choose(false, existing);
     transition value == 17 { true -> done() _ -> wrong() }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

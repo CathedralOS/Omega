@@ -106,6 +106,13 @@ pub(super) fn prepare_build_invocation(
 }
 
 impl BuildSourceInvocation {
+    pub(super) fn product_queries(&self) -> super::ProductQueries {
+        super::ProductQueries::new(
+            &self.frontier,
+            self.package_inputs.clone(),
+            self.build_execution_profile,
+        )
+    }
     pub(super) fn validate_return(
         &self,
         returned: &build_evaluation::ReturnedBuild,
@@ -342,16 +349,6 @@ fn complete_build_source(
             Some(selected) => Some(product.source.rejoin_machine(&source, selected)?),
             None => None,
         };
-        for binding in &mut Arc::make_mut(&mut computed_build_config).root_binding_requests {
-            if let language_semantics::declaration_selection::RootBindingSelection::Described(
-                description,
-            ) = &mut binding.implementation
-            {
-                description.machine_symbol = product
-                    .source
-                    .rejoin_product_machine(&source, description.machine_symbol)?;
-            }
-        }
         source = product.source;
         base_sources = product.base_sources;
         source_file_count = product.source_file_count;

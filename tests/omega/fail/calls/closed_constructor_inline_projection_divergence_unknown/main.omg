@@ -2,7 +2,7 @@
 use omega_language_std::console;
 data Point [copy] { x: u64; y: u64; }
 data Main { }
-machine diverge() -> u64 { transition { _ -> again() } state again() -> u64 { transition { _ -> again() } } }
+machine diverge() -> u64 { transition { _ -> again() } machine again() -> u64 { transition { _ -> again() } } }
 machine projected() -> u64 { (Point { x: 0, y: diverge() }).x }
 machine take(point: Point) -> u64 requires point.x == projected(); { point.x }
 machine Main::main(main: &mut Main) reaches Console { let result: u64 = take(Point { x: 1, y: 0 }); Console::exit_process(0); }

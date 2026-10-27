@@ -158,8 +158,8 @@ machine Main::main(main: &mut Main) reaches Writer crashes Trap {
     drop(first);
     drop(second);
     transition first_observed == 73 && second_observed == 73 && first_value == 73 && second_value == 73 && original == 37 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 machine entry_start() reaches Writer crashes Trap {

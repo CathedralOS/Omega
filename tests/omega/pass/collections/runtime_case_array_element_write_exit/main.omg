@@ -24,19 +24,19 @@ machine Main::main(main: &mut Main) reaches Console {
         FieldPlan::At { offset, width } -> first(main, (offset as i64 in Wrapping) + (width as i64 in Wrapping))
         FieldPlan::Skip -> bad(main)
     }
-    state first(main: &mut Main, v: i64 in Wrapping) {
+    machine first(main: &mut Main, v: i64 in Wrapping) {
         main.a = v;
         transition main.plans[2] {
             FieldPlan::At { offset, width } -> second(main, (offset as i64 in Wrapping) + (width as i64 in Wrapping))
             FieldPlan::Skip -> bad(main)
         }
     }
-    state second(main: &mut Main, v: i64 in Wrapping) {
+    machine second(main: &mut Main, v: i64 in Wrapping) {
         main.b = v;
         main.r = narrow_i64_to_i32_trapping((main.a + main.b) as i64);
         Console::exit_process(main.r);
     }
-    state bad(main: &mut Main) { Console::exit_process(99); }
+    machine bad(main: &mut Main) { Console::exit_process(99); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

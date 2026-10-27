@@ -17,8 +17,8 @@ machine second(return_code: i32) reaches Console {
         true -> matching(return_code)
         false -> other(return_code)
     }
-    state matching(return_code: i32) { ConsoleNativeProvider::exit_process(return_code); }
-    state other(return_code: i32) { ConsoleNativeProvider::exit_process(return_code); }
+    machine matching(return_code: i32) { ConsoleNativeProvider::exit_process(return_code); }
+    machine other(return_code: i32) { ConsoleNativeProvider::exit_process(return_code); }
 }
 macos_arm64 machine ConsoleNativeProvider::provider_defaults(defaults: &mut ConsoleNativeProvider) {
     ConsoleNativeProvider::select_provider<Console, NativeConsole>(defaults);

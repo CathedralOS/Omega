@@ -12,18 +12,18 @@ data Main {
 machine Main::main(main: &mut Main) reaches Console {
     let first: ByteRead = block Console::read_byte();
     transition first { ByteRead::Byte { value } -> digit(main, value) _ -> invalid(main) }
-    state digit(main: &mut Main, value: i32) {
+    machine digit(main: &mut Main, value: i32) {
         transition value >= 48 && value <= 57 { true -> newline(main, value) _ -> invalid(main) }
     }
-    state newline(main: &mut Main, value: i32) requires value >= 48 && value <= 57 {
+    machine newline(main: &mut Main, value: i32) requires value >= 48 && value <= 57 {
         main.mode = (value - 48) as u64;
         let ending: ByteRead = block Console::read_byte();
         transition ending { ByteRead::Byte { value } -> ending(main, value) _ -> invalid(main) }
     }
-    state ending(main: &mut Main, value: i32) {
+    machine ending(main: &mut Main, value: i32) {
         transition value == 10 { true -> configure(main) _ -> invalid(main) }
     }
-    state configure(main: &mut Main) {
+    machine configure(main: &mut Main) {
         main.model.seed = 1;
         main.model.birth = 2.0; main.model.translation = 0.0;
         main.model.decay_x = 1.0; main.model.decay_y = 0.0;
@@ -40,31 +40,31 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> begin(main)
         }
     }
-    state gene(main: &mut Main) {
+    machine gene(main: &mut Main) {
         main.model.translation = 1.0; main.model.decay_y = 0.5;
         transition { _ -> begin(main) }
     }
-    state negative_rate(main: &mut Main) { main.model.birth = -1.0; transition { _ -> begin(main) } }
-    state negative_decay(main: &mut Main) { main.model.decay_x = -0.5; transition { _ -> begin(main) } }
-    state negative_population(main: &mut Main) { main.initial_x = -1; transition { _ -> begin(main) } }
-    state overflow_case(main: &mut Main) { main.initial_x = 100000; main.model.seed = 100000; main.model.decay_x = 0.0; transition { _ -> begin(main) } }
-    state budget_case(main: &mut Main) { main.model.budget = 0; main.model.seed = 100000; transition { _ -> begin(main) } }
-    state alternate_seed(main: &mut Main) { main.model.seed = 314159; transition { _ -> begin(main) } }
-    state begin(main: &mut Main) {
+    machine negative_rate(main: &mut Main) { main.model.birth = -1.0; transition { _ -> begin(main) } }
+    machine negative_decay(main: &mut Main) { main.model.decay_x = -0.5; transition { _ -> begin(main) } }
+    machine negative_population(main: &mut Main) { main.initial_x = -1; transition { _ -> begin(main) } }
+    machine overflow_case(main: &mut Main) { main.initial_x = 100000; main.model.seed = 100000; main.model.decay_x = 0.0; transition { _ -> begin(main) } }
+    machine budget_case(main: &mut Main) { main.model.budget = 0; main.model.seed = 100000; transition { _ -> begin(main) } }
+    machine alternate_seed(main: &mut Main) { main.model.seed = 314159; transition { _ -> begin(main) } }
+    machine begin(main: &mut Main) {
         let accepted: bool = valid(&main.model, main.initial_x);
         transition accepted { true -> initialize(main) _ -> invalid_model(main) }
     }
-    state initialize(main: &mut Main) {
+    machine initialize(main: &mut Main) {
         main.model.x = narrow_i64_to_u64_saturating(main.initial_x);
         transition { _ -> select(main) }
     }
-    state select(main: &mut Main) {
+    machine select(main: &mut Main) {
         transition main.mode == 2 || main.mode == 8 { true -> trace(main) _ -> select_test(main) }
     }
-    state select_test(main: &mut Main) {
+    machine select_test(main: &mut Main) {
         transition main.mode == 5 || main.mode == 6 { true -> single_step(main) _ -> ensemble(main) }
     }
-    state single_step(main: &mut Main) {
+    machine single_step(main: &mut Main) {
         advance(&mut main.model);
         transition main.model.status {
             2 -> exhausted(main)
@@ -72,20 +72,20 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> failed(main)
         }
     }
-    state failed(main: &mut Main) { Console::write_line("unexpected control result"); Console::exit_process(5); }
-    state trace(main: &mut Main) {
+    machine failed(main: &mut Main) { Console::write_line("unexpected control result"); Console::exit_process(5); }
+    machine trace(main: &mut Main) {
         main.model.budget = 20; main.model.seed = 100000;
         transition main.mode == 8 { true -> gene_header(main) _ -> immigration_header(main) }
     }
-    state gene_header(main: &mut Main) {
+    machine gene_header(main: &mut Main) {
         Console::write_line("trajectory seed=100000 model=gene_expression");
         transition { _ -> trace_step(main) }
     }
-    state immigration_header(main: &mut Main) {
+    machine immigration_header(main: &mut Main) {
         Console::write_line("trajectory seed=100000 model=immigration_death");
         transition { _ -> trace_step(main) }
     }
-    state trace_step(main: &mut Main) {
+    machine trace_step(main: &mut Main) {
         advance(&mut main.model);
         transition main.model.status {
             0 -> trace_event(main)
@@ -94,7 +94,7 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> overflow(main)
         }
     }
-    state trace_event(main: &mut Main) {
+    machine trace_event(main: &mut Main) {
         Console::write("event="); integer(main.model.events);
         Console::write(" time="); number(main.model.time);
         Console::write(" channel="); integer(main.model.channel);
@@ -103,21 +103,21 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("");
         transition { _ -> trace_step(main) }
     }
-    state trace_done(main: &mut Main) {
+    machine trace_done(main: &mut Main) {
         Console::write("final time="); number(main.model.time);
         Console::write(" x="); integer(main.model.x);
         Console::write_line(""); Console::exit_process(0);
     }
-    state ensemble(main: &mut Main) { transition { _ -> replicate(main) } }
-    state replicate(main: &mut Main) {
+    machine ensemble(main: &mut Main) { transition { _ -> replicate(main) } }
+    machine replicate(main: &mut Main) {
         transition main.replicate < 1024 { true -> reset(main) _ -> summarize(main) }
     }
-    state reset(main: &mut Main) {
+    machine reset(main: &mut Main) {
         main.model.time = 0.0; main.model.x = 0; main.model.y = 0;
         main.model.events = 0; main.model.status = 0;
         transition { _ -> step(main) }
     }
-    state step(main: &mut Main) {
+    machine step(main: &mut Main) {
         advance(&mut main.model);
         transition main.model.status {
             0 -> step(main)
@@ -126,7 +126,7 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> overflow(main)
         }
     }
-    state collect(main: &mut Main) {
+    machine collect(main: &mut Main) {
         let sum_x_next: u64 in Saturating = (main.sum_x as u64 in Saturating) + (main.model.x as u64 in Saturating); main.sum_x = sum_x_next as u64;
         let sum_x2_next: u64 in Saturating = (main.sum_x2 as u64 in Saturating) + (main.model.x as u64 in Saturating) * (main.model.x as u64 in Saturating); main.sum_x2 = sum_x2_next as u64;
         let sum_y_next: u64 in Saturating = (main.sum_y as u64 in Saturating) + (main.model.y as u64 in Saturating); main.sum_y = sum_y_next as u64;
@@ -138,12 +138,12 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> bucket_three(main)
         }
     }
-    state bucket_zero(main: &mut Main) { let zero_next: u64 in Saturating = (main.zero as u64 in Saturating) + 1; main.zero = zero_next as u64; transition { _ -> next(main) } }
-    state bucket_one(main: &mut Main) { let one_next: u64 in Saturating = (main.one as u64 in Saturating) + 1; main.one = one_next as u64; transition { _ -> next(main) } }
-    state bucket_two(main: &mut Main) { let two_next: u64 in Saturating = (main.two as u64 in Saturating) + 1; main.two = two_next as u64; transition { _ -> next(main) } }
-    state bucket_three(main: &mut Main) { let three_plus_next: u64 in Saturating = (main.three_plus as u64 in Saturating) + 1; main.three_plus = three_plus_next as u64; transition { _ -> next(main) } }
-    state next(main: &mut Main) { let replicate_next: u64 in Saturating = (main.replicate as u64 in Saturating) + 1; main.replicate = replicate_next as u64; transition { _ -> replicate(main) } }
-    state summarize(main: &mut Main) {
+    machine bucket_zero(main: &mut Main) { let zero_next: u64 in Saturating = (main.zero as u64 in Saturating) + 1; main.zero = zero_next as u64; transition { _ -> next(main) } }
+    machine bucket_one(main: &mut Main) { let one_next: u64 in Saturating = (main.one as u64 in Saturating) + 1; main.one = one_next as u64; transition { _ -> next(main) } }
+    machine bucket_two(main: &mut Main) { let two_next: u64 in Saturating = (main.two as u64 in Saturating) + 1; main.two = two_next as u64; transition { _ -> next(main) } }
+    machine bucket_three(main: &mut Main) { let three_plus_next: u64 in Saturating = (main.three_plus as u64 in Saturating) + 1; main.three_plus = three_plus_next as u64; transition { _ -> next(main) } }
+    machine next(main: &mut Main) { let replicate_next: u64 in Saturating = (main.replicate as u64 in Saturating) + 1; main.replicate = replicate_next as u64; transition { _ -> replicate(main) } }
+    machine summarize(main: &mut Main) {
         Console::write("ensemble n="); integer(main.replicate);
         Console::write(" seed_end="); integer(main.model.seed);
         Console::write_line("");
@@ -159,10 +159,10 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("");
         Console::exit_process(0);
     }
-    state invalid(main: &mut Main) { Console::write_line("invalid input: one digit 0..9 and LF required"); Console::exit_process(2); }
-    state invalid_model(main: &mut Main) { Console::write_line("invalid model: nonnegative rates and populations, bounded seed required"); Console::exit_process(2); }
-    state exhausted(main: &mut Main) { Console::write_line("event budget exhausted"); Console::exit_process(3); }
-    state overflow(main: &mut Main) { Console::write_line("population overflow"); Console::exit_process(4); }
+    machine invalid(main: &mut Main) { Console::write_line("invalid input: one digit 0..9 and LF required"); Console::exit_process(2); }
+    machine invalid_model(main: &mut Main) { Console::write_line("invalid model: nonnegative rates and populations, bounded seed required"); Console::exit_process(2); }
+    machine exhausted(main: &mut Main) { Console::write_line("event budget exhausted"); Console::exit_process(3); }
+    machine overflow(main: &mut Main) { Console::write_line("population overflow"); Console::exit_process(4); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

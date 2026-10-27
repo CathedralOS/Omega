@@ -6,6 +6,6 @@ machine main() crashes Trap {
  let selected: dyn Rounded = Selected as dyn Rounded;
  let observed: f32 = Rounded::get(selected);
  transition observed == 16777216.0f32 { true -> done() _ -> bad() }
- state done() {}
- state bad() { crash Trap; }
+ machine done() {}
+ machine bad() { crash Trap; }
 }

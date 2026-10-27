@@ -26,8 +26,8 @@ machine Application::main(application: &mut Application) reaches Console crashes
         true -> options(application, ambient.value, substrate.value, layers.value, count.value)
         _ -> invalid(application)
     }
-    state invalid(application: &mut Application) { Console::write_line("ERROR input or domain"); Console::exit_process(10); }
-    state options(application: &mut Application, ambient: f64, substrate: f64, layers: f64, count: f64) {
+    machine invalid(application: &mut Application) { Console::write_line("ERROR input or domain"); Console::exit_process(10); }
+    machine options(application: &mut Application, ambient: f64, substrate: f64, layers: f64, count: f64) {
         let layer_integer: i32 in Saturating = I32::from_f64(layers);
         let count_integer: i32 in Saturating = I32::from_f64(count);
         transition ambient >= 1.0 && ambient <= 4.0 && substrate >= 1.0 && substrate <= 4.0 && layers >= 0.0 && layers <= 8.0 && count >= 1.0 && count <= 32.0 && layers == F64::from_i32(layer_integer as i32) && count == F64::from_i32(count_integer as i32) {
@@ -35,15 +35,15 @@ machine Application::main(application: &mut Application) reaches Console crashes
             _ -> invalid(application)
         }
     }
-    state configure(application: &mut Application, ambient: f64, substrate: f64, layers: i32 in Wrapping, count: i32 in Wrapping) {
+    machine configure(application: &mut Application, ambient: f64, substrate: f64, layers: i32 in Wrapping, count: i32 in Wrapping) {
         application.ambient = ambient; application.substrate = substrate;
         application.layers = layers; application.count = count; application.index = 0;
         transition { _ -> read_layer(application) }
     }
-    state read_layer(application: &mut Application) {
+    machine read_layer(application: &mut Application) {
         transition application.index >= 0 && application.index < application.layers && application.index < 8 { true -> layer_tokens(application) _ -> start_wavelengths(application) }
     }
-    state layer_tokens(application: &mut Application) {
+    machine layer_tokens(application: &mut Application) {
         let index: Number = block number(&mut application.reader);
         let thickness: Number = block number(&mut application.reader);
         transition index.valid && thickness.valid && index.value >= 1.0 && index.value <= 4.0 && thickness.value >= 0.0 && thickness.value <= 2000.0 {
@@ -51,42 +51,42 @@ machine Application::main(application: &mut Application) reaches Console crashes
             _ -> invalid(application)
         }
     }
-    state store_layer(application: &mut Application, index: f64, thickness: f64) {
+    machine store_layer(application: &mut Application, index: f64, thickness: f64) {
         application.indices[application.index] = index; application.thicknesses[application.index] = thickness;
         application.index = application.index + 1;
         transition { _ -> read_layer(application) }
     }
-    state start_wavelengths(application: &mut Application) { application.index = 0; transition { _ -> read_wavelength(application) } }
-    state read_wavelength(application: &mut Application) {
+    machine start_wavelengths(application: &mut Application) { application.index = 0; transition { _ -> read_wavelength(application) } }
+    machine read_wavelength(application: &mut Application) {
         transition application.index >= 0 && application.index < application.count && application.index < 32 { true -> wavelength_token(application) _ -> finish_input(application) }
     }
-    state wavelength_token(application: &mut Application) {
+    machine wavelength_token(application: &mut Application) {
         let wavelength: Number = block number(&mut application.reader);
         transition wavelength.valid && wavelength.value >= 200.0 && wavelength.value <= 2000.0 { true -> store_wavelength(application, wavelength.value) _ -> invalid(application) }
     }
-    state store_wavelength(application: &mut Application, wavelength: f64) {
+    machine store_wavelength(application: &mut Application, wavelength: f64) {
         application.wavelengths[application.index] = wavelength; application.index = application.index + 1;
         transition { _ -> read_wavelength(application) }
     }
-    state finish_input(application: &mut Application) {
+    machine finish_input(application: &mut Application) {
         let complete: bool = block ended(&mut application.reader);
         transition complete { true -> initialize(application) _ -> invalid(application) }
     }
-    state initialize(application: &mut Application) {
+    machine initialize(application: &mut Application) {
         application.index = 0; application.minimum = 2.0; application.minimum_wavelength = 0.0;
         transition { _ -> wavelength(application) }
     }
-    state wavelength(application: &mut Application) {
+    machine wavelength(application: &mut Application) {
         transition application.index >= 0 && application.index < application.count && application.index < 32 { true -> identity(application) _ -> done(application) }
     }
-    state identity(application: &mut Application) {
+    machine identity(application: &mut Application) {
         application.a = 1.0; application.b = 0.0; application.c = 0.0; application.d = 1.0; application.layer = 0;
         transition { _ -> multiply(application) }
     }
-    state multiply(application: &mut Application) {
+    machine multiply(application: &mut Application) {
         transition application.layer >= 0 && application.layer < application.layers && application.layer < 8 { true -> matrix(application) _ -> amplitudes(application) }
     }
-    state matrix(application: &mut Application) {
+    machine matrix(application: &mut Application) {
         let index: f64 = application.indices[application.layer];
         let phase: f64 = 6.283185307179586 * index * application.thicknesses[application.layer] / application.wavelengths[application.index];
         let cosine: f64 = cos(phase); let sine: f64 = sin(phase);
@@ -98,7 +98,7 @@ machine Application::main(application: &mut Application) reaches Console crashes
         application.layer = application.layer + 1;
         transition { _ -> multiply(application) }
     }
-    state amplitudes(application: &mut Application) {
+    machine amplitudes(application: &mut Application) {
         let denominator_real: f64 = application.ambient * application.a + application.substrate * application.d;
         let denominator_imaginary: f64 = application.ambient * application.substrate * application.b + application.c;
         let numerator_real: f64 = application.ambient * application.a - application.substrate * application.d;
@@ -123,12 +123,12 @@ machine Application::main(application: &mut Application) reaches Console crashes
         field(&mut application.reader, "T_pico=", transmittance * 1000000000000.0);
         transition reflectance < application.minimum { true -> minimum(application, reflectance) _ -> next(application) }
     }
-    state minimum(application: &mut Application, reflectance: f64) {
+    machine minimum(application: &mut Application, reflectance: f64) {
         application.minimum = reflectance; application.minimum_wavelength = application.wavelengths[application.index];
         transition { _ -> next(application) }
     }
-    state next(application: &mut Application) { application.index = application.index + 1; transition { _ -> wavelength(application) } }
-    state done(application: &mut Application) {
+    machine next(application: &mut Application) { application.index = application.index + 1; transition { _ -> wavelength(application) } }
+    machine done(application: &mut Application) {
         field(&mut application.reader, "minimum_R_pico=", application.minimum * 1000000000000.0);
         field(&mut application.reader, "minimum_wavelength_pico_nm=", application.minimum_wavelength * 1000000000000.0);
         Console::exit_process(0);

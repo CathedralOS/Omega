@@ -8,6 +8,6 @@ requires index < 2,
         true -> finish(U64::from_f64(values[index]))
         false -> finish(0)
     }
-    state finish(converted: u64) -> u64 { converted }
+    machine finish(converted: u64) -> u64 { converted }
 }
 machine main() {}

@@ -26,14 +26,14 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> loop_(main)
     }
 
-    state loop_(main: &mut Main) {
+    machine loop_(main: &mut Main) {
         transition main.j >= 0 - 10 {
             true -> body(main)
             _ -> done(main)
         }
     }
 
-    state body(main: &mut Main) {
+    machine body(main: &mut Main) {
         main.sum = main.sum + (main.nums[main.j] as i32 in Trapping);
         main.j = main.j - 1;
         transition {
@@ -41,7 +41,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         Console::exit_process(0);
     }
 }

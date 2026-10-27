@@ -76,7 +76,7 @@ machine forward(tokens: &mut [Token])
 requires tokens.len >= 3
 {
     transition { _ -> replace(tokens) }
-    state replace(tokens: &mut [Token])
+    machine replace(tokens: &mut [Token])
     requires tokens.len >= 3
     {
         tokens[2] = mint(70);
@@ -110,6 +110,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

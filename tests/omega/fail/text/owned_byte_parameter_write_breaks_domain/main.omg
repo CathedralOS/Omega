@@ -5,13 +5,13 @@ machine corrupt(mut bytes: [u8; 4] in Ascii) -> bool {
         true -> rewrite(bytes)
         _ -> false
     }
-    state rewrite(mut bytes: [u8; 4] in Ascii) -> bool
+    machine rewrite(mut bytes: [u8; 4] in Ascii) -> bool
     requires bytes.len == 4;
     {
         bytes[0] = 255;
         transition { _ -> observe(bytes) }
     }
-    state observe(bytes: [u8; 4] in Ascii) -> bool { bytes == "gate" }
+    machine observe(bytes: [u8; 4] in Ascii) -> bool { bytes == "gate" }
 }
 
 machine main() { let corrupted: bool = corrupt("gate"); }

@@ -120,9 +120,7 @@ pub(crate) fn captured_observation_roots(
         if !referent.root.is_valid() {
             return None;
         }
-        if !roots.contains(&referent.root) {
-            roots.push(referent.root);
-        }
+        crate::collections::push_unique(&mut roots, referent.root);
     }
     Some(roots)
 }

@@ -16,18 +16,18 @@ machine Main::main(main: &mut Main) reaches Console {
         LineReadResult::EndOfInput { count } -> parse(main, count, 0, 0, 0, 0)
         _ -> invalid(main)
     }
-    state eof(main: &mut Main, count: u64) {
+    machine eof(main: &mut Main, count: u64) {
         let result: ByteRead = block Console::read_byte();
         transition result { ByteRead::Eof -> parse(main, count, 0, 0, 0, 0) _ -> invalid(main) }
     }
-    state parse(main: &mut Main, count: u64, position: u64 in Wrapping,
+    machine parse(main: &mut Main, count: u64, position: u64 in Wrapping,
                 token: u64 in Wrapping, value: u64 in Wrapping, digits: u64 in Wrapping) {
         transition position < count && position < 256 {
             true -> character(main, count, position, token, value, digits)
             false -> finish(main, token, value, digits)
         }
     }
-    state character(main: &mut Main, count: u64, position: u64 in Wrapping,
+    machine character(main: &mut Main, count: u64, position: u64 in Wrapping,
                     token: u64 in Wrapping, value: u64 in Wrapping, digits: u64 in Wrapping)
     requires position < 256 {
         let byte: u8 = main.line[position];
@@ -36,63 +36,63 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> separator(main, count, position, token, value, digits, byte)
         }
     }
-    state digit(main: &mut Main, count: u64, position: u64 in Wrapping,
+    machine digit(main: &mut Main, count: u64, position: u64 in Wrapping,
                 token: u64 in Wrapping, value: u64 in Wrapping, digits: u64 in Wrapping, byte: u8) {
         transition digits < 2 {
             true -> parse(main, count, position+1, token, value*10+(byte as u64 in Wrapping)-48, digits+1)
             false -> invalid(main)
         }
     }
-    state separator(main: &mut Main, count: u64, position: u64 in Wrapping,
+    machine separator(main: &mut Main, count: u64, position: u64 in Wrapping,
                     token: u64 in Wrapping, value: u64 in Wrapping, digits: u64 in Wrapping, byte: u8) {
         transition byte == 32 || byte == 9 || byte == 10 || byte == 13 {
             true -> delimiter(main, count, position, token, value, digits)
             false -> invalid(main)
         }
     }
-    state delimiter(main: &mut Main, count: u64, position: u64 in Wrapping,
+    machine delimiter(main: &mut Main, count: u64, position: u64 in Wrapping,
                     token: u64 in Wrapping, value: u64 in Wrapping, digits: u64 in Wrapping) {
         transition digits > 0 {
             true -> store(main, count, position, token, value)
             false -> parse(main, count, position+1, token, 0, 0)
         }
     }
-    state store(main: &mut Main, count: u64, position: u64 in Wrapping,
+    machine store(main: &mut Main, count: u64, position: u64 in Wrapping,
                 token: u64 in Wrapping, value: u64 in Wrapping) {
         transition token < 30 { true -> store_token(main, count, position, token, value) false -> invalid(main) }
     }
-    state store_token(main: &mut Main, count: u64, position: u64 in Wrapping,
+    machine store_token(main: &mut Main, count: u64, position: u64 in Wrapping,
                       token: u64 in Wrapping, value: u64 in Wrapping)
     requires token < 30 {
         main.tokens[token] = value;
         transition { _ -> parse(main, count, position+1, token+1, 0, 0) }
     }
-    state finish(main: &mut Main, token: u64 in Wrapping, value: u64 in Wrapping, digits: u64 in Wrapping) {
+    machine finish(main: &mut Main, token: u64 in Wrapping, value: u64 in Wrapping, digits: u64 in Wrapping) {
         transition digits > 0 { true -> final_token(main, token, value) false -> header(main, token) }
     }
-    state final_token(main: &mut Main, token: u64 in Wrapping, value: u64 in Wrapping) {
+    machine final_token(main: &mut Main, token: u64 in Wrapping, value: u64 in Wrapping) {
         transition token < 30 { true -> final_store(main, token, value) false -> invalid(main) }
     }
-    state final_store(main: &mut Main, token: u64 in Wrapping, value: u64 in Wrapping)
+    machine final_store(main: &mut Main, token: u64 in Wrapping, value: u64 in Wrapping)
     requires token < 30 {
         main.tokens[token] = value;
         transition { _ -> header(main, token+1) }
     }
-    state header(main: &mut Main, token_count: u64 in Wrapping) {
+    machine header(main: &mut Main, token_count: u64 in Wrapping) {
         main.community.species = main.tokens[0];
         transition token_count >= 3 && main.community.species >= 1 && main.community.species <= 12 {
             true -> query_count(main, token_count)
             false -> invalid(main)
         }
     }
-    state query_count(main: &mut Main, token_count: u64 in Wrapping) {
+    machine query_count(main: &mut Main, token_count: u64 in Wrapping) {
         let index: u64 in Wrapping = main.community.species+1;
         transition index < 30 {
             true -> query_header(main, token_count, index)
             false -> invalid(main)
         }
     }
-    state query_header(main: &mut Main, token_count: u64 in Wrapping, index: u64 in Wrapping)
+    machine query_header(main: &mut Main, token_count: u64 in Wrapping, index: u64 in Wrapping)
     requires index < 30 {
         main.community.queries = main.tokens[index];
         transition main.community.queries <= 16 && token_count == index+1+main.community.queries {
@@ -100,44 +100,44 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> invalid(main)
         }
     }
-    state counts(main: &mut Main, index: u64 in Wrapping) {
+    machine counts(main: &mut Main, index: u64 in Wrapping) {
         transition index < main.community.species && index < 12 && index+1 < 30 {
             true -> count(main, index)
             false -> total(main)
         }
     }
-    state count(main: &mut Main, index: u64 in Wrapping)
+    machine count(main: &mut Main, index: u64 in Wrapping)
     requires index < 12 && index+1 < 30 {
         let value: u64 in Wrapping = main.tokens[index+1];
         main.community.counts[index] = value;
         main.community.total = main.community.total+value;
         transition main.community.total <= 32 { true -> counts(main, index+1) false -> invalid(main) }
     }
-    state total(main: &mut Main) {
+    machine total(main: &mut Main) {
         transition main.community.total >= 1 { true -> depths(main, 0) false -> invalid(main) }
     }
-    state depths(main: &mut Main, index: u64 in Wrapping) {
+    machine depths(main: &mut Main, index: u64 in Wrapping) {
         let token: u64 in Wrapping = main.community.species+2+index;
         transition index < main.community.queries {
             true -> depth_bound(main, index, token)
             false -> calculate(main)
         }
     }
-    state depth_bound(main: &mut Main, index: u64 in Wrapping, token: u64 in Wrapping) {
+    machine depth_bound(main: &mut Main, index: u64 in Wrapping, token: u64 in Wrapping) {
         transition index < 16 && token < 30 { true -> depth(main, index, token) false -> invalid(main) }
     }
-    state depth(main: &mut Main, index: u64 in Wrapping, token: u64 in Wrapping)
+    machine depth(main: &mut Main, index: u64 in Wrapping, token: u64 in Wrapping)
     requires index < 16 && token < 30 {
         let value: u64 in Wrapping = main.tokens[token];
         main.community.depths[index] = value;
         transition value <= main.community.total { true -> depths(main, index+1) false -> invalid(main) }
     }
-    state calculate(main: &mut Main) {
+    machine calculate(main: &mut Main) {
         analyze(&mut main.community);
         report(&main.community);
         Console::exit_process(0);
     }
-    state invalid(main: &mut Main) { Console::write_line("ERROR invalid_input"); Console::exit_process(64); }
+    machine invalid(main: &mut Main) { Console::write_line("ERROR invalid_input"); Console::exit_process(64); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

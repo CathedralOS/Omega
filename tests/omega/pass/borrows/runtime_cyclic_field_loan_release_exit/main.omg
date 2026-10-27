@@ -6,18 +6,18 @@ data Main { count: u64; }
 // only in snapshot. Writeback must see the count after that loan ends.
 machine Main::update(main: &mut Main) {
     transition { _ -> snapshot(main, &mut main.count) }
-    state snapshot(main: &mut Main, count: &mut u64) {
+    machine snapshot(main: &mut Main, count: &mut u64) {
         let saved: u64 = count;
         transition { _ -> writeback(main, saved) }
     }
-    state writeback(main: &mut Main, saved: u64) {
+    machine writeback(main: &mut Main, saved: u64) {
         main.count = ((saved as u64 in Wrapping) + 1) as u64;
         transition main.count < 70 {
             true -> snapshot(main, &mut main.count)
             false -> done(main)
         }
     }
-    state done(main: &mut Main) {}
+    machine done(main: &mut Main) {}
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -27,8 +27,8 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> matched(main)
         false -> mismatched(main)
     }
-    state matched(main: &mut Main) { Console::exit_process(70); }
-    state mismatched(main: &mut Main) { Console::exit_process(71); }
+    machine matched(main: &mut Main) { Console::exit_process(70); }
+    machine mismatched(main: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

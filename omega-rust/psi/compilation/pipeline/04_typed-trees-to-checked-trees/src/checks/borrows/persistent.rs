@@ -821,9 +821,7 @@ fn add_static_borrow_frontier(
                 )
             }
         }));
-        if !paths.contains(&path) {
-            paths.push(path);
-        }
+        crate::collections::push_unique(&mut *paths, path);
     }
 }
 

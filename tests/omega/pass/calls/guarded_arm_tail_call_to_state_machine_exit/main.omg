@@ -27,7 +27,7 @@ machine Main::check(main: &mut Main, limit: u64) reaches Console {
         true -> Main::verify(main, k_value)
         false -> bad(main)
     }
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::exit_process(71);
     }
 }
@@ -37,10 +37,10 @@ machine Main::verify(main: &mut Main, length: u64) reaches Console {
         true -> good(main)
         false -> wrong(main)
     }
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::exit_process(70);
     }
-    state wrong(main: &mut Main) {
+    machine wrong(main: &mut Main) {
         Console::exit_process(71);
     }
 }

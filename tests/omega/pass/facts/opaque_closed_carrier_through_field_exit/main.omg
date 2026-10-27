@@ -104,6 +104,6 @@ machine observe() -> bool reaches AddressParts {
 
 machine main() reaches AddressParts crashes Trap {
  transition observe() { true -> done() _ -> failed() }
- state done() {}
- state failed() { crash Trap; }
+ machine done() {}
+ machine failed() { crash Trap; }
 }
