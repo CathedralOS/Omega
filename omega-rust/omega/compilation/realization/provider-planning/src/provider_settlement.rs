@@ -322,8 +322,66 @@ impl ProviderSettlement {
     }
 }
 
-/// Derive and select providers against the immutable, source-checked roster.
-/// A realization cannot rewrite source contracts or fold target values into them.
+/// Limit selection to executable demands and explicitly authored choices.
+/// Merely declaring an implementation does not install its boundary slots.
+fn demanded_provider_plans(
+    checked: &checked_trees::CheckedTrees,
+    candidates: &[crate::DerivedProviderPlan],
+    defaults: &[ProviderSelection],
+    requested: &[ProviderSelection],
+) -> Vec<crate::DerivedProviderPlan> {
+    // Satisfaction declares a candidate, not a request to install it. Use the
+    // source owner's callable-use inventory, not all nominal references: a
+    // conformance row necessarily mentions its requirement without calling it.
+    let mut uses = typed_trees::references::collect_program_references(&checked.typed)
+        .callable_uses
+        .into_iter()
+        .map(|symbol| {
+            checked
+                .typed
+                .closed_requirement_application(symbol)
+                .map_or(symbol, |application| application.template)
+        })
+        .collect::<std::collections::HashSet<_>>();
+    uses.extend(
+        checked
+            .facts
+            .operators
+            .boundary_applications
+            .iter()
+            .map(|application| application.requirement_symbol),
+    );
+    uses.extend(
+        checked
+            .facts
+            .operators
+            .symbolic_boundary_applications
+            .iter()
+            .map(|application| application.requirement_symbol),
+    );
+    candidates
+        .iter()
+        .filter(|candidate| {
+            candidate
+                .provenance
+                .row_requirements
+                .iter()
+                .any(|requirement| uses.contains(requirement))
+                || defaults.iter().chain(requested).any(|selection| {
+                    candidate.plan.rows.iter().any(|row| {
+                        selection.subject.selects_schema(
+                            candidate.provenance.schema.symbol(),
+                            candidate.plan.identity_text(row.requirement_identity),
+                        )
+                    })
+                })
+        })
+        .cloned()
+        .collect()
+}
+
+/// Derive every candidate, selecting whole maps only for demanded or authored
+/// slots. Unselected exported implementations remain checked review content.
 pub fn settle_checked_providers(
     checked: &checked_trees::CheckedTrees,
     settled_target_machines: SettledTargetMachineDeclarations,
@@ -362,7 +420,12 @@ pub fn settle_checked_providers(
         &settled_target_machines.origins,
     ))?;
     let selected_provider_plans = crate::select_derived_provider_plans(
-        &derived_provider_plans,
+        &demanded_provider_plans(
+            checked,
+            &derived_provider_plans,
+            &target_provider_defaults,
+            build_provider_selections,
+        ),
         provider_selection_target,
         &target_provider_defaults,
         build_provider_selections,
