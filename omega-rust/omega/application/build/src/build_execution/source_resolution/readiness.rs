@@ -846,13 +846,11 @@ impl PendingDependencies {
             if let Demand::Provider {
                 alias: selected, ..
             } = &demand
-            {
-                if alias
+                && alias
                     .as_ref()
                     .is_some_and(|alias| alias.as_str() != selected)
-                {
-                    continue;
-                }
+            {
+                continue;
             }
             requests.push((
                 request_ordinal,
