@@ -13,7 +13,9 @@ use crate::optimization::{
     PostAllocationMachineOptimizationError, PostAllocationMachineOptimizationRun,
     execute_post_allocation_machine_optimizations,
 };
-use crate::plan::{compute_post_allocation_machine_plan, seal_post_allocation_machine_plan};
+use crate::plan::{
+    PlanSources, compute_post_allocation_machine_plan, seal_post_allocation_machine_plan,
+};
 use optimization_core::OptimizationSelectionIdentity;
 use physical_instructions::PostAllocationMachineIdentity;
 use selected_instructions_to_register_homes::MachineEffectStageError;
@@ -29,17 +31,17 @@ pub fn stage_optimized_post_allocation_machine_plan(
     let environment = allocation.register_environment();
     let effects = analyze_machine_effects(selected, environment)
         .map_err(OptimizedPostAllocationMachinePipelineError::MachineEffects)?;
-    let mut machine = compute_post_allocation_machine_plan(
+    let mut machine = compute_post_allocation_machine_plan(&PlanSources {
         selected,
-        &effects,
-        allocation.ranges(),
-        allocation.legality(),
-        allocation.homes(),
-        allocation.post_allocation_manifest(),
-        environment.identity(),
-        environment.physical(),
-        environment.constraints(),
-    )
+        effects: &effects,
+        ranges: allocation.ranges(),
+        legality: allocation.legality(),
+        homes: allocation.homes(),
+        manifest: allocation.post_allocation_manifest(),
+        register_environment: environment.identity(),
+        physical: environment.physical(),
+        constraints: environment.constraints(),
+    })
     .map_err(OptimizedPostAllocationMachinePipelineError::PostAllocation)?;
     let optimization = execute_post_allocation_machine_optimizations(
         &mut machine,

@@ -1,29 +1,24 @@
 //! Identity-root and structural-roster admission before construction.
 
-use register_model::{
-    TargetRegisterEnvironmentIdentity, ValidatedPhysicalRegisterModel,
-    ValidatedRegisterConstraintCatalog,
-};
-use selected_instructions_to_register_homes::{
-    ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedPostAllocationOptimizationManifest,
-    ValidatedRegisterHomes, ValidatedSelectedAnalysis,
-};
-
 use crate::PostAllocationMachineError;
-use selected_instructions_to_register_homes::ValidatedPreAllocationMachineEffects;
+use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
-#[allow(clippy::too_many_arguments)]
+use super::PlanSources;
+
 pub(super) fn validate<S: ValidatedSelectedAnalysis>(
-    selected: &S,
-    effects: &ValidatedPreAllocationMachineEffects,
-    ranges: &ValidatedLiveRanges,
-    legality: &ValidatedAllocationLegality,
-    homes: &ValidatedRegisterHomes,
-    manifest: &ValidatedPostAllocationOptimizationManifest,
-    register_environment: TargetRegisterEnvironmentIdentity,
-    physical: &ValidatedPhysicalRegisterModel,
-    constraints: &ValidatedRegisterConstraintCatalog,
+    sources: &PlanSources<'_, S>,
 ) -> Result<(), PostAllocationMachineError> {
+    let PlanSources {
+        selected,
+        effects,
+        ranges,
+        legality,
+        homes,
+        manifest,
+        register_environment,
+        physical,
+        constraints,
+    } = *sources;
     if effects.receipt().selected() != selected.selected_identity()
         || ranges.receipt().selected() != selected.selected_identity()
     {

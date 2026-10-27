@@ -5,6 +5,7 @@
 mod compute;
 mod validate;
 
+pub(crate) use compute::{PlanSources, compute_post_allocation_machine_plan};
 pub(crate) use validate::seal_post_allocation_machine_plan;
 
 use optimization_core::PostAllocationOptimizationManifestIdentity;
@@ -14,37 +15,6 @@ use selected_instructions::PreAllocationMachineEffectIdentity;
 use selected_instructions::SelectedInstructionPlanIdentity;
 use selected_instructions_to_register_homes::RegisterHomeIdentity;
 use std::sync::Arc;
-
-/// Join one validated selected CFG, its pre-allocation machine effects, and
-/// its independently validated physical homes into the unsealed baseline
-/// plan. Target applicability must identify exactly one legal alternative for
-/// every instruction; optimizer-selected alternatives wait for the phase.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn compute_post_allocation_machine_plan<
-    S: selected_instructions_to_register_homes::ValidatedSelectedAnalysis,
->(
-    selected: &S,
-    effects: &selected_instructions_to_register_homes::ValidatedPreAllocationMachineEffects,
-    ranges: &selected_instructions_to_register_homes::ValidatedLiveRanges,
-    legality: &selected_instructions_to_register_homes::ValidatedAllocationLegality,
-    homes: &selected_instructions_to_register_homes::ValidatedRegisterHomes,
-    manifest: &selected_instructions_to_register_homes::ValidatedPostAllocationOptimizationManifest,
-    register_environment: register_model::TargetRegisterEnvironmentIdentity,
-    physical: &register_model::ValidatedPhysicalRegisterModel,
-    constraints: &register_model::ValidatedRegisterConstraintCatalog,
-) -> Result<PostAllocationMachinePlan, PostAllocationMachineError> {
-    compute::compute_terminal_post_allocation_machine_plan(
-        selected,
-        effects,
-        ranges,
-        legality,
-        homes,
-        manifest,
-        register_environment,
-        physical,
-        constraints,
-    )
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PostAllocationMachineReceipt {
