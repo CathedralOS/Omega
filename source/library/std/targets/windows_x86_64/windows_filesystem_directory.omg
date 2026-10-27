@@ -35,9 +35,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
     // Anonymous SQOS; no inheritance, overlap, callbacks or public aliases.
     let handle: u64 = block WindowsFilesystemNativeProvider::create_file(path, 1048577, 7, 3, 34603008);
     transition handle != 0 { true -> block mode(handle) false -> 0 }
-    machine mode(handle: u64) -> i64
-    ensures result != -1
-     {
+    machine mode(handle: u64) -> i64 {
         let raw: i64 = narrow_u64_to_i64_wrapping(handle);
         let mut completion: WindowsFilesystemIoStatus;
         let mut mode: u32 = 0;
@@ -47,24 +45,18 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
             false -> block failed_query(handle, status)
         }
     }
-    machine checked(handle: u64, mode: u32, returned: u64) -> i64
-    ensures result != -1
-     {
+    machine checked(handle: u64, mode: u32, returned: u64) -> i64 {
         let raw: i64 = narrow_u64_to_i64_wrapping(handle);
         transition (mode & 32) != 0 && returned == 4 && raw != 0 && raw != -1 {
             true -> (raw)
             false -> block refuse(handle, 87)
         }
     }
-    machine failed_query(handle: u64, status: i32) -> i64
-    ensures result != -1
-     {
+    machine failed_query(handle: u64, status: i32) -> i64 {
         let code: u32 = WindowsFilesystemIo::c_status_to_error(status);
         transition { _ -> block refuse(handle, code) }
     }
-    machine refuse(handle: u64, code: u32) -> i64
-    ensures result != -1
-     {
+    machine refuse(handle: u64, code: u32) -> i64 {
         let released: i32 = block WindowsFilesystemNativeProvider::close_handle(handle);
         WindowsFilesystemIo::c_set_last_error(code);
         0
