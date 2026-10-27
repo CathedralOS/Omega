@@ -4845,6 +4845,57 @@ fail/facts/applied_zero_establishment_through_parameter_unestablished rejected 2
 	machine `start` state `entry` statement 1: reading `value.<whole value>` crosses an open default-domain invariant window before data `Gate` is established: the zeroed representation is not yet a `Gate` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
 fail/facts/applied_zero_establishment_through_target_body_unestablished rejected 255ms expected @0360a23ad5f5+wt
 	machine `start` state `entry` statement 1: reading `value.<whole value>` crosses an open default-domain invariant window before data `Gate` is established: the zeroed representation is not yet a `Gate` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
+fail/facts/as_slice_views_generic_conflicting_backing_write_rejected rejected 2506ms expected @2a8584b4303a
+	statement 3 mutates `entries[0]` while local borrow `view` is still active (borrowed at statement 2; its last use is at statement 5)
+fail/facts/as_slice_views_generic_mismatched_const_argument_rejected rejected 700ms expected @2a8584b4303a
+	generic machine `whole_view` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
+fail/facts/as_slice_views_generic_narrowed_descriptor_rejected rejected 2506ms expected @2a8584b4303a
+	cannot prove requires contract for call require_four from main: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/as_slice_views_generic_offset_selector_rejected rejected 3069ms expected @2a8584b4303a
+	cannot prove requires contract for call require_four from main: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/as_slice_views_generic_root_rejected rejected 2898ms expected @2a8584b4303a
+	cannot prove requires contract for call require_four from main: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/as_slice_views_generic_runtime_value_as_const_rejected rejected 1111ms expected @2a8584b4303a
+	const parameter `Count` of `whole_view` cannot accept runtime-capable Value binder `Count`
+fail/facts/as_slice_views_generic_shadowed_extent_rejected rejected 2303ms expected @2a8584b4303a
+	cannot prove requires contract for call require_four from main: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/as_slice_views_generic_stale_extent_rejected rejected 2682ms expected @2a8584b4303a
+	cannot prove requires contract for call require_four from main: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/as_slice_views_generic_stored_reference_inner_bounds_rejected rejected 1632ms expected @2a8584b4303a
+	machine `main` state `entry` value call to `observe` violates required fact `owner < 2 && selected < 4`: the instantiated fact is structurally false (`1 < 2 && 4 < 4`)
+fail/facts/as_slice_views_generic_stored_reference_outer_bounds_rejected rejected 1348ms expected @2a8584b4303a
+	machine `main` state `entry` value call to `observe` violates required fact `owner < 2 && selected < 4`: the instantiated fact is structurally false (`2 < 2 && 2 < 4`)
+fail/facts/as_slice_views_generic_stored_reference_selectors_rejected rejected 2278ms expected @2a8584b4303a
+	cannot prove requires contract for call require_four from main: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/as_slice_views_generic_stored_reference_write_only_pointer_rejected rejected 1338ms expected @2a8584b4303a
+	machine `observe` state `entry` reads field `value` from write-only parameter `holders`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
+fail/facts/as_slice_views_generic_through_call_result_rejected rejected 2286ms expected @2a8584b4303a
+	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/as_slice_views_generic_through_const_name_rejected rejected 2253ms expected @2a8584b4303a
+	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/as_slice_views_generic_through_field_rejected rejected 2264ms expected @2a8584b4303a
+	cannot prove requires contract for call require_four from extent: holder.view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/as_slice_views_generic_through_local_rejected rejected 2251ms expected @2a8584b4303a
+	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/as_slice_views_generic_through_match_join_rejected rejected 2300ms expected @2a8584b4303a
+	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/as_slice_views_generic_through_other_machine_rejected rejected 2304ms expected @2a8584b4303a
+	cannot prove requires contract for call require_four from measure: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/as_slice_views_generic_through_other_state_rejected rejected 2310ms expected @2a8584b4303a
+	cannot prove requires contract for call require_four from measure: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/as_slice_views_generic_through_parameter_rejected rejected 2517ms expected @2a8584b4303a
+	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/as_slice_views_generic_through_target_body_rejected rejected 2443ms expected @2a8584b4303a
+	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/as_slice_views_generic_wrong_const_carrier_rejected rejected 688ms expected @2a8584b4303a
+	generic machine `whole_view` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
+fail/facts/as_slice_views_generic_wrong_extent_binder_rejected rejected 2178ms expected @2a8584b4303a
+	cannot prove ensures contract for exit from whole_view at statement 0: result.len == OtherCount
+	cannot prove requires contract for call require_four from main: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove ensures contract for exit from whole_view$specialized$8f8db9abed4a2576$0 at statement 0: result.len == 3
 fail/facts/as_slice_views_through_call_result_short_extent rejected 2704ms expected @a92f16431042
 	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/as_slice_views_through_const_name_short_extent rejected 2714ms expected @a92f16431042
@@ -23982,6 +24033,19 @@ pass/facts/applied_zero_establishment_through_other_machine_exit checked 654ms c
 pass/facts/applied_zero_establishment_through_other_state_exit checked 652ms check-target:macos_arm64 @0360a23ad5f5+wt
 pass/facts/applied_zero_establishment_through_parameter_exit checked 654ms check-target:macos_arm64 @0360a23ad5f5+wt
 pass/facts/applied_zero_establishment_through_target_body_exit checked 734ms check-target:macos_arm64 @0360a23ad5f5+wt
+pass/facts/as_slice_views_generic_offset_selector_exit checked 3907ms check-target:macos_arm64 @2a8584b4303a
+pass/facts/as_slice_views_generic_root_exit checked 3901ms check-target:macos_arm64 @2a8584b4303a
+pass/facts/as_slice_views_generic_shadowed_extent_exit checked 3890ms check-target:macos_arm64 @2a8584b4303a
+pass/facts/as_slice_views_generic_stored_reference_selectors_exit checked 3904ms check-target:macos_arm64 @2a8584b4303a
+pass/facts/as_slice_views_generic_through_call_result_exit checked 3486ms check-target:macos_arm64 @2a8584b4303a
+pass/facts/as_slice_views_generic_through_const_name_exit checked 3498ms check-target:macos_arm64 @2a8584b4303a
+pass/facts/as_slice_views_generic_through_field_exit checked 3467ms check-target:macos_arm64 @2a8584b4303a
+pass/facts/as_slice_views_generic_through_local_exit checked 3443ms check-target:macos_arm64 @2a8584b4303a
+pass/facts/as_slice_views_generic_through_match_join_exit checked 3152ms check-target:macos_arm64 @2a8584b4303a
+pass/facts/as_slice_views_generic_through_other_machine_exit checked 3131ms check-target:macos_arm64 @2a8584b4303a
+pass/facts/as_slice_views_generic_through_other_state_exit checked 3110ms check-target:macos_arm64 @2a8584b4303a
+pass/facts/as_slice_views_generic_through_parameter_exit checked 3090ms check-target:macos_arm64 @2a8584b4303a
+pass/facts/as_slice_views_generic_through_target_body_exit checked 3104ms check-target:macos_arm64 @2a8584b4303a
 pass/facts/as_slice_views_through_call_result_exit checked 3228ms check-target:macos_arm64 @a92f16431042
 pass/facts/as_slice_views_through_const_name_exit checked 3265ms check-target:macos_arm64 @a92f16431042
 pass/facts/as_slice_views_through_field_exit checked 3244ms check-target:macos_arm64 @a92f16431042

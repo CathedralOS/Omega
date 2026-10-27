@@ -1,62 +1,67 @@
 # Generic whole-array production
 
 Owning requirement: **STRUCTURAL-BORROW-IDENTITY / GENERIC-FIXED-ARRAY-VIEWS**
-in [TASKS.md](../../../../../TASKS.md). This is another production of the
-[whole-array view fact](../README.md), retaining its four-entry extent and
-`require_four(view.len)` consuming operation across the same nine places.
+in [TASKS.md](../../../../../TASKS.md), claim
+`1cfe3386ac36457daa85c6e8cc5164e7`. This is another production of the
+[whole-array view fact](../README.md), preserving its four-entry extent and
+`require_four(view.len)` operation across the same nine places.
 
 `whole_view<Element, const Count: u64>` forms the ordinary shared range view
-from `&[Element; Count]` and promises `result.len == Count`. Element and extent
-parameters retain resolved declaration identities. The caller must consume the
-returned extent without adding an equality guard as proof. Every short-extent
-twin changes the backing extent and corresponding transport contract to three;
-the consuming requirement remains four.
+from `&[Element; Count]` and promises `result.len == Count`. The caller consumes
+that returned fact directly. Every short twin changes the backing extent and
+transport contract to three while retaining the consuming requirement four.
+Runtime checks occur after that consumption and cannot establish its proof.
 
-At fixed main `178897a3f89a7158387d7df5d4c14ee42e772701`, the frozen root
-positive is wrongly refused at `whole_view`'s ensures clause. An optimized
-Linux x86-64 producer with SHA-256
+The [root](main.omg) and its [twin](invalid/main.omg) accompany
+[local](local/main.omg), [field](field/main.omg),
+[parameter](parameter/main.omg), [call result](call_result/main.omg),
+[match join](match_join/main.omg), [const name](const_name/main.omg),
+[nested machine](other_state/main.omg), [another machine](other_machine/main.omg)
+and [target body](target_body/main.omg), each with its `invalid/main.omg` twin.
+Additional compositions exercise a [shadowed const binder](shadowed_extent/main.omg),
+a [nonzero field offset and selector](offset_selector/main.omg), and
+[selectors before and after a stored reference](stored_reference_selectors/main.omg).
+The latter observes both distinct backing arrays and both original addresses.
+
+At fixed base `178897a3f89a7158387d7df5d4c14ee42e772701`, the unchanged frozen
+root wrongly refused `whole_view`'s ensures clause. Optimized Linux producer
 `1a7a8b4950900035d021861c09817bf49753337606c84af373d6d1958a2ff0e8`
-also refuses a const-generic scalar `items.len` result while accepting the
-same helper with literal extent four, element-only generics, and a direct
-return of `Count`. The retained claim record holds exact source hashes,
-producer inputs and raw checking diagnostics. These are baseline observations,
-not acceptance of the new production.
+is retained with its source/oracle and input identities. The same root also
+refused on main `e4d9c74577f9ed221697b73113b045220364f9de`, independently
+observed with optimized Windows producer
+`9c54bc1e2ce01743cb51ae02e84b86fc74a5c5fd961f6923130d9e4e75f97c3b`.
 
-The same frozen root also refuses on current main
-`e4d9c74577f9ed221697b73113b045220364f9de` with its independently built,
-optimized Windows producer (`9c54bc1e2ce01743cb51ae02e84b86fc74a5c5fd961f6923130d9e4e75f97c3b`).
-The original source and authored oracle remain unchanged.
+The repair records immutable fixed-array extent on the completed actual
+before a slice formal attenuates its type. Logical operator applications retain
+exact open type/const binder identities under the ordinary application telescope.
+Storage-address production, selection and independent target-row rejoin consume
+physical path/selector geometry without requiring a standalone declaration for
+an inline scalar field. Typed loan presentation and access checks stay with
+their existing owners.
 
-The repair retains the fixed-array extent under the completed actual descriptor
-before a slice formal attenuates its type, and imports open operator type/const
-arguments under the same exact telescope as ordinary calls. Address formation
-consumes physical path and selector geometry without requiring an unrelated
-standalone scalar declaration for an inline field. Typed loan presentation and
-reference access checks remain separate owners.
+Validation uses producer `2a8584b4303a273e7881c7532211b0f80b2066d1`, with
+verified effective optimization level 1 and matching complete producer input
+identities on Linux x86-64 and Windows x86-64. Each host observed native exit 0
+and Terminal Psi exit 0 for all 13 public positives and all 13 identical corpus
+pins. All 13 short twins and ten additional [boundary controls](controls/)
+reject for their authored reasons. Focused fixed-base comparisons cover the
+changed generic/operator rules and all storage-address source readers, with no
+lost existing outcomes. Qualification receipts, actual engine streams, profiles,
+source bundles and the zero-deletion/original-byte golden guards remain in the
+claim evidence; golden rows retain their actual producer observation stamp.
 
-Linux development observations establish native exit 0 and Terminal Psi exit 0
-for the root, all nine places, a shadowed const binder, a nonzero-offset selected
-field, and selectors on both sides of a stored fixed-array reference. Reject
-controls cover short extents, an unrelated const binder, stale descriptors,
-backing writes, narrowed descriptors, both selector bounds, a write-only stored
-pointer crossing, and mismatched static argument categories. Raw commands,
-producer/source identities and actual engine outputs remain in the claim's
-qualification records. These development observations are not final candidate
-qualification. The stored-reference case uses explicit intermediate values;
-it does not claim support for a nested-call lowering route.
+Establishment comes from the actual fixed-array type and completed range
+contract. Original address and element-value checks establish backing identity;
+all nine transports establish composition. Wrong extents/binders, narrowed or
+replaced descriptors, conflicting writes, denied pointer traversal and both
+selector bounds retain the soundness boundaries. Actual Terminal/native agreement
+covers checked lowering, descriptor layout/calling plans, instruction/frame
+realization and emitted PE/ELF execution on those two hosts.
 
-An exploratory array of returned slice descriptors still loses its initializer's
-length fact before the consuming call. Its frozen source and refusal remain in
-the claim evidence as remaining parent acceptance; this repair does not claim to
-close that separate production. No matching macOS ARM or Linux ARM execution
-host is verified for this wave. All four hosted entry bindings are authored;
-Linux and Windows execution observations remain distinct from that binding
-coverage.
-
-Final exact-candidate validation is pending. Extent establishment, exact backing and lifetime,
-call/join composition, invalid extent and backing controls, checked-to-Terminal
-lowering, target realization and ABI, instruction/frame realization, and final
-image execution must retain the governing row's obligations. All four hosted
-entry bindings are authored; matching-host `omega run --both`, corpus pins and
-independent exact-candidate review remain required. This production does not
-close the parent's other indexed borrow or cross-host recast requirements.
+All four hosted entry bindings are authored and all target-scoped source bodies
+are checked. Matching macOS ARM and Linux ARM execution acceptance remains open;
+these two-host observations do not establish it. On the development producer,
+an exploratory array of returned slice descriptors lost its initializer length
+before the consuming call. That frozen lead remains in the claim evidence for
+the next production under this fact. This repair does not close the parent's
+other indexed-borrow or cross-host recast requirements.
