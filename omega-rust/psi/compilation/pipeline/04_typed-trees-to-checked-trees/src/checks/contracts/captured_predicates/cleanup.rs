@@ -1,8 +1,8 @@
 //! Cleanup contracts consume the same captured predicate judgment.
 
 use super::{
-    BoundObservation, BoundPredicate, CheckFacts, FlowStateFact, PredicateTransport,
-    retain_bindings, transport,
+    BoundObservation, BoundPredicate, CapturedBinding, CheckFacts, FlowStateFact,
+    PredicateTransport, retain_bindings, transport,
 };
 
 /// Rejoin a constructed value's scalar observation with its typed completion. The
