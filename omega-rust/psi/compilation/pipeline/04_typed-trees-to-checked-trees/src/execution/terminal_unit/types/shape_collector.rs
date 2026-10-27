@@ -34,7 +34,7 @@ pub(crate) struct ShapeCollector<'program> {
     pub(in crate::execution::terminal_unit) cleanup_control:
         checked_trees::CheckedCleanupControlPlans,
     in_progress: BTreeSet<typed_trees::type_identity::TypeIdentityId>,
-    domains_in_progress: BTreeSet<(SemanticDomainId, typed_trees::type_identity::TypeIdentityId)>,
+    domains_in_progress: BTreeSet<(u32, typed_trees::type_identity::TypeIdentityId)>,
     /// The element rows registered beside borrowed byte views. A byte
     /// carrier's plan keeps no element field, so `retain_transitive` follows
     /// this edge where it follows a `BorrowedSliceView`'s element identity.
@@ -216,7 +216,7 @@ impl<'program> ShapeCollector<'program> {
             } else {
                 self.add_type(carrier, binders, &[])?
             };
-        let key = (domain, carrier_type_identity);
+        let key = (domain.0, carrier_type_identity);
         if self.domains_in_progress.contains(&key) {
             return Some(carrier_type_identity);
         }
@@ -231,7 +231,7 @@ impl<'program> ShapeCollector<'program> {
                 .iter()
                 .map(|membership| membership.semantic_domain)
                 .collect::<Vec<_>>();
-            domains.sort();
+            domains.sort_by_key(|domain| domain.0);
             domains.dedup();
             domains
         });
