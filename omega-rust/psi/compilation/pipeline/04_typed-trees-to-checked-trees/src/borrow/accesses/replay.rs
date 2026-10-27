@@ -63,15 +63,16 @@ pub(crate) fn rejoin_expression_call_accesses<'program>(
     let mut expected_segments = arena::Arena::new();
     let mut expected_accesses = arena::Arena::new();
     let (owner, state_row) = validation::machine_state_by_symbols(program, machine, state)?;
-    let extraction = super::completed_dispatch::completed_invocation(
+    let invocation = super::completed_dispatch::transition_invocation(
         program,
         facts,
         owner,
         state_row,
         source.statement_index,
         source.call_ordinal,
-    )
-    .map(|(_, extraction)| extraction);
+    );
+    let after_dispatch = invocation.is_some();
+    let extraction = invocation.and_then(|(_, extraction)| extraction);
     let expected = super::collect_argument_access_span(
         program,
         &mut expected_segments,
@@ -81,7 +82,7 @@ pub(crate) fn rejoin_expression_call_accesses<'program>(
         source.statement_index,
         machine,
         source.target_symbol,
-        extraction.is_some(),
+        after_dispatch,
         extraction,
     );
     let expected = expected_accesses.span(expected)?;
