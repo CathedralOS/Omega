@@ -1602,32 +1602,8 @@ impl Implication<'_> {
                         projection,
                         ..
                     } => {
-                        // These are already-read immutable observations of the
-                        // exact enclosing record, not a new current-storage read.
-                        // A helper must retain their atoms when the outer goal
-                        // still names them, just as it retains scalar formals.
-                        for position in 0..self.records.len() {
-                            self.spend()?;
-                            let observation = &self.records[position];
-                            if observation.identity != *identity
-                                || !observation.projection.starts_with(projection)
-                            {
-                                continue;
-                            }
-                            match observation.value.clone() {
-                                Value::Integer { value: formal, .. }
-                                    if contains(value, &formal) =>
-                                {
-                                    return Some(true);
-                                }
-                                Value::Collection { identity, .. }
-                                    if self
-                                        .collection_observes_integer(identity, value, path)? =>
-                                {
-                                    return Some(true);
-                                }
-                                _ => {}
-                            }
+                        if self.record_observes_integer(*identity, projection, value, path)? {
+                            return Some(true);
                         }
                     }
                     _ => {}
