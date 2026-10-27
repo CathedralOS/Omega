@@ -113,6 +113,24 @@ the exact original request, retained cache, commit and root tree without
 refetching; an absent or invalid pinned cache fails. These privately issued
 pins prevent drift within one traversal, not persisted lock recovery.
 
+`git::resolution::GitWorkspaceSession` separates authenticated tree inspection
+from package publication. `open` reads the root declaration; `open_members`
+batch-reads the requested declaration roster; the resulting catalog's
+`materialize` publishes one selected subtree. Repository metadata has its own
+ceiling, declarations retain their existing bounds, and unrelated payloads do
+not consume the selected package's entry or byte allowance. Pauses between these
+steps retain an exact commit/tree, including when another operation advances the
+same selector cache. Each resumed read revalidates cache custody and authenticates
+the requested payloads. This supplies bytes, not Build execution or admission.
+
+The application Build path still uses whole-root capture before named selection.
+Connecting this staged resolver requires a compiler-owned handoff between
+declaration discovery and Product source: preserve one Build activation, its
+input inventory and negative observations, and exact selected-tree custody.
+Do not turn declaration-only bytes into a claimed complete source capture or
+rerun Build after expanding that capture. Cathedral's allocator acquisition is
+the pending customer for that integration; this API alone does not unblock it.
+
 Failed transport restores canonical repository configuration and keeps a cache
 only after post-command custody checks. Prior exact objects remain usable
 offline. Missing `source.identity` entries are discarded and rebuilt only by a
