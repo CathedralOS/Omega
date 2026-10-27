@@ -286,10 +286,9 @@ mod tests {
                         encoded.footprint().encoded.stack,
                         MachineEncodedStackEffect::UnchangedV1
                     );
-                    for bit in 0..encoded.bytes().len() * 8 {
-                        let mut changed = encoded.bytes().to_vec();
-                        changed[bit / 8] ^= 1 << (bit % 8);
-                        assert!(
+                    crate::selected_form_encoding::assert_every_bit_flip_rejected(
+                        encoded.bytes(),
+                        |changed| {
                             validate_x86_64_selected_hosted_write_byte_form(
                                 target,
                                 &physical,
@@ -297,12 +296,11 @@ mod tests {
                                 alternative,
                                 &operands,
                                 displacement,
-                                &changed
+                                changed,
                             )
-                            .is_err(),
-                            "encoded bit {bit}"
-                        );
-                    }
+                            .is_err()
+                        },
+                    );
                     assert!(
                         validate_x86_64_selected_hosted_write_byte_form(
                             target,

@@ -209,14 +209,10 @@ mod tests {
             assert_eq!(encoded.bytes().len(), 25);
             assert_eq!(encoded.footprint().register_reads, operands[..2]);
             assert_eq!(encoded.footprint().register_writes, operands[2..]);
-            for bit in 0..encoded.bytes().len() * 8 {
-                let mut changed = encoded.bytes().to_vec();
-                changed[bit / 8] ^= 1 << (bit % 8);
-                assert!(
-                    validate(&physical, alternative, &operands, &changed).is_err(),
-                    "bit {bit}"
-                );
-            }
+            crate::selected_form_encoding::assert_every_bit_flip_rejected(
+                encoded.bytes(),
+                |changed| validate(&physical, alternative, &operands, changed).is_err(),
+            );
             super::super::assert_byte_fragility(encoded.bytes(), |bytes| {
                 validate(&physical, alternative, &operands, bytes).is_err()
             });

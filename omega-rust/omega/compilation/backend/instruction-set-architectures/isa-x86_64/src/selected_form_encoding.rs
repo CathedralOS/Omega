@@ -329,3 +329,15 @@ pub(super) fn assert_byte_fragility(encoded: &[u8], rejects: impl Fn(&[u8]) -> b
     trailing.push(0);
     assert!(rejects(&trailing));
 }
+
+/// Every bit of a selected form's encoding is load-bearing: flipping any one
+/// of them is an encoding its validator must refuse. The per-form tests
+/// assert that against their own `validate`.
+#[cfg(test)]
+pub(crate) fn assert_every_bit_flip_rejected(encoded: &[u8], rejects: impl Fn(&[u8]) -> bool) {
+    for bit in 0..encoded.len() * 8 {
+        let mut changed = encoded.to_vec();
+        changed[bit / 8] ^= 1 << (bit % 8);
+        assert!(rejects(&changed), "changed encoding bit {bit}");
+    }
+}

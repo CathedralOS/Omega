@@ -6,7 +6,7 @@ use super::{
     X86_64SelectedFormEncodingError,
 };
 use crate::selected_form_encoding::instruction_bytes::{
-    append_indexed_byte_load, append_increment, append_register_compare, append_self_clear,
+    append_increment, append_indexed_byte_load, append_register_compare, append_self_clear,
     append_self_test, modrm, rex,
 };
 use crate::selected_form_encoding::request_validation::byte_loop_registers;
@@ -225,14 +225,10 @@ mod tests {
             assert_eq!(encoded.bytes().len(), 36);
             assert_eq!(encoded.footprint().register_reads, operands[..3]);
             assert_eq!(encoded.footprint().register_writes, operands[3..]);
-            for bit in 0..encoded.bytes().len() * 8 {
-                let mut changed = encoded.bytes().to_vec();
-                changed[bit / 8] ^= 1 << (bit % 8);
-                assert!(
-                    validate(&physical, alternative, &operands, 0, &changed).is_err(),
-                    "bit {bit}"
-                );
-            }
+            crate::selected_form_encoding::assert_every_bit_flip_rejected(
+                encoded.bytes(),
+                |changed| validate(&physical, alternative, &operands, 0, changed).is_err(),
+            );
             super::super::assert_byte_fragility(encoded.bytes(), |bytes| {
                 validate(&physical, alternative, &operands, 0, bytes).is_err()
             });
