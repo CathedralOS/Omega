@@ -26,11 +26,55 @@ pub(in crate::lowering) fn descriptor_projection(
     ),
     LoweringError,
 > {
+    descriptor_projection_access(function, structural_types, backings, source, false)
+}
+
+/// Descriptor extent is metadata, not content. A write-only home still resolves
+/// the selected descriptor's geometry under its own authority, but the path may
+/// not cross a stored referent: that would turn the observation into a read
+/// through the stored pointer.
+pub(in crate::lowering) fn descriptor_metadata_projection(
+    function: &AbstractFunction,
+    structural_types: &StructuralTypeLookup<'_>,
+    backings: ElementViewBackings<'_>,
+    source: &StructuralArgument,
+) -> Result<
+    (
+        semantic_vocabulary::StructuralTypeId,
+        Vec<target_operations::TargetStructuralRuntimeIndex>,
+    ),
+    LoweringError,
+> {
+    descriptor_projection_access(function, structural_types, backings, source, true)
+}
+
+fn descriptor_projection_access(
+    function: &AbstractFunction,
+    structural_types: &StructuralTypeLookup<'_>,
+    backings: ElementViewBackings<'_>,
+    source: &StructuralArgument,
+    metadata: bool,
+) -> Result<
+    (
+        semantic_vocabulary::StructuralTypeId,
+        Vec<target_operations::TargetStructuralRuntimeIndex>,
+    ),
+    LoweringError,
+> {
     let invalid = || refusal(function, &(source, backings.homes.get(&source.place)));
     if !matches!(
         source.access,
         StructuralAccess::Owned | StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-    ) {
+    ) && !(metadata && source.access == StructuralAccess::WriteOnlyBorrow)
+    {
+        return Err(invalid());
+    }
+    if source.access == StructuralAccess::WriteOnlyBorrow
+        && source
+            .path
+            .iter()
+            .any(|segment| matches!(segment, StructuralPathSegment::Referent))
+    {
         return Err(invalid());
     }
     let (root, access, multiplicity) = function
@@ -100,14 +144,30 @@ pub(in crate::lowering) fn descriptor_projection(
     } else {
         source.access
     };
-    if !terminal_semantics::descriptor_source_projection_accessible(
-        structural_types.values().copied(),
-        root,
-        multiplicity,
-        access,
-        &source.path,
-        requested,
-    ) {
+    // A write-only extent observation needs its path traversable under the
+    // home's authority and no stored-referent crossing (rejected above). The
+    // selected descriptor's backing admission is the payload contract; extent
+    // geometry alone never reaches it.
+    let accessible = if source.access == StructuralAccess::WriteOnlyBorrow {
+        terminal_semantics::reference_source_projection_accessible(
+            structural_types.values().copied(),
+            root,
+            multiplicity,
+            access,
+            &source.path,
+            requested,
+        )
+    } else {
+        terminal_semantics::descriptor_source_projection_accessible(
+            structural_types.values().copied(),
+            root,
+            multiplicity,
+            access,
+            &source.path,
+            requested,
+        )
+    };
+    if !accessible {
         return Err(invalid());
     }
     let regions = crate::lowering::structural_layout::reference_projection_regions(

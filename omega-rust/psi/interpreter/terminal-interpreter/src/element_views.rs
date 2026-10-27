@@ -1426,18 +1426,27 @@ impl TerminalExecution<'_> {
         if result.scalar_type != ScalarType::Integer(integer_type) {
             return Err(malformed());
         }
-        if source.access == StructuralAccess::WriteOnlyBorrow {
-            return Err(malformed());
-        }
-        self.validate_descriptor_borrow(source, StructuralAccess::SharedBorrow)?;
-        // Read the selected descriptor through the shared live-path owner.
-        // Reference crossings retain their captured backing; this observation
-        // attenuates access without copying an exclusive descriptor.
-        let selected = self.resolve_live_projection(
-            source.place,
-            &source.path,
-            StructuralAccess::SharedBorrow,
-        )?;
+        // The extent is descriptor metadata, not content. A write-only home
+        // resolves the descriptor under its own authority, but a Referent hop
+        // would still turn metadata into a read through the stored pointer.
+        let metadata_access = if source.access == StructuralAccess::WriteOnlyBorrow {
+            if source
+                .path
+                .iter()
+                .any(|segment| matches!(segment, StructuralPathSegment::Referent))
+            {
+                return Err(malformed());
+            }
+            StructuralAccess::WriteOnlyBorrow
+        } else {
+            self.validate_descriptor_borrow(source, StructuralAccess::SharedBorrow)?;
+            StructuralAccess::SharedBorrow
+        };
+        // Read the selected descriptor through the live-path owner. Reference
+        // crossings retain their captured backing; this observation attenuates
+        // access without copying an exclusive descriptor.
+        let selected =
+            self.resolve_live_projection(source.place, &source.path, metadata_access)?;
         if !self
             .program
             .structural_types()

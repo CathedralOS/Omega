@@ -232,7 +232,7 @@ pub(in crate::lowering) fn lower_byte_observation_with_lengths(
         if scalar_type.sign() != IntegerSign::Unsigned || scalar_type.bits() != 64 {
             return Err(invalid());
         }
-        let (selected, indices) = super::descriptor_operands::descriptor_projection(
+        let (selected, indices) = super::descriptor_operands::descriptor_metadata_projection(
             function,
             structural_types,
             backings,
