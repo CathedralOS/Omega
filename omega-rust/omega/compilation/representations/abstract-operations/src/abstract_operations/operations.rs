@@ -3,8 +3,8 @@
 use crate::{
     AbstractAtomicEvent, AbstractBoundaryResult, AbstractCallTarget, AbstractResult,
     AbstractStructuralCallResult, AbstractStructuralCaseSuccessor, AbstractSuccessor,
-    AtomicModificationAfter, AtomicReadsFrom, CompletionClaimSource, IntegerArithmetic,
-    IntegerArithmeticOperator, ValueBinding,
+    AtomicResidencyEdge, CompletionClaimSource, IntegerArithmetic, IntegerArithmeticOperator,
+    ValueBinding,
 };
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ClaimId, EdgeId, IeeeFloatFormat, IeeeFloatValue, IntegerType,
@@ -421,8 +421,8 @@ pub enum AbstractOperation {
         event: AbstractAtomicEvent,
         /// Distinct atomic resident establishment, retained through refinements.
         resident_obligation: Option<semantic_vocabulary::ObligationId>,
-        reads_from: Option<AtomicReadsFrom>,
-        modification_after: Option<AtomicModificationAfter>,
+        reads_from: Option<AtomicResidencyEdge>,
+        modification_after: Option<AtomicResidencyEdge>,
     },
     /// Atomically establish one exact case of a declared structural sum from
     /// scalar values and whole owned structural payloads.

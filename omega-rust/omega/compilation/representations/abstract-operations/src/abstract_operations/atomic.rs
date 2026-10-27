@@ -21,10 +21,9 @@
 //! decisive scalar observed carrier.
 //!
 //! The concurrency contract's `reads_from`/`modification_order` axioms are
-//! retained likewise: every observing event carries an [`AtomicReadsFrom`]
-//! edge naming the write it claims to have read, every write event carries
-//! an [`AtomicModificationAfter`] edge naming the member it immediately
-//! follows, and [`happens_before_atomic_coherence_violation`]
+//! retained likewise: one [`AtomicResidencyEdge`] names, for either roster,
+//! the write it claims to have read or the member it immediately follows,
+//! and [`happens_before_atomic_coherence_violation`]
 //! independently replays the coherence axiom under the activation's
 //! bounded `happens_before` derivation — a named write must happen before
 //! the event and be the modification-order-latest write to the place on
@@ -94,129 +93,85 @@ impl From<AbstractAtomicReadModifyWrite> for terminal_psi::AtomicReadModifyWrite
 /// rejected by a later check.
 pub use language_core::atomic::FenceOrdering as AbstractAtomicFenceOrdering;
 
-/// The retained `reads_from` edge of one observing atomic event: which
-/// write in its place's modification order the event claims to have read.
+/// One retained residency edge: the modification-order member an atomic
+/// event claims to stand against, named by the operation identity it stands
+/// under in the checked activation — never by the value it stored or by a
+/// position.
 ///
-/// The edge names the write by the operation identity under which it stands
-/// in the checked activation — never by the value it stored. A load's
-/// result is a fresh definition, so value equality cannot witness a read
-/// edge, and the concurrency contract's `reads_from` relation exists only
-/// through this retained claim.
+/// Both coherence edges use this one vocabulary. An observer's `reads_from`
+/// claim names the write it read; a writer's `modification_after` claim names
+/// the member it immediately follows. The axiom asks the same question of
+/// both — is the named member exactly where the activation's own bounded
+/// `happens_before` derivation puts it? — so the witness, the refusal and the
+/// replay are one mechanism. Which events admit which edge belongs to the
+/// event, not to this carrier: [`AbstractAtomicEvent::observes_resident`] and
+/// [`AbstractAtomicEvent::joins_modification_order`] are those rosters.
+///
+/// A load's result is a fresh definition, so value equality cannot witness a
+/// read edge; the concurrency contract's relations exist only through this
+/// retained claim. Where execution paths converge on different latest writes
+/// no single member exists and the event can carry no checkable edge.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum AtomicReadsFrom {
-    /// The event observes the place's residency as it stood before the
-    /// activation: no earlier write to the place may precede the
-    /// observation on any execution path.
+pub enum AtomicResidencyEdge {
+    /// The event stands against the place's residency as it stood before the
+    /// activation: no earlier write to the place may precede it on any
+    /// execution path.
     InitialResidency,
-    /// The event observes the atomic event standing under this operation
-    /// identity in the checked activation.
+    /// The event observes — or immediately follows — the atomic event
+    /// standing under this operation identity in the checked activation.
     Write { operation: OperationId },
     /// The latest potentially modifying operation is opaque to this function.
-    /// Observe current residency with the atomic instruction, without claiming
-    /// which write inside that operation supplied it or retaining old facts.
+    /// Observe current residency with the atomic instruction, or append to it,
+    /// without claiming which write inside that operation supplied it or
+    /// retaining old facts. This is a sequencing boundary and serial
+    /// sequencing evidence, not a cross-activation claim.
     AfterEffect { operation: OperationId },
 }
 
-/// The retained `modification_order` edge of one write event: which
-/// modification-order member the event claims to immediately follow in its
-/// place.
-///
-/// Like [`AtomicReadsFrom`], the edge names the preceding write by the
-/// operation identity it stands under rather than by position or value.
-/// Inside one activation the modification order is exactly the per-place
-/// write sequence the bounded `happens_before` derivation reconstructs, so
-/// the claim is checkable: the named write must be the
-/// modification-order-latest write to the place on every execution path, or
-/// the still-initial residency when no write may precede. Where execution
-/// paths converge on different latest writes no single predecessor exists
-/// and the event can carry no checkable edge.
+/// Why a retained [`AtomicResidencyEdge`] fails the coherence axiom replayed
+/// by [`happens_before_atomic_coherence_violation`]. The same refusals apply
+/// to either coherence edge; [`AtomicCoherenceViolation`] names which roster
+/// the refused edge belonged to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum AtomicModificationAfter {
-    /// The event is its place's first modification-order member: the
-    /// residency it writes over is still initial on every execution path.
-    InitialResidency,
-    /// The event immediately follows the write standing under this
-    /// operation identity in the checked activation.
-    Write { operation: OperationId },
-    /// Append to current residency after this opaque access. This is a
-    /// sequencing boundary, not an assertion about its internal atomic events.
-    AfterEffect { operation: OperationId },
-}
-
-/// Why a retained [`AtomicReadsFrom`] edge fails the coherence axiom
-/// replayed by [`happens_before_atomic_coherence_violation`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum AtomicReadsFromViolation {
-    /// A store or fence carries a reads-from witness although it observes
-    /// no resident.
-    NonObservingWitness,
-    /// An observing event carries no witness: under the coherence axiom
-    /// every observation must name the write — or the still-initial
-    /// residency — it reads.
-    MissingWitness,
-    /// The event claims the pre-activation residency although a write to
-    /// its place may precede the observation on some execution path.
-    InitialResidencyAfterWrite,
-    /// The claimed identity resolves to no single atomic event in the
-    /// activation: it names nothing atomic, or is ambiguous under a shared
-    /// operation identity.
-    UnresolvedObservedWrite { claimed: OperationId },
-    /// The claimed identity resolves to an event outside the observer's
-    /// place's modification order — a different place, or a load or fence
-    /// that writes nothing.
-    WriteOutsideModificationOrder { claimed: OperationId },
-    /// The resolved write does not happen before the observation: it stands
-    /// later in the same block or in a block that does not dominate the
-    /// observer's, so an execution path reaches the observation without it.
-    ObservedWriteNotHappensBefore { claimed: OperationId },
-    /// The resolved write happens before the observation but is not the
-    /// modification-order-latest write to the observer's place on every
-    /// execution path: a later write may supersede it, or the residency may
-    /// be initial on a path where the write never ran.
-    ObservedWriteOverwritten { claimed: OperationId },
-}
-
-/// Why a retained [`AtomicModificationAfter`] edge fails the coherence
-/// axiom replayed by [`happens_before_atomic_coherence_violation`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum AtomicModificationAfterViolation {
-    /// A load or fence carries a modification-order edge although it joins
-    /// no modification order.
+pub enum AtomicEdgeViolation {
+    /// A store or fence carries an observer's edge, or a load or fence
+    /// carries a modification-order edge: the event joins no roster that
+    /// edge form constrains.
     NonMemberEdge,
-    /// A write carries no edge: every modification-order member must name
-    /// the member — or the still-initial residency — it immediately
-    /// follows.
-    MissingPredecessor,
-    /// The event claims to follow the pre-activation residency although a
-    /// write to its place may precede it on some execution path.
+    /// A roster member carries no edge: under the coherence axiom every
+    /// member must name the write — or the still-initial residency — it
+    /// stands against.
+    MissingEdge,
+    /// The event claims the pre-activation residency although a write to
+    /// its place may precede it on some execution path.
     InitialResidencyAfterWrite,
     /// The claimed identity resolves to no single atomic event in the
     /// activation: it names nothing atomic, or is ambiguous under a shared
     /// operation identity.
-    UnresolvedPredecessor { claimed: OperationId },
-    /// The claimed identity resolves to an event outside the writer's
-    /// place's modification order — a different place, or a load or fence
-    /// that writes nothing.
-    PredecessorOutsideModificationOrder { claimed: OperationId },
+    Unresolved { claimed: OperationId },
+    /// The claimed identity resolves to an event outside the place's
+    /// modification order — a different place, or a load or fence that
+    /// writes nothing.
+    OutsideModificationOrder { claimed: OperationId },
     /// The resolved write does not happen before this event: it stands
     /// later in the same block or in a block that does not dominate the
-    /// writer's, so an execution path reaches this write without it.
-    PredecessorNotHappensBefore { claimed: OperationId },
-    /// The resolved write happens before this event but is not the
-    /// modification-order-latest write to its place on every execution
-    /// path: a closer write may supersede it, or the residency may be
+    /// event's, so an execution path reaches the event without it.
+    NotHappensBefore { claimed: OperationId },
+    /// The resolved write happens before the event but is not the
+    /// modification-order-latest write to the place on every execution
+    /// path: a later write may supersede it, or the residency may be
     /// initial on a path where the claimed write never ran.
-    PredecessorNotLatest { claimed: OperationId },
+    Overwritten { claimed: OperationId },
 }
 
-/// Why a retained atomic-ordering edge fails the coherence axiom replayed
+/// Why a retained atomic residency edge fails the coherence axiom replayed
 /// by [`happens_before_atomic_coherence_violation`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AtomicCoherenceViolation {
     /// The retained `reads_from` edge fails its replay.
-    ReadsFrom(AtomicReadsFromViolation),
+    ReadsFrom(AtomicEdgeViolation),
     /// The retained `modification_after` edge fails its replay.
-    ModificationAfter(AtomicModificationAfterViolation),
+    ModificationAfter(AtomicEdgeViolation),
 }
 
 /// The exact atomic location one event accesses: a scalar field of the
@@ -511,7 +466,7 @@ impl AbstractAtomicEvent {
     }
 
     /// Whether this event observes its place's resident and therefore must
-    /// carry a [`AtomicReadsFrom`] edge. Store and fence events observe
+    /// carry an [`AtomicResidencyEdge`]. Store and fence events observe
     /// nothing and cannot carry one.
     pub const fn observes_resident(&self) -> bool {
         match self {
@@ -543,11 +498,11 @@ impl AbstractAtomicEvent {
 }
 
 /// Replay the coherence axiom over one activation's block graph: each
-/// observing atomic event's retained [`AtomicReadsFrom`] edge must resolve
+/// observing atomic event's retained [`AtomicResidencyEdge`] must resolve
 /// to a write that happens before the observation and is the
 /// modification-order-latest write to its place on every execution path —
 /// or claim the pre-activation residency only when no write may precede —
-/// and each write event's retained [`AtomicModificationAfter`] edge must
+/// and each write event's retained edge must
 /// name the member it immediately follows under the same derivation.
 ///
 /// Inside one activation `happens_before` is execution-path sequencing:
@@ -644,31 +599,35 @@ pub fn happens_before_atomic_coherence_violation(
                     )
                 })
                 .unwrap_or_default();
-            let violation = match (event.observes_resident(), *reads_from) {
-                (false, Some(_)) => Some(AtomicReadsFromViolation::NonObservingWitness),
-                (true, None) => Some(AtomicReadsFromViolation::MissingWitness),
-                (false, None) => None,
-                (true, Some(witness)) => reads_from_violation(
-                    event, witness, *block, index, &events, &reached, dominators,
+            // Both coherence edges are the same claim over the same reaching
+            // facts; only the roster that admits them differs. Walk them in
+            // axiom order and report the first refusal under its own role.
+            let rosters: [(
+                bool,
+                Option<AtomicResidencyEdge>,
+                fn(AtomicEdgeViolation) -> AtomicCoherenceViolation,
+            ); 2] = [
+                (
+                    event.observes_resident(),
+                    *reads_from,
+                    AtomicCoherenceViolation::ReadsFrom,
                 ),
-            }
-            .map(AtomicCoherenceViolation::ReadsFrom)
-            .or_else(|| {
-                match (event.joins_modification_order(), *modification_after) {
-                    (false, Some(_)) => Some(AtomicModificationAfterViolation::NonMemberEdge),
-                    (true, None) => Some(AtomicModificationAfterViolation::MissingPredecessor),
+                (
+                    event.joins_modification_order(),
+                    *modification_after,
+                    AtomicCoherenceViolation::ModificationAfter,
+                ),
+            ];
+            let violation = rosters.into_iter().find_map(|(member, edge, coherence)| {
+                let refusal = match (member, edge) {
+                    (false, Some(_)) => Some(AtomicEdgeViolation::NonMemberEdge),
+                    (true, None) => Some(AtomicEdgeViolation::MissingEdge),
                     (false, None) => None,
-                    (true, Some(predecessor)) => modification_after_violation(
-                        event,
-                        predecessor,
-                        *block,
-                        index,
-                        &events,
-                        &reached,
-                        dominators,
+                    (true, Some(edge)) => residency_edge_violation(
+                        event, edge, *block, index, &events, &reached, dominators,
                     ),
-                }
-                .map(AtomicCoherenceViolation::ModificationAfter)
+                };
+                refusal.map(coherence)
             });
             if let Some(violation) = violation {
                 return Some((*block, index, violation));
@@ -871,97 +830,46 @@ fn carrier_paths_may_overlap(
     true
 }
 
+/// Replay one retained residency edge against the reaching-write set the
+/// activation's own `happens_before` derivation reconstructed. A named write
+/// must resolve to one event, belong to the place's modification order, happen
+/// before the event, and be that place's latest write on every execution path;
+/// an opaque effect must be exactly the latest operation on every path.
 #[allow(clippy::too_many_arguments)]
-fn reads_from_violation(
+fn residency_edge_violation(
     event: &AbstractAtomicEvent,
-    witness: AtomicReadsFrom,
+    edge: AtomicResidencyEdge,
     block: BlockId,
     index: usize,
     events: &BTreeMap<OperationId, Vec<(BlockId, usize, &AbstractAtomicEvent)>>,
     reached: &BTreeSet<ReachingWrite>,
     dominators: &BTreeMap<BlockId, BTreeSet<BlockId>>,
-) -> Option<AtomicReadsFromViolation> {
+) -> Option<AtomicEdgeViolation> {
     let Some(location) = event.location() else {
-        return Some(AtomicReadsFromViolation::MissingWitness);
+        return Some(AtomicEdgeViolation::MissingEdge);
     };
-    match witness {
-        AtomicReadsFrom::AfterEffect { operation } => (reached
+    match edge {
+        AtomicResidencyEdge::AfterEffect { operation } => (reached
             != &BTreeSet::from([ReachingWrite::Effect(operation)]))
-            .then_some(AtomicReadsFromViolation::UnresolvedObservedWrite { claimed: operation }),
-        AtomicReadsFrom::InitialResidency => (reached != &BTreeSet::from([ReachingWrite::Initial]))
-            .then_some(AtomicReadsFromViolation::InitialResidencyAfterWrite),
-        AtomicReadsFrom::Write { operation: claimed } => {
-            let Some([(writer, position, resolved)]) = events.get(&claimed).map(Vec::as_slice)
-            else {
-                return Some(AtomicReadsFromViolation::UnresolvedObservedWrite { claimed });
-            };
-            if !resolved.joins_modification_order()
-                || (resolved.location() != Some(location)
-                    && !reached.contains(&ReachingWrite::Atomic(*writer, *position)))
-            {
-                return Some(AtomicReadsFromViolation::WriteOutsideModificationOrder { claimed });
-            }
-            // The claimed write must happen before this observation: a
-            // predecessor position in the same block, or a block that
-            // dominates the observer's. A sibling-branch or successor
-            // write reaches the observation on no `happens_before` edge.
-            let happens_before = if *writer == block {
-                *position < index
-            } else {
-                dominators
-                    .get(&block)
-                    .is_some_and(|dominating| dominating.contains(writer))
-            };
-            if !happens_before {
-                return Some(AtomicReadsFromViolation::ObservedWriteNotHappensBefore { claimed });
-            }
-            (reached != &BTreeSet::from([ReachingWrite::Atomic(*writer, *position)]))
-                .then_some(AtomicReadsFromViolation::ObservedWriteOverwritten { claimed })
-        }
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
-fn modification_after_violation(
-    event: &AbstractAtomicEvent,
-    predecessor: AtomicModificationAfter,
-    block: BlockId,
-    index: usize,
-    events: &BTreeMap<OperationId, Vec<(BlockId, usize, &AbstractAtomicEvent)>>,
-    reached: &BTreeSet<ReachingWrite>,
-    dominators: &BTreeMap<BlockId, BTreeSet<BlockId>>,
-) -> Option<AtomicModificationAfterViolation> {
-    let Some(location) = event.location() else {
-        return Some(AtomicModificationAfterViolation::MissingPredecessor);
-    };
-    match predecessor {
-        AtomicModificationAfter::AfterEffect { operation } => {
-            (reached != &BTreeSet::from([ReachingWrite::Effect(operation)])).then_some(
-                AtomicModificationAfterViolation::UnresolvedPredecessor { claimed: operation },
-            )
-        }
-        AtomicModificationAfter::InitialResidency => (reached
+            .then_some(AtomicEdgeViolation::Unresolved { claimed: operation }),
+        AtomicResidencyEdge::InitialResidency => (reached
             != &BTreeSet::from([ReachingWrite::Initial]))
-            .then_some(AtomicModificationAfterViolation::InitialResidencyAfterWrite),
-        AtomicModificationAfter::Write { operation: claimed } => {
+            .then_some(AtomicEdgeViolation::InitialResidencyAfterWrite),
+        AtomicResidencyEdge::Write { operation: claimed } => {
             let Some([(writer, position, resolved)]) = events.get(&claimed).map(Vec::as_slice)
             else {
-                return Some(AtomicModificationAfterViolation::UnresolvedPredecessor { claimed });
+                return Some(AtomicEdgeViolation::Unresolved { claimed });
             };
             if !resolved.joins_modification_order()
                 || (resolved.location() != Some(location)
                     && !reached.contains(&ReachingWrite::Atomic(*writer, *position)))
             {
-                return Some(
-                    AtomicModificationAfterViolation::PredecessorOutsideModificationOrder {
-                        claimed,
-                    },
-                );
+                return Some(AtomicEdgeViolation::OutsideModificationOrder { claimed });
             }
-            // The claimed predecessor must happen before this write: a
-            // predecessor position in the same block, or a block that
-            // dominates the writer's. A sibling-branch or successor write
-            // precedes it on no execution path.
+            // The claimed write must happen before this event: a predecessor
+            // position in the same block, or a block that dominates the
+            // event's. A sibling-branch or successor write reaches the event
+            // on no `happens_before` edge.
             let happens_before = if *writer == block {
                 *position < index
             } else {
@@ -970,12 +878,10 @@ fn modification_after_violation(
                     .is_some_and(|dominating| dominating.contains(writer))
             };
             if !happens_before {
-                return Some(
-                    AtomicModificationAfterViolation::PredecessorNotHappensBefore { claimed },
-                );
+                return Some(AtomicEdgeViolation::NotHappensBefore { claimed });
             }
             (reached != &BTreeSet::from([ReachingWrite::Atomic(*writer, *position)]))
-                .then_some(AtomicModificationAfterViolation::PredecessorNotLatest { claimed })
+                .then_some(AtomicEdgeViolation::Overwritten { claimed })
         }
     }
 }
