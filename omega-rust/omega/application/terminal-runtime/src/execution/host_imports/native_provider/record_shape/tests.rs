@@ -104,6 +104,7 @@ impl Fixture {
                 callback_layout_rows: Default::default(),
             },
             codec: StorageCodec {
+                references: Vec::new(),
                 structural_type: type_id(1),
                 extent: 16,
                 alignment: 8,
