@@ -83,10 +83,42 @@ fn before_target(
         || loan.storage_owner != facts::PlaceRoot::Symbol(local.symbol)
         || !loan.owner_path.is_empty()
         || validation::reference_shell(program, local.type_reference).is_none()
-        || validation::transition_target_uses_symbol(
+        || validation::transition_target_uses_symbol_except(
             program,
             program.statement_table.transition_target(target),
             loan.owner_symbol,
+            &|expression| {
+                let Some((_, copied)) = crate::flow::copied_payload_at(
+                    program,
+                    &facts.flow,
+                    flow.machine_symbol,
+                    flow.state_symbol,
+                    statement_index,
+                    checked_trees::FlowPermissionEvaluation::TransitionTarget(target),
+                    expression,
+                ) else {
+                    return false;
+                };
+                let checked_trees::FlowOperandCompletion::Copied { copy, .. } = copied.completion
+                else {
+                    return false;
+                };
+                // A copied reference still carries its own live frontier.
+                // Only detached borrow-free values end this descriptor use.
+                facts
+                    .flow
+                    .control
+                    .copied_values
+                    .get(copy)
+                    .references
+                    .is_empty()
+                    && validation::has_contents(
+                        program,
+                        copied.type_reference,
+                        &[],
+                        validation::ContentsRequirement::BorrowFree,
+                    )
+            },
         )
     {
         return false;
