@@ -407,6 +407,129 @@ pub enum Term {
     },
 }
 
+/// The widest node in [`Term`]: `caseTwo`, `J` and `sup` each carry four
+/// subterms.
+pub(super) const MAX_SUBTERMS: usize = 4;
+
+/// The immediate subterms of one node in slot order, each with the number of
+/// binders scoping it inside that node. Payload-only nodes carry none, which
+/// is how a walk learns that its work is in the payload.
+pub(super) struct Subterms {
+    slots: [Option<(TermHandle, u32)>; MAX_SUBTERMS],
+    count: usize,
+}
+
+impl Subterms {
+    fn new() -> Self {
+        Self {
+            slots: [None; MAX_SUBTERMS],
+            count: 0,
+        }
+    }
+
+    fn extend(&mut self, children: impl IntoIterator<Item = (TermHandle, u32)>) {
+        for (handle, binders) in children {
+            self.slots[self.count] = Some((handle, binders));
+            self.count += 1;
+        }
+    }
+
+    pub(super) fn is_empty(&self) -> bool {
+        self.count == 0
+    }
+
+    pub(super) fn len(&self) -> usize {
+        self.count
+    }
+
+    pub(super) fn iter(&self) -> impl Iterator<Item = (TermHandle, u32)> + '_ {
+        self.slots[..self.count].iter().flatten().copied()
+    }
+}
+
+/// One statement of the term layout, beside the variants it describes.
+///
+/// Each row names a variant's fields in declaration order with the number of
+/// binders scoping that slot — `Pi`'s codomain, `Lambda`'s body and `Sigma`'s
+/// codomain sit under one more binder, every other slot under none.
+/// [`Term::subterms`] reads a row and [`Term::with_children`] writes it back in
+/// the same order, so the two can never disagree about a slot, and a new
+/// variant fails to compile here instead of being missed by one of the walks.
+macro_rules! term_layout {
+    ($($variant:ident { $($field:ident : $binders:expr),* $(,)? })+) => {
+        impl Term {
+            /// This node's subterms in slot order, each with the number of
+            /// binders scoping it. Payload-only nodes carry none, which is how
+            /// a walk learns that its work is in the payload.
+            pub(super) fn subterms(&self) -> Subterms {
+                let mut slots = Subterms::new();
+                match self {
+                    $(Term::$variant { $($field),* } => slots.extend([$((*$field, $binders)),*]),)+
+                    // `Variable` and `Constant` carry their own data (de Bruijn
+                    // indices, level arguments); the rest carry nothing. No
+                    // walk descends from any of them.
+                    Term::Dummy
+                    | Term::Variable(_)
+                    | Term::Sort(_)
+                    | Term::Two
+                    | Term::TwoZero
+                    | Term::TwoOne
+                    | Term::Empty
+                    | Term::Constant { .. } => {}
+                }
+                slots
+            }
+
+            /// The inverse of [`Term::subterms`]: this node with `children` in
+            /// its slot order. A payload-only node keeps its payload.
+            pub(super) fn with_children(&self, children: &[TermHandle]) -> Term {
+                debug_assert_eq!(
+                    children.len(),
+                    self.subterms().len(),
+                    "every slot of a term takes exactly one child"
+                );
+                let mut next = children.iter().copied();
+                match self {
+                    $(Term::$variant { .. } => Term::$variant {
+                        $($field: next.next().expect("one child per term slot")),*
+                    },)+
+                    Term::Dummy
+                    | Term::Variable(_)
+                    | Term::Sort(_)
+                    | Term::Two
+                    | Term::TwoZero
+                    | Term::TwoOne
+                    | Term::Empty
+                    | Term::Constant { .. } => self.clone(),
+                }
+            }
+        }
+    };
+}
+
+term_layout! {
+    Pi { domain: 0, codomain: 1 }
+    Lambda { domain: 0, body: 1 }
+    Apply { function: 0, argument: 0 }
+    Sigma { domain: 0, codomain: 1 }
+    Pair { first: 0, second: 0 }
+    Fst { pair: 0 }
+    Snd { pair: 0 }
+    CaseTwo { motive: 0, zero_branch: 0, one_branch: 0, scrutinee: 0 }
+    Id { ty: 0, left: 0, right: 0 }
+    Refl { ty: 0, value: 0 }
+    IdElim { motive: 0, base: 0, endpoint: 0, proof: 0 }
+    W { carrier: 0, children: 0 }
+    Sup { carrier: 0, children: 0, label: 0, function: 0 }
+    IndW { motive: 0, step: 0, tree: 0 }
+    EmptyElim { ty: 0, scrutinee: 0 }
+    Squash { ty: 0 }
+    SquashIntro { ty: 0, value: 0 }
+    SquashElim { proposition: 0, function: 0, scrutinee: 0 }
+    Box { ty: 0 }
+    BoxIntro { ty: 0, value: 0 }
+    BoxElim { motive: 0, body: 0, scrutinee: 0 }
+}
 /// Contiguous arena storage for terms. Null handles resolve to `Term::Dummy`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TermArena {
@@ -459,12 +582,9 @@ impl TermArena {
 
     /// Rebuild `term` with `transform` applied to each immediate subterm.
     ///
-    /// This is the one statement of the term layout: which slots a node has,
-    /// in which order, and how many binders scope each — `Pi`'s codomain,
-    /// `Lambda`'s body and `Sigma`'s codomain sit under one more binder,
-    /// every other slot under none. `shift`, `substitute` and
+    /// The layout lives in [`Term::subterms`], so `shift`, `substitute` and
     /// `instantiate_levels` differ only in what they do at a leaf; the walk
-    /// itself is here, so a new `Term` variant is one compile error instead
+    /// itself is here, and a new `Term` variant is one compile error instead
     /// of three silent gaps.
     ///
     /// `Ok(None)` means the node carries its work in a payload (`Variable`,
@@ -477,130 +597,24 @@ impl TermArena {
         term: TermHandle,
         transform: &mut impl FnMut(&mut Self, TermHandle, u32) -> Result<TermHandle, E>,
     ) -> Result<Option<TermHandle>, E> {
-        // Each arm names its variant's fields in declaration order with the
-        // binder count of that slot. The macro transforms every slot, returns
-        // the original handle when nothing moved, and re-inserts the variant
-        // otherwise — the whole per-variant body in one line.
-        macro_rules! rebuild {
-            ($variant:ident { $($field:ident : $binders:expr),* $(,)? }) => {{
-                $(
-                    let $field = {
-                        let original = $field;
-                        (transform(self, original, $binders)?, original)
-                    };
-                )*
-                if true $(&& $field.0 == $field.1)* {
-                    return Ok(Some(term));
-                }
-                Ok(Some(self.insert(Term::$variant { $($field: $field.0),* })))
-            }};
+        let node = self.get(term);
+        let slots = node.subterms();
+        if slots.is_empty() {
+            return Ok(None);
         }
-        match self.get(term) {
-            Term::Pi { domain, codomain } => rebuild!(Pi {
-                domain: 0,
-                codomain: 1
-            }),
-            Term::Lambda { domain, body } => rebuild!(Lambda { domain: 0, body: 1 }),
-            Term::Apply { function, argument } => {
-                rebuild!(Apply {
-                    function: 0,
-                    argument: 0,
-                })
-            }
-            Term::Sigma { domain, codomain } => rebuild!(Sigma {
-                domain: 0,
-                codomain: 1
-            }),
-            Term::Pair { first, second } => rebuild!(Pair {
-                first: 0,
-                second: 0
-            }),
-            Term::Fst { pair } => rebuild!(Fst { pair: 0 }),
-            Term::Snd { pair } => rebuild!(Snd { pair: 0 }),
-            Term::CaseTwo {
-                motive,
-                zero_branch,
-                one_branch,
-                scrutinee,
-            } => rebuild!(CaseTwo {
-                motive: 0,
-                zero_branch: 0,
-                one_branch: 0,
-                scrutinee: 0,
-            }),
-            Term::Id { ty, left, right } => rebuild!(Id {
-                ty: 0,
-                left: 0,
-                right: 0
-            }),
-            Term::Refl { ty, value } => rebuild!(Refl { ty: 0, value: 0 }),
-            Term::IdElim {
-                motive,
-                base,
-                endpoint,
-                proof,
-            } => rebuild!(IdElim {
-                motive: 0,
-                base: 0,
-                endpoint: 0,
-                proof: 0,
-            }),
-            Term::W { carrier, children } => rebuild!(W {
-                carrier: 0,
-                children: 0,
-            }),
-            Term::Sup {
-                carrier,
-                children,
-                label,
-                function,
-            } => rebuild!(Sup {
-                carrier: 0,
-                children: 0,
-                label: 0,
-                function: 0,
-            }),
-            Term::IndW { motive, step, tree } => rebuild!(IndW {
-                motive: 0,
-                step: 0,
-                tree: 0,
-            }),
-            Term::EmptyElim { ty, scrutinee } => rebuild!(EmptyElim {
-                ty: 0,
-                scrutinee: 0
-            }),
-            Term::Squash { ty } => rebuild!(Squash { ty: 0 }),
-            Term::SquashIntro { ty, value } => rebuild!(SquashIntro { ty: 0, value: 0 }),
-            Term::SquashElim {
-                proposition,
-                function,
-                scrutinee,
-            } => rebuild!(SquashElim {
-                proposition: 0,
-                function: 0,
-                scrutinee: 0,
-            }),
-            Term::Box { ty } => rebuild!(Box { ty: 0 }),
-            Term::BoxIntro { ty, value } => rebuild!(BoxIntro { ty: 0, value: 0 }),
-            Term::BoxElim {
-                motive,
-                body,
-                scrutinee,
-            } => rebuild!(BoxElim {
-                motive: 0,
-                body: 0,
-                scrutinee: 0,
-            }),
-            // Payload-only nodes: the traversal rewrites these itself.
-            Term::Dummy
-            | Term::Variable(_)
-            | Term::Sort(_)
-            | Term::Two
-            | Term::TwoZero
-            | Term::TwoOne
-            | Term::Empty
-            | Term::Constant { .. } => Ok(None),
+        let mut children = [term; MAX_SUBTERMS];
+        let mut changed = false;
+        for (index, (child, binders)) in slots.iter().enumerate() {
+            let rebuilt = transform(self, child, binders)?;
+            changed |= rebuilt != child;
+            children[index] = rebuilt;
         }
+        if !changed {
+            return Ok(Some(term));
+        }
+        Ok(Some(
+            self.insert(node.with_children(&children[..slots.len()])),
+        ))
     }
 
     pub fn len(&self) -> usize {
