@@ -108,21 +108,12 @@ pub struct StagedOptimizedPostAllocationMachinePlan {
 }
 
 impl StagedOptimizedPostAllocationMachinePlan {
-    pub const fn effects(&self) -> &ValidatedPreAllocationMachineEffects {
-        &self.effects
-    }
-
-    pub const fn machine(&self) -> &ValidatedPostAllocationMachinePlan {
-        &self.machine
-    }
-
-    /// The post-allocation phase execution whose result `machine` is.
-    pub const fn optimization(&self) -> &PostAllocationMachineOptimizationRun {
-        &self.optimization
-    }
-
-    pub const fn custody(&self) -> &StagedOptimizedPostAllocationMachineCustodyReceipt {
-        &self.custody
+    borrowed_accessors! {
+        effects: ValidatedPreAllocationMachineEffects,
+        machine: ValidatedPostAllocationMachinePlan,
+        /// The post-allocation phase execution whose result `machine` is.
+        optimization: PostAllocationMachineOptimizationRun,
+        custody: StagedOptimizedPostAllocationMachineCustodyReceipt,
     }
 }
 
@@ -141,37 +132,21 @@ pub struct StagedOptimizedPostAllocationMachineCustodyReceipt {
 }
 
 impl StagedOptimizedPostAllocationMachineCustodyReceipt {
-    pub const fn source(&self) -> &AllocationEvidence {
-        &self.source
+    borrowed_accessors! {
+        source: AllocationEvidence,
     }
-    pub const fn effects(&self) -> selected_instructions::PreAllocationMachineEffectIdentity {
-        self.effects
-    }
-    pub const fn machine(&self) -> PostAllocationMachineIdentity {
-        self.machine
-    }
-    /// The post-allocation projection the phase executed.
-    pub const fn phase_selections(&self) -> OptimizationSelectionIdentity {
-        self.phase_selections
-    }
-    /// The baseline plan identity the phase started from.
-    pub const fn optimization_source(&self) -> PostAllocationMachineIdentity {
-        self.optimization_source
-    }
-    pub const fn optimization_action_count(&self) -> usize {
-        self.optimization_action_count
-    }
-    pub const fn function_count(&self) -> usize {
-        self.function_count
-    }
-    pub const fn instruction_count(&self) -> usize {
-        self.instruction_count
-    }
-    pub const fn operand_count(&self) -> usize {
-        self.operand_count
-    }
-    pub const fn unit_action_count(&self) -> usize {
-        self.unit_action_count
+    copied_accessors! {
+        effects: selected_instructions::PreAllocationMachineEffectIdentity,
+        machine: PostAllocationMachineIdentity,
+        /// The post-allocation projection the phase executed.
+        phase_selections: OptimizationSelectionIdentity,
+        /// The baseline plan identity the phase started from.
+        optimization_source: PostAllocationMachineIdentity,
+        optimization_action_count: usize,
+        function_count: usize,
+        instruction_count: usize,
+        operand_count: usize,
+        unit_action_count: usize,
     }
 }
 

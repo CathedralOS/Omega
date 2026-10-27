@@ -32,38 +32,18 @@ pub struct PostAllocationMachineReceipt {
 }
 
 impl PostAllocationMachineReceipt {
-    pub const fn identity(self) -> PostAllocationMachineIdentity {
-        self.identity
-    }
-    pub const fn selected(self) -> SelectedInstructionPlanIdentity {
-        self.selected
-    }
-    pub const fn effects(self) -> PreAllocationMachineEffectIdentity {
-        self.effects
-    }
-    pub const fn homes(self) -> RegisterHomeIdentity {
-        self.homes
-    }
-    pub const fn post_allocation_manifest(self) -> PostAllocationOptimizationManifestIdentity {
-        self.post_allocation_manifest
-    }
-    pub const fn register_environment(self) -> TargetRegisterEnvironmentIdentity {
-        self.register_environment
-    }
-    pub const fn function_count(self) -> usize {
-        self.function_count
-    }
-    pub const fn block_count(self) -> usize {
-        self.block_count
-    }
-    pub const fn instruction_count(self) -> usize {
-        self.instruction_count
-    }
-    pub const fn operand_count(self) -> usize {
-        self.operand_count
-    }
-    pub const fn unit_action_count(self) -> usize {
-        self.unit_action_count
+    copied_accessors! {
+        identity: PostAllocationMachineIdentity,
+        selected: SelectedInstructionPlanIdentity,
+        effects: PreAllocationMachineEffectIdentity,
+        homes: RegisterHomeIdentity,
+        post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
+        register_environment: TargetRegisterEnvironmentIdentity,
+        function_count: usize,
+        block_count: usize,
+        instruction_count: usize,
+        operand_count: usize,
+        unit_action_count: usize,
     }
 }
 
