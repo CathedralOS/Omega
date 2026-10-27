@@ -107,7 +107,7 @@ impl TerminalRuntimeHostProvisions {
                     if Some(application.target) != binding.native_target()
                         || application.plan.plan() != &binding.boundary_entry_plan
                         || application.commitment == [0; 32]
-                        || application.recomputed_commitment() != application.commitment
+                        || application.recomputed_commitment() != Ok(application.commitment)
                     {
                         return Err(
                             "runtime foreign calling application differs from its admitted row",
