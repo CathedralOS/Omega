@@ -1,4 +1,5 @@
 #include <stddef.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -28,6 +29,13 @@ NESTED_DIVISION_EXPORT struct division nesteddiv_lldiv(int64_t numerator, int64_
     return result;
 }
 
+NESTED_DIVISION_EXPORT bool nesteddiv_verify(struct division first, struct division copied) {
+    return first.quotient.value == INT64_C(-23333333333)
+        && first.remainder.value == -1
+        && copied.quotient.value == INT64_C(-23333333333)
+        && copied.remainder.value == -1;
+}
+
 #ifdef NESTED_DIVISION_FIXTURE_TEST
 #include <assert.h>
 
@@ -41,6 +49,10 @@ int main(void) {
     assert(copied.remainder.value == -1);
     assert(second.quotient.value == INT64_C(7777777777));
     assert(second.remainder.value == 7);
+    assert(nesteddiv_verify(first, copied));
+    struct division wrong = copied;
+    wrong.remainder.value = 0;
+    assert(!nesteddiv_verify(first, wrong));
     return 0;
 }
 #endif

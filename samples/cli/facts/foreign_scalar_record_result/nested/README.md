@@ -15,6 +15,11 @@ all original, copied and later signed fields through `.quotient.value` and
 `.remainder.value`. The first and copied results must still contain
 `-23333333333, -1`; the later result must contain `7777777777, 7`.
 These comparisons are runtime oracles, not static quotient/remainder promises.
+After all six Omega field checks, the same consumer passes both complete earlier
+records to the stateless C `nesteddiv_verify` function. It checks the same
+`-23333333333, -1` pair in each argument, confirming nested owned input transport
+and copied contents as well as the foreign result publication. It contributes
+no new arithmetic or static guarantee.
 
 The [root](main.omg) repeats the [local](local/main.omg) witness. The other places
 are [field](field/main.omg), [parameter](parameter/main.omg),
@@ -45,6 +50,9 @@ containing offsets, and scalar alignment. The same `word` type appears beneath
 two distinct outer fields. The C self-test copies the first result, makes the
 second call, then checks all six signed values. Undefined division input pairs
 refuse before calling libc.
+The self-test also invokes the whole-record verifier and confirms that changing
+one copied remainder makes it return false. Both exported functions use the
+same ordinary nested C layout and exact library binding.
 
 [fixture/prepare.py](fixture/prepare.py) follows the existing portable C fixture
 workflow: it builds a matching-host shared library and self-test, executes the
