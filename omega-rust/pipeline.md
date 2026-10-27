@@ -293,6 +293,12 @@ continuation evaluation and layout-plan installation, final query closure, then
 initializer completion. The target supplies read-only geometry through one
 prepared layout view per pass; it never rewrites expressions or selects source
 formation rules. Build admission and Product completion use this same operation.
+Psi captures deferred constant work together with its authored source before
+checking changes occurrences. Reusing a checked judgment retains the current
+invocation's deferred work, not the cached consumer's. Selected Product closure
+evaluates a private copy, rejoins recorded recipe identities and closes queries
+in the actual checked forest; the coordinator no longer copies constant values
+or layout tables between those forests.
 Provider selection and target geometry still originate outside Psi. This is not
 yet target-independent constant production or a completed Terminal-only provider
 pipeline; portable deferred recipes remain part of the migration.

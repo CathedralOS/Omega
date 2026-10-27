@@ -16,7 +16,6 @@ use checked_trees::CheckedTrees;
 use compilation_products::CheckedProductSource;
 use diagnostics::Diagnostic;
 use std::sync::Arc;
-use typed_trees::constant_recipes::ConstantRecipeDependencyReceipt;
 
 /// Proof closure consumes selected constant facts, not native calling or emission plans.
 #[derive(Default)]
@@ -59,7 +58,6 @@ pub(crate) fn close_constant_recipes(
             selected_target_profile,
             opaque_representation_selections,
             selected_provider_plan_facts,
-            &layout_queries,
         )?
     } else {
         (**typed).clone()
@@ -147,7 +145,6 @@ pub(crate) fn close_constant_recipes(
                 target,
                 opaque_representation_selections,
                 &selected.facts,
-                &layout_queries,
             )?),
         };
         // Model lookup is pure. Retain its refusal for Psi to report after
@@ -194,18 +191,17 @@ fn close_constant_values(
     selected_target_profile: target::TargetProfile,
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
     selected_provider_plan_facts: &effects::SelectedProviderPlanFacts,
-    layout_queries: &[typed_trees::expression::ExpressionHandle],
 ) -> Result<typed_trees::TypedTrees, Vec<Diagnostic>> {
-    let typed = &source.program.typed;
     // The continuation folds on the authored source it was deferred from,
     // where a boundary token use is still the occurrence the selected rows
     // name; executable preparation has already normalized it in the checked
     // program. Roster positions are the same handles in both.
-    let Some(authored) = source.constant_recipe_source.as_deref() else {
+    let Some(constants) = source.constants.as_ref() else {
         return Err(vec![Diagnostic::error(
             "constant recipes are retained without their authored evaluation source",
         )]);
     };
+    let authored = constants.source();
     let evaluation = selected_dispatch::SelectedConstantEvaluation::prepare(
         provider_planning::ProviderPlanningContext::new(authored, source::DependencyScope::Product),
         selected_target_profile,
@@ -213,80 +209,7 @@ fn close_constant_values(
         &validation::derive_pre_flow_operator_selections(authored),
         selected_provider_plan_facts,
     )?;
-    let target_bodies = evaluation.target_body_receipts();
-    let (operators, provider_bodies) = evaluation.pending_fold_providers();
-    let mut receipts: Vec<ConstantRecipeDependencyReceipt> = operators
-        .iter()
-        .map(|row| ConstantRecipeDependencyReceipt {
-            requirement: row.requirement,
-            plan_identity: row.provider.as_bytes(),
-            target_scope: selected_target_profile.target_name().to_owned(),
-            provider_declaration: Default::default(),
-            provider_machine: Default::default(),
-        })
-        .chain(
-            provider_bodies
-                .iter()
-                .map(|row| ConstantRecipeDependencyReceipt {
-                    requirement: row.requirement,
-                    plan_identity: row.provider.as_bytes(),
-                    target_scope: row.target_scope.clone(),
-                    provider_declaration: row.provider_declaration,
-                    provider_machine: row.provider_machine,
-                }),
-        )
-        .collect();
-    receipts.sort_by(|left, right| {
-        left.target_scope
-            .cmp(&right.target_scope)
-            .then(
-                left.requirement
-                    .arena_index()
-                    .cmp(&right.requirement.arena_index()),
-            )
-            .then(left.plan_identity.cmp(&right.plan_identity))
-    });
-    receipts.dedup();
-    // The fold lands on a private copy of the shared program; the shared
-    // storage keeps its symbolic positions for every other target.
-    let mut evaluated = authored.clone();
-    evaluation.evaluate_pending(&mut evaluated, source.constant_recipe_continuations.clone())?;
-    let mut closure = typed.read_constant_recipe_closure(&evaluated, receipts)?;
-    closure.target_bodies = target_bodies;
-    closure.target_scope = selected_target_profile.target_name().to_owned();
-    let mut closed_typed = (**typed).clone().with_constant_recipe_closure(closure);
-    closed_typed.plan_laid_layouts = std::mem::take(&mut evaluated.plan_laid_layouts);
-    closed_typed.plan_laid_target_layouts = std::mem::take(&mut evaluated.plan_laid_target_layouts);
-    closed_typed.plan_laid_schema_fields = std::mem::take(&mut evaluated.plan_laid_schema_fields);
-    if !layout_queries.is_empty() {
-        // Preparation can append specialized query occurrences after the
-        // authored continuation was retained. Arena coordinates from the
-        // checked program are not identities in the authored forest: reading
-        // an appended handle there can silently select an unrelated literal.
-        // Close these actual checked subjects through the same layout owner,
-        // using this target's completed recipe and validated plan inputs.
-        let selection = typed_trees::references::DeclarationSelection::from_program(&closed_typed);
-        build_time_evaluation::fold_data_layout_queries(
-            &mut closed_typed,
-            false,
-            &selection,
-            &provider_planning::data_layout_queries::TargetLayoutQueries {
-                target: selected_target_profile,
-                opaque_representations: opaque_representation_selections,
-            },
-        )?;
-        closed_typed
-            .tables
-            .const_declarations
-            .for_each_mut(|_, declaration| {
-                if declaration.evaluated_value.is_none() {
-                    declaration.evaluated_value = evaluated
-                        .const_declaration_by_symbol(declaration.symbol)
-                        .and_then(|closed| closed.evaluated_value.clone());
-                }
-            });
-    }
-    Ok(closed_typed)
+    evaluation.close_constants(constants, &source.program.typed)
 }
 
 /// Whether two selections consume one checked program: the same shared

@@ -20,7 +20,7 @@ pub struct SelectedConstantEvaluationRequest<'request, Layouts> {
     pub operators: SelectedBuildTimeOperators<'request>,
     pub target_bodies: &'request [SelectedBuildTimeTargetBody],
     pub selection: &'request DeclarationSelection,
-    pub layouts: Layouts,
+    pub layouts: &'request Layouts,
 }
 
 impl<Layouts: LayoutQueryProvider> SelectedConstantEvaluationRequest<'_, Layouts> {
@@ -33,7 +33,7 @@ impl<Layouts: LayoutQueryProvider> SelectedConstantEvaluationRequest<'_, Layouts
             self.program,
             true,
             self.selection,
-            &self.layouts,
+            self.layouts,
         )?;
         let mut evaluated = Vec::with_capacity(self.pending.len());
         for continuation in self.pending {
@@ -43,7 +43,7 @@ impl<Layouts: LayoutQueryProvider> SelectedConstantEvaluationRequest<'_, Layouts
             self.program,
             false,
             self.selection,
-            &self.layouts,
+            self.layouts,
         )?;
         for continuation in evaluated {
             continuation.finish(self.program)?;
@@ -80,7 +80,7 @@ mod tests {
 
     struct Measurement(Option<usize>);
 
-    impl LayoutQueryProvider for &DeferredMeasurements {
+    impl LayoutQueryProvider for DeferredMeasurements {
         type Measurements = Measurement;
 
         fn prepare(&self, _: &TypedTrees) -> Measurement {

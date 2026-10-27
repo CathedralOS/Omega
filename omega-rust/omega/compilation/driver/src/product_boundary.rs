@@ -30,7 +30,10 @@ fn selected_constant_evaluation_belongs_to_psi() {
     let queries = include_str!(
         "../../../../psi/compilation/compile-time/src/const_evaluation/data_layout_queries.rs"
     );
-    for source in [evaluation, queries] {
+    let closure = include_str!(
+        "../../../../psi/compilation/compile-time/src/const_evaluation/retained_constants.rs"
+    );
+    for source in [evaluation, queries, closure] {
         for forbidden in [
             "provider_planning::",
             "selected_dispatch::",
@@ -43,6 +46,94 @@ fn selected_constant_evaluation_belongs_to_psi() {
             );
         }
     }
+}
+
+#[test]
+fn deferred_constant_custody_and_value_publication_belong_to_psi() {
+    let checking = include_str!("checked/checking/source_checking.rs");
+    let closure = include_str!("execution_settlement/constant_recipe_closure.rs");
+    let product = include_str!("../../products/src/prepared_build.rs");
+    for source in [checking, closure, product] {
+        for forbidden in [
+            "constant_recipe_source",
+            "constant_recipe_continuations",
+            "read_constant_recipe_closure(",
+            "with_constant_recipe_closure(",
+            "plan_laid_layouts =",
+            "const_declarations.for_each_mut",
+        ] {
+            assert!(!source.contains(forbidden), "coordinator owns {forbidden}");
+        }
+    }
+    assert!(closure.contains("evaluation.close_constants("));
+    assert!(product.contains("RetainedConstantEvaluation"));
+    let checking = include_str!("../../../../psi/compilation/driver/src/source_checking.rs");
+    assert!(
+        checking
+            .find("RetainedConstantEvaluation::capture(")
+            .unwrap()
+            < checking.find("prepare_source_completion(").unwrap()
+    );
+}
+
+#[test]
+fn reused_product_selection_keeps_current_deferred_work() {
+    use std::sync::Arc;
+
+    let (syntax, pending) = build_time_evaluation::evaluate_pre_resolution(
+        build_time_evaluation::BuildTimeEvaluationRequest {
+            syntax_trees: Default::default(),
+            source_context: Default::default(),
+        },
+    )
+    .expect("empty elaboration")
+    .into_syntax_and_pre_check();
+    drop(syntax);
+    let program = Arc::new(checked_trees::CheckedTrees::default());
+    let constants =
+        build_time_evaluation::RetainedConstantEvaluation::capture(&program.typed, vec![pending])
+            .expect("retained continuation");
+    let mut selections = psi_compiler::ProductSelections::default();
+    let first = selections
+        .select(
+            psi_compiler::CheckedSource {
+                program: Arc::clone(&program),
+                constants: None,
+                retained: None,
+                reused: false,
+            },
+            None,
+        )
+        .expect("first root selection");
+    let second = selections
+        .select(
+            psi_compiler::CheckedSource {
+                program: Arc::clone(&program),
+                constants: Some(constants.clone()),
+                retained: None,
+                reused: true,
+            },
+            None,
+        )
+        .expect("reused root selection");
+    assert!(Arc::ptr_eq(&first.program, &second.program));
+    assert!(std::ptr::eq(
+        constants.source(),
+        second.constants.as_ref().expect("current work").source()
+    ));
+    let third = selections
+        .select(
+            psi_compiler::CheckedSource {
+                program,
+                constants: None,
+                retained: None,
+                reused: true,
+            },
+            None,
+        )
+        .expect("no current deferred work");
+    assert!(Arc::ptr_eq(&first.program, &third.program));
+    assert!(third.constants.is_none());
 }
 
 #[test]
