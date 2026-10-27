@@ -39,7 +39,7 @@ pub use float_predicates::{data_float_predicate, data_predicates_admit_zero};
 pub use standing_requirements::standing_facts_prove_requirement;
 pub(crate) use symbolic_values::applied_const_integer;
 pub(crate) use where_fact_intervals::{
-    FieldLiteralBound, data_where_field_literal_bounds, field_literal_where_interval,
+    FieldRepresentationBound, data_where_field_representation_bounds, field_literal_where_interval,
     stored_field_where_interval, where_fact_interval,
 };
 pub use where_fact_intervals::{

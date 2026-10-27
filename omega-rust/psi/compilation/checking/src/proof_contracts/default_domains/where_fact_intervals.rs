@@ -266,30 +266,7 @@ fn field_intervals(
             conjuncts.extend([binary.left, binary.right]);
             continue;
         }
-        let rows = if let Some(bounds) =
-            field_literal_bounds(program, fields, &[ProofFact::Expression(conjunct)])
-        {
-            bounds
-                .into_iter()
-                .map(|bound| {
-                    // Floats retain their own literal/carrier judgment; they are
-                    // never replaced by an integer interval.
-                    let value = program.expression_table.integer_node(bound.literal)?;
-                    let bound_value = i64::try_from(value.decimal_value_i128()?).ok()?;
-                    let (low, high) = match bound.operator {
-                        BinaryOperator::LessOrEqual => (None, Some(bound_value)),
-                        BinaryOperator::Less => (None, Some(bound_value.checked_sub(1)?)),
-                        BinaryOperator::GreaterOrEqual => (Some(bound_value), None),
-                        BinaryOperator::Greater => (Some(bound_value.checked_add(1)?), None),
-                        BinaryOperator::Equal => (Some(bound_value), Some(bound_value)),
-                        _ => return None,
-                    };
-                    Some((bound.field, Interval { low, high }))
-                })
-                .collect::<Option<Vec<_>>>()?
-        } else {
-            exact_predicate_field_intervals(program, fields, owner, conjunct)?
-        };
+        let rows = conjunct_field_intervals(program, fields, owner, conjunct)?;
         for (field, stated) in rows {
             match intervals.iter_mut().find(|(symbol, _)| *symbol == field) {
                 Some((_, interval)) => *interval = interval.intersect(stated),
@@ -303,6 +280,37 @@ fn field_intervals(
             .map(|(symbol, interval)| (symbol, interval.low, interval.high))
             .collect(),
     )
+}
+
+fn conjunct_field_intervals(
+    program: &dyn crate::CheckingInput,
+    fields: &[&DataField],
+    owner: symbols::SymbolHandle,
+    conjunct: ExpressionHandle,
+) -> Option<Vec<(symbols::SymbolHandle, Interval)>> {
+    if let Some(bounds) = field_literal_bounds(program, fields, &[ProofFact::Expression(conjunct)])
+    {
+        bounds
+            .into_iter()
+            .map(|bound| {
+                // Floats retain their own literal/carrier judgment; they are
+                // never replaced by an integer interval.
+                let value = program.expression_table.integer_node(bound.literal)?;
+                let bound_value = i64::try_from(value.decimal_value_i128()?).ok()?;
+                let (low, high) = match bound.operator {
+                    BinaryOperator::LessOrEqual => (None, Some(bound_value)),
+                    BinaryOperator::Less => (None, Some(bound_value.checked_sub(1)?)),
+                    BinaryOperator::GreaterOrEqual => (Some(bound_value), None),
+                    BinaryOperator::Greater => (Some(bound_value.checked_add(1)?), None),
+                    BinaryOperator::Equal => (Some(bound_value), Some(bound_value)),
+                    _ => return None,
+                };
+                Some((bound.field, Interval { low, high }))
+            })
+            .collect()
+    } else {
+        exact_predicate_field_intervals(program, fields, owner, conjunct)
+    }
 }
 
 /// Retiring a declaration predicate requires equivalence, not merely a useful
@@ -372,22 +380,90 @@ pub(crate) struct FieldLiteralBound {
     pub(crate) conjunct: ExpressionHandle,
 }
 
-/// The conjuncts of a data declaration's `where` facts when every one compares
-/// one of its own fields with an integer or float literal. Such a conjunction
-/// constrains each field independently, so the declaration's valid values are
-/// exactly the product of its fields' bounded sets. `None` when any conjunct
-/// relates two fields or has another shape; an empty list when the data states
-/// no facts.
-pub(crate) fn data_where_field_literal_bounds(
+/// Complete field bounds for representation validity. Integer rows carry the
+/// shared, independently equivalent predicate envelope; IEEE rows retain the
+/// authored comparison for its exact carrier/selected-meaning judgment.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum FieldRepresentationBound {
+    Integer {
+        field: symbols::SymbolHandle,
+        minimum: Option<i64>,
+        maximum: Option<i64>,
+    },
+    FloatLiteral(FieldLiteralBound),
+}
+
+impl FieldRepresentationBound {
+    pub(crate) fn field(self) -> symbols::SymbolHandle {
+        match self {
+            Self::Integer { field, .. } => field,
+            Self::FloatLiteral(bound) => bound.field,
+        }
+    }
+}
+
+/// Normalize the whole default domain before a representation consumer can
+/// retire its predicates. Every conjunct must describe independent own-field
+/// sets; a useful consequence of an unsupported stronger clause is insufficient.
+pub(crate) fn data_where_field_representation_bounds(
     program: &dyn crate::CheckingInput,
     definition: &DataDefinition,
-) -> Option<Vec<FieldLiteralBound>> {
+) -> Option<Vec<FieldRepresentationBound>> {
+    use typed_trees::types::PrimitiveType;
+
     let fields = declared_data_fields(program, definition);
-    field_literal_bounds(
-        program,
-        &fields,
-        program.proof_facts.span_or_empty(definition.where_facts),
-    )
+    let mut conjuncts = program
+        .proof_facts
+        .span_or_empty(definition.where_facts)
+        .iter()
+        .map(|fact| fact.as_expression().copied())
+        .collect::<Option<Vec<_>>>()?;
+    let mut normalized = Vec::new();
+    while let Some(conjunct) = conjuncts.pop() {
+        if let Some(binary) = program.expression_table.binary_node(conjunct)
+            && binary.operator == BinaryOperator::And
+        {
+            // Conjunction is sealed; no authored implementation can replace it.
+            conjuncts.extend([binary.left, binary.right]);
+            continue;
+        }
+        if let Some(bounds) =
+            field_literal_bounds(program, &fields, &[ProofFact::Expression(conjunct)])
+            && bounds.iter().all(|bound| {
+                fields
+                    .iter()
+                    .find(|field| field.symbol == bound.field)
+                    .and_then(|field| program.primitive_type_reference(field.type_reference))
+                    .is_some_and(|primitive| {
+                        matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)
+                    })
+            })
+        {
+            normalized.extend(
+                bounds
+                    .into_iter()
+                    .map(FieldRepresentationBound::FloatLiteral),
+            );
+            continue;
+        }
+        for (field, interval) in
+            conjunct_field_intervals(program, &fields, definition.symbol, conjunct)?
+        {
+            let declaration = fields.iter().find(|candidate| candidate.symbol == field)?;
+            if !program
+                .primitive_type_reference(declaration.type_reference)?
+                .accepts_integer_literal()
+            {
+                return None;
+            }
+            normalized.push(FieldRepresentationBound::Integer {
+                field,
+                minimum: interval.low,
+                maximum: interval.high,
+            });
+        }
+    }
+    Some(normalized)
 }
 
 fn field_literal_bounds(
