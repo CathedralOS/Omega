@@ -4,19 +4,19 @@ use renamed::main;
 public data AddressBox { value: InternetAddress in Classified::Ready; }
 public data AddressPair { first: InternetAddress in Classified::Ready; second: InternetAddress; }
 
-machine consume(first: InternetAddress in Classified::Ready, second: InternetAddress) -> bool reaches AddressParts, AddressBridge {
+machine consume(first: InternetAddress in Classified::Ready, second: InternetAddress, expected_host: u32) -> bool reaches AddressParts, AddressBridge {
     let mut pair: AddressPair = AddressPair { first: first, second: second };
     let old_host: u32 = AddressBridge::classified_host(pair.first);
     pair.first = classify(AddressBridge::make(10, 1027)) as InternetAddress in Classified::Ready;
     let sibling_host: u32 = AddressBridge::host(pair.second);
     let replacement_host: u32 = AddressBridge::host(pair.first as InternetAddress);
-    old_host == 66051 && sibling_host == 513 && replacement_host == 1027
+    old_host == expected_host && sibling_host == 513 && replacement_host == 1027
 }
 machine select(first: bool) -> InternetAddress in Classified::Ready reaches AddressParts, AddressBridge {
- match first { true -> AddressBridge::classified_make(10, 66051) _ -> AddressBridge::classified_make(10, 66051) }
+ match first { true -> AddressBridge::classified_make(10, 66051) _ -> AddressBridge::classified_make(10, 513) }
 }
 machine observe() -> bool reaches AddressParts, AddressBridge {
- consume(select(true), AddressBridge::make(44048, 513)) && consume(select(false), AddressBridge::make(44048, 513))
+ consume(select(true), AddressBridge::make(44048, 513), 66051) && consume(select(false), AddressBridge::make(44048, 513), 513)
 }
 
 machine main() reaches AddressParts, AddressBridge crashes Trap {

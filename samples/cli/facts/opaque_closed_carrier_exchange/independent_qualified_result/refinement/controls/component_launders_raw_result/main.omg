@@ -1,6 +1,6 @@
 // Expected native admission rejection: a checked wrapper cannot launder a raw child qualification.
 use producer::main;
-machine main() reaches AddressBridge, AddressParts crashes Trap {
+machine main() reaches AddressBridge, AddressParts, UncheckedFactory crashes Trap {
  let address: InternetAddress in Classified::Ready = AddressBridge::classified_make(10, 66051);
  let host: u32 = AddressBridge::classified_host(address);
  transition host == 66051 { true -> done() _ -> failed() }
