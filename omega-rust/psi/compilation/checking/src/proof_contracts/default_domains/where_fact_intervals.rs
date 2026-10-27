@@ -45,6 +45,19 @@ fn field_fact_interval(
     if depth >= 4 || definition.where_facts.is_empty() {
         return None;
     }
+    if let Some((_, low, high)) = data_where_field_intervals(program, definition)
+        .into_iter()
+        .flatten()
+        .find(|(symbol, _, _)| {
+            program.data_members(definition).iter().any(|member| {
+                member.as_field().is_some_and(|candidate| {
+                    candidate.symbol == *symbol && candidate.name.as_str() == field
+                })
+            })
+        })
+    {
+        return Some(Interval { low, high });
+    }
 
     let mut interval = Interval {
         low: None,
@@ -152,11 +165,12 @@ fn field_fact_interval(
 }
 
 /// The per-field intervals a data declaration's `where` facts state when
-/// every conjunct compares one of its own fields with an integer literal
-/// (`left <= 5`, `1 <= count && count < 9`). Such facts restrict each field
-/// exactly as a bracketed range did, so a representation may carry them as
-/// the field's bounds. `None` when any conjunct relates two fields or has
-/// another shape; an empty list when the data states no facts.
+/// every conjunct either compares an own field with an integer literal or
+/// has an independently checked equivalent predicate-call envelope. Such
+/// facts describe the complete product of bounded fields, so representation
+/// and handback consumers may use these bounds. A necessary consequence
+/// alone never retires a declaration predicate. Unsupported conjuncts leave
+/// the entire result unknown; a declaration without facts has an empty list.
 pub fn data_where_field_intervals(
     program: &dyn crate::CheckingInput,
     definition: &DataDefinition,
@@ -165,6 +179,7 @@ pub fn data_where_field_intervals(
     field_intervals(
         program,
         &fields,
+        definition.symbol,
         program.proof_facts.span_or_empty(definition.where_facts),
     )
 }
@@ -180,6 +195,7 @@ pub fn case_where_field_intervals(
     field_intervals(
         program,
         &fields,
+        case.symbol,
         program.proof_facts.span_or_empty(case.where_facts),
     )
 }
@@ -233,32 +249,50 @@ fn declared_data_fields<'a>(
 fn field_intervals(
     program: &dyn crate::CheckingInput,
     fields: &[&DataField],
+    owner: symbols::SymbolHandle,
     facts: &[ProofFact],
 ) -> Option<Vec<(symbols::SymbolHandle, Option<i64>, Option<i64>)>> {
     let mut intervals: Vec<(symbols::SymbolHandle, Interval)> = Vec::new();
-    for bound in field_literal_bounds(program, fields, facts)? {
-        // These intervals are integer facts. A float literal bound is an IEEE
-        // comparison whose meaning depends on the field's format, so it does
-        // not reduce to one here.
-        let value = program.expression_table.integer_node(bound.literal)?;
-        let bound_value = value
-            .decimal_value_i128()
-            .and_then(|value| i64::try_from(value).ok())?;
-        let (low, high) = match bound.operator {
-            BinaryOperator::LessOrEqual => (None, Some(bound_value)),
-            BinaryOperator::Less => (None, Some(bound_value.checked_sub(1)?)),
-            BinaryOperator::GreaterOrEqual => (Some(bound_value), None),
-            BinaryOperator::Greater => (Some(bound_value.checked_add(1)?), None),
-            BinaryOperator::Equal => (Some(bound_value), Some(bound_value)),
-            _ => return None,
-        };
-        let stated = Interval { low, high };
-        match intervals
-            .iter_mut()
-            .find(|(symbol, _)| *symbol == bound.field)
+    let mut conjuncts = facts
+        .iter()
+        .map(|fact| fact.as_expression().copied())
+        .collect::<Option<Vec<_>>>()?;
+    while let Some(conjunct) = conjuncts.pop() {
+        if let Some(binary) = program.expression_table.binary_node(conjunct)
+            && binary.operator == BinaryOperator::And
         {
-            Some((_, interval)) => *interval = interval.intersect(stated),
-            None => intervals.push((bound.field, stated)),
+            conjuncts.extend([binary.left, binary.right]);
+            continue;
+        }
+        let rows = if let Some(bounds) =
+            field_literal_bounds(program, fields, &[ProofFact::Expression(conjunct)])
+        {
+            bounds
+                .into_iter()
+                .map(|bound| {
+                    // Floats retain their own literal/carrier judgment; they are
+                    // never replaced by an integer interval.
+                    let value = program.expression_table.integer_node(bound.literal)?;
+                    let bound_value = i64::try_from(value.decimal_value_i128()?).ok()?;
+                    let (low, high) = match bound.operator {
+                        BinaryOperator::LessOrEqual => (None, Some(bound_value)),
+                        BinaryOperator::Less => (None, Some(bound_value.checked_sub(1)?)),
+                        BinaryOperator::GreaterOrEqual => (Some(bound_value), None),
+                        BinaryOperator::Greater => (Some(bound_value.checked_add(1)?), None),
+                        BinaryOperator::Equal => (Some(bound_value), Some(bound_value)),
+                        _ => return None,
+                    };
+                    Some((bound.field, Interval { low, high }))
+                })
+                .collect::<Option<Vec<_>>>()?
+        } else {
+            exact_predicate_field_intervals(program, fields, owner, conjunct)?
+        };
+        for (field, stated) in rows {
+            match intervals.iter_mut().find(|(symbol, _)| *symbol == field) {
+                Some((_, interval)) => *interval = interval.intersect(stated),
+                None => intervals.push((field, stated)),
+            }
         }
     }
     Some(
@@ -267,6 +301,58 @@ fn field_intervals(
             .map(|(symbol, interval)| (symbol, interval.low, interval.high))
             .collect(),
     )
+}
+
+/// Retiring a declaration predicate requires equivalence, not merely a useful
+/// consequence. The shared checked predicate explorer proves both directions
+/// over complete formal carriers before these exact own-field actuals can
+/// describe the declaration's full Cartesian envelope. Unsupported clauses
+/// leave the entire declaration outside interval-only representation.
+fn exact_predicate_field_intervals(
+    program: &dyn crate::CheckingInput,
+    fields: &[&DataField],
+    owner: symbols::SymbolHandle,
+    expression: ExpressionHandle,
+) -> Option<Vec<(symbols::SymbolHandle, Interval)>> {
+    let application = crate::proof_contracts::collection_predicates::predicate_application(
+        program, owner, expression,
+    )?;
+    let rows = crate::proof_contracts::collection_predicates::exact_predicate_intervals(
+        program, owner, expression,
+    )?;
+    let entry = program
+        .machine_states(&program.machines()[application.machine])
+        .first()?;
+    let parameters = program.state_parameters(entry);
+    if rows.len() != parameters.len() || rows.len() != application.arguments.len() {
+        return None;
+    }
+    rows.into_iter()
+        .zip(parameters)
+        .zip(application.arguments)
+        .map(|((row, parameter), actual)| {
+            if row.extent || row.argument != *actual {
+                return None;
+            }
+            let path = program.expression_table.name_path_node(*actual)?;
+            let field = fields
+                .iter()
+                .find(|field| field.symbol.is_valid() && field.symbol == path.symbol)?;
+            let primitive = program.primitive_type_reference(field.type_reference)?;
+            if !primitive.is_fixed_integer()
+                || program.primitive_type_reference(parameter.type_reference) != Some(primitive)
+            {
+                return None;
+            }
+            Some((
+                field.symbol,
+                Interval {
+                    low: Some(i64::try_from(row.low).ok()?),
+                    high: Some(i64::try_from(row.high).ok()?),
+                },
+            ))
+        })
+        .collect()
 }
 
 /// One conjunct of interval-only declaration facts, normalized so the field
