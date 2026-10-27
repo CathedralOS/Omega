@@ -237,21 +237,11 @@ pub struct MachineContractPlan {
     pub commitment: MachineContractCommitment,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct MachineContractCommitment([u8; 32]);
-
-impl MachineContractCommitment {
-    pub const fn from_digest(digest: [u8; 32]) -> Self {
-        Self(digest)
-    }
-
-    pub const fn as_bytes(self) -> [u8; 32] {
-        self.0
-    }
-
-    pub fn is_zero(self) -> bool {
-        self.0 == [0; 32]
-    }
+/// Domain-separated commitment to one machine's complete canonical public
+/// contract, declared through `typed_trees`'s shared digest carrier.
+typed_trees::digest_commitment! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    MachineContractCommitment
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

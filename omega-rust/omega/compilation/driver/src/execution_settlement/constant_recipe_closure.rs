@@ -350,7 +350,7 @@ fn close_constant_values(
         .iter()
         .map(|row| ConstantRecipeDependencyReceipt {
             requirement: row.requirement,
-            plan_identity: *row.provider.as_bytes(),
+            plan_identity: row.provider.as_bytes(),
             target_scope: selected_target_profile.target_name().to_owned(),
             provider_declaration: Default::default(),
             provider_machine: Default::default(),
@@ -360,7 +360,7 @@ fn close_constant_values(
                 .iter()
                 .map(|row| ConstantRecipeDependencyReceipt {
                     requirement: row.requirement,
-                    plan_identity: *row.provider.as_bytes(),
+                    plan_identity: row.provider.as_bytes(),
                     target_scope: row.target_scope.clone(),
                     provider_declaration: row.provider_declaration,
                     provider_machine: row.provider_machine,
