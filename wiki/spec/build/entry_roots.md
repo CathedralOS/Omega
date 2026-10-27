@@ -64,8 +64,11 @@ declaration, not a data instance or an allocation request. An explicitly
 installed entry contract determines its invocation arguments and the arrival
 bridge must establish each one from actual backing. A mutable parameter alone
 does not ask the bridge to construct its referent. The provider selection names a provider implementation;
-its ordinary satisfiers determine the derived plan. A leaf needs `via` only for
-payload not derivable from its exact declaration and target.
+its ordinary satisfiers determine the derived plan. Irreducible native backing
+uses the separate `Build::bind<Requirement>(builder, target, locator)` overload
+under [foreign bindings](foreign_bindings.md#build-owned-native-binding), not a
+source `via` clause or a per-symbol forwarding declaration. Both forms record
+product intent rather than invoking selected code or granting authority.
 
 Only these designated toolchain operands resolve in the product context. They
 do not require a host import of the selected implementation, and host `use`

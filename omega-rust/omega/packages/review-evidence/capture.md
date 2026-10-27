@@ -39,7 +39,7 @@ owner drift cannot become exact toolchain provenance.
 | `synchronous_invocation` | Authored target name joined once to exact parameter symbol/ordinal or boundary trait; checked published/inferred targets remain available before settlement. |
 | `service_reach` | Authored keyword and member spans joined to exact boundary symbols and checked parent-closed reach, including invocation contributions. Empty authored clauses use the keyword span; inferred closure entries get no invented location. |
 | `suspension`, `blocking` | Separate authored keywords, booleans, and checked operational interfaces. Omission/inference has no fabricated source site. |
-| `external_binding` | Exact `via` keyword paired with the normalized binding on the same conformance; require binding/span parity. |
+| `external_binding` | Evaluated package-local native-binding intent site and original Build custody joined to exact product requirement/application, target, supplier, normalized locator and pinned calling policy; require intent/row/span parity, not a fabricated forwarding declaration. |
 | `const_initializer` | Parsed initializer extent retained before value substitution, beside the const declaration. |
 | `proof_fact` | Full semantic-token extent of every authored public domain/data fact and fact under a public contract. Source-free synthesis gets no invented span. |
 | `trait_requirement`, `data_member` | Exact requirement, field, case, and payload-field declarations, or real authored derivation origin. |
@@ -49,6 +49,14 @@ Statement/transition calls retain explicit selection occurrences; expressions
 reuse their attached occurrence. Compiler-generated calls have no authored
 location. Retaining spans earlier is the repair for missing late-stage custody,
 not reparsing source text during projection.
+
+The `external_binding` row states the accepted Build-owned contract. Current
+capture still pairs legacy `via` keywords with declaration bindings;
+`BUILD-OWNED-NATIVE-BINDINGS` in [the task board](../../../../TASKS.md#pipeline-route)
+owns its replacement. Untaken Build calls have no evaluated binding receipt,
+and product selections grant no callable authority inside the Build activation.
+Schema changes retain exact old/new identities rather than laundering a legacy
+declaration span into a new Build intent.
 
 Occurrence identity is the authored token plus declaration-owned exposure and
 selection kind. Compiler-derived copies share it; an exact target supersedes an

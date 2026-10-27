@@ -39,11 +39,38 @@ replaying any Build effect. Subsequent code calls `R::operation(arguments)`;
 awaiting readiness does not create or return a routing value.
 
 When `build` returns, package coordination joins every outstanding dependency
-request, rejects failed, cyclic, unresolved, or unadmitted edges, and freezes
-the normalized Build. Product selections may carry unresolved product
-references while the activation is running, but those references are inert and
-must resolve before the result freezes. Product bodies never execute during
-Build; product compilation starts only after the join.
+request, rejects failed, cyclic, unresolved, or unadmitted dependency edges, and
+freezes the normalized Build intent. Product selections may retain inert exact
+designated references; product discovery and checking must resolve and validate
+them before a completed product or executable plan is admitted. Product bodies
+never execute during Build; product compilation starts only after the join.
+
+## Native binding intent
+
+The owning package records a direct native binding with
+`Build::bind<Requirement>(builder, target, locator)` under
+[foreign bindings](foreign_bindings.md#build-owned-native-binding). The exact
+requirement is an inert designated product-selection reference until product
+discovery and checking resolve its complete owned declaration/application.
+The target is an ordinary exact toolchain profile reference. The locator is
+ordinary closed data; fixed-byte literal lengths are inferred without explicit
+`ForeignBinding<...>` counts or mandatory helper machines.
+
+The operation borrows this activation's original Build, records target-keyed
+intent, and never invokes the product operation or installs its backing into
+the running Build. It grants no ordinary import of unresolved product code and
+does not replace explicit Build-host readiness. Package bindings compose beneath
+the chosen portable provider, so roots do not repeat dependency DLL symbols or
+name private raw requirements. Existing ownership, defaults/override precedence,
+and complete-coverage checks remain; ambiguous same-precedence rows reject.
+
+The compiler derives the native candidate and executable plan from that intent.
+Exact contract, lifetime, memory-access, calling-policy, native applicability,
+foreign admission, provenance, and runtime-authority obligations remain.
+There is no source `via` clause or per-symbol forwarding realization, and no
+author API for manufacturing trusted plan rows. This accepted operation is
+implementation work under `BUILD-OWNED-NATIVE-BINDINGS`; it does not change the
+existing entry-binding overload of `Build::bind`.
 
 ## Project role
 
