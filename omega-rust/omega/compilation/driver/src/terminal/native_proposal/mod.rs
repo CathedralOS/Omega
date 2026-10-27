@@ -15,30 +15,7 @@ pub(crate) fn project_terminal_native_realization_proposal(
     selections: &optimization_core::OptimizationSelections,
     exported_provider_plans: &[&effects::provider_plan::ProviderPlan],
 ) -> Result<TerminalNativeRealizationProposal, Vec<Diagnostic>> {
-    let callback_placements = checked.execution().callback_placements.as_slice();
-    let callback_thunks = callback_placements
-        .iter()
-        .map(|placement| {
-            let signature = psi_compiler::retained_callable_signature(
-                &checked.execution().program,
-                placement.selected_machine,
-                checked.sources().exact_toolchain_sources(),
-                artifact,
-            )?;
-            compilation_products::TerminalCallbackThunkArtifact::new(
-                Arc::clone(artifact),
-                signature.machine,
-                &signature.scalar_source_positions,
-                &signature.structural_source_positions,
-            )
-            .map_err(|message| vec![Diagnostic::error(message)])
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let mut request = checked.terminal_native_proposal_request(
-        callback_placements,
-        callback_thunks,
-        selections,
-    )?;
+    let mut request = checked.terminal_native_proposal_request(selections)?;
     let component_plans = exported_provider_plans;
     if !component_plans.is_empty() {
         let native_target = checked
@@ -83,20 +60,15 @@ pub(crate) fn project_terminal_native_realization_proposal(
             checked_program_entry,
             request,
         )?;
-    if let Some(adapter) = checked
+    if checked
         .execution()
         .selected_program_entry
         .as_ref()
         .and_then(|entry| entry.physical_adapter())
+        .is_some()
     {
-        let signature = psi_compiler::retained_callable_signature(
-            &checked.execution().program,
-            adapter,
-            checked.sources().exact_toolchain_sources(),
-            artifact,
-        )?;
         proposal
-            .bind_physical_adapter(artifact, signature.machine)
+            .bind_physical_adapter(artifact)
             .map_err(|message| vec![Diagnostic::error(message)])?;
     }
     Ok(proposal)

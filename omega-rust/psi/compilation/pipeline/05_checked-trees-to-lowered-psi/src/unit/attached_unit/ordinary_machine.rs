@@ -1161,6 +1161,7 @@ pub(super) fn emit(
         attachment,
         nominal_cleanup_subject,
         parameters: scalar_parameters.clone(),
+        parameter_order: signature.parameter_order.clone(),
         structural_parameters: parameters.clone(),
         ranked_scc: None,
         result: declared_result,

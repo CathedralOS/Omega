@@ -13,9 +13,10 @@ use super::{
     CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan, CheckedTrees, LoweringError,
     StructuralDomainRequirement, StructuralTypeId, UnitPlans, boundary_machine_id,
     checked_unit_boundary_identity, dense_identity, lookup_type_id,
-    lower_boundary_content_guarantees, lower_boundary_crash_routes, lower_boundary_parameter_order,
-    lower_fixed_boundary_service_reach, lower_published_service_ceiling, lower_unit_parameters,
-    terminal_scalar_type, unique_unit_boundary, unsupported,
+    lower_boundary_content_guarantees, lower_boundary_crash_routes,
+    lower_fixed_boundary_service_reach, lower_published_service_ceiling,
+    lower_runtime_parameter_order, lower_unit_parameters, terminal_scalar_type,
+    unique_unit_boundary, unsupported,
 };
 use crate::emission::borrowed_window::terminal_multiplicity;
 use crate::terminal_identities::value_id;
@@ -196,7 +197,7 @@ pub(crate) fn lower_declarations(
                 &parameters,
                 structural_types,
             )?,
-            parameter_order: lower_boundary_parameter_order(
+            parameter_order: lower_runtime_parameter_order(
                 &plan.scalar_parameters,
                 &plan.structural_parameters,
             )?,

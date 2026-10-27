@@ -6,7 +6,6 @@
 //! Omega stage 00 joins the recorded occurrences to provider selection.
 
 use super::CheckedCompilation;
-use crate::TerminalCallbackThunkArtifact;
 use diagnostics::Diagnostic;
 use terminal_psi_to_abstract_operations::{
     BoundaryApplicationSettlement, TerminalNativeProposalRequest,
@@ -41,8 +40,6 @@ impl CheckedCompilation {
     /// stage 00 must check their cardinality, identities and source associations.
     pub fn terminal_native_proposal_request<'input>(
         &'input self,
-        callback_placements: &[provider_planning::calling_policy_plans::SelectedCallbackPlacement],
-        callback_thunks: Vec<TerminalCallbackThunkArtifact>,
         selections: &optimization_core::OptimizationSelections,
     ) -> Result<TerminalNativeProposalRequest<'input>, Vec<Diagnostic>> {
         let execution = self.execution();
@@ -98,8 +95,7 @@ impl CheckedCompilation {
             behavior_exclusions: self.build().config.behavior_exclusions.as_slice(),
             package_terminal_authority_permissions,
             package_terminal_authority_permission_identities,
-            callback_placements: callback_placements.iter().map(|placement| placement.native.clone()).collect(),
-            callback_thunks,
+            callback_placements: execution.callback_placements.iter().map(|placement| placement.native.clone()).collect(),
             x86_scalar_fma_provider: execution.x86_scalar_fma_provider,
         })
     }
