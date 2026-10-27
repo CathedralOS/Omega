@@ -21,7 +21,6 @@ pub(super) fn emit_callable_object(
     budget: optimization_core::OptimizationWorkBudget,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     entry: terminal_psi::TargetMachineCallable,
-    calling_applications: &[calling_conventions::BoundaryCallingApplication],
 ) -> Result<CallableObjectProduct, Vec<Diagnostic>> {
     let admission = terminal_psi_to_abstract_operations::NativeAdmissionRequest {
         private_entry_ram: &[],
@@ -51,7 +50,7 @@ pub(super) fn emit_callable_object(
         &admitted.input.plan().boundary_machines,
         admission.providers.selected_provider_plans,
         &artifact.semantic_module().identities,
-        calling_applications,
+        admission.providers.external_binding_rows,
     )
     .map_err(|reason| realization_error("callable runtime companions", reason))?;
     let optimized_target = pipeline::lower_to_target(

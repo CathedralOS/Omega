@@ -80,7 +80,7 @@ pub(crate) fn realize_native_artifact(
                 &artifact.semantic_module().identities,
                 entry.source().identities(),
                 entry.source().target_slot(),
-                request.calling_applications,
+                request.admission.providers.external_binding_rows,
             )
         })
         .transpose()

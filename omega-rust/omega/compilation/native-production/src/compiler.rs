@@ -86,7 +86,6 @@ pub fn compile(
             artifact,
             input,
             crate::request::NativeRealizationRequest {
-                calling_applications: &proposal.boundary_applications().calling,
                 program_entry: proposal.program_entry().as_settlement(),
                 admission,
                 image_request: request.image_request,

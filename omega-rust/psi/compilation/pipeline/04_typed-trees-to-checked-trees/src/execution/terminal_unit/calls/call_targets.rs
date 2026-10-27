@@ -5,7 +5,6 @@
 
 use super::trait_boundary_call::BoundaryRequirement;
 use symbols::SymbolHandle;
-use validation::exact_external_leaf_boundary_requirement;
 
 #[derive(Clone, Copy)]
 pub(in crate::execution::terminal_unit) enum ResolvedCallTarget<'program> {
@@ -58,23 +57,15 @@ enum BoundaryTarget<'program> {
     Body,
 }
 
-/// The boundary requirement a call to `target` invokes. A direct call to a
-/// bodyless external leaf is a boundary call on the leaf's exact satisfied
-/// requirement (see `validation`'s `intrinsic_boundaries` module); the leaf
-/// owns no body to call. A nominal binder describes an obligation, not a
-/// selected boundary body: specialization must replace it with the exact
-/// executable target before a call is planned, and projecting its
-/// requirement here would make an open generic entry executable and bypass
-/// its selected implementation. Both declaration spellings retain a
-/// requirement edge; the planner sees the authored signature, never its
-/// selected provider.
+/// Only an authored requirement or operator invokes a selected provider.
+/// A concrete external leaf keeps its own declared callable coordinate even
+/// when a target-scoped caller already resolves its exact family member.
+/// Its satisfaction edge supplies a contract, not another call destination.
+/// Nominal binders still require specialization before executable planning.
 fn boundary_requirement(
     program: &dyn ::validation::CheckingInput,
     target: SymbolHandle,
 ) -> BoundaryTarget<'_> {
-    let direct = exact_external_leaf_boundary_requirement(program, target)
-        .map(|(requirement, _)| requirement)
-        .unwrap_or(target);
     let static_boundaries = program
         .traits()
         .iter()
@@ -82,7 +73,7 @@ fn boundary_requirement(
         .flat_map(|definition| {
             program
                 .trait_machine_instances(definition)
-                .filter(move |signature| signature.symbol == direct)
+                .filter(move |signature| signature.symbol == target)
                 .map(move |signature| (definition, signature))
         })
         .collect::<Vec<_>>();
@@ -96,7 +87,7 @@ fn boundary_requirement(
         [] => program
             .operators()
             .iter()
-            .find(|operator| operator.is_boundary && operator.symbol == direct)
+            .find(|operator| operator.is_boundary && operator.symbol == target)
             .map_or(BoundaryTarget::Body, |operator| {
                 BoundaryTarget::Requirement(
                     super::trait_boundary_call::BoundaryRequirement::Operator(operator),
