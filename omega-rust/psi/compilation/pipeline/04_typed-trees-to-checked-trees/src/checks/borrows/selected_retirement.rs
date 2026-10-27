@@ -99,6 +99,17 @@ fn before_target(
                 ) else {
                     return false;
                 };
+                // Descendant projections still evaluate their own selectors.
+                // Only the completed binding itself detaches the source;
+                // the ordinary walk must retain every surrounding operand.
+                if validation::DispatchExtraction::payload_binding_receiver(
+                    program,
+                    expression,
+                    copied.expression,
+                ) != Some(expression)
+                {
+                    return false;
+                }
                 let checked_trees::FlowOperandCompletion::Copied { copy, .. } = copied.completion
                 else {
                     return false;
