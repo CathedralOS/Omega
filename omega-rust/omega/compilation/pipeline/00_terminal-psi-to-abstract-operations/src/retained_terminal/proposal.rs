@@ -10,6 +10,7 @@ use super::{
     TerminalNativeBodyProposal, TerminalNativeBoundaryApplications, TerminalNativeOccurrences,
     TerminalNativeProviders, TerminalNativeRealizationProposal,
 };
+use backend_plan::SelectedFamilyRealizationSource;
 use diagnostics::Diagnostic;
 
 /// Borrow this target's source-side selections while closing them against one
@@ -17,10 +18,9 @@ use diagnostics::Diagnostic;
 /// their bodies and formal ordering come from the artifact itself.
 pub struct TerminalNativeProposalRequest<'input> {
     pub direct_boundary_leaves: Vec<&'input backend_plan::DirectBoundaryLeaf>,
-    pub provider_declarations:
-        Vec<crate::provider_admission::NativeProviderPlanDeclaration<'input>>,
+    pub provider_declarations: &'input [backend_plan::TerminalTargetProviderPlan],
     pub target_profile: Option<target::TargetProfile>,
-    pub family_realizations: Vec<SelectedFamilyRealizationSource>,
+    pub family_realizations: &'input [SelectedFamilyRealizationSource],
     pub boundaries: crate::BoundaryApplicationSettlement<'input>,
     pub native_target: Option<target::NativeTarget>,
     pub program_entry: Option<crate::NativeProgramEntrySettlement<'input>>,
@@ -32,17 +32,6 @@ pub struct TerminalNativeProposalRequest<'input> {
     pub package_terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable,
     pub callback_placements: Vec<backend_plan::NativeCallbackPlacement>,
     pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
-}
-
-/// Source custody for one already selected provider row. Its physical member
-/// identity is deliberately absent: only the emitted artifact owns that identity.
-pub struct SelectedFamilyRealizationSource {
-    pub head_declaration_identity: String,
-    pub head_callable_identity: String,
-    pub target: String,
-    pub selected_requirement_identity: String,
-    pub provider_plan_report_identity: u64,
-    pub provider_plan_digest: effects::provider_plan::ProviderPlanDigest,
 }
 
 fn close_family_realizations(
@@ -186,11 +175,11 @@ fn project_terminal_native_body(
         artifact,
         target_profile,
         request.boundaries.selected_provider_plans,
-        &request.family_realizations,
+        request.family_realizations,
     )?;
     let checked_adapters = crate::provider_admission::retain_selected_provider_adapters(
         &selected,
-        &request.provider_declarations,
+        request.provider_declarations,
     )
     .map_err(|message| vec![Diagnostic::error(message)])?;
     if selected.plans().len() != request.boundaries.selected_provider_provenance.len() {

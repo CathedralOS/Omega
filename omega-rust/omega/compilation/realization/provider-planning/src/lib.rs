@@ -25,6 +25,8 @@ pub(crate) use optimization_core::digest_encoder;
 pub mod evaluated_via_bindings;
 mod fnv1a;
 mod intrinsic_requirements;
+mod native_provider_sources;
+pub use native_provider_sources::prepare_native_provider_sources;
 mod sealed_placed_accessors;
 pub use sealed_placed_accessors::{SealedPlacedAccessor, SealedPlacedScalarOperation};
 pub mod program_entry;

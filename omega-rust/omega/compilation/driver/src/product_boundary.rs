@@ -189,6 +189,25 @@ fn terminal_cohorts_retain_admitted_applications() {
 }
 
 #[test]
+fn native_provider_handoff_borrows_closed_source_associations() {
+    let projection = include_str!("../../products/src/checked_compilation/terminal.rs");
+    assert!(projection.contains(".native_provider_sources"));
+    for forbidden in [
+        ".program.typed",
+        "exact_owner_nominal_identity",
+        "target_machine_families",
+        "machine_by_symbol",
+    ] {
+        assert!(
+            !projection.contains(forbidden),
+            "native handoff reopens {forbidden}"
+        );
+    }
+    let binding = include_str!("../../realization/selected-dispatch/src/provider_binding.rs");
+    assert!(binding.contains("provider_planning::prepare_native_provider_sources("));
+}
+
+#[test]
 fn components_use_the_shared_product_sequence() {
     for source in [
         include_str!("checked/package_compilation.rs"),

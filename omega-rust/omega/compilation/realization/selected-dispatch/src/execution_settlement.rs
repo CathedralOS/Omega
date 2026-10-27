@@ -15,6 +15,7 @@ use std::sync::Arc;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedExecution {
     pub program: Arc<CheckedProgram>,
+    pub native_provider_sources: Result<Arc<backend_plan::NativeProviderSources>, Vec<Diagnostic>>,
     /// Target execution associations, never written into portable checked facts.
     pub dispatch: crate::selected_dispatch::SelectedExecutionDispatch,
     pub selected_target_profile: Option<target::TargetProfile>,
@@ -278,6 +279,7 @@ pub fn settle_selected_execution(
             settlement.selected_target_profile,
         )?;
     Ok(SelectedExecution {
+        native_provider_sources: checked.native_provider_sources,
         program: checked.program,
         dispatch,
         selected_target_profile: settlement.selected_target_profile,

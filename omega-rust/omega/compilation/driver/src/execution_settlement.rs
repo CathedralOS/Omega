@@ -273,6 +273,7 @@ fn select_checked_providers(
         closed_program,
         source.accepted_template_classifications.clone(),
         ProviderBindingRequest {
+            exact_toolchain_sources: source.sources.exact_toolchain_sources(),
             package_inputs,
             boundary_calling_plan_realizations: &providers.boundary_calling_plan_realizations,
             provider_plans: &providers.provider_plans,

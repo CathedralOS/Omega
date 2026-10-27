@@ -9,22 +9,15 @@
 use crate::SelectedProviderAdapter;
 use effects::provider_plan::{ProviderBinding, ProviderPlan};
 
-/// Transient source-normalized owner beside its exact whole selected plan.
-/// External/intrinsic-only plans need no checked selecting declaration.
-pub struct NativeProviderPlanDeclaration<'input> {
-    pub plan: &'input ProviderPlan,
-    pub provider_declaration: Option<String>,
-}
-
 pub(crate) fn retain_selected_provider_adapters(
     selected: &effects::SelectedProviderPlanFacts,
-    declarations: &[NativeProviderPlanDeclaration<'_>],
+    declarations: &[backend_plan::TerminalTargetProviderPlan],
 ) -> Result<Vec<SelectedProviderAdapter>, String> {
     if selected.plans().len() != declarations.len()
         || selected.plans().iter().any(|plan| {
             declarations
                 .iter()
-                .filter(|declaration| declaration.plan == plan)
+                .filter(|declaration| &declaration.plan == plan)
                 .count()
                 != 1
         })
@@ -36,7 +29,7 @@ pub(crate) fn retain_selected_provider_adapters(
     project_complete_adapters(selected, |plan| {
         let mut matches = declarations
             .iter()
-            .filter(|declaration| declaration.plan == plan);
+            .filter(|declaration| &declaration.plan == plan);
         let declaration = matches
             .next()
             .ok_or("native selected plan has no declaration custody")?;

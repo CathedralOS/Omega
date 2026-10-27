@@ -38,6 +38,8 @@ impl CheckedCompilation {
     /// Borrow the exact checked selections for a produced Terminal occurrence
     /// roster. Supplied callbacks remain candidates, not admitted native code;
     /// stage 00 must check their cardinality, identities and source associations.
+    /// Provider identities were closed by checked-provider binding, before
+    /// Terminal production; this projection never reopens typed declarations.
     pub fn terminal_native_proposal_request<'input>(
         &'input self,
         selections: &optimization_core::OptimizationSelections,
@@ -45,25 +47,18 @@ impl CheckedCompilation {
     ) -> Result<TerminalNativeProposalRequest<'input>, Vec<Diagnostic>> {
         let execution = self.execution();
         let providers = self.providers();
+        let native_sources = execution
+            .native_provider_sources
+            .as_ref()
+            .map_err(Clone::clone)?;
         let (
             package_terminal_authority_permissions,
             package_terminal_authority_permission_identities,
         ) = execution.terminal_authority_permissions();
         Ok(TerminalNativeProposalRequest {
             direct_boundary_leaves: providers.direct_boundary_leaves.iter().map(|candidate| &candidate.leaf).collect(),
-            provider_declarations: execution.selected_provider_provenance.iter().map(|retained| {
-                let typed = &execution.program.typed;
-                let provider_declaration = retained.provider.provider_type.map(|symbol| {
-                    typed.exact_owner_nominal_identity(symbol, self.sources().exact_toolchain_sources())
-                        .and_then(|identity| typed.type_identity_text(identity))
-                        .ok_or_else(|| vec![Diagnostic::error("native provider selection lost its exact declaration owner")])
-                }).transpose()?;
-                Ok(terminal_psi_to_abstract_operations::provider_admission::NativeProviderPlanDeclaration {
-                    plan: &retained.plan,
-                    provider_declaration,
-                })
-            }).collect::<Result<Vec<_>, Vec<Diagnostic>>>()?,
-            family_realizations: self.selected_family_realizations()?,
+            provider_declarations: &native_sources.declarations,
+            family_realizations: &native_sources.family_realizations,
             target_profile: execution.selected_target_profile,
             boundaries: BoundaryApplicationSettlement {
                 selected_provider_plans: &execution.selected_provider_plan_facts,
@@ -100,88 +95,5 @@ impl CheckedCompilation {
             callback_placements: execution.callback_placements.iter().map(|placement| placement.native.clone()).collect(),
             x86_scalar_fma_provider: execution.x86_scalar_fma_provider,
         })
-    }
-}
-
-impl CheckedCompilation {
-    /// Project the same exact source member that supplied each checked provider
-    /// row. Artifact IDs are joined later from its structural family roster.
-    fn selected_family_realizations(
-        &self,
-    ) -> Result<
-        Vec<terminal_psi_to_abstract_operations::SelectedFamilyRealizationSource>,
-        Vec<Diagnostic>,
-    > {
-        let execution = self.execution();
-        let typed = &execution.program.typed;
-        let mut rows = Vec::new();
-        for retained in &execution.selected_provider_provenance {
-            let provider = &retained.provider;
-            let plan = &retained.plan;
-            if provider.row_realizations.len() != plan.rows.len()
-                || provider.row_requirements.len() != plan.rows.len()
-                || provider.row_target_machine_origins.len() != plan.rows.len()
-                || provider.row_placed_accessors.len() != plan.rows.len()
-            {
-                return Err(vec![Diagnostic::error(
-                    "selected family realization has incomplete provider row custody",
-                )]);
-            }
-            for (index, row) in plan.rows.iter().enumerate() {
-                let realization = provider.row_target_machine_origins[index]
-                    .as_ref()
-                    .map_or(provider.row_realizations[index], |origin| origin.machine);
-                for family in &typed.target_machine_families {
-                    if !family.members.iter().any(|member| {
-                        member.machine == realization && member.target.as_str() == plan.target
-                    }) {
-                        continue;
-                    }
-                    if provider.row_target_machine_origins[index]
-                        .as_ref()
-                        .is_some_and(|origin| origin.target != plan.target)
-                    {
-                        return Err(vec![Diagnostic::error(
-                            "selected family realization has substituted target custody",
-                        )]);
-                    }
-                    // Join the exact checked declaration retained by Psi. Export
-                    // spellings and normalized requirement callable identities
-                    // occupy different namespaces and cannot identify this head.
-                    let head_declaration_identity = typed
-                        .normalized_hermetic_symbol_identity(family.canonical)
-                        .map_err(|message| {
-                            vec![Diagnostic::error(format!(
-                                "selected family realization head: {message}"
-                            ))]
-                        })?;
-                    let head = typed.machine_by_symbol(family.canonical).ok_or_else(|| {
-                        vec![Diagnostic::error(
-                            "selected family realization has no typed head",
-                        )]
-                    })?;
-                    let head_callable_identity =
-                        typed.machine_callable_identity_text(head).ok_or_else(|| {
-                            vec![Diagnostic::error(
-                                "selected family realization has no head callable identity",
-                            )]
-                        })?;
-                    rows.push(
-                        terminal_psi_to_abstract_operations::SelectedFamilyRealizationSource {
-                            head_declaration_identity,
-                            head_callable_identity,
-                            target: plan.target.clone(),
-                            selected_requirement_identity: plan
-                                .identities
-                                .text(row.requirement_identity)
-                                .to_owned(),
-                            provider_plan_report_identity: plan.report_fingerprint(),
-                            provider_plan_digest: plan.identity_digest(),
-                        },
-                    );
-                }
-            }
-        }
-        Ok(rows)
     }
 }

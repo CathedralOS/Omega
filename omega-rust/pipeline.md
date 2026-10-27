@@ -250,6 +250,13 @@ ordinary provider catalog join, which checks agreement with imported and explici
 boundary policies without reopening typed source. Native proposal construction
 does not materialize component policies or maintain a second catalog merge.
 
+Checked-provider binding also closes exact selecting declarations and target-family
+associations into a source-free record beside the complete selected plans. Native
+request projection borrows that record instead of reopening typed declarations.
+Preparation retains a refusal as data until the native handoff demands it, so a
+checking-only stop does not acquire native-only obligations. Physical family
+membership and receiving admission still belong to the Terminal consumer.
+
 An anonymous Build runs before its final source graph has a declaration owner.
 The Psi production request therefore distinguishes invocation-only code from
 portable publication, using the same stages, Terminal representation and
