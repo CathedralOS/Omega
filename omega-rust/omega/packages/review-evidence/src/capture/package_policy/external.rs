@@ -3,7 +3,7 @@
 use crate::capture::PackageReviewInput;
 use crate::capture::callables::project_checked_external_supply_policy;
 use crate::capture::semantics::declarations::{
-    is_product_scope_instance, nominal_identity, reviewed_package_owns,
+    is_checked_source_instance, nominal_identity, reviewed_package_owns,
 };
 use crate::record::PackagePolicyExternalExecutableSupply;
 use diagnostics::Diagnostic;
@@ -21,7 +21,7 @@ pub(super) fn project(
             MachineSupplyMode::ExternalRealization { .. }
         )
     }) {
-        if !is_product_scope_instance(compilation, machine.symbol)? {
+        if !is_checked_source_instance(compilation, machine.symbol)? {
             continue;
         }
         let identity = nominal_identity(compilation, machine.symbol)?;

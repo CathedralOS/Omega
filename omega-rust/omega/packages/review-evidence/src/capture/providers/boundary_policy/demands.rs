@@ -3,7 +3,7 @@ use crate::capture::PackageReviewInput;
 use crate::capture::api::operators::project_operator_coordinate;
 use crate::capture::semantics::conformances::policy_callable_identity;
 use crate::capture::semantics::declarations::{
-    is_product_scope_instance, nominal_identity, reviewed_package_owns,
+    is_checked_source_instance, nominal_identity, reviewed_package_owns,
 };
 use crate::record::{
     PackagePolicyBoundaryApplicationDemand, PackageReviewSymbolicBoundaryApplicationArgument,
@@ -21,7 +21,7 @@ pub(super) fn project(
             .machine(demand.machine_symbol)
             .ok_or_else(|| rejected("a symbolic producer without its exact machine"))?;
         if !machine.is_public
-            || !is_product_scope_instance(compilation, machine.symbol)?
+            || !is_checked_source_instance(compilation, machine.symbol)?
             || !reviewed_package_owns(&nominal_identity(compilation, machine.symbol)?, package)?
         {
             continue;
