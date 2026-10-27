@@ -30,7 +30,9 @@ pub use acquisition::{
     AcquiredBuildSource, AcquiredSourceSelection, BuildSourceAcquisitionError,
     BuildSourceAcquisitions,
 };
-pub use workspace_acquisition::{AcquiredWorkspaceBuild, AcquiredWorkspaceMembers};
+pub use workspace_acquisition::{
+    AcquiredWorkspaceBuild, AcquiredWorkspaceMembers, WorkspaceMemberObservation,
+};
 mod build_resolution;
 mod custody;
 pub use build_resolution::{

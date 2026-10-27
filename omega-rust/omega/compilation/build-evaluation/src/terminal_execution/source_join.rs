@@ -9,6 +9,7 @@ use semantic_vocabulary::PackageKeyIdentity;
 
 /// One package-manager selection at an issued purpose-local request ordinal.
 /// Selections retain request order within each purpose.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildDependencySelection {
     pub purpose: DependencyPurpose,
     pub request_ordinal: usize,

@@ -53,9 +53,12 @@ Source acquisition, pins, aliases and workspace selection remain package-owned.
 The runnable [provider-readiness projects](../../../../samples/cli/compilation/provider_readiness)
 exercise this route through ordinary CLI review and native/Terminal execution.
 The legacy source-only corpus route below cannot acquire a missing helper;
-its migration to executed project discovery remains open. Helpers needed while
-observing unselected workspace members also still require retained catalog
-closure support, rather than bypassing final graph membership.
+its migration to executed project discovery remains open. Workspace observations
+retain the closed source graphs of helpers actually executed to compute their
+declarations. The final join reconciles those graphs independently of Product
+routing; it does not acquire an unselected member's pending Product requests.
+Package locks retain these catalog execution sources for pinned offline recovery
+and read-only audit, without adding Product imports.
 
 [source_compilation.rs](src/source_compilation.rs) owns embedded one-shot source
 requests used by standalone products and compiler diagnostics. Its

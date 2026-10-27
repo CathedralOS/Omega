@@ -78,11 +78,12 @@ impl<'a> GitDependencyPins<'a> {
         acquisition: GitExactRevisionAcquisition,
     ) -> Result<Self, GitDependencyPinsError> {
         for (index, package) in updates.iter().enumerate() {
-            if accepted
-                .packages()
-                .binary_search_by(|source| source.key().cmp(package))
-                .is_err()
-            {
+            if !accepted.execution_source_graphs().any(|graph| {
+                graph
+                    .packages()
+                    .binary_search_by(|source| source.key().cmp(package))
+                    .is_ok()
+            }) {
                 return Err(GitDependencyPinsError::UnknownPackage(package.clone()));
             }
             if updates[..index].contains(package) {
@@ -111,24 +112,15 @@ impl<'a> GitDependencyPins<'a> {
             locator == request.requested_locator() && revision == request.requested_revision()
         };
         let mut retained = None;
-        if let CanonicalRootSourceRequest::Git {
-            requested_locator,
-            requested_revision,
-            ..
-        } = self.accepted.root().request()
-            && matches(requested_locator, requested_revision)
-        {
-            retained = Some(self.accepted.root().selected().resolution());
-        }
-        for edge in self.accepted.dependency_requests() {
-            if let CanonicalDependencySourceRequest::Git {
-                repository,
-                revision,
+        for graph in self.accepted.execution_source_graphs() {
+            if let CanonicalRootSourceRequest::Git {
+                requested_locator,
+                requested_revision,
                 ..
-            } = edge.request()
-                && matches(repository, revision)
+            } = graph.root().request()
+                && matches(requested_locator, requested_revision)
             {
-                let resolution = edge.selected().resolution();
+                let resolution = graph.root().selected().resolution();
                 if retained.is_some_and(|previous| previous != resolution) {
                     return Err(pin_error(
                         request,
@@ -136,6 +128,24 @@ impl<'a> GitDependencyPins<'a> {
                     ));
                 }
                 retained = Some(resolution);
+            }
+            for edge in graph.dependency_requests() {
+                if let CanonicalDependencySourceRequest::Git {
+                    repository,
+                    revision,
+                    ..
+                } = edge.request()
+                    && matches(repository, revision)
+                {
+                    let resolution = edge.selected().resolution();
+                    if retained.is_some_and(|previous| previous != resolution) {
+                        return Err(pin_error(
+                            request,
+                            "accepted requests disagree on the repository revision",
+                        ));
+                    }
+                    retained = Some(resolution);
+                }
             }
         }
         Ok(retained)

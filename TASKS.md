@@ -896,10 +896,7 @@ narrows realization only.
     Product-description queries while replacing static Build projection in the
     source-only corpus consumers with executed project discovery.
   - Complete [Build provider readiness](wiki/spec/build/provider_selection.md#build-provider-readiness)
-    for applied/inherited multi-slot requirements and helpers used while observing
-    unselected workspace members. Retain the catalog's executed dependency closure
-    without treating unselected members as Product dependencies or weakening the
-    mandatory final source join.
+    for applied/inherited multi-slot requirements.
   - **BUILD-EVALUATES-ONCE / ONE-DRIVER-PER-STAGE:** evaluate `build.omg` once
     per compilation with no realized target observed, run Psi `00–07` once in
     `compiler.rs` to produce one canonical Terminal Psi artifact, and run Omega

@@ -15,6 +15,13 @@ pub(crate) enum PackageSourceSelectionEvidence {
 }
 
 impl PackageSourceSelectionEvidence {
+    pub(crate) fn observations(&self) -> &[super::WorkspaceMemberObservation] {
+        match self {
+            Self::Root => &[],
+            Self::GitWorkspace(evidence) => evidence.observations(),
+        }
+    }
+
     pub const fn git_workspace(&self) -> Option<&GitWorkspaceSelectionPlan> {
         match self {
             Self::Root => None,
