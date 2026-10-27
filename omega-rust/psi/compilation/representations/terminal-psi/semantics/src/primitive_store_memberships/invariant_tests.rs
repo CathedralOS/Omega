@@ -79,7 +79,7 @@ fn declared_array_leaf_proves_its_predicate_without_creating_extra_custody() {
     let domain = StructuralDomainDeclaration {
         id: StructuralDomainId::new(1).unwrap(),
         identity: TerminalIdentityIndex(3),
-        semantic_domain: DomainSemanticId::from_bytes([1; 32]),
+        semantic_domain: DomainSemanticId::new(1).unwrap(),
         carrier: scalar,
         predicate: Some(predicate(100)),
         complete_predicate_theory: true,
