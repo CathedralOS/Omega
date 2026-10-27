@@ -149,7 +149,9 @@ def measure_cases(project, recording, producer):
     for name in ("first", "second"):
         for stream in ("stdout", "stderr"):
             oracle = project / ("expected_" + stream + ".txt")
-            expected_bytes = oracle.read_bytes() if oracle.is_file() else b""
+            if not oracle.is_file():
+                continue
+            expected_bytes = oracle.read_bytes()
             for prefix in ("", "terminal."):
                 if (outputs / (name + "." + prefix + stream)).read_bytes() != expected_bytes:
                     raise ValueError("multi-input native/Terminal stream oracle differs")

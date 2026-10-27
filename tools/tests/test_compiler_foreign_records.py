@@ -93,7 +93,7 @@ class OwnedForeignCohortTests(unittest.TestCase):
                         (outputs / "results.tsv").write_text("case\tnative\tinterpreter\tinterpreter_exit\nfirst\t0\tagrees\t0\nsecond\t0\tagrees\t0\n")
                         for name in ("first", "second"):
                             for suffix in ("stdout", "stderr", "terminal.stdout", "terminal.stderr"):
-                                (outputs / (name + "." + suffix)).write_bytes(b"")
+                                (outputs / (name + "." + suffix)).write_bytes(b"allowed without a stream oracle\n")
                     stderr = f"native exit 0\ninterp exit: 0\nbuild dir kept: {kept}\n".encode()
                 else:
                     stderr = b""
