@@ -60,7 +60,7 @@ pub fn validate_runtime_evidence_inputs_in(
             let mut invocations = module.proof_output_calls.iter().filter(|invocation| {
                 invocation.caller == caller.id
                     && invocation.runtime_call.is_some_and(|runtime| {
-                        runtime.operation == operation.id && runtime.callee == parts.callee
+                        runtime.site == operation.site && runtime.callee == parts.callee
                     })
             });
             let Some(invocation) = invocations.next() else {
@@ -78,7 +78,7 @@ pub fn validate_runtime_evidence_inputs_in(
             {
                 return Err("runtime call has ambiguous or incomplete ordinary evidence inputs");
             }
-            retained.push((caller.id, operation.id));
+            retained.push((caller.id, operation.site));
             let use_position = position(caller, operation)?;
             let callee = module
                 .machine(parts.callee)
@@ -110,6 +110,11 @@ pub fn validate_runtime_evidence_inputs_in(
                 operation.result.scalar(),
             ) {
                 (
+                    terminal_psi::DirectCallRole::NoNormal,
+                    Some(terminal_psi::ProofOutputRuntimeResult::NoNormal),
+                    None,
+                ) if matches!(operation.result, RuntimeEvidenceResult::NoNormal) => {}
+                (
                     terminal_psi::DirectCallRole::Unit,
                     Some(terminal_psi::ProofOutputRuntimeResult::Unit),
                     None,
@@ -121,7 +126,13 @@ pub fn validate_runtime_evidence_inputs_in(
                 ) if actual == expected => {}
                 _ => return Err("runtime evidence invocation changed its exact result role"),
             }
-            validate_output_roster(module, invocation, parts.callee)?;
+            if parts.role == terminal_psi::DirectCallRole::NoNormal {
+                if !invocation.outputs.is_empty() {
+                    return Err("nonreturning evidence invocation publishes normal outputs");
+                }
+            } else {
+                validate_output_roster(module, invocation, parts.callee)?;
+            }
             for (input_position, (argument, lane)) in invocation
                 .evidence_arguments
                 .iter()
@@ -232,7 +243,7 @@ pub fn validate_runtime_evidence_inputs_in(
         call.static_requirement_dispatch.is_none()
             && call
                 .runtime_call
-                .is_some_and(|runtime| !retained.contains(&(call.caller, runtime.operation)))
+                .is_some_and(|runtime| !retained.contains(&(call.caller, runtime.site)))
     }) {
         return Err("ordinary runtime evidence invocation has no authenticated call operation");
     }
@@ -403,7 +414,7 @@ fn position(
     let mut positions = machine
         .calls
         .iter()
-        .filter(|candidate| candidate.id == operation.id);
+        .filter(|candidate| candidate.site == operation.site);
     let current = positions
         .next()
         .ok_or("evidence operation is absent from its caller")?;
@@ -602,7 +613,7 @@ fn source_arguments(
             .runtime_call
             .ok_or("ordinary evidence consumer has no runtime operation")?;
         let use_operation = caller
-            .operation(runtime.operation)
+            .invocation(runtime.site)
             .ok_or("ordinary evidence consumer operation is absent")?;
         let use_position = position(caller, use_operation)?;
         let source_position = position(caller, operation)?;
@@ -718,7 +729,7 @@ fn source_arguments(
         .runtime_call
         .ok_or("erased output has no retained runtime snapshot for this input")?;
     let operation = caller
-        .operation(runtime.operation)
+        .invocation(runtime.site)
         .ok_or("evidence output producer operation is absent")?;
     let parts = operation.parts();
     if parts.callee != runtime.callee {

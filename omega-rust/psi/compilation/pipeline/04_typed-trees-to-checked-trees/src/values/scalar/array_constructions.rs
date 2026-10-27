@@ -69,7 +69,7 @@ pub(crate) fn call_array_constructions_in(
             validation::CallSite::Statement(call) => call.target_symbol,
             validation::CallSite::TransitionNamed { path, .. } => path.symbol,
         };
-        if target_symbol != call.target_symbol {
+        if validation::call_target_entry_symbol(program, target_symbol) != call.target_symbol {
             continue;
         }
         let Some(parameters) = validation::call_target_parameters(program, target_symbol) else {

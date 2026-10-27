@@ -962,7 +962,8 @@ pub(super) fn collect(
                 if occurrences.next().is_some()
                     || call.statement_index != statement
                     || call.call_ordinal < minimum_call_ordinal as usize
-                    || call.target_symbol != authored.target_symbol
+                    || call.target_symbol
+                        != validation::call_target_entry_symbol(program, authored.target_symbol)
                     || consumed.contains(&handle)
                     || facts.flow.control.is_retired(state, call)
                 {

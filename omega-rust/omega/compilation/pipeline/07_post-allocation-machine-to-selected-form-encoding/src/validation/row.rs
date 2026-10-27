@@ -171,7 +171,7 @@ pub(crate) fn validate(
             admit_decoded_footprint(selected.id, machine, bytes.len(), footprint, &decoded)?;
             Ok(())
         }
-        kind @ (selected_instructions::selected_call_triple_pattern!(..)) => {
+        kind @ (selected_instructions::selected_call_pattern!(..)) => {
             if row.address.is_some() {
                 return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
             }

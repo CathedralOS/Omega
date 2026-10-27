@@ -12,7 +12,7 @@ use crate::legalization::scalar_graph_input::structural_parameters;
 pub(in crate::legalization::scalar_graph_input) fn reconstruct(
     argument: &terminal_psi::StructuralArgument,
     position: usize,
-    call_operation: semantic_vocabulary::OperationId,
+    call_operation: semantic_vocabulary::InvocationSite,
     caller: &PsiOptimizationFunction,
     callee: abstract_operations::AbstractCallSignature<'_>,
     call: &CallPlan,
@@ -22,7 +22,7 @@ pub(in crate::legalization::scalar_graph_input) fn reconstruct(
     reconstruct_at_owner(
         argument,
         position,
-        target_operations::CallSiteOwner::Operation(call_operation),
+        target_operations::CallSiteOwner::from(call_operation),
         caller,
         callee,
         call,
@@ -77,7 +77,15 @@ pub(in crate::legalization::scalar_graph_input) fn reconstruct_at_owner(
         return crate::legalization::scalar_graph_input::address_joins::call_argument(
             argument,
             destination,
-            owner.operation().ok_or(LegalizationError::custody())?,
+            match owner {
+                target_operations::CallSiteOwner::Operation(operation) => {
+                    semantic_vocabulary::InvocationSite::Operation(operation)
+                }
+                target_operations::CallSiteOwner::InvokeNoNormal(edge) => {
+                    semantic_vocabulary::InvocationSite::InvokeNoNormal(edge)
+                }
+                _ => return Err(LegalizationError::custody()),
+            },
             caller,
             call,
             callee.scalar_parameter_count() + position,

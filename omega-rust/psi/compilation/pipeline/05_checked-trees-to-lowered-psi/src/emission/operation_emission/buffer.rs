@@ -29,18 +29,29 @@ pub(crate) struct SourceQuotientCall {
     pub(crate) call: OperationId,
 }
 
-/// Evaluated operands of a domain-ending call, before its owner allocates the
-/// terminating edge. Keeping this separate from operations prevents a Unit
-/// result, normal completion receipts or implicit cleanup from being invented.
-pub(crate) struct PendingExternalCompletion {
+/// One evaluated invocation that cannot continue normally, before the control
+/// owner allocates its edge. Completion kind remains explicit: ordinary module
+/// nonreturn grants none of an external outcome's delegated domain authority.
+pub(crate) struct PendingInvocationCompletion {
     pub(crate) coordinate: SourceCallCoordinate,
     pub(crate) source_site: Option<checked_trees::NominalMachineUseSite>,
     pub(crate) target: symbols::SymbolHandle,
-    pub(crate) boundary: semantic_vocabulary::BoundaryMachineId,
-    pub(crate) kind: semantic_vocabulary::ExternalCompletionKind,
-    pub(crate) arguments: Vec<ValueId>,
-    pub(crate) structural_arguments: Vec<terminal_psi::StructuralArgument>,
-    pub(crate) requirement_obligations: Vec<ObligationId>,
+    pub(crate) frontier: LoweredSourceFrontierBindings,
+    pub(crate) outcome: PendingInvocationOutcome,
+}
+
+pub(crate) enum PendingInvocationOutcome {
+    ModuleNoNormal {
+        callee: semantic_vocabulary::MachineId,
+        inputs: crate::direct_calls::ModuleInvocationArguments,
+    },
+    External {
+        boundary: semantic_vocabulary::BoundaryMachineId,
+        kind: semantic_vocabulary::ExternalCompletionKind,
+        arguments: Vec<ValueId>,
+        structural_arguments: Vec<terminal_psi::StructuralArgument>,
+        requirement_obligations: Vec<ObligationId>,
+    },
 }
 
 /// One authored structural binding. Literal storage is established by a Unit
@@ -274,7 +285,7 @@ pub(crate) struct OperationBuffer {
     pub(crate) claim_introductions: Vec<crate::emission::claim_bindings::ClaimIntroduction>,
     pub(crate) selected_cleanup_groups:
         Vec<crate::emission::selected_continuations::SelectedCleanupGroup>,
-    pub(crate) external_completion: Option<PendingExternalCompletion>,
+    pub(crate) invocation_completion: Option<PendingInvocationCompletion>,
     /// Authored structural bindings may complete at a control join rather than
     /// a call operation. Keep those places in the same state-local namespace.
     pub(crate) structural_values: Vec<(u32, StructuralBinding)>,
@@ -611,7 +622,7 @@ impl OperationBuffer {
             source_returns: Vec::new(),
             arrival_claims: Vec::new(),
             block_entry_claims: Vec::new(),
-            external_completion: None,
+            invocation_completion: None,
             dynamic_dispatch,
             structural_values: Vec::new(),
             computed_values: Vec::new(),
@@ -774,32 +785,70 @@ impl OperationBuffer {
     /// Seal abandonment on the current evaluation path. The empty audit lower
     /// bound does not assert an empty frontier: verification reconstructs live
     /// custody, and runtime domain delegation is a separate admission demand.
-    pub(crate) fn take_external_completion(
+    pub(crate) fn take_invocation_completion(
         &mut self,
         next_edge: &mut u64,
     ) -> Result<Option<terminal_psi::Terminator>, LoweringError> {
-        let Some(completion) = self.external_completion.take() else {
+        let Some(completion) = self.invocation_completion.take() else {
             return Ok(None);
         };
         let edge = crate::terminal_identities::edge_id(crate::terminal_identities::allocate_dense(
             next_edge,
         )?);
+        let (site, terminator) = match completion.outcome {
+            PendingInvocationOutcome::ModuleNoNormal { callee, inputs } => {
+                let crate::direct_calls::ModuleInvocationArguments {
+                    arguments,
+                    erased_arguments,
+                    erased_proof_arguments,
+                    structural_arguments,
+                    claim_transfers,
+                    requirement_obligations,
+                    crash_continuations,
+                } = inputs;
+                (
+                    LoweredSourceCallSite::InvokeNoNormal(edge),
+                    terminal_psi::Terminator::InvokeNoNormal {
+                        static_reach_binding: None,
+                        edge,
+                        callee,
+                        arguments,
+                        erased_arguments,
+                        erased_proof_arguments,
+                        structural_arguments,
+                        claim_transfers,
+                        requirement_obligations,
+                        crash_continuations,
+                    },
+                )
+            }
+            PendingInvocationOutcome::External {
+                boundary,
+                kind,
+                arguments,
+                structural_arguments,
+                requirement_obligations,
+            } => (
+                LoweredSourceCallSite::ExternalCompletion(edge),
+                terminal_psi::Terminator::ExternalCompletion {
+                    edge,
+                    boundary,
+                    kind,
+                    arguments,
+                    structural_arguments,
+                    requirement_obligations,
+                    frontier_lower_bound: Vec::new(),
+                },
+            ),
+        };
         self.record_source_call_site(
             completion.coordinate,
             completion.source_site,
-            LoweredSourceCallSite::ExternalCompletion(edge),
+            site,
             completion.target,
-            &LoweredSourceFrontierBindings::default(),
+            &completion.frontier,
         )?;
-        Ok(Some(terminal_psi::Terminator::ExternalCompletion {
-            edge,
-            boundary: completion.boundary,
-            kind: completion.kind,
-            arguments: completion.arguments,
-            structural_arguments: completion.structural_arguments,
-            requirement_obligations: completion.requirement_obligations,
-            frontier_lower_bound: Vec::new(),
-        }))
+        Ok(Some(terminator))
     }
 }
 

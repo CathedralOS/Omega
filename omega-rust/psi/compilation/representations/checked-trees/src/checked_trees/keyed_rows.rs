@@ -26,6 +26,20 @@ pub trait DurableRows {
     fn revision(&self) -> u64;
 
     fn rows(&self) -> impl Iterator<Item = (Handle<Self::Row>, &Self::Row)>;
+
+    fn append_epoch(&self) -> Option<(u64, usize)> {
+        None
+    }
+
+    fn for_each_row_from(
+        &self,
+        start: usize,
+        mut visit: impl FnMut(Handle<Self::Row>, &Self::Row),
+    ) {
+        for (handle, row) in self.rows().skip(start) {
+            visit(handle, row);
+        }
+    }
 }
 
 impl<T: Default> DurableRows for Arena<T> {
@@ -37,6 +51,16 @@ impl<T: Default> DurableRows for Arena<T> {
 
     fn rows(&self) -> impl Iterator<Item = (Handle<T>, &T)> {
         Arena::iter(self)
+    }
+
+    fn append_epoch(&self) -> Option<(u64, usize)> {
+        Arena::append_epoch(self)
+    }
+
+    fn for_each_row_from(&self, start: usize, mut visit: impl FnMut(Handle<T>, &T)) {
+        for (handle, row) in Arena::iter_from(self, start) {
+            visit(handle, row);
+        }
     }
 }
 
@@ -50,6 +74,28 @@ impl<T: Default> DurableRows for PagedArenaSet<T> {
     fn rows(&self) -> impl Iterator<Item = (Handle<T>, &T)> {
         PagedArenaSet::iter(self)
     }
+
+    fn append_epoch(&self) -> Option<(u64, usize)> {
+        PagedArenaSet::append_epoch(self)
+    }
+
+    fn for_each_row_from(&self, start: usize, visit: impl FnMut(Handle<T>, &T)) {
+        PagedArenaSet::for_each_from(self, start, visit);
+    }
+}
+
+struct KeyedGroupCache<Key, Row> {
+    append_epoch: Option<(u64, usize)>,
+    groups: SymbolKeyMap<Key, Vec<Handle<Row>>>,
+}
+
+impl<Key: Clone, Row> Clone for KeyedGroupCache<Key, Row> {
+    fn clone(&self) -> Self {
+        Self {
+            append_epoch: self.append_epoch,
+            groups: self.groups.clone(),
+        }
+    }
 }
 
 /// One table's rows grouped by a key derived from each row, rebuilt whenever
@@ -57,7 +103,7 @@ impl<T: Default> DurableRows for PagedArenaSet<T> {
 /// produced the grouping, so the index cannot be keyed against one arena's
 /// revision and read as another's.
 pub struct KeyedRows<Key, Row> {
-    groups: OwnedIndex<SymbolKeyMap<Key, Vec<Handle<Row>>>>,
+    groups: OwnedIndex<KeyedGroupCache<Key, Row>>,
 }
 
 impl<Key: Eq + Hash, Row> KeyedRows<Key, Row> {
@@ -75,17 +121,50 @@ impl<Key: Eq + Hash, Row> KeyedRows<Key, Row> {
         A: DurableRows<Row = Row>,
     {
         let mut key_of = key_of;
-        self.groups.with(
+        self.groups.with_updated(
             arena.revision(),
-            || {
+            |existing| {
+                let next_epoch = arena.append_epoch();
+                if let Some(existing) = existing {
+                    if let (Some((prev_rewrite, prev_len)), Some((next_rewrite, next_len))) =
+                        (existing.append_epoch, next_epoch)
+                        && prev_rewrite == next_rewrite
+                        && prev_len <= next_len
+                    {
+                        arena.for_each_row_from(prev_len, |handle, row| {
+                            existing.groups.entry(key_of(row)).or_default().push(handle);
+                        });
+                        existing.append_epoch = next_epoch;
+                        return None;
+                    }
+                    existing.groups.clear();
+                    for (handle, row) in arena.rows() {
+                        existing.groups.entry(key_of(row)).or_default().push(handle);
+                    }
+                    existing.append_epoch = next_epoch;
+                    return None;
+                }
                 let mut groups: SymbolKeyMap<Key, Vec<Handle<Row>>> = SymbolKeyMap::default();
                 for (handle, row) in arena.rows() {
                     groups.entry(key_of(row)).or_default().push(handle);
                 }
-                groups
+                Some(KeyedGroupCache {
+                    append_epoch: next_epoch,
+                    groups,
+                })
             },
-            run,
+            |cached| run(&cached.groups),
         )
+    }
+
+    /// Build and seal the grouping for lock-free concurrent reads while
+    /// `arena` stays at its current revision.
+    pub fn seal<A>(&mut self, arena: &A, key_of: impl FnMut(&Row) -> Key)
+    where
+        A: DurableRows<Row = Row>,
+    {
+        self.with_groups(arena, key_of, |_| {});
+        self.groups.seal();
     }
 
     /// Run `run` against the rows recorded under `key`, in arena order.

@@ -2,6 +2,7 @@
 //! Physical placement comes from the retained target layout. The semantic
 //! declaration independently authenticates the complete leaf roster and types.
 
+use super::super::borrowed_storage::geometry::expand_coordinates;
 use super::super::scalar_codec::{decode, encode, scalar_extent};
 use super::original_homes::{exact_layout, rejection};
 use runtime_abi::NativeBorrowedStorageLayout;
@@ -58,44 +59,49 @@ impl StorageCodec {
                     "native primitive recipe changes its scalar owner",
                 ));
             }
-            return Ok(Self {
-                structural_type,
-                extent: layout.byte_size as usize,
-                alignment: usize::from(layout.alignment),
-                fields: vec![ScalarField {
-                    path: Vec::new(),
-                    offset: 0,
-                    logical,
-                    stored: recipe.stored_scalar,
-                }],
-            });
         }
-        if !matches!(&declaration.shape, StructuralTypeShape::Record { .. }) {
+        if !matches!(
+            &declaration.shape,
+            StructuralTypeShape::Record { .. }
+                | StructuralTypeShape::FixedArray { .. }
+                | StructuralTypeShape::PrimitiveScalar(_)
+        ) {
             return Err(rejection(
                 "native import needs a supported complete scalar record codec",
             ));
+        }
+        let mut placements = Vec::new();
+        for recipe in layout.fields() {
+            expand_coordinates(
+                layout.field_path(recipe).collect(),
+                recipe.byte_offset as usize,
+                layout.field_repetitions(recipe),
+                &mut |path, offset| {
+                    placements.push(ScalarField {
+                        path,
+                        offset,
+                        logical: recipe.logical_scalar,
+                        stored: recipe.stored_scalar,
+                    });
+                    Ok(())
+                },
+            )?;
         }
         let mut fields = Vec::new();
         for field in super::record_fields::scalar_fields(program, structural_type)? {
             let path = field.path;
             let logical = field.logical;
-            let mut recipes = layout
-                .fields()
-                .iter()
-                .filter(|recipe| layout.field_path(recipe).eq(path.iter().copied()));
+            let mut recipes = placements.iter().filter(|recipe| recipe.path == path);
             let recipe = recipes
                 .next()
                 .ok_or_else(|| rejection("native record lost a semantic field's layout"))?;
-            if recipes.next().is_some()
-                || !layout.field_repetitions(recipe).is_empty()
-                || recipe.logical_scalar != logical
-            {
+            if recipes.next().is_some() || recipe.logical != logical {
                 return Err(rejection(
                     "native record field recipe changes its semantic carrier",
                 ));
             }
-            let offset = recipe.byte_offset as usize;
-            let extent = scalar_extent(recipe.stored_scalar)?;
+            let offset = recipe.offset;
+            let extent = scalar_extent(recipe.stored)?;
             if offset
                 .checked_add(extent)
                 .is_none_or(|end| end > layout.byte_size as usize)
@@ -112,10 +118,10 @@ impl StorageCodec {
                 path,
                 offset,
                 logical,
-                stored: recipe.stored_scalar,
+                stored: recipe.stored,
             });
         }
-        if fields.len() != layout.fields().len()
+        if fields.len() != placements.len()
             || layout.byte_size == 0
             || !layout.alignment.is_power_of_two()
         {

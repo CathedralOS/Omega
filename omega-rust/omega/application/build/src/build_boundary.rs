@@ -234,7 +234,7 @@ fn ordinary_package_operations_admit_instead_of_execute() {
         .find("package_manager::operations::admit_project_products(")
         .unwrap();
     let compile = execution
-        .find("crate::package_compilation::compile_returned_packages(")
+        .find("crate::package_compilation::compile_packages(")
         .unwrap();
     let reconcile = execution
         .find("admitted.completion.complete(products, session.packages)")
@@ -288,10 +288,10 @@ fn application_schedules_dependencies_without_opening_source_continuations() {
     let execution = include_str!("build_execution.rs");
     assert!(execution.contains("while !frontiers.is_empty()"));
     assert!(execution.contains("join_generated_sources(occurrence, &frontier.products)"));
-    assert!(execution.contains("occurrence.prepare(compiler, completed)"));
-    assert!(
-        execution.contains("Self::Execute(request) => execute_package_build(compiler, request)")
-    );
+    assert!(execution.contains("prepare_package_source(occurrence, compiler, completed)"));
+    assert!(execution.contains(
+        "PackageSourceRequest::Execute(request) => execute_package_build(compiler, request)"
+    ));
     assert!(execution.contains("source.require_execution_contract(&request.execution)?"));
     assert!(execution.contains("compiler.begin_package_build(request)"));
     assert!(execution.contains("activation.advance(1024)"));

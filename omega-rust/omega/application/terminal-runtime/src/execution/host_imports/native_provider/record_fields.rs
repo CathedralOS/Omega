@@ -1,4 +1,4 @@
-//! The complete semantic scalar roster of a finite embedded record. Paths
+//! The complete semantic scalar roster of a finite record/array storage. Paths
 //! retain every containing field identity; layout recipes supply placement,
 //! never the missing type or authority. References, atomic storage and other
 //! carrier families need their own codecs rather than scalar-width guesses.
@@ -18,6 +18,7 @@ pub(super) struct SemanticScalarField {
 enum Visit<'declaration> {
     Type(StructuralTypeId),
     Field(&'declaration StructuralFieldDeclaration),
+    Element(StructuralTypeId, u64),
     LeaveType,
     LeaveField,
 }
@@ -72,6 +73,15 @@ pub(super) fn scalar_fields(
                                 .map(Visit::Field),
                         );
                     }
+                    StructuralTypeShape::FixedArray { element, length } => {
+                        active.push(identity);
+                        pending.push(Visit::LeaveType);
+                        pending.extend(
+                            (0..*length)
+                                .rev()
+                                .map(|index| Visit::Element(*element, index)),
+                        );
+                    }
                     _ => {
                         return Err(rejection(
                             "native embedded field needs a supported materialized record codec",
@@ -99,6 +109,11 @@ pub(super) fn scalar_fields(
                     path: path.clone(),
                     logical,
                 });
+            }
+            Visit::Element(element, index) => {
+                path.push(Path::FixedIndex(index));
+                pending.push(Visit::LeaveField);
+                pending.push(Visit::Type(element));
             }
             Visit::LeaveType => {
                 active.pop().ok_or_else(|| {

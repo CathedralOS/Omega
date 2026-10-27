@@ -13,7 +13,7 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;
 use typed_trees::state::State;
-use typed_trees::statement::{StatementNode, TransitionTargetNode};
+use typed_trees::statement::StatementNode;
 
 mod boundary_return;
 
@@ -517,13 +517,10 @@ fn first_nested_call(
     }
 }
 
-/// A VOID callee in VALUE position used to compile and silently bind 0 (ZII)
-/// -- and native/interp DIVERGED on the bound value. "Void" means: no declared
-/// return type on the resolved state (the parser now lands `-> T` written
-/// after the machine clauses too; it used to be silently dropped) AND no state
-/// of the callee machine produces a value through a transition VALUE arm --
-/// undeclared-return value machines (`transition r > 0 { true -> self.f(r-1)
-/// false -> 0 }`, the termination-canary surface) stay callable.
+/// Unit cannot supply an ordinary value operand. The caller retains its
+/// actual root-use permission, while one shared result query handles concrete
+/// heads/states and terminal Unit wrappers without re-scanning source syntax.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn report_void_value_callee(
     program: &dyn crate::CheckingInput,
     callee_machine: &Machine,
@@ -531,37 +528,16 @@ pub(super) fn report_void_value_callee(
     current_state: &State,
     callee_state: &State,
     expression: ExpressionHandle,
+    unit_completion: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if callee_state.return_type.is_valid()
-        || crate::machine_calls::calls::unit_statement_call_is_admitted(
+        || unit_completion
+        || !crate::machine_calls::calls::unit_returns::machine_has_unit_result(
             program,
-            current_machine,
-            current_state,
-            expression,
+            callee_machine,
         )
     {
-        return;
-    }
-    let produces_value = program.machine_states(callee_machine).iter().any(|state| {
-        state.return_type.is_valid()
-            || program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .any(|statement| {
-                    let Some(transition) = statement.as_transition() else {
-                        return false;
-                    };
-                    transition.targets().any(|handle| {
-                        matches!(
-                            program.statement_table.transition_target(handle),
-                            TransitionTargetNode::Value(_)
-                        )
-                    })
-                })
-    });
-    if produces_value {
         return;
     }
     let Some(call) = program.expression_table.call_node(expression) else {

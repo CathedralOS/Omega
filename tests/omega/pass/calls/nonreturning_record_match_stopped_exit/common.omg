@@ -1,0 +1,32 @@
+use omega::language::core::process_exit;
+use omega_language_std::process_exit;
+use omega_language_std::console;
+
+public data Word [copy] { value: u64; }
+machine prefix() -> Word reaches Console
+ensures result.value == 17 {
+    Console::write_line("dispatch-prefix");
+    Word { value: 17 }
+}
+machine stop_word() -> Word reaches ProcessExit
+ensures result.value == 17 {
+    ProcessExit::exit_process(0);
+}
+machine select_word(normal: bool) -> Word reaches Console + ProcessExit
+ensures result.value == 17 {
+    let earlier: Word = prefix();
+    let selected: Word = match normal { true -> earlier, false -> stop_word() };
+    selected
+}
+machine consume(value: Word) reaches ProcessExit
+requires value.value == 17 {
+    let remainder: u64 = value.value - 17;
+    transition remainder == 0 {
+        true -> ProcessExit::exit_process(0)
+        false -> ProcessExit::exit_process(44)
+    }
+}
+public machine enter(normal: bool) reaches Console + ProcessExit
+invokes Console; invokes ProcessExit; {
+    consume(select_word(normal));
+}

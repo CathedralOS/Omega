@@ -341,7 +341,7 @@ pub(super) fn lower_terminator(
             };
             let key = (
                 function.machine,
-                semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(*psi_edge),
+                semantic_vocabulary::InvocationSite::ExternalCompletion(*psi_edge),
                 *boundary,
             );
             let (binding, call_plan) = if let Some(selected) = selected_calls.get(&key) {

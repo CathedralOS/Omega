@@ -70,7 +70,7 @@ pub(super) fn settlement(
         IntegerType::new(IntegerSign::Signed, 32).map_err(|_| Error::Mismatch("i32"))?,
     );
     let settlement = BoundarySettlementRecord {
-        invocation_site: semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge),
+        invocation_site: semantic_vocabulary::InvocationSite::ExternalCompletion(edge),
         boundary,
         execution: execution.into(),
         realization: target_operations::BoundaryRealization::HostedExitProcessI32(
@@ -185,7 +185,7 @@ pub(super) fn validate(
             != host(placed.section_offset)?
                 .checked_add(host(span.offset)?)
                 .ok_or(Error::Overflow)?
-        || proposed.settlement.invocation_site != semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge)
+        || proposed.settlement.invocation_site != semantic_vocabulary::InvocationSite::ExternalCompletion(edge)
         || proposed.settlement.execution != execution.into()
         || proposed.settlement.boundary != boundary
         || proposed.settlement.operation_ordinal

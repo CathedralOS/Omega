@@ -2,8 +2,8 @@
 //! runtime selectors keep their own ordered storage regions; this operation
 //! neither extracts a descriptor nor grants an independent payload loan.
 use super::{
-    Builder, LegalizedScalarFunction, LegalizedScalarInstruction, SelectedMemoryAccessRole,
-    VirtualRegisterId, invalid, memory, place_pointer, provenance, transport_register,
+    Builder, LegalizedScalarFunction, SelectedMemoryAccessRole, VirtualRegisterId, invalid, memory,
+    place_pointer, provenance, transport_register,
 };
 use crate::SelectedInstructionError;
 use crate::structural_inputs::structural_reference_input::{
@@ -38,7 +38,7 @@ pub(super) fn source_geometry(
 pub(super) fn completed_view_words(
     function: &LegalizedScalarFunction,
     builder: &mut Builder<'_>,
-    row: &LegalizedScalarInstruction,
+    row: &impl super::super::call_arguments::InvocationArgumentSource,
     source: &StructuralArgument,
     indices: &[LegalizedRuntimeIndexOperand],
 ) -> Result<Option<[VirtualRegisterId; 2]>, SelectedInstructionError> {
@@ -71,7 +71,7 @@ pub(super) fn completed_view_words(
 pub(super) fn backing(
     function: &LegalizedScalarFunction,
     builder: &mut Builder<'_>,
-    row: &LegalizedScalarInstruction,
+    row: &impl super::super::call_arguments::InvocationArgumentSource,
     source: &StructuralArgument,
     indices: &[LegalizedRuntimeIndexOperand],
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {

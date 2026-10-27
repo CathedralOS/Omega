@@ -69,6 +69,7 @@ pub struct Arena<T> {
     /// same-length in-place rewrite moves it exactly like an append does.
     /// Mutation metadata like `fresh`, so it takes no part in equality.
     revision: u64,
+    rewrite_revision: u64,
 }
 
 impl<T> Arena<T> {
@@ -210,11 +211,12 @@ impl<T: Clone> Clone for Arena<T> {
             fresh: self.fresh,
             implicit_slot_metadata: self.implicit_slot_metadata,
             revision: self.revision,
+            rewrite_revision: self.rewrite_revision,
         }
     }
 
     fn clone_from(&mut self, source: &Self) {
-        self.bump_revision();
+        self.bump_rewrite_revision();
         self.dummy.clone_from(&source.dummy);
         if source.implicit_slot_metadata {
             if let Some(metadata) = self.slot_metadata.as_mut() {
@@ -289,11 +291,26 @@ impl<T> Arena<T> {
     }
 
     #[inline]
+    pub fn append_epoch(&self) -> Option<(u64, usize)> {
+        self.fresh
+            .then_some((self.rewrite_revision, self.items.len()))
+    }
+
+    #[inline]
     fn bump_revision(&mut self) {
         self.revision = self
             .revision
             .checked_add(1)
             .expect("arena revision overflow");
+    }
+
+    #[inline]
+    fn bump_rewrite_revision(&mut self) {
+        self.bump_revision();
+        self.rewrite_revision = self
+            .rewrite_revision
+            .checked_add(1)
+            .expect("arena rewrite revision overflow");
     }
 }
 
@@ -342,6 +359,7 @@ impl<T: Default> Arena<T> {
             fresh: true,
             implicit_slot_metadata: true,
             revision: 0,
+            rewrite_revision: 0,
         }
     }
 
@@ -360,6 +378,10 @@ impl<T: Default> Arena<T> {
             .as_mut()
             .and_then(|metadata| metadata.free_indices.pop())
         {
+            self.rewrite_revision = self
+                .rewrite_revision
+                .checked_add(1)
+                .expect("arena rewrite revision overflow");
             let index = storage_index_from_arena_index(arena_index);
 
             self.items[index] = item;
@@ -602,7 +624,7 @@ impl<T: Default> Arena<T> {
     }
 
     pub fn get_mut(&mut self, handle: Handle<T>) -> &mut T {
-        self.bump_revision();
+        self.bump_rewrite_revision();
         let index = self.index_from_valid_handle(handle);
 
         if index < self.items.len() {
@@ -618,7 +640,7 @@ impl<T: Default> Arena<T> {
         if index == invalid_index() {
             return false;
         }
-        self.bump_revision();
+        self.bump_rewrite_revision();
 
         let replacement = T::default();
         self.materialize_slot_metadata();
@@ -693,7 +715,7 @@ impl<T: Default> Arena<T> {
 
     #[inline]
     pub fn span_mut(&mut self, span: HandleSpan<T>) -> Option<&mut [T]> {
-        self.bump_revision();
+        self.bump_rewrite_revision();
         if span.is_empty() {
             return Some(&mut []);
         }
@@ -705,7 +727,7 @@ impl<T: Default> Arena<T> {
 
     #[inline]
     pub fn span_mut_or_empty(&mut self, span: HandleSpan<T>) -> &mut [T] {
-        self.bump_revision();
+        self.bump_rewrite_revision();
         if let Some(range) = self.valid_span_range(span) {
             &mut self.items[range]
         } else {
@@ -765,7 +787,7 @@ impl<T: Default> Arena<T> {
     }
 
     pub fn clear(&mut self) {
-        self.bump_revision();
+        self.bump_rewrite_revision();
         self.materialize_slot_metadata();
         if let Some(metadata) = self.slot_metadata.as_mut() {
             for (index, item) in self.items.iter_mut().enumerate() {
@@ -790,7 +812,7 @@ impl<T: Default> Arena<T> {
             retained_length <= self.items.len(),
             "append rewind exceeds arena"
         );
-        self.bump_revision();
+        self.bump_rewrite_revision();
         self.items.truncate(retained_length);
         if let Some(metadata) = self.slot_metadata.as_mut() {
             metadata.generations.truncate(retained_length);
@@ -800,7 +822,7 @@ impl<T: Default> Arena<T> {
     }
 
     pub fn reset_retain_capacity(&mut self) {
-        self.bump_revision();
+        self.bump_rewrite_revision();
         self.items.clear();
         if let Some(metadata) = self.slot_metadata.as_mut() {
             metadata.generations.clear();
@@ -825,6 +847,7 @@ impl<T: Default> Arena<T> {
             fresh: self.fresh,
             implicit_slot_metadata: self.implicit_slot_metadata,
             revision: self.revision,
+            rewrite_revision: self.rewrite_revision,
         }
     }
 
@@ -845,6 +868,15 @@ impl<T: Default> Arena<T> {
         }
     }
 
+    #[inline]
+    pub fn iter_from(&self, start: usize) -> ArenaIter<'_, T> {
+        ArenaIter {
+            arena: self,
+            index: start.min(self.items.len()),
+            marker: PhantomData,
+        }
+    }
+
     pub fn into_items(self) -> impl Iterator<Item = T> {
         let implicit = self.implicit_slot_metadata;
         // Generations and free slots no longer serve a consuming iterator.
@@ -859,7 +891,7 @@ impl<T: Default> Arena<T> {
     }
 
     pub fn for_each_mut(&mut self, mut visit: impl FnMut(Handle<T>, &mut T)) {
-        self.bump_revision();
+        self.bump_rewrite_revision();
         if self.implicit_slot_metadata {
             for (index, item) in self.items.iter_mut().enumerate() {
                 visit(

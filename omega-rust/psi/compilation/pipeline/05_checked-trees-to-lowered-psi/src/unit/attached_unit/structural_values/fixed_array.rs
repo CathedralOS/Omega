@@ -12,6 +12,7 @@ use super::super::{
 use super::completed_aggregate::{self, CompletedAggregate};
 use super::emission;
 use crate::emission::operation_emission::buffer::structural_result_declaration;
+use crate::unit::attached_unit::structural_values::ValueOutcome;
 use checked_trees::CheckedStructuralValueHandle;
 
 impl emission::Emission<'_, '_, '_> {
@@ -20,7 +21,7 @@ impl emission::Emission<'_, '_, '_> {
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         elements: &[CheckedStructuralValueHandle],
         type_reference: checked_trees::types::TypeReferenceHandle,
-    ) -> Result<PlaceId, LoweringError> {
+    ) -> Result<ValueOutcome<PlaceId>, LoweringError> {
         let declaration =
             terminal_psi::find_structural_type(&self.structural_types[..], self.structural_type)
                 .ok_or(LoweringError::Unsupported("fixed array carrier is missing"))?;
@@ -45,8 +46,11 @@ impl emission::Emission<'_, '_, '_> {
         for (element_position, value) in elements.iter().enumerate() {
             let element_index = u64::try_from(element_position)
                 .map_err(|_| LoweringError::Unsupported("array element identity overflow"))?;
-            let operand =
-                self.child_constructor_operand(identities, element, *value, element_reference)?;
+            let ValueOutcome::Normal(operand) =
+                self.child_constructor_operand(identities, element, *value, element_reference)?
+            else {
+                return Ok(ValueOutcome::NoNormal);
+            };
             for claim in operand.claims {
                 let mut path = vec![terminal_psi::StructuralPathSegment::FixedIndex(
                     element_index,
@@ -79,7 +83,7 @@ impl emission::Emission<'_, '_, '_> {
         self.operations
             .set_structural_result_claims(place, claims)?;
         self.values.truncate(source_count);
-        Ok(place)
+        Ok(ValueOutcome::Normal(place))
     }
 
     /// Establish the current carrier's whole zero as a fresh owned place. The

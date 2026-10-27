@@ -154,6 +154,7 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
     // Possessing this same artifact, its selected provider and established
     // root Binding does not delegate containing-domain death to an embedding.
     let denied = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
+        entry: None,
         native_provider: None,
         x86_flags: None,
         memory_ordering: None,
@@ -177,6 +178,7 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
         "embedding without host delegation must refuse before execution"
     );
     let observation = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
+        entry: None,
         native_provider: None,
         x86_flags: None,
         memory_ordering: None,

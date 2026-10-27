@@ -11,12 +11,45 @@ use diagnostics::Diagnostic;
 /// One dependency-ordered source closure. The last request is its Product root;
 /// earlier requests are dependency occurrences, including separate Build roles.
 pub struct PackageCompilationRequest {
-    pub occurrences: Vec<CheckedCompileRequest>,
+    pub occurrences: Vec<PackageSourceRequest>,
     pub product: crate::CompilationProduct,
     /// Present only for a locked root Product. No lock supplies no permissions;
     /// a missing occurrence inside an existing lock must reject at admission.
     pub terminal_permissions:
         Option<package_evidence::permission_acceptance::TerminalPermissionAcceptance>,
+}
+
+/// Execution and Product admission are distinct inputs to one package plan.
+/// A Product request borrows an already settled Build; missing custody is an
+/// error, never a request to execute the source again.
+pub enum PackageSourceRequest {
+    Execute(CheckedCompileRequest),
+    Product(PackageProductSourceRequest),
+}
+
+impl PackageSourceRequest {
+    pub fn package_inputs(&self) -> Option<&package_compilation::PackageCompilationInputs> {
+        match self {
+            Self::Execute(request) => request.package_inputs.as_ref(),
+            Self::Product(request) => Some(&request.inputs),
+        }
+    }
+
+    pub fn set_optimization_rollback(&mut self, rollback: optimization_core::OptimizationRollback) {
+        match self {
+            Self::Execute(request) => request.optimization_rollback = rollback,
+            Self::Product(request) => request.options.optimization_rollback = rollback,
+        }
+    }
+}
+
+/// Product context and the exact pre-effect obligations its retained Build
+/// must have satisfied. Product checking options cannot grant Build effects.
+pub struct PackageProductSourceRequest {
+    pub target: target::TargetProfile,
+    pub inputs: package_compilation::PackageCompilationInputs,
+    pub execution: package_compilation::build_execution::BuildExecutionContract,
+    pub options: PackageProductOptions,
 }
 
 /// The occurrence responsible for a rejected package request.

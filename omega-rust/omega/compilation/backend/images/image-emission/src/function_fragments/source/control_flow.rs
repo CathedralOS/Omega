@@ -14,6 +14,12 @@ pub(super) fn retained(source: &AbstractOperation, target: &TargetFunction) -> b
             .iter()
             .filter(|block| match (source, &block.terminator) {
                 (
+                    AbstractOperation::InvokeNoNormal { psi_edge, .. },
+                    TargetControlTerminator::InvokeNoNormal {
+                        psi_edge: actual, ..
+                    },
+                ) => psi_edge == actual,
+                (
                     AbstractOperation::ExternalCompletion { psi_edge, .. },
                     TargetControlTerminator::ExternalCompletion {
                         psi_edge: actual, ..
@@ -63,6 +69,45 @@ pub(super) fn retained(source: &AbstractOperation, target: &TargetFunction) -> b
         return false;
     }
     match (source, &candidate.terminator) {
+        (
+            AbstractOperation::InvokeNoNormal {
+                psi_edge,
+                callee,
+                arguments,
+                structural_arguments,
+                claim_transfers,
+                requirement_obligations,
+                crash_continuations,
+            },
+            TargetControlTerminator::InvokeNoNormal {
+                psi_edge: actual_edge,
+                callee: actual_callee,
+                scalar_arguments: actual_scalars,
+                arguments: actual_structural,
+                claim_transfers: actual_transfers,
+                requirement_obligations: actual_obligations,
+                crash_continuations: actual_crashes,
+                ..
+            },
+        ) => {
+            psi_edge == actual_edge
+                && callee == actual_callee
+                && arguments.iter().copied().eq(actual_scalars
+                    .iter()
+                    .map(|argument| argument.source.source_value()))
+                && structural_arguments.len() == actual_structural.len()
+                && structural_arguments
+                    .iter()
+                    .zip(actual_structural)
+                    .all(|(source, actual)| {
+                        source.place == actual.place
+                            && source.path == actual.path
+                            && source.access == actual.access
+                    })
+                && claim_transfers == actual_transfers
+                && requirement_obligations == actual_obligations
+                && crash_continuations == actual_crashes
+        }
         (
             AbstractOperation::ExternalCompletion {
                 psi_edge,

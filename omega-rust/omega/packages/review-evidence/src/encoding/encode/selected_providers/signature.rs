@@ -11,20 +11,20 @@ pub(super) fn signature(
     encoder.field("schema_arguments", |encoder| {
         encoder.sequence(&signature.schema_arguments, encode_type_identity)
     })?;
-    encoder.field("schema_lifetime_parameter_count", |encoder| {
-        encoder.u32(signature.schema_lifetime_parameter_count);
-        Ok(())
-    })?;
+    encoder.u32_field(
+        "schema_lifetime_parameter_count",
+        signature.schema_lifetime_parameter_count,
+    )?;
     encoder.field("schema_lifetime_arguments", |encoder| {
         encoder.sequence(&signature.schema_lifetime_arguments, |encoder, ordinal| {
             encoder.u32(*ordinal);
             Ok(())
         })
     })?;
-    encoder.field("application_lifetime_parameter_count", |encoder| {
-        encoder.u32(signature.application_lifetime_parameter_count);
-        Ok(())
-    })?;
+    encoder.u32_field(
+        "application_lifetime_parameter_count",
+        signature.application_lifetime_parameter_count,
+    )?;
     encoder.field("requirement_arguments", |encoder| {
         encoder.sequence(&signature.requirement_arguments, encode_type_identity)
     })?;
@@ -32,18 +32,15 @@ pub(super) fn signature(
         encoder.sequence(
             &signature.requirement_lifetime_arguments,
             |encoder, ordinal| {
-                encoder.field("ordinal", |encoder| {
-                    encoder.u32(*ordinal);
-                    Ok(())
-                })?;
+                encoder.u32_field("ordinal", *ordinal)?;
                 Ok(())
             },
         )
     })?;
-    encoder.field("requirement_lifetime_parameter_count", |encoder| {
-        encoder.u32(signature.requirement_lifetime_parameter_count);
-        Ok(())
-    })?;
+    encoder.u32_field(
+        "requirement_lifetime_parameter_count",
+        signature.requirement_lifetime_parameter_count,
+    )?;
     encoder.field("static_parameters", |encoder| {
         encoder.sequence(&signature.static_parameters, encode_type_parameter)
     })?;

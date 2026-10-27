@@ -239,8 +239,13 @@ pub(crate) fn build_contract_exit_facts(
                     for target in transition.targets() {
                         let returns_from_machine =
                             match program.statement_table.transition_target(target) {
-                                typed_trees::statement::TransitionTargetNode::Terminal
-                                | typed_trees::statement::TransitionTargetNode::Value(_) => true,
+                                typed_trees::statement::TransitionTargetNode::Terminal => true,
+                                typed_trees::statement::TransitionTargetNode::Value(expression) => {
+                                    validation::expression_normal_completion_possible(
+                                        program,
+                                        *expression,
+                                    ) != Some(false)
+                                }
                                 typed_trees::statement::TransitionTargetNode::Named {
                                     path,
                                     static_machine_parameter,
@@ -262,8 +267,16 @@ pub(crate) fn build_contract_exit_facts(
                                     // invocation too. Only an actual internal
                                     // arrival keeps its postconditions pending.
                                     contract_target_from_state_symbol(program, path.symbol)
-                                        .is_some()
-                                        && !site.is_internal_state_transfer(program, machine.symbol)
+                                        .is_some_and(|(_, state)| {
+                                            !site
+                                                .is_internal_state_transfer(program, machine.symbol)
+                                                && validation::call_target_state(program, state)
+                                                    .is_none_or(|target| {
+                                                        validation::normal_completion_possible(
+                                                            program, target,
+                                                        ) != Some(false)
+                                                    })
+                                        })
                                 }
                             };
                         if returns_from_machine {
@@ -288,7 +301,9 @@ pub(crate) fn build_contract_exit_facts(
                     break;
                 }
             }
-            if !has_transition {
+            if !has_transition
+                && validation::normal_completion_possible(program, state) != Some(false)
+            {
                 exits.append(ContractExitFact {
                     machine_symbol: machine.symbol,
                     state_symbol: state.symbol,

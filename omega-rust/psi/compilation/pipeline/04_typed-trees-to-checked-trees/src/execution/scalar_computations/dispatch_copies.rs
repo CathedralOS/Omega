@@ -442,4 +442,5 @@ pub(super) fn withdraw_captured_pure_roots(
     }
     pure.source_bindings = bindings;
     pure.state_index = Default::default();
+    pure.seal_expressions();
 }

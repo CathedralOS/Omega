@@ -26,21 +26,23 @@ pub enum ExternalCompletionKind {
     ProcessExit,
 }
 
-/// Exact location of a boundary invocation. Terminal completions are edges,
+/// Exact location of an invocation. Terminal completions are edges,
 /// not result-producing operations; the two namespaces never alias.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum BoundaryInvocationSite {
+pub enum InvocationSite {
     Operation(OperationId),
     ExternalCompletion(EdgeId),
+    InvokeNoNormal(EdgeId),
 }
 
-impl BoundaryInvocationSite {
+impl InvocationSite {
     /// Canonical tagged identity; operation and completion-edge namespaces are
     /// distinct even when their nonzero numeric coordinates coincide.
     pub fn encode_identity(self, bytes: &mut Vec<u8>) {
         let (tag, identity) = match self {
             Self::Operation(operation) => (0, operation.get()),
             Self::ExternalCompletion(edge) => (1, edge.get()),
+            Self::InvokeNoNormal(edge) => (2, edge.get()),
         };
         bytes.push(tag);
         crate::codec_bytes::push_encoded(bytes, identity.to_le_bytes());
@@ -51,6 +53,7 @@ impl BoundaryInvocationSite {
         match tag {
             0 => OperationId::new(identity).map(Self::Operation),
             1 => EdgeId::new(identity).map(Self::ExternalCompletion),
+            2 => EdgeId::new(identity).map(Self::InvokeNoNormal),
             _ => None,
         }
     }
@@ -58,22 +61,23 @@ impl BoundaryInvocationSite {
     pub const fn operation(self) -> Option<OperationId> {
         match self {
             Self::Operation(operation) => Some(operation),
-            Self::ExternalCompletion(_) => None,
+            Self::ExternalCompletion(_) | Self::InvokeNoNormal(_) => None,
         }
     }
 }
 
-impl From<OperationId> for BoundaryInvocationSite {
+impl From<OperationId> for InvocationSite {
     fn from(operation: OperationId) -> Self {
         Self::Operation(operation)
     }
 }
 
-impl fmt::Display for BoundaryInvocationSite {
+impl fmt::Display for InvocationSite {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Operation(operation) => write!(formatter, "operation {operation}"),
             Self::ExternalCompletion(edge) => write!(formatter, "completion edge {edge}"),
+            Self::InvokeNoNormal(edge) => write!(formatter, "no-normal invocation edge {edge}"),
         }
     }
 }

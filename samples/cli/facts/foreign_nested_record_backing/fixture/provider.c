@@ -8,6 +8,8 @@
 struct cell { uint64_t value; };
 struct buffer { uint64_t marker; struct cell cell; };
 struct repeated_buffer { struct cell marker; struct cell cell; };
+struct array_buffer { uint64_t marker; struct cell cells[3]; };
+_Static_assert(sizeof(struct array_buffer) == 32 && offsetof(struct array_buffer, cells) == 8, "array root has ordinary repeated cell placement");
 _Static_assert(sizeof(struct cell) == 8, "nested cell must use its ordinary u64 layout");
 _Static_assert(sizeof(struct buffer) == 16, "Buffer is marker followed by a nested cell");
 _Static_assert(offsetof(struct buffer, marker) == 0 && offsetof(struct buffer, cell) == 8,
@@ -19,8 +21,8 @@ _Static_assert(offsetof(struct repeated_buffer, marker) == 0
                && offsetof(struct repeated_buffer, cell) == 8,
                "each repeated Cell field has its own parent path and layout offset");
 enum state { VACANT, CAPACITY, REGISTERED };
-enum retained_kind { NO_ROOT, ORIGINAL_ROOT, REPEATED_ROOT };
-union retained_root { struct buffer *original; struct repeated_buffer *repeated; };
+enum retained_kind { NO_ROOT, ORIGINAL_ROOT, REPEATED_ROOT, ARRAY_ROOT };
+union retained_root { struct buffer *original; struct repeated_buffer *repeated; struct array_buffer *array; };
 static struct slot {
     enum state state;
     uint64_t capacity_generation;
@@ -71,6 +73,17 @@ RETENTION_EXPORT uint64_t nestlease_register_repeated(uint64_t capacity, struct 
     slot->state = REGISTERED;
     return (slot->registration_generation << 2) | (capacity & 3);
 }
+RETENTION_EXPORT uint64_t nestlease_register_array(uint64_t capacity, struct array_buffer *root) {
+    struct slot *slot = lookup(capacity, CAPACITY);
+    if (root == NULL || root->marker != 91 || root->cells[0].value != 305419896 || root->cells[2].value != 1515863100) invalid();
+    if (slot->registration_generation == (UINT64_MAX >> 2)) invalid();
+    slot->registration_generation++;
+    root->cells[1].value = 41;
+    slot->root.array = root;
+    slot->kind = ARRAY_ROOT;
+    slot->state = REGISTERED;
+    return (slot->registration_generation << 2) | (capacity & 3);
+}
 RETENTION_EXPORT uint64_t nestlease_complete(uint64_t pending, uint64_t *observed) {
     struct slot *slot = lookup(pending, REGISTERED);
     if (observed == NULL) invalid();
@@ -84,6 +97,11 @@ RETENTION_EXPORT uint64_t nestlease_complete(uint64_t pending, uint64_t *observe
         if (slot->root.repeated->marker.value != 91) invalid();
         slot->root.repeated->cell.value = 73;
         *observed = slot->root.repeated->cell.value;
+        break;
+    case ARRAY_ROOT:
+        if (slot->root.array->marker != 91 || slot->root.array->cells[0].value != 305419896 || slot->root.array->cells[2].value != 1515863100) invalid();
+        slot->root.array->cells[1].value = 73;
+        *observed = slot->root.array->cells[1].value;
         break;
     default:
         invalid();
@@ -154,6 +172,17 @@ static void repeated_selftest(void) {
     nestlease_release(first_capacity);
     nestlease_release(second_capacity);
 }
+static void array_selftest(void) {
+    uint64_t capacity = nestlease_acquire(), observed = 0;
+    struct array_buffer value = {91, {{305419896}, {37}, {1515863100}}};
+    uint64_t pending = nestlease_register_array(capacity, &value);
+    assert(value.marker == 91 && value.cells[1].value == 41);
+    assert(value.cells[0].value == 305419896 && value.cells[2].value == 1515863100);
+    assert(nestlease_complete(pending, &observed) == capacity && observed == 73);
+    assert(value.marker == 91 && value.cells[1].value == 73);
+    assert(value.cells[0].value == 305419896 && value.cells[2].value == 1515863100);
+    nestlease_release(capacity);
+}
 int main(int argc, char **argv) {
 #if defined(_WIN32)
     SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX);
@@ -181,6 +210,7 @@ int main(int argc, char **argv) {
     assert(c != a && c != b);
     nestlease_release(c);
     repeated_selftest();
+    array_selftest();
     return 0;
 }
 #endif

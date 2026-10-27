@@ -301,11 +301,24 @@ fn tail(
             return None;
         }
         let Some(transition) = statement.as_transition() else {
-            if matches!(statement, StatementNode::Expression(_)) && !arms.is_empty() {
-                fallback = Some(CheckedScalarBranchDestination::Return {
-                    statement_ordinal: ordinal,
-                    is_continuation: false,
-                });
+            if let StatementNode::Expression(expression) = statement
+                && !arms.is_empty()
+            {
+                fallback = Some(
+                    if validation::expression_normal_completion_possible(program, *expression)
+                        == Some(false)
+                    {
+                        CheckedScalarBranchDestination::InvokeNoNormal {
+                            statement_ordinal: ordinal,
+                            is_continuation: false,
+                        }
+                    } else {
+                        CheckedScalarBranchDestination::Return {
+                            statement_ordinal: ordinal,
+                            is_continuation: false,
+                        }
+                    },
+                );
                 continue;
             }
             return None;

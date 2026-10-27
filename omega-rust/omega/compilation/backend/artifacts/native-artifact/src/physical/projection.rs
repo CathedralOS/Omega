@@ -124,6 +124,9 @@ fn derive_optimized_scope(
                     identity,
                 ));
             }
+            // Only boundary invocations carry D41 selection authority. Ordinary
+            // module calls, including InvokeNoNormal, are replayed through the
+            // complete selected/object call graph retained by publication.
             let invocation = match operation {
                 AbstractOperation::BoundaryCall {
                     boundary,
@@ -131,13 +134,13 @@ fn derive_optimized_scope(
                     ..
                 } => Some((
                     *boundary,
-                    semantic_vocabulary::BoundaryInvocationSite::Operation(*psi_operation),
+                    semantic_vocabulary::InvocationSite::Operation(*psi_operation),
                 )),
                 AbstractOperation::ExternalCompletion {
                     boundary, psi_edge, ..
                 } => Some((
                     *boundary,
-                    semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(*psi_edge),
+                    semantic_vocabulary::InvocationSite::ExternalCompletion(*psi_edge),
                 )),
                 _ => None,
             };
@@ -240,7 +243,7 @@ fn optimized_operator_occurrence_identity(
 fn optimized_boundary_occurrence_identity(
     authority: ValidatedProjectionCoordinates,
     machine: semantic_vocabulary::MachineId,
-    site: impl Into<semantic_vocabulary::BoundaryInvocationSite>,
+    site: impl Into<semantic_vocabulary::InvocationSite>,
     boundary: semantic_vocabulary::BoundaryMachineId,
     operation_ordinal: usize,
 ) -> OptimizedBoundaryOccurrenceIdentity {

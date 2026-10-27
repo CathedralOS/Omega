@@ -353,6 +353,7 @@ fn historical_constant_closure_requires_exact_target_and_provider() {
         .retained_native_artifact()
         .expect("Windows native emission");
     let observation = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
+        entry: None,
         native_provider: None,
         x86_flags: None,
         memory_ordering: None,

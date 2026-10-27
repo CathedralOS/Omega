@@ -215,12 +215,13 @@ impl SelectedRequirement {
             .control
             .state(disposition.machine, disposition.state)
         {
-            retained.extend(crate::checks::contracts::cleanup_predicates(
+            let transported = crate::checks::contracts::cleanup_predicates(
                 program,
                 facts,
                 state,
                 &self.current.contexts,
                 &mut required,
+                &retained,
                 |binding| {
                     self.current.entry_stable(
                         program,
@@ -230,7 +231,11 @@ impl SelectedRequirement {
                         },
                     )
                 },
-            ));
+            );
+            if transported.proves_required {
+                return true;
+            }
+            retained.extend(transported.predicates);
         }
         crate::checks::contracts::proves_captured_predicates(
             program,

@@ -1,7 +1,7 @@
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{SymbolHandle, SymbolKind, SymbolTableAppender, SymbolTableBuilder};
 
-use crate::symbols::symbol_table::names::symbol_seed;
+use crate::symbols::symbol_table::names::{parameter_seeds, symbol_seed};
 
 pub(in crate::symbols::symbol_table) fn insert_trait_symbol_children(
     builder: &mut impl SymbolTableAppender,
@@ -48,12 +48,7 @@ pub(in crate::symbols::symbol_table) fn insert_trait_symbol_children(
         {
             builder.insert_children(
                 parameter_symbol,
-                program
-                    .state_parameters(contract.parameters)
-                    .iter()
-                    .map(|parameter| {
-                        symbol_seed(SymbolKind::Parameter, &parameter.name, has_sources)
-                    }),
+                parameter_seeds(program.state_parameters(contract.parameters), has_sources),
             );
         }
     }

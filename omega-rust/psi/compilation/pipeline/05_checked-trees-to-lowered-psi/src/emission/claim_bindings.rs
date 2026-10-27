@@ -549,7 +549,13 @@ fn receiving_claim_places(
     // source-owned establishment authenticates the root; the construction's
     // typed child paths supply only correspondence, never new claim authority.
     let mut established_constructions = Vec::new();
-    for (_, event) in checked.facts.flow.ownership.permissions.iter() {
+    let state_permissions = checked
+        .facts
+        .flow
+        .ownership
+        .with_state_permissions(state, |handles| handles.to_vec());
+    for handle in state_permissions {
+        let event = checked.facts.flow.ownership.permissions.get(handle);
         let facts::PlaceRoot::Expression(construction) = event.root else {
             continue;
         };
@@ -638,11 +644,17 @@ pub(crate) fn prepare_establishment_claims(
         }
     }
     let mut prepared: Vec<PreparedClaim> = Vec::new();
+    let state_permissions = checked
+        .facts
+        .flow
+        .ownership
+        .with_state_permissions(state, |handles| handles.to_vec());
     for (root, receiving_path) in coordinates {
         let mut completed_evaluation = None;
         if completed_expression.is_some() {
             if let Some(construction) = root.as_expression() {
-                for (_, event) in checked.facts.flow.ownership.permissions.iter() {
+                for &handle in &state_permissions {
+                    let event = checked.facts.flow.ownership.permissions.get(handle);
                     if event.machine_symbol != machine
                         || event.state_symbol != state
                         || event.root != root
@@ -676,8 +688,9 @@ pub(crate) fn prepare_establishment_claims(
                         .is_none_or(|owner| event.expression == owner)
             })
         };
-        for (_, event) in checked.facts.flow.ownership.permissions.iter().filter(|(_, event)| {
-            event.machine_symbol == machine && event.state_symbol == state
+        for &handle in &state_permissions {
+            let event = checked.facts.flow.ownership.permissions.get(handle);
+            if !(event.machine_symbol == machine && event.state_symbol == state
                 && at_completion(event) && event.root == root
                 && checked.facts.flow.ownership.segments.span_or_empty(event.segments).starts_with(&receiving_path)
                 && event.kind == language_semantics::PermissionEventKind::Establish
@@ -687,11 +700,14 @@ pub(crate) fn prepare_establishment_claims(
                 && event.access == language_semantics::PermissionAccess::Owned
                 && event.multiplicity == language_semantics::Multiplicity::Linear && event.obligation_live
                 && matches!(event.source, language_semantics::PermissionEventSource::Statement { statement_index }
-                    | language_semantics::PermissionEventSource::Call { statement_index, .. } if statement_index == statement)
-        }) {
+                    | language_semantics::PermissionEventSource::Call { statement_index, .. } if statement_index == statement))
+            {
+                continue;
+            }
             // Reservation follows the authenticated first completion even when
             // this same evaluation subsequently transports the completed child.
-            let established_here = checked.facts.flow.ownership.permissions.iter().any(|(_, source)| {
+            let established_here = state_permissions.iter().copied().any(|source_handle| {
+                let source = checked.facts.flow.ownership.permissions.get(source_handle);
                 source.evaluation == event.evaluation
                     && source.claim_identity == event.claim_identity
                     && claim_established_here(machine, state, statement, source)
@@ -920,12 +936,17 @@ pub(crate) fn lower_owned_operand_claims(
         .collect::<Vec<_>>();
     let ownership = &checked.facts.flow.ownership;
     let mut selected_transfer = None;
-    for (_, receipt) in ownership.owned_selections.iter().filter(|(_, receipt)| {
-        receipt.machine == machine
+    let state_selections =
+        ownership.with_state_owned_selections(state, |handles| handles.to_vec());
+    for handle in state_selections {
+        let receipt = ownership.owned_selections.get(handle);
+        if !(receipt.machine == machine
             && receipt.state == state
             && receipt.statement_ordinal == statement_index
-            && expected_evaluation.is_none_or(|evaluation| receipt.evaluation == evaluation)
-    }) {
+            && expected_evaluation.is_none_or(|evaluation| receipt.evaluation == evaluation))
+        {
+            continue;
+        }
         let transfers = ownership
             .selection_transfers
             .span(receipt.transfers)

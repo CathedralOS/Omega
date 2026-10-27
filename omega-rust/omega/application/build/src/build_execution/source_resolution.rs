@@ -48,12 +48,11 @@ impl std::error::Error for ProjectSourceResolutionError {}
 
 /// Inputs known before the anonymous root executes. Product targets and
 /// accepted package bindings join after its declaration; input inventory and
-/// required outputs cannot wait until then. This snapshot belongs only to the
-/// root activation; dependency activations never inherit its named inputs.
+/// required outputs and resource sponsors cannot wait until then. Execution
+/// inputs belong only to the root activation; dependencies use session resources.
 pub struct ProjectSourceRequest {
     pub preparation: LocalProjectPreparation,
-    pub execution_profile: TargetProfile,
-    pub snapshot: Option<build_evaluation::BuildSnapshotRequest>,
+    pub execution: package_compilation::BuildExecutionInputs,
     pub collect_timings: bool,
 }
 
@@ -163,10 +162,18 @@ pub fn resolve_project_sources(
     use ProjectSourceResolutionError::Preparation;
     let ProjectSourceRequest {
         preparation,
-        execution_profile,
-        snapshot,
+        mut execution,
         collect_timings,
     } = request;
+    let execution_profile = execution
+        .profile
+        .or_else(TargetProfile::host_if_supported)
+        .ok_or_else(|| {
+            ProjectSourceResolutionError::Source(
+                "Build execution requires an admitted host profile".to_owned(),
+            )
+        })?;
+    execution.profile = Some(execution_profile);
 
     let mut acquisitions = preparation.source_acquisitions().map_err(Preparation)?;
     let acquired = preparation.acquire_root().map_err(Preparation)?;
@@ -176,7 +183,7 @@ pub fn resolve_project_sources(
         &preparation.entry_path(),
         &mut acquisitions,
         execution_profile,
-        snapshot,
+        execution,
         collect_timings,
     )?;
     drop(acquisitions);
@@ -199,7 +206,7 @@ pub(crate) fn resolve_acquired_sources(
     entry: &std::path::Path,
     acquisitions: &mut BuildSourceAcquisitions<'_>,
     execution_profile: TargetProfile,
-    snapshot: Option<build_evaluation::BuildSnapshotRequest>,
+    execution: package_compilation::BuildExecutionInputs,
     collect_timings: bool,
 ) -> Result<(ResolvedBuildSources, Vec<ResolvedPackageBuild>), ProjectSourceResolutionError> {
     acquisitions
@@ -211,7 +218,7 @@ pub(crate) fn resolve_acquired_sources(
         execution_profile,
         collect_timings,
     );
-    let root = scheduler.execute_source(acquired, entry, snapshot)?;
+    let root = scheduler.execute_source(acquired, entry, execution)?;
     let resolved = scheduler.resolve_graph(root)?;
     let builds = scheduler.join_sources(&resolved)?;
     Ok((resolved, builds))

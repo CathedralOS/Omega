@@ -273,7 +273,7 @@ fn call_view_signature(
         // ordinals; only executable custody normalizes the structural lane.
         return Some((&slot.parameters, slot.return_type, None));
     }
-    if let Some(target_state) = program.state_by_symbol(target_symbol) {
+    if let Some(target_state) = validation::call_target_state(program, target_symbol) {
         return Some((
             program.state_parameters(target_state),
             target_state.return_type,

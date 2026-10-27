@@ -22,6 +22,8 @@ pub(crate) struct CallSite<'a> {
     pub(crate) target_symbol: SymbolHandle,
     /// The spelled call target.
     pub(crate) target: &'a DiagnosticName,
+    /// The member name, independent of the call carrier's qualified spelling.
+    pub(crate) member: &'a DiagnosticName,
     /// The resolved declaration the call is qualified by, or invalid.
     pub(crate) receiver_symbol: SymbolHandle,
     /// The call is unqualified: it names no receiver declaration.
@@ -155,6 +157,7 @@ fn retarget_statement_span(
                 let site = CallSite {
                     target_symbol: call.target_symbol,
                     target: &call.target,
+                    member: &call.target,
                     receiver_symbol: call.receiver_symbol,
                     local_receiver: call.receiver.is_empty(),
                     argument_count: program
@@ -231,19 +234,22 @@ fn retarget_transition_target(
                 .statements
                 .name_path_members(path.members);
             let spelling = DiagnosticName::new(members.joined_path(), source_span);
-            let site = CallSite {
-                target_symbol: path.symbol,
-                target: &spelling,
-                receiver_symbol: path.head_symbol,
-                local_receiver: members.len() == 1,
-                argument_count: program
-                    .tables
-                    .bodies
-                    .statements
-                    .expression_handles(arguments)
-                    .len(),
-            };
-            if let Some(replacement) = decide(&site)
+            let replacement = members.last().and_then(|member| {
+                decide(&CallSite {
+                    target_symbol: path.symbol,
+                    target: &spelling,
+                    member,
+                    receiver_symbol: path.receiver_symbol,
+                    local_receiver: members.len() == 1,
+                    argument_count: program
+                        .tables
+                        .bodies
+                        .statements
+                        .expression_handles(arguments)
+                        .len(),
+                })
+            });
+            if let Some(replacement) = replacement
                 && let symbol_resolved_trees::statement::TransitionTargetNode::Named {
                     path: retained,
                     ..
@@ -341,6 +347,7 @@ fn retarget_expression(
             let site = CallSite {
                 target_symbol: call.target_symbol,
                 target: &call.target,
+                member: &call.target,
                 receiver_symbol,
                 local_receiver: !call.receiver.is_valid(),
                 argument_count: program

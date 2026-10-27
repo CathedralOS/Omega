@@ -55,8 +55,7 @@ pub(super) fn capture<Action: Copy>(
         let Some((_, action)) = declarations.iter().find(|(symbol, _)| *symbol == target) else {
             continue;
         };
-        let semantic_vocabulary::BoundaryInvocationSite::Operation(operation) =
-            occurrence.terminal_site
+        let semantic_vocabulary::InvocationSite::Operation(operation) = occurrence.terminal_site
         else {
             return Err(diagnostics::Diagnostic::error(format!(
                 "{protocol} lost its ordinary boundary operation"

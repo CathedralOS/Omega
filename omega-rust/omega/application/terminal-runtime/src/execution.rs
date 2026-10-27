@@ -53,6 +53,11 @@ use terminal_interpreter::{
 };
 
 pub struct TerminalRuntimeRequest<'program> {
+    /// An explicit retained entry from this artifact's Build companion. This
+    /// selects code only; entry storage and host authority remain independent.
+    /// Without it, native provisions select their entry or the artifact default
+    /// is used. An explicit entry must agree with any supplied native provisions.
+    pub entry: Option<&'program terminal_psi::CheckedProgramEntryTerminalReceipt>,
     /// Explicit private native sponsor. Its executable must dispatch the
     /// runtime worker hook before normal arguments. None admits no native C
     /// execution. This worker supplies no standard stream or external service.
@@ -180,6 +185,21 @@ pub fn execute_sliced(
 ) -> Result<TerminalRuntimeObservation, TerminalRuntimeError> {
     let artifact = request.artifact.view();
     let program = TerminalProgram::borrow(artifact);
+    if let Some(entry) = request.entry {
+        if entry.terminal_psi_identity() != program.terminal_psi() {
+            return Err(TerminalRuntimeError::InvalidProvision(
+                "explicit entry names another Terminal artifact",
+            ));
+        }
+        if request
+            .provisions
+            .is_some_and(|provisions| provisions.entry() != entry.terminal_entry())
+        {
+            return Err(TerminalRuntimeError::InvalidProvision(
+                "explicit entry and runtime provisions disagree",
+            ));
+        }
+    }
     if let Some(provisions) = request.provisions
         && provisions.identity() != program.terminal_psi()
     {
@@ -277,8 +297,10 @@ pub fn execute_sliced(
             x86_flags: request.x86_flags,
             memory_ordering: request.memory_ordering,
             entry: request
-                .provisions
-                .map(|provisions| terminal_psi::TargetMachineCallable::Machine(provisions.entry())),
+                .entry
+                .map(|entry| entry.terminal_entry())
+                .or_else(|| request.provisions.map(TerminalRuntimeProvisions::entry))
+                .map(terminal_psi::TargetMachineCallable::Machine),
             installation: checked_installation,
             host_imports: &host_imports,
             target_machines: target_machines.as_ref(),

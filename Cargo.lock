@@ -1365,6 +1365,7 @@ dependencies = [
  "semantic-vocabulary",
  "target",
  "terminal-codec",
+ "terminal-runtime",
 ]
 
 [[package]]

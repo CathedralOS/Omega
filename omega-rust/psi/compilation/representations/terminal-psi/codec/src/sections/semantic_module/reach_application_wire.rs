@@ -44,7 +44,7 @@ pub(crate) fn encode(
     }
     writer.len("reach calls", application.calls.len())?;
     for call in &application.calls {
-        writer.id(call.operation);
+        super::wire::encode_invocation_site(writer, call.site);
         writer.u32(call.binder);
         writer.boolean(call.application.is_some());
         if let Some(application) = &call.application {
@@ -101,8 +101,13 @@ fn encode_telescope(
                     writer.string("reach requirement", requirement)?;
                 }
                 encode_kinds(writer, &binding.requirement_parameter_kinds)?;
-                writer.len("reach requirement arguments", binding.requirement_arguments.len())?;
-                for argument in &binding.requirement_arguments { writer.u32(argument.0); }
+                writer.len(
+                    "reach requirement arguments",
+                    binding.requirement_arguments.len(),
+                )?;
+                for argument in &binding.requirement_arguments {
+                    writer.u32(argument.0);
+                }
                 encode_service_ceiling(writer, &binding.upper_bound)?;
                 writer.u32(binding.selected_identity.0);
                 writer.bytes(&binding.selected_contract_commitment);
@@ -152,7 +157,7 @@ pub(crate) fn decode(
         dependencies: decode_counted(reader, |reader| reader.u32())?,
         calls: decode_counted(reader, |reader| {
             Ok(ClosedReachCall {
-                operation: reader.id("OperationId")?,
+                site: super::wire::decode_invocation_site(reader)?,
                 binder: reader.u32()?,
                 application: if reader.boolean()? {
                     Some(ClosedReachCallApplication {
@@ -189,7 +194,9 @@ fn decode_telescope(reader: &mut Reader<'_>) -> Result<Vec<ClosedReachParameter>
                 ClosedReachParameter::Machine(ClosedReachMachineBinding {
                     nominal_requirement,
                     requirement_parameter_kinds: decode_kinds(reader)?,
-                    requirement_arguments: decode_counted(reader, |reader| Ok(TerminalIdentityIndex(reader.u32()?)))?,
+                    requirement_arguments: decode_counted(reader, |reader| {
+                        Ok(TerminalIdentityIndex(reader.u32()?))
+                    })?,
                     upper_bound: decode_ids(reader, "ServiceId")?,
                     selected_identity: TerminalIdentityIndex(reader.u32()?),
                     selected_contract_commitment: reader.array()?,

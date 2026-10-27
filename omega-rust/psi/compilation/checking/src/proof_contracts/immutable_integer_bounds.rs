@@ -18,7 +18,7 @@ pub struct ImmutableBoundLookup<'program> {
     /// Shared through clones: a cloned lookup reads the same maps, built at
     /// most once across the whole clone family, and once per frozen program
     /// across every lookup its checks construct.
-    maps: std::rc::Rc<std::cell::OnceCell<std::sync::Arc<BoundMaps>>>,
+    maps: std::sync::OnceLock<std::sync::Arc<BoundMaps>>,
 }
 
 /// The index owns statement handles and parameter positions rather than
@@ -115,7 +115,7 @@ impl<'program> ImmutableBoundLookup<'program> {
     pub fn new(program: &'program dyn crate::CheckingInput) -> Self {
         ImmutableBoundLookup {
             program,
-            maps: std::rc::Rc::new(std::cell::OnceCell::new()),
+            maps: std::sync::OnceLock::new(),
         }
     }
 

@@ -32,19 +32,23 @@ pub(in crate::execution::terminal_unit) fn return_unit_affine_discards(
     let selected_sources = facts
         .flow
         .ownership
-        .owned_selections
-        .iter()
-        .filter(|(_, receipt)| receipt.machine == machine && receipt.state == state)
-        .flat_map(|(_, receipt)| {
-            facts
-                .flow
-                .ownership
-                .selection_sources
-                .span_or_empty(receipt.sources)
+        .with_state_owned_selections(state, |handles| {
+            handles
                 .iter()
-                .map(|source| source.symbol)
-        })
-        .collect::<Vec<_>>();
+                .copied()
+                .map(|handle| facts.flow.ownership.owned_selections.get(handle))
+                .filter(|receipt| receipt.machine == machine && receipt.state == state)
+                .flat_map(|receipt| {
+                    facts
+                        .flow
+                        .ownership
+                        .selection_sources
+                        .span_or_empty(receipt.sources)
+                        .iter()
+                        .map(|source| source.symbol)
+                })
+                .collect::<Vec<_>>()
+        });
     let mut transferred_parameters = BTreeSet::new();
     let mut moved_parameter_paths = BTreeMap::<
         u32,

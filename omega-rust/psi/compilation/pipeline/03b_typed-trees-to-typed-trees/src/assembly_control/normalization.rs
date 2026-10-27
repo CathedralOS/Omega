@@ -383,6 +383,7 @@ fn target(
         .insert_transition_target(TransitionTargetNode::Named {
             operational_acknowledgement: Default::default(),
             path: typed_trees::statement::TableNamePath {
+                receiver_symbol: SymbolHandle::invalid(),
                 members,
                 head_symbol: symbol,
                 symbol,

@@ -650,6 +650,19 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
     for machine in &module.machines {
         validate_parameter_order(&machine.structural_parameters)?;
         for block in &machine.blocks {
+            if let Some(invocation) = block.terminator.module_invocation() {
+                if !strictly_increasing(invocation.claim_transfers.iter()) {
+                    return Err(CodecError::NonCanonicalOrder(
+                        "invocation claim transfers by claim and argument index",
+                    ));
+                }
+                if !crash_routes_are_canonical(invocation.crash_continuations) {
+                    return Err(CodecError::NonCanonicalOrder(
+                        "invocation crash continuation buckets",
+                    ));
+                }
+                validate_crash_route_predicates(invocation.crash_continuations)?;
+            }
             if let Terminator::ExternalCompletion {
                 frontier_lower_bound,
                 ..

@@ -56,7 +56,9 @@ pub(crate) struct PendingConstSelection {
 #[derive(Debug, Clone)]
 pub(crate) struct PendingConstArgumentSelection {
     pub(crate) origin: syntax_trees::types::ConstArgumentOrigin,
-    pub(crate) exposure: AuthoredDeclarationSelectionExposure,
+    /// Copying into a generated instance retains semantic custody without
+    /// creating a new authored interface occurrence.
+    pub(crate) exposure: Option<AuthoredDeclarationSelectionExposure>,
     /// The selected declaration supplies the complete argument at this
     /// occurrence. Other retained origins are dependencies of its computation;
     /// their declared carriers do not become the receiving parameter's type.

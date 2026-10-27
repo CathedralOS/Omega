@@ -18,12 +18,18 @@ import sample_native_gate
 
 PLACES = ("local", "field", "parameter", "call_result", "match_join", "const_name",
           "other_state", "other_machine", "target_body")
+# Authored fact path, corpus prefix, provider owner, positive controls, rejects.
 FACTS = (
-    ("foreign_retained_shared_borrow",
+    ("foreign_retained_shared_borrow", "foreign_retained_shared_borrow",
+     "foreign_retained_shared_borrow",
      ("shared_aliases", "resident_whole_move", "enclosing_allocation"), ()),
-    ("foreign_retained_mutable_borrow", ("reverse_completion", "mixed_issuers"),
+    ("foreign_retained_mutable_borrow", "foreign_retained_mutable_borrow",
+     "foreign_retained_mutable_borrow", ("reverse_completion", "mixed_issuers"),
      ("stale_completion_fact", "other_registration_live", "overlapping_registration", "mixed_issuers_live")),
-    ("foreign_nested_record_backing", ("repeated_child_type",), ("repeated_child_type_live",)),
+    ("foreign_nested_record_backing", "foreign_nested_record_backing",
+     "foreign_nested_record_backing", ("repeated_child_type",), ("repeated_child_type_live",)),
+    ("foreign_nested_record_backing/arrays", "foreign_nested_array_backing",
+     "foreign_nested_record_backing", (), ()),
 )
 
 
@@ -84,11 +90,11 @@ def main():
     built = Path(os.environ.get("CARGO_TARGET_DIR", ROOT / "target")) / "debug" / name
     observations = []
     retained = None
-    for fact_name, controls, reject_controls in FACTS:
+    for fact_name, fixture_prefix, provider_name, controls, reject_controls in FACTS:
         observation = dict(fact=fact_name, passed=False)
         observations.append(observation)
         try:
-            retained = qualify_cohort(output, built, fact_name, controls, reject_controls)
+            retained = qualify_cohort(output, built, fact_name, fixture_prefix, provider_name, controls, reject_controls)
             observation["passed"] = True
         except (OSError, ValueError, subprocess.SubprocessError) as error:
             observation["error"] = str(error)
@@ -106,13 +112,14 @@ def main():
     return 0 if passed else 1
 
 
-def qualify_cohort(output, built, fact_name, controls, reject_controls):
+def qualify_cohort(output, built, fact_name, fixture_prefix, provider_name, controls, reject_controls):
     """A failed cohort stays red without hiding later independent observations."""
     fact = ROOT / "samples/cli/facts" / fact_name
     cohort = output / fact_name
     cohort.mkdir(parents=True, exist_ok=True)
     provider = cohort / "provider"
-    prepared = subprocess.run([sys.executable, str(fact / "fixture/prepare.py"),
+    provider_source = ROOT / "samples/cli/facts" / provider_name / "fixture/prepare.py"
+    prepared = subprocess.run([sys.executable, str(provider_source),
                                "--output", str(provider)], cwd=ROOT,
                               capture_output=True, text=True, timeout=180)
     (cohort / "provider.stdout.json").write_text(prepared.stdout, encoding="utf-8")
@@ -122,8 +129,8 @@ def qualify_cohort(output, built, fact_name, controls, reject_controls):
     key = ("PATH" if os.name == "nt" else "DYLD_LIBRARY_PATH"
            if sys.platform == "darwin" else "LD_LIBRARY_PATH")
     os.environ[key] = str(provider) + (os.pathsep + os.environ[key] if os.environ.get(key) else "")
-    positives = tuple(f"pass/facts/{fact_name}_{place}" for place in PLACES + controls)
-    negatives = tuple(f"fail/facts/{fact_name}_{place}" for place in PLACES + reject_controls)
+    positives = tuple(f"pass/facts/{fixture_prefix}_{place}" for place in PLACES + controls)
+    negatives = tuple(f"fail/facts/{fixture_prefix}_{place}" for place in PLACES + reject_controls)
     status = compiler_pilot.run_suite("compiler-retained-foreign/" + fact_name,
                                       positives, negatives)
     if status:

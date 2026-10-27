@@ -81,6 +81,37 @@ pub enum ProofTerm {
 }
 
 impl ProofTerm {
+    /// Visit caller-side scalar identities retained by this erased term.
+    /// Closed certificates and proof formals introduce no runtime value uses.
+    pub fn visit_value_ids(&self, mut visit: impl FnMut(crate::ValueId) -> bool) -> bool {
+        let mut pending = vec![self];
+        while let Some(term) = pending.pop() {
+            match term {
+                Self::Scalar(term) => {
+                    if !term.visit_value_ids(&mut visit) {
+                        return false;
+                    }
+                }
+                Self::Construction { fields, .. } => {
+                    pending.extend(fields.iter().rev().map(|field| &field.term))
+                }
+                Self::Array { elements, .. } => pending.extend(elements.iter().rev()),
+                Self::MathematicalApplication { arguments, .. } => {
+                    for argument in arguments {
+                        if let MathematicalArgument::Scalar { term, .. } = argument
+                            && !term.visit_value_ids(&mut visit)
+                        {
+                            return false;
+                        }
+                    }
+                }
+                Self::Mathematical { .. } | Self::Formal { .. } | Self::InvocationFormal { .. } => {
+                }
+            }
+        }
+        true
+    }
+
     /// Structural validity: construction identities are populated, fields
     /// validate, and the term carries no runtime reference.
     pub fn validate(&self) -> Result<(), PropositionError> {

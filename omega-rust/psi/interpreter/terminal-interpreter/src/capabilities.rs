@@ -282,6 +282,7 @@ pub(crate) fn check_with_private_entry_ram(
                 }
             }
             match &block.terminator {
+                Terminator::InvokeNoNormal { callee, .. } => pending.push(*callee),
                 Terminator::ExternalCompletion { boundary, kind, .. } => {
                     let callee = crate::calls::target_families::completion_callee(
                         program,

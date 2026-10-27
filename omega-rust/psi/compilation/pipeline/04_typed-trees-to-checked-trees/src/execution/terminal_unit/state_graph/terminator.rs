@@ -46,6 +46,24 @@ pub(super) fn build(
     terminator_index: usize,
     trace: &control::LocalConstructionTrace,
 ) -> Option<CheckedComposedUnitControlTerminatorPlan> {
+    if let Some(call) = operations
+        .iter()
+        .filter_map(CheckedUnitEffectOperationPlan::call)
+        .find(|call| *call.result() == checked_trees::CheckedUnitCallResult::NoNormal)
+    {
+        return Some(CheckedComposedUnitControlTerminatorPlan::InvokeNoNormal {
+            coordinate: call.coordinate,
+        });
+    }
+    // A stopped prefix has no value to return, including a declaration-owned
+    // external completion. The operation retains its exact outcome and entry
+    // authority; this marker supplies neither cleanup nor abandonment evidence.
+    if operations
+        .iter()
+        .any(|operation| !operation.has_normal_continuation())
+    {
+        return Some(CheckedComposedUnitControlTerminatorPlan::EvaluateNoNormal);
+    }
     let result = result.clone();
     // The state's own owner answers its machine-scoped facts; the dispatch
     // machine's identity only names the composed plan itself.
@@ -118,6 +136,11 @@ pub(super) fn build(
                 expression,
                 trace,
             )?;
+            if !operation.has_normal_continuation() {
+                operations.extend(operand_calls);
+                operations.push(operation);
+                return Some(CheckedComposedUnitControlTerminatorPlan::EvaluateNoNormal);
+            }
             let result = checked_trees::CheckedUnitStructuralReturnPlan::from_binding(
                 operation.structural_result_binding()?.clone(),
                 completion,
@@ -239,12 +262,23 @@ pub(super) fn build(
                             )?,
                         }
                     }
-                    // An unconditional terminal machine call already ran as
-                    // this state's last operation (the sequence planned and
-                    // counted it and bound its value); the callee's normal
-                    // result completes this machine here.
-                    _ if terminal_calls::external_callable(program, machine, fused, transition)
-                        .is_some() =>
+                    // A sequenced invocation forwards its own bound result,
+                    // independently of Named versus Value source spelling.
+                    // A retained expression computation instead keeps the
+                    // ordinary value-completion owner below.
+                    TransitionTargetNode::Named { .. } | TransitionTargetNode::Value(_)
+                        if terminal_calls::external_callable(
+                            program, machine, fused, transition,
+                        )
+                        .is_some()
+                            && terminal_calls::completion(
+                                operations,
+                                ordinal,
+                                &result,
+                                scalar_result,
+                                structural_result,
+                            )
+                            .is_some() =>
                     {
                         trace.phase("state graph: terminator: terminal call completion");
                         terminal_calls::completion(
@@ -352,8 +386,8 @@ pub(super) fn build(
                         )
                         .map(Ok);
                     }
-                    // A value root owns its call results. Unit has no value
-                    // computation, so its whole invocation is the arm operation.
+                    // Another machine in target position is an invocation
+                    // that completes this machine on its own arm only.
                     if terminal_calls::external_callable(program, machine, fused, transition)
                         .is_some()
                     {
@@ -779,6 +813,10 @@ fn internal_destination(
             }
         }
         checked_trees::CheckedScalarBranchDestination::Return {
+            statement_ordinal,
+            is_continuation: false,
+        }
+        | checked_trees::CheckedScalarBranchDestination::InvokeNoNormal {
             statement_ordinal,
             is_continuation: false,
         } if *statement_ordinal == ordinal => Some(symbols::SymbolHandle::default()),

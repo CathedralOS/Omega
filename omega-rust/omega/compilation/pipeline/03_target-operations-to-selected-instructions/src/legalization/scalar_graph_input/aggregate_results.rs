@@ -410,6 +410,30 @@ pub(in crate::legalization) fn call_argument(
     plan: &AbstractOperationPlan,
     custody: &super::reference_custody::Custody,
 ) -> Result<target_operations::TargetStructuralArgument, LegalizationError> {
+    call_argument_invocation(
+        argument,
+        position,
+        call_operation.into(),
+        caller,
+        callee,
+        call,
+        native,
+        plan,
+        custody,
+    )
+}
+
+pub(in crate::legalization) fn call_argument_invocation(
+    argument: &terminal_psi::StructuralArgument,
+    position: usize,
+    call_operation: semantic_vocabulary::InvocationSite,
+    caller: &PsiOptimizationFunction,
+    callee: abstract_operations::AbstractCallSignature<'_>,
+    call: &CallPlan,
+    native: &TargetOperationPlan,
+    plan: &AbstractOperationPlan,
+    custody: &super::reference_custody::Custody,
+) -> Result<target_operations::TargetStructuralArgument, LegalizationError> {
     let declaration = super::call_signature::parameter(callee, position, argument.place)?;
     let destination = &declaration;
     // Reference arguments load the exact live descriptor in their carrier.
@@ -528,7 +552,7 @@ pub(in crate::legalization) fn call_argument(
     {
         return Err(LegalizationError::custody());
     }
-    super::structural_call::argument_at(
+    super::structural_call::argument_at_invocation(
         argument,
         position,
         call_operation,

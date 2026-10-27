@@ -15,6 +15,24 @@ pub(super) fn lower_terminator(
     operations: &mut Vec<AbstractOperation>,
 ) -> Result<(), LoweringError> {
     match &block.terminator {
+        Terminator::InvokeNoNormal {
+            edge,
+            callee,
+            arguments,
+            structural_arguments,
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+            ..
+        } => operations.push(AbstractOperation::InvokeNoNormal {
+            psi_edge: *edge,
+            callee: *callee,
+            arguments: arguments.clone(),
+            structural_arguments: structural_arguments.clone(),
+            claim_transfers: claim_transfers.clone(),
+            requirement_obligations: requirement_obligations.clone(),
+            crash_continuations: crash_continuations.clone(),
+        }),
         Terminator::Jump {
             edge,
             target,

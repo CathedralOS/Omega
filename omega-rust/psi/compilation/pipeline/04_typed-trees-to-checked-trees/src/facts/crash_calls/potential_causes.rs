@@ -19,9 +19,27 @@ pub(super) fn infer(
     capsules: &[checked_trees::CrashContractCapsule],
     plans: &[checked_trees::MachineContractPlan],
 ) -> Vec<(SymbolHandle, Vec<CrashCause>)> {
+    let mut plan_by_machine =
+        symbols::SymbolKeyMap::<SymbolHandle, &checked_trees::MachineContractPlan>::default();
+    for plan in plans {
+        plan_by_machine.entry(plan.machine).or_insert(plan);
+    }
+    let mut capsule_by_target = symbols::SymbolKeyMap::<
+        (SymbolHandle, SymbolHandle),
+        &checked_trees::CrashContractCapsule,
+    >::default();
+    for capsule in capsules {
+        capsule_by_target
+            .entry((capsule.target_machine(), capsule.target_state()))
+            .or_insert(capsule);
+    }
     let mut equations = Vec::with_capacity(nodes.len());
-    for node in nodes {
-        let plan = checked_trees::contract_plan_by_machine(plans, node.machine)
+    let mut node_index_by_machine = symbols::SymbolKeyMap::<SymbolHandle, usize>::default();
+    for (index, node) in nodes.iter().enumerate() {
+        node_index_by_machine.entry(node.machine).or_insert(index);
+        let plan = plan_by_machine
+            .get(&node.machine)
+            .copied()
             .expect("a viable summary node has its local contract plan");
         let machine = program
             .machine_by_symbol(node.machine)
@@ -40,7 +58,9 @@ pub(super) fn infer(
             }
         }
         for member in &node.family_members {
-            let member_plan = checked_trees::contract_plan_by_machine(plans, *member)
+            let member_plan = plan_by_machine
+                .get(member)
+                .copied()
                 .expect("a viable family member has its local contract plan");
             let member_machine = program
                 .machine_by_symbol(*member)
@@ -52,9 +72,7 @@ pub(super) fn infer(
             // fresh telescope; membership does not widen their guards.
         }
         for invocation in &node.invocations {
-            if let Some(target_plan) =
-                checked_trees::contract_plan_by_machine(plans, invocation.target_machine)
-            {
+            if let Some(&target_plan) = plan_by_machine.get(&invocation.target_machine) {
                 let target_machine = program
                     .machine_by_symbol(invocation.target_machine)
                     .expect("a viable local invocation has its typed declaration");
@@ -70,12 +88,9 @@ pub(super) fn infer(
                     );
                 }
             } else {
-                let capsule = capsules
-                    .iter()
-                    .find(|capsule| {
-                        capsule.target_machine() == invocation.target_machine
-                            && capsule.target_state() == invocation.target_state
-                    })
+                let capsule = capsule_by_target
+                    .get(&(invocation.target_machine, invocation.target_state))
+                    .copied()
                     .expect("a viable abstract invocation has its pinned crash capsule");
                 direct.extend(
                     capsule
@@ -99,21 +114,17 @@ pub(super) fn infer(
         .collect::<Vec<_>>();
     loop {
         let mut changed = false;
-        for equation in &equations {
+        for (equation_index, equation) in equations.iter().enumerate() {
             let mut causes = equation.direct.clone();
             for dependency in &equation.dependencies {
-                let (_, target) = resolved
-                    .iter()
-                    .find(|(machine, _)| machine == dependency)
+                let &target_index = node_index_by_machine
+                    .get(dependency)
                     .expect("every summary dependency belongs to the viable fixed point");
-                causes.extend_from_slice(target);
+                causes.extend_from_slice(&resolved[target_index].1);
             }
             causes.sort_unstable();
             causes.dedup();
-            let (_, current) = resolved
-                .iter_mut()
-                .find(|(machine, _)| *machine == equation.machine)
-                .expect("every viable node has an initial cause summary");
+            let current = &mut resolved[equation_index].1;
             if *current != causes {
                 *current = causes;
                 changed = true;
@@ -125,23 +136,20 @@ pub(super) fn infer(
     }
     nodes
         .iter()
-        .filter(|node| {
+        .enumerate()
+        .filter(|(_, node)| {
             program
                 .machine_by_symbol(node.machine)
                 .is_some_and(|machine| machine.target_family_interface)
         })
-        .map(|node| {
-            let equation = equations
-                .iter()
-                .find(|equation| equation.machine == node.machine)
-                .expect("a prepared family has its cause equation");
+        .map(|(equation_index, node)| {
+            let equation = &equations[equation_index];
             let mut inferred = Vec::new();
             for dependency in &equation.dependencies {
-                let (_, causes) = resolved
-                    .iter()
-                    .find(|(machine, _)| machine == dependency)
+                let &target_index = node_index_by_machine
+                    .get(dependency)
                     .expect("every family dependency has a resolved cause summary");
-                inferred.extend_from_slice(causes);
+                inferred.extend_from_slice(&resolved[target_index].1);
             }
             inferred.sort_unstable();
             inferred.dedup();

@@ -61,31 +61,32 @@ pub(crate) fn lower_type_reference_handle(
             .type_references
             .const_argument_origins(normalization.selections)
         {
-            if !lowerer.derived_const_argument_origins.contains(origin) {
-                // Transitive declaration implementation does not become a new
-                // public index occurrence merely because its value is copied.
+            // Derived instance arguments still owe the same declaration,
+            // value, and receiving-slot custody. Only authored exposure is
+            // absent: copying a selected value creates no new public use.
+            let exposure = if lowerer.derived_const_argument_origins.contains(origin) {
+                None
+            } else {
                 let authored_here =
                     !syntax_trees.constant_initializer_owns_selection(origin.reference);
-                let exposure = if authored_here {
+                Some(if authored_here {
                     lowerer.current_authored_expression_exposure.unwrap_or(
                         language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
                     )
                 } else {
                     language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
-                };
-                lowerer.pending_const_argument_selections.push(
-                    crate::resolution::lowerer::PendingConstArgumentSelection {
-                        origin: origin.clone(),
-                        exposure,
-                        // Exact occurrence custody distinguishes selection of
-                        // the whole argument from leaves used to compute it.
-                        // An initializer's record dependency may produce a
-                        // scalar projection without supplying that record to
-                        // the scalar binder. Equal payloads establish no link.
-                        is_argument_value: origin.reference == normalization.reference,
-                    },
-                );
-            }
+                })
+            };
+            lowerer.pending_const_argument_selections.push(
+                crate::resolution::lowerer::PendingConstArgumentSelection {
+                    origin: origin.clone(),
+                    exposure,
+                    // Exact occurrence custody distinguishes selection of
+                    // the whole argument from leaves used to compute it.
+                    // Equal dependency payloads establish no carrier link.
+                    is_argument_value: origin.reference == normalization.reference,
+                },
+            );
         }
         for reference in syntax_trees
             .type_references

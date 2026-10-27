@@ -10,6 +10,23 @@ use terminal_psi::{NominalAffineCleanup, TerminalAffineCleanupAction};
 mod tests;
 
 impl TerminalExecution<'_> {
+    /// Refuse an impossible normal edge before reading a result or preparing
+    /// cleanup. Nested ordinary helpers still return to their own frame; only
+    /// this machine's immediate receiving continuation determines the rule.
+    pub(super) fn reject_no_normal_return(&self) -> Result<(), TerminalInterpretError> {
+        if let Some(SuspendedCall {
+            result: SuspendedCallResult::NoNormal { callee, edge },
+            ..
+        }) = self.call_stack.last()
+        {
+            return Err(TerminalInterpretError::NoNormalInvocationReturned {
+                callee: *callee,
+                edge: *edge,
+            });
+        }
+        Ok(())
+    }
+
     /// A retired binding's descriptor companions are not live roots. Captured
     /// outputs and descriptor cells carry their own retained associations.
     fn retire_home_companions(&mut self, place: PlaceId) {
@@ -207,6 +224,12 @@ impl TerminalExecution<'_> {
         expected: &SuspendedCallResult,
         loan_completions: &[terminal_psi::LoanCompletion],
     ) -> Result<(), TerminalInterpretError> {
+        if let SuspendedCallResult::NoNormal { callee, edge } = expected {
+            return Err(TerminalInterpretError::NoNormalInvocationReturned {
+                callee: *callee,
+                edge: *edge,
+            });
+        }
         if let SuspendedCallResult::ExternalCompletion { boundary, edge } = expected {
             return Err(TerminalInterpretError::ExternalCompletionProviderReturned {
                 boundary: *boundary,
@@ -221,6 +244,12 @@ impl TerminalExecution<'_> {
         }
         self.complete_loan_custody(loan_completions)?;
         match expected {
+            SuspendedCallResult::NoNormal { callee, edge } => {
+                Err(TerminalInterpretError::NoNormalInvocationReturned {
+                    callee: *callee,
+                    edge: *edge,
+                })
+            }
             SuspendedCallResult::ExternalCompletion { boundary, edge } => {
                 Err(TerminalInterpretError::ExternalCompletionProviderReturned {
                     boundary: *boundary,

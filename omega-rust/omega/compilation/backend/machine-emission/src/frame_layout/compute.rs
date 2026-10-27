@@ -63,6 +63,7 @@ pub(super) fn derive(
                     matches!(
                         instruction.alternative.key.family,
                         MachineAlternativeFamily::CallScalar
+                            | MachineAlternativeFamily::InvokeNoNormal
                             | MachineAlternativeFamily::CallUnit
                             | MachineAlternativeFamily::CallAggregate
                             | MachineAlternativeFamily::NormalizedForeignCall

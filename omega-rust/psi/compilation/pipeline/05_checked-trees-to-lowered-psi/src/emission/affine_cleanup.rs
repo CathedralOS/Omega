@@ -558,6 +558,9 @@ fn complete_carriers(
             {
                 Vec::new()
             }
+            // An ordinary nonreturning invocation retains the caller's owners
+            // and loans. It has no local successor and grants no disposal.
+            Terminator::InvokeNoNormal { .. } => Vec::new(),
             // An abandoning exit has no successor and runs no parameter
             // cleanup: a crash, or an external completion such as process exit.
             Terminator::Crash { .. } | Terminator::ExternalCompletion { .. } => Vec::new(),

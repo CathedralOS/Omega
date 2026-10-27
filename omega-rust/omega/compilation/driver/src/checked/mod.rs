@@ -21,7 +21,8 @@ pub use package_review::{PackageReviewFailure, PackageReviewProduct, PackageRevi
 mod product_batch;
 pub use package_compilation::{
     CompletedBuild, PackageBuild, PackageBuildInvocation, PackageCompilationRequest,
-    PackageCompileFailure, PackageProductOptions, PreparedPackageProduct, SourceBuildDeclaration,
+    PackageCompileFailure, PackageProductOptions, PackageProductSourceRequest,
+    PackageSourceRequest, PreparedPackageProduct, SourceBuildDeclaration,
 };
 
 pub use artifacts::compile_timings::counters::{

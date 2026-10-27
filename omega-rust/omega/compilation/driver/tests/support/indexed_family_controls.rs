@@ -600,6 +600,10 @@ fn mathematical_actuals(module: &TerminalModule) -> Vec<&semantic_vocabulary::Pr
                 Terminator::Jump {
                     erased_proof_arguments,
                     ..
+                }
+                | Terminator::InvokeNoNormal {
+                    erased_proof_arguments,
+                    ..
                 } => found.extend(erased_proof_arguments.iter().filter(|term| {
                     matches!(term, semantic_vocabulary::ProofTerm::Mathematical { .. })
                 })),
@@ -750,6 +754,17 @@ fn first_mathematical_actual_mut(
                 }) {
                     return Ok((callee, term));
                 }
+            }
+            if let terminal_psi::Terminator::InvokeNoNormal {
+                callee,
+                erased_proof_arguments,
+                ..
+            } = &mut block.terminator
+                && let Some(term) = erased_proof_arguments.iter_mut().find(|term| {
+                    matches!(term, semantic_vocabulary::ProofTerm::Mathematical { .. })
+                })
+            {
+                return Ok((*callee, term));
             }
         }
     }

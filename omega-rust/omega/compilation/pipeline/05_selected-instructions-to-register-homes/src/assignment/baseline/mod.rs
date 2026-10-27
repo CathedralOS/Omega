@@ -29,6 +29,8 @@ use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 use target_operations_to_selected_instructions::StagedOptimizedCustodyCore;
 use terminal_psi::TerminalPsiIdentity;
 
+use super::PostHomeCustodyReceipt;
+
 pub(crate) fn stage_register_homes_with_assignment(
     legality: StagedOptimizedAllocationLegality,
     homes: crate::ValidatedRegisterHomes,
@@ -230,24 +232,10 @@ impl StagedOptimizedRegisterHomesAfterFixedViewCopies {
     });
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StagedOptimizedPostCopyRegisterHomeCustodyReceipt {
-    source: StagedOptimizedSelectedReanalysisCustodyReceipt,
-    homes: RegisterHomeIdentity,
-    post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
-    function_count: usize,
-    assignment_count: usize,
-}
-
-impl StagedOptimizedPostCopyRegisterHomeCustodyReceipt {
-    receipt_accessor_rows!(StagedOptimizedPostCopyRegisterHomeCustodyReceipt {
-        source: StagedOptimizedSelectedReanalysisCustodyReceipt,
-        homes: RegisterHomeIdentity,
-        post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
-        function_count: usize,
-        assignment_count: usize,
-    });
-}
+/// The post-copy route's receipt: the reanalysis custody it retained, over the
+/// one post-home shape every staging route publishes.
+pub type StagedOptimizedPostCopyRegisterHomeCustodyReceipt =
+    PostHomeCustodyReceipt<StagedOptimizedSelectedReanalysisCustodyReceipt>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizedPostCopyRegisterHomeCustodyError {

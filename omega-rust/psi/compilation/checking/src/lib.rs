@@ -174,7 +174,9 @@ pub use value_custody::scalar_case_constructor::{
     scalar_case_constructor, scalar_case_value_source, structural_case_constructor,
 };
 pub use value_custody::scalar_representation_range::scalar_representation_range;
-pub use value_custody::source_liveness::{statement_uses_symbol, transition_target_uses_symbol};
+pub use value_custody::source_liveness::{
+    statement_uses_symbol, transition_target_uses_symbol, transition_target_uses_symbol_except,
+};
 pub use value_custody::storage_contents::{
     ContentsRequirement, data_has_contents, has_contents, has_owned_or_shared_view_fields,
 };
@@ -560,10 +562,11 @@ pub use expression_traversal::{
 };
 pub use machine_calls::calls::{
     CallSite, CompletingTransfer, call_is_unconditional, call_receiver_parts,
-    call_site_argument_expressions, call_site_evidence_arguments, call_target_parameters,
-    call_target_return_type, call_target_state, call_target_symbol, call_target_type_parameters,
-    collect_call_sites_in_statement, completing_call_transfer, completing_transition_invocation,
-    completing_transition_transfer, find_call_site, find_call_site_in_state, find_machine,
+    call_site_argument_expressions, call_site_evidence_arguments, call_target_entry_symbol,
+    call_target_parameters, call_target_return_type, call_target_state, call_target_symbol,
+    call_target_type_parameters, collect_call_sites_in_statement, completing_call_transfer,
+    completing_transition_invocation, completing_transition_transfer,
+    expression_normal_completion_possible, find_call_site, find_call_site_in_state, find_machine,
     find_machine_by_entry_state, find_machine_head, find_state, find_state_for_exit,
     find_state_in_machine, find_state_on_machine, invocation_output_parameter,
     machine_parameter_signature_symbol, machine_state_by_symbols, machine_state_count,
@@ -646,3 +649,5 @@ pub use value_custody::completed_storage;
 pub use value_custody::places::storage_path_relations;
 
 pub use value_custody::membership_evidence;
+
+pub use machine_calls::terminal_transitions::normalize_terminal_transition_calls;

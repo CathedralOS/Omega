@@ -43,11 +43,24 @@ issuer group. A checked component return may present `Parent + Child` as `Child`
 only after graph entailment succeeds in both directions. Raw host result
 validation keeps its separate provenance gate.
 
-Linux x64, Linux ARM64 and Windows x64 qualification remains in progress on
-source `909be0f0af5`; it is not claimed by this macOS landing evidence. Strict
-opaque const storage, rich policies/views and the full parent capability remain
-open. Raw build receipts, historical refusals, independent source reviews and
-actual native products are retained in
+The pinned variants also pass on Linux x64 and Windows x64 in
+[run 40445277646](https://github.com/CathedralOS/Omega/actions/runs/40445277646)
+and Linux ARM64 in
+[run 40445280185](https://github.com/CathedralOS/Omega/actions/runs/40445280185),
+all at source `909be0f0af5`. Each matching host records 70 native/Terminal
+agreements, 65 intended rejections, eight public provenance observations and
+the nested ownership rejection. The macOS producer above has the same compiler,
+library, Cargo and toolchain input objects as that source.
+
+The historical remote bundles retain each native program and Terminal module,
+plus 54 existing component image/description pairs per host. Their optional
+count-oracle capture omitted this new row's provider payloads; [PR #334](https://github.com/CathedralOS/Omega/pull/334)
+repairs that separate replay-input gap. These records establish execution;
+complete provider-payload replay is outside the historical remote capture.
+
+Strict opaque const storage, rich policies/views and the full parent capability
+remain open. Raw build receipts, historical refusals, independent source reviews
+and retained native products are in
 `/Users/zcanann/Omega-build/opaque-domain-theory-2026-10-27/`.
 
 The direct raw-host control at this baseline source-checks successfully and

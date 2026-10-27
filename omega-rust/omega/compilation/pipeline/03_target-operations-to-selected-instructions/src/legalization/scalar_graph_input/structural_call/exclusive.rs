@@ -17,7 +17,7 @@ use terminal_psi::{StructuralMultiplicity, StructuralParameterDeclaration};
 
 pub(super) fn argument(
     semantic: &StructuralArgument,
-    call_operation: semantic_vocabulary::OperationId,
+    call_operation: semantic_vocabulary::InvocationSite,
     caller: &PsiOptimizationFunction,
     destination: &StructuralParameterDeclaration,
     call: &CallPlan,
@@ -144,7 +144,7 @@ pub(super) fn argument(
         indices: super::super::target::control_flow::sources::call_indices(
             native,
             caller,
-            target_operations::CallSiteOwner::Operation(call_operation),
+            target_operations::CallSiteOwner::from(call_operation),
             byte_field.as_ref().map_or_else(
                 || {
                     geometry

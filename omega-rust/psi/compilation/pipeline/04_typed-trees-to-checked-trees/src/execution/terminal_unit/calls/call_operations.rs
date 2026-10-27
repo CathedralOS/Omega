@@ -297,13 +297,17 @@ pub(in crate::execution) fn build_call_operation(
     // Boundary and ordinary results retain the same structural carrier.
     // Installation supplies the checked provider body and its exact return
     // custody; a boundary declaration does not authorize fabricated payloads.
+    let no_normal =
+        !boundary && validation::normal_completion_possible(program, target_state) == Some(false);
     phase("call operation: result shape");
-    if match &expected_call_result {
-        None => !is_unit(program, target_state.return_type),
-        Some(expected) => {
-            !call_value_result_matches(program, target_state.return_type, expected, &[])
+    if !no_normal
+        && match &expected_call_result {
+            None => !is_unit(program, target_state.return_type),
+            Some(expected) => {
+                !call_value_result_matches(program, target_state.return_type, expected, &[])
+            }
         }
-    } {
+    {
         return None;
     }
     phase("call operation: target supply mode");
@@ -528,6 +532,7 @@ pub(in crate::execution) fn build_call_operation(
     // storage judgment: the callee's returning edge decides which claim
     // continues at each path.
     if !boundary
+        && !no_normal
         && let Some(ExpectedCallValueResult::Structural(result)) = &expected_call_result
         && !validation::linear_claim_frontier(program, target_state.return_type).is_empty()
     {
@@ -589,7 +594,24 @@ pub(in crate::execution) fn build_call_operation(
         .ok()?
     };
 
-    if boundary {
+    if no_normal {
+        CheckedUnitCallPlan::new(CheckedUnitCallParts {
+            coordinate,
+            source_site,
+            target: call_target,
+            completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
+            route: CheckedUnitCallRoute::Module {
+                contract_commitment: Some(target_contract.commitment),
+                erased_scalar_arguments,
+                erased_proof_arguments,
+            },
+            scalar_arguments,
+            structural_arguments,
+            result: CheckedUnitCallResult::NoNormal,
+            transfers: CheckedUnitCallTransfers::Claims(transfers),
+        })
+        .map(CheckedUnitEffectOperationPlan::Call)
+    } else if boundary {
         CheckedUnitCallPlan::new(CheckedUnitCallParts {
             coordinate,
             source_site,

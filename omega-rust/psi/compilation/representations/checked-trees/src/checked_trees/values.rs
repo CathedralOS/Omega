@@ -56,7 +56,7 @@ pub use structural_values::{
     CheckedElementViewRegion, CheckedQuotientAdaptationLicense, CheckedStructuralDispatchArm,
     CheckedStructuralRecordField, CheckedStructuralRecordFieldValue, CheckedStructuralValue,
     CheckedStructuralValueHandle, CheckedStructuralValueKind, CheckedStructuralValuePlans,
-    CheckedStructuralValueRoot,
+    CheckedStructuralValueRoot, CheckedValueCompletion,
 };
 mod array_construction_source;
 pub use array_construction_source::CheckedArrayConstructionSource;
@@ -218,6 +218,25 @@ struct CheckedScalarTypeRefinement {
     predicates: HandleSpan<CheckedBooleanExpression>,
 }
 
+#[derive(Clone, Default)]
+pub struct SealedExpressionStateIndex {
+    sealed: Option<(usize, symbols::SymbolKeyMap<SymbolHandle, Vec<usize>>)>,
+}
+
+impl std::fmt::Debug for SealedExpressionStateIndex {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("SealedExpressionStateIndex")
+    }
+}
+
+impl PartialEq for SealedExpressionStateIndex {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for SealedExpressionStateIndex {}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedScalarExpressionPlans {
     pub expressions: Vec<CheckedLocatedScalarExpression>,
@@ -227,6 +246,8 @@ pub struct CheckedScalarExpressionPlans {
     pub binding_symbols: Arena<SymbolHandle>,
     #[doc(hidden)]
     pub state_index: KeyedRows<SymbolHandle, CheckedScalarExpressionBindings>,
+    #[doc(hidden)]
+    pub sealed_expression_index: SealedExpressionStateIndex,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -258,6 +279,17 @@ impl Default for CheckedScalarExpressionBindings {
 }
 
 impl CheckedScalarExpressionPlans {
+    pub fn seal_expressions(&mut self) {
+        let mut by_state: symbols::SymbolKeyMap<SymbolHandle, Vec<usize>> =
+            symbols::SymbolKeyMap::default();
+        for (index, expression) in self.expressions.iter().enumerate() {
+            by_state.entry(expression.state).or_default().push(index);
+        }
+        self.sealed_expression_index.sealed = Some((self.expressions.len(), by_state));
+        self.state_index
+            .seal(&self.source_bindings, |binding| binding.state);
+    }
+
     fn with_state_index<R>(
         &self,
         run: impl FnOnce(
@@ -291,6 +323,24 @@ impl CheckedScalarExpressionPlans {
             if bindings.next().is_some() {
                 return None;
             }
+            if let Some((sealed_len, by_state)) = &self.sealed_expression_index.sealed
+                && *sealed_len == self.expressions.len()
+            {
+                let mut expressions = by_state
+                    .get(&state)?
+                    .iter()
+                    .filter_map(|index| self.expressions.get(*index))
+                    .filter(|expression| {
+                        expression.state == state
+                            && expression.statement_ordinal == statement_ordinal
+                            && expression.role == role
+                    });
+                let expression = &expressions.next()?.expression;
+                if expressions.next().is_some() {
+                    return None;
+                }
+                return Some((binding, expression));
+            }
             // This public vector has no mutation revision; query its current rows.
             let mut expressions = self.expressions.iter().filter(|expression| {
                 expression.state == state
@@ -311,6 +361,20 @@ impl CheckedScalarExpressionPlans {
         statement_ordinal: u32,
         role: CheckedScalarExpressionRole,
     ) -> Option<&CheckedScalarExpression> {
+        if let Some((sealed_len, by_state)) = &self.sealed_expression_index.sealed
+            && *sealed_len == self.expressions.len()
+        {
+            return by_state
+                .get(&state)?
+                .iter()
+                .filter_map(|index| self.expressions.get(*index))
+                .find(|expression| {
+                    expression.state == state
+                        && expression.statement_ordinal == statement_ordinal
+                        && expression.role == role
+                })
+                .map(|expression| &expression.expression);
+        }
         self.expressions
             .iter()
             .find(|expression| {

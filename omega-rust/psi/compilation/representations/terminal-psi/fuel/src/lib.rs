@@ -132,6 +132,7 @@ impl TerminalFuelSchedule {
             | terminal_psi::terminator_return_pair_pattern!(..)
             | Terminator::ReturnStructural { .. }
             | Terminator::Crash { .. }
+            | Terminator::InvokeNoNormal { .. }
             | Terminator::ExternalCompletion { .. } => 1,
         }
     }
@@ -294,6 +295,7 @@ impl TerminalFuelMeter {
             | terminal_psi::terminator_return_pair_pattern!(edge, ..)
             | Terminator::ReturnStructural { edge, .. }
             | Terminator::Crash { edge, .. }
+            | Terminator::InvokeNoNormal { edge, .. }
             | Terminator::ExternalCompletion { edge, .. } => *edge,
             Terminator::Conditional { .. } | Terminator::StructuralCase { .. } => {
                 return Err(FuelMeterError::ConditionalEdgeNotSelected);

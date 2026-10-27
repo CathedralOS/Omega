@@ -149,6 +149,10 @@ pub struct CheckedScalarComputationPlans {
 }
 
 impl CheckedScalarComputationPlans {
+    pub fn seal(&mut self) {
+        self.roots_by_state.seal(&self.roots, |root| root.state);
+    }
+
     pub fn projection_selectors_at(
         &self,
         machine: SymbolHandle,

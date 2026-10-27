@@ -26,6 +26,9 @@ impl Emission<'_, '_, '_> {
         LoweringError,
     > {
         let (mut argument, occurrence, previous) = match produced {
+            ValueCompletion::NoNormal => {
+                return super::unsupported("normal value completion has no arriving operand");
+            }
             ValueCompletion::Awaiting {
                 argument,
                 occurrence,

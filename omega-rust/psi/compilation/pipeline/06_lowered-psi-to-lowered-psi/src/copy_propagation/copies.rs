@@ -91,7 +91,8 @@ pub(super) fn propagate(
                     retain_proposition(term.proposition(), retained_values);
                 }
             }
-            terminal_psi::terminator_return_pair_pattern!(..)
+            Terminator::InvokeNoNormal { .. }
+            | terminal_psi::terminator_return_pair_pattern!(..)
             | Terminator::ReturnStructural { .. }
             | Terminator::ExternalCompletion { .. } => {}
         }

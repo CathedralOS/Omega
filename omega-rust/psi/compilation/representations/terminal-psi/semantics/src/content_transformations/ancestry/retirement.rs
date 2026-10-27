@@ -570,7 +570,11 @@ fn entry_claim_is_retired(
                         pending.push((edge.target, selected));
                     }
                 }
-                Terminator::Crash { .. } | Terminator::ExternalCompletion { .. } => {}
+                // No-normal control contributes no retirement receipt. Only a
+                // grounded normal return above can establish this judgment.
+                Terminator::Crash { .. }
+                | Terminator::ExternalCompletion { .. }
+                | Terminator::InvokeNoNormal { .. } => {}
             }
         }
         if !normal {

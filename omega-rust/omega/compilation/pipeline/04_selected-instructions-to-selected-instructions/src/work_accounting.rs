@@ -34,6 +34,43 @@ pub(crate) fn count(value: usize) -> Result<u64, WorkDefect> {
     u64::try_from(value).map_err(|_| WorkDefect::Overflow)
 }
 
+/// Sum two exact receipts axis by axis. The checked addition and its overflow
+/// refusal live here, so a custody family that combines a carried receipt with
+/// a fresh one names only its own error kind at the call site.
+pub(crate) fn combine(
+    left: OptimizationWorkUsage,
+    right: OptimizationWorkUsage,
+) -> Result<OptimizationWorkUsage, WorkDefect> {
+    Ok(OptimizationWorkUsage {
+        rule_evaluations: checked(left.rule_evaluations, right.rule_evaluations)?,
+        candidates: checked(left.candidates, right.candidates)?,
+        validation_steps: checked(left.validation_steps, right.validation_steps)?,
+        commits: checked(left.commits, right.commits)?,
+        iterations: checked(left.iterations, right.iterations)?,
+    })
+}
+
+/// Sum one axis pair exactly; the overflow refusal stays the owner's.
+fn checked(left: u64, right: u64) -> Result<u64, WorkDefect> {
+    left.checked_add(right).ok_or(WorkDefect::Overflow)
+}
+
+/// Admit an already-accumulated receipt against the pass's budget: `refused`
+/// names the family's own over-budget refusal, which receives the exact
+/// requirement and budget the comparison rejected. A pass that names its
+/// refusal here does not restate the comparison or the payload it carries.
+pub(crate) fn admit<E>(
+    usage: OptimizationWorkUsage,
+    budget: OptimizationWorkBudget,
+    refused: impl FnOnce(OptimizationWorkUsage, OptimizationWorkBudget) -> E,
+) -> Result<(), E> {
+    if usage.within(budget) {
+        Ok(())
+    } else {
+        Err(refused(usage, budget))
+    }
+}
+
 /// One bounded pass's receipt under construction.
 pub(crate) struct Work {
     usage: OptimizationWorkUsage,
@@ -72,14 +109,10 @@ impl Work {
         self,
         budget: OptimizationWorkBudget,
     ) -> Result<OptimizationWorkUsage, WorkDefect> {
-        if self.usage.within(budget) {
-            Ok(self.usage)
-        } else {
-            Err(WorkDefect::BudgetExceeded {
-                required: self.usage,
-                budget,
-            })
-        }
+        admit(self.usage, budget, |required, budget| {
+            WorkDefect::BudgetExceeded { required, budget }
+        })?;
+        Ok(self.usage)
     }
 }
 

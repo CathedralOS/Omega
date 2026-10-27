@@ -86,17 +86,17 @@ impl ScalarCallSite<'_> {
             }
             for successor in state.successors() {
                 for transfer in &successor.transfers {
-                    if let checked_trees::CheckedStructuralControlTransferSourcePlan::EstablishedValue {
-                        operands,
-                        establishment,
-                        ..
-                    } = &transfer.source {
-                        let dependencies = operands.iter()
-                            .chain(std::iter::once(establishment.as_ref()))
-                            .collect::<Vec<_>>();
-                        if owns(&dependencies) && selected.replace(dependencies).is_some() {
-                            return None;
+                    let dependencies = match &transfer.source {
+                        checked_trees::CheckedStructuralControlTransferSourcePlan::EstablishedValue {
+                            operands, establishment, ..
+                        } => operands.iter().chain(std::iter::once(establishment.as_ref())).collect::<Vec<_>>(),
+                        checked_trees::CheckedStructuralControlTransferSourcePlan::EvaluateNoNormal { operations } => {
+                            operations.iter().collect::<Vec<_>>()
                         }
+                        _ => continue,
+                    };
+                    if owns(&dependencies) && selected.replace(dependencies).is_some() {
+                        return None;
                     }
                 }
             }

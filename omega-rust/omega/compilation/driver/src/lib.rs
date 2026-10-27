@@ -38,9 +38,10 @@ pub use crate::checked::{
     IndependentComponentDiscovery, IndependentComponentSelection, OptimizationRollback,
     OptimizationRollbackInputError, PackageBuild, PackageBuildInvocation,
     PackageCompilationRequest, PackageCompileFailure, PackageProductOptions,
-    PreparedPackageProduct, RestrictedBuildGrants, SourceBuildDeclaration,
-    checked_compilation_call_count, preliminary_check_totals, settled_check_totals,
-    source_assembly_invocation_count, typed_frontier_reuse_count,
+    PackageProductSourceRequest, PackageSourceRequest, PreparedPackageProduct,
+    RestrictedBuildGrants, SourceBuildDeclaration, checked_compilation_call_count,
+    preliminary_check_totals, settled_check_totals, source_assembly_invocation_count,
+    typed_frontier_reuse_count,
 };
 pub use build_evaluation::BuildSnapshotRequest;
 pub use checked::SourceCompilation;

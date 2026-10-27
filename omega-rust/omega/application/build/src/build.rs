@@ -32,7 +32,7 @@ pub fn build(request: BuildRequest) -> Result<Vec<TargetBuildOutcome>, BuildErro
         ProjectProduct::Check | ProjectProduct::Inspection { .. } => {
             Some(TemporaryDirectory::create("check", false).map_err(BuildError::CheckWorkspace)?)
         }
-        ProjectProduct::Native { .. } => None,
+        ProjectProduct::Terminal | ProjectProduct::Native { .. } => None,
     };
     // Placement belongs to the authored source, never its resolver snapshot.
     let base_directory = match &check_workspace {
@@ -91,8 +91,11 @@ pub fn build(request: BuildRequest) -> Result<Vec<TargetBuildOutcome>, BuildErro
                     &mut session,
                     crate::ProjectSourceRequest {
                         preparation,
-                        execution_profile: host,
-                        snapshot: request.build_snapshot.clone(),
+                        execution: package_compilation::BuildExecutionInputs {
+                            profile: Some(host),
+                            snapshot: request.build_snapshot.clone(),
+                            ..Default::default()
+                        },
                         collect_timings: request.timings,
                     },
                 );

@@ -1910,6 +1910,7 @@ fn visit_statement(
                         visit_authored_selection(program, retained, *occurrence);
                     }
                     visit_symbol(retained, path.symbol);
+                    visit_symbol(retained, path.receiver_symbol);
                     visit_symbol(retained, path.head_symbol);
                 }
             }

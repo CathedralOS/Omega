@@ -38,7 +38,7 @@ pub(super) fn walk<S: Clone>(
                 },
                 &mut custody,
             );
-            if ends_domain(
+            if evaluation_has_no_normal_completion(
                 program,
                 state,
                 calls,
@@ -57,7 +57,7 @@ pub(super) fn walk<S: Clone>(
             },
             &mut custody,
         );
-        if ends_domain(
+        if evaluation_has_no_normal_completion(
             program,
             state,
             calls,
@@ -84,7 +84,7 @@ pub(super) fn walk<S: Clone>(
                 },
                 &mut branch,
             );
-            if target_ends_domain(program, target) {
+            if target_has_no_normal_completion(program, state, target) {
                 continue;
             }
             visit(
@@ -134,12 +134,12 @@ pub(super) fn walk<S: Clone>(
     );
 }
 
-/// An admitted external completion has no normal ownership successor. Its
+/// An invocation without normal completion has no normal caller successor. Its
 /// argument evaluation still runs above, but neither cleanup nor a fabricated
 /// consumption event may discharge the remaining frontier. Use the producer's
 /// unconditional call occurrences: a call in only one selected expression arm
 /// cannot erase the other arm's normal-exit obligations.
-fn ends_domain(
+fn evaluation_has_no_normal_completion(
     program: &dyn validation::CheckingInput,
     state: &typed_trees::state::State,
     calls: &[checked_trees::FlowCallFact],
@@ -160,32 +160,39 @@ fn ends_domain(
                 statement,
                 call.call_ordinal,
             ) == evaluation
-            && external_completion(program, call.target_symbol)
+            && call_has_no_normal_completion(program, call.target_symbol)
     })
 }
 
-fn external_completion(
+fn call_has_no_normal_completion(
     program: &dyn validation::CheckingInput,
     target: symbols::SymbolHandle,
 ) -> bool {
     matches!(
         validation::boundary_requirement_completion(program, target),
         semantic_vocabulary::BoundaryCompletion::External(_)
-    )
+    ) || validation::call_target_state(program, target)
+        .is_some_and(|state| validation::normal_completion_possible(program, state) == Some(false))
 }
 
-fn target_ends_domain(
+fn target_has_no_normal_completion(
     program: &dyn validation::CheckingInput,
+    state: &typed_trees::state::State,
     target: typed_trees::statement::TransitionTargetHandle,
 ) -> bool {
     match program.statement_table.transition_target(target) {
         typed_trees::statement::TransitionTargetNode::Named { path, .. } => {
-            external_completion(program, path.symbol)
+            let Some(machine) = program.machine_holding_state(state.symbol) else {
+                return false;
+            };
+            // A same-activation state jump still owns its arrival transfer,
+            // even if the destination can never return from the machine.
+            validation::terminal_callable_target(program, machine, path.symbol).is_some()
+                && call_has_no_normal_completion(program, path.symbol)
         }
-        typed_trees::statement::TransitionTargetNode::Value(value) => program
-            .expression_table
-            .call_node(*value)
-            .is_some_and(|call| external_completion(program, call.target_symbol)),
+        typed_trees::statement::TransitionTargetNode::Value(value) => {
+            validation::expression_normal_completion_possible(program, *value) == Some(false)
+        }
         typed_trees::statement::TransitionTargetNode::Terminal => false,
     }
 }

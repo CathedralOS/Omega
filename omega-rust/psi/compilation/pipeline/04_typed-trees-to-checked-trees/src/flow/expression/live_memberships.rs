@@ -81,6 +81,19 @@ impl Execution<'_, '_, '_> {
         memberships
     }
 
+    /// Keep only the selected value's owned root and members; unrelated live
+    /// storage cannot supply a qualification for the selection result.
+    pub(super) fn value_memberships(
+        &self,
+        expression: typed_trees::expression::ExpressionHandle,
+        contexts: HandleSpan<FlowSemanticContextRef>,
+    ) -> Vec<LiveMembership> {
+        self.live_memberships(contexts)
+            .into_iter()
+            .filter(|membership| membership.place.root == facts::PlaceRoot::Expression(expression))
+            .collect()
+    }
+
     pub(super) fn publish_live_memberships(
         &mut self,
         memberships: Vec<LiveMembership>,

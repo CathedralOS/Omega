@@ -207,6 +207,18 @@ impl<'text> Encoder<'text> {
         self.check()
     }
 
+    /// One field whose payload an existing writer already owns: the same field
+    /// framing, in the writer's own canonical order, so a caller states the
+    /// value and its writer instead of restating the wrapper closure.
+    pub(crate) fn field_by<T>(
+        &mut self,
+        name: &'static str,
+        value: T,
+        encode: impl FnOnce(&mut Self, T) -> Result<(), PackageReviewEncodingError>,
+    ) -> Result<(), PackageReviewEncodingError> {
+        self.field(name, |encoder| encode(encoder, value))
+    }
+
     pub(crate) fn package_identity(&mut self, identity: PackageKeyIdentity) {
         if let Some(observer) = &mut self.membership {
             let result = observer.package(identity);

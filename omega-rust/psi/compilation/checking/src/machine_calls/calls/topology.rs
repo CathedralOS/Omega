@@ -3,14 +3,17 @@
 use symbols::SymbolHandle;
 
 /// Conservative normal-completion reachability over admitted state control.
-/// Explicit crash edges and closed nonreturning cycles supply no return.
-/// Unknown bodies and ordinary value evaluation remain potentially normal;
+/// Explicit crash edges, authenticated external completions and closed
+/// nonreturning cycles supply no return.
+/// Unknown bodies and unclassified value evaluation remain potentially normal;
 /// missing custody/origin evidence is never evidence of nonreturning control.
 pub fn normal_completion_possible(
     program: &dyn crate::CheckingInput,
     initial: &typed_trees::state::State,
 ) -> Option<bool> {
-    use typed_trees::statement::{StatementNode, TransitionExit, TransitionTargetNode};
+    use typed_trees::statement::{
+        StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode,
+    };
     let mut pending = vec![initial.symbol];
     let mut visited = Vec::new();
     while let Some(symbol) = pending.pop() {
@@ -22,32 +25,98 @@ pub fn normal_completion_possible(
         if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
             || !machine.body_is_present
         {
+            // A bodyless entry may itself carry an authenticated completion
+            // declaration. Other interfaces and realizations stay unknown;
+            // checked adapters still owe their own control-flow evidence.
+            if program
+                .machine_states(machine)
+                .first()
+                .is_some_and(|entry| entry.symbol == state.symbol)
+                && matches!(
+                    completion_target(program, machine.symbol),
+                    CompletionTarget::External
+                )
+            {
+                continue;
+            }
             return Some(true);
         }
-        let statements = typed_trees::statement::reachable_state_statements(
-            program.statement_table.statements(state.statement_nodes),
-        );
-        let mut has_transition = false;
-        for (position, statement) in statements.iter().enumerate() {
+        let statements = program.statement_table.statements(state.statement_nodes);
+        // Lexical order is not execution order when checked assembly transfers
+        // across instruction windows. Reuse the admitted control owner; an
+        // unmodeled/cyclic order cannot prove absence of normal completion.
+        let Ok(Some(order)) = program
+            .statement_table
+            .finite_execution_order(state.statement_nodes)
+        else {
+            return Some(true);
+        };
+        let mut all_paths_depart = false;
+        for (position, index) in order.iter().copied().enumerate() {
+            let statement = statements.get(index)?;
             match statement {
-                StatementNode::Expression(_) if position + 1 == statements.len() => {
-                    return Some(true);
+                StatementNode::Expression(expression) => {
+                    match expression_completion_target(program, *expression) {
+                        CompletionTarget::External => {
+                            // This exact admitted invocation ends the remaining
+                            // sequential path before any dead suffix executes.
+                            all_paths_depart = true;
+                            break;
+                        }
+                        CompletionTarget::Body(destination) if position + 1 == order.len() => {
+                            pending.push(destination.symbol);
+                            all_paths_depart = true;
+                        }
+                        CompletionTarget::Unknown if position + 1 == order.len() => {
+                            return Some(true);
+                        }
+                        _ => {}
+                    }
                 }
+                StatementNode::Call(call) => match completion_target(program, call.target_symbol) {
+                    CompletionTarget::External => {
+                        all_paths_depart = true;
+                        break;
+                    }
+                    CompletionTarget::Body(destination) if position + 1 == order.len() => {
+                        pending.push(destination.symbol);
+                        all_paths_depart = true;
+                    }
+                    CompletionTarget::Unknown if position + 1 == order.len() => {
+                        return Some(true);
+                    }
+                    _ => {}
+                },
                 StatementNode::Transition(transition) => {
-                    has_transition = true;
+                    all_paths_depart |= transition.guard == TransitionGuardNode::Always
+                        || transition.continuation.is_valid();
                     if matches!(transition.exit, TransitionExit::Crash(_)) {
                         continue;
+                    }
+                    if transition.targets().next().is_none() {
+                        return Some(true);
                     }
                     for target in transition.targets() {
                         match program.statement_table.transition_target(target) {
                             TransitionTargetNode::Named { path, .. } => {
-                                let Some(destination) = call_target_state(program, path.symbol)
-                                else {
-                                    return Some(true);
-                                };
-                                pending.push(destination.symbol);
+                                match completion_target(program, path.symbol) {
+                                    CompletionTarget::External => {}
+                                    CompletionTarget::Body(destination) => {
+                                        pending.push(destination.symbol)
+                                    }
+                                    CompletionTarget::Unknown => return Some(true),
+                                }
                             }
-                            TransitionTargetNode::Value(_) | TransitionTargetNode::Terminal => {
+                            TransitionTargetNode::Value(expression) => {
+                                match expression_completion_target(program, *expression) {
+                                    CompletionTarget::External => {}
+                                    CompletionTarget::Body(destination) => {
+                                        pending.push(destination.symbol)
+                                    }
+                                    CompletionTarget::Unknown => return Some(true),
+                                }
+                            }
+                            TransitionTargetNode::Terminal => {
                                 return Some(true);
                             }
                         }
@@ -56,12 +125,63 @@ pub fn normal_completion_possible(
                 _ => {}
             }
         }
-        // A body without a control edge can complete implicitly as Unit.
-        if !has_transition {
+        // A conditional tail without an exhaustive continuation can fall
+        // through to implicit Unit completion. A crash ceiling or one crashing
+        // arm never establishes that every path departs.
+        if !all_paths_depart {
             return Some(true);
         }
     }
     Some(false)
+}
+
+/// A completed expression can supply a normal value unless its exact checked
+/// call target proves otherwise. A crash ceiling, missing body or unresolved
+/// dispatch supplies no evidence of nonreturn. This query changes publication
+/// of normal results, never admission or evaluation of the invocation itself.
+pub fn expression_normal_completion_possible(
+    program: &dyn crate::CheckingInput,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<bool> {
+    match expression_completion_target(program, expression) {
+        CompletionTarget::External => Some(false),
+        CompletionTarget::Body(target) => normal_completion_possible(program, target),
+        CompletionTarget::Unknown => Some(true),
+    }
+}
+
+/// Completion is declaration-owned, not inferred from a reach ceiling or a
+/// selected provider. Unknown declarations remain potentially returning.
+enum CompletionTarget<'program> {
+    External,
+    Body(&'program typed_trees::state::State),
+    Unknown,
+}
+
+fn completion_target(
+    program: &dyn crate::CheckingInput,
+    target: SymbolHandle,
+) -> CompletionTarget<'_> {
+    if matches!(
+        crate::boundary_requirement_completion(program, target),
+        semantic_vocabulary::BoundaryCompletion::External(_)
+    ) {
+        CompletionTarget::External
+    } else {
+        call_target_state(program, target).map_or(CompletionTarget::Unknown, CompletionTarget::Body)
+    }
+}
+
+fn expression_completion_target(
+    program: &dyn crate::CheckingInput,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> CompletionTarget<'_> {
+    let typed_trees::expression::ExpressionNode::Call(call) =
+        program.expression_table.expression(expression)
+    else {
+        return CompletionTarget::Unknown;
+    };
+    completion_target(program, call.target_symbol)
 }
 
 pub fn find_state_in_machine(
@@ -137,6 +257,16 @@ pub fn call_target_state(
     find_machine_head(program, symbol)
         .map(|(_, state)| state)
         .or_else(|| program.state_by_symbol(symbol))
+}
+
+/// The executable coordinate of an already selected callable. Machine heads
+/// enter their exact first state; signatures, operators and unresolved targets
+/// retain their declaration coordinate. This changes no source call identity.
+pub fn call_target_entry_symbol(
+    program: &dyn crate::CheckingInput,
+    symbol: SymbolHandle,
+) -> SymbolHandle {
+    call_target_state(program, symbol).map_or(symbol, |state| state.symbol)
 }
 
 /// Whether the callable's contract is discharged by checked source bodies.

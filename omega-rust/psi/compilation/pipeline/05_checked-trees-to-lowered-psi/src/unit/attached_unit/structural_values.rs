@@ -25,3 +25,10 @@ pub(crate) mod structural_case;
 
 pub(crate) use emission::{ValueDestination, ValueProduction, emit};
 pub(super) use locals::local_binding;
+
+/// An evaluation may leave the caller suspended in a checked invocation.
+/// That outcome carries no value and grants no normal-completion authority.
+pub(crate) enum ValueOutcome<T> {
+    Normal(T),
+    NoNormal,
+}

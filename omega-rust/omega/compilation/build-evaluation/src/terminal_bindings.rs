@@ -360,10 +360,10 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter<'_, '_> {
                     } else {
                         CompositionMode::Fused
                     }),
-                    BuildOperation::RepresentationSelection
-                    | BuildOperation::ServiceExclusion
-                    | BuildOperation::BoundaryAcceptance
-                        if independent.is_none() =>
+                    operation
+                        if operation.selects_product_declarations()
+                            && operation != BuildOperation::ProviderSelection
+                            && independent.is_none() =>
                     {
                         None
                     }

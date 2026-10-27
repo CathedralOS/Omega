@@ -28,6 +28,20 @@ pub struct StructuralStorageDeclaration {
     pub multiplicity: terminal_psi::StructuralMultiplicity,
 }
 
+/// Input-only projection shared by returning and no-normal module calls.
+/// The real operation or edge retains identity; no result shape is invented
+/// merely to reuse entry, transfer or proof correspondence.
+#[derive(Clone, Copy)]
+pub struct ModuleInvocation<'a> {
+    pub site: semantic_vocabulary::InvocationSite,
+    pub callee: MachineId,
+    pub arguments: &'a [ValueId],
+    pub structural_arguments: &'a [StructuralArgument],
+    pub claim_transfers: &'a [ClaimTransfer],
+    pub requirement_obligations: &'a [semantic_vocabulary::ObligationId],
+    pub crash_continuations: &'a [CrashRouteBucket],
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AbstractOperation {
     /// Caller-site storage: the sum/descriptor may move; private backing stays
@@ -786,6 +800,17 @@ pub enum AbstractOperation {
         source: PlaceId,
         path: Vec<terminal_psi::StructuralPathSegment>,
     },
+    /// An ordinary module invocation with no normal result or continuation.
+    /// The declared callee ABI remains independent of result custody.
+    InvokeNoNormal {
+        psi_edge: EdgeId,
+        callee: MachineId,
+        arguments: Vec<ValueId>,
+        structural_arguments: Vec<StructuralArgument>,
+        claim_transfers: Vec<ClaimTransfer>,
+        requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+    },
     /// An external invocation that settles the activation without a successor.
     /// Data arguments and the authored frontier retain the completion edge,
     /// independently of ordinary operation identity.
@@ -808,6 +833,80 @@ pub enum AbstractOperation {
 }
 
 impl AbstractOperation {
+    pub fn module_invocation(&self) -> Option<ModuleInvocation<'_>> {
+        let (
+            site,
+            callee,
+            arguments,
+            structural_arguments,
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+        ) = match self {
+            Self::Call {
+                psi_operation,
+                callee,
+                arguments,
+                requirement_obligations,
+                crash_continuations,
+                ..
+            } => (
+                (*psi_operation).into(),
+                *callee,
+                arguments.as_slice(),
+                &[][..],
+                &[][..],
+                requirement_obligations.as_slice(),
+                crash_continuations.as_slice(),
+            ),
+            Self::CallStructural {
+                psi_operation,
+                callee: AbstractCallTarget::Machine(callee),
+                arguments,
+                structural_arguments,
+                claim_transfers,
+                requirement_obligations,
+                crash_continuations,
+                ..
+            } => (
+                (*psi_operation).into(),
+                *callee,
+                arguments.as_slice(),
+                structural_arguments.as_slice(),
+                claim_transfers.as_slice(),
+                requirement_obligations.as_slice(),
+                crash_continuations.as_slice(),
+            ),
+            Self::InvokeNoNormal {
+                psi_edge,
+                callee,
+                arguments,
+                structural_arguments,
+                claim_transfers,
+                requirement_obligations,
+                crash_continuations,
+            } => (
+                semantic_vocabulary::InvocationSite::InvokeNoNormal(*psi_edge),
+                *callee,
+                arguments.as_slice(),
+                structural_arguments.as_slice(),
+                claim_transfers.as_slice(),
+                requirement_obligations.as_slice(),
+                crash_continuations.as_slice(),
+            ),
+            _ => return None,
+        };
+        Some(ModuleInvocation {
+            site,
+            callee,
+            arguments,
+            structural_arguments,
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+        })
+    }
+
     /// Cleanup belongs to a selected semantic edge, not to the containing
     /// block. Enumerating these rosters does not execute conditional siblings.
     pub fn cleanup_rosters(
@@ -1114,6 +1213,10 @@ impl AbstractOperation {
             | Self::ExternalCompletion {
                 structural_arguments,
                 ..
+            }
+            | Self::InvokeNoNormal {
+                structural_arguments,
+                ..
             } => structural_arguments
                 .iter()
                 .map(|argument| argument.path.as_slice())
@@ -1216,6 +1319,7 @@ impl AbstractOperation {
             | Self::ReturnUnit { .. }
             | Self::ReturnStructural { .. }
             | Self::ExternalCompletion { .. }
+            | Self::InvokeNoNormal { .. }
             | Self::Crash { .. } => None,
         }
     }
@@ -1391,7 +1495,10 @@ macro_rules! return_structural_or_crash_pattern {
 #[macro_export]
 macro_rules! call_structural_or_boundary_call_pattern {
     ($structural_arguments:ident) => {
-        $crate::AbstractOperation::CallStructural {
+        $crate::AbstractOperation::InvokeNoNormal {
+            $structural_arguments,
+            ..
+        } | $crate::AbstractOperation::CallStructural {
             $structural_arguments,
             ..
         } | $crate::AbstractOperation::BoundaryCall {

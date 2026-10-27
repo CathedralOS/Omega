@@ -128,6 +128,7 @@ pub(super) fn zero_argument_invocation_discharges(
 /// Reuse that judgment when supplied; otherwise check the demanded closure.
 /// An entry premise keeps its concrete routes or the conservative fence.
 pub(super) fn argument_independent_closure_discharges(
+    admission: &super::BuildTimeAdmissionPlan,
     input: BuildTimeProgram<'_>,
     machine: &Machine,
 ) -> Result<bool, String> {
@@ -146,7 +147,7 @@ pub(super) fn argument_independent_closure_discharges(
         require_complete_invocation_conditions(checked, machine.symbol)?;
         return Ok(true);
     }
-    checked_demanded_closure(program, machine.symbol)?;
+    checked_demanded_closure(admission, program, machine.symbol)?;
     Ok(true)
 }
 
@@ -154,6 +155,7 @@ pub(super) fn argument_independent_closure_discharges(
 /// Consumers must not discard operator, custody or pending-condition facts
 /// when crossing from source admission into the existing checked evaluator.
 pub(super) fn checked_demanded_closure(
+    admission: &super::BuildTimeAdmissionPlan,
     program: &TypedTrees,
     machine: SymbolHandle,
 ) -> Result<checked_trees::CheckedTrees, String> {
@@ -162,8 +164,9 @@ pub(super) fn checked_demanded_closure(
     // not premises of this invocation. Close the root's real type, proof,
     // operator and body dependencies through the shared evaluation projection;
     // retain their contracts unchanged and check that exact demanded program.
-    let domain = crate::syntax_probes::PreparedEvaluationInputs::domain_for_program(
+    let domain = crate::syntax_probes::PreparedEvaluationInputs::domain_for_admission(
         program,
+        admission,
         &[machine],
         &[],
     );

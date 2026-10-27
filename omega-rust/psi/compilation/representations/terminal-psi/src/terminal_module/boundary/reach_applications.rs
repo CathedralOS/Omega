@@ -7,7 +7,7 @@
 //! is introduced. Calls retain their ordinary execution and fuel semantics.
 
 use crate::terminal_module::TerminalIdentityIndex;
-use semantic_vocabulary::{MachineId, OperationId, ServiceId};
+use semantic_vocabulary::{MachineId, ServiceId};
 
 /// One concrete machine's closed substitution of an original reach dependency.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -26,7 +26,7 @@ pub struct ClosedReachApplication {
     pub fixed: Vec<ServiceId>,
     /// Strictly increasing zero-based positions in the full telescope.
     pub dependencies: Vec<u32>,
-    /// Exact consumers, independently joined to operation-side binder markers.
+    /// Exact consumers, independently joined to invocation-side binder markers.
     pub calls: Vec<ClosedReachCall>,
 }
 
@@ -95,7 +95,7 @@ pub struct ClosedReachSchema {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClosedReachCall {
-    pub operation: OperationId,
+    pub site: semantic_vocabulary::InvocationSite,
     pub binder: u32,
     pub application: Option<ClosedReachCallApplication>,
 }

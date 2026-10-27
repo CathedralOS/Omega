@@ -45,9 +45,9 @@ pub use boundary::{
 };
 pub use control_flow::{
     AtomicAccessEvent, AtomicReadModifyWrite, Block, CrashCause, ElementViewRegion, FenceOrdering,
-    FloatResultPolicy, MemoryOrdering, Operation, OperationKind, OperationResult,
-    RecordFieldInitializer, RecordFieldValue, ReferenceStorageView, RegisterAccessEvent,
-    ScalarCaseField, StructuralCaseSuccessorEdge, StructuralOperationResult,
+    FloatResultPolicy, MemoryOrdering, ModuleInvocation, ModuleInvocationInputs, Operation,
+    OperationKind, OperationResult, RecordFieldInitializer, RecordFieldValue, ReferenceStorageView,
+    RegisterAccessEvent, ScalarCaseField, StructuralCaseSuccessorEdge, StructuralOperationResult,
     StructuralResultClaimBinding, StructuralStoreDisposition, SuccessorEdge, TargetMachineCallable,
     TargetMachineFamily, TargetMachineFamilyMember, TargetMachineSupply, TerminalBlockNaturalRank,
     TerminalMachine, TerminalNaturalCycle, TerminalNaturalRankComparison, TerminalNaturalRankEdge,
