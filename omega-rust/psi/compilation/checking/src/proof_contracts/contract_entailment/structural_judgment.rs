@@ -1695,16 +1695,46 @@ impl<'program> StructuralJudge<'program> {
                 continue; // exhaustiveness carrier, not shape
             }
             if let Some(local) = statement.as_local_data() {
-                let term = self.callee_term(
-                    local.initial_value,
-                    &environment,
-                    StaticObservations {
-                        machine_bindings: &static_environment,
-                        body_parameters: &[],
-                    },
-                    Some((machine, state, local.type_reference)),
-                    depth + 1,
-                )?;
+                let term = self
+                    .callee_term(
+                        local.initial_value,
+                        &environment,
+                        StaticObservations {
+                            machine_bindings: &static_environment,
+                            body_parameters: &[],
+                        },
+                        Some((machine, state, local.type_reference)),
+                        depth + 1,
+                    )
+                    .or_else(|| {
+                        // A hoisted Boolean may have no single scalar congruence
+                        // term even though its complete typed connective is known.
+                        // Compute that value only from this captured environment;
+                        // neither dropping the initializer nor assuming its desired
+                        // result would preserve the predicate's guard. Closed
+                        // constant evaluation retains its stricter existing gate.
+                        if !self.runtime_body_values
+                            || self.require_closed_computation
+                            || program.primitive_type_reference(local.type_reference)
+                                != Some(typed_trees::types::PrimitiveType::Bool)
+                        {
+                            return None;
+                        }
+                        match self.judge_predicate_in_scope(
+                            (machine, state, local.type_reference),
+                            local.initial_value,
+                            &environment,
+                            depth + 1,
+                        ) {
+                            StructuralJudgment::Proven => {
+                                Some(value_predicates::boolean_term(true))
+                            }
+                            StructuralJudgment::Refuted => {
+                                Some(value_predicates::boolean_term(false))
+                            }
+                            StructuralJudgment::Unknown => None,
+                        }
+                    })?;
                 let term = if self.require_closed_computation {
                     let completed = self.resolve_at(term, depth + 1);
                     if !completed.is_closed_value() {
