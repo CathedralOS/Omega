@@ -32,6 +32,8 @@ pub(crate) struct ComposedCatalogs<'a> {
     /// result republishes the callee's qualified result through it.
     pub(in crate::unit::attached_unit) prepared_scalar_qualifications:
         Option<&'a crate::expression_preparation::qualifications::PreparedScalarQualifications>,
+    pub(in crate::unit::attached_unit) dynamic_dispatch:
+        Option<std::sync::Arc<crate::unit::dynamic_dispatch::DynamicDispatchIndex>>,
     pub(crate) service_ids: Cow<'a, [(ServiceReachId, ServiceId)]>,
     pub(crate) next_place: u64,
     /// Private constructor, join, and literal places; not authored result ordinals.

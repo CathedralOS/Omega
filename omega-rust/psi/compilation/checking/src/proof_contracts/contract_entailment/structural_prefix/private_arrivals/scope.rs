@@ -100,6 +100,12 @@ pub(super) fn closed_arrivals(
         .iter()
         .position(|member| member.symbol == callee.symbol)
         .ok_or("the callable is not a private member of the enclosing declaration")?;
+    if callee.is_public
+        || callee.target_family_interface
+        || !program.machine_trait_conformances(callee).is_empty()
+    {
+        return Err("the private declaration group has an exposed callable");
+    }
     let mut expected = Vec::new();
     let mut edges = vec![Vec::new(); members.len()];
     let mut outside = Vec::new();
@@ -178,18 +184,23 @@ pub(super) fn closed_arrivals(
     }) {
         return Err("the private declaration group has an exposed callable");
     }
+    let mut target_symbols = std::collections::HashSet::new();
+    for (index, member) in members.iter().enumerate() {
+        if needed[index] {
+            target_symbols.insert(member.symbol);
+            for state in program.machine_states(member) {
+                target_symbols.insert(state.symbol);
+            }
+        }
+    }
     let mut uses = PrivateUses {
         program,
         root: root.symbol,
-        members: members
-            .iter()
-            .enumerate()
-            .filter_map(|(index, member)| needed[index].then_some(member.symbol))
-            .collect(),
-        scopes: Vec::new(),
+        target_symbols,
+        owner_scopes: Vec::new(),
         pending: Vec::new(),
-        expressions: Vec::new(),
-        types: Vec::new(),
+        expressions: std::collections::HashSet::new(),
+        types: std::collections::HashSet::new(),
         closed: true,
     };
     typed_trees::references::visit_program(program.typed_program(), &mut uses);
@@ -236,11 +247,11 @@ pub(super) fn closed_arrivals(
 struct PrivateUses<'program> {
     program: &'program dyn crate::CheckingInput,
     root: SymbolHandle,
-    members: Vec<SymbolHandle>,
-    scopes: Vec<SymbolHandle>,
+    target_symbols: std::collections::HashSet<SymbolHandle>,
+    owner_scopes: Vec<Option<SymbolHandle>>,
     pending: Vec<SymbolHandle>,
-    expressions: Vec<(Option<SymbolHandle>, ExpressionHandle)>,
-    types: Vec<(
+    expressions: std::collections::HashSet<(Option<SymbolHandle>, ExpressionHandle)>,
+    types: std::collections::HashSet<(
         Option<SymbolHandle>,
         typed_trees::types::TypeReferenceHandle,
     )>,
@@ -249,16 +260,10 @@ struct PrivateUses<'program> {
 
 impl PrivateUses<'_> {
     fn owner(&self) -> Option<SymbolHandle> {
-        self.scopes.iter().rev().find_map(|symbol| {
-            self.program
-                .machine_by_symbol(*symbol)
-                .map(|machine| machine.symbol)
-        })
+        self.owner_scopes.last().copied().flatten()
     }
     fn private_target(&self, symbol: SymbolHandle) -> bool {
-        self.program
-            .machine_by_own_or_state_symbol(symbol)
-            .is_some_and(|machine| self.members.contains(&machine.symbol))
+        self.target_symbols.contains(&symbol)
     }
     fn direct(&mut self, symbol: SymbolHandle) {
         if self.private_target(symbol) {
@@ -273,10 +278,15 @@ impl Extend<SymbolHandle> for PrivateUses<'_> {
 
 impl TypedReferences for PrivateUses<'_> {
     fn enter_lexical_scope(&mut self, symbol: SymbolHandle) {
-        self.scopes.push(symbol);
+        let next_owner = self
+            .program
+            .machine_by_symbol(symbol)
+            .map(|machine| machine.symbol)
+            .or_else(|| self.owner());
+        self.owner_scopes.push(next_owner);
     }
     fn leave_lexical_scope(&mut self) {
-        self.scopes.pop();
+        self.owner_scopes.pop();
     }
     fn callable_use(&mut self, symbol: SymbolHandle) {
         if !self.private_target(symbol) {
@@ -302,10 +312,9 @@ impl TypedReferences for PrivateUses<'_> {
     }
     fn expression(&mut self, expression: ExpressionHandle) -> bool {
         let key = (self.owner(), expression);
-        if self.expressions.contains(&key) {
+        if !self.expressions.insert(key) {
             return false;
         }
-        self.expressions.push(key);
         match self.program.expression_table.expression(expression) {
             typed_trees::expression::ExpressionNode::Call(call) => self.direct(call.target_symbol),
             typed_trees::expression::ExpressionNode::Name(path)
@@ -319,10 +328,6 @@ impl TypedReferences for PrivateUses<'_> {
     }
     fn type_reference(&mut self, reference: typed_trees::types::TypeReferenceHandle) -> bool {
         let key = (self.owner(), reference);
-        if self.types.contains(&key) {
-            return false;
-        }
-        self.types.push(key);
-        true
+        self.types.insert(key)
     }
 }

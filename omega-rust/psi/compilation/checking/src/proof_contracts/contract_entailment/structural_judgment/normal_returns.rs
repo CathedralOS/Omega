@@ -353,7 +353,8 @@ impl<'program> StructuralJudge<'program> {
         environment: &[(String, StructuralTerm)],
         scope: ValueScope<'_>,
     ) -> Option<Vec<StructuralJudge<'program>>> {
-        self.clone()
+        let mut paths: Vec<StructuralJudge<'program>> = self
+            .clone()
             .evaluate_normal_paths(
                 expression,
                 environment,
@@ -362,8 +363,19 @@ impl<'program> StructuralJudge<'program> {
                 OperationObservations::none(),
                 &mut Vec::new(),
                 NormalValueDemand::Completion,
-            )
-            .map(|paths| paths.into_iter().map(|path| path.judge).collect())
+            )?
+            .into_iter()
+            .map(|path| path.judge)
+            .collect();
+        if paths.len() > 1
+            && paths
+                .iter()
+                .all(|judge| judge.has_no_new_effects_or_guarantees_since(self))
+        {
+            let judge_refs: Vec<&Self> = paths.iter().collect();
+            paths = vec![self.rejoin_pure_outcomes(&judge_refs, Some(expression))];
+        }
+        Some(paths)
     }
 
     /// Observe an operation after its operands complete, including preceding
@@ -1791,9 +1803,10 @@ impl<'program> StructuralJudge<'program> {
                 ..
             } = outcomes[0].value
                 && expr == expression
-                && program.primitive_type_reference(result_type).is_some()
                 && outcomes.iter().all(|path| {
                     path.observation == NormalValueObservation::Observed
+                        && path.judge.normal_guarantees.len()
+                            == pre_call_judge.normal_guarantees.len()
                         && matches!(
                             path.value,
                             StructuralTerm::CapturedValue {

@@ -85,6 +85,8 @@ pub struct FlowOwnershipFacts {
     pub selection_place_bindings: Arena<super::FlowSelectionPlaceBinding>,
     pub permissions_by_state: KeyedRows<SymbolHandle, FlowPermissionEventFact>,
     pub owned_selections_by_state: KeyedRows<SymbolHandle, super::FlowOwnedSelectionReceipt>,
+    pub selection_place_bindings_by_state:
+        KeyedRows<SymbolHandle, super::FlowSelectionPlaceBinding>,
 }
 
 impl FlowOwnershipFacts {
@@ -116,6 +118,7 @@ impl FlowOwnershipFacts {
             selection_place_bindings: Arena::default(),
             permissions_by_state: KeyedRows::default(),
             owned_selections_by_state: KeyedRows::default(),
+            selection_place_bindings_by_state: KeyedRows::default(),
         }
     }
 
@@ -145,11 +148,26 @@ impl FlowOwnershipFacts {
         )
     }
 
+    pub fn with_state_selection_place_bindings<R>(
+        &self,
+        state: SymbolHandle,
+        run: impl FnOnce(&[arena::Handle<super::FlowSelectionPlaceBinding>]) -> R,
+    ) -> R {
+        self.selection_place_bindings_by_state.with_rows(
+            &self.selection_place_bindings,
+            |binding| binding.state,
+            &state,
+            run,
+        )
+    }
+
     pub fn seal_indexes(&mut self) {
         self.permissions_by_state
             .seal(&self.permissions, |event| event.state_symbol);
         self.owned_selections_by_state
             .seal(&self.owned_selections, |receipt| receipt.state);
+        self.selection_place_bindings_by_state
+            .seal(&self.selection_place_bindings, |binding| binding.state);
     }
 }
 
@@ -521,7 +539,11 @@ paged_flow_roots!(FlowOwnershipFacts {
         selection_transfer_claims,
         selection_place_bindings,
     ],
-    indexes: [permissions_by_state, owned_selections_by_state],
+    indexes: [
+        permissions_by_state,
+        owned_selections_by_state,
+        selection_place_bindings_by_state,
+    ],
     lists: [],
 });
 paged_flow_roots!(FlowBoundaryFacts {

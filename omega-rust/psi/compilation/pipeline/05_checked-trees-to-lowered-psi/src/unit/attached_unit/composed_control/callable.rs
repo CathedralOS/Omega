@@ -40,6 +40,8 @@ pub(in crate::unit::attached_unit) struct SharedCatalog<'a> {
     /// result republishes the callee's qualified result through it.
     pub prepared_scalar_qualifications:
         &'a crate::expression_preparation::qualifications::PreparedScalarQualifications,
+    pub dynamic_dispatch:
+        &'a std::sync::Arc<crate::unit::dynamic_dispatch::DynamicDispatchIndex>,
 }
 
 pub(in crate::unit::attached_unit) struct EmissionCounters<'a> {
@@ -83,6 +85,7 @@ pub(in crate::unit::attached_unit) fn emit(
         signatures: Cow::Borrowed(shared.signatures),
         closure: shared.closure,
         prepared_scalar_qualifications: Some(shared.prepared_scalar_qualifications),
+        dynamic_dispatch: Some(std::sync::Arc::clone(shared.dynamic_dispatch)),
         service_ids: Cow::Borrowed(shared.service_ids),
         scalar_calls: scalar_calls::ComposedScalarCalls::from_shared(
             identity,

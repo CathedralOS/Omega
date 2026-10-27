@@ -20,6 +20,8 @@ pub struct CheckedStructuralValuePlans {
     call_schedules: Arena<StructuralCallSchedule>,
     calls: Arena<crate::CheckedStructuralValueCall>,
     roots_by_state: KeyedRows<SymbolHandle, CheckedStructuralValueRoot>,
+    roots_by_machine: KeyedRows<SymbolHandle, CheckedStructuralValueRoot>,
+    nodes_by_state: KeyedRows<SymbolHandle, CheckedStructuralValue>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -559,6 +561,8 @@ impl CheckedStructuralValuePlans {
 
     pub fn seal(&mut self) {
         self.roots_by_state.seal(&self.roots, |root| root.state);
+        self.roots_by_machine.seal(&self.roots, |root| root.machine);
+        self.nodes_by_state.seal(&self.nodes, |node| node.state);
     }
 
     fn with_state_roots<R>(
@@ -568,6 +572,34 @@ impl CheckedStructuralValuePlans {
     ) -> R {
         self.roots_by_state
             .with_rows(&self.roots, |root| root.state, &state, run)
+    }
+
+    fn with_machine_roots<R>(
+        &self,
+        machine: SymbolHandle,
+        run: impl FnOnce(&[Handle<CheckedStructuralValueRoot>]) -> R,
+    ) -> R {
+        self.roots_by_machine
+            .with_rows(&self.roots, |root| root.machine, &machine, run)
+    }
+
+    pub fn with_state_nodes<R>(
+        &self,
+        state: SymbolHandle,
+        run: impl FnOnce(&[Handle<CheckedStructuralValue>]) -> R,
+    ) -> R {
+        self.nodes_by_state
+            .with_rows(&self.nodes, |node| node.state, &state, run)
+    }
+
+    pub fn roots_for_machine(&self, machine: SymbolHandle) -> Vec<&CheckedStructuralValueRoot> {
+        self.with_machine_roots(machine, |handles| {
+            handles
+                .iter()
+                .map(|handle| self.roots.get(*handle))
+                .filter(|root| root.machine == machine)
+                .collect()
+        })
     }
 
     pub fn roots_for_state(&self, state: SymbolHandle) -> Vec<&CheckedStructuralValueRoot> {

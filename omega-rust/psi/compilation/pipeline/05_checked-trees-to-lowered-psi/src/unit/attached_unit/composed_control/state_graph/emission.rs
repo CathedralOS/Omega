@@ -87,6 +87,10 @@ pub(super) struct StateGraphEmission<'a, 'c> {
     occurrences: super::super::ComposedOccurrences,
     block_ranks: BTreeMap<BlockId, ValueId>,
     rank_edges: BTreeMap<EdgeId, (ValueId, terminal_psi::TerminalNaturalRankComparison)>,
+    owners: Vec<symbols::SymbolHandle>,
+    record_fields: Vec<crate::scalar_lowering::computations::fields::Binding>,
+    produced_values: Vec<crate::scalar_lowering::computations::produced_values::Slot>,
+    dynamic_dispatch: std::sync::Arc<crate::unit::dynamic_dispatch::DynamicDispatchIndex>,
 }
 
 pub(in crate::unit::attached_unit::composed_control) fn emit(
@@ -108,6 +112,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
     ),
     LoweringError,
 > {
+    let _setup_guard = phase_profile::guard("05.01.g1.1_setup");
     let result_places_start = catalogs.result_places.len();
     let mut structural_places = parameters
         .iter()
@@ -178,14 +183,28 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             }
         }
     }
-    for event in checked
-        .facts
-        .flow
-        .ownership
-        .permissions
-        .iter()
-        .map(|(_, event)| event)
-    {
+    let mut unique_states = Vec::with_capacity(state_owners.len());
+    for (state, _) in &state_owners {
+        if !unique_states.contains(state) {
+            unique_states.push(*state);
+        }
+    }
+    let mut permission_handles = Vec::new();
+    for &state in &unique_states {
+        checked
+            .facts
+            .flow
+            .ownership
+            .with_state_permissions(state, |handles| {
+                permission_handles.extend_from_slice(handles);
+            });
+    }
+    if unique_states.len() > 1 {
+        permission_handles.sort_unstable_by_key(|handle| handle.arena_index());
+        permission_handles.dedup();
+    }
+    for handle in permission_handles {
+        let event = checked.facts.flow.ownership.permissions.get(handle);
         let statement_index = match event.source {
             language_semantics::PermissionEventSource::Statement { statement_index }
             | language_semantics::PermissionEventSource::Call {
@@ -214,7 +233,27 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         let claim = claim_id(allocate_dense(&mut next_claim)?);
         claims.source_claims.push((event.claim_identity, claim));
     }
-    for (_, binding) in checked.facts.flow.ownership.selection_place_bindings.iter() {
+    let mut selection_binding_handles = Vec::new();
+    for &state in &unique_states {
+        checked
+            .facts
+            .flow
+            .ownership
+            .with_state_selection_place_bindings(state, |handles| {
+                selection_binding_handles.extend_from_slice(handles);
+            });
+    }
+    if unique_states.len() > 1 {
+        selection_binding_handles.sort_unstable_by_key(|handle| handle.arena_index());
+        selection_binding_handles.dedup();
+    }
+    for handle in selection_binding_handles {
+        let binding = checked
+            .facts
+            .flow
+            .ownership
+            .selection_place_bindings
+            .get(handle);
         if state_owners
             .iter()
             .any(|(state, machine)| *state == binding.state && *machine == binding.machine)
@@ -294,7 +333,22 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
     }
     // Private result joins share the published namespace of ordinary calls.
     // Reserving a typed path is not establishment; arrivals transport actual IDs.
-    for (value, node) in checked.facts.values.structural_values.nodes.iter() {
+    let mut structural_node_handles = Vec::new();
+    for &state in &unique_states {
+        checked
+            .facts
+            .values
+            .structural_values
+            .with_state_nodes(state, |handles| {
+                structural_node_handles.extend_from_slice(handles);
+            });
+    }
+    if unique_states.len() > 1 {
+        structural_node_handles.sort_unstable_by_key(|handle| handle.arena_index());
+        structural_node_handles.dedup();
+    }
+    for value in structural_node_handles {
+        let node = checked.facts.values.structural_values.nodes.get(value);
         if !plan.states.iter().any(|state| state.state == node.state)
             || !matches!(
                 node.kind,
@@ -633,6 +687,33 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
     )?;
     let block_ranks = std::collections::BTreeMap::new();
     let rank_edges = std::collections::BTreeMap::new();
+    let mut owners = Vec::with_capacity(admitted.authored.len());
+    for (owner, _) in &admitted.authored {
+        if !owners.contains(&owner.symbol) {
+            owners.push(owner.symbol);
+        }
+    }
+    let record_fields = crate::scalar_lowering::computations::fields::prepare(
+        identities,
+        checked,
+        plan.machine,
+        &owners,
+        &catalogs.structural_types,
+    )?;
+    let produced_values = crate::scalar_lowering::computations::produced_values::prepare(
+        identities,
+        checked,
+        &owners,
+        &catalogs.structural_types,
+    )?;
+    let dynamic_dispatch = catalogs
+        .dynamic_dispatch
+        .clone()
+        .unwrap_or_else(|| {
+            std::sync::Arc::new(crate::unit::dynamic_dispatch::DynamicDispatchIndex::new(
+                checked,
+            ))
+        });
     let mut emission = StateGraphEmission {
         checked,
         plan,
@@ -667,13 +748,21 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         qualification_coercions: Vec::new(),
         block_ranks,
         rank_edges,
+        owners,
+        record_fields,
+        produced_values,
+        dynamic_dispatch,
     };
+    drop(_setup_guard);
+    let _emit_states_guard = phase_profile::guard("05.01.g1.2_emit_states");
     for position in 0..plan.states.len() {
         if !emission.admitted.live[position] {
             continue;
         }
         emission.emit_state(identities, position)?;
     }
+    drop(_emit_states_guard);
+    let _finish_guard = phase_profile::guard("05.01.g1.3_finish");
     let live_states = std::mem::take(&mut emission.admitted.live);
     let StateGraphEmission {
         parameters,

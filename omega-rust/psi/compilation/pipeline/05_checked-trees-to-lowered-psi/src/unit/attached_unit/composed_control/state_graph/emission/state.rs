@@ -141,12 +141,6 @@ impl StateGraphEmission<'_, '_> {
         // its own machine, while scalar computation tables merge every
         // owner the roster admits.
         let owner = self.admitted.authored[position].0.symbol;
-        let owners = self
-            .admitted
-            .authored
-            .iter()
-            .map(|(owner, _)| owner.symbol)
-            .collect::<Vec<_>>();
         let state_parameters = self.state_views[position]
             .iter()
             .zip(&state.structural_parameters)
@@ -159,9 +153,7 @@ impl StateGraphEmission<'_, '_> {
             .collect::<Vec<_>>();
         let mut operations = OperationBuffer::new(
             self.catalogs.next_operation - 1,
-            std::sync::Arc::new(crate::unit::dynamic_dispatch::DynamicDispatchIndex::new(
-                checked,
-            )),
+            std::sync::Arc::clone(&self.dynamic_dispatch),
         );
         let mut evaluation = crate::unit::attached_unit::argument_evaluation::Evaluation {
             completed_operand_scope: Vec::new(),
@@ -193,13 +185,7 @@ impl StateGraphEmission<'_, '_> {
                     state.state,
                     &self.catalogs.structural_types,
                 ),
-            record_fields: crate::scalar_lowering::computations::fields::prepare(
-                identities,
-                checked,
-                plan.machine,
-                &owners,
-                &self.catalogs.structural_types,
-            )?,
+            record_fields: self.record_fields.clone(),
             literals: crate::scalar_lowering::computations::literals::prepare(
                 identities,
                 checked,
@@ -207,35 +193,30 @@ impl StateGraphEmission<'_, '_> {
                 &self.catalogs.structural_types,
                 &mut self.catalogs.next_place,
             )?,
-            produced_values: crate::scalar_lowering::computations::produced_values::prepare(
-                identities,
-                checked,
-                &owners,
-                &self.catalogs.structural_types,
-            )?,
+            produced_values: self.produced_values.clone(),
             observations: crate::scalar_lowering::computations::observations::prepare(
                 checked,
-                &owners,
+                &self.owners,
                 &mut self.catalogs.next_place,
             )?,
             call_views: crate::scalar_lowering::computations::call_views::prepare(
                 identities,
                 checked,
-                &owners,
+                &self.owners,
                 &self.catalogs.structural_types,
                 &mut self.catalogs.next_place,
             )?,
             subslices: crate::scalar_lowering::computations::subslices::prepare(
                 identities,
                 checked,
-                &owners,
+                &self.owners,
                 &self.catalogs.structural_types,
                 &mut self.catalogs.next_place,
             )?,
             cases: crate::scalar_lowering::computations::cases::prepare(
                 identities,
                 checked,
-                &owners,
+                &self.owners,
                 &self.catalogs.structural_types,
                 &mut self.catalogs.next_place,
             )?,

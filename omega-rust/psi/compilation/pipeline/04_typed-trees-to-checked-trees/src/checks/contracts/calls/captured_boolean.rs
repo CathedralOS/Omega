@@ -70,15 +70,18 @@ pub(super) fn judgment(
     })();
     if proven == Some(true)
         || (proven != Some(false)
-            && captured_float_requirement(program, facts, state, call, expression) == Some(true))
+            && phase_profile::scope("05.d.7.3b.1d.4b.captured_float", || {
+                captured_float_requirement(program, facts, state, call, expression)
+            }) == Some(true))
     {
         return Some(true);
     }
     // Ordinary proof routes observe the authored actual, not its initializer.
     // A retained value-origin proof may discharge the requirement first; a
     // failed origin proof cannot weaken the original operand's epoch fence.
-    if source_substitution_preserves_captures(program, facts, state, call, requirement)
-        == Some(true)
+    if phase_profile::scope("05.d.7.3b.1d.5.preserves_captures", || {
+        source_substitution_preserves_captures(program, facts, state, call, requirement)
+    }) == Some(true)
     {
         None
     } else {
@@ -186,19 +189,25 @@ fn captured_contract_proven(
             // actuals of this call. This capture-owned proof must precede the
             // source-substitution fence; repeatability of either runtime call
             // is neither necessary nor inferred.
-            let result = super::super::prover::call_guarantees::proves(
-                program, facts, state, call, contexts, *required, frames,
-            ) || super::super::current_values::proves_call(
-                program, state, call, *required, frames,
-            ) || super::super::entailment::structural_call_requirement(
-                program,
-                facts,
-                state,
-                call,
-                *required,
-                Some(contract_handle),
-                frames,
-            );
+            let result = phase_profile::scope("05.d.7.3b.1d.1.call_guarantees", || {
+                super::super::prover::call_guarantees::proves(
+                    program, facts, state, call, contexts, *required, frames,
+                )
+            }) || phase_profile::scope("05.d.7.3b.1d.2.current_values", || {
+                super::super::current_values::proves_call(
+                    program, state, call, *required, frames,
+                )
+            }) || phase_profile::scope("05.d.7.3b.1d.3.structural", || {
+                super::super::entailment::structural_call_requirement(
+                    program,
+                    facts,
+                    state,
+                    call,
+                    *required,
+                    Some(contract_handle),
+                    frames,
+                )
+            });
             whole_contract_cache.push((contract_handle, result));
             result
         };
@@ -208,18 +217,20 @@ fn captured_contract_proven(
     }
     // The retained contract and its call inputs are invariant across children.
     // Continue with expression-dependent attempts after this one fails.
-    captured_expression_proven(
-        program,
-        facts,
-        state,
-        call,
-        contexts,
-        contract,
-        target,
-        expression,
-        expression_intervals,
-        frames,
-    )
+    phase_profile::scope("05.d.7.3b.1d.4.captured_expr", || {
+        captured_expression_proven(
+            program,
+            facts,
+            state,
+            call,
+            contexts,
+            contract,
+            target,
+            expression,
+            expression_intervals,
+            frames,
+        )
+    })
 }
 
 /// Compose expression-dependent evidence after the whole-contract attempt.
