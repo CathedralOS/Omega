@@ -104,7 +104,9 @@ reaches FilesystemMetadataQuery {
         true -> block classify(raw)
         false -> refused(6)
     }
-    machine classify(handle: i64) -> i64 requires handle != 0 && handle != -1 {
+    machine classify(handle: i64) -> i64
+    ensures result != -1
+     requires handle != 0 && handle != -1 {
         WindowsFilesystemIo::c_set_last_error(0);
         let kind: u32 = block WindowsFilesystemMetadataIo::file_type(handle);
         transition kind == 1 {
@@ -112,20 +114,26 @@ reaches FilesystemMetadataQuery {
             false -> other(kind)
         }
     }
-    machine other(kind: u32) -> i64 {
+    machine other(kind: u32) -> i64
+    ensures result != -1
+     {
         transition kind == 0 {
             true -> unknown()
             false -> refused(50)
         }
     }
-    machine unknown() -> i64 {
+    machine unknown() -> i64
+    ensures result != -1
+     {
         let code: u32 = WindowsFilesystemIo::c_get_last_error();
         transition code != 0 {
             true -> refused(code)
             false -> refused(50)
         }
     }
-    machine refused(code: u32) -> i64 {
+    machine refused(code: u32) -> i64
+    ensures result != -1
+     {
         WindowsFilesystemIo::c_set_last_error(code);
         0
     }

@@ -21,9 +21,14 @@ pub(crate) fn project_public_domains<'a>(
 ) -> Result<Vec<ProjectedReviewRow<'a, PackageReviewDomainShape, DomainDefinition>>, Vec<Diagnostic>>
 {
     let mut rows = Vec::new();
-    for definition in compilation.domain_definitions().iter().filter(|row| {
-        row.is_public && is_product_scope_instance(&compilation.typed.symbols, row.symbol)
-    }) {
+    for definition in compilation
+        .domain_definitions()
+        .iter()
+        .filter(|row| row.is_public)
+    {
+        if !is_product_scope_instance(compilation, definition.symbol)? {
+            continue;
+        }
         let identity = nominal_identity(compilation, definition.symbol)?;
         if !reviewed_package_owns(&identity, package)? {
             continue;

@@ -35,7 +35,9 @@ ensures result != -1 {
         true -> block query(duplicate)
         _ -> (0)
     }
-    machine query(duplicate: u64) -> i64 {
+    machine query(duplicate: u64) -> i64
+    ensures result != -1
+     {
         let raw_handle: i64 = narrow_u64_to_i64_wrapping(duplicate);
         let mut status: WindowsFilesystemIoStatus;
         let mut mode: u32 = 0;
@@ -45,7 +47,9 @@ ensures result != -1 {
             _ -> block query_failed(duplicate, result)
         }
     }
-    machine checked(duplicate: u64, mode: u32) -> i64 {
+    machine checked(duplicate: u64, mode: u32) -> i64
+    ensures result != -1
+     {
         // FILE_SYNCHRONOUS_IO_ALERT | FILE_SYNCHRONOUS_IO_NONALERT.
         // An unknown/unsupported zero record is not synchronous evidence.
         let raw_handle: i64 = narrow_u64_to_i64_wrapping(duplicate);
@@ -54,11 +58,15 @@ ensures result != -1 {
             _ -> block refused(duplicate, 87)
         }
     }
-    machine query_failed(duplicate: u64, status: i32) -> i64 {
+    machine query_failed(duplicate: u64, status: i32) -> i64
+    ensures result != -1
+     {
         let code: u32 = WindowsFilesystemIo::c_status_to_error(status);
         transition code != 0 { true -> block refused(duplicate, code) _ -> block refused(duplicate, 87) }
     }
-    machine refused(duplicate: u64, code: u32) -> i64 {
+    machine refused(duplicate: u64, code: u32) -> i64
+    ensures result != -1
+     {
         let closed: i32 = block WindowsFilesystemNativeProvider::close_handle(duplicate);
         WindowsFilesystemIo::c_set_last_error(code);
         0

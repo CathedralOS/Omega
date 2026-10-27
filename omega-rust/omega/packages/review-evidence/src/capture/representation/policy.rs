@@ -37,8 +37,10 @@ pub(crate) fn project_checked_representation_policy<'a>(
     let mut declarations = Vec::new();
     for definition in compilation.data_definitions().iter().filter(|definition| {
         definition.supply_mode == language_semantics::DataSupplyMode::BoundaryOpaque
-            && is_product_scope_instance(&compilation.typed.symbols, definition.symbol)
     }) {
+        if !is_product_scope_instance(compilation, definition.symbol)? {
+            continue;
+        }
         let identity = nominal_identity(compilation, definition.symbol)?;
         if reviewed_package_owns(&identity, package)? {
             declarations.push(identity);

@@ -112,7 +112,7 @@ impl TypedReferences for PortableReferences<'_> {
             .machine_by_symbol(symbol)
             .is_some_and(|machine| {
                 machine.purpose == typed_trees::machine::MachinePurpose::ProviderDefaults
-                    || self.program.machine_authored_target(machine).is_some()
+                    || self.program.source_target_context(machine).is_some()
             })
             || self.program.symbols.get(symbol).kind == symbols::SymbolKind::Conformance
             || self

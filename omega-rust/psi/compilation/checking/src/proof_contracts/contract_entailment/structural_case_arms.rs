@@ -1770,11 +1770,13 @@ fn recognize_structural_state_leaves_from<'a>(
                 // the existing denotational eligibility requirement.
                 let body_transfer = terminal_body_transfer(
                     program,
+                    machine,
                     invocation,
                     state,
                     target,
                     transition.source_target,
                     classification,
+                    requirement.is_some(),
                     judge.requires_value_preservation(),
                 );
                 if let Some((target_state, argument_handles, call_expression)) = body_transfer
@@ -2015,13 +2017,16 @@ struct TerminalArm {
 /// but an admitted checked body supplies the same proof path. Resolve the exact
 /// selected declaration, then capture expression-call actuals through the normal
 /// ordered entry owner. No completed result or callee guarantee is assumed.
+#[allow(clippy::too_many_arguments)]
 fn terminal_body_transfer<'program>(
     program: &'program dyn crate::CheckingInput,
+    proof_root: &Machine,
     invocation: &Machine,
     state: &typed_trees::state::State,
     target: &TransitionTargetNode,
     source_target: Option<typed_trees::statement::TransitionTargetHandle>,
     classification: &typed_trees::proof_only::ProofOnlyClassification,
+    observe_entry: bool,
     preserve_runtime_values: bool,
 ) -> Option<(
     &'program typed_trees::state::State,
@@ -2069,6 +2074,44 @@ fn terminal_body_transfer<'program>(
             else {
                 return None;
             };
+            // A completed mathematical call retains its application and
+            // exact actuals in the ordinary normal-return judgment. Entering
+            // operational states would replace that result's declaration
+            // frame. Subordinate proof bodies retain their case refinements and
+            // licensed recursive applications, and resultless invocations
+            // execute their proof statements. Explicit premise observers also
+            // retain their authenticated body-entry route.
+            if !observe_entry
+                && !matches!(
+                    program
+                        .type_reference_table
+                        .type_reference(entry.return_type),
+                    typed_trees::types::TypeReferenceNode::Unit
+                )
+                && super::structural_judgment::normal_returns::call_has_mathematical_denotation(
+                    program,
+                    invocation.symbol,
+                    call,
+                )
+            {
+                let typed = program.typed_program();
+                let root = typed.lifetime_declaration_owner(proof_root.symbol);
+                let mut owner = typed.declaration_scope_parent(callee.symbol);
+                let mut visited = Vec::new();
+                let mut subordinate = false;
+                while owner.is_valid() && !visited.contains(&owner) {
+                    owner = typed.lifetime_declaration_owner(owner);
+                    if owner == root && root.is_valid() {
+                        subordinate = true;
+                        break;
+                    }
+                    visited.push(owner);
+                    owner = typed.declaration_scope_parent(owner);
+                }
+                if !subordinate {
+                    return None;
+                }
+            }
             (
                 callee,
                 entry,

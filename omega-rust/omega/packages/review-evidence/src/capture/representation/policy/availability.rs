@@ -21,12 +21,14 @@ pub(super) fn project(
     let mut rows = Vec::new();
     for declaration in compilation.conformances().iter().filter(|declaration| {
         declaration.is_public
-            && is_product_scope_instance(&compilation.typed.symbols, declaration.symbol)
             && representation_planning::is_compiler_owned_opaque_representation_trait(
                 compilation.checking_input,
                 declaration.trait_symbol,
             )
     }) {
+        if !is_product_scope_instance(compilation, declaration.symbol)? {
+            continue;
+        }
         let identity = nominal_identity(compilation, declaration.symbol)?;
         if !reviewed_package_owns(&identity, package)? {
             continue;

@@ -1,0 +1,23 @@
+// Every private arrival carries an in-bounds index, so the helper can read bytes[index].
+// Expected exit: 0.
+data Note { value: u64; tag: u64; }
+machine identity(index: u64) -> u64 ensures result == index; { index }
+machine probe(bytes: &[u64], index: u64, select: bool) -> Note {
+    transition index < bytes.len { true -> element(bytes, identity(index), select) _ -> Note { value: 0, tag: 0 } }
+    machine element(bytes: &[u64], index: u64, select: bool) -> Note {
+        let value: u64 = bytes[index];
+        let tag: u64 = match select { true -> 11, false -> 13 };
+        Note { value: value, tag: tag }
+    }
+}
+machine main() crashes Trap {
+    let bytes: [u64; 3] = [17, 29, 41];
+    let first: Note = probe(&bytes, 0, true);
+    let last: Note = probe(&bytes, 2, false);
+    let outside: Note = probe(&bytes, 3, true);
+    transition first.value == 17 && first.tag == 11 && last.value == 41 && last.tag == 13 && outside.value == 0 && outside.tag == 0 {
+        true -> done() _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}

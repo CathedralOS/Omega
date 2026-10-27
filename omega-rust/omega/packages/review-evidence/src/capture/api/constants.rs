@@ -18,11 +18,11 @@ pub(crate) fn project_public_consts<'a>(
     for declaration in compilation
         .const_declarations()
         .iter()
-        .filter(|declaration| {
-            declaration.is_public
-                && is_product_scope_instance(&compilation.typed.symbols, declaration.symbol)
-        })
+        .filter(|declaration| declaration.is_public)
     {
+        if !is_product_scope_instance(compilation, declaration.symbol)? {
+            continue;
+        }
         let identity = nominal_identity(compilation, declaration.symbol)?;
         if !reviewed_package_owns(&identity, package)? {
             continue;

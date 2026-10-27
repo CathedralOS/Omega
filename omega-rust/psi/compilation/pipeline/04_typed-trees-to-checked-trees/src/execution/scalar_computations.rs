@@ -653,7 +653,11 @@ pub(crate) fn build_checked_value_computation_plans(
                         machine,
                         transfer.target,
                     )
-                    .and_then(|target_index| states.get(target_index)) else {
+                    .and_then(|target_index| states.get(target_index))
+                    .or_else(|| {
+                        validation::find_machine_head(program, transfer.target)
+                            .map(|(_, entry)| entry)
+                    }) else {
                         continue;
                     };
                     // Tail-normalized calls deliver into entry storage just
