@@ -25,7 +25,6 @@ pub(super) fn assign_measure_expression_symbols(
             symbol: SymbolHandle::invalid(),
             lexical_requirements: super::scope::LexicalRequirements::none(),
             type_parameters: &[],
-            attached_data: None,
             attached_data_symbol: SymbolHandle::invalid(),
             inherited_data_members: None,
             owned_data: &[],

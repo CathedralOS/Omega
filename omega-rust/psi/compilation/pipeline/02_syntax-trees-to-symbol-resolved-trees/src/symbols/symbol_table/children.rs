@@ -35,9 +35,9 @@ pub(super) use propositions::insert_proposition_symbol_children;
 pub(super) use traits::insert_trait_symbol_children;
 
 use symbol_resolved_trees::SymbolResolvedTrees;
-use symbols::{SymbolHandle, SymbolKind, SymbolTableAppender, SymbolTableBuilder};
+use symbols::{SymbolHandle, SymbolTableAppender, SymbolTableBuilder};
 
-use super::names::{symbol_seed, type_parameter_seed};
+use super::names::{parameter_seeds, type_parameter_seeds};
 
 pub(super) fn insert_measure_symbol_children(
     builder: &mut impl SymbolTableAppender,
@@ -47,10 +47,7 @@ pub(super) fn insert_measure_symbol_children(
 ) {
     builder.insert_children(
         measure_symbol,
-        measure
-            .parameter
-            .iter()
-            .map(|parameter| symbol_seed(SymbolKind::Parameter, &parameter.name, has_sources)),
+        parameter_seeds(measure.parameter.iter(), has_sources),
     );
 }
 
@@ -95,18 +92,15 @@ fn insert_machine_parameter_signature_children(
 ) {
     let children = builder.insert_children(
         owner_symbol,
-        program
-            .data_type_parameters(signature.type_parameters)
-            .iter()
-            .map(|parameter| type_parameter_seed(parameter, false, has_sources))
-            .chain(
-                program
-                    .state_parameters(signature.parameters)
-                    .iter()
-                    .map(|parameter| {
-                        symbol_seed(SymbolKind::Parameter, &parameter.name, has_sources)
-                    }),
-            ),
+        type_parameter_seeds(
+            program.data_type_parameters(signature.type_parameters),
+            false,
+            has_sources,
+        )
+        .chain(parameter_seeds(
+            program.state_parameters(signature.parameters),
+            has_sources,
+        )),
     );
 
     let mut children = SymbolTableBuilder::child_handles(children);
@@ -128,10 +122,11 @@ pub(in crate::symbols::symbol_table) fn insert_conformance_symbol_children(
 ) {
     let children = builder.insert_children(
         conformance_symbol,
-        program
-            .data_type_parameters(conformance.type_parameters)
-            .iter()
-            .map(|parameter| type_parameter_seed(parameter, true, has_sources)),
+        type_parameter_seeds(
+            program.data_type_parameters(conformance.type_parameters),
+            true,
+            has_sources,
+        ),
     );
 
     let mut children = SymbolTableBuilder::child_handles(children);
@@ -154,12 +149,7 @@ pub(in crate::symbols::symbol_table) fn insert_conformance_symbol_children(
             symbol_resolved_trees::data::TypeParameterKind::Proposition { contract } => {
                 builder.insert_children(
                     parameter_symbol,
-                    program
-                        .state_parameters(contract.parameters)
-                        .iter()
-                        .map(|parameter| {
-                            symbol_seed(SymbolKind::Parameter, &parameter.name, has_sources)
-                        }),
+                    parameter_seeds(program.state_parameters(contract.parameters), has_sources),
                 );
             }
             _ => {}

@@ -405,7 +405,6 @@ pub(super) struct MachineScope<'program> {
     /// rescanning (or a thread-local side table).
     pub(super) resolution_indexes: &'program ResolvedIndexes,
     pub(super) type_parameters: &'program [symbol_resolved_trees::data::TypeParameter],
-    pub(super) attached_data: Option<&'program symbol_resolved_trees::name::DiagnosticName>,
     pub(super) attached_data_symbol: SymbolHandle,
     pub(super) inherited_data_members: Option<&'program [symbol_resolved_trees::data::DataMember]>,
     pub(super) owned_data: &'program [symbol_resolved_trees::machine::OwnedData],
@@ -444,7 +443,6 @@ impl<'program> ContractScopeContext<'program> {
         symbol: SymbolHandle,
         lexical_requirements: LexicalRequirements<'program>,
         type_parameters: &'program [symbol_resolved_trees::data::TypeParameter],
-        attached_data: Option<&'program symbol_resolved_trees::name::DiagnosticName>,
         attached_data_symbol: SymbolHandle,
         inherited_data_members: Option<&'program [DataMember]>,
         owned_data: &'program [symbol_resolved_trees::machine::OwnedData],
@@ -455,7 +453,6 @@ impl<'program> ContractScopeContext<'program> {
             attached_machines: self.attached_machines,
             resolution_indexes: self.resolution_indexes,
             type_parameters,
-            attached_data,
             attached_data_symbol,
             inherited_data_members,
             owned_data,
