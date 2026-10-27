@@ -29,12 +29,13 @@ creates no runtime receiver or authority. Each twin changes only the bound to
 72. The target place uses four ordinary named implementations, each selected
 by its target's Build entry, as required by the ratified target-selection model.
 
-Optimized producer `908c7c891c76347f6c9406f45e8e222fc5d23a3a` executes the root
+Fresh optimized Rust producer `0b4dc5763bf5f093e14605958817c031e4df07f5` executes the root
 and all nine public places with native and Terminal exit 0 on macOS ARM64;
 all nine pinned positives also agree in the corpus, and all nine twins reject
-their exact-arithmetic obligation. Foreign-host execution is not claimed by
+their missing-bound obligations. Foreign-host execution is not claimed by
 this observation. The qualification record retains the producer, accepted
-replay inputs, raw streams and canonical Terminal products.
+replay inputs, raw streams and canonical Terminal products (native-row receipt
+`ba8a0eb05b92405f9823ca2704447c67`, macOS ARM64).
 
 The [constant formation control](../../../../tests/omega/pass/domains/logical_subject_constants/main.omg)
 covers scalar, generic, indexed and record subjects independently of outer
