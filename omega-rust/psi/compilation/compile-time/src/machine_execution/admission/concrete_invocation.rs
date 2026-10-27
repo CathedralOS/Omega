@@ -147,7 +147,7 @@ pub(super) fn argument_independent_closure_discharges(
         require_complete_invocation_conditions(checked, machine.symbol)?;
         return Ok(true);
     }
-    checked_demanded_closure(admission, program, machine.symbol)?;
+    admission.checked_closure_admission(program, machine.symbol)?;
     Ok(true)
 }
 

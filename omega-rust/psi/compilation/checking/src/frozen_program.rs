@@ -688,6 +688,8 @@ pub struct CheckingMemos {
             >,
         >,
     >,
+    pub(crate) normal_completion_possible:
+        Mutex<symbols::SymbolKeyMap<symbols::SymbolHandle, Option<bool>>>,
 }
 
 impl CheckingMemos {
@@ -730,6 +732,7 @@ impl CheckingMemos {
             bound_maps: self.bound_maps,
             declared_float_field_bounds: self.declared_float_field_bounds,
             private_closed_arrivals: self.private_closed_arrivals,
+            normal_completion_possible: self.normal_completion_possible,
             ..Self::default()
         }
     }
@@ -767,6 +770,12 @@ impl CheckingMemos {
             ),
             private_closed_arrivals: Mutex::new(
                 self.private_closed_arrivals
+                    .lock()
+                    .map(|guard| guard.clone())
+                    .unwrap_or_default(),
+            ),
+            normal_completion_possible: Mutex::new(
+                self.normal_completion_possible
                     .lock()
                     .map(|guard| guard.clone())
                     .unwrap_or_default(),

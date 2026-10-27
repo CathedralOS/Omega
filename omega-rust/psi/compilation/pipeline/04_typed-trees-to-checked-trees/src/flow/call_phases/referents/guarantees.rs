@@ -43,6 +43,34 @@ impl PreparedGuarantees {
         }
     }
 
+    pub fn has_domain(&self, domain: SymbolHandle, identity: SemanticDomainId) -> bool {
+        self.exact
+            .iter()
+            .any(|row| row.domain == domain && row.identity == identity)
+            || self
+                .selected
+                .iter()
+                .any(|row| row.domain == domain && row.identity == identity)
+    }
+
+    pub fn can_restore_place(
+        &self,
+        program: &dyn validation::CheckingInput,
+        concrete: &CanonicalPlace,
+        domain: SymbolHandle,
+        identity: SemanticDomainId,
+    ) -> bool {
+        let matches_domain =
+            |row: &ReturnedGuarantee| domain == row.domain && identity == row.identity;
+        let key = facts::places::place_bucket_hash(concrete.root, &concrete.segments);
+        self.exact_positions.candidates(key).any(|position| {
+            let row = &self.exact[position];
+            row.place == *concrete && matches_domain(row)
+        }) || self.selected.iter().any(|row| {
+            matches_domain(row) && same_occurrence_when_selected(program, concrete, &row.place)
+        })
+    }
+
     /// The caller has independently established the concrete fact's static
     /// identity and this writer's overlap/confinement. Match only that formal,
     /// domain instance and occurrence; a guarantee on another writer is inert.

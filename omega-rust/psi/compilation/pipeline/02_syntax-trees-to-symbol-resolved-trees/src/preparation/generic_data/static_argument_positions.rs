@@ -31,6 +31,9 @@ pub(super) fn collect(
     };
     for (_, expression) in syntax.expressions.iter_expressions() {
         if let ExpressionNode::Call(call) = expression {
+            if !has_const_expression_argument(syntax, &call.machine_arguments) {
+                continue;
+            }
             let mut name = call.target.as_str(syntax).to_owned();
             if call.receiver.is_valid() {
                 let ExpressionNode::Name(path) = syntax.expressions.expression(call.receiver)
@@ -58,6 +61,9 @@ pub(super) fn collect(
             .statements(syntax.items.state(state).statements)
         {
             if let StatementNode::Call(call) = syntax.statements.statement(*statement) {
+                if !has_const_expression_argument(syntax, &call.machine_arguments) {
+                    continue;
+                }
                 let mut path = syntax
                     .statements
                     .identifier_path_members(call.receiver)
@@ -74,6 +80,27 @@ pub(super) fn collect(
     }
 }
 
+fn has_const_expression_argument(
+    syntax: &SyntaxTrees,
+    arguments: &[StaticMachineArgument],
+) -> bool {
+    arguments.iter().any(|argument| {
+        (argument.type_reference.is_valid()
+            && matches!(
+                syntax
+                    .type_references
+                    .type_reference(argument.type_reference),
+                TypeReferenceNode::ConstExpression(_)
+            ))
+            || argument
+                .application
+                .as_ref()
+                .is_some_and(|application| {
+                    has_const_expression_argument(syntax, &application.arguments)
+                })
+    })
+}
+
 fn collect_application(
     syntax: &SyntaxTrees,
     selection: &ConstantSelection<'_>,
@@ -83,7 +110,15 @@ fn collect_application(
     public_positions: &[TypeReferenceHandle],
     pending: &mut Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)>,
 ) {
-    if let Some(parameters) = selection.static_parameters(syntax, name)
+    if arguments.iter().any(|argument| {
+        argument.type_reference.is_valid()
+            && matches!(
+                syntax
+                    .type_references
+                    .type_reference(argument.type_reference),
+                TypeReferenceNode::ConstExpression(_)
+            )
+    }) && let Some(parameters) = selection.static_parameters(syntax, name)
         && parameters.len() == arguments.len()
     {
         for (parameter, argument) in parameters.iter().zip(arguments) {
