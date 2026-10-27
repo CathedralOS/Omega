@@ -1,0 +1,8 @@
+{
+  "revision": "0585496995cdeef01962f55897c36841d29b8da2",
+  "executables": {
+    "omega": "bbec2a18212d86c818a9fbbe1645e68675518ecc1aaa4d8ac000ea28f7bc2b88",
+    "corpus_runner": "e93e7eda508bfaf0b3e4702e6819c9636d8cd5331e77196d534456a9ed333376"
+  },
+  "profile": "{\"schema\":\"omega-compiler-build-profile-v1\",\"opt_level\":\"1\"}\n"
+}
