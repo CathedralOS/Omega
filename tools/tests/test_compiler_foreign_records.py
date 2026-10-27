@@ -1,0 +1,133 @@
+"""Reject incomplete rows, stale producers and hidden cohort failures before credit."""
+import hashlib
+import json
+import os
+from pathlib import Path
+import sys
+import tempfile
+import unittest
+from unittest.mock import Mock, patch
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "ci"))
+import compiler_fact_rows as rows
+import compiler_foreign_records as foreign
+import compiler_pilot as pilot
+
+
+class OwnedForeignCohortTests(unittest.TestCase):
+    def fact(self, root):
+        fact = root / "samples/cli/facts/example"
+        fact.mkdir(parents=True)
+        main = "// Expected exit: 0\nmachine run_main() {}\n"
+        for name in ("main.omg", "build.omg"):
+            (fact / name).write_text(main)
+        for place in rows.PLACES:
+            for tier, suffix, source in (("pass", "exit", fact / place),
+                                         ("fail", "rejected", fact / place / "invalid")):
+                source.mkdir(parents=True)
+                fixture = root / f"tests/omega/{tier}/facts/example_through_{place}_{suffix}"
+                fixture.mkdir(parents=True)
+                for folder in (source, fixture):
+                    (folder / "main.omg").write_text(main if tier == "pass" else "broken copy obligation\n")
+                    (folder / "build.omg").write_text("authored package\n")
+                    if tier == "fail":
+                        (folder / "expected.txt").write_text("holds no value\n")
+        return fact
+
+    def test_selection_is_explicit_and_default_cohort_stays_available(self):
+        self.assertEqual(foreign.select_cohorts("nested, arrays,nested"), ("nested", "arrays"))
+        self.assertEqual(foreign.select_cohorts("all"), ("scalar-opaque", "nested", "arrays"))
+        for selection in ("", " , ", "unknown", "nested,unknown", "nested; echo wrong"):
+            with self.subTest(selection=selection), self.assertRaises(ValueError):
+                foreign.select_cohorts(selection)
+
+    def test_missing_twin_and_changed_pin_refuse_discovery(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fact = self.fact(root)
+            positive, negative = rows.fixtures(root, fact, "example")
+            self.assertEqual((len(positive), len(negative)), (9, 9))
+            twin = root / "tests/omega" / negative[0] / "main.omg"
+            twin.write_text("unrelated invalid source\n")
+            with self.assertRaisesRegex(ValueError, "pinned input differs"):
+                rows.fixtures(root, fact, "example")
+            twin.unlink()
+            with self.assertRaisesRegex(ValueError, "required authored place/twin"):
+                rows.fixtures(root, fact, "example")
+
+    def test_root_cannot_silently_lose_its_runtime_oracle(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fact = self.fact(root)
+            (fact / "main.omg").write_text("machine run_main() {}\n")
+            with self.assertRaisesRegex(ValueError, "zero-exit oracle"):
+                rows.fixtures(root, fact, "example")
+
+    def test_mutating_frozen_source_or_lock_refuses(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary) / "main.omg"
+            lock = Path(temporary) / "omega.lock"
+            source.write_text("frozen source\n")
+            lock.write_text("exact reviewed lock\n")
+            row = dict(authored_inputs={str(source): rows.digest(source)}, inputs={str(lock): rows.digest(lock)})
+            rows.validate_inputs(row)
+            lock.write_text("another producer's lock\n")
+            with self.assertRaisesRegex(ValueError, "frozen authored/replay input changed"):
+                rows.validate_inputs(row)
+
+    def run_cohorts(self, root, failures):
+        producer = Mock()
+        producer.record.return_value = dict(revision="a" * 40)
+        with patch.object(pilot, "ROOT", root), patch.dict(os.environ), \
+             patch.object(pilot, "command", return_value="a" * 40), \
+             patch.object(pilot.corpus_gate, "host_target", return_value="linux_x86_64"), \
+             patch.object(pilot, "prepare_producer", return_value=producer) as build, \
+             patch.object(rows, "fixtures", return_value=(("positive",), ("negative",))), \
+             patch.object(foreign, "prepare_provider", return_value=root / "provider/library"), \
+             patch.object(foreign, "owned_row", side_effect=failures) as qualify:
+            status = foreign.main(["--cohorts", "nested,arrays"])
+        report = json.loads((root / "build/compiler-foreign-records/latest.json").read_text())
+        return status, report, build.call_count, qualify.call_count
+
+    def test_failed_cohort_never_hides_later_measurements_or_turns_green(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            status, report, builds, measured = self.run_cohorts(Path(temporary), [ValueError("native timeout"), None])
+        self.assertEqual((status, builds, measured), (1, 1, 2))
+        self.assertEqual([row["passed"] for row in report["cohorts"]], [False, True])
+        self.assertEqual(report["cohorts"][0]["error"], "native timeout")
+        self.assertFalse(report["passed"])
+
+    def test_complete_cohorts_share_exactly_one_producer(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            status, report, builds, measured = self.run_cohorts(Path(temporary), [None, None])
+        self.assertEqual((status, builds, measured), (0, 1, 2))
+        self.assertTrue(report["passed"])
+
+    def test_provider_environment_is_restored_after_failure(self):
+        library = Path("provider/library.dll").resolve()
+        with patch.dict(os.environ, {"PATH": "original path"}), patch.object(foreign.os, "name", "nt"):
+            with self.assertRaisesRegex(ValueError, "intended failure"):
+                with foreign.provider_path(library):
+                    self.assertEqual(os.environ["PATH"], str(library.parent) + os.pathsep + "original path")
+                    raise ValueError("intended failure")
+            self.assertEqual(os.environ["PATH"], "original path")
+
+    def test_changed_retained_binary_refuses_even_when_profile_kind_is_same(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            cli, runner = Path(temporary) / "omega", Path(temporary) / "corpus_runner"
+            cli.write_bytes(b"first CLI")
+            runner.write_bytes(b"first runner")
+            def profile(path):
+                return dict(binary=str(path), sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
+                            profile=dict(schema="omega-compiler-build-profile-v1", opt_level="1"))
+            producer = pilot.CompilerProducer("a" * 40, "b" * 40, "linux_x86_64", "pinned rustc", cli, runner, profile(cli), profile(runner))
+            with patch.object(pilot, "command", side_effect=lambda argv: "a" * 40 if "rev-parse" in argv else ""), \
+                 patch.object(pilot.corpus_gate, "require_optimized", side_effect=profile):
+                producer.verify()
+                runner.write_bytes(b"replacement runner")
+                with self.assertRaisesRegex(ValueError, "identity/profile changed"):
+                    producer.verify()
+
+
+if __name__ == "__main__":
+    unittest.main()
