@@ -44,7 +44,7 @@ use semantic_vocabulary::{
     IntegerCarrier, IntegerMathTerm, IntegerSign, IntegerValue, Proposition, ScalarTerm,
 };
 
-use super::super::scheme_dsl::{self, apps, id, pi, scheme_at, v};
+use super::super::scheme_dsl::{self, apps, id, pi, pis, scheme_at, v};
 use super::denotation::{BinaryBoundOperation, math_less_or_equal_sides};
 use super::{
     BoundedDenotationError, Denotation, IntegerLaw, Term, TermHandle,
@@ -117,10 +117,7 @@ impl Denotation {
                 let constant = |position| scheme_at(position, Vec::new());
                 let carrier = || constant(integer);
                 let binders = |names: &[&'static str], body| {
-                    names
-                        .iter()
-                        .rev()
-                        .fold(body, |inner, name| pi(name, carrier(), inner))
+                    pis(names.iter().map(|name| (*name, carrier())), body)
                 };
                 let subtract = |left, right| apps(constant(operation), [left, right]);
                 let lt = |left, right| apps(constant(less_than), [left, right]);
@@ -722,16 +719,7 @@ impl Denotation {
         conclusion: &Proposition,
     ) -> Result<Option<TermHandle>, BoundedDenotationError> {
         self.direct_binary_bound_evidence(
-            &BinaryBoundOperation {
-                target: crate::term_matchers::exact_integer_subtract,
-                is_target_operation: crate::term_matchers::is_math_subtract,
-                right_antitone: true,
-                terms: Self::subtract_terms,
-                monotone: |denotation, arguments| {
-                    denotation.subtract_law_application(Law::MonotoneAntitone, arguments)
-                },
-                numeral_equation: Self::numeral_difference,
-            },
+            &Subtraction::bound_operation(),
             premise,
             evidence,
             witness,
@@ -762,16 +750,7 @@ impl Denotation {
         conclusion: &Proposition,
     ) -> Result<Option<TermHandle>, BoundedDenotationError> {
         self.exact_binary_definition_bound_evidence(
-            &BinaryBoundOperation {
-                target: crate::term_matchers::exact_integer_subtract,
-                is_target_operation: crate::term_matchers::is_math_subtract,
-                right_antitone: true,
-                terms: Self::subtract_terms,
-                monotone: |denotation, arguments| {
-                    denotation.subtract_law_application(Law::MonotoneAntitone, arguments)
-                },
-                numeral_equation: Self::numeral_difference,
-            },
+            &Subtraction::bound_operation(),
             left_bound,
             left_evidence,
             right_bound,
@@ -784,6 +763,23 @@ impl Denotation {
 }
 
 impl Subtraction {
+    /// The binary bound-operation descriptor both exact-subtract entry points
+    /// hand the shared evidence owners: the exact-subtract operand terms,
+    /// antitone right operand, and the numeral-difference bridge. The direct
+    /// and definition forms differ only in what they pass beside it.
+    fn bound_operation() -> BinaryBoundOperation {
+        BinaryBoundOperation {
+            target: crate::term_matchers::exact_integer_subtract,
+            is_target_operation: crate::term_matchers::is_math_subtract,
+            right_antitone: true,
+            terms: Denotation::subtract_terms,
+            monotone: |denotation, arguments| {
+                denotation.subtract_law_application(Law::MonotoneAntitone, arguments)
+            },
+            numeral_equation: Denotation::numeral_difference,
+        }
+    }
+
     /// Exact internally audited semantic roster, excluding arbitrary source,
     /// decision and value-parameter assumptions sharing the signature.
     pub(super) fn source_safety_roster(&self) -> Vec<u32> {

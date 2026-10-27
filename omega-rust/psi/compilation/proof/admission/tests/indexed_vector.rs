@@ -47,125 +47,9 @@ use proof_admission::{
 //
 // Positions 0–4 are the derived scheme (`IndexedAt`, `IW`, `iwPack`,
 // `isup`, `iindW`); the vector's index arithmetic and element type are
-// the appended assumptions:
-
-/// `λ(_ : Two). Type 0` — the constant motive every `caseTwo` selecting
-/// *types* here shares.
-
-/// `Id Two zero one` — the empty child position: no closed inhabitant,
-/// so a node whose `B` selects it has no reachable children.
-
-/// `Id Two zero zero` — the single child position, inhabited by `refl`.
-
-/// `B = λ(a : A). caseTwo(λ_.Type 0, Id Two zero one, Id Two zero zero,
-/// fst a)` — child positions selected by tag: none under nil, one under
-/// cons.
-fn branching(arena: &mut TermArena) -> TermHandle {
-    let motive = type_motive(arena);
-    let empty = empty_positions(arena);
-    let unit = unit_position(arena);
-    let bound = variable(arena, 0);
-    let tag = fst(arena, bound);
-    let body = case_two(arena, motive, empty, unit, tag);
-    let domain = carrier(arena, elem_nat_payload);
-    lambda(arena, domain, body)
-}
-
-/// `out = λ(a : A). caseTwo(M, λ_. zeroN, λp. succN (snd p), fst a)
-/// (snd a)` with `M tag = Π(_ : Payload tag). Nat` — the index a node
-/// produces: `zeroN` under nil, `succN n` under `cons ⟨e, n⟩`.
-fn out_index(arena: &mut TermArena) -> TermHandle {
-    let motive = {
-        // Under the tag binder: `Π(_ : Payload tag). Nat`.
-        let tag = variable(arena, 0);
-        let payload_fn = elem_nat_payload(arena);
-        let payload_at = apply(arena, payload_fn, tag);
-        let length = nat(arena);
-        let codomain = pi(arena, payload_at, length);
-        let domain = two(arena);
-        lambda(arena, domain, codomain)
-    };
-    let zero_branch = {
-        // `λ(_ : Two). zeroN`, checked at `Π(_ : Payload zero ≡ Two). Nat`.
-        let domain = two(arena);
-        let zero = nat_zero(arena);
-        lambda(arena, domain, zero)
-    };
-    let one_branch = {
-        // `λ(p : Σ(e : Elem). Nat). succN (snd p)` at
-        // `Π(_ : Payload one ≡ Σ(e : Elem). Nat). Nat`.
-        let domain = {
-            let element = elem(arena);
-            let length = nat(arena);
-            sigma(arena, element, length)
-        };
-        let bound = variable(arena, 0);
-        let predecessor = snd(arena, bound);
-        let body = nat_succ(arena, predecessor);
-        lambda(arena, domain, body)
-    };
-    let carrier_handle = carrier(arena, elem_nat_payload);
-    tag_selected_children(arena, carrier_handle, motive, zero_branch, one_branch)
-}
-
-/// `next = λ(a : A). caseTwo(M, λp.λ_. zeroN, λp.λ_. snd p, fst a)
-/// (snd a)` with `M tag = Π(p : Payload tag). Π(_ : B' tag). Nat` and
-/// `B' tag = caseTwo(λ_.Type 0, Id Two zero one, Id Two zero zero, tag)`
-/// — the index each child position requires: unreachable under nil
-/// (any `Nat` answers), and `snd p = n`, the predecessor, under cons.
-fn next_index(arena: &mut TermArena) -> TermHandle {
-    let motive = {
-        // `λ(tag : Two). Π(p : Payload tag). Π(_ : B' tag). Nat`.
-        let tag = variable(arena, 0);
-        let payload_fn = elem_nat_payload(arena);
-        let payload_at = apply(arena, payload_fn, tag);
-        let branching_at = {
-            // Under the `p` binder the tag is index 1.
-            let motive = type_motive(arena);
-            let empty = empty_positions(arena);
-            let unit = unit_position(arena);
-            let tag = variable(arena, 1);
-            case_two(arena, motive, empty, unit, tag)
-        };
-        let length = nat(arena);
-        let inner = pi(arena, branching_at, length);
-        let body = pi(arena, payload_at, inner);
-        let domain = two(arena);
-        lambda(arena, domain, body)
-    };
-    // `λ(p : Two). λ(_ : Id Two zero one). zeroN` — the dead position is
-    // answered by any length.
-    let zero_branch = zero_nat_branch(arena);
-    let one_branch = {
-        // `λ(p : Σ(e : Elem). Nat). λ(_ : Id Two zero zero). snd p` —
-        // the child's required index is the recorded predecessor.
-        let payload_domain = {
-            let element = elem(arena);
-            let length = nat(arena);
-            sigma(arena, element, length)
-        };
-        let position_domain = unit_position(arena);
-        let bound = variable(arena, 1);
-        let body = snd(arena, bound);
-        let inner = lambda(arena, position_domain, body);
-        lambda(arena, payload_domain, inner)
-    };
-    let carrier_handle = carrier(arena, elem_nat_payload);
-    tag_selected_children(arena, carrier_handle, motive, zero_branch, one_branch)
-}
-
-/// The length-indexed vector family over the assumed `Nat`/`Elem`:
-/// `Vec n = IW Nat A B out next n` with the computed description above.
-fn vector_family(arena: &mut TermArena) -> IndexedFamily {
-    IndexedFamily {
-        levels: [Level::Constant(0), Level::Constant(0), Level::Constant(0)],
-        index: nat(arena),
-        carrier: carrier(arena, elem_nat_payload),
-        children: branching(arena),
-        out: out_index(arena),
-        next: next_index(arena),
-    }
-}
+// the appended assumptions. The family's own description — `B_v`, `out_v`,
+// `next_v` and their `A_v` carrier — is `common::vector_family`, the one
+// vector encoding every indexed fixture shares.
 
 /// The producer signature: the five scheme declarations then the four
 /// vector assumptions `Nat`, `zeroN`, `succN`, `Elem`.
@@ -228,59 +112,9 @@ fn eliminator_context(arena: &mut TermArena, family: &IndexedFamily) -> Context 
         let index_type = nat(arena);
         pi(arena, index_type, inner)
     };
-    let step_type = {
-        // `Π(a : A). Π(g : Π(b : B a). Vec (next a b)).
-        //   Π(_ : Π(b : B a). Q (next a b) (g b)). Q (out a) (isup a g)`
-        // written under the one-binding prefix [Q].
-        let g_type = {
-            // Under a: a = 0, Q = 1.
-            let bound = variable(arena, 0);
-            let b_domain = apply(arena, family.children, bound);
-            let codomain = {
-                // Under b: a = 1.
-                let bound_a = variable(arena, 1);
-                let next_a = apply(arena, family.next, bound_a);
-                let bound = variable(arena, 0);
-                let required = apply(arena, next_a, bound);
-                vec_at(arena, family, required)
-            };
-            pi(arena, b_domain, codomain)
-        };
-        let hypothesis_type = {
-            // Under g, a: a = 1, g = 0, Q = 2.
-            let bound_a = variable(arena, 1);
-            let b_domain = apply(arena, family.children, bound_a);
-            let codomain = {
-                // Under b: a = 2, g = 1, Q = 3.
-                let bound_a = variable(arena, 2);
-                let next_a = apply(arena, family.next, bound_a);
-                let bound = variable(arena, 0);
-                let required = apply(arena, next_a, bound);
-                let motive = variable(arena, 3);
-                let at_index = apply(arena, motive, required);
-                let bound_g = variable(arena, 1);
-                let bound = variable(arena, 0);
-                let child = apply(arena, bound_g, bound);
-                apply(arena, at_index, child)
-            };
-            pi(arena, b_domain, codomain)
-        };
-        let result = {
-            // Under the hypothesis, g, a: a = 2, g = 1, Q = 3.
-            let bound_a = variable(arena, 2);
-            let produced = apply(arena, family.out, bound_a);
-            let bound_a = variable(arena, 2);
-            let bound_g = variable(arena, 1);
-            let node = family.sup(arena, bound_a, bound_g);
-            let motive = variable(arena, 3);
-            let at_index = apply(arena, motive, produced);
-            apply(arena, at_index, node)
-        };
-        let inner = pi(arena, hypothesis_type, result);
-        let middle = pi(arena, g_type, inner);
-        let domain = carrier(arena, elem_nat_payload);
-        pi(arena, domain, middle)
-    };
+    // The shared eliminator step type, at this family's own carrier.
+    let domain = carrier(arena, elem_nat_payload);
+    let step_type = step_type(arena, family, domain);
     let element_type = elem(arena);
     let index_type = nat(arena);
     let tail_type = {
