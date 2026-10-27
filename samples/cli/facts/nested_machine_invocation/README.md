@@ -96,3 +96,6 @@ calls, without a duplicate handwritten requirement on each nested helper.
 That row also contains public-contract, callback escape and proof-erasure
 controls. Its host observations are recorded separately from this row's earlier
 Windows qualification.
+
+[Private collection bounds](private_bounds/README.md) carries the same exact
+descriptor/index fact into the helper that consumes it.

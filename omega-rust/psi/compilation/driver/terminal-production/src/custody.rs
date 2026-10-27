@@ -41,6 +41,10 @@ impl ProducedTerminalProgram {
         self.program.view()
     }
 
+    pub fn retain_code(&self) -> terminal_codec::RetainedTerminalCode {
+        self.program.retain_code()
+    }
+
     pub fn artifact(
         &self,
     ) -> Result<

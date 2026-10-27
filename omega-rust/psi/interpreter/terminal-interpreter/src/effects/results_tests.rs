@@ -60,9 +60,9 @@ fn host_byte_results_require_exact_shared_carrier_and_real_storage() {
         for opaque in [false, true] {
             let structural_type = StructuralTypeId::new(1).unwrap();
             let mut program = empty_program();
-            Arc::get_mut(&mut Arc::get_mut(&mut program).unwrap().catalogs)
+            Arc::get_mut(&mut program)
                 .unwrap()
-                .to_mut()
+                .fixture_module_mut()
                 .structural_types
                 .push(StructuralTypeDeclaration {
                     quotient_carrier: None,

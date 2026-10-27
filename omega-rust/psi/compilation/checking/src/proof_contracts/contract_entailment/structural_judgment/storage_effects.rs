@@ -277,6 +277,51 @@ impl StructuralJudge<'_> {
         }
     }
 
+    /// Return live referent observations through the same authenticated origins
+    /// used at entry. Caller entry snapshots stay caller snapshots: a callee's
+    /// entry is not evidence about an earlier invocation epoch. Complete writes
+    /// first retire old caller contents, including cells the callee cannot
+    /// describe on this path; only observed current values are installed again.
+    pub(super) fn leave_storage_scope(
+        &mut self,
+        caller: &Self,
+        state: &State,
+        subjects: &[crate::machine_calls::calls::InvocationEntrySubject],
+        writes: &facts::NormalizedWriteFrame,
+    ) -> Option<()> {
+        let mut returned = caller.clone();
+        returned.observe_storage_effects(state, writes.complete_paths())?;
+        if writes.is_complete() {
+            for subject in subjects {
+                let Some(source) = caller.captured_reference_subject(subject) else {
+                    continue;
+                };
+                for stored in self.stored_values.iter() {
+                    if stored.coordinate.root != facts::PlaceRoot::Symbol(subject.parameter) {
+                        continue;
+                    }
+                    let Some(current) = stored.current.clone() else {
+                        continue;
+                    };
+                    let mut coordinate = source.clone();
+                    coordinate
+                        .segments
+                        .extend_from_slice(&stored.coordinate.segments);
+                    returned.retain_storage_value(coordinate, current, false);
+                }
+            }
+        }
+        self.stored_values = returned.stored_values;
+        self.invalidated_storage = returned.invalidated_storage;
+        self.storage_exposures = returned.storage_exposures;
+        self.premise_facts = returned.premise_facts;
+        self.storage_write_sequence = self
+            .storage_write_sequence
+            .max(returned.storage_write_sequence);
+        self.capture_sequence = self.capture_sequence.max(returned.capture_sequence);
+        Some(())
+    }
+
     pub(in crate::proof_contracts::contract_entailment) fn observe_storage_writes(
         &mut self,
         state: &State,

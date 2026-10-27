@@ -1,5 +1,5 @@
+use crate::declarations::BuildDeclarationError;
 use crate::declarations::dependencies::read::DependencyProjectionError;
-use crate::declarations::roles::BuildDeclarationError;
 use crate::resolution::source::git::workspace::GitWorkspaceSelectionError;
 use package_source::IdentityError;
 use package_source::SourceRelativePath;

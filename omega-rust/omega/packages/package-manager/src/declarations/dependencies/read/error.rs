@@ -1,4 +1,4 @@
-use crate::declarations::roles::BuildDeclarationError;
+use crate::declarations::BuildDeclarationError;
 use std::fmt;
 use std::path::PathBuf;
 

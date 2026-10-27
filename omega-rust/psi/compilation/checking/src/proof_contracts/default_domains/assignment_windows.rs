@@ -374,19 +374,17 @@ pub(crate) fn handle_assignment<'program>(
             }
             _ => None,
         });
-    // When every fact bounds one field by a literal, a store can change only
-    // the written field's own conjuncts. A place that was established with no
-    // open window still satisfies every other field's bounds, so folding them
-    // against a valuation that may not know those fields would only invent
-    // unknowns; the written field's conjuncts are re-proved below.
+    // Complete Cartesian field bounds preserve every unwritten component.
+    // Retain and re-prove the written component's original clauses; normalized
+    // intervals are not replacement source predicates or new proof premises.
     let written_field_conjuncts = written_field
         .filter(|_| !store_checked && place.established && !place.any_window_open())
         .and_then(|written| {
             Some(
-                super::data_where_field_literal_bounds(program, definition)?
+                super::data_where_field_representation_bounds(program, definition)?
                     .into_iter()
-                    .filter(|bound| bound.field == written)
-                    .map(|bound| typed_trees::domain::ProofFact::Expression(bound.conjunct))
+                    .filter(|bound| bound.field() == written)
+                    .map(|bound| typed_trees::domain::ProofFact::Expression(bound.conjunct()))
                     .collect::<Vec<_>>(),
             )
         });

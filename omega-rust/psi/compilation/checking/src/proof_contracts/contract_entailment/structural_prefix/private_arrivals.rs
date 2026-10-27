@@ -15,10 +15,10 @@ use typed_trees::machine::Machine;
 mod scope;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-struct Arrival {
-    caller: SymbolHandle,
-    statement: usize,
-    expression: Option<ExpressionHandle>,
+pub(crate) struct Arrival {
+    pub(crate) caller: SymbolHandle,
+    pub(crate) statement: usize,
+    pub(crate) expression: Option<ExpressionHandle>,
 }
 
 pub(in crate::proof_contracts::contract_entailment) fn observe_private_arrivals(

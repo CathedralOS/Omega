@@ -8,7 +8,7 @@
 use crate::capabilities::TerminalUnsupportedCapability;
 use crate::custody::{bind_active_structural_arguments, validate_boundary_requirements};
 use crate::errors::{TerminalInterpretError, malformed};
-use crate::execution::{OperationFlow, ResultClaimOrigin, TerminalExecution};
+use crate::execution::{OperationFlow, ResultClaimOrigin, TerminalExecution, operation_kind};
 use crate::program::AdmittedTerminalProgram;
 use crate::values::TerminalScalarValue;
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
@@ -130,14 +130,9 @@ impl TerminalExecution<'_> {
         member_id: MachineId,
         scalar_arguments: &[TerminalScalarValue],
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::BoundaryCall {
-            structural_arguments,
-            completion_receipts,
-            ..
-        } = &operation.kind
-        else {
-            return Err(malformed());
-        };
+        operation_kind!(operation => BoundaryCall {
+            structural_arguments, completion_receipts, ..
+        });
         let program = std::sync::Arc::clone(&self.program);
         let member = program.verified_machine(member_id)?;
         validate_result_transport(operation, member)?;

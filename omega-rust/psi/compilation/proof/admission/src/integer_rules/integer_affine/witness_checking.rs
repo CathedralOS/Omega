@@ -350,82 +350,56 @@ pub fn check_integer_affine_witness(
         let landed = literal_index
             .map(|literal_index| landed_integer(context, semantic_axioms, index, literal_index))
             .transpose()?;
-        let forward = apply_definition(
-            left,
-            right,
-            &current,
-            integer_type,
-            coefficient,
-            offset,
-            landed.as_ref(),
-            &semantic_axioms[..index],
-        );
-        let reverse = apply_definition(
-            right,
-            left,
-            &current,
-            integer_type,
-            coefficient,
-            offset,
-            landed.as_ref(),
-            &semantic_axioms[..index],
-        );
-        let shift_forward =
-            apply_shift_definition(left, right, &current, integer_type, landed.as_ref(), index);
-        let shift_reverse =
-            apply_shift_definition(right, left, &current, integer_type, landed.as_ref(), index);
-        let wrapping_backward = apply_wrapping_add_inverse(
-            left,
-            right,
-            &current,
-            integer_type,
-            coefficient,
-            offset,
-            landed.as_ref(),
-            index,
-        );
-        let wrapping_backward_reverse = apply_wrapping_add_inverse(
-            right,
-            left,
-            &current,
-            integer_type,
-            coefficient,
-            offset,
-            landed.as_ref(),
-            index,
-        );
-        let exact_backward = apply_exact_add_inverse(
-            left,
-            right,
-            &current,
-            integer_type,
-            coefficient,
-            offset,
-            landed.as_ref(),
-            index,
-        );
-        let exact_backward_reverse = apply_exact_add_inverse(
-            right,
-            left,
-            &current,
-            integer_type,
-            coefficient,
-            offset,
-            landed.as_ref(),
-            index,
-        );
         let candidates = [
-            forward,
-            reverse,
-            shift_forward,
-            shift_reverse,
-            wrapping_backward,
-            wrapping_backward_reverse,
-            exact_backward,
-            exact_backward_reverse,
+            both_orientations(left, right, |first, second| {
+                apply_definition(
+                    first,
+                    second,
+                    &current,
+                    integer_type,
+                    coefficient,
+                    offset,
+                    landed.as_ref(),
+                    &semantic_axioms[..index],
+                )
+            }),
+            both_orientations(left, right, |first, second| {
+                apply_shift_definition(
+                    first,
+                    second,
+                    &current,
+                    integer_type,
+                    landed.as_ref(),
+                    index,
+                )
+            }),
+            both_orientations(left, right, |first, second| {
+                apply_wrapping_add_inverse(
+                    first,
+                    second,
+                    &current,
+                    integer_type,
+                    coefficient,
+                    offset,
+                    landed.as_ref(),
+                    index,
+                )
+            }),
+            both_orientations(left, right, |first, second| {
+                apply_exact_add_inverse(
+                    first,
+                    second,
+                    &current,
+                    integer_type,
+                    coefficient,
+                    offset,
+                    landed.as_ref(),
+                    index,
+                )
+            }),
         ]
         .into_iter()
-        .flatten()
+        .flat_map(|orientations| orientations.into_iter().flatten())
         .collect::<Vec<_>>();
         let (next, next_coefficient, next_offset, used_landing, endpoint_step) =
             match candidates.as_slice() {

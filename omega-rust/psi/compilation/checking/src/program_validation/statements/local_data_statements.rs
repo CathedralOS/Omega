@@ -73,14 +73,8 @@ pub(super) fn validate(
     if !local_data.role.is_runtime_binding() {
         return;
     }
-    let StatementScope {
-        program,
-        machine,
-        state_name,
-        current_state,
-        statement_index,
-        ..
-    } = *scope;
+    let (program, machine, state_name, current_state, symbols, _) = scope.reads();
+    let statement_index = scope.statement_index;
     let value_environment = &mut *outputs.value_environment;
     let arithmetic_decisions = &mut *outputs.arithmetic_decisions;
     let diagnostics = &mut *outputs.diagnostics;
@@ -96,7 +90,7 @@ pub(super) fn validate(
             current_state,
             state_name,
             local_data,
-            scope.symbols,
+            symbols,
             value_environment,
             diagnostics,
             &mut arithmetic_decisions.integer_range_obligations,

@@ -1,0 +1,6 @@
+// This live or unformed path cannot be discarded as infeasible.
+machine probe(offset: u64, first: u8) -> u64 {
+    transition first > 0 && first < 128 { true -> (0) false -> second(offset) }
+    machine second(offset: u64) -> u64 { offset + 1 }
+}
+machine main() {}

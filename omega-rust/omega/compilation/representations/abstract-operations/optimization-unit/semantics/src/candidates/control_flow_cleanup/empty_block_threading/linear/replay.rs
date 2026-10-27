@@ -1,11 +1,11 @@
 //! Independent linear empty-block replay mechanics.
-use crate::candidates::accept_region_rewrite;
 use crate::candidates::control_flow_cleanup::{patched_jump_bindings, require_scalar_bindings};
 use crate::candidates::rewrite_accounting::threading::{
     reconstruct_linear_thread_accounting, reconstruct_linear_thread_bindings,
     reconstruct_linear_thread_ownership_is_identity,
 };
-use crate::candidates::set_node_effect_link;
+use crate::candidates::sweep_output_nodes;
+use crate::candidates::{accept_region_rewrite, require_realized_rows};
 use crate::unit_validation::derived_metadata::{
     expected_definitions, expected_edges, expected_ownership, expected_uses,
 };
@@ -106,27 +106,7 @@ pub(super) fn validate(
     if candidate.affected_blocks() != expected_blocks {
         return Err(OptimizationUnitValidationError::CandidateReachabilityMismatch);
     }
-    if candidate.provenance().len() != accepted_provenance.len()
-        || candidate
-            .provenance()
-            .iter()
-            .zip(&accepted_provenance)
-            .any(|(actual, expected)| {
-                actual.input != expected.input
-                    || actual.disposition != expected.disposition
-                    || actual.sources != expected.sources
-            })
-    {
-        return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
-    }
-    if candidate
-        .provenance()
-        .iter()
-        .zip(&accepted_provenance)
-        .any(|(actual, expected)| actual.fuel != expected.fuel)
-    {
-        return Err(OptimizationUnitValidationError::CandidateFuelMismatch);
-    }
+    require_realized_rows(candidate, &accepted_provenance)?;
 
     accept_region_rewrite(
         input,
@@ -183,12 +163,7 @@ pub(super) fn validate(
             output_function
                 .blocks
                 .retain(|block| block.id != patch.empty.block);
-            let mut effect = 0u64;
-            for block in &mut output_function.blocks {
-                for node in &mut block.nodes {
-                    effect = set_node_effect_link(node, effect)?;
-                }
-            }
+            sweep_output_nodes(output_function, |_| Ok(()))?;
             Ok(())
         },
     )

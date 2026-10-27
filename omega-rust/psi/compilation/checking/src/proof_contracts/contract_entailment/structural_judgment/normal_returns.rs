@@ -7,6 +7,7 @@
 //! a loop invariant nor permission to replay mutable storage observations.
 
 mod array_elements;
+mod body_completion;
 mod collection_extents;
 mod operand_types;
 mod owned_arguments;
@@ -1447,7 +1448,7 @@ impl<'program> StructuralJudge<'program> {
                     // Nothing after this operation is part of its incoming
                     // proof context. A stopped path is not an executed result.
                     if requested_operations.stop == ObservationStop::BeforeOperation(expression) {
-                        return Some(None);
+                        return Some(Vec::new());
                     }
                 }
                 if matches!(
@@ -1457,7 +1458,7 @@ impl<'program> StructuralJudge<'program> {
                     // Entry capture above needs operand snapshots only. Stop
                     // before the operation can publish its own invariant, and
                     // do not reconstruct an unrelated enclosing aggregate.
-                    return Some(Some(NormalReturnPath::unobserved(judge)));
+                    return Some(vec![NormalReturnPath::unobserved(judge)]);
                 }
                 // Entry observers above may keep positional placeholders.
                 // Executing the call's result/guarantees needs every actual value.
@@ -1467,6 +1468,16 @@ impl<'program> StructuralJudge<'program> {
                         .collect::<Option<Vec<_>>>()?),
                     None => None,
                 };
+                if let Some(paths) = judge.completed_body_paths(
+                    expression, call_values.as_deref(), environment, scope, &writes,
+                ) {
+                    return Some(paths.into_iter().map(|mut path| {
+                        if matches!(demand, NormalValueDemand::Completion) {
+                            path.observation = NormalValueObservation::NotObserved;
+                        }
+                        path.at_expression(expression, demand)
+                    }).collect());
+                }
                 judge.complete_normal_call(
                     expression,
                     call_values.as_deref(),
@@ -1475,9 +1486,9 @@ impl<'program> StructuralJudge<'program> {
                     &writes,
                 )?;
                 if matches!(demand, NormalValueDemand::Completion) {
-                    return Some(Some(
+                    return Some(vec![
                         NormalReturnPath::unobserved(judge).at_expression(expression, demand),
-                    ));
+                    ]);
                 }
                 let receiver_changed =
                     scalar_storage_read && judge.storage_write_sequence != receiver_write_sequence;
@@ -1771,9 +1782,9 @@ impl<'program> StructuralJudge<'program> {
                         );
                     }
                 }
-                Some(Some(
+                Some(vec![
                     NormalReturnPath::observed(value, judge).at_expression(expression, demand),
-                ))
+                ])
             })
             .collect::<Option<Vec<_>>>()?
             .into_iter()

@@ -297,9 +297,8 @@ fn transferred_slots(
                 recasts: Vec::new(),
                 representation: None,
                 kind: Default::default(),
-                root: parameter.symbol,
                 segments,
-                builtin_coordinates: true,
+                ..FrameSourcePlace::parameter_root(parameter)
             };
             let mut contains = false;
             for source in aggregate_argument_sources(
@@ -307,16 +306,7 @@ fn transferred_slots(
                 machine,
                 parameter,
                 arguments.get(index)?,
-                &SlotSource {
-                    carrier_backing: None,
-                    origin: FramePlaceOrigin {
-                        path: path(program, &slot),
-                        precision: FramePathPrecision::Exact,
-                        source: slot.clone(),
-                    },
-                    carrier: slot.clone(),
-                    lifetime_access: None,
-                },
+                &SlotSource::from_place(program, slot.clone(), FramePathPrecision::Exact, None),
                 prefix,
                 symbols,
             )? {

@@ -33,21 +33,9 @@ pub use numerics::arithmetic::ArithmeticPolicyAdapter as CheckedArithmeticPolicy
 /// Omega's plan digest without introducing an upward dependency on
 /// `effects`. The provider-planning boundary is responsible for copying
 /// the digest from the exact selected plan.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct CheckedProviderPlanCommitment([u8; 32]);
-
-impl CheckedProviderPlanCommitment {
-    pub const fn from_digest(digest: [u8; 32]) -> Self {
-        Self(digest)
-    }
-
-    pub const fn as_bytes(&self) -> &[u8; 32] {
-        &self.0
-    }
-
-    pub fn is_empty(self) -> bool {
-        self.0 == [0; 32]
-    }
+typed_trees::digest_commitment! {
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    CheckedProviderPlanCommitment
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

@@ -29,12 +29,6 @@ pub(crate) fn check_product_source(
     source_completion_accounting
         .validate_charges()
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    // A deferred application still needs selected runtime meaning. The shared
-    // judgment checks its symbolic recipe; each target closure resumes this
-    // continuation under its own selected rows after settlement.
-    let constant_recipe_continuations = pending_pre_checks;
-    let constant_recipe_source =
-        (!constant_recipe_continuations.is_empty()).then(|| Arc::new(typed.clone()));
     let build = &computed_build_config.config;
     let representations = representation_planning::rederive_opaque_representation_selections(
         &typed,
@@ -95,6 +89,7 @@ pub(crate) fn check_product_source(
             let started = std::time::Instant::now();
             let result = psi_compiler::CheckRequest {
                 program: typed,
+                pending_constants: pending_pre_checks,
                 admission: source_admission,
                 previous: &previous,
                 retain: reuse.retain,
@@ -117,6 +112,7 @@ pub(crate) fn check_product_source(
     let roots = build.checked_tree_product_roots(rollback);
     let psi_compiler::SelectedCheckedSource {
         program,
+        constants,
         provider_defaults,
         retained,
         selection: product_selection,
@@ -139,7 +135,6 @@ pub(crate) fn check_product_source(
             ..Default::default()
         },
         product_selection,
-        constant_recipe_continuations,
-        constant_recipe_source,
+        constants,
     })
 }

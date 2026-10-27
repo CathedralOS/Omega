@@ -280,7 +280,7 @@ pub fn validate_selected_provider_bodies(
         program,
         selected,
         "selected build-time provider body",
-        |row| (!row.provider.is_empty()).then_some((row.expression, row.origin.machine_symbol())),
+        |row| (!row.provider.is_zero()).then_some((row.expression, row.origin.machine_symbol())),
     )?
     else {
         return Ok(());
@@ -716,7 +716,7 @@ pub fn validate_selected_operators(
         program,
         selected,
         "selected build-time operator",
-        |row| (!row.provider.is_empty()).then_some((row.expression, row.origin.machine_symbol())),
+        |row| (!row.provider.is_zero()).then_some((row.expression, row.origin.machine_symbol())),
     )?
     else {
         return Ok(());

@@ -14,7 +14,7 @@ use language_semantics::declaration_selection::{
 use psi_compiler::{
     TerminalBuildBindingCall, TerminalBuildBindingOperation, TerminalBuildBindings,
 };
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalEffectResult,
     TerminalImportAdapter, TerminalImportSignature, TerminalScalarValue, TerminalStructuralValue,
@@ -27,12 +27,12 @@ pub use product_queries::{BuildProductDescription, BuildProductQuery};
 /// The interpreter owns each adapter; the host retains this common state and
 /// takes completed requests after dropping those adapters. A lock makes that
 /// sharing explicit without granting either adapter mutable aliasing.
-pub struct TerminalBuildBindingHost<'context> {
-    calls: &'context [TerminalBuildBindingCall],
-    queries: &'context [psi_compiler::TerminalBuildQueryCall],
+pub struct TerminalBuildBindingHost {
+    calls: Arc<[TerminalBuildBindingCall]>,
+    queries: Arc<[psi_compiler::TerminalBuildQueryCall]>,
     product_facet: Option<TerminalStructuralValue>,
-    account: Option<&'context evaluation_accounting::EvaluationInvocationAccount>,
-    declarations: &'context [std::sync::Arc<ProductDeclarationRequest>],
+    account: Option<evaluation_accounting::EvaluationInvocationAccount>,
+    declarations: Arc<[Arc<ProductDeclarationRequest>]>,
     original: TerminalStructuralValue,
     state: Mutex<BindingState>,
 }
@@ -86,13 +86,13 @@ impl BindingState {
     }
 }
 
-impl<'context> TerminalBuildBindingHost<'context> {
+impl TerminalBuildBindingHost {
     pub fn new(
         artifact: terminal_codec::TerminalExecutionView<'_>,
-        bindings: &'context TerminalBuildBindings,
+        bindings: &TerminalBuildBindings,
         original: TerminalStructuralValue,
-        account: Option<&'context evaluation_accounting::EvaluationInvocationAccount>,
-    ) -> Result<Self, String> {
+        account: Option<&evaluation_accounting::EvaluationInvocationAccount>,
+    ) -> Result<Arc<Self>, String> {
         let calls = bindings
             .calls_for(artifact)
             .ok_or_else(|| "Build bindings belong to another Terminal artifact".to_owned())?;
@@ -109,19 +109,19 @@ impl<'context> TerminalBuildBindingHost<'context> {
                 artifact, &original, "product",
             )?)
         };
-        Ok(Self {
-            calls,
-            queries,
+        Ok(Arc::new(Self {
+            calls: Arc::clone(calls),
+            queries: Arc::clone(queries),
             product_facet,
-            account,
-            declarations,
+            account: account.cloned(),
+            declarations: Arc::clone(declarations),
             original,
             state: Mutex::new(BindingState::default()),
-        })
+        }))
     }
 
     pub(crate) fn declared(&self) -> &[std::sync::Arc<ProductDeclarationRequest>] {
-        self.declarations
+        &self.declarations
     }
 
     pub(crate) fn awaiting_provider(&self) -> Result<Option<BuildProviderRequest>, String> {
@@ -180,17 +180,19 @@ impl<'context> TerminalBuildBindingHost<'context> {
     }
 
     pub fn adapter(
-        &self,
+        self: &Arc<Self>,
         signature: TerminalImportSignature,
-    ) -> TerminalBuildBindingAdapter<'_, 'context> {
+    ) -> TerminalBuildBindingAdapter {
         TerminalBuildBindingAdapter {
-            host: self,
+            host: Arc::clone(self),
             signature,
         }
     }
 
-    pub fn into_executed(self) -> Result<Vec<ExecutedBuildSelection>, String> {
-        self.state
+    pub fn into_executed(self: Arc<Self>) -> Result<Vec<ExecutedBuildSelection>, String> {
+        let host = Arc::try_unwrap(self)
+            .map_err(|_| "Build bindings still have live adapters".to_owned())?;
+        host.state
             .into_inner()
             .map_err(|_| "Build binding activation lock was poisoned".to_owned())?
             .take_executed()
@@ -206,18 +208,18 @@ impl<'context> TerminalBuildBindingHost<'context> {
     }
 }
 
-pub struct TerminalBuildBindingAdapter<'host, 'context> {
-    host: &'host TerminalBuildBindingHost<'context>,
+pub struct TerminalBuildBindingAdapter {
+    host: Arc<TerminalBuildBindingHost>,
     signature: TerminalImportSignature,
 }
 
-impl TerminalImportAdapter for TerminalBuildBindingAdapter<'_, '_> {
+impl TerminalImportAdapter for TerminalBuildBindingAdapter {
     fn implemented_signature(&self) -> TerminalImportSignature {
         self.signature.clone()
     }
 }
 
-impl TerminalEffectHandler for TerminalBuildBindingAdapter<'_, '_> {
+impl TerminalEffectHandler for TerminalBuildBindingAdapter {
     fn poll_host_computation(
         &mut self,
         effect: &TerminalEffect,

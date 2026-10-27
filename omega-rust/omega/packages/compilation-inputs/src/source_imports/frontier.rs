@@ -34,9 +34,9 @@ struct RegisteredPackageRoot {
 }
 
 impl SourceStorage {
-    /// Derive default-Build ownership from captured custody, then admit a new
+    /// Derive post-Build ownership from captured custody, then admit a new
     /// named cohort before parser coordinates or bindings leave this owner.
-    pub(crate) fn seal_default_owner(
+    pub(crate) fn seal_product_owner(
         &mut self,
         catalogue: &mut source::SourceCatalogue,
     ) -> Result<Option<Vec<source::LoadedSource>>, Vec<Diagnostic>> {
@@ -52,7 +52,7 @@ impl SourceStorage {
             .and_then(|file| file.package_identity)
             .ok_or_else(|| {
                 vec![Diagnostic::error(
-                    "default Build lost its derived source owner",
+                    "completed Build lost its derived source owner",
                 )]
             })?;
         self.sources = std::sync::Arc::unwrap_or_clone(sealed);

@@ -17,23 +17,23 @@ windows_x86_64 machine WindowsFilesystemNativeProvider::lock_file(handle: u64, e
 satisfies WindowsFilesystemHost::lock_file {
     let duplicate: i64 in WindowsSynchronousFileOrAbsent = block windows_synchronous_duplicate(handle);
     transition duplicate != 0 {
-        true -> flags(duplicate, exclusive, nonblocking)
+        true -> block flags(duplicate, exclusive, nonblocking)
         false -> (WindowsFilesystemNativeProvider::failure_i32())
     }
     machine flags(duplicate: i64 in WindowsSynchronousFileOrAbsent, exclusive: bool, nonblocking: bool) -> i32
     requires duplicate != 0 {
         transition exclusive {
-            true -> exclusive_mode(duplicate, nonblocking)
-            false -> shared_mode(duplicate, nonblocking)
+            true -> block exclusive_mode(duplicate, nonblocking)
+            false -> block shared_mode(duplicate, nonblocking)
         }
     }
     machine exclusive_mode(duplicate: i64 in WindowsSynchronousFileOrAbsent, nonblocking: bool) -> i32
     requires duplicate != 0 {
-        transition nonblocking { true -> acquire(duplicate, 3) false -> acquire(duplicate, 2) }
+        transition nonblocking { true -> block acquire(duplicate, 3) false -> block acquire(duplicate, 2) }
     }
     machine shared_mode(duplicate: i64 in WindowsSynchronousFileOrAbsent, nonblocking: bool) -> i32
     requires duplicate != 0 {
-        transition nonblocking { true -> acquire(duplicate, 1) false -> acquire(duplicate, 0) }
+        transition nonblocking { true -> block acquire(duplicate, 1) false -> block acquire(duplicate, 0) }
     }
     machine acquire(duplicate: i64 in WindowsSynchronousFileOrAbsent, flags: u32) -> i32
     requires duplicate != 0 && flags <= 3 {
@@ -48,7 +48,7 @@ windows_x86_64 machine WindowsFilesystemNativeProvider::unlock_file(handle: u64)
 satisfies WindowsFilesystemHost::unlock_file {
     let duplicate: i64 in WindowsSynchronousFileOrAbsent = block windows_synchronous_duplicate(handle);
     transition duplicate != 0 {
-        true -> release(duplicate)
+        true -> block release(duplicate)
         false -> (WindowsFilesystemNativeProvider::failure_i32())
     }
     machine release(duplicate: i64 in WindowsSynchronousFileOrAbsent) -> i32

@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashSet};
 use typed_trees::proposition::ProofSubstitutions;
 
 use diagnostics::Diagnostic;
@@ -11,17 +11,28 @@ pub(crate) fn validate_proposition_entailment(
     program: &dyn crate::CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let mut call_targets_with_proposition_requires = HashSet::new();
+    for callee in program.machines() {
+        let has_proposition_requires = program.machine_contracts(callee).iter().any(|contract| {
+            contract.kind == SignatureContractKind::Requires
+                && program
+                    .proof_facts
+                    .span_or_empty(contract.facts)
+                    .iter()
+                    .any(|fact| matches!(fact, ProofFact::Proposition(_)))
+        });
+        if has_proposition_requires {
+            call_targets_with_proposition_requires.insert(callee.symbol);
+            for state in program.machine_states(callee) {
+                call_targets_with_proposition_requires.insert(state.symbol);
+            }
+        }
+    }
+    let any_machine_has_proposition_requires = !call_targets_with_proposition_requires.is_empty();
     for machine in program.machines() {
         if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody {
             continue;
         }
-        let machine_requires = proposition_labels(
-            program,
-            program.machine_contracts(machine),
-            SignatureContractKind::Requires,
-            &[],
-            true,
-        );
         let machine_ensures = proposition_labels(
             program,
             program.machine_contracts(machine),
@@ -34,43 +45,27 @@ pub(crate) fn validate_proposition_entailment(
         // that every ordinary outcome constructs each named output exactly
         // once. Keep those two judgments independent here.
         let produced_evidence = produced_evidence_labels(program, machine, diagnostics);
+        if machine_ensures.is_empty()
+            && !any_machine_has_proposition_requires
+            && !program.machine_states(machine).iter().any(|state| {
+                program.state_contracts(state).iter().any(|contract| {
+                    contract.kind == SignatureContractKind::Ensures
+                        && program
+                            .proof_facts
+                            .span_or_empty(contract.facts)
+                            .iter()
+                            .any(|fact| matches!(fact, ProofFact::Proposition(_)))
+                })
+            })
+        {
+            continue;
+        }
+        let mut machine_requires: Option<Vec<String>> = None;
+        let has_proof_output_calls = program
+            .proof_output_calls
+            .iter()
+            .any(|package| package.machine_symbol == machine.symbol);
         for state in program.machine_states(machine) {
-            let mut known = machine_requires.iter().cloned().collect::<BTreeSet<_>>();
-            known.extend(proposition_labels(
-                program,
-                program.state_contracts(state),
-                SignatureContractKind::Requires,
-                &[],
-                true,
-            ));
-            let statements = program.statement_table.statements(state.statement_nodes);
-            for (statement_index, statement) in statements.iter().enumerate() {
-                intake_proof_output_propositions(
-                    program,
-                    machine,
-                    state.symbol,
-                    statement_index,
-                    &mut known,
-                );
-                if let Some(call) = statement.as_call() {
-                    intake_call_propositions(
-                        program,
-                        machine,
-                        state,
-                        call,
-                        &mut known,
-                        diagnostics,
-                    );
-                }
-            }
-            intake_proof_output_propositions(
-                program,
-                machine,
-                state.symbol,
-                statements.len(),
-                &mut known,
-            );
-
             let mut required = machine_ensures.clone();
             required.extend(proposition_labels(
                 program,
@@ -79,6 +74,90 @@ pub(crate) fn validate_proposition_entailment(
                 &[],
                 false,
             ));
+            let statements = program.statement_table.statements(state.statement_nodes);
+            let last_proposition_requires_call_index = if any_machine_has_proposition_requires {
+                statements.iter().rposition(|statement| {
+                    statement.as_call().is_some_and(|call| {
+                        call_targets_with_proposition_requires.contains(&call.target_symbol)
+                    })
+                })
+            } else {
+                None
+            };
+            if !produced_evidence.is_empty() {
+                required.retain(|goal| !produced_evidence.contains(goal));
+            }
+            if required.is_empty() && last_proposition_requires_call_index.is_none() {
+                continue;
+            }
+            let machine_requires = machine_requires.get_or_insert_with(|| {
+                proposition_labels(
+                    program,
+                    program.machine_contracts(machine),
+                    SignatureContractKind::Requires,
+                    &[],
+                    true,
+                )
+            });
+            let mut known = machine_requires.iter().cloned().collect::<BTreeSet<_>>();
+            known.extend(proposition_labels(
+                program,
+                program.state_contracts(state),
+                SignatureContractKind::Requires,
+                &[],
+                true,
+            ));
+            required.retain(|goal| !known.contains(goal));
+            if required.is_empty() && last_proposition_requires_call_index.is_none() {
+                continue;
+            }
+            for (statement_index, statement) in statements.iter().enumerate() {
+                let need_ensures = !required.is_empty()
+                    || last_proposition_requires_call_index
+                        .is_some_and(|last_index| statement_index <= last_index);
+                if has_proof_output_calls && need_ensures {
+                    intake_proof_output_propositions(
+                        program,
+                        machine,
+                        state.symbol,
+                        statement_index,
+                        &mut known,
+                    );
+                }
+                if let Some(call) = statement.as_call() {
+                    let call_has_proposition_requires =
+                        call_targets_with_proposition_requires.contains(&call.target_symbol);
+                    let call_need_ensures = !required.is_empty()
+                        || last_proposition_requires_call_index
+                            .is_some_and(|last_index| statement_index < last_index);
+                    if call_has_proposition_requires || call_need_ensures {
+                        intake_call_propositions(
+                            program,
+                            machine,
+                            state,
+                            call,
+                            call_has_proposition_requires,
+                            call_need_ensures,
+                            &mut known,
+                            diagnostics,
+                        );
+                    }
+                }
+            }
+            if has_proof_output_calls && !required.is_empty() {
+                intake_proof_output_propositions(
+                    program,
+                    machine,
+                    state.symbol,
+                    statements.len(),
+                    &mut known,
+                );
+            }
+            required.retain(|goal| !known.contains(goal));
+            if required.is_empty() {
+                continue;
+            }
+
             let structural_proposition_goals = program
                 .machine_contracts(machine)
                 .iter()
@@ -93,19 +172,9 @@ pub(crate) fn validate_proposition_entailment(
                 })
                 .collect::<Vec<_>>();
             for goal in required {
-                let structurally_entailed =
-                    structural_proposition_goals
-                        .iter()
-                        .any(|(label, application)| {
-                            label == &goal
-                                && crate::transparent_proposition_application_entailed(
-                                    program,
-                                    machine,
-                                    state,
-                                    application,
-                                    None,
-                                )
-                        });
+                if known.contains(&goal) || produced_evidence.contains(&goal) {
+                    continue;
+                }
                 // Instruction observations require the captured CFG event and
                 // operand frontiers. The ordinary checked-flow exit obligation
                 // remains mandatory; this logical-source pass cannot discharge
@@ -121,11 +190,23 @@ pub(crate) fn validate_proposition_entailment(
                                 )
                                 .is_some()
                         });
-                if !known.contains(&goal)
-                    && !produced_evidence.contains(&goal)
-                    && !structurally_entailed
-                    && !instruction_flow_obligation
-                {
+                if instruction_flow_obligation {
+                    continue;
+                }
+                let structurally_entailed =
+                    structural_proposition_goals
+                        .iter()
+                        .any(|(label, application)| {
+                            label == &goal
+                                && crate::transparent_proposition_application_entailed(
+                                    program,
+                                    machine,
+                                    state,
+                                    application,
+                                    None,
+                                )
+                        });
+                if !structurally_entailed {
                     diagnostics.push(Diagnostic::error(format!(
                         "checked machine `{}` cannot establish proposition ensure `{goal}` in state `{}`; require it, cite a checked/accepted proof that ensures it, or supply its declared evidence",
                         machine.name.as_str(),
@@ -174,6 +255,9 @@ fn produced_evidence_labels(
     machine: &Machine,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Vec<String> {
+    if program.evidence_forwardings.is_empty() {
+        return Vec::new();
+    }
     let mut labels = Vec::new();
     for assignment in &program.evidence_forwardings {
         if assignment.machine_symbol != machine.symbol {
@@ -277,57 +361,75 @@ fn intake_call_propositions(
     caller: &Machine,
     caller_state: &typed_trees::state::State,
     call: &TableCall,
+    has_proposition_requires: bool,
+    need_ensures: bool,
     known: &mut BTreeSet<String>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some((callee, callee_state)) = call_target(program, call) else {
         return;
     };
-    let substitutions =
-        call_parameter_substitutions(program, call, program.state_parameters(callee_state));
-    let arguments = program.statement_table.expression_handles(call.arguments);
-    // A requirement holds when the caller knows its exact label or when the
-    // caller's premises prove its unfolded definition under the call's
-    // argument substitution.
-    let missing = program
-        .machine_contracts(callee)
-        .iter()
-        .filter(|contract| contract.kind == SignatureContractKind::Requires)
-        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
-        .filter_map(ProofFact::as_proposition)
-        .filter_map(|application| {
-            Some((
-                application,
-                application_label(program, application, &substitutions)?,
-            ))
-        })
-        .find(|(application, label)| {
-            !known.contains(label)
-                && !crate::transparent_call_requirement_entailed(
-                    program,
-                    caller,
-                    caller_state,
-                    callee,
-                    callee_state,
-                    arguments,
-                    application,
-                )
+    let callee_contracts = program.machine_contracts(callee);
+    let has_relevant_ensures = need_ensures
+        && callee_contracts.iter().any(|contract| {
+            contract.kind == SignatureContractKind::Ensures
+                && program
+                    .proof_facts
+                    .span_or_empty(contract.facts)
+                    .iter()
+                    .any(|fact| matches!(fact, ProofFact::Proposition(_) | ProofFact::Expression(_)))
         });
-    if let Some((_, missing)) = missing {
-        diagnostics.push(Diagnostic::error(format!(
-            "checked machine `{}` cannot cite `{}`: proposition requirement `{missing}` is not established at the call",
-            caller.name.as_str(),
-            callee.name.as_str(),
-        )));
+    if !has_proposition_requires && !has_relevant_ensures {
         return;
     }
-    known.extend(proposition_labels(
-        program,
-        program.machine_contracts(callee),
-        SignatureContractKind::Ensures,
-        &substitutions,
-        true,
-    ));
+    let substitutions =
+        call_parameter_substitutions(program, call, program.state_parameters(callee_state));
+    if has_proposition_requires {
+        let arguments = program.statement_table.expression_handles(call.arguments);
+        // A requirement holds when the caller knows its exact label or when the
+        // caller's premises prove its unfolded definition under the call's
+        // argument substitution.
+        let missing = callee_contracts
+            .iter()
+            .filter(|contract| contract.kind == SignatureContractKind::Requires)
+            .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
+            .filter_map(ProofFact::as_proposition)
+            .filter_map(|application| {
+                Some((
+                    application,
+                    application_label(program, application, &substitutions)?,
+                ))
+            })
+            .find(|(application, label)| {
+                !known.contains(label)
+                    && !crate::transparent_call_requirement_entailed(
+                        program,
+                        caller,
+                        caller_state,
+                        callee,
+                        callee_state,
+                        arguments,
+                        application,
+                    )
+            });
+        if let Some((_, missing)) = missing {
+            diagnostics.push(Diagnostic::error(format!(
+                "checked machine `{}` cannot cite `{}`: proposition requirement `{missing}` is not established at the call",
+                caller.name.as_str(),
+                callee.name.as_str(),
+            )));
+            return;
+        }
+    }
+    if has_relevant_ensures {
+        known.extend(proposition_labels(
+            program,
+            callee_contracts,
+            SignatureContractKind::Ensures,
+            &substitutions,
+            true,
+        ));
+    }
 }
 
 fn call_target<'a>(

@@ -3,7 +3,7 @@
 //! arithmetic families.
 
 use crate::errors::{TerminalInterpretError, malformed};
-use crate::execution::{OperationFlow, TerminalExecution};
+use crate::execution::{OperationFlow, TerminalExecution, dispatched_operation};
 use crate::values::TerminalScalarValue;
 use semantic_vocabulary::ScalarType;
 use terminal_psi::{Operation, OperationKind};
@@ -90,9 +90,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::IntegerConstant { value } = operation.kind else {
-            unreachable!("dispatched execute_integer_constant")
-        };
+        dispatched_operation!(operation => IntegerConstant { value });
         let scalar_type = integer_scalar_type(operation)?;
         self.store_scalar(
             operation,
@@ -104,9 +102,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::IntegerEqual { left, right } = operation.kind else {
-            unreachable!("dispatched execute_integer_equal")
-        };
+        dispatched_operation!(operation => IntegerEqual { left, right });
         self.require_boolean_result(operation)?;
         let (left_type, left) = self.integer_operand(left)?;
         let (right_type, right) = self.integer_operand(right)?;
@@ -142,9 +138,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::IntegerBitwiseNot { operand } = operation.kind else {
-            unreachable!("dispatched execute_integer_bitwise_not")
-        };
+        dispatched_operation!(operation => IntegerBitwiseNot { operand });
         let scalar_type = integer_scalar_type(operation)?;
         let (operand_type, operand) = self.integer_operand(operand)?;
         if operand_type != scalar_type {
@@ -189,9 +183,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::IntegerWiden { operand } = operation.kind else {
-            unreachable!("dispatched execute_integer_widen")
-        };
+        dispatched_operation!(operation => IntegerWiden { operand });
         self.execute_integer_unary_cast(
             operation,
             operand,
@@ -203,9 +195,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::IntegerExactCast { operand, .. } = operation.kind else {
-            unreachable!("dispatched execute_integer_exact_cast")
-        };
+        dispatched_operation!(operation => IntegerExactCast { operand, .. });
         self.execute_integer_unary_cast(
             operation,
             operand,

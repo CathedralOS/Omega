@@ -153,7 +153,7 @@ public Wide satisfies Operations<u64> {
         let mut invocation = compiler::CompilationSession::default()
             .begin_package_build(request)
             .unwrap_or_else(|error| panic!("receiver: {:?}", error.into_diagnostics()));
-        let mut host = invocation.execution().unwrap().host().unwrap();
+        let host = invocation.execution().unwrap().host().unwrap();
         let mut activation = host.start().unwrap();
         let mut pauses = 0;
         loop {

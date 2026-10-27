@@ -84,21 +84,18 @@ pub(crate) fn evaluate_one(
     // body: the evaluated binding is the member body authored for the
     // selected target, as every other realization of a family resolves it.
     let producer = if producer.target_family_interface {
-        crate::target_machines::family_member_for_target(
-            typed,
-            producer.symbol,
-            target.target_name(),
-        )
-        .ok_or_else(|| {
-            at(
-                source_span,
-                format!(
-                    "ordinary external `via` producer `{}` has no body for target `{}`",
-                    producer.name,
-                    target.target_name()
-                ),
-            )
-        })?
+        typed
+            .target_family_member(producer.symbol, target.target_name())
+            .ok_or_else(|| {
+                at(
+                    source_span,
+                    format!(
+                        "ordinary external `via` producer `{}` has no body for target `{}`",
+                        producer.name,
+                        target.target_name()
+                    ),
+                )
+            })?
     } else {
         *producer
     };

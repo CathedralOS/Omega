@@ -58,6 +58,7 @@ fn compare(source_text: &str) -> (SymbolResolvedTrees, SymbolResolvedTrees) {
         syntax,
         sources: Some(sources.clone()),
         top_level_bindings: Vec::new(),
+        retained_base: None,
     };
     let full = resolve_numeric_probe(request(syntax.clone())).unwrap();
     let selected = resolve_call_result_selection(request(syntax)).unwrap();

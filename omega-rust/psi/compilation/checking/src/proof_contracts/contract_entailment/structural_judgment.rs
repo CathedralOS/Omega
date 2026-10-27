@@ -365,6 +365,9 @@ pub(super) struct StructuralJudge<'program> {
     // Declaration-level field correspondence never recursively re-enters an
     // active body. This belongs to the query, including all cloned path judges.
     returned_field_owners: Arc<Vec<SymbolHandle>>,
+    // Active executed bodies bound ordinary calls as well as terminal transfers.
+    // A recurrent call consumes its checked contract instead of unfolding again.
+    body_invocations: Arc<Vec<SymbolHandle>>,
     normal_memberships: Arc<Vec<MembershipGuarantee>>,
     pub(super) normal_content_guarantees:
         Arc<Vec<super::content_conservation::ObservedContentEquation>>,
@@ -430,6 +433,7 @@ impl Clone for StructuralJudge<'_> {
             premise_facts: self.premise_facts.clone(),
             normal_results: Arc::clone(&self.normal_results),
             returned_field_owners: Arc::clone(&self.returned_field_owners),
+            body_invocations: Arc::clone(&self.body_invocations),
             normal_memberships: Arc::clone(&self.normal_memberships),
             normal_content_guarantees: Arc::clone(&self.normal_content_guarantees),
             invalidated_storage: Arc::clone(&self.invalidated_storage),
@@ -825,6 +829,7 @@ impl<'program> StructuralJudge<'program> {
             premise_facts: requires.to_vec(),
             normal_results: Arc::new(Vec::new()),
             returned_field_owners: Arc::new(Vec::new()),
+            body_invocations: Arc::new(Vec::new()),
             normal_memberships: Arc::new(Vec::new()),
             normal_content_guarantees: Arc::new(Vec::new()),
             invalidated_storage: Arc::new(Vec::new()),

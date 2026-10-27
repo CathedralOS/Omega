@@ -89,6 +89,27 @@ pub(super) fn closed_arrivals(
     root: &Machine,
     callee: &Machine,
 ) -> Result<Vec<Arrival>, &'static str> {
+    if let Some(memos) = crate::frozen_program::frozen_program_memos(program) {
+        if let Ok(guard) = memos.private_closed_arrivals.lock()
+            && let Some(cached) = guard.get(&(root.symbol, callee.symbol))
+        {
+            return cached.clone();
+        }
+    }
+    let result = compute_closed_arrivals(program, root, callee);
+    if let Some(memos) = crate::frozen_program::frozen_program_memos(program)
+        && let Ok(mut guard) = memos.private_closed_arrivals.lock()
+    {
+        guard.insert((root.symbol, callee.symbol), result.clone());
+    }
+    result
+}
+
+fn compute_closed_arrivals(
+    program: &dyn crate::CheckingInput,
+    root: &Machine,
+    callee: &Machine,
+) -> Result<Vec<Arrival>, &'static str> {
     let members: Vec<_> = program
         .machines()
         .iter()

@@ -4,13 +4,14 @@
 use crate::{AdmittedBuildProgram, BuildConfig, ComputedBuildConfig};
 use diagnostics::Diagnostic;
 use evaluation_accounting::{BuildEvaluationSponsor, BuildEvaluationSponsorLimits};
+use std::sync::Arc;
 
 /// An independently owned invocation. Preparing dependencies may use the compiler
 /// again while this code, sponsor account and admitted host scope remain alive.
 pub struct PreparedBuildExecution {
-    produced: psi_compiler::ProducedTerminalProgram,
+    produced: Arc<psi_compiler::ProducedTerminalProgram>,
     account: evaluation_accounting::EvaluationInvocationAccount,
-    machine: package_compilation::build_execution::SelectedBuildMachine,
+    machine: Arc<package_compilation::build_execution::SelectedBuildMachine>,
     filesystem_scope: package_compilation::BuildMachineFilesystemScope,
     host_issued: bool,
 }
@@ -74,25 +75,25 @@ impl PreparedBuildExecution {
             .begin_invocation(measurement, INVOCATION_FUEL)
             .map_err(|error| refuse(error.to_string()))?;
         Ok(Self {
-            produced,
+            produced: Arc::new(produced),
             account,
-            machine,
+            machine: Arc::new(machine),
             filesystem_scope,
             host_issued: false,
         })
     }
 
-    /// Borrow this invocation's host once. It cannot be replaced to restart effects
+    /// Issue this invocation's host once. It cannot be replaced to restart effects
     /// after the caller drops a paused or failed activation.
-    pub fn host(&mut self) -> Result<crate::TerminalBuildHost<'_>, Vec<Diagnostic>> {
+    pub fn host(&mut self) -> Result<Arc<crate::TerminalBuildHost>, Vec<Diagnostic>> {
         if self.host_issued {
             return Err(self.refuse("Build invocation already issued its execution host"));
         }
         self.host_issued = true;
         crate::TerminalBuildHost::new(
-            &self.produced,
+            Arc::clone(&self.produced),
             &self.account,
-            &self.machine,
+            Arc::clone(&self.machine),
             &self.filesystem_scope,
         )
         .map_err(|reason| {

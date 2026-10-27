@@ -40,6 +40,7 @@ use super::denotation::{BinaryBoundOperation, math_less_or_equal_sides};
 use super::{
     BoundedDenotationError, Denotation, IntegerLaw, Term, TermHandle,
     affine_carrier_endpoint_equality, affine_root_premise, affine_witness_root_expression,
+    unbounded_integer,
 };
 use crate::{ClosedIntegerEvaluator, kernel::KernelError, proof::ProofError};
 
@@ -628,11 +629,7 @@ impl Denotation {
                 else {
                     return Ok(None);
                 };
-                let as_integer = |value: IntegerValue| match value {
-                    IntegerValue::Signed(value) => BigInt::from_i128(value),
-                    IntegerValue::Unsigned(value) => BigInt::from_u128(value),
-                };
-                if as_integer(left_value) <= as_integer(right_value) {
+                if unbounded_integer(left_value) <= unbounded_integer(right_value) {
                     return Ok(None);
                 }
                 let strict = self.literal_order(right_value, left_value)?;

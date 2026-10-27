@@ -107,8 +107,8 @@ reaches TimeHost
 blocks;
 {
     transition milliseconds > 2147483647 {
-        true -> in_parts(milliseconds)
-        _ -> at_once(milliseconds)
+        true -> block in_parts(milliseconds)
+        _ -> block at_once(milliseconds)
     }
 
     machine at_once(milliseconds: u32) {
@@ -131,13 +131,13 @@ macos_x86_64 machine TimeHostNativeProvider::wait_part_macos_x86_64(timeout_mill
 reaches TimeHost
 blocks;
 {
-    transition { _ -> wait(timeout_milliseconds) }
+    transition { _ -> block wait(timeout_milliseconds) }
 
     machine wait(timeout_milliseconds: i32) {
         let outcome: i32 = block DarwinX64TimeRead::poll(0, 0, timeout_milliseconds);
         transition outcome == 0 {
             true -> done()
-            _ -> wait(timeout_milliseconds)
+            _ -> block wait(timeout_milliseconds)
         }
     }
 

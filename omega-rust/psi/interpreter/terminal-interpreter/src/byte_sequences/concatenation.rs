@@ -3,7 +3,7 @@
 //! previous shared observations retain their original bytes.
 use crate::byte_sequences::{ByteSequenceView, binding::ByteSequenceBinding};
 use crate::errors::{TerminalInterpretError, malformed};
-use crate::execution::{OperationFlow, TerminalExecution};
+use crate::execution::{OperationFlow, TerminalExecution, operation_kind};
 use crate::values::TerminalStructuralValue;
 use terminal_psi::{ByteSequenceCarrier, Operation, OperationKind, StructuralTypeShape};
 
@@ -12,10 +12,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::EstablishByteSequenceConcatenation { left, right, .. } = &operation.kind
-        else {
-            return Err(malformed());
-        };
+        operation_kind!(operation => EstablishByteSequenceConcatenation { left, right, .. });
         let result = operation.result.structural().ok_or_else(malformed)?;
         let StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity }) =
             self.program
