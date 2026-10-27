@@ -7,6 +7,7 @@
 //! `request_view` and `text` present it, and `usage` accounts the budget a
 //! recovery spends.
 
+mod catalog;
 mod construction;
 pub(crate) mod encoding;
 mod request_view;
@@ -32,11 +33,10 @@ use encoding::encode_hex;
 pub(super) const SOURCE_CLOSURE_SUBJECT_MAGIC: &[u8] = b"OMEGA-SOURCE-CLOSURE-SUBJECT\0";
 /// Version of the binary subject encoding.
 ///
-/// v7 records each dependency edge's authorized purpose (product or build)
-/// and splits each package's authored requests by purpose. v6 subjects have
-/// only product-purpose requests and edges; they are not accepted as v7
-/// records and must be re-projected through the versioned lock migration.
-pub(crate) const SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION: u16 = 7;
+/// v8 adds catalog execution dependencies outside Product routing. Subjects
+/// without those rows retain their exact v7 encoding and historical decision
+/// fingerprints. Both versions retain purpose-qualified authored requests.
+pub(crate) const SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION: u16 = 8;
 pub(super) const SOURCE_CLOSURE_SUBJECT_FINGERPRINT_DOMAIN: &[u8] =
     b"OMEGA-SOURCE-CLOSURE-SUBJECT-FINGERPRINT\0";
 
@@ -54,6 +54,7 @@ pub(crate) struct CanonicalSourceClosureSubject {
     pub(super) package_navigations: Vec<PackageSourceNavigation>,
     pub(super) package_dependency_projections: Vec<DependencyProjections>,
     pub(super) dependency_requests: Vec<CanonicalDependencySourceSelection>,
+    pub(super) catalog_dependencies: Vec<CanonicalCatalogDependency>,
     pub(super) canonical_bytes: Vec<u8>,
     pub(super) fingerprint: CanonicalSourceClosureSubjectFingerprint,
 }
@@ -67,6 +68,30 @@ impl CanonicalSourceClosureSubject {
             && self.package_navigations == other.package_navigations
             && self.package_dependency_projections == other.package_dependency_projections
             && self.dependency_requests == other.dependency_requests
+            && self.catalog_dependencies.len() == other.catalog_dependencies.len()
+            && self
+                .catalog_dependencies
+                .iter()
+                .zip(&other.catalog_dependencies)
+                .all(|(left, right)| {
+                    left.observer == right.observer
+                        && left.navigation == right.navigation
+                        && left.ordinal == right.ordinal
+                        && left.request == right.request
+                        && left.provider.same_source_graph(&right.provider)
+                })
+    }
+
+    pub(crate) fn catalog_dependencies(&self) -> &[CanonicalCatalogDependency] {
+        &self.catalog_dependencies
+    }
+
+    pub(crate) fn execution_source_graphs(&self) -> impl Iterator<Item = &Self> {
+        std::iter::once(self).chain(
+            self.catalog_dependencies
+                .iter()
+                .map(|dependency| &dependency.provider),
+        )
     }
 
     pub const fn root(&self) -> &CanonicalRootSourceSelection {
@@ -116,6 +141,18 @@ impl CanonicalSourceClosureSubject {
     pub const fn fingerprint(&self) -> &CanonicalSourceClosureSubjectFingerprint {
         &self.fingerprint
     }
+}
+
+/// Execution-only source custody used to observe a workspace declaration.
+/// The provider closure is closed independently and grants no Product import.
+/// Nested catalog dependencies are flattened into the enclosing subject.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct CanonicalCatalogDependency {
+    pub(crate) observer: ResolvedSourceIdentity,
+    pub(crate) navigation: PackageSourceNavigation,
+    pub(crate) ordinal: usize,
+    pub(crate) request: CanonicalDependencySourceRequest,
+    pub(crate) provider: CanonicalSourceClosureSubject,
 }
 
 /// Exact caller request for the root source, before normalized selection.

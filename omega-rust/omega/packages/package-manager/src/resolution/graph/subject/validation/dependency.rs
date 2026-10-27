@@ -8,7 +8,7 @@ use crate::resolution::graph::ResolvedSourceIdentity;
 use crate::resolution::source::PackageSourceNavigation;
 use package_source::{ImmutableSourceResolution, SourceLineage};
 
-pub(super) fn validate_dependency_selection_kind(
+pub(in super::super) fn validate_dependency_selection_kind(
     selection: &CanonicalDependencySourceSelection,
     requester: &ResolvedSourceIdentity,
     _requester_navigation: &PackageSourceNavigation,
@@ -60,7 +60,7 @@ pub(super) fn validate_dependency_selection_kind(
     Ok(())
 }
 
-pub(super) fn validate_dependency_request(
+pub(in super::super) fn validate_dependency_request(
     request: Request<'_>,
     maximum_request_bytes: usize,
 ) -> Result<(), CanonicalSourceClosureSubjectError> {

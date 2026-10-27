@@ -183,8 +183,9 @@ impl AcquiredBuildDependency {
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
 pub struct ResolvedBuildSources {
-    closure: ResolvedPackageSourceClosure,
+    pub(crate) closure: ResolvedPackageSourceClosure,
 }
 
 impl ResolvedBuildSources {

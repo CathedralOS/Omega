@@ -7,5 +7,7 @@ mod source;
 mod walk;
 
 pub(super) use closure::{validate_subject, validate_subject_with_budget};
+pub(super) use dependency::{validate_dependency_request, validate_dependency_selection_kind};
 pub(super) use root::canonical_root_request;
 pub(super) use source::{validate_package_key, validate_source_lineage};
+pub(super) use source::{validate_package_navigation, validate_source_identity};

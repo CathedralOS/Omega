@@ -82,6 +82,7 @@ enum ResolvedBuild {
 struct CatalogMemberBuild {
     capture: package_compilation::CapturedLocalSource,
     build: ReturnedPackageBuild,
+    observation: package_manager::resolution::source::WorkspaceMemberObservation,
 }
 
 impl ResolvedPackageBuild {

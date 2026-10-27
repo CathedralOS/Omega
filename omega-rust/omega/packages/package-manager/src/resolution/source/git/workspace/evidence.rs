@@ -32,7 +32,7 @@ pub(crate) struct GitWorkspaceSelectionEvidence {
     declarations: GitWorkspaceSelectionDeclarations,
     executed: Option<(
         compiler::SourceBuildDeclaration,
-        Vec<compiler::SourceBuildDeclaration>,
+        Vec<crate::resolution::source::WorkspaceMemberObservation>,
     )>,
 }
 
@@ -51,9 +51,13 @@ impl GitWorkspaceSelectionEvidence {
     pub(crate) fn from_executed(
         selected: &build_declarations::ProjectName,
         root: compiler::SourceBuildDeclaration,
-        members: Vec<compiler::SourceBuildDeclaration>,
+        members: Vec<crate::resolution::source::WorkspaceMemberObservation>,
     ) -> Result<Self, String> {
-        let plan = super::executed_selection_plan(selected, &root, &members)?;
+        let declarations = members
+            .iter()
+            .map(|member| member.declaration().clone())
+            .collect::<Vec<_>>();
+        let plan = super::executed_selection_plan(selected, &root, &declarations)?;
         let root_bytes = root
             .source_capture()
             .tree()
@@ -67,6 +71,7 @@ impl GitWorkspaceSelectionEvidence {
             .zip(&members)
             .map(|(member, observed)| {
                 let bytes = observed
+                    .declaration()
                     .source_capture()
                     .tree()
                     .read_to_string(std::path::Path::new("build.omg"))
@@ -89,12 +94,20 @@ impl GitWorkspaceSelectionEvidence {
         &self.declarations
     }
 
+    pub(crate) fn observations(&self) -> &[crate::resolution::source::WorkspaceMemberObservation] {
+        self.executed.as_ref().map_or(&[], |(_, members)| members)
+    }
+
     pub fn revalidate(&self) -> Result<(), PackageSourceSelectionEvidenceError> {
         if let Some((root, members)) = &self.executed {
+            let declarations = members
+                .iter()
+                .map(|member| member.declaration().clone())
+                .collect::<Vec<_>>();
             let replayed = super::executed_selection_plan(
                 self.plan().selected_member().package_name(),
                 root,
-                members,
+                &declarations,
             )
             .map_err(PackageSourceSelectionEvidenceError::Executed)?;
             return if replayed == self.plan {
