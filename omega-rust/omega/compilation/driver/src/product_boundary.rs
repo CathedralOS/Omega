@@ -262,7 +262,10 @@ fn terminal_production_owns_the_build_provider_companion() {
 
 #[test]
 fn product_coordinator_has_no_native_stage_dependency() {
-    let manifest = include_str!("../Cargo.toml");
+    let manifest = include_str!("../Cargo.toml")
+        .split("[dev-dependencies]")
+        .next()
+        .expect("production manifest");
     assert!(!manifest.contains("/pipeline/"));
     for source in [
         include_str!("terminal/terminal_artifact.rs"),

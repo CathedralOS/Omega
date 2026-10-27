@@ -501,6 +501,7 @@ dependencies = [
  "terminal-installation",
  "terminal-interpreter",
  "terminal-psi",
+ "terminal-psi-to-abstract-operations",
  "terminal-runtime",
  "terminal-semantics",
  "trust-model",

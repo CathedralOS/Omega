@@ -54,6 +54,7 @@ phase-profile = { path = "../../../psi/foundation/phase-profile" }
 optimization-core = { path = "../../foundation/optimization-core" }
 
 [dev-dependencies]
+terminal-psi-to-abstract-operations = { path = "../pipeline/00_terminal-psi-to-abstract-operations" }
 package-manager = { path = "../../packages/package-manager" }
 package-source = { path = "../../packages/source-acquisition" }
 evaluation-accounting = { path = "../../../psi/foundation/evaluation-accounting" }
