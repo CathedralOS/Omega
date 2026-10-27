@@ -1,6 +1,6 @@
 //! A decoded byte scan keeps both measured spans through whole-function
 //! admission. Neither a memory-free replacement nor a one-span scan is equal.
-use super::validate_non_return;
+use super::assert_non_return_refused;
 use selected_instructions::{
     MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect,
     MachineEncodedMemoryEffect, MachineEncodedTrapBehavior, SelectedInstructionId,
@@ -9,10 +9,7 @@ use selected_instructions::{
 
 #[test]
 fn byte_comparison_exit_contract_retains_both_spans_and_register_roles() {
-    let physical = register_model::validate_physical_register_model(
-        isa_aarch64::aarch64_physical_register_model(),
-    )
-    .unwrap();
+    let physical = super::aarch64_physical_register_model();
     let registers = ["x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7"]
         .map(|name| physical.model().view_named(name).unwrap().id);
     let kind = SelectedInstructionKind::CompareByteSequences;
@@ -56,31 +53,24 @@ fn byte_comparison_exit_contract_retains_both_spans_and_register_roles() {
             7 => footprint.encoded.external_operand_writes.push(0),
             _ => footprint.encoded.trap = MachineEncodedTrapBehavior::NeverV1,
         }
-        assert!(
-            validate_non_return(
-                target::Architecture::Aarch64,
-                instruction,
-                kind,
-                &encoding,
-                &layout,
-                &changed
-            )
-            .is_err(),
-            "mutation {mutation}"
+        assert_non_return_refused(
+            &format!("mutation {mutation}"),
+            instruction,
+            kind,
+            &encoding,
+            &layout,
+            &changed,
         );
     }
     let mut changed = store.clone();
     let footprint = changed.footprint_mut(encoding.footprint).unwrap();
     footprint.encoded.control = MachineEncodedControlEffect::DirectRelativeCallV1;
-    assert!(
-        validate_non_return(
-            target::Architecture::Aarch64,
-            instruction,
-            kind,
-            &encoding,
-            &layout,
-            &changed
-        )
-        .is_err()
+    assert_non_return_refused(
+        "a direct relative call leaves the function",
+        instruction,
+        kind,
+        &encoding,
+        &layout,
+        &changed,
     );
 }
