@@ -201,22 +201,20 @@ mod tests {
                 )
                 .unwrap();
                 assert_eq!(encoded.footprint().encoded, effects(target).unwrap());
-                for bit in 0..encoded.bytes().len() * 8 {
-                    let mut corrupted = encoded.bytes().to_vec();
-                    corrupted[bit / 8] ^= 1 << (bit % 8);
-                    assert!(
+                crate::selected_form_encoding::assert_every_bit_flip_rejected(
+                    encoded.bytes(),
+                    |corrupted| {
                         validate_x86_64_selected_hosted_exit_process_form(
                             target,
                             &physical,
                             kind,
                             alternative,
                             &operands,
-                            &corrupted
+                            corrupted,
                         )
-                        .is_err(),
-                        "bit {bit}"
-                    );
-                }
+                        .is_err()
+                    },
+                );
                 let different = [physical
                     .model()
                     .view_named(if name == "rax" { "rdi" } else { "rax" })
