@@ -1,12 +1,13 @@
-// Fact: Completion consumes Pending and returns the original nested array Buffer with each ResidentValue field bound restored, permitting exact subtraction; C writes the middle cell to 73 while marker 91, neighbors 305419896 and 1515863100, and the earlier copy 37 stay unchanged.
+// Fact: Completion consumes Pending and returns the original nested array Buffer with its declared ResidentValue and MarkerValue predicates restored, permitting exact subtraction; C writes the middle cell to 73 while marker 91, neighbors 305419896 and 1515863100, and the earlier copy 37 stay unchanged.
 // Expected exit: 0. Completion updates the nested cell; marker and copied scalar retain their original values.
 use omega::language::core::content;
 use omega::language::core::drop;
 use omega::language::core::external_binding;
 public data ByteUnit {}
-public domain u64::ResidentValue(value) requires value >= 0 && value <= 2147483647;
+public domain u64::ResidentValue(value) requires value >= 0 && value <= 2147483647 && value != 42;
+public domain u64::MarkerValue(value) requires value >= 0 && value <= 100;
 public data Cell [copy] { value: u64 in ResidentValue; }
-public data Buffer [linear] { marker: u64; cells: [Cell; 3]; }
+public data Buffer [linear] { marker: u64 in MarkerValue; cells: [Cell; 3]; }
 machine Buffer::drop(buffer: &mut Buffer) {}
 public domain Buffer::Owned;
 machine Owned::content(buffer: &Buffer) -> CountedQuantity<ByteUnit>
@@ -154,12 +155,13 @@ machine run_main(main: &mut Main, choose: bool) reaches Writer crashes Trap {
     let returned: Capacity in Capacity::Available = Writer::complete(routed, &mut observed);
     Writer::release(returned);
     let remaining: u64 = 2147483647u64 - buffer.cells[1].value;
+    let marker_remaining: u64 = 100u64 - buffer.marker;
     let value: u64 = buffer.cells[1].value;
     let marker: u64 = buffer.marker;
     let left_guard: u64 = buffer.cells[0].value;
     let right_guard: u64 = buffer.cells[2].value;
     drop(buffer);
-    transition remaining == 2147483574 && observed == 73 && value == 73 && original == 37 && marker == 91 && left_guard == 305419896 && right_guard == 1515863100 && ((choose && route == 66051) || (!choose && route == 513)) { true -> done() _ -> bad() }
+    transition remaining == 2147483574 && marker_remaining == 9 && observed == 73 && value == 73 && original == 37 && marker == 91 && left_guard == 305419896 && right_guard == 1515863100 && ((choose && route == 66051) || (!choose && route == 513)) { true -> done() _ -> bad() }
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
 }

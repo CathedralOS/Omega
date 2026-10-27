@@ -36,7 +36,7 @@ fn declared_array_leaf_proves_its_predicate_without_creating_extra_custody() {
         declaration(
             scalar,
             StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer)),
-            None,
+            Some(StructuralFieldType::BoundedInteger(bounds)),
         ),
         declaration(
             record,
@@ -47,7 +47,7 @@ fn declared_array_leaf_proves_its_predicate_without_creating_extra_custody() {
                     identity: field,
                     relevance: BindingRelevance::Relevant,
                     storage: None,
-                    field_type: StructuralFieldType::BoundedInteger(bounds),
+                    field_type: StructuralFieldType::Structural(scalar),
                 }],
             },
             None,
@@ -136,14 +136,16 @@ fn declared_array_leaf_proves_its_predicate_without_creating_extra_custody() {
     ));
     // Equal-width unbounded or atomic storage cannot borrow validity from an
     // unrelated restricted scalar declaration elsewhere in the catalog.
-    for field_type in [
-        StructuralFieldType::Scalar(ScalarType::Integer(integer)),
-        StructuralFieldType::AtomicBoundedInteger(bounds),
-    ] {
-        let StructuralTypeShape::Record { fields, .. } = &mut types[1].shape else {
-            unreachable!()
-        };
-        fields[0].field_type = field_type;
-        assert!(!entails(&types, &domain));
-    }
+    types.push(declaration(
+        StructuralTypeId::new(4).unwrap(),
+        StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer)),
+        Some(StructuralFieldType::BoundedInteger(bounds)),
+    ));
+    types[0].scalar_restriction = None;
+    assert!(!entails(&types, &domain));
+    let StructuralTypeShape::Record { fields, .. } = &mut types[1].shape else {
+        unreachable!()
+    };
+    fields[0].field_type = StructuralFieldType::AtomicBoundedInteger(bounds);
+    assert!(!entails(&types, &domain));
 }
