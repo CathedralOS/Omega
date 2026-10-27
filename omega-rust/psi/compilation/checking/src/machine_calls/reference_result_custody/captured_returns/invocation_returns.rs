@@ -1,4 +1,4 @@
-//! Named completion joins the finite target result relation to this edge's
+//! Invocation completion joins the finite target result relation to this edge's
 //! completed operands and exact returned-loan group. Destination formals never
 //! cross into the caller namespace without substitution; declaration lifetime
 //! candidates do not establish a present result or choose its backing.
@@ -13,10 +13,9 @@ use super::{
 };
 
 impl Captures<'_> {
-    /// An internal edge consumes a complete target relation, not a recursive
-    /// executable summary. Its formal roots are substituted through this
+    /// A completing invocation consumes the complete target relation. Its formal roots are substituted through this
     /// occurrence's completed operands before joining source-state custody.
-    pub(super) fn named_return_sources(
+    pub(super) fn invocation_return_sources(
         &self,
         state: &typed_trees::state::State,
         transition_target: typed_trees::statement::TransitionTargetHandle,
