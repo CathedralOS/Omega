@@ -55,25 +55,9 @@ impl StagedOptimizedSelectedReanalysis {
         &self.transformation
     }
 
-    /// The target register environment governing the transformed program.
-    pub const fn register_environment(&self) -> &ValidatedTargetRegisterEnvironment {
-        self.transformation.register_environment()
-    }
-
-    /// The environment-derived allocator availability governing the program.
-    pub const fn allocator_availability(&self) -> &ValidatedAllocatorAvailability {
-        self.transformation.allocator_availability()
-    }
-
-    /// The governing optimizer selections for this admission.
-    pub fn selections(&self) -> &OptimizationSelections {
-        self.transformation.selections()
-    }
-
-    /// The per-pass work budget admitted beside the same evidence.
-    pub fn budget_per_pass(&self) -> OptimizationWorkBudget {
-        self.transformation.budget_per_pass()
-    }
+    staged_producer_accessors!(
+        transformation; register_environment, allocator_availability, selections, budget_per_pass
+    );
 
     validated_analysis_accessors!();
     receipt_accessor_rows!(ref StagedOptimizedSelectedReanalysis {

@@ -35,7 +35,9 @@ use register_model::RegisterOperandAccess;
 use register_model::RegisterUnitId;
 use selected_instructions::{SelectedInstructionId, VirtualRegisterId};
 
-use super::super::admission::{Admission, audit_stable_paths, canonical_compare_operands};
+use super::super::admission::{
+    Admission, agree_compare_removal_row, audit_stable_paths, canonical_compare_operands,
+};
 use super::RedundantCompareError;
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::member_position;
@@ -68,36 +70,18 @@ pub(super) fn admit<'source>(
         compare_registers.iter().copied().collect();
     // The compare's own constraint row must declare the same all-`use`
     // operand shape at the classes the roster assigns, and the same
-    // implicit surface the instruction carries: a row that disagrees would
-    // change what removing the instruction means.
+    // implicit surface the instruction carries, and nothing may bind the
+    // removed instruction by identity.
     let arity = compare_instruction.operands.len();
-    let row = environment
-        .constraint(compare_instruction.constraint)
-        .ok_or(RedundantCompareError::ConstraintMismatch)?;
-    if row.operands.len() != arity
-        || row.implicit_uses != compare_instruction.implicit_uses
-        || row.implicit_defs != compare_instruction.implicit_defs
-        || row.clobbers != compare_instruction.clobbers
-    {
-        return Err(RedundantCompareError::ConstraintMismatch);
-    }
-    for (position, operand) in compare_instruction.operands.iter().enumerate() {
-        let register = function
-            .virtual_register(operand.virtual_register)
-            .ok_or(RedundantCompareError::ConstraintMismatch)?;
-        if row.operands[position].operand != operand.operand
-            || row.operands[position].access != RegisterOperandAccess::Use
-            || row.operands[position].class != register.class
-        {
-            return Err(RedundantCompareError::ConstraintMismatch);
-        }
-    }
-    // Removing the compare orphans anything that names it: call contracts
-    // and memory-access rows bind instructions by identity, and neither may
-    // claim the compare.
-    if function.call(compare).is_some() || function.memory_access(compare).is_some() {
-        return Err(RedundantCompareError::UnsupportedInstruction);
-    }
+    agree_compare_removal_row(
+        function,
+        compare,
+        compare_instruction,
+        arity,
+        environment,
+        || RedundantCompareError::ConstraintMismatch,
+        || RedundantCompareError::UnsupportedInstruction,
+    )?;
     // The flag walk crosses block boundaries: build the block-indexed
     // adjacency once, locate the entry block whose unseeded condition state
     // bounds every path, and mark the cone of blocks that can reach the
