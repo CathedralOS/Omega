@@ -15,7 +15,7 @@ use typed_trees::machine::Machine;
 
 mod cycles;
 mod scope;
-pub(crate) use scope::ClosedArrivals;
+pub(crate) use scope::{ClosedArrivals, ProgramPrivateArrivalIndex};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Arrival {

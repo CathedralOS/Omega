@@ -5,7 +5,7 @@
 
 use super::super::super::citations::CitationFacts;
 use super::super::super::structural_case_arms::{
-    call_entries::body_can_be_observed, recognize_structural_state_leaves,
+    call_entries::body_can_be_observed, is_subordinate_machine, recognize_structural_state_leaves,
 };
 use super::*;
 
@@ -33,6 +33,7 @@ impl<'program> StructuralJudge<'program> {
             || call_has_mathematical_denotation(program, scope.0.symbol, call)
             || entry.symbol == scope.1.symbol
             || self.body_invocations.contains(&entry.symbol)
+            || !is_subordinate_machine(program, self.machine_symbol, callee.symbol)
             || !body_can_be_observed(program, callee, &classification, true)
             || !independent_call_application(
                 program,

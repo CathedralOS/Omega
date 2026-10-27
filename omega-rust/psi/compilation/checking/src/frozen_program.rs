@@ -679,6 +679,11 @@ pub struct CheckingMemos {
             Vec<crate::DeclaredFloatFieldBound>,
         >,
     >,
+    pub(crate) private_arrival_index: OnceLock<
+        Arc<
+            crate::proof_contracts::contract_entailment::structural_prefix::ProgramPrivateArrivalIndex,
+        >,
+    >,
     pub(crate) private_closed_arrivals: Mutex<
         symbols::SymbolKeyMap<
             (symbols::SymbolHandle, symbols::SymbolHandle),
@@ -690,6 +695,8 @@ pub struct CheckingMemos {
             >,
         >,
     >,
+    pub(crate) state_prefix_reachability_edges:
+        Mutex<symbols::SymbolKeyMap<symbols::SymbolHandle, Option<Vec<symbols::SymbolHandle>>>>,
     pub(crate) normal_completion_possible:
         Mutex<symbols::SymbolKeyMap<symbols::SymbolHandle, Option<bool>>>,
 }
@@ -733,7 +740,9 @@ impl CheckingMemos {
             contract_occurrences: self.contract_occurrences,
             bound_maps: self.bound_maps,
             declared_float_field_bounds: self.declared_float_field_bounds,
+            private_arrival_index: self.private_arrival_index,
             private_closed_arrivals: self.private_closed_arrivals,
+            state_prefix_reachability_edges: self.state_prefix_reachability_edges,
             normal_completion_possible: self.normal_completion_possible,
             ..Self::default()
         }
@@ -770,8 +779,15 @@ impl CheckingMemos {
                     .map(|guard| guard.clone())
                     .unwrap_or_default(),
             ),
+            private_arrival_index: self.private_arrival_index.clone(),
             private_closed_arrivals: Mutex::new(
                 self.private_closed_arrivals
+                    .lock()
+                    .map(|guard| guard.clone())
+                    .unwrap_or_default(),
+            ),
+            state_prefix_reachability_edges: Mutex::new(
+                self.state_prefix_reachability_edges
                     .lock()
                     .map(|guard| guard.clone())
                     .unwrap_or_default(),
