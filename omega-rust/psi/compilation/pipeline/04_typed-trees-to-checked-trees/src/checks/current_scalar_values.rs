@@ -1243,14 +1243,7 @@ fn length_occurrence<'lengths>(
             LengthSubject::Result(owner)
         } else {
             let name = program.expression_table.name_path_node(member.receiver)?;
-            if !name.symbol.is_valid()
-                || name.symbol != name.head_symbol
-                || program
-                    .expression_table
-                    .name_path_members(name.members)
-                    .len()
-                    != 1
-            {
+            if !program.expression_table.name_path_is_single_member(name) {
                 return None;
             }
             LengthSubject::Storage(name.symbol)

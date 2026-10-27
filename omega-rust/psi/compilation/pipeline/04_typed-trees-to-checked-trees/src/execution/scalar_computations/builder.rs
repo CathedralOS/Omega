@@ -534,13 +534,10 @@ impl Builder<'_, '_> {
         }
 
         if let ExpressionNode::Name(name) = self.program.expression_table.expression(expression)
-            && name.symbol == name.head_symbol
             && self
                 .program
                 .expression_table
-                .name_path_members(name.members)
-                .len()
-                == 1
+                .name_path_is_single_member(name)
         {
             let mut selected = self.declaration_bindings.iter().filter(|(formal, _)| {
                 formal.root == facts::PlaceRoot::Symbol(name.symbol) && formal.segments.is_empty()

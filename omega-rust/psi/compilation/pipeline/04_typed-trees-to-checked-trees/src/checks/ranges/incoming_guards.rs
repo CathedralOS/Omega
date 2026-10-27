@@ -724,12 +724,7 @@ fn immutable_argument_symbol(
     bound_lookup: &validation::ImmutableBoundLookup<'_>,
 ) -> Option<SymbolHandle> {
     let path = program.expression_table.name_path_node(expression)?;
-    if path.head_symbol != path.symbol
-        || program
-            .expression_table
-            .name_path_members(path.members)
-            .len()
-            != 1
+    if !program.expression_table.name_path_is_single_member(path)
         || !immutable_integer_binding(program, state, path.symbol)
     {
         return None;

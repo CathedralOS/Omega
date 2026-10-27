@@ -69,11 +69,7 @@ pub(crate) fn proves_exit<'program>(
     else {
         return false;
     };
-    let origins = facts
-        .flow
-        .control
-        .exit_parameter_origins
-        .span_or_empty(exit.parameter_origins)
+    let origins = crate::flow::exit_parameter_origins(facts, exit)
         .iter()
         .filter(|origin| origin.contract == contract)
         .map(|origin| (origin.entry_parameter, origin.state_parameter));

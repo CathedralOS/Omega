@@ -1,4 +1,4 @@
-//! The places a call's arguments access. `collect_call_argument_accesses`
+//! The places a call's arguments access. `collect_argument_accesses`
 //! appends one `BorrowArgumentAccessFact` per accessed place and returns the
 //! call's span of them: a `&`, `&mut` or `&write` argument records a read,
 //! mutable or write-only access to its borrowed place, and any other argument
@@ -9,9 +9,9 @@
 //! that finish during operand evaluation from loans held through invocation.
 //! `borrow::calls` calls it while building borrow facts, and `checks::borrows::calls::receiver`
 //! calls it into scratch arenas for the operand that follows an exclusive
-//! operation's receiver. A transition arm's target roster comes from
-//! `collect_transition_target_argument_accesses`, which also ends the reads of
-//! payloads its dispatch already copied (`validation::DispatchExtraction`).
+//! operation's receiver. A transition arm's target roster is the same
+//! collection under its own schedule, which also ends the reads of payloads
+//! its dispatch already copied (`validation::DispatchExtraction`).
 //! Each row retains the operand that produced it. The statement read judgment
 //! leaves a call's staged operands to that call's own judgment without a
 //! separate expression-recording mode or a parallel provenance walk.
@@ -40,34 +40,18 @@ pub(crate) use place::{
 };
 use read::collect_read_accesses;
 
-pub(crate) fn collect_call_argument_accesses(
-    program: &dyn ::validation::CheckingInput,
-    access_segments: &mut arena::Arena<facts::PlaceSegment>,
-    argument_accesses: &mut arena::Arena<BorrowArgumentAccessFact>,
-    arguments: &[ExpressionHandle],
-    state_symbol: SymbolHandle,
-    statement_index: usize,
-    machine_symbol: SymbolHandle,
-    target_symbol: SymbolHandle,
-) -> arena::HandleSpan<BorrowArgumentAccessFact> {
-    collect_argument_access_span(
-        program,
-        access_segments,
-        argument_accesses,
-        arguments,
-        state_symbol,
-        statement_index,
-        machine_symbol,
-        target_symbol,
-        false,
-        None,
-    )
+/// The roster one access collection reads, and how the sequence that reaches
+/// it already evaluated the arguments. A call's own arguments are read while
+/// the invocation evaluates them. A transition arm's target roster follows a
+/// dispatch that copied its plain-copy payload bindings out of the saved
+/// subject before the target evaluates any argument, and names the extraction
+/// when selection completed that copy first; nested calls keep `Invocation`.
+pub(crate) enum ArgumentAccessSchedule {
+    Invocation,
+    TransitionTarget(Option<validation::DispatchExtraction>),
 }
 
-/// A transition arm's own target roster. Its plain-copy payload bindings were
-/// copied out of the dispatch's saved subject before the target evaluates any
-/// argument; nested calls' rosters keep `collect_call_argument_accesses`.
-pub(crate) fn collect_transition_target_argument_accesses(
+pub(crate) fn collect_argument_accesses(
     program: &dyn ::validation::CheckingInput,
     access_segments: &mut arena::Arena<facts::PlaceSegment>,
     argument_accesses: &mut arena::Arena<BorrowArgumentAccessFact>,
@@ -76,44 +60,37 @@ pub(crate) fn collect_transition_target_argument_accesses(
     statement_index: usize,
     machine_symbol: SymbolHandle,
     target_symbol: SymbolHandle,
+    schedule: ArgumentAccessSchedule,
 ) -> arena::HandleSpan<BorrowArgumentAccessFact> {
-    collect_argument_access_span(
-        program,
-        access_segments,
-        argument_accesses,
-        arguments,
-        state_symbol,
-        statement_index,
-        machine_symbol,
-        target_symbol,
-        true,
-        None,
-    )
-}
+    let mut accesses = arena::HandleSpan::empty();
 
-fn collect_completed_transition_target_argument_accesses(
-    program: &dyn ::validation::CheckingInput,
-    access_segments: &mut arena::Arena<facts::PlaceSegment>,
-    argument_accesses: &mut arena::Arena<BorrowArgumentAccessFact>,
-    arguments: &[ExpressionHandle],
-    state_symbol: SymbolHandle,
-    statement_index: usize,
-    machine_symbol: SymbolHandle,
-    target_symbol: SymbolHandle,
-    extraction: validation::DispatchExtraction,
-) -> arena::HandleSpan<BorrowArgumentAccessFact> {
-    collect_argument_access_span(
-        program,
-        access_segments,
-        argument_accesses,
-        arguments,
-        state_symbol,
-        statement_index,
-        machine_symbol,
-        target_symbol,
-        true,
-        Some(extraction),
-    )
+    {
+        let mut collection = BorrowAccessCollection::new(
+            program,
+            access_segments,
+            argument_accesses,
+            &mut accesses,
+            state_symbol,
+            statement_index,
+            machine_symbol,
+        );
+        if let ArgumentAccessSchedule::TransitionTarget(completed) = schedule {
+            collection = collection.after_dispatch_extraction();
+            if let Some(extraction) = completed {
+                collection = collection.with_completed_dispatch_extraction(extraction);
+            }
+        }
+
+        collect_target_argument_accesses(
+            &mut collection,
+            arguments,
+            state_symbol,
+            statement_index,
+            target_symbol,
+        );
+    }
+
+    accesses
 }
 
 /// The ordinary typed access schedule distinguishes value observations from
@@ -130,7 +107,7 @@ pub(crate) fn dispatch_target_value_reads(
 ) -> Vec<ExpressionHandle> {
     let mut segments = arena::Arena::new();
     let mut rows = arena::Arena::new();
-    let accesses = collect_completed_transition_target_argument_accesses(
+    let accesses = collect_argument_accesses(
         program,
         &mut segments,
         &mut rows,
@@ -139,7 +116,7 @@ pub(crate) fn dispatch_target_value_reads(
         statement,
         machine,
         target,
-        extraction,
+        ArgumentAccessSchedule::TransitionTarget(Some(extraction)),
     );
     rows.span_or_empty(accesses)
         .iter()
@@ -171,49 +148,6 @@ pub(crate) fn dispatch_target_value_reads(
         })
         .map(|access| access.expression)
         .collect()
-}
-
-fn collect_argument_access_span(
-    program: &dyn ::validation::CheckingInput,
-    access_segments: &mut arena::Arena<facts::PlaceSegment>,
-    argument_accesses: &mut arena::Arena<BorrowArgumentAccessFact>,
-    arguments: &[ExpressionHandle],
-    state_symbol: SymbolHandle,
-    statement_index: usize,
-    machine_symbol: SymbolHandle,
-    target_symbol: SymbolHandle,
-    after_dispatch: bool,
-    completed_extraction: Option<validation::DispatchExtraction>,
-) -> arena::HandleSpan<BorrowArgumentAccessFact> {
-    let mut accesses = arena::HandleSpan::empty();
-
-    {
-        let mut collection = BorrowAccessCollection::new(
-            program,
-            access_segments,
-            argument_accesses,
-            &mut accesses,
-            state_symbol,
-            statement_index,
-            machine_symbol,
-        );
-        if after_dispatch {
-            collection = collection.after_dispatch_extraction();
-        }
-        if let Some(extraction) = completed_extraction {
-            collection = collection.with_completed_dispatch_extraction(extraction);
-        }
-
-        collect_target_argument_accesses(
-            &mut collection,
-            arguments,
-            state_symbol,
-            statement_index,
-            target_symbol,
-        );
-    }
-
-    accesses
 }
 
 /// Nested and outer invocations retain the same formal-directed loan access.
@@ -335,10 +269,12 @@ fn collect_formal_argument_accesses(
         collection.append_argument_access(place, kind, argument);
         return;
     }
-    collect_argument_accesses(collection, argument);
+    collect_single_expression_argument_access(collection, argument);
 }
 
-fn collect_argument_accesses(
+/// One argument expression's own access: an authored borrow records its place
+/// under the borrow kind, anything else records a read for each place it reads.
+fn collect_single_expression_argument_access(
     collection: &mut BorrowAccessCollection<'_>,
     expression: ExpressionHandle,
 ) {

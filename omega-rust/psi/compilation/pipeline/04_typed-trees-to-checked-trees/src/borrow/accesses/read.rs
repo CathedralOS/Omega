@@ -99,7 +99,9 @@ pub(super) fn collect_read_accesses(
         ExpressionNode::Name(_) => {
             append_read_access(collection, expression);
         }
-        ExpressionNode::Borrow(_) => super::collect_argument_accesses(collection, expression),
+        ExpressionNode::Borrow(_) => {
+            super::collect_single_expression_argument_access(collection, expression)
+        }
         _ => {}
     }
 }

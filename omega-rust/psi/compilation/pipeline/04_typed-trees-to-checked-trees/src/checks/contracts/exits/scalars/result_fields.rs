@@ -911,15 +911,8 @@ impl ExitScalars<'_, '_> {
                     return None;
                 }
                 let mut origins = self
-                    .facts
-                    .flow
-                    .control
-                    .exit_parameter_origins
-                    .span_or_empty(self.exit.parameter_origins)
-                    .iter()
-                    .filter(|origin| {
-                        origin.contract == self.contract && origin.entry_parameter == root
-                    });
+                    .contract_origins()
+                    .filter(|origin| origin.entry_parameter == root);
                 let origin = origins.next()?;
                 if origins.next().is_some() || !origin.state_parameter.is_valid() {
                     return None;

@@ -609,12 +609,14 @@ fn admit_declared_scalar_refinement(
         {
             continue;
         }
-        let Some(predicate) = &domain.predicate else {
+        let Some(predicate) = super::payload_predicates::introduction_predicate(
+            types,
+            domains,
+            domain,
+            &contract.qualifications,
+        ) else {
             continue;
         };
-        if !crate::domain_predicate_is_closed(types.iter(), domain.carrier, predicate) {
-            continue;
-        }
         let mut proposition = predicate.proposition.clone();
         rewrite_subject_as_refinement_value(
             &mut proposition,
@@ -795,11 +797,18 @@ fn implied_predicate_memberships(
         .iter()
         .filter(|domain| {
             domain.carrier == carrier
-                && domain.establishment_routes.is_empty()
-                && domain.content_projection.is_none()
-                && domain.predicate.as_ref().is_some_and(|predicate| {
-                    predicate.proposition == semantic_vocabulary::Proposition::Truth
-                })
+                && (domain
+                    .missing_membership_requirements(domains, qualifications)
+                    .is_some_and(|missing| missing.is_empty())
+                    || super::payload_predicates::introduction_predicate(
+                        types,
+                        domains,
+                        domain,
+                        qualifications,
+                    )
+                    .is_some_and(|predicate| {
+                        predicate.proposition == semantic_vocabulary::Proposition::Truth
+                    }))
         })
         .map(|domain| domain.id)
         .collect::<Vec<_>>();

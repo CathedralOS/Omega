@@ -386,3 +386,7 @@ For positive fixtures they still run when native realization refuses; the row
 retains its native diagnostics and rejected verdict alongside the inspection
 facts. Such a result can establish Terminal-only behavior, never native
 acceptance. Intended-invalid fixtures do not execute inspection provisions.
+
+The source-backed target/provider custody check runs with the existing SDK suite:
+`mbx nextest run -p compiler --test package_review historical_constant_closure_requires_exact_target_and_provider`.
+It checks canonical transport, exact target/provider inputs and Windows Terminal execution without running a foreign native image.

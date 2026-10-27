@@ -102,14 +102,7 @@ fn tracked_source_parameter<'a>(
     let mut visible = locals.len();
     loop {
         let name = program.expression_table.name_path_node(expression)?;
-        if !name.head_symbol.is_valid()
-            || name.symbol != name.head_symbol
-            || program
-                .expression_table
-                .name_path_members(name.members)
-                .len()
-                != 1
-        {
+        if !program.expression_table.name_path_is_single_member(name) {
             return None;
         }
         match locals[..visible]

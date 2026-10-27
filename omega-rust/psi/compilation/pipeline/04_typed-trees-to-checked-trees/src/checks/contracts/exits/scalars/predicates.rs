@@ -15,15 +15,8 @@ impl ExitScalars<'_, '_> {
         // still agree with the exit namespace; rebased scalar observations
         // below use the explicit origin correspondence instead.
         if !self
-            .facts
-            .flow
-            .control
-            .exit_parameter_origins
-            .span_or_empty(self.exit.parameter_origins)
-            .iter()
-            .any(|origin| {
-                origin.contract == self.contract && origin.entry_parameter != origin.state_parameter
-            })
+            .contract_origins()
+            .any(|origin| origin.entry_parameter != origin.state_parameter)
             && self
                 .state()
                 .and_then(|state| {

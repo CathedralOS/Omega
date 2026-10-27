@@ -477,7 +477,7 @@ fn member_subject_satisfies_domain(
         // Proving the outer theory cannot establish a routed child. A child
         // carries its own exact membership, or independently proves a theory
         // that does not require authorized provenance.
-        return super::domain_implications::value_proves_qualification_in_contexts(
+        return super::domain_implications::value_proves_qualification_with_domain_stack(
             program,
             facts,
             state,
@@ -486,6 +486,8 @@ fn member_subject_satisfies_domain(
             domain_symbol,
             identity,
             contexts,
+            active,
+            frames,
         ) || (!validation::field_domains::domain_requires_provenance(
             program,
             domain_symbol,

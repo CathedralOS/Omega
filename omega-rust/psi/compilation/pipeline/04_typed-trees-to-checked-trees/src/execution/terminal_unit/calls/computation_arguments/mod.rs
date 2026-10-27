@@ -120,13 +120,7 @@ pub(crate) fn structural_computation_argument(
         );
     }
     let name = program.expression_table.name_path_node(named)?;
-    if !name.symbol.is_valid()
-        || name.head_symbol != name.symbol
-        || program
-            .expression_table
-            .name_path_members(name.members)
-            .len()
-            != 1
+    if !program.expression_table.name_path_is_single_member(name)
         || place.root != facts::PlaceRoot::Symbol(name.symbol)
         || !place.segments.is_empty()
     {

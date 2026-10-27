@@ -8,12 +8,36 @@ use super::super::structural_signature_wire::{
 };
 use super::super::wire::{Reader, Writer};
 use crate::sections::semantic_module::wire::{decode_counted, decode_ids};
-use semantic_vocabulary::ContentProjectionIdentity;
+use semantic_vocabulary::{ContentProjectionIdentity, DomainSemanticId};
 use terminal_psi::{
     InstallationReachDependency, NominalDeclarationIdentity, ServiceDeclaration,
     StructuralContentProjection, StructuralDomainDeclaration, StructuralEstablishmentRoute,
     TerminalIdentityIndex,
 };
+
+pub(crate) fn encode_required_memberships(
+    writer: &mut Writer,
+    required: &Option<Vec<DomainSemanticId>>,
+) -> Result<(), CodecError> {
+    writer.boolean(required.is_some());
+    if let Some(required) = required {
+        writer.len("required domain memberships", required.len())?;
+        for domain in required {
+            writer.id(*domain);
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn decode_required_memberships(
+    reader: &mut Reader<'_>,
+) -> Result<Option<Vec<DomainSemanticId>>, CodecError> {
+    if reader.boolean()? {
+        Ok(Some(decode_ids(reader, "required DomainSemanticId")?))
+    } else {
+        Ok(None)
+    }
+}
 
 pub(crate) fn encode_establishment_routes(
     writer: &mut Writer,
@@ -82,6 +106,7 @@ pub(super) fn encode_structural_domain(
 ) -> Result<(), CodecError> {
     writer.id(declaration.id);
     writer.id(declaration.semantic_domain);
+    encode_required_memberships(writer, &declaration.required_memberships)?;
     writer.boolean(declaration.complete_predicate_theory);
     writer.u32(declaration.identity.0);
     writer.id(declaration.carrier);
@@ -138,6 +163,7 @@ pub(super) fn decode_structural_domain(
     Ok(StructuralDomainDeclaration {
         id: reader.id("StructuralDomainId")?,
         semantic_domain: reader.id("DomainSemanticId")?,
+        required_memberships: decode_required_memberships(reader)?,
         complete_predicate_theory: reader.boolean()?,
         identity: TerminalIdentityIndex(reader.u32()?),
         carrier: reader.id("StructuralTypeId")?,

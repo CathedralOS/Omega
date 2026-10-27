@@ -1160,13 +1160,7 @@ fn whole_local_binding<'a>(
     &'a typed_trees::statement::TableLocalData,
 )> {
     let path = program.expression_table.name_path_node(expression)?;
-    if !path.symbol.is_valid()
-        || path.head_symbol != path.symbol
-        || program
-            .expression_table
-            .name_path_members(path.members)
-            .len()
-            != 1
+    if !program.expression_table.name_path_is_single_member(path)
         || parameters
             .iter()
             .any(|parameter| parameter.symbol == path.symbol)

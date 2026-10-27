@@ -1,0 +1,56 @@
+{
+  "name": "omega-syntax",
+  "displayName": "Omega Syntax",
+  "description": "Syntax highlighting for the Omega systems language (.omg).",
+  "version": "0.1.0",
+  "publisher": "cathedralos",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "omega",
+    "omg",
+    "syntax",
+    "highlighting"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CathedralOS/Omega.git",
+    "directory": "tools/vscode-omega"
+  },
+  "extensionKind": [
+    "ui"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    },
+    "virtualWorkspaces": true
+  },
+  "contributes": {
+    "languages": [
+      {
+        "id": "omega",
+        "aliases": [
+          "Omega",
+          "omega"
+        ],
+        "extensions": [
+          ".omg"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "omega",
+        "scopeName": "source.omega",
+        "path": "./syntaxes/omega.tmLanguage.json"
+      }
+    ]
+  }
+}

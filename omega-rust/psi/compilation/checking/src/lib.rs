@@ -98,8 +98,9 @@ pub use proof_contracts::arithmetic_domains::{
     selected_scalar_interval,
 };
 pub use proof_contracts::collection_predicates::{
-    PredicateIntegerOperand, PredicateIntegerSubject, exact_predicate_intervals,
-    exact_predicate_ordering, length_member, predicate_ordering_consequences,
+    PredicateIntegerOperand, PredicateIntegerReadSubject, PredicateIntegerSubject,
+    exact_predicate_conjunction, exact_predicate_intervals, exact_predicate_ordering,
+    length_member, predicate_integer_operand, predicate_ordering_consequences,
     premises_prove_expression,
 };
 pub use proof_contracts::contract_entailment::call_projection_identity::{
@@ -126,13 +127,18 @@ pub use proof_contracts::contract_entailment::ranking_range::{
     closed_collection_length_at_place, closed_collection_length_under_matches,
     unique_literal_field,
 };
+pub use proof_contracts::contract_entailment::{
+    ImmutableEntryReadIdentity, immutable_entry_indexed_read_identity,
+    immutable_entry_integer_projection, instantiate_immutable_entry_indexed_read_identity,
+};
 pub use proof_contracts::contract_results::{
     ReservedResultPlace, callable_contract_scopes, reserved_result_owner, reserved_result_place,
 };
 pub use proof_contracts::domains::{
-    integer_domain_membership, scalar_domain_predicate, scalar_domain_value_predicate,
-    scalar_field_domain_predicate, scalar_field_restriction, scalar_membership_carrier,
-    scalar_membership_is_tag, scalar_membership_predicates, scalar_membership_value_carrier,
+    integer_domain_membership, scalar_domain_definition_predicate, scalar_domain_local_predicate,
+    scalar_domain_predicate, scalar_domain_value_predicate, scalar_field_domain_predicate,
+    scalar_field_restriction, scalar_membership_carrier, scalar_membership_is_tag,
+    scalar_membership_predicates, scalar_membership_value_carrier,
     scalar_membership_value_predicates, scalar_predicate_domains, scalar_type_routed_domains,
     scalar_type_tags, validate_executable_domain_test_carriers,
 };
