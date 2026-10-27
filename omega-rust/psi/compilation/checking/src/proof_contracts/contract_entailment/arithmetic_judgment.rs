@@ -881,10 +881,6 @@ impl<'program> Engine<'program> {
             if let Some(value) = polynomial.constant_value() {
                 if value < bound {
                     self.requires_unsatisfiable = true;
-                    if std::env::var_os("OMEGA_TRACE_ARITHMETIC_FIT").is_some() {
-                        eprintln!("TRACE_CONSTANT {value} < {bound}");
-                    }
-                    self.trace_bound_state("flag:constant-bound");
                 }
                 continue;
             }
@@ -908,13 +904,7 @@ impl<'program> Engine<'program> {
             let nonnegative = self.prove_at_least(&difference, &BigInt::zero());
             let nonpositive = self.prove_at_least(&opposite, &BigInt::zero());
             match (nonnegative, nonpositive) {
-                (true, true) => {
-                    self.requires_unsatisfiable = true;
-                    if std::env::var_os("OMEGA_TRACE_ARITHMETIC_FIT").is_some() {
-                        eprintln!("TRACE_DISEQUALITY {difference:?}");
-                    }
-                    self.trace_bound_state("flag:disequality");
-                }
+                (true, true) => self.requires_unsatisfiable = true,
                 (true, false) => self.bounds.push((difference, BigInt::from_i64(1))),
                 (false, true) => self.bounds.push((opposite, BigInt::from_i64(1))),
                 (false, false) => {}

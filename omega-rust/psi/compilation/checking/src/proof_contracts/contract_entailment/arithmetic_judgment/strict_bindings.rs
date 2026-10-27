@@ -46,7 +46,6 @@ impl<'program> Engine<'program> {
     ) -> super::super::operand_fits::CarrierFit {
         use super::super::operand_fits::CarrierFit;
         if self.requires_unsatisfiable {
-            self.trace_bound_state("fit:contradictory-premises");
             return CarrierFit::Unknown;
         }
         let value = self.substituted(value);
@@ -82,10 +81,6 @@ impl<'program> Engine<'program> {
                 high: value,
             };
         }
-        if std::env::var_os("OMEGA_TRACE_ARITHMETIC_FIT").is_some() {
-            eprintln!("TRACE_FIT unresolved value={value:?} minimum={minimum} maximum={maximum:?}");
-        }
-        self.trace_bound_state("fit:missing-bound");
         CarrierFit::Unknown
     }
 
@@ -521,9 +516,6 @@ impl<'program> Engine<'program> {
         match self.program.expression_table.expression(expression).clone() {
             ExpressionNode::Boolean(value) => {
                 self.requires_unsatisfiable |= value != positive;
-                if value != positive {
-                    self.trace_bound_state("flag:contradictory-boolean");
-                }
                 return;
             }
             ExpressionNode::Unary(unary)

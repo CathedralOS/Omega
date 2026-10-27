@@ -41,7 +41,7 @@ struct IntegerProjectionRegistrations {
     engine: (usize, usize, usize, usize),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 struct ObservedOperation {
     operator: BinaryOperator,
     primitives: [PrimitiveType; 2],
@@ -324,13 +324,7 @@ impl StructuralJudge<'_> {
             carrier_bounds: Vec::new(),
             installed_carrier_bounds: 0,
         };
-        if std::env::var_os("OMEGA_TRACE_ARITHMETIC_FIT").is_some() {
-            eprintln!("TRACE_GOAL target={target:?} term={value:?}");
-        }
         let Some(value) = self.mathematical_value(&value, &mut observations, 0) else {
-            if std::env::var_os("OMEGA_TRACE_ARITHMETIC_FIT").is_some() {
-                eprintln!("TRACE_UNAVAILABLE goal-projection");
-            }
             return CarrierFit::Unknown;
         };
         let (minimum, maximum, exclusive) = if target == PrimitiveType::Addr {
@@ -364,15 +358,6 @@ impl StructuralJudge<'_> {
         let mut premises = self.observed_integer_premises(&mut observations);
         if !observations.install_premises(&mut premises) || !observations.admitted(goal_operations)
         {
-            if std::env::var_os("OMEGA_TRACE_ARITHMETIC_FIT").is_some() {
-                eprintln!(
-                    "TRACE_UNADMITTED value={value:?} operations={:?}",
-                    observations.operations
-                );
-            }
-            observations
-                .engine
-                .trace_bound_state("unadmitted-operation-or-premise");
             return CarrierFit::Unknown;
         }
         observations.engine.integer_value_fit(
