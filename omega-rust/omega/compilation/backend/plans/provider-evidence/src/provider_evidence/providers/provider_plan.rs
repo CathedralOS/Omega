@@ -149,12 +149,17 @@ pub struct ProviderPlan {
     pub digest_memo: ProviderPlanDigestMemo,
 }
 
-/// Memoized [`ProviderPlan::identity_digest`]. It is not part of the plan's
+/// Memoized [`ProviderPlan::identity_digest`], [`ProviderPlan::report_fingerprint`],
+/// and [`ProviderPlan::schema_identity_digest`]. It is not part of the plan's
 /// value: equality ignores it, debug output omits its state, and a clone
 /// starts empty, so a clone whose public fields are changed before its first
 /// digest cannot inherit the original's commitment.
 #[derive(Default)]
-pub struct ProviderPlanDigestMemo(std::sync::OnceLock<ProviderPlanDigest>);
+pub struct ProviderPlanDigestMemo {
+    digest: std::sync::OnceLock<ProviderPlanDigest>,
+    report_fingerprint: std::sync::OnceLock<u64>,
+    schema_digest: std::sync::OnceLock<ServiceSchemaDigest>,
+}
 
 impl Clone for ProviderPlanDigestMemo {
     fn clone(&self) -> Self {
@@ -264,8 +269,15 @@ impl ProviderPlan {
     pub fn identity_digest(&self) -> ProviderPlanDigest {
         *self
             .digest_memo
-            .0
+            .digest
             .get_or_init(|| self.encode_identity_digest())
+    }
+
+    pub fn schema_identity_digest(&self) -> ServiceSchemaDigest {
+        *self
+            .digest_memo
+            .schema_digest
+            .get_or_init(|| self.schema.identity_digest())
     }
 
     fn encode_identity_digest(&self) -> ProviderPlanDigest {
@@ -335,6 +347,13 @@ impl ProviderPlan {
     /// admission and execution must retain the exact plan and its
     /// collision-resistant [`Self::identity_digest`].
     pub fn report_fingerprint(&self) -> u64 {
+        *self
+            .digest_memo
+            .report_fingerprint
+            .get_or_init(|| self.compute_report_fingerprint())
+    }
+
+    fn compute_report_fingerprint(&self) -> u64 {
         let mut rendered = format!(
             "{}\n{}\n{}\n{}",
             self.name,
@@ -507,7 +526,7 @@ impl ProviderPlan {
         hash.bytes(rendered.as_bytes());
         // Report coordinates distinguish exact applied receiver rosters too.
         // This is still a compact coordinate, never an admission identity.
-        hash.bytes(self.schema.identity_digest().as_bytes());
+        hash.bytes(self.schema_identity_digest().as_bytes());
         hash.finish()
     }
 
