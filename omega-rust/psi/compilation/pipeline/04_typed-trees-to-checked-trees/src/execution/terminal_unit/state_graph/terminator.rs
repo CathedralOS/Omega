@@ -262,16 +262,21 @@ pub(super) fn build(
                             )?,
                         }
                     }
-                    // A named transfer or Unit-valued terminal invocation
-                    // ran in the statement sequence. Value-producing calls
-                    // instead complete through their retained value owner,
-                    // exactly like a bare tail expression below.
-                    target @ (TransitionTargetNode::Named { .. }
-                    | TransitionTargetNode::Value(_))
-                        if (matches!(target, TransitionTargetNode::Named { .. })
-                            || result == checked_trees::CheckedControlResultPlan::Unit)
-                            && terminal_calls::external_callable(
-                                program, machine, fused, transition,
+                    // A sequenced invocation forwards its own bound result,
+                    // independently of Named versus Value source spelling.
+                    // A retained expression computation instead keeps the
+                    // ordinary value-completion owner below.
+                    TransitionTargetNode::Named { .. } | TransitionTargetNode::Value(_)
+                        if terminal_calls::external_callable(
+                            program, machine, fused, transition,
+                        )
+                        .is_some()
+                            && terminal_calls::completion(
+                                operations,
+                                ordinal,
+                                &result,
+                                scalar_result,
+                                structural_result,
                             )
                             .is_some() =>
                     {

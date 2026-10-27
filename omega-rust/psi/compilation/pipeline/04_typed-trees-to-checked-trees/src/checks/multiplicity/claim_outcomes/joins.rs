@@ -1480,7 +1480,7 @@ fn derive_receipts(
             state: state.symbol,
             statement: statement_index,
             ordinal,
-            target: call.target_symbol,
+            target: target.symbol,
             expression,
             root: event.root,
             path: path.to_vec(),

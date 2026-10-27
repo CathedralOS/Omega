@@ -852,6 +852,59 @@ pub(in crate::execution::terminal_unit) fn scalar_control(
 ) -> Option<(checked_trees::CheckedUnitScalarControlPlan, usize)> {
     let primitive_type = program.primitive_type_reference(state.return_type)?;
     let (terminator, prefix_count) = returning_terminator(program, facts, machine, state)?;
+    let retained_return = |statement, continuation| {
+        let role = if continuation {
+            CheckedScalarExpressionRole::ContinuationReturn
+        } else {
+            CheckedScalarExpressionRole::Return
+        };
+        facts
+            .values
+            .scalar_expressions
+            .bound_expression_at(state.symbol, statement, role)
+            .is_some()
+            || facts
+                .values
+                .scalar_computations
+                .root_at(state.symbol, statement, role)
+                .is_some()
+    };
+    let retained_destination =
+        |destination: &checked_trees::CheckedScalarBranchDestination| match destination {
+            checked_trees::CheckedScalarBranchDestination::Return {
+                statement_ordinal,
+                is_continuation,
+            } => retained_return(*statement_ordinal, *is_continuation),
+            _ => false,
+        };
+    // A completion coordinate does not establish a scalar value. Ordinary
+    // terminal invocations may own their result through an arm call instead;
+    // only the retained expression lane can publish scalar-control returns.
+    let complete = match &terminator {
+        checked_trees::CheckedScalarStateTerminator::Return { statement_ordinal } => {
+            retained_return(*statement_ordinal, false)
+        }
+        checked_trees::CheckedScalarStateTerminator::Conditional {
+            when_true,
+            when_false,
+            ..
+        } => retained_destination(when_true) && retained_destination(when_false),
+        checked_trees::CheckedScalarStateTerminator::Guarded { arms, fallback } => {
+            facts
+                .flow
+                .guarded_exits
+                .exits
+                .span(*arms)?
+                .iter()
+                .all(|arm| retained_destination(&arm.destination))
+                && fallback.as_ref().is_none_or(retained_destination)
+        }
+        checked_trees::CheckedScalarStateTerminator::Crash { .. } => true,
+        _ => false,
+    };
+    if !complete {
+        return None;
+    }
     Some((
         checked_trees::CheckedUnitScalarControlPlan {
             primitive_type,
