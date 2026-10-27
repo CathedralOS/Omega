@@ -44,6 +44,10 @@ judgment through materialization and index use.
 The [mutable-recast production](mutable_recast/README.md) carries the same fact
 through immediate exclusive views with complete two-way representation validity.
 
+The [private-write production](private_write/README.md) establishes the same fact
+when every private helper arrival supplies the receiving store's bound, including
+scalar snapshots evaluated before later argument mutations.
+
 ## Establishment and preservation
 
 - **Establishment:** construction and the checked borrowed write establish the

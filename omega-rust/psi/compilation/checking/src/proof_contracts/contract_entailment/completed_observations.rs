@@ -49,15 +49,15 @@ pub fn completed_value_is_bounded_by_static(
     if program.primitive_type_reference(bound_type) != Some(primitive) {
         return false;
     }
-    let mut proven = true;
-    let complete = observe_completed_values(
+    let result = fold_completed_values(
         program,
         machine,
         state,
         statement_index,
         expression,
         reference,
-        |judge, value| {
+        true,
+        |proven, judge, value| {
             let predicate = StructuralTerm::ScalarBinary {
                 references: [reference, bound_type],
                 operator: if strict {
@@ -69,13 +69,13 @@ pub fn completed_value_is_bounded_by_static(
                 left: Box::new(value),
                 right: Box::new(StructuralTerm::BoundValue(binder)),
             };
-            proven &= matches!(
+            *proven &= matches!(
                 judge.judge_observed_predicate(predicate, 0),
                 super::structural_judgment::StructuralJudgment::Proven
             );
         },
     );
-    complete == Some(true) && proven
+    result.is_some_and(|result| result.complete && result.state)
 }
 
 /// Prove a finite receiving interval on the actual completed scalar value.
@@ -100,15 +100,15 @@ pub(crate) fn completed_value_fits_integer_interval(
     else {
         return false;
     };
-    let mut proven = true;
-    let complete = observe_completed_values(
+    let result = fold_completed_values(
         program,
         machine,
         state,
         statement_index,
         expression,
         reference,
-        |judge, value| {
+        true,
+        |proven, judge, value| {
             for (bound, lower) in [(interval.low, true), (interval.high, false)] {
                 let Some(bound) = bound else {
                     continue;
@@ -132,7 +132,7 @@ pub(crate) fn completed_value_fits_integer_interval(
                         "STRUCT completed interval expression={expression:?} predicate={predicate:?} judgment={judgment:?}"
                     );
                 }
-                proven &= matches!(
+                *proven &= matches!(
                     judgment,
                     super::structural_judgment::StructuralJudgment::Proven
                 );
@@ -140,25 +140,34 @@ pub(crate) fn completed_value_fits_integer_interval(
         },
     );
     if super::struct_trace() {
-        eprintln!(
-            "STRUCT completed interval expression={expression:?} coverage={complete:?} proven={proven}"
-        );
+        eprintln!("STRUCT completed interval expression={expression:?} result={result:?}");
     }
-    complete == Some(true) && proven
+    result.is_some_and(|result| result.complete && result.state)
 }
 
-/// Visit every reachable completion. None means the prefix was unavailable;
-/// false means that the callbacks do not cover all reachable completions.
-/// Partial observations may refute a predicate, but cannot establish one.
-pub(super) fn observe_completed_values(
+/// A query-owned fold result. Partial universal observations may refute a
+/// predicate, but only complete coverage may establish it.
+#[derive(Debug)]
+pub(super) struct CompletedValueFold<FoldState> {
+    pub state: FoldState,
+    pub complete: bool,
+}
+
+/// Fold completed values without publishing a tentative arrival's judgment.
+/// A complete closed-private batch supplies actual caller premises. Otherwise
+/// discard its entire state and start afresh from universal authored premises.
+/// The fold owns every mutable result; it must not publish effects externally.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn fold_completed_values<FoldState: Clone>(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     statement_index: usize,
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
-    observe: impl FnMut(&StructuralJudge<'_>, StructuralTerm),
-) -> Option<bool> {
+    initial: FoldState,
+    fold: impl Fn(&mut FoldState, &StructuralJudge<'_>, StructuralTerm),
+) -> Option<CompletedValueFold<FoldState>> {
     let mut visitor = CompletedObservation {
         site: StructuralPrefixSite {
             state: state.symbol,
@@ -172,26 +181,44 @@ pub(super) fn observe_completed_values(
         },
         expression,
         reference,
-        observe,
+        fold,
+        state: initial.clone(),
         complete: true,
         observed: false,
     };
+    if super::structural_prefix::observe_private_arrivals(program, machine, &mut visitor, false)
+        == Some(true)
+        && visitor.complete
+        && visitor.observed
+    {
+        return Some(CompletedValueFold {
+            state: visitor.state,
+            complete: true,
+        });
+    }
+    visitor.state = initial;
+    visitor.complete = true;
+    visitor.observed = false;
     observe_runtime_state_prefix(program, machine, state, &mut visitor)?;
-    Some(visitor.complete && visitor.observed)
+    Some(CompletedValueFold {
+        state: visitor.state,
+        complete: visitor.complete && visitor.observed,
+    })
 }
 
-struct CompletedObservation<Observer> {
+struct CompletedObservation<FoldState, Fold> {
     site: StructuralPrefixSite,
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
-    observe: Observer,
+    fold: Fold,
+    state: FoldState,
     complete: bool,
     observed: bool,
 }
 
-impl<Observer> StructuralPrefixVisitor for CompletedObservation<Observer>
+impl<FoldState, Fold> StructuralPrefixVisitor for CompletedObservation<FoldState, Fold>
 where
-    Observer: FnMut(&StructuralJudge<'_>, StructuralTerm),
+    Fold: Fn(&mut FoldState, &StructuralJudge<'_>, StructuralTerm),
 {
     fn site(&self) -> StructuralPrefixSite {
         self.site
@@ -212,9 +239,14 @@ where
             self.complete = false;
             return;
         };
-        self.observed |= !outcomes.is_empty();
+        if outcomes.is_empty() {
+            self.complete = false;
+            return;
+        }
+        self.observed = true;
         for outcome in outcomes {
-            (self.observe)(
+            (self.fold)(
+                &mut self.state,
                 &outcome.judge,
                 outcome.judge.completed_value_identity(outcome.value),
             );
