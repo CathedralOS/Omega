@@ -181,15 +181,37 @@ fn input_coordinate(
     bindings: &validation::RankStateBindings,
     primitive_type: PrimitiveType,
 ) -> Option<CheckedScalarComputationHandle> {
-    let subject = subject?;
     let (owner, _) = validation::find_state(builder.program, builder.state)?;
     let entry = builder.program.machine_states(owner).first()?;
-    let source = validation::canonical_place_from_expression_in_state(
-        builder.program,
-        entry.symbol,
-        0,
-        subject,
-    )?;
+    let source = if let Some(subject) = subject {
+        validation::canonical_place_from_expression_in_state(
+            builder.program,
+            entry.symbol,
+            0,
+            subject,
+        )?
+    } else {
+        // A joint component retains an exact primitive entry coordinate even
+        // when this participant authors no separate ranking expression. Its
+        // declaration and admitted identity telescope supply the read; no
+        // source expression or enclosing invocation is reconstructed.
+        let parameter = builder
+            .program
+            .state_parameters(entry)
+            .get(usize::try_from(rank.parameter_position).ok()?)?;
+        if parameter.symbol != rank.parameter
+            || builder
+                .program
+                .primitive_type_reference(parameter.type_reference)
+                != Some(primitive_type)
+        {
+            return None;
+        }
+        validation::CanonicalPlace {
+            root: facts::PlaceRoot::Symbol(parameter.symbol),
+            segments: Vec::new(),
+        }
+    };
     let facts::PlaceRoot::Symbol(parameter) = source.root else {
         return None;
     };
@@ -204,7 +226,9 @@ fn input_coordinate(
         root: facts::PlaceRoot::Symbol(coordinate.parameter),
         segments: coordinate.path,
     };
-    builder.scalar_coordinate(subject, &source, primitive_type)
+    // Bare parameter coordinates require no authored expression; projected
+    // coordinates retain their original occurrence for structural access.
+    builder.scalar_coordinate(subject.unwrap_or_default(), &source, primitive_type)
 }
 
 fn observation(

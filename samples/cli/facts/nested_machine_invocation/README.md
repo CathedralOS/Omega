@@ -99,3 +99,7 @@ Windows qualification.
 
 [Private collection bounds](private_bounds/README.md) carries the same exact
 descriptor/index fact into the helper that consumes it.
+
+[Joint private runtime ranks](joint_rank/README.md) carries a natural invocation
+rank through unranked private helper declarations, with preserving edges,
+every-cycle strict descent and explicit borrowed backing across all nine places.
