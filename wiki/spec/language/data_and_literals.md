@@ -158,6 +158,23 @@ The current profile has no Unicode identifiers or raw-payload literal form.
 Those require separately specified byte/identifier rules, not host-language
 syntax reuse.
 
+## Integer radix spellings
+
+Integer literals support decimal, hexadecimal `0x`, binary `0b`, and octal `0o`
+spellings, digit underscores, and explicit carrier suffixes. For example:
+
+```omega
+let mask: u16 = 0xFFFFu16;
+let byte_divisor: u32 = 0x1_0000u32;
+```
+
+Radix and grouping affect source notation, not numeric meaning or overflow
+policy. The second value is `65536`, not the maximum of `u16`. Carrier-limit
+queries belong to [core integer/float APIs](numeric_values.md#core-integer-and-float-apis);
+hex literals need no limit-name lookup. Bit layouts and masks should use clear
+radix spellings or ordinary named protocol constants instead of unexplained
+decimal encodings. Quoted-byte `\xNN` escapes below are separate literal syntax.
+
 ## Quoted bytes
 
 A quoted literal contains bytes, has ordinary shared byte-view type `&[u8]`,

@@ -12,6 +12,23 @@ It preserves backing-address identity, access authority, provenance, and lifetim
 It is not an unchecked transmute or executable conversion. Conversion and
 fallible foreign validation are ordinary contracted machines.
 
+For a copyable scalar, an ordinary read through a checked shared view may
+produce an independent value:
+
+```omega
+let bits: u32 = 0x3F80_0000u32;
+let view: &f32 = &bits as &f32;
+let value: f32 = view;
+```
+
+The ratified [core float bit wrappers](../language/numeric_values.md#floating-representation-and-classification)
+are ordinary library conveniences over this mechanism, not new compiler-known
+`to_bits`/`from_bits` operations. They preserve the presented bits without
+numeric conversion or silent NaN quieting. A value-level `bits as f32` is not
+a general owned bit cast, and an owned aggregate reinterpretation would require
+its own move, ownership, cleanup and validity rules. Nothing here adds one.
+Computed NaN observations retain their existing exact-bit requirements.
+
 The compiler-known [address queries](../language/counts_and_addresses.md#address-exposure)
 `address_of(reference)` and `address_of<SelectedMachine<Arguments>>()` are not recasts.
 They expose a storage or executable-entry address without establishing a new

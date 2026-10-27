@@ -22,6 +22,10 @@ retires `Self`, data-subject conformances and data-attached dynamic objects.
 The examples below specify the destination model; compiler migration is tracked
 on the [execution board](../../TASKS.md), not provided as a compatibility dialect.
 
+Carrier endpoints below use the ratified ordinary core
+[integer API](../spec/language/numeric_values.md#core-integer-and-float-apis);
+`CORE-INTEGER-FLOAT-APIS` retains its library/compiler implementation work.
+
 ```omega
 trait Incrementable<T> {
     machine increment(counter: &mut T);
@@ -39,13 +43,13 @@ data Counter {
 SaturatingIncrement satisfies Incrementable<Counter>
 {
     machine increment(counter: &mut Counter) {
-        transition counter.value < i32::Maximum {
+        transition counter.value < integer::max<i32>() {
             true -> bump(&mut counter)
             _ -> saturated()
         }
 
         machine bump(counter: &mut Counter)
-        requires counter.value < i32::Maximum;
+        requires counter.value < integer::max<i32>();
         {
             counter.value = counter.value + 1;
         }

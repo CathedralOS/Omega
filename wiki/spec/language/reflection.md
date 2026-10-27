@@ -42,6 +42,15 @@ type equality follows from matching declaration names or symbolic descriptors.
 Typed visitation of dependent values remains possible with their actual subject
 and equality evidence; it does not require a fully static TypeKey for every field.
 
+Numeric descriptions, when exposed, retain the exact semantic carrier kind,
+integer width/signedness or IEEE format identity, not a width guessed from
+storage or a declaration's display name. [Core integer and float APIs](numeric_values.md#core-integer-and-float-apis)
+may use that authoritative metadata or ordinary exact type-equality refinement
+to compute library results. Their names acquire no compiler-owned meaning.
+Knowing a carrier's extrema neither solves an arbitrary domain predicate nor
+establishes a routed qualification. This adds no integer-width constructor or
+automatic primitive-member namespace.
+
 Closed descriptions and retained symbolic references have deterministic encodings:
 versioned descriptor roles, exact owner/declaration/application correspondence,
 and exact member identity. Graph-local indices are relocated/reconstructed within

@@ -576,6 +576,16 @@ The rules that touch every edit:
   application roots do not repeat dependency-private imports. Follow
   [native bindings](wiki/spec/build/foreign_bindings.md#build-owned-native-binding);
   `BUILD-OWNED-NATIVE-BINDINGS` owns compiler/source/review migration.
+- Core numeric carrier/property APIs live in ordinary `integer` and `float`
+  modules, not primitive-member `MAX`/`Maximum` aliases or a catch-all limits
+  module. Implement them through checked library bodies, exact type refinement
+  and authoritative semantic metadata, never spelling-based proof rules or
+  per-API intrinsics. Float extrema are finite; exact bit/classification APIs
+  preserve their promised sign/payload/kind without strengthening arithmetic
+  NaN guarantees. Payload constructors are conveniences, not permanent compiler
+  mechanisms. Follow [numeric APIs](wiki/spec/language/numeric_values.md#core-integer-and-float-apis);
+  `CORE-INTEGER-FLOAT-APIS` owns implementation and migration, without admitting
+  arbitrary-width integer families or general owned aggregate casts.
 - Source `state` declarations are retired in favor of arbitrarily nested
   machines. Nesting scopes names, never runtime data or implicit authority.
   All runtime arguments are explicit; ordinary calls resume, terminal calls

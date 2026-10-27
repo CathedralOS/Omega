@@ -33,6 +33,138 @@ five names intrinsic or replace the ordinary call path. No reserved-name,
 qualified-name or implicit-import compatibility route preserves the rejected
 builtins. Library placement does not authorize a dependency from `core` to `std`.
 
+## Core integer and float APIs
+
+The owner-ratified `core-integer-float-apis` decision (2026-10-27) places carrier
+queries and floating representation utilities in the ordinary core modules
+`omega::language::core::integer` and `omega::language::core::float`, not a
+catch-all limits module or an automatically imported primitive-type namespace.
+Examples use the module-qualified names `integer::max<u32>()` and
+`float::max<f32>()`. These zero-value-argument carrier queries are distinct from
+two-value comparison helpers such as `max(left, right)` above.
+
+The APIs are ordinary checked library machines. They may derive answers from
+authoritative semantic carrier/format metadata or use ordinary exact type-equality
+refinement to return carrier-specific values. The compiler supports the general
+type/refinement, evaluation, representation and contract machinery; it does not
+recognize API names, replace calls with unproved facts, or search for implicit
+providers. Physical layout size is not semantic integer width. `u32::MAX`,
+`i32::Maximum`, and similar spellings are not aliases, keywords, or a supported
+primitive-member lookup route.
+
+Initial queries apply to admitted unqualified fixed integer carriers and the
+permanent `f32`/`f64` formats. Unsupported types reject. They do not solve the
+maximum of an arbitrary domain, mint qualifications, or assign extrema to
+unbounded mathematical integers. Arbitrary-width integer families remain
+separately unspecified; their future admission must use the same general
+mechanisms, not add one compiler-recognized name per width.
+
+The reference library and compiler do not yet implement this complete surface.
+`CORE-INTEGER-FLOAT-APIS` in [the task board](../../../TASKS.md) owns the library,
+generic checking, old-spelling removal and end-to-end migration. The contracts
+below are ratified requirements, not claims that guide examples currently run.
+
+### Integer carrier queries
+
+| Core call | Result | Meaning |
+| --- | --- | --- |
+| `integer::min<T>()` | `T` | Least representable carrier value; zero for unsigned integers. |
+| `integer::max<T>()` | `T` | Greatest representable carrier value. |
+| `integer::width_bits<T>()` | `u64` | Semantic fixed integer width, not stored field width or an ABI register size. |
+| `integer::is_signed<T>()` | `bool` | Whether the carrier has signed integer meaning. |
+
+For width `w`, unsigned bounds are `0` through `2^w - 1`; signed bounds are
+`-2^(w-1)` through `2^(w-1) - 1`. Arithmetic policy does not redefine these
+carrier bounds. A constrained or routed type does not inherit a constructor
+merely because its underlying carrier has those endpoints.
+
+### Floating values and format queries
+
+`float::min<T>()` and `float::max<T>()` return the least and greatest finite
+values of `T`, not infinities. In particular, `min` is most-negative finite,
+never a smallest-positive value. The following value queries return `T`:
+
+| Core call | `f32` value or exact representation |
+| --- | --- |
+| `float::min<T>()` | Finite endpoint with bits `0xFF7F_FFFF`. |
+| `float::max<T>()` | Finite endpoint with bits `0x7F7F_FFFF`. |
+| `float::min_positive_normal<T>()` | `2^-126`, bits `0x0080_0000`. |
+| `float::min_positive_subnormal<T>()` | `2^-149`, bits `0x0000_0001`. |
+| `float::max_subnormal<T>()` | `2^-126 - 2^-149`, bits `0x007F_FFFF`. |
+| `float::epsilon<T>()` | Gap from `1` to its next greater representable value: `2^-23`, bits `0x3400_0000`. Not a universal comparison tolerance. |
+| `float::infinity<T>()` | Positive infinity, bits `0x7F80_0000`. |
+| `float::negative_infinity<T>()` | Negative infinity, bits `0xFF80_0000`. |
+| `float::quiet_nan<T>()` | One canonical positive quiet NaN: `f32` bits `0x7FC0_0000`, `f64` bits `0x7FF8_0000_0000_0000`. |
+
+Format properties are library queries with these exact values. Magnitudes and
+counts return `u64`; the three signed exponent queries return `i64`.
+
+| Query in `float` | `f32` | `f64` |
+| --- | --- | --- |
+| `radix<T>()` | 2 | 2 |
+| `precision_bits<T>()` | 24 | 53 |
+| `fraction_bits<T>()` | 23 | 52 |
+| `exponent_bits<T>()` | 8 | 11 |
+| `min_normal_exponent<T>()` | -126 | -1022 |
+| `max_normal_exponent<T>()` | 127 | 1023 |
+| `min_subnormal_exponent<T>()` | -149 | -1074 |
+| `decimal_digits<T>()` | 6 | 15 |
+| `roundtrip_decimal_digits<T>()` | 9 | 17 |
+
+Precision includes the implicit leading bit. `decimal_digits` counts guaranteed
+significant decimal digits for decimal -> T -> decimal round trips in range;
+`roundtrip_decimal_digits` is sufficient for finite T -> decimal -> T round trips
+with correctly rounded conversion. These counts do not promise a
+particular formatting algorithm or NaN payload encoding.
+
+### Floating representation and classification
+
+The value-level convenience wrappers use ordinary typed overloads:
+`float::to_bits(f32) -> u32`, `float::to_bits(f64) -> u64`,
+`float::from_bits(u32) -> f32`, and `float::from_bits(u64) -> f64`.
+They preserve exact presented representation bits, including signed zeros,
+NaN sign, payload, and quiet/signaling state. They perform no numeric conversion,
+quieting, canonicalization, or qualification establishment. They are checked
+wrappers around [representation views](../layouts/recasts.md) and scalar reads,
+not an unchecked transmute or a new general owned-aggregate cast primitive.
+
+`float::classify<T>(value)` returns ordinary case-bearing library data with
+`Zero`, `Subnormal`, `Normal`, `Infinity`, and `NaN` alternatives. Every case
+retains the sign; `NaN` additionally retains `Quiet` or `Signaling` kind and the
+unsigned payload excluding the quiet bit. `f32` uses a `u32` bit/payload carrier
+and `f64` a `u64` carrier. Classification and convenience queries
+`float::is_nan<T>(value)`, `float::is_signaling_nan<T>(value)`,
+`float::is_finite<T>(value)`, and `float::sign<T>(value)` inspect representation
+without an arithmetic operation that could quiet a signaling NaN. Sign and kind
+are ordinary library cases, not keywords or new primitive species.
+
+Parameterized convenience constructors
+`float::quiet_nan<T>(sign, payload)` and
+`float::signaling_nan<T>(sign, payload)` construct the requested exact bits.
+The payload carrier follows the format above. Only the low 22 bits for `f32`
+or 51 bits for `f64` may be present; signaling payloads must be nonzero so the
+result is not infinity. Calls prove those requirements or use an ordinary
+explicitly failure-returning adapter; constructors never silently truncate.
+These are library conveniences, not permanent compiler mechanisms or selectable
+policies. Future unsigned narrow payload carriers may make them unnecessary;
+this decision does not admit those carriers or automatically deprecate the APIs.
+Exact bit composition and its validity/access obligations remain the foundation.
+
+`float::quiet<T>(value)` sets a signaling NaN's quiet bit while preserving sign
+and payload, leaving every other representation unchanged.
+`float::canonicalize_nan<T>(value)` replaces any NaN with the canonical encoding
+above and preserves all non-NaN bits. Both operations are explicit library code;
+ordinary transport and the bit wrappers do not insert them.
+
+Exact construction, classification, and transport do not strengthen arithmetic
+NaN-result guarantees. Arithmetic may produce any representation allowed by its
+existing contract; proof-only `FloatMeaning` still erases NaN payload and sign.
+A compile-time observation of computed possibly-NaN bits still requires non-NaN
+proof, explicit canonicalization, or an exact-bit refinement. A wrapper cannot
+launder that dependency into cross-target reproducibility. Hardware exceptions
+remain masked; signaling-state APIs do not promise an ambient hardware trap or
+replace Omega's result-based `Trapping` policy.
+
 ## Literal landing and destinations
 
 A suffixed integer or float literal retains its chosen carrier or format through
