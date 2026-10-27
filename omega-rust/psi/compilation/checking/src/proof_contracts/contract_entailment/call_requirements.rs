@@ -358,23 +358,6 @@ fn structural_requirement_at_prefix(
         if local.is_some() && requirement.seen && requirement.proven {
             return true;
         }
-        if caller_state.symbol == entry.symbol && !case_facts_only {
-            return borrowed_match_join_records_selected_place(
-                program,
-                machine,
-                state,
-                statement_index,
-                in_transition_target,
-                callee_owner,
-                parameters,
-                call_site,
-                call_expression,
-                leading_operands,
-                arguments,
-                expression,
-                inherited,
-            );
-        }
         requirement.seen = false;
         requirement.proven = true;
     }
