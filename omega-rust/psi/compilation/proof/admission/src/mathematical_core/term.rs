@@ -446,6 +446,152 @@ impl TermArena {
         self.terms.get(handle).clone()
     }
 
+    /// Rebuild `term` with `transform` applied to each immediate subterm.
+    ///
+    /// This is the one statement of the term layout: which slots a node has,
+    /// in which order, and how many binders scope each — `Pi`'s codomain,
+    /// `Lambda`'s body and `Sigma`'s codomain sit under one more binder,
+    /// every other slot under none. `shift`, `substitute` and
+    /// `instantiate_levels` differ only in what they do at a leaf; the walk
+    /// itself is here, so a new `Term` variant is one compile error instead
+    /// of three silent gaps.
+    ///
+    /// `Ok(None)` means the node carries its work in a payload (`Variable`,
+    /// `Sort`, `Constant`) or holds nothing, so the caller's own leaf rule
+    /// applies. `Ok(Some(handle))` is the rebuilt node — or `term` itself
+    /// when every transformed subterm came back unchanged, which is what
+    /// keeps an unchanged subtree in its original storage.
+    pub(super) fn rebuild_subterms<E>(
+        &mut self,
+        term: TermHandle,
+        transform: &mut impl FnMut(&mut Self, TermHandle, u32) -> Result<TermHandle, E>,
+    ) -> Result<Option<TermHandle>, E> {
+        // Each arm names its variant's fields in declaration order with the
+        // binder count of that slot. The macro transforms every slot, returns
+        // the original handle when nothing moved, and re-inserts the variant
+        // otherwise — the whole per-variant body in one line.
+        macro_rules! rebuild {
+            ($variant:ident { $($field:ident : $binders:expr),* $(,)? }) => {{
+                $(
+                    let $field = {
+                        let original = $field;
+                        (transform(self, original, $binders)?, original)
+                    };
+                )*
+                if true $(&& $field.0 == $field.1)* {
+                    return Ok(Some(term));
+                }
+                Ok(Some(self.insert(Term::$variant { $($field: $field.0),* })))
+            }};
+        }
+        match self.get(term) {
+            Term::Pi { domain, codomain } => rebuild!(Pi {
+                domain: 0,
+                codomain: 1
+            }),
+            Term::Lambda { domain, body } => rebuild!(Lambda { domain: 0, body: 1 }),
+            Term::Apply { function, argument } => {
+                rebuild!(Apply {
+                    function: 0,
+                    argument: 0,
+                })
+            }
+            Term::Sigma { domain, codomain } => rebuild!(Sigma {
+                domain: 0,
+                codomain: 1
+            }),
+            Term::Pair { first, second } => rebuild!(Pair {
+                first: 0,
+                second: 0
+            }),
+            Term::Fst { pair } => rebuild!(Fst { pair: 0 }),
+            Term::Snd { pair } => rebuild!(Snd { pair: 0 }),
+            Term::CaseTwo {
+                motive,
+                zero_branch,
+                one_branch,
+                scrutinee,
+            } => rebuild!(CaseTwo {
+                motive: 0,
+                zero_branch: 0,
+                one_branch: 0,
+                scrutinee: 0,
+            }),
+            Term::Id { ty, left, right } => rebuild!(Id {
+                ty: 0,
+                left: 0,
+                right: 0
+            }),
+            Term::Refl { ty, value } => rebuild!(Refl { ty: 0, value: 0 }),
+            Term::IdElim {
+                motive,
+                base,
+                endpoint,
+                proof,
+            } => rebuild!(IdElim {
+                motive: 0,
+                base: 0,
+                endpoint: 0,
+                proof: 0,
+            }),
+            Term::W { carrier, children } => rebuild!(W {
+                carrier: 0,
+                children: 0,
+            }),
+            Term::Sup {
+                carrier,
+                children,
+                label,
+                function,
+            } => rebuild!(Sup {
+                carrier: 0,
+                children: 0,
+                label: 0,
+                function: 0,
+            }),
+            Term::IndW { motive, step, tree } => rebuild!(IndW {
+                motive: 0,
+                step: 0,
+                tree: 0,
+            }),
+            Term::EmptyElim { ty, scrutinee } => rebuild!(EmptyElim {
+                ty: 0,
+                scrutinee: 0
+            }),
+            Term::Squash { ty } => rebuild!(Squash { ty: 0 }),
+            Term::SquashIntro { ty, value } => rebuild!(SquashIntro { ty: 0, value: 0 }),
+            Term::SquashElim {
+                proposition,
+                function,
+                scrutinee,
+            } => rebuild!(SquashElim {
+                proposition: 0,
+                function: 0,
+                scrutinee: 0,
+            }),
+            Term::Box { ty } => rebuild!(Box { ty: 0 }),
+            Term::BoxIntro { ty, value } => rebuild!(BoxIntro { ty: 0, value: 0 }),
+            Term::BoxElim {
+                motive,
+                body,
+                scrutinee,
+            } => rebuild!(BoxElim {
+                motive: 0,
+                body: 0,
+                scrutinee: 0,
+            }),
+            // Payload-only nodes: the traversal rewrites these itself.
+            Term::Dummy
+            | Term::Variable(_)
+            | Term::Sort(_)
+            | Term::Two
+            | Term::TwoZero
+            | Term::TwoOne
+            | Term::Empty
+            | Term::Constant { .. } => Ok(None),
+        }
+    }
+
     pub fn len(&self) -> usize {
         self.terms.len()
     }
