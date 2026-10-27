@@ -4,7 +4,7 @@ use crate::SourceResolver;
 use crate::error::SourceResolveError;
 use crate::git::cache::repository::VerifiedGitRepository;
 use crate::git::executable::executor::GitExecutor;
-use crate::git::executable::selection::{PrimaryGitSelection, resolver_package_controlled_roots};
+use crate::git::executable::selection::PrimaryGitSelection;
 use crate::git::objects::{
     AuthenticatedGitTreeInspection, GitTreeProjectionRequest, inspect_git_tree_graph,
 };
@@ -17,7 +17,6 @@ use crate::git::workspace::{
 use crate::limits::LocalSourceLimits;
 use crate::observations::resolved::GitAcquisitionPin;
 use crate::storage::RetainedStorageLane;
-use std::path::PathBuf;
 
 use super::acquisition::resolve_git_source_from_retained_cache;
 use super::materialization::GitMaterializedSource;
@@ -41,9 +40,10 @@ where
     Planner: GitWorkspaceProjectionPlanner,
 {
     resolver.verify_path_identity()?;
-    let result = resolve_git_workspace_member_in_lanes(
+    let result = resolve_git_workspace_member_from_pin_in_lanes(
         resolver.primary_git()?,
         request,
+        None,
         resolver.git_sources(),
         resolver.workspace_members(),
         limits.compiler_bounded(),
@@ -52,33 +52,6 @@ where
     );
     resolver.verify_path_identity()?;
     result
-}
-
-pub(crate) fn resolve_git_workspace_member_in_lanes<Planner>(
-    primary_git: &PrimaryGitSelection,
-    request: &GitSourceRequest,
-    git_lane: &RetainedStorageLane,
-    member_lane: &RetainedStorageLane,
-    limits: LocalSourceLimits,
-    declaration_limits: GitWorkspaceDeclarationLimits,
-    planner: &mut Planner,
-) -> Result<
-    GitWorkspaceProjectionResult<Planner::Evidence>,
-    GitWorkspaceProjectionError<Planner::Error>,
->
-where
-    Planner: GitWorkspaceProjectionPlanner,
-{
-    resolve_git_workspace_member_from_pin_in_lanes(
-        primary_git,
-        request,
-        None,
-        git_lane,
-        member_lane,
-        limits,
-        declaration_limits,
-        planner,
-    )
 }
 
 pub fn resolve_git_workspace_member_from_pin_in_lanes<Planner>(
@@ -97,11 +70,8 @@ pub fn resolve_git_workspace_member_from_pin_in_lanes<Planner>(
 where
     Planner: GitWorkspaceProjectionPlanner,
 {
-    let package_controlled_roots =
-        resolver_package_controlled_roots(&[git_lane.path(), member_lane.path()])?;
-    resolve_git_workspace_member_with_selected_roots(
+    resolve_git_workspace_member_at_selection(
         primary_git,
-        &package_controlled_roots,
         request,
         GitRevisionSelection::Ordinary(pin),
         git_lane,
@@ -112,10 +82,11 @@ where
     )
 }
 
+/// One member selection inside the retained lanes the resolution is issued in:
+/// the cache lane and the member lane both prove their path identity around it.
 #[allow(clippy::too_many_arguments)]
-fn resolve_git_workspace_member_with_selected_roots<Planner>(
+fn resolve_git_workspace_member_at_selection<Planner>(
     primary_git: &PrimaryGitSelection,
-    package_controlled_roots: &[PathBuf],
     request: &GitSourceRequest,
     selection: GitRevisionSelection<'_>,
     git_lane: &RetainedStorageLane,
@@ -130,14 +101,10 @@ fn resolve_git_workspace_member_with_selected_roots<Planner>(
 where
     Planner: GitWorkspaceProjectionPlanner,
 {
-    git_lane.verify_path_identity()?;
-    member_lane.verify_path_identity()?;
-    let result = resolve_git_source_from_retained_cache(
+    resolve_git_source_from_retained_cache(
         primary_git,
-        package_controlled_roots,
+        &[git_lane, member_lane],
         request,
-        git_lane.path(),
-        git_lane.directory(),
         limits,
         selection,
         |executor, repository, tree, limits| {
@@ -151,12 +118,8 @@ where
                 planner,
             )
         },
-    );
-    let git_custody = git_lane.verify_path_identity();
-    let member_custody = member_lane.verify_path_identity();
-    git_custody?;
-    member_custody?;
-    result.map(|(source, evidence)| GitWorkspaceProjectionResult::new(source, evidence))
+    )
+    .map(|(source, evidence)| GitWorkspaceProjectionResult::new(source, evidence))
 }
 
 fn project_git_workspace_member<Planner>(
