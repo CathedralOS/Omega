@@ -1009,40 +1009,14 @@ pub fn x86_64_register_constraint_catalog(
     constraints.push(rflags_clobbering_row(
         RegisterConstraintId(0),
         X86_64_COPY_BYTES,
-        (0..5)
-            .map(|operand| RegisterOperandConstraint {
-                operand,
-                access: if operand < 3 {
-                    RegisterOperandAccess::Use
-                } else {
-                    RegisterOperandAccess::Def
-                },
-                class: GPR64,
-                fixed_view: None,
-                tied_to: None,
-                early_clobber: operand >= 3,
-            })
-            .collect(),
+        super::operand_lane(5, 3),
     ));
     // The zero fill reads its preserved destination/count inputs on every
     // iteration; the cursor is written before the count guard reads them.
     constraints.push(rflags_clobbering_row(
         RegisterConstraintId(0),
         X86_64_ZERO_BYTES,
-        (0..3)
-            .map(|operand| RegisterOperandConstraint {
-                operand,
-                access: if operand < 2 {
-                    RegisterOperandAccess::Use
-                } else {
-                    RegisterOperandAccess::Def
-                },
-                class: GPR64,
-                fixed_view: None,
-                tied_to: None,
-                early_clobber: operand >= 2,
-            })
-            .collect(),
+        super::operand_lane(3, 2),
     ));
     // Scalar codecs carry the actual byte footprint. Every working home is
     // early-clobber, so neither input nor another scratch home can alias it.
@@ -1053,21 +1027,7 @@ pub fn x86_64_register_constraint_catalog(
         constraints.push(RegisterInstructionConstraint {
             id: RegisterConstraintId(0),
             key,
-            operands: (0..6)
-                .map(|operand| {
-                    let mut row = allocatable(
-                        operand,
-                        if operand < input_count {
-                            RegisterOperandAccess::Use
-                        } else {
-                            RegisterOperandAccess::Def
-                        },
-                        GPR64,
-                    );
-                    row.early_clobber = operand >= input_count;
-                    row
-                })
-                .collect(),
+            operands: super::operand_lane(6, input_count),
             implicit_uses: Vec::new(),
             implicit_defs: Vec::new(),
             clobbers: view("rflags").units.clone(),
@@ -1079,19 +1039,7 @@ pub fn x86_64_register_constraint_catalog(
     constraints.push(rflags_clobbering_row(
         RegisterConstraintId(0),
         X86_64_SCAN_BYTE_SEQUENCE,
-        (0..5)
-            .map(|operand| RegisterOperandConstraint {
-                operand,
-                access: match operand {
-                    0 | 1 => RegisterOperandAccess::Use,
-                    _ => RegisterOperandAccess::Def,
-                },
-                class: GPR64,
-                fixed_view: None,
-                tied_to: None,
-                early_clobber: matches!(operand, 2 | 3 | 4),
-            })
-            .collect(),
+        super::operand_lane(5, 2),
     ));
     // The compare reads its four preserved inputs while the cursors are
     // written before any input home is consumed; the verdict operand is the
@@ -1099,19 +1047,7 @@ pub fn x86_64_register_constraint_catalog(
     constraints.push(rflags_clobbering_row(
         RegisterConstraintId(0),
         X86_64_COMPARE_BYTE_SEQUENCES,
-        (0..8)
-            .map(|operand| RegisterOperandConstraint {
-                operand,
-                access: match operand {
-                    0..=3 => RegisterOperandAccess::Use,
-                    _ => RegisterOperandAccess::Def,
-                },
-                class: GPR64,
-                fixed_view: None,
-                tied_to: None,
-                early_clobber: operand >= 4,
-            })
-            .collect(),
+        super::operand_lane(8, 4),
     ));
     mixed_aggregate_calls::append_constraints(&mut constraints, model);
     // Atomic rows carry the LOCK-capable vocabulary every x86-64 target has

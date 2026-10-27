@@ -37,6 +37,27 @@ pub(super) fn allocatable_operand(
     }
 }
 
+/// The contiguous operand lane the byte-loop forms share: the first `inputs`
+/// operands are read, the rest are written and early-clobbered, because the
+/// loop writes its cursors and verdict before the preserved inputs are dead.
+pub(super) fn operand_lane(count: u16, inputs: u16) -> Vec<RegisterOperandConstraint> {
+    (0..count)
+        .map(|operand| {
+            let written = operand >= inputs;
+            let row = allocatable_operand(
+                operand,
+                if written {
+                    RegisterOperandAccess::Def
+                } else {
+                    RegisterOperandAccess::Use
+                },
+                physical_model::GPR64,
+            );
+            if written { early_clobber(row) } else { row }
+        })
+        .collect()
+}
+
 /// Mark a written row's home as consumed before the remaining inputs are read.
 pub(super) fn early_clobber(operand: RegisterOperandConstraint) -> RegisterOperandConstraint {
     RegisterOperandConstraint {
