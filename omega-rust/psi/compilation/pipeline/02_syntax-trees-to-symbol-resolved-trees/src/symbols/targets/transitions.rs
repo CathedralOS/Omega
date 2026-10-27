@@ -160,7 +160,7 @@ pub(in crate::symbols) fn assign_transition_target_symbols(
 
 /// Callable entry coordinates supply a signature, while the owning machine
 /// supplies invocation identity. This does not make a body name source-visible.
-fn terminal_call_target(symbols: &SymbolTable, target: SymbolHandle) -> SymbolHandle {
+pub(super) fn terminal_call_target(symbols: &SymbolTable, target: SymbolHandle) -> SymbolHandle {
     if symbols.get(target).kind == SymbolKind::State
         && symbols.get(symbols.get(target).parent).kind == SymbolKind::Machine
     {

@@ -24,8 +24,6 @@ pub(super) fn validate(
         machine,
         state_name,
         current_state,
-        machine_symbols,
-        symbols,
         writable_roots,
         transition_values,
         ..
