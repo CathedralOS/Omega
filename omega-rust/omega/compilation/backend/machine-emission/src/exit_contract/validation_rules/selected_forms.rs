@@ -113,6 +113,92 @@ pub(in crate::exit_contract) fn validated_aarch64_form_fixture(
     (store, encoding, layout)
 }
 
+/// The AArch64 physical register model every selected-form admission fixture
+/// encodes against, validated once per test.
+#[cfg(test)]
+pub(in crate::exit_contract) fn aarch64_physical_register_model()
+-> register_model::ValidatedPhysicalRegisterModel {
+    register_model::validate_physical_register_model(isa_aarch64::aarch64_physical_register_model())
+        .unwrap()
+}
+
+/// The address-bearing sibling of [`validated_aarch64_form_fixture`]: the
+/// same interned footprint and happy-path admission, for the forms whose row
+/// records a resolved physical address.
+#[cfg(test)]
+pub(in crate::exit_contract) fn validated_aarch64_addressed_form_fixture(
+    encoded: &isa_aarch64::ValidatedAarch64SelectedFormEncoding,
+    instruction: SelectedInstructionId,
+    alternative: selected_instructions::MachineAlternativeKey,
+    kind: SelectedInstructionKind,
+    symbolic: physical_instructions::PhysicalAddressOperation,
+) -> (
+    machine_code::SelectedFormEncodedRowStore,
+    machine_code::SelectedFormEncodingRow,
+    machine_code::ResolvedSelectedFormRow,
+) {
+    let effects = &encoded.footprint().encoded;
+    let mut store = machine_code::SelectedFormEncodedRowStore::new();
+    let (code, interned_footprint) = store.intern(
+        encoded.bytes(),
+        SelectedFormDecodedFootprint {
+            register_reads: Vec::new(),
+            register_writes: Vec::new(),
+            implicit_defs: effects.implicit_unit_defs.clone(),
+            implicit_clobbers: effects.implicit_unit_clobbers.clone(),
+            encoded: effects.clone(),
+        },
+    );
+    let (mut encoding, layout) = encoded_form_and_layout(
+        instruction,
+        alternative,
+        code,
+        interned_footprint,
+        encoded.bytes().to_vec(),
+    );
+    encoding.address = Some(machine_code::ResolvedPhysicalAddress {
+        symbolic,
+        frame_alignment_bytes: 1,
+        displacement: 16,
+    });
+    validate_non_return(
+        target::Architecture::Aarch64,
+        instruction,
+        kind,
+        &encoding,
+        &layout,
+        &store,
+    )
+    .unwrap();
+    (store, encoding, layout)
+}
+
+/// Whole-function admission refuses the submitted row set. The test states
+/// the mutation it made and why it must be refused; this owner states the
+/// admission call shape once.
+#[cfg(test)]
+pub(in crate::exit_contract) fn assert_non_return_refused(
+    message: &str,
+    instruction: SelectedInstructionId,
+    kind: SelectedInstructionKind,
+    encoding: &machine_code::SelectedFormEncodingRow,
+    layout: &machine_code::ResolvedSelectedFormRow,
+    store: &machine_code::SelectedFormEncodedRowStore,
+) {
+    assert!(
+        validate_non_return(
+            target::Architecture::Aarch64,
+            instruction,
+            kind,
+            encoding,
+            layout,
+            store
+        )
+        .is_err(),
+        "{message}"
+    );
+}
+
 pub(in crate::exit_contract) fn unique_encoding_rows<'a>(
     selected: &selected_instructions::SelectedInstructionPlan,
     encoding: &'a SelectedFormEncoding,
