@@ -11,10 +11,12 @@ pub use terminal_psi::{
 
 use std::collections::BTreeSet;
 
-use crate::integer_rules::fixed_integer::fixed_native_interval;
+use crate::integer_rules::fixed_integer::{
+    fixed_integer_as_i128, fixed_native, fixed_native_interval,
+};
 use semantic_vocabulary::{
-    IntegerCarrier, IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext,
-    ScalarTerm, ScalarType, ValueId,
+    IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext, ScalarTerm,
+    ScalarType, ValueId,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -251,9 +253,8 @@ fn check_branch(
         return Err(IntegerCorrelatedForbiddenRootWitnessError::RootNotSignedNative(branch));
     };
     if !machine_parameter_values.contains(&id)
-        || integer_type.carrier() != IntegerCarrier::Fixed
+        || !fixed_native(integer_type)
         || integer_type.sign() != IntegerSign::Signed
-        || !matches!(integer_type.bits(), 8 | 16 | 32 | 64)
         || witness.target.scalar_type() != ScalarType::Integer(integer_type)
     {
         return Err(IntegerCorrelatedForbiddenRootWitnessError::RootNotSignedNative(branch));
@@ -516,10 +517,10 @@ fn selected_signature_bounds(
 crate::checked_axiom!(IntegerCorrelatedForbiddenRootWitnessError);
 
 fn signed_literal(term: &ScalarTerm, integer_type: IntegerType) -> Option<i128> {
-    match term.integer_value()? {
-        (actual_type, IntegerValue::Signed(value)) if actual_type == integer_type => Some(value),
-        _ => None,
-    }
+    // The forbidden-root lattice is signed-only: an unsigned reading has none.
+    (integer_type.sign() == IntegerSign::Signed)
+        .then(|| fixed_integer_as_i128(term, integer_type))
+        .flatten()
 }
 
 fn carrier_interval(

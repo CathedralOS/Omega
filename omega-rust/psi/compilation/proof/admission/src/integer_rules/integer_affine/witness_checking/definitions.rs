@@ -316,14 +316,7 @@ fn bounded_bitwise_sibling<'a>(
             let Proposition::LessOrEqual(left, right) = proposition else {
                 return false;
             };
-            right == mask
-                && left.integer_value().is_some_and(|(value_type, value)| {
-                    value_type == integer_type
-                        && match value {
-                            IntegerValue::Signed(value) => value == 0,
-                            IntegerValue::Unsigned(value) => value == 0,
-                        }
-                })
+            right == mask && fixed_integer_as_i128(left, integer_type) == Some(0)
         });
         if nonnegative {
             return Some((mask, upper));
