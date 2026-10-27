@@ -964,11 +964,14 @@ impl<'program> StructuralJudge<'program> {
                 expression,
             )
         {
-            return StructuralJudgment::connective(
+            let composed = StructuralJudgment::connective(
                 binary.operator,
                 self.judge_predicate_in_scope(scope, binary.left, environment, depth + 1),
                 self.judge_predicate_in_scope(scope, binary.right, environment, depth + 1),
             );
+            if !matches!(composed, StructuralJudgment::Unknown) {
+                return composed;
+            }
         }
         let Some(predicate) =
             self.predicate_term_in_scope(scope, expression, environment, depth + 1)
