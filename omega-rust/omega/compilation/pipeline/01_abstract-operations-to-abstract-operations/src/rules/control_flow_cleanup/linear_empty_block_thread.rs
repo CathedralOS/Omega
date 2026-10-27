@@ -4,17 +4,13 @@
 use std::collections::BTreeSet;
 
 use abstract_operations::AbstractOperation as O;
-use optimization_core::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationRuleContract,
-    OptimizationSafetyClass,
-};
+use optimization_core::{AnalysisKind, AnalysisSet, OptimizationRuleContract};
 use optimization_unit::{
     LinearEmptyBlockRewrite, NodeLocation, ProvenanceRewrite, PsiOptimizationFunction,
     PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
 };
 use semantic_vocabulary::BlockId;
 
-use crate::rules::CONTROL_FLOW_CLEANUP_PASS_NAME;
 use crate::rules::control_flow_cleanup::descriptor_telescope_free;
 use crate::rules::control_flow_cleanup::empty_block_thread_bindings::{
     compose_linear_thread_bindings, linear_thread_ownership_is_identity,
@@ -24,21 +20,14 @@ use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposal
 
 psi_rule_contract!(
     LinearEmptyBlockThreadRule,
-    crate::rules::standard_rule_contract(
+    crate::rules::control_flow_cleanup::control_flow_cleanup_rule_contract(
         b"omega.psi-rule.linear-empty-block-thread.v2",
-        CONTROL_FLOW_CLEANUP_PASS_NAME,
         2,
         AnalysisSet::new([
             AnalysisKind::ControlFlowGraph,
             AnalysisKind::UseDefinition,
             AnalysisKind::OwnershipFrontiers,
         ]),
-        AnalysisInvalidationSet::new([
-            AnalysisKind::ControlFlowGraph,
-            AnalysisKind::UseDefinition,
-            AnalysisKind::EffectSummaries,
-        ]),
-        OptimizationSafetyClass::StructuralIdentity
     ),
 );
 
