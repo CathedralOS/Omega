@@ -6,6 +6,7 @@
 //! continuation proceeds to final checking without executing the Build again.
 
 use crate::{ComputedBuildConfig, PreparedBuild};
+mod retention_identity;
 use diagnostics::Diagnostic;
 use optimization_core::OptimizationRollback;
 use package_compilation::{

@@ -22,10 +22,13 @@ pub(super) struct ComponentProductCache {
 }
 
 impl ComponentProductCache {
-    pub fn for_build(build: &PreparedPackageBuild) -> Option<Self> {
-        let retention = build.package_inputs().native_product_retention()?.clone();
+    pub fn for_build(build: &PreparedPackageBuild) -> Result<Option<Self>, String> {
+        let Some(retention) = build.package_inputs().native_product_retention().cloned() else {
+            return Ok(None);
+        };
         let mut digest = DomainDigestEncoder::new(b"omega-native-component-inputs-v1\0");
         digest.raw(retention.input_key());
+        digest.raw(&build.native_product_input_identity()?);
         digest.raw(&package_compilation::review_cache_inputs_digest(
             build.package_inputs(),
         ));
@@ -42,12 +45,12 @@ impl ComponentProductCache {
         }
         name.push_str(".rec");
         let path = retention.directory().join("native-terminal").join(name);
-        Some(Self {
+        Ok(Some(Self {
             retention,
             key,
             package: build.package_inputs().root(),
             path,
-        })
+        }))
     }
 
     fn require_current_compiler(&self) -> Result<(), String> {
@@ -65,7 +68,12 @@ impl ComponentProductCache {
         self.require_current_compiler()?;
         let file = match fs::File::open(&self.path) {
             Ok(file) => file,
-            Err(reason) if reason.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(reason) if reason.kind() == std::io::ErrorKind::NotFound => {
+                if phase_profile::enabled() {
+                    eprintln!("native component retention miss: {}", self.path.display());
+                }
+                return Ok(None);
+            }
             Err(reason) => return Err(format!("open native component retention: {reason}")),
         };
         let mut bytes = Vec::new();
@@ -94,6 +102,9 @@ impl ComponentProductCache {
         }
         let product = IndependentComponentProduct::recover_retained(self.package, &bytes[80..])?;
         self.require_current_compiler()?;
+        if phase_profile::enabled() {
+            eprintln!("native component retention hit: {}", self.path.display());
+        }
         Ok(Some(product))
     }
 

@@ -7,7 +7,7 @@ mod initial;
 mod optimization;
 mod vocabulary;
 
-pub use configuration::EvaluatedBuildSettings;
+pub use configuration::{EvaluatedBuildSettings, PrivilegedServicesGrants};
 pub(super) use vocabulary::is_build_machine;
 
 use super::BuildMachineFilesystemScope;

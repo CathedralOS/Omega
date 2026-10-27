@@ -439,7 +439,14 @@ impl CompilationSession {
             let mut completed = Vec::new();
             let mut pending = Vec::new();
             for (position, (owner, build)) in builds.into_iter().enumerate() {
-                let cache = super::component_cache::ComponentProductCache::for_build(&build.source);
+                let cache =
+                    match super::component_cache::ComponentProductCache::for_build(&build.source) {
+                        Ok(cache) => cache,
+                        Err(reason) => {
+                            super::component_cache::report_miss(&reason);
+                            None
+                        }
+                    };
                 if let Some(cache) = &cache {
                     match phase_profile::scope("component.cache.recovery", || cache.load()) {
                         Ok(Some(product)) => {
