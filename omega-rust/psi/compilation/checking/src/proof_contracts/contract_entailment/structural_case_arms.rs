@@ -1731,119 +1731,117 @@ fn recognize_structural_state_leaves_from<'a>(
                 if matches!(transition.exit, TransitionExit::Crash(_)) {
                     continue;
                 }
-                match program.statement_table.transition_target(transition.target) {
-                    TransitionTargetNode::Value(value) => {
-                        if requirement.is_some() {
-                            continue;
-                        }
-                        for outcome in judge.normal_return_paths(
-                            *value,
+                let target = program.statement_table.transition_target(transition.target);
+                let body_transfer = terminal_body_transfer(
+                    program,
+                    invocation,
+                    state,
+                    transition.target,
+                    classification,
+                );
+                if let Some((target_state, argument_handles, call_expression)) = body_transfer
+                    // An active theorem's recursive value stays an application.
+                    // Its separately checked ranking licenses the IH; unfolding
+                    // the body again would either loop or assume its result.
+                    && !(call_expression.is_some() && path.contains(&target_state.symbol))
+                {
+                    if requirement.as_deref().is_some_and(|observer| {
+                        observer.site().state == state.symbol
+                            || !prefix_site_is_reachable(program, target_state, observer)
+                    }) {
+                        // A jump leaves this state invocation; a cycle back
+                        // is a new arrival, not execution of its later arm.
+                        // Other states are traversed only when they can
+                        // reach the queried occurrence. Each recurrent
+                        // arrival separately owes its state contract.
+                        continue;
+                    }
+                    let target_parameters = program.state_parameters(target_state);
+                    let target_frames = if let Some(expression) = call_expression {
+                        judge.normal_operation_entries(
+                            statement_index,
+                            expression,
+                            super::structural_judgment::normal_returns::OperationOperandDemand::All,
                             &branch_environment,
                             (invocation, state, state.return_type),
-                        )? {
-                            leaves.push(finalize_structural_case_arm(
-                                program,
-                                machine,
-                                &outcome.judge,
-                                classification,
-                                diagnostics,
-                                parameter_names,
-                                branch_hypotheses.clone(),
-                                branch_equations.clone(),
-                                pending_citations.clone(),
-                                outcome.value,
-                            ));
-                        }
-                    }
-                    TransitionTargetNode::Named {
-                        path: target,
-                        arguments,
-                        ..
-                    } => {
-                        let target_state =
-                            crate::machine_calls::calls::named_transition_target_state(
-                                program,
-                                invocation,
-                                state,
-                                transition.target,
-                            )
-                            .or_else(|| {
-                                // Unfold checked, observation-free bodies,
-                                // regardless of nesting or result relevance.
-                                // Boundary declarations supply no body evidence.
-                                let (callee, entry) =
-                                    crate::machine_calls::calls::find_machine_head(
-                                        program,
-                                        target.symbol,
-                                    )?;
-                                (callee.body_is_present
-                                    && callee.supply_mode.is_checked_body()
-                                    && !callee.target_family_interface
-                                    && transparent_body_is_observation_free(
-                                        program,
-                                        callee,
-                                        classification,
-                                    ))
-                                .then_some(entry)
-                            })?;
-                        if requirement.as_deref().is_some_and(|observer| {
-                            observer.site().state == state.symbol
-                                || !prefix_site_is_reachable(program, target_state, observer)
-                        }) {
-                            // A jump leaves this state invocation; a cycle back
-                            // is a new arrival, not execution of its later arm.
-                            // Other states are traversed only when they can
-                            // reach the queried occurrence. Each recurrent
-                            // arrival separately owes its state contract.
-                            continue;
-                        }
-                        let target_parameters = program.state_parameters(target_state);
-                        let argument_handles =
-                            program.statement_table.expression_handles(*arguments);
+                        )?.into_iter().map(|entry| {
+                            let arguments = entry.observed_arguments()?;
+                            (arguments.len() == target_parameters.len()).then_some(())?;
+                            let environment = target_parameters.iter().zip(arguments)
+                                .map(|(parameter, value)| (parameter.name.as_str().to_owned(), value))
+                                .collect();
+                            Some((environment, entry.judge))
+                        }).collect::<Option<Vec<_>>>()?
+                    } else {
                         if target_parameters.len() != argument_handles.len() {
                             return None;
                         }
-                        let mut target_frames = vec![(Vec::new(), judge.clone())];
+                        let mut frames = vec![(Vec::new(), judge.clone())];
                         for (parameter, argument) in target_parameters.iter().zip(argument_handles)
                         {
                             let mut next = Vec::new();
-                            for (target_environment, captured) in target_frames {
+                            for (environment, captured) in frames {
                                 for outcome in captured.normal_return_paths(
                                     *argument,
                                     &branch_environment,
                                     (invocation, state, parameter.type_reference),
                                 )? {
-                                    let mut target_environment = target_environment.clone();
-                                    target_environment
+                                    let mut environment = environment.clone();
+                                    environment
                                         .push((parameter.name.as_str().to_owned(), outcome.value));
-                                    next.push((target_environment, outcome.judge));
+                                    next.push((environment, outcome.judge));
                                 }
                             }
-                            target_frames = next;
+                            frames = next;
                         }
-                        for (target_environment, captured) in target_frames {
-                            leaves.extend(recognize_structural_state_leaves(
-                                program,
-                                machine,
-                                &captured,
-                                classification,
-                                diagnostics,
-                                states,
-                                target_state,
-                                parameter_names,
-                                target_environment,
-                                branch_hypotheses.clone(),
-                                branch_equations.clone(),
-                                pending_citations.clone(),
-                                true,
-                                path,
-                                fresh,
-                                requirement,
-                                established_guarantees.clone(),
-                            )?);
-                        }
+                        frames
+                    };
+                    for (target_environment, captured) in target_frames {
+                        leaves.extend(recognize_structural_state_leaves(
+                            program,
+                            machine,
+                            &captured,
+                            classification,
+                            diagnostics,
+                            states,
+                            target_state,
+                            parameter_names,
+                            target_environment,
+                            branch_hypotheses.clone(),
+                            branch_equations.clone(),
+                            pending_citations.clone(),
+                            true,
+                            path,
+                            fresh,
+                            requirement,
+                            established_guarantees.clone(),
+                        )?);
                     }
-                    _ => return None,
+                } else {
+                    let TransitionTargetNode::Value(value) = target else {
+                        return None;
+                    };
+                    if requirement.is_some() {
+                        continue;
+                    }
+                    for outcome in judge.normal_return_paths(
+                        *value,
+                        &branch_environment,
+                        (invocation, state, state.return_type),
+                    )? {
+                        leaves.push(finalize_structural_case_arm(
+                            program,
+                            machine,
+                            &outcome.judge,
+                            classification,
+                            diagnostics,
+                            parameter_names,
+                            branch_hypotheses.clone(),
+                            branch_equations.clone(),
+                            pending_citations.clone(),
+                            outcome.value,
+                        ));
+                    }
                 }
             }
             if requirement.as_deref().is_some_and(|observer| {
@@ -1896,16 +1894,22 @@ fn prefix_site_is_reachable(
                 continue;
             };
             for target in [transition.target, transition.continuation] {
-                let TransitionTargetNode::Named { path, .. } =
-                    program.statement_table.transition_target(target)
-                else {
-                    continue;
+                let selected = match program.statement_table.transition_target(target) {
+                    TransitionTargetNode::Named { path, .. } => path.symbol,
+                    TransitionTargetNode::Value(expression) => {
+                        let ExpressionNode::Call(call) =
+                            program.expression_table.expression(*expression)
+                        else {
+                            continue;
+                        };
+                        super::structural_terms::structural_call_target(program, owner.symbol, call)
+                    }
+                    _ => continue,
                 };
                 let Some((_, destination)) =
-                    crate::machine_calls::calls::machine_state_by_symbol(program, path.symbol)
+                    crate::machine_calls::calls::machine_state_by_symbol(program, selected)
                         .or_else(|| {
-                            let machine = program.machine_by_symbol(path.symbol)?;
-                            Some((machine, program.machine_states(machine).first()?))
+                            crate::machine_calls::calls::find_machine_head(program, selected)
                         })
                 else {
                     return true;
@@ -1915,6 +1919,80 @@ fn prefix_site_is_reachable(
         }
     }
     false
+}
+
+/// Terminal source calls and internal control edges have different encodings,
+/// but an admitted checked body supplies the same proof path. Resolve the exact
+/// selected declaration, then capture expression-call actuals through the normal
+/// ordered entry owner. No completed result or callee guarantee is assumed.
+fn terminal_body_transfer<'program>(
+    program: &'program dyn crate::CheckingInput,
+    invocation: &Machine,
+    state: &typed_trees::state::State,
+    target: typed_trees::statement::TransitionTargetHandle,
+    classification: &typed_trees::proof_only::ProofOnlyClassification,
+) -> Option<(
+    &'program typed_trees::state::State,
+    &'program [ExpressionHandle],
+    Option<ExpressionHandle>,
+)> {
+    let (callee, entry, arguments, expression) =
+        match program.statement_table.transition_target(target) {
+            TransitionTargetNode::Named {
+                path, arguments, ..
+            } => {
+                if let Some(entry) = crate::machine_calls::calls::named_transition_target_state(
+                    program, invocation, state, target,
+                ) {
+                    return Some((
+                        program.state_by_symbol(entry.symbol)?,
+                        program.statement_table.expression_handles(*arguments),
+                        None,
+                    ));
+                }
+                let (callee, entry) =
+                    crate::machine_calls::calls::find_machine_head(program, path.symbol)?;
+                (
+                    callee,
+                    entry,
+                    program.statement_table.expression_handles(*arguments),
+                    None,
+                )
+            }
+            TransitionTargetNode::Value(expression) => {
+                let ExpressionNode::Call(call) = program.expression_table.expression(*expression)
+                else {
+                    return None;
+                };
+                let super::specification_calls::SelectedCallContract::Concrete(callee, entry) =
+                    super::specification_calls::selected_call_contract(
+                        program,
+                        invocation.symbol,
+                        call,
+                    )?
+                else {
+                    return None;
+                };
+                (
+                    callee,
+                    entry,
+                    crate::call_site_argument_expressions(
+                        program,
+                        &crate::CallSite::Expression {
+                            expression: *expression,
+                            call,
+                        },
+                    ),
+                    Some(*expression),
+                )
+            }
+            _ => return None,
+        };
+    (callee.body_is_present
+        && callee.supply_mode.is_checked_body()
+        && !callee.target_family_interface
+        && transparent_body_is_observation_free(program, callee, classification))
+    .then_some((entry, arguments, expression))
 }
 
 /// A proof may finish through an ordinary pure helper, including an empty
