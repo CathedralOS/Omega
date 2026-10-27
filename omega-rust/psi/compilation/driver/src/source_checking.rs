@@ -10,9 +10,10 @@ use diagnostics::Diagnostic;
 use representation_selections::OpaqueRepresentationSelection;
 use std::sync::Arc;
 
-pub use typed_trees_to_checked_trees::{
-    CheckedTreeProductSelection, RetainedCheck, settle_closed_constant_execution,
-};
+mod constant_closure;
+pub use constant_closure::{ConstantProofApplication, ConstantProofClosure};
+
+pub use typed_trees_to_checked_trees::{CheckedTreeProductSelection, RetainedCheck};
 
 /// Evaluated source permissions and representation facts for this invocation.
 /// These are not provider selections or execution authority.

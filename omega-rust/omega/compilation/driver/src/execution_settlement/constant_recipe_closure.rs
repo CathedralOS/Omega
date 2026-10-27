@@ -12,7 +12,7 @@
 //! no executable for it is requested. Private supplemental views discharge
 //! those predicates without overwriting shared or selected-product values.
 
-use checked_trees::{CheckedTrees, ConstantRecipeObligation};
+use checked_trees::CheckedTrees;
 use compilation_products::CheckedProductSource;
 use diagnostics::Diagnostic;
 use std::sync::Arc;
@@ -53,7 +53,7 @@ pub(crate) fn close_constant_recipes(
     }
     // A captured model-fit obligation needs no source evaluation or dummy
     // recipe. Only real constant dependencies resume their continuation.
-    let mut closed_typed = if needs_constant_values {
+    let closed_typed = if needs_constant_values {
         close_constant_values(
             source,
             selected_target_profile,
@@ -64,7 +64,11 @@ pub(crate) fn close_constant_recipes(
     } else {
         (**typed).clone()
     };
-    let mut closed_facts = shared.facts.clone();
+    let mut proof_closure = psi_compiler::ConstantProofClosure::new(
+        shared,
+        closed_typed,
+        selected_target_profile.target_name(),
+    );
     let mut proof_targets = vec![selected_target_profile];
     let predicate_rows = &shared.facts.constant_predicate_obligations;
     let range_rows = &shared.facts.integer_range_obligations;
@@ -80,12 +84,6 @@ pub(crate) fn close_constant_recipes(
             }
         }
     }
-    closed_facts.constant_predicate_obligations.clear();
-    closed_facts.integer_range_obligations.clear();
-    closed_facts.constant_recipe_obligations.clear();
-    let mut predicate_closed = vec![false; predicate_rows.len()];
-    let mut range_closed = vec![false; range_rows.len()];
-    let mut recipe_closed = vec![false; recipe_rows.len()];
     let declaration_owners =
         provider_planning::target_machines::declaration_formation_owners(shared);
     let proof_owners: Vec<_> = predicate_rows
@@ -133,43 +131,14 @@ pub(crate) fn close_constant_recipes(
                 &applications,
                 &declaration_owners,
             );
-        let predicate_applications: Vec<_> = predicate_rows
-            .iter()
-            .enumerate()
-            .filter(|(_, obligation)| applications.contains(&obligation.caller()))
-            .collect();
-        // These new declaration recipes contain captured BigInt bounds only,
-        // not open binders or source computations. The selected checked copy
-        // retains global descriptions for later Terminal metadata, so close
-        // every ground declaration model recipe in its primary capsule. This
-        // is conservative whole-capsule formation, not a caller premise or
-        // authority to execute a declaration. Supplemental capsules also close
-        // their actually referenced descriptions. Existing non-ground recipes
-        // retain their original machine-application selection.
-        let range_applications: Vec<_> = range_rows
-            .iter()
-            .enumerate()
-            .filter(|(_, obligation)| {
-                applications.contains(&obligation.owner())
-                    || (obligation.needs_address_model()
-                        && (declaration_applications.contains(&obligation.owner())
-                            || (target == selected_target_profile
-                                && declaration_owners.contains(&obligation.owner()))))
-            })
-            .collect();
-        let recipe_applications: Vec<_> = recipe_rows
-            .iter()
-            .enumerate()
-            .filter(|(_, obligation)| {
-                !obligation.owner().is_valid() || applications.contains(&obligation.owner())
-            })
-            .collect();
-        if predicate_applications.is_empty()
-            && range_applications.is_empty()
-            && recipe_applications.is_empty()
-        {
+        let Some(application) = proof_closure.application(
+            target.target_name(),
+            &applications,
+            &declaration_applications,
+            &declaration_owners,
+        ) else {
             continue;
-        }
+        };
         let proof_program = match &supplemental {
             None => None,
             Some(_) if !needs_constant_values => None,
@@ -181,141 +150,41 @@ pub(crate) fn close_constant_recipes(
                 &layout_queries,
             )?),
         };
-        let program = proof_program.as_ref().unwrap_or(&closed_typed);
-        for (position, obligation) in predicate_applications {
-            let mut application = obligation.clone();
-            checked_trees::ConstantPredicateObligation::discharge_all(
-                std::iter::once(&mut application),
-                program,
-                target.target_name(),
-            )?;
-            closed_facts
-                .constant_predicate_obligations
-                .push(application);
-            predicate_closed[position] = true;
-        }
-        // Recipe comparisons belong to the caller application just like
-        // constant predicates and arithmetic snapshots. A nonselected tagged
-        // body's endpoint must close under its own provider capsule.
-        for (position, obligation) in recipe_applications {
-            let mut application = obligation.clone();
-            ConstantRecipeObligation::discharge_all(
-                std::slice::from_mut(&mut application),
-                program,
-            )?;
-            closed_facts.constant_recipe_obligations.push(application);
-            recipe_closed[position] = true;
-        }
-        let address_model = if range_applications
-            .iter()
-            .any(|(_, obligation)| obligation.needs_address_model())
-        {
-            let model = target::TargetSemantics::close_address_model(target).ok_or_else(|| {
-                vec![Diagnostic::error(format!(
-                    "selected target `{}` does not close the default address-space model",
-                    target.target_name(),
-                ))]
-            })?;
-            // The selected model is authority for the source bound. Lowering's
-            // supported representation is an independent capability limit.
-            if model.carrier()
-                != semantic_vocabulary::IntegerType::supported_address_representation()
-            {
-                return Err(vec![Diagnostic::error(format!(
-                    "selected address model for `{}` has no supported Terminal representation",
-                    target.target_name(),
-                ))]);
-            }
-            Some(checked_trees::IntegerRangeModel {
-                carrier: model.carrier(),
-                semantics_version: model.semantics_version(),
-                commitment: model.commitment(),
-            })
+        // Model lookup is pure. Retain its refusal for Psi to report after
+        // predicate and recipe failures, preserving the original check order.
+        let address_model = if application.needs_address_model() {
+            close_address_model(target).map(Some)
         } else {
-            None
+            Ok(None)
         };
-        for (position, obligation) in range_applications {
-            let mut application = obligation.clone();
-            application
-                .discharge(program, target.target_name(), address_model.as_ref())
-                .map_err(|reason| vec![reason])?;
-            closed_facts
-                .operators
-                .decided_formations
-                .push(application.expression());
-            closed_facts.integer_range_obligations.push(application);
-            range_closed[position] = true;
-        }
-        if let Some(proof_program) = proof_program {
-            closed_typed.constant_recipe_closure.target_bodies.extend(
-                proof_program
-                    .constant_recipe_closure
-                    .target_bodies
-                    .iter()
-                    .cloned(),
-            );
-            closed_typed
-                .constant_recipe_closure
-                .receipts
-                .extend(proof_program.constant_recipe_closure.receipts);
-        }
+        application.discharge(proof_program, address_model)?;
     }
-    if predicate_closed.contains(&false)
-        || range_closed.contains(&false)
-        || recipe_closed.contains(&false)
-    {
-        return Err(vec![Diagnostic::error(
-            "retained proof obligation has no target application",
-        )]);
+    proof_closure.finish()
+}
+
+/// Supply the selected platform model without performing source proof work.
+fn close_address_model(
+    target: target::TargetProfile,
+) -> Result<checked_trees::IntegerRangeModel, Vec<Diagnostic>> {
+    let model = target::TargetSemantics::close_address_model(target).ok_or_else(|| {
+        vec![Diagnostic::error(format!(
+            "selected target `{}` does not close the default address-space model",
+            target.target_name(),
+        ))]
+    })?;
+    // The selected model is authority for the source bound. Lowering's
+    // supported representation is an independent capability limit.
+    if model.carrier() != semantic_vocabulary::IntegerType::supported_address_representation() {
+        return Err(vec![Diagnostic::error(format!(
+            "selected address model for `{}` has no supported Terminal representation",
+            target.target_name(),
+        ))]);
     }
-    let receipts = &mut closed_typed.constant_recipe_closure.receipts;
-    closed_facts
-        .operators
-        .decided_formations
-        .sort_by_key(|expression| checked_trees::operators::handle_position(*expression));
-    closed_facts.operators.decided_formations.dedup();
-    receipts.sort_by(|left, right| {
-        left.target_scope
-            .cmp(&right.target_scope)
-            .then(
-                left.requirement
-                    .arena_index()
-                    .cmp(&right.requirement.arena_index()),
-            )
-            .then(left.plan_identity.cmp(&right.plan_identity))
-    });
-    receipts.dedup();
-    let target_bodies = &mut closed_typed.constant_recipe_closure.target_bodies;
-    target_bodies.sort_by_key(|row| {
-        (
-            row.target_scope.clone(),
-            row.head.arena_index(),
-            row.head.generation(),
-            row.member.arena_index(),
-            row.member.generation(),
-        )
-    });
-    target_bodies.dedup();
-    if !receipts.is_empty() {
-        closed_typed.constant_recipe_closure.target_scope =
-            selected_target_profile.target_name().to_owned();
-    }
-    let closed = CheckedTrees::with_roots(closed_typed, closed_facts);
-    let pending_boundary_clauses = closed
-        .facts
-        .flow
-        .terminal_unit_effects
-        .boundary_machines
-        .iter()
-        .any(|plan| {
-            !plan.pending_scalar_requires.is_empty() || !plan.pending_scalar_recipes.is_empty()
-        });
-    let closed = if pending_boundary_clauses {
-        psi_compiler::settle_closed_constant_execution(closed)?
-    } else {
-        closed
-    };
-    Ok(Arc::new(closed))
+    Ok(checked_trees::IntegerRangeModel {
+        carrier: model.carrier(),
+        semantics_version: model.semantics_version(),
+        commitment: model.commitment(),
+    })
 }
 
 /// Resume one capsule's existing evaluator and rejoin by canonical identity.
