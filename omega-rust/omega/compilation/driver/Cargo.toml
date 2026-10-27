@@ -26,6 +26,7 @@ package-compilation = { path = "../../packages/compilation-inputs" }
 provider-planning = { path = "../realization/provider-planning" }
 trust-model = { path = "../realization/trust-model" }
 boundary-applications = { path = "../backend/artifacts/boundary-applications" }
+calling-conventions = { path = "../backend/calling-conventions" }
 optimization = { path = "../../../psi/foundation/optimization-selections" }
 optimization-core = { path = "../../foundation/optimization-core" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
@@ -67,7 +68,6 @@ numerics = { path = "../../../psi/foundation/numerics" }
 terminal-semantics = { path = "../../../psi/compilation/representations/terminal-psi/semantics" }
 terminal-fuel = { path = "../../../psi/compilation/representations/terminal-psi/fuel" }
 terminal-interpreter = { path = "../../../psi/interpreter/terminal-interpreter" }
-calling-conventions = { path = "../backend/calling-conventions" }
 access-plans = { path = "../../../psi/foundation/access-plans" }
 extents = { path = "../../../psi/foundation/extents" }
 platform-custody = { path = "../../foundation/platform-custody" }

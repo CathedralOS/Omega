@@ -123,7 +123,7 @@ impl SelectedProductTarget {
         let applications = self
             .custody
             .settlement
-            .calling_applications()
+            .calling_applications(&[])
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
         for (description, component) in descriptions.iter().zip(verified) {
             let mut matching = products.iter().filter(|product| {

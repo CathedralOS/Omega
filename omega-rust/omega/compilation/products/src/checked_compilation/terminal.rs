@@ -41,6 +41,7 @@ impl CheckedCompilation {
     pub fn terminal_native_proposal_request<'input>(
         &'input self,
         selections: &optimization_core::OptimizationSelections,
+        exported_calling_applications: &[calling_conventions::BoundaryCallingApplication],
     ) -> Result<TerminalNativeProposalRequest<'input>, Vec<Diagnostic>> {
         let execution = self.execution();
         let providers = self.providers();
@@ -72,7 +73,7 @@ impl CheckedCompilation {
                         semantic_schema: &retained.plan.schema,
                     }
                 }).collect(),
-                calling_applications: providers.calling_applications()
+                calling_applications: providers.calling_applications(exported_calling_applications)
                     .map_err(|reason| vec![Diagnostic::error(reason)])?,
             },
             native_target: execution.selected_native_target(),

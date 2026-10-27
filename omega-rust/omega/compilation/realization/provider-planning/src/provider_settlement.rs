@@ -271,8 +271,11 @@ impl ProviderSettlement {
     /// Publish the complete calling catalog from its producing owners. Explicit
     /// policy rows can also own an external import; retain that same application
     /// once. Default native policies retain their materialized geometry here too.
+    /// Export applications arrive from component preparation; merging them
+    /// requires no source lookup or policy execution.
     pub fn calling_applications(
         &self,
+        exported: &[calling_conventions::BoundaryCallingApplication],
     ) -> Result<Vec<calling_conventions::BoundaryCallingApplication>, String> {
         let mut applications = self
             .boundary_calling_plan_realizations
@@ -303,7 +306,7 @@ impl ProviderSettlement {
                 applications.push(application.clone());
             }
         }
-        for application in &self.component_calling_applications {
+        for application in self.component_calling_applications.iter().chain(exported) {
             if let Some(existing) = applications.iter().find(|existing| {
                 existing.requirement_identity == application.requirement_identity
                     && existing.target == application.target
@@ -333,16 +336,17 @@ fn demanded_provider_plans(
     // Satisfaction declares a candidate, not a request to install it. Use the
     // source owner's callable-use inventory, not all nominal references: a
     // conformance row necessarily mentions its requirement without calling it.
-    let mut uses = checked_trees::typed_trees::references::collect_program_references(&checked.typed)
-        .callable_uses
-        .into_iter()
-        .map(|symbol| {
-            checked
-                .typed
-                .closed_requirement_application(symbol)
-                .map_or(symbol, |application| application.template)
-        })
-        .collect::<std::collections::HashSet<_>>();
+    let mut uses =
+        checked_trees::typed_trees::references::collect_program_references(&checked.typed)
+            .callable_uses
+            .into_iter()
+            .map(|symbol| {
+                checked
+                    .typed
+                    .closed_requirement_application(symbol)
+                    .map_or(symbol, |application| application.template)
+            })
+            .collect::<std::collections::HashSet<_>>();
     uses.extend(
         checked
             .facts

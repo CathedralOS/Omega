@@ -241,6 +241,12 @@ the artifact itself, including after reload. There is no late Psi signature quer
 for these adapters. Other checked-source inputs to product coordination remain
 part of the migration; this does not claim the entire driver is source-free.
 
+Component publication prepares its exported calling applications before Terminal
+production. The retained product carries those complete applications to the
+ordinary provider catalog join, which checks agreement with imported and explicit
+boundary policies without reopening typed source. Native proposal construction
+does not materialize component policies or maintain a second catalog merge.
+
 An anonymous Build runs before its final source graph has a declaration owner.
 The Psi production request therefore distinguishes invocation-only code from
 portable publication, using the same stages, Terminal representation and
