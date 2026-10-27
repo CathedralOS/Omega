@@ -292,6 +292,7 @@ pass/calls/caller_result_binding_mutable_loan_exit built 6887ms exit:70 interpre
 pass/calls/case_scrutinee_self_dispatch_exit built 6706ms exit:0 interpreter-exit:0 interpreter:agrees @faab7e6c1b7d+wt
 pass/calls/completed_effectful_result_requirement_exit built 3461ms exit:0 interpreter-exit:0 interpreter:agrees @cac1400fd2e4
 pass/calls/cyclic_copy_arguments_exit built 3170ms exit:70 interpreter-exit:70 interpreter:agrees @dfece6e7f6a1+wt
+pass/calls/direct_target_foreign_scalar_result_exit built 1394ms exit:0 interpreter-exit:0 interpreter:agrees @22a3c05942f34c25d81ff118cbb674ad8f47785a
 pass/calls/guarded_arm_view_range_tail_call_exit built 1362ms exit:70 interpreter-exit:70 interpreter:agrees @d1b852badb4c+wt
 pass/calls/inline_record_scalar_call_arguments_exit built 3169ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @dfece6e7f6a1+wt
 pass/calls/local_nested_record_call_then_state_exit built 3414ms exit:70 interpreter-exit:70 interpreter:agrees @d0e40a213f35
@@ -346,6 +347,7 @@ pass/calls/runtime_guarded_terminal_structural_result_exit built 1267ms exit:0 i
 pass/calls/runtime_heterogeneous_case_argument_exit built 11563ms exit:0 interpreter-exit:0 interpreter:agrees @b0e82acb332e+wt
 pass/calls/runtime_indexed_scalar_calls_exit built 8979ms exit:70 interpreter-exit:70 interpreter:agrees @faab7e6c1b7d+wt
 pass/calls/runtime_inherited_membership_argument_snapshot_exit built 3702ms exit:0 interpreter-exit:0 interpreter:agrees @cfbb6c8709b4+wt
+pass/calls/runtime_large_frame_foreign_call_floating_control_exit built 5989ms exit:70 interpreter-exit:70 interpreter:agrees @22a3c05942f34c25d81ff118cbb674ad8f47785a
 pass/calls/runtime_linear_guarded_owner_disposition_exit built 2138ms exit:0 interpreter-exit:0 interpreter:agrees @2bc90c3ea398
 pass/calls/runtime_linear_guarded_unit_owner_disposition_exit built 2070ms exit:0 interpreter-exit:0 interpreter:agrees @2bc90c3ea398
 pass/calls/runtime_linear_state_owner_disposition_exit built 4772ms exit:0 interpreter-exit:0 interpreter:agrees @a6d22383c443
@@ -1241,6 +1243,15 @@ pass/facts/foreign_scalar_backing_through_other_machine_exit built 751ms exit:0 
 pass/facts/foreign_scalar_backing_through_other_state_exit built 736ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @db430d661cf1+wt
 pass/facts/foreign_scalar_backing_through_parameter_exit built 729ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @db430d661cf1+wt
 pass/facts/foreign_scalar_backing_through_target_body_exit built 739ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @db430d661cf1+wt
+pass/facts/foreign_scalar_record_result_direct_through_call_result_exit built 1431ms exit:0 interpreter-exit:0 interpreter:agrees @22a3c05942f34c25d81ff118cbb674ad8f47785a
+pass/facts/foreign_scalar_record_result_direct_through_const_name_exit built 1247ms exit:0 interpreter-exit:0 interpreter:agrees @22a3c05942f34c25d81ff118cbb674ad8f47785a
+pass/facts/foreign_scalar_record_result_direct_through_field_exit built 1242ms exit:0 interpreter-exit:0 interpreter:agrees @22a3c05942f34c25d81ff118cbb674ad8f47785a
+pass/facts/foreign_scalar_record_result_direct_through_local_exit built 1298ms exit:0 interpreter-exit:0 interpreter:agrees @22a3c05942f34c25d81ff118cbb674ad8f47785a
+pass/facts/foreign_scalar_record_result_direct_through_match_join_exit built 1337ms exit:0 interpreter-exit:0 interpreter:agrees @22a3c05942f34c25d81ff118cbb674ad8f47785a
+pass/facts/foreign_scalar_record_result_direct_through_other_machine_exit built 1308ms exit:0 interpreter-exit:0 interpreter:agrees @22a3c05942f34c25d81ff118cbb674ad8f47785a
+pass/facts/foreign_scalar_record_result_direct_through_other_state_exit built 1251ms exit:0 interpreter-exit:0 interpreter:agrees @22a3c05942f34c25d81ff118cbb674ad8f47785a
+pass/facts/foreign_scalar_record_result_direct_through_parameter_exit built 1259ms exit:0 interpreter-exit:0 interpreter:agrees @22a3c05942f34c25d81ff118cbb674ad8f47785a
+pass/facts/foreign_scalar_record_result_direct_through_target_body_exit built 1252ms exit:0 interpreter-exit:0 interpreter:agrees @22a3c05942f34c25d81ff118cbb674ad8f47785a
 pass/facts/foreign_scalar_record_result_through_call_result_exit built 972ms exit:0 interpreter-exit:0 interpreter:agrees @0360a23ad5f5+wt
 pass/facts/foreign_scalar_record_result_through_const_name_exit built 888ms exit:0 interpreter-exit:0 interpreter:agrees @0360a23ad5f5+wt
 pass/facts/foreign_scalar_record_result_through_field_exit built 884ms exit:0 interpreter-exit:0 interpreter:agrees @0360a23ad5f5+wt

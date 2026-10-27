@@ -91,10 +91,31 @@ Every positive declares all four hosted entries and `Expected exit: 0`.
 
 This is another production of the existing NORMALIZED-ABI-LOWERING requirement,
 not another fact or a larger-count ABI row. The applicable requirement layers
-below apply to it as well. The direct row is drafted but has no execution credit
-yet: each positive still needs matching-host native/Terminal agreement and
-canonical artifact validation, and each twin must reject for its copy obligation.
-The historical selected-call observations above do not establish this route.
+below apply to it as well. Optimized producer `22a3c05942f34c25d81ff118cbb674ad8f47785a` now executes the
+root and all nine direct places with `omega run --both` on `macos_arm64`:
+native exit 0, Terminal exit 0, and successful `inspect-terminal --artifact`.
+All nine copy-removal twins reject with `holds no value`. The exact signed
+inputs, both result fields, earlier-result copies and consuming operation remain
+unchanged. The match join additionally observes each arm's marker so an inverted
+branch traps.
+
+Fresh fixed baseline `14d6fefba285962378d30e5992de83fde81b3c69` reproduced missing
+applications for direct calls and an incorrect requirement-call projection inside
+target bodies. The repair retains each declared callable and the exact receiving
+foreign row's original admitted application; it preserves nominal parameter
+identities, target, plan and full commitment without selecting unused providers.
+The original large-frame scalar fixture again agrees at exit 70; the new scalar
+target-body control agrees at exit 0. The affected comparison has zero lost
+outcomes in 42 source records and 24 native/Terminal records (22 observed
+agreements, one source-only callback fixture, and one inherited table-lowering
+refusal). The scoped Rust suite records 60 passes and three inherited failures;
+all three reproduce on the fixed baseline with identical assertion payloads and
+source-guard violation lists after line-number normalization.
+
+Other hosts have authored entries and bindings but receive no execution credit
+from this macOS run. Remaining foreign ABI/backing acceptance stays on
+NORMALIZED-ABI-LOWERING. See [the direct run record](direct-qualification.json).
+The historical selected-call observations above remain separate evidence.
 
 Applicable requirement layers:
 

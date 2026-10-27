@@ -8410,6 +8410,24 @@ fail/facts/foreign_scalar_backing_through_target_body_rejected rejected 458ms ex
 	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/facts/foreign_scalar_record_result_direct_through_call_result_rejected rejected 525ms expected @22a3c05942f34c25d81ff118cbb674ad8f47785a
+	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
+fail/facts/foreign_scalar_record_result_direct_through_const_name_rejected rejected 527ms expected @22a3c05942f34c25d81ff118cbb674ad8f47785a
+	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
+fail/facts/foreign_scalar_record_result_direct_through_field_rejected rejected 545ms expected @22a3c05942f34c25d81ff118cbb674ad8f47785a
+	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
+fail/facts/foreign_scalar_record_result_direct_through_local_rejected rejected 539ms expected @22a3c05942f34c25d81ff118cbb674ad8f47785a
+	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
+fail/facts/foreign_scalar_record_result_direct_through_match_join_rejected rejected 557ms expected @22a3c05942f34c25d81ff118cbb674ad8f47785a
+	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
+fail/facts/foreign_scalar_record_result_direct_through_other_machine_rejected rejected 544ms expected @22a3c05942f34c25d81ff118cbb674ad8f47785a
+	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
+fail/facts/foreign_scalar_record_result_direct_through_other_state_rejected rejected 549ms expected @22a3c05942f34c25d81ff118cbb674ad8f47785a
+	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
+fail/facts/foreign_scalar_record_result_direct_through_parameter_rejected rejected 541ms expected @22a3c05942f34c25d81ff118cbb674ad8f47785a
+	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
+fail/facts/foreign_scalar_record_result_direct_through_target_body_rejected rejected 541ms expected @22a3c05942f34c25d81ff118cbb674ad8f47785a
+	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
 fail/facts/foreign_scalar_record_result_through_call_result_rejected rejected 400ms expected @0360a23ad5f5+wt
 	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
 fail/facts/foreign_scalar_record_result_through_const_name_rejected rejected 416ms expected @0360a23ad5f5+wt
@@ -23131,6 +23149,7 @@ pass/calls/cyclic_mutable_borrow_block_parameter_call checked 7039ms check-targe
 pass/calls/cyclic_projected_borrow_call_exit checked 7909ms check-target:macos_arm64 @a92f16431042
 pass/calls/cyclic_scalar_query_reborrow_exit checked 7212ms check-target:macos_arm64 @a92f16431042
 pass/calls/declared_range_delivery_proven checked 5674ms @a92f16431042
+pass/calls/direct_target_foreign_scalar_result_exit checked 1147ms check-target:macos_arm64 @22a3c05942f34c25d81ff118cbb674ad8f47785a
 pass/calls/ensures_result_membership_state_graph_issuer_exit checked 2619ms check-target:macos_arm64 @a92f16431042
 pass/calls/field_path_byte_subslice_exit checked 6994ms check-target:macos_arm64 @a92f16431042
 pass/calls/generic_operator_guard_result checked 5168ms @a92f16431042
@@ -25874,6 +25893,15 @@ pass/facts/foreign_scalar_backing_through_other_machine_exit checked 609ms check
 pass/facts/foreign_scalar_backing_through_other_state_exit checked 594ms check-target:macos_arm64 @db430d661cf1+wt
 pass/facts/foreign_scalar_backing_through_parameter_exit checked 594ms check-target:macos_arm64 @db430d661cf1+wt
 pass/facts/foreign_scalar_backing_through_target_body_exit checked 586ms check-target:macos_arm64 @db430d661cf1+wt
+pass/facts/foreign_scalar_record_result_direct_through_call_result_exit checked 1153ms check-target:macos_arm64 @22a3c05942f34c25d81ff118cbb674ad8f47785a
+pass/facts/foreign_scalar_record_result_direct_through_const_name_exit checked 1138ms check-target:macos_arm64 @22a3c05942f34c25d81ff118cbb674ad8f47785a
+pass/facts/foreign_scalar_record_result_direct_through_field_exit checked 1144ms check-target:macos_arm64 @22a3c05942f34c25d81ff118cbb674ad8f47785a
+pass/facts/foreign_scalar_record_result_direct_through_local_exit checked 1140ms check-target:macos_arm64 @22a3c05942f34c25d81ff118cbb674ad8f47785a
+pass/facts/foreign_scalar_record_result_direct_through_match_join_exit checked 1145ms check-target:macos_arm64 @22a3c05942f34c25d81ff118cbb674ad8f47785a
+pass/facts/foreign_scalar_record_result_direct_through_other_machine_exit checked 1194ms check-target:macos_arm64 @22a3c05942f34c25d81ff118cbb674ad8f47785a
+pass/facts/foreign_scalar_record_result_direct_through_other_state_exit checked 1233ms check-target:macos_arm64 @22a3c05942f34c25d81ff118cbb674ad8f47785a
+pass/facts/foreign_scalar_record_result_direct_through_parameter_exit checked 1219ms check-target:macos_arm64 @22a3c05942f34c25d81ff118cbb674ad8f47785a
+pass/facts/foreign_scalar_record_result_direct_through_target_body_exit checked 1195ms check-target:macos_arm64 @22a3c05942f34c25d81ff118cbb674ad8f47785a
 pass/facts/foreign_scalar_record_result_through_call_result_exit checked 723ms check-target:macos_arm64 @0360a23ad5f5+wt
 pass/facts/foreign_scalar_record_result_through_const_name_exit checked 723ms check-target:macos_arm64 @0360a23ad5f5+wt
 pass/facts/foreign_scalar_record_result_through_field_exit checked 642ms check-target:macos_arm64 @0360a23ad5f5+wt
