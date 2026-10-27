@@ -1,0 +1,110 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "91d30c0b47e8ac7735ca576ba384d6ab34e0757f",
+  "dirty": false,
+  "leg": "both",
+  "target": "macos_arm64",
+  "golden": "tests/omega/corpus_both_macos_arm64.txt",
+  "golden_reason_gaps": {
+    "rows": 0,
+    "of": 4665
+  },
+  "subset": true,
+  "filter": "proofs/runtime_qualified_copy_across_case_payload_exit",
+  "shard": null,
+  "verdict": "regressed",
+  "exit_code": 3,
+  "counts": {
+    "fixtures": 1,
+    "by_status": {
+      "rejected": 1
+    },
+    "wrong_reason": 0,
+    "wrong_reason_fixtures": [],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 0,
+    "lost_success_fixtures": [],
+    "pinned_off_target": 1,
+    "pinned_off_target_fixtures": [
+      "pass/proofs/runtime_qualified_copy_across_case_payload_exit"
+    ],
+    "by_verdict": {
+      "new": 1
+    }
+  },
+  "oracle_failures": [
+    "pass/proofs/runtime_qualified_copy_across_case_payload_exit: expected native 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/proofs/runtime_qualified_copy_across_case_payload_exit: expected interpreted 0, observed rejected {'interpreter': 'unchecked'}"
+  ],
+  "infrastructure_error": null,
+  "golden_provenance": {
+    "stamped": 0,
+    "legacy": 0,
+    "unknown_revisions": 0,
+    "oldest": null
+  },
+  "perf_context": {
+    "golden": {
+      "cpus": 10,
+      "jobs": "2",
+      "load1_end": 8.75,
+      "load1_start": 7.27,
+      "machine": "arm64",
+      "platform": "darwin",
+      "schema": "omega-corpus-context-v1"
+    },
+    "current": {
+      "schema": "omega-corpus-context-v1",
+      "jobs": null,
+      "cpus": 10,
+      "platform": "darwin",
+      "machine": "arm64",
+      "load1_start": 1.64,
+      "load1_end": 1.95
+    },
+    "warnings": []
+  },
+  "observations": [
+    {
+      "fixture": "pass/proofs/runtime_qualified_copy_across_case_payload_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 88032,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \"measure\", reason: \"membership source lacks its completed physical/source correspondence\", gap: None })"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  ],
+  "fixtures": [
+    {
+      "fixture": "pass/proofs/runtime_qualified_copy_across_case_payload_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/proofs/runtime_qualified_copy_across_case_payload_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 88032,
+        "expected_satisfied": null,
+        "facts": {
+          "interpreter": "unchecked"
+        },
+        "diagnostics": [
+          "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \"measure\", reason: \"membership source lacks its completed physical/source correspondence\", gap: None })"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    }
+  ]
+}

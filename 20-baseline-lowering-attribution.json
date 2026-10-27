@@ -1,0 +1,26 @@
+[
+  {
+    "fixture": "pass/control_flow/qualified_case_payload_copy_exit",
+    "command": [
+      "build/generic-case-observation/producer-baseline/omega",
+      "run",
+      "--both",
+      "tests/omega/pass/control_flow/qualified_case_payload_copy_exit/main.omg"
+    ],
+    "exit": 200,
+    "stdout": "",
+    "stderr": "native compile FAILED:\n  error: cannot compile admitted project: checked compilation failed for package `qualified_case_payload_copy` with 1 diagnostic(s)\n  error: terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \\\"direct\\\", reason: \\\"resident membership home has no exact source projection\\\", gap: None })\n"
+  },
+  {
+    "fixture": "pass/proofs/runtime_qualified_copy_across_case_payload_exit",
+    "command": [
+      "build/generic-case-observation/producer-baseline/omega",
+      "run",
+      "--both",
+      "tests/omega/pass/proofs/runtime_qualified_copy_across_case_payload_exit/main.omg"
+    ],
+    "exit": 200,
+    "stdout": "",
+    "stderr": "native compile FAILED:\n  error: cannot compile admitted project: checked compilation failed for package `runtime_qualified_copy_across_case_payload_exit` with 1 diagnostic(s)\n  error: target root slot `macos_arm64::ProgramEntry` takes boundary schema `MacosApplication` from a dependency's `targets/macos_arm64/entry.omg`, which needs an accepted program-entry binding; run `omega update` to review and accept it\n"
+  }
+]

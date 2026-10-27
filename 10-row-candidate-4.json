@@ -1,0 +1,250 @@
+{
+  "cli": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-case-observation/producer-4/omega",
+  "producer_sha256": "7afc8903087408813e6b1ebe8a9024a49b9431fb955c85e534d17418af6a8f27",
+  "profile": "{\"schema\":\"omega-compiler-build-profile-v1\",\"opt_level\":\"1\"}\n",
+  "rows": [
+    {
+      "name": "local",
+      "invalid": false,
+      "source_sha256": "3f010bee6a041647281d421783fb3cc7cdf4d14c468079a81fd1660f3052f655",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-case-observation/producer-4/omega",
+        "run",
+        "--both",
+        "samples/cli/facts/saved_case_predicate/local/main.omg"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": "native exit 0\ninterp exit: 0\n"
+    },
+    {
+      "name": "local",
+      "invalid": true,
+      "source_sha256": "c73507e6aeb0b48f96455b7eb8fd8adc6699054ae7af4d43182ed6bda9bc9b42",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-case-observation/producer-4/omega",
+        "--check",
+        "samples/cli/facts/saved_case_predicate/local/invalid/main.omg"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot compile admitted project: checked compilation failed for package `saved_case_local` with 1 diagnostic(s)\n  error: machine `probe` state `entry` statement 6: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence\n"
+    },
+    {
+      "name": "field",
+      "invalid": false,
+      "source_sha256": "7cac8d09d948a26cec94e148bc73f41f1b85c810f25e0eb5b67ee52933dfece4",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-case-observation/producer-4/omega",
+        "run",
+        "--both",
+        "samples/cli/facts/saved_case_predicate/field/main.omg"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": "native exit 0\ninterp exit: 0\n"
+    },
+    {
+      "name": "field",
+      "invalid": true,
+      "source_sha256": "903419f186ea9abcd73f1e79a626c0ca81ec4cecd763a319102ae02417f8c080",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-case-observation/producer-4/omega",
+        "--check",
+        "samples/cli/facts/saved_case_predicate/field/invalid/main.omg"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot compile admitted project: checked compilation failed for package `saved_case_field` with 1 diagnostic(s)\n  error: machine `probe` state `entry` statement 5: cannot prove selected case for payload access `holder.choice.amount`: captured source `holder.choice::Full.amount` has no live case evidence\n"
+    },
+    {
+      "name": "parameter",
+      "invalid": false,
+      "source_sha256": "3c8a277e632cdd7a2fdb4c83548d9a84b155755ae5b002cec1a92e452c2ac98c",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-case-observation/producer-4/omega",
+        "run",
+        "--both",
+        "samples/cli/facts/saved_case_predicate/parameter/main.omg"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": "native exit 0\ninterp exit: 0\n"
+    },
+    {
+      "name": "parameter",
+      "invalid": true,
+      "source_sha256": "7809e0ed7dbb0382bd5d88e943d4c031bbcd3fdc60df0c19e2c7aa4e2ccce61c",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-case-observation/producer-4/omega",
+        "--check",
+        "samples/cli/facts/saved_case_predicate/parameter/invalid/main.omg"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot compile admitted project: checked compilation failed for package `saved_case_parameter` with 1 diagnostic(s)\n  error: machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence\n"
+    },
+    {
+      "name": "call_result",
+      "invalid": false,
+      "source_sha256": "0c640beae5d8443b9ee48ca5c576bf727fff81127685fd1801da77d75dd186d5",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-case-observation/producer-4/omega",
+        "run",
+        "--both",
+        "samples/cli/facts/saved_case_predicate/call_result/main.omg"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": "native exit 0\ninterp exit: 0\n"
+    },
+    {
+      "name": "call_result",
+      "invalid": true,
+      "source_sha256": "112435e88aa4a1addae09c7a1decff60ab6a606899ccf75d8219a5d498408de6",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-case-observation/producer-4/omega",
+        "--check",
+        "samples/cli/facts/saved_case_predicate/call_result/invalid/main.omg"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot compile admitted project: checked compilation failed for package `saved_case_call_result` with 1 diagnostic(s)\n  error: machine `probe` state `entry` statement 6: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence\n"
+    },
+    {
+      "name": "match_join",
+      "invalid": false,
+      "source_sha256": "df8b7555c1c219c317d063427ef95c2dc809de126bebecadcb8d0e0953b5fcae",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-case-observation/producer-4/omega",
+        "run",
+        "--both",
+        "samples/cli/facts/saved_case_predicate/match_join/main.omg"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": "native exit 0\ninterp exit: 0\n"
+    },
+    {
+      "name": "match_join",
+      "invalid": true,
+      "source_sha256": "3b601fe896ddaa39de5c5db308286d683483a3c0816b361f5baf37078aa0d5c9",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-case-observation/producer-4/omega",
+        "--check",
+        "samples/cli/facts/saved_case_predicate/match_join/invalid/main.omg"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot compile admitted project: checked compilation failed for package `saved_case_match_join` with 1 diagnostic(s)\n  error: machine `probe` state `entry` statement 6: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence\n"
+    },
+    {
+      "name": "const_name",
+      "invalid": false,
+      "source_sha256": "f6ee858d1054f536436a577eff6cf7440be69f4e30a0de1f2ef8b6bdd07c8827",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-case-observation/producer-4/omega",
+        "run",
+        "--both",
+        "samples/cli/facts/saved_case_predicate/const_name/main.omg"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": "native exit 0\ninterp exit: 0\n"
+    },
+    {
+      "name": "const_name",
+      "invalid": true,
+      "source_sha256": "33ad876fc5adf451b70008d79861f362b317ff8ae4e63a04d2da13abf3d3f09e",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-case-observation/producer-4/omega",
+        "--check",
+        "samples/cli/facts/saved_case_predicate/const_name/invalid/main.omg"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot compile admitted project: checked compilation failed for package `saved_case_const_name` with 1 diagnostic(s)\n  error: machine `probe` state `entry` statement 6: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence\n"
+    },
+    {
+      "name": "other_state",
+      "invalid": false,
+      "source_sha256": "8e556626740c30b709f274fde1fd035a42cdaecf6ba649c9428019bc1c201c42",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-case-observation/producer-4/omega",
+        "run",
+        "--both",
+        "samples/cli/facts/saved_case_predicate/other_state/main.omg"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": "native exit 0\ninterp exit: 0\n"
+    },
+    {
+      "name": "other_state",
+      "invalid": true,
+      "source_sha256": "d3941bc9f23d835025f6f5f36c1ce124717f5e066840319578213a06f715879c",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-case-observation/producer-4/omega",
+        "--check",
+        "samples/cli/facts/saved_case_predicate/other_state/invalid/main.omg"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot compile admitted project: checked compilation failed for package `saved_case_other_state` with 1 diagnostic(s)\n  error: machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence\n"
+    },
+    {
+      "name": "other_machine",
+      "invalid": false,
+      "source_sha256": "55839eeb86ab70c4eed0624e0c68726fa988f5f76b7f662e30e5409d91a41792",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-case-observation/producer-4/omega",
+        "run",
+        "--both",
+        "samples/cli/facts/saved_case_predicate/other_machine/main.omg"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": "native exit 0\ninterp exit: 0\n"
+    },
+    {
+      "name": "other_machine",
+      "invalid": true,
+      "source_sha256": "3e715a711c43bc9a9f83ba8668744f765001b351c2d09757507ea1742da0a6b9",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-case-observation/producer-4/omega",
+        "--check",
+        "samples/cli/facts/saved_case_predicate/other_machine/invalid/main.omg"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot compile admitted project: checked compilation failed for package `saved_case_other_machine` with 1 diagnostic(s)\n  error: machine `quotient` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence\n"
+    },
+    {
+      "name": "target_body",
+      "invalid": false,
+      "source_sha256": "8f835ce0615b85f5bb12f3d04124639310c59785d118d55a7995a885fb583629",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-case-observation/producer-4/omega",
+        "run",
+        "--both",
+        "samples/cli/facts/saved_case_predicate/target_body/main.omg"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": "native exit 0\ninterp exit: 0\n"
+    },
+    {
+      "name": "target_body",
+      "invalid": true,
+      "source_sha256": "d378c779a242c0a7565e6c94dd817fe28ed12e0528439927ac07f5a593b03cc5",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-case-observation/producer-4/omega",
+        "--check",
+        "samples/cli/facts/saved_case_predicate/target_body/invalid/main.omg"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot compile admitted project: checked compilation failed for package `saved_case_target_body` with 4 diagnostic(s)\n  error: machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence\n  error: machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence\n  error: machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence\n  error: machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence\n"
+    }
+  ]
+}

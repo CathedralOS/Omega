@@ -1,0 +1,83 @@
+[
+  {
+    "name": "nongeneric",
+    "invalid": false,
+    "source_sha256": "6bddc9ba13b5e283abe8c70127864515a7776d42c84885d5a78fef526c3f2a7b",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-case-observation/producer-baseline/omega",
+      "run",
+      "--both",
+      "build/generic-case-observation/probes/nongeneric/main.omg"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "name": "nongeneric",
+    "invalid": true,
+    "source_sha256": "162ab51710a6a66d2edec841877cf2d24fa5b0807e822aeb840a5662203db863",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-case-observation/producer-baseline/omega",
+      "--check",
+      "build/generic-case-observation/probes/nongeneric/invalid/main.omg"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `saved_case_parameter` with 1 diagnostic(s)\n  error: machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence\n"
+  },
+  {
+    "name": "carrier_equation",
+    "invalid": false,
+    "source_sha256": "3c8a277e632cdd7a2fdb4c83548d9a84b155755ae5b002cec1a92e452c2ac98c",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-case-observation/producer-baseline/omega",
+      "run",
+      "--both",
+      "build/generic-case-observation/probes/carrier_equation/main.omg"
+    ],
+    "exit": 200,
+    "stdout": "",
+    "stderr": "native compile FAILED:\n  error: cannot compile admitted project: checked compilation failed for package `saved_case_parameter` with 1 diagnostic(s)\n  error: /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-case-observation/probes/carrier_equation/main.omg:6:94: expected expression\n"
+  },
+  {
+    "name": "carrier_equation",
+    "invalid": true,
+    "source_sha256": "7809e0ed7dbb0382bd5d88e943d4c031bbcd3fdc60df0c19e2c7aa4e2ccce61c",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-case-observation/producer-baseline/omega",
+      "--check",
+      "build/generic-case-observation/probes/carrier_equation/invalid/main.omg"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `saved_case_parameter` with 1 diagnostic(s)\n  error: /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-case-observation/probes/carrier_equation/invalid/main.omg:6:94: expected expression\n"
+  },
+  {
+    "name": "pointee_equation",
+    "invalid": false,
+    "source_sha256": "10b49e950a077afcc235e0c8facadb5e2b1df3ea286d4fcdd0aff2a7c8afd766",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-case-observation/producer-baseline/omega",
+      "run",
+      "--both",
+      "build/generic-case-observation/probes/pointee_equation/main.omg"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "name": "pointee_equation",
+    "invalid": true,
+    "source_sha256": "d9740582d9041085af99b952feb0d2f69651894106febc59cb49e402ba375014",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-case-observation/producer-baseline/omega",
+      "--check",
+      "build/generic-case-observation/probes/pointee_equation/invalid/main.omg"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `saved_case_parameter` with 1 diagnostic(s)\n  error: machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence\n"
+  }
+]

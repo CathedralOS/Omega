@@ -1,0 +1,2871 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "2f6555324361a668c37291ce697b048c7148a213",
+  "dirty": true,
+  "leg": "checked",
+  "target": null,
+  "golden": "tests/omega/corpus_outcomes.txt",
+  "golden_reason_gaps": {
+    "rows": 1,
+    "of": 18606
+  },
+  "subset": true,
+  "filter": "saved_case_predicate,named_reference_equation,machine_type_equations,inferred_equation,structural_equation,field_domain,case_payload,saved_guard,saved_boolean,saved_predicate",
+  "shard": null,
+  "verdict": "recorded",
+  "exit_code": 0,
+  "counts": {
+    "fixtures": 206,
+    "by_status": {
+      "checked": 104,
+      "crashed": 3,
+      "rejected": 99
+    },
+    "wrong_reason": 10,
+    "wrong_reason_fixtures": [
+      "fail/borrows/case_payload_duplicate_transfer",
+      "fail/facts/case_payload_transport_through_call_result_rejected",
+      "fail/facts/case_payload_transport_through_const_name_rejected",
+      "fail/facts/case_payload_transport_through_field_rejected",
+      "fail/facts/case_payload_transport_through_local_rejected",
+      "fail/facts/case_payload_transport_through_match_join_rejected",
+      "fail/facts/case_payload_transport_through_other_machine_rejected",
+      "fail/facts/case_payload_transport_through_other_state_rejected",
+      "fail/facts/case_payload_transport_through_parameter_rejected",
+      "fail/facts/case_payload_transport_through_target_body_rejected"
+    ],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 6,
+    "lost_success_fixtures": [
+      "pass/control_flow/qualified_case_payload_copy_exit",
+      "pass/domains/runtime_selected_nested_field_domain_exit",
+      "pass/facts/case_payload_exclusive_loan_through_other_machine_exit",
+      "pass/facts/case_payload_exclusive_loan_through_parameter_exit",
+      "pass/facts/case_payload_exclusive_loan_through_target_body_exit",
+      "pass/proofs/runtime_qualified_copy_across_case_payload_exit"
+    ],
+    "pinned_off_target": 8,
+    "pinned_off_target_fixtures": [
+      "pass/borrows/runtime_reference_result_alias_case_payload_exit",
+      "pass/borrows/runtime_reference_result_case_payload_exit",
+      "pass/control_flow/qualified_case_payload_copy_exit",
+      "pass/domains/runtime_selected_nested_field_domain_exit",
+      "pass/facts/case_payload_exclusive_loan_through_other_machine_exit",
+      "pass/facts/case_payload_exclusive_loan_through_parameter_exit",
+      "pass/facts/case_payload_exclusive_loan_through_target_body_exit",
+      "pass/proofs/runtime_qualified_copy_across_case_payload_exit"
+    ],
+    "by_verdict": {}
+  },
+  "oracle_failures": [],
+  "infrastructure_error": null,
+  "golden_provenance": null,
+  "perf_context": null,
+  "observations": [
+    {
+      "fixture": "pass/atomics/runtime_case_payload_atomic_events_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2522,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/atomics/runtime_nested_case_payload_atomic_event_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2527,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/borrows/case_payload_shared_transition_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 7796,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/borrows/case_payload_state_loan_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 7783,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/borrows/runtime_case_payload_partial_transfer_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2625,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/borrows/runtime_forwarded_view_field_domain_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 7766,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/borrows/runtime_reference_result_alias_case_payload_exit",
+      "tier": "pass",
+      "status": "crashed",
+      "millis": 0,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [
+        "fixture root /Users/zcanann/Documents/Projects/Omega/source/library/std is not inside the repository at /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/borrows/runtime_reference_result_case_payload_exit",
+      "tier": "pass",
+      "status": "crashed",
+      "millis": 0,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [
+        "fixture root /Users/zcanann/Documents/Projects/Omega/source/library/std is not inside the repository at /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/calls/case_payload_clone_observation_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 7901,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/calls/runtime_case_payload_indexed_calls_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 7862,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/calls/runtime_case_payload_scalar_array_read_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2586,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/cases/case_payload_member",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2335,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/cases/param_case_payload_return",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2729,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/cases/runtime_case_payload_policy_cast_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2630,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/contracts/runtime_case_payload_write_preserves_tag_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2587,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/control_flow/qualified_case_payload_copy_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 2551,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \"direct\", reason: \"resident membership home has no exact source projection\", gap: None })"
+      ],
+      "regressed_from": {
+        "status": "checked",
+        "facts": {
+          "check-target": "macos_arm64"
+        }
+      },
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/control_flow/runtime_narrow_signed_case_payload_state_guard_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2542,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/control_flow/runtime_projected_case_payload_forwarding_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 9861,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/control_flow/runtime_projected_case_payload_snapshots_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2729,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/control_flow/runtime_projected_float_case_payload_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 16786,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/control_flow/runtime_projected_index_case_payload_forwarding_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 9952,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/control_flow/runtime_projected_index_single_case_payload_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 9804,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/control_flow/runtime_projected_single_case_payload_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 11237,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/control_flow/runtime_returned_nested_case_payload_capture_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2338,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/control_flow/runtime_root_float_case_payload_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 19957,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/control_flow/saved_case_predicate_disjoint_effects_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2195,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/control_flow/saved_case_predicate_receiver_writes_before_read_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2293,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/control_flow/self_case_payload_both_arms_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 11112,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/data/runtime_case_payload_call_result_window_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 10249,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/data/runtime_mixed_case_payload_dispatch_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 15538,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/domains/case_payload_call_restore_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 15391,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/domains/case_payload_guarded_domain_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4465,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/domains/case_payload_predicate_domain_member_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 15361,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/domains/runtime_selected_nested_field_domain_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 3552,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "machine `pick` returns a view borrowing the local `rows`, which does not outlive the call; return a view of storage that outlives the invocation instead"
+      ],
+      "regressed_from": {
+        "status": "checked",
+        "facts": {
+          "check-target": "macos_arm64"
+        }
+      },
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/errors/reconstructed_case_payload_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 16871,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/errors/returned_case_payload_from_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 16024,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_exclusive_loan_through_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4693,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_exclusive_loan_through_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4279,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_exclusive_loan_through_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4601,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_exclusive_loan_through_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4036,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_exclusive_loan_through_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4729,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_exclusive_loan_through_other_machine_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 3815,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `chosen.value`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut chosen.value`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `other.value`: captured source `other::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut other.value`: captured source `other::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 1: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 2: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence"
+      ],
+      "regressed_from": {
+        "status": "checked",
+        "facts": {
+          "check-target": "macos_arm64"
+        }
+      },
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_exclusive_loan_through_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6127,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_exclusive_loan_through_parameter_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 3785,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `chosen.value`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut chosen.value`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `other.value`: captured source `other::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut other.value`: captured source `other::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 1: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 2: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence"
+      ],
+      "regressed_from": {
+        "status": "checked",
+        "facts": {
+          "check-target": "macos_arm64"
+        }
+      },
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_exclusive_loan_through_target_body_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 2960,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `chosen.value`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut chosen.value`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `other.value`: captured source `other::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut other.value`: captured source `other::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 1: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 2: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `chosen.value`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut chosen.value`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `other.value`: captured source `other::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut other.value`: captured source `other::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 1: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 2: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `chosen.value`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut chosen.value`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `other.value`: captured source `other::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut other.value`: captured source `other::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 1: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 2: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `chosen.value`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut chosen.value`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `other.value`: captured source `other::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut other.value`: captured source `other::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 1: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 2: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence"
+      ],
+      "regressed_from": {
+        "status": "checked",
+        "facts": {
+          "check-target": "macos_arm64"
+        }
+      },
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_layout_geometry_through_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5073,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_layout_geometry_through_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5781,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_layout_geometry_through_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5327,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_layout_geometry_through_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4949,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_layout_geometry_through_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4509,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_layout_geometry_through_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5459,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_layout_geometry_through_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4408,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_layout_geometry_through_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5390,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_layout_geometry_through_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6933,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6832,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6851,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6694,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6633,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5413,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5432,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5242,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6157,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5583,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_transport_through_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5760,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_transport_through_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6920,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_transport_through_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5426,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_transport_through_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6629,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_transport_through_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6561,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_transport_through_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6450,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_transport_through_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6348,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_transport_through_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5155,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_transport_through_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5144,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_inferred_reference_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5058,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4539,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5031,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4933,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5664,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6161,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5867,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5636,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5442,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5654,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/float/runtime_ieee_saved_boolean_epochs_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 11374,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/generics/foreign_case_payload_reads_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 17603,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/generics/inferred_equation_generic_result_projection_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5493,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/generics/inferred_equation_inferred_array_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5438,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/generics/inferred_equation_machine_binder_context_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5671,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/generics/inferred_equation_nested_forwarding_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5900,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/generics/inferred_equation_outer_context_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5728,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/generics/inferred_equation_reference_compatibility_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5477,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/generics/inferred_equation_typed_const_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5578,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/generics/inferred_equation_typed_const_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5414,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/generics/inferred_equation_typed_const_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6044,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/generics/inferred_equation_typed_const_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6081,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/generics/inferred_equation_typed_const_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6793,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/generics/inferred_equation_typed_const_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6362,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/generics/inferred_equation_typed_const_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6206,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/generics/inferred_equation_typed_const_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6481,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/generics/inferred_equation_typed_const_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6431,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/generics/machine_type_equations",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2504,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/generics/named_reference_equation_reversed_telescope_order_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5940,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/generics/named_reference_equation_telescope_order_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4955,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/machines/machine_type_equations",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5511,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/ownership/runtime_linear_case_payload_forward_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6438,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/proofs/runtime_qualified_copy_across_case_payload_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 128907,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \"measure\", reason: \"membership source lacks its completed physical/source correspondence\", gap: None })"
+      ],
+      "regressed_from": {
+        "status": "checked",
+        "facts": {
+          "check-target": "macos_arm64"
+        }
+      },
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/ranges/loop_saved_guard_disjoint_write_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4120,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/recast/case_payload_member_view_compile",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2168,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/relevance/erased_case_payload_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 18332,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/structs/runtime_composed_case_payload_reads_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 21727,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/structural/case_payload_record_member_read",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 18310,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/termination/runtime_saved_boolean_descent_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4217,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/text/runtime_inline_byte_case_payload_variants_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4005,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/atomics/case_payload_non_event_write",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 229,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `overwrite` state `entry` assignment cannot write `choice` because it is not mutable in this state (if `choice` is undeclared -- a typo -- no such field or local exists)"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/borrows/case_payload_borrowed_affine_copy",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1373,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot transfer a non-copy value out of borrowed storage without replacing its owner in `inspect`, state `entry` (statement 2)"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/borrows/case_payload_duplicate_transfer",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2480,
+      "expected_satisfied": false,
+      "facts": {},
+      "diagnostics": [
+        "cannot use `choice::Present.value` in machine `inspect` state `entry` (statement 2) after `choice::Present.value` was transferred or consumed: it holds no value; read what is needed before the transfer or assign a whole value to `choice::Present.value` first"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/borrows/case_payload_shared_clone_mutation",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 360,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "mutable argument `source` for state `clone` is not writable in this state; the source cannot lend the requested exclusive access"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/borrows/reference_result_case_payload_missing_premise",
+      "tier": "fail",
+      "status": "crashed",
+      "millis": 0,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [
+        "fixture root /Users/zcanann/Documents/Projects/Omega/source/library/std is not inside the repository at /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/build/structural_equation_conflicting_argument",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 35,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "generic machine `capacity` where equation binds `Capacity` to 8 but its explicit argument is 7"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/contracts/case_payload_requires_declared_premise",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 3939,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `read_payload` state `entry` statement 0: cannot prove selected case for payload access `choice.value`: captured source `choice::Present.value` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/contracts/case_payload_write_retires_content_guarantee",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1981,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call require_three from main: choice.value == 3 (needs fact `choice.value == 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/contracts/case_requires_other_case_payload_read",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 3894,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `observe` state `entry` statement 0: cannot prove selected case for payload access `choice.counter`: captured source `choice::Cell.counter` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/control_flow/case_payload_after_aliasing_guard_conjunct",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 22624,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `read` state `entry` statement 1: cannot prove selected case for payload access `context.sample.value`: captured source `context.sample::Reading.value` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/control_flow/case_payload_after_effectful_constructor_guard",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2108,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `read` state `entry` statement 1: cannot prove selected case for payload access `context.sample.value`: captured source `context.sample::Reading.value` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/control_flow/saved_case_predicate_guard_write_retires",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2112,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `quotient` state `entry` statement 2: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/control_flow/saved_case_predicate_local_write_retires",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1998,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `quotient` state `entry` statement 3: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/control_flow/saved_case_predicate_receiver_trailing_write_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 3510,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/control_flow/saved_case_predicate_receiver_writes_before_read_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 3432,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/data/case_payload_equality_interim",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 102,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot compare against payload-bearing case `Command::Move` with `==`: structural equality is synthesized only through a named implementation -- match on the case in a transition to bind its payload, or declare `CommandEquality satisfies Equatable<Command> { }` to synthesize structural equality"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/data/constructor_case_payload_call_result_window",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2717,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "data `Outcome` case `Some` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/domains/case_payload_guard_exclusion_cannot_read",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2056,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `quotient` state `entry` statement 1: cannot prove selected case for payload access `divisor.amount`: captured source `divisor::By.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/domains/case_payload_predicate_invalid_literal",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1803,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "construction of `Divisor` field `amount` is not proven in domain `i32::NonZero` in Main::main state `main` at statement 0; a construction value must establish the domain's predicates and any required provenance"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/domains/nested_field_domain_write_unestablished",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 5730,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove the value assigned to `main.inner.tag` in Main::main is in domain `[u8]::Ascii`; a place declared `in [u8]::Ascii` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/domains/write_only_declared_field_domain_requires_restoration",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1723,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove default-domain field requirement for return from corrupt at statement 1: holder.cell requires Cell::Before"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/facts/case_payload_exclusive_loan_through_call_result_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 4751,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/facts/case_payload_exclusive_loan_through_const_name_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 4372,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/facts/case_payload_exclusive_loan_through_field_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 4273,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "statement 3 mutates `pair.chosen` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 5)"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/facts/case_payload_exclusive_loan_through_local_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 7852,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/facts/case_payload_exclusive_loan_through_match_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 3880,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/facts/case_payload_exclusive_loan_through_other_machine_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 4189,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `chosen.value`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut chosen.value`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `other.value`: captured source `other::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut other.value`: captured source `other::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 2: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 3: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/facts/case_payload_exclusive_loan_through_other_state_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 4179,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3)"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/facts/case_payload_exclusive_loan_through_parameter_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 4102,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `chosen.value`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut chosen.value`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `other.value`: captured source `other::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut other.value`: captured source `other::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 2: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 3: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/facts/case_payload_exclusive_loan_through_target_body_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 3414,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)",
+        "statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)",
+        "statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)",
+        "statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `chosen.value`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut chosen.value`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `other.value`: captured source `other::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut other.value`: captured source `other::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 2: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 3: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `chosen.value`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut chosen.value`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `other.value`: captured source `other::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut other.value`: captured source `other::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 2: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 3: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `chosen.value`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut chosen.value`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `other.value`: captured source `other::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut other.value`: captured source `other::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 2: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 3: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `chosen.value`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut chosen.value`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `other.value`: captured source `other::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut other.value`: captured source `other::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 2: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 3: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/facts/case_payload_layout_geometry_unproved_call_result",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 4103,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-4, -4] lie outside [0, 18446744073709551615]"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/facts/case_payload_layout_geometry_unproved_const_name",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 5707,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-4, -4] lie outside [0, 18446744073709551615]"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/facts/case_payload_layout_geometry_unproved_field",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 5460,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-4, -4] lie outside [0, 18446744073709551615]"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/facts/case_payload_layout_geometry_unproved_local",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 4676,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-4, -4] lie outside [0, 18446744073709551615]"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/facts/case_payload_layout_geometry_unproved_match_join",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 5084,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `main` state `entry` local `geometry`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-4, -4] lie outside [0, 18446744073709551615]"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/facts/case_payload_layout_geometry_unproved_other_machine",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 5800,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `compute_geometry` state `entry` terminal expression: exact arithmetic may overflow under target `linux_x86_64`: bounds [-4, -4] lie outside [0, 18446744073709551615]"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/facts/case_payload_layout_geometry_unproved_other_state",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 4660,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `main` state `step` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-4, -4] lie outside [0, 18446744073709551615]"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/facts/case_payload_layout_geometry_unproved_parameter",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 4592,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-4, -4] lie outside [0, 18446744073709551615]"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/facts/case_payload_layout_geometry_unproved_target_body",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 5667,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `compute_geometry` state `entry` terminal expression: exact arithmetic may overflow under target `linux_x86_64`: bounds [-4, -4] lie outside [0, 18446744073709551615]"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/facts/case_payload_stored_loan_through_call_result_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 5475,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `consume` receives `backing` as both mutable and read-only"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/facts/case_payload_stored_loan_through_const_name_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 5075,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `store_code` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)",
+        "statement 3 borrows `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/facts/case_payload_stored_loan_through_field_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 4841,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `store_code` receives `backing` while local borrow `envelope` is still active (borrowed at statement 2; its last use is at statement 3)",
+        "statement 3 borrows `backing` while local borrow `envelope` is still active (borrowed at statement 2; its last use is at statement 3)"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/facts/case_payload_stored_loan_through_local_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 4740,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `store_code` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)",
+        "statement 3 borrows `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/facts/case_payload_stored_loan_through_match_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 4108,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `store_code` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)",
+        "state `store_code` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)",
+        "statement 3 borrows `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)",
+        "statement 3 borrows `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/facts/case_payload_stored_loan_through_other_machine_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 4531,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `store_code` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)",
+        "statement 3 borrows `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/facts/case_payload_stored_loan_through_other_state_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 4828,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `store_code` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)",
+        "statement 3 borrows `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/facts/case_payload_stored_loan_through_parameter_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 4239,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `store_code` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)",
+        "statement 3 borrows `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/facts/case_payload_stored_loan_through_target_body_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 5599,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `store_code` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)",
+        "statement 3 borrows `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/facts/case_payload_transport_through_call_result_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 4574,
+      "expected_satisfied": false,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from eval at statement 4: result <= 60"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/facts/case_payload_transport_through_const_name_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 4187,
+      "expected_satisfied": false,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from eval at statement 3: result <= 60"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/facts/case_payload_transport_through_field_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 4644,
+      "expected_satisfied": false,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from eval at statement 4: result <= 60"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/facts/case_payload_transport_through_local_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 6886,
+      "expected_satisfied": false,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from eval at statement 4: result <= 60"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/facts/case_payload_transport_through_match_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 6724,
+      "expected_satisfied": false,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from eval at statement 3: result <= 60"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/facts/case_payload_transport_through_other_machine_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 8375,
+      "expected_satisfied": false,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from inspect at statement 3: result <= 60"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/facts/case_payload_transport_through_other_state_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 5138,
+      "expected_satisfied": false,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from eval at statement 3: result <= 60"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/facts/case_payload_transport_through_parameter_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 4489,
+      "expected_satisfied": false,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from eval at statement 3: result <= 60"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/facts/case_payload_transport_through_target_body_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 5511,
+      "expected_satisfied": false,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from eval at statement 3: result <= 60",
+        "cannot prove ensures contract for exit from eval at statement 3: result <= 60",
+        "cannot prove ensures contract for exit from eval at statement 3: result <= 60",
+        "cannot prove ensures contract for exit from eval at statement 3: result <= 60"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/facts/computed_subslice_extent_saved_predicate",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2694,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call range from read: cursor.low + 0 <= cursor.low + 2 && cursor.low + 2 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_inferred_reference_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 5186,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_through_call_result_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 5028,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `probe` state `entry` statement 6: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_through_const_name_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 17078,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `probe` state `entry` statement 6: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_through_field_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 17076,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `probe` state `entry` statement 5: cannot prove selected case for payload access `holder.choice.amount`: captured source `holder.choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_through_local_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 7034,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `probe` state `entry` statement 6: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_through_match_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 16887,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `probe` state `entry` statement 6: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_through_other_machine_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 16833,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `quotient` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_through_other_state_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2956,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_through_parameter_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 3090,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_through_target_body_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2918,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence",
+        "machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence",
+        "machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence",
+        "machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/generics/inferred_equation_conflicting_inferred_result_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1001,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "generic machine `capacity` cannot determine `Length` from its where equations; supply the argument explicitly",
+        "generic machine `forward` where type equation has conflicting element types"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/generics/inferred_equation_deferred_callee_requires_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 888,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `main` state `entry` value call to `forward` violates required fact `okay`: the instantiated fact is structurally false"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/generics/inferred_equation_explicit_forward_conflict_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1131,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "argument `value` for state `entry` expects `[u8; 3]`, got `named value`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/generics/inferred_equation_typed_const_call_result_conflict",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 99,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "generic data `IndexedPacket` where equation binds `Capacity` to 2 but its explicit argument is 3"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/generics/inferred_equation_typed_const_const_name_conflict",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 116,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "generic data `IndexedPacket` where equation binds `Capacity` to 2 but its explicit argument is 3"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/generics/inferred_equation_typed_const_field_conflict",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 93,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "generic data `IndexedPacket` where equation binds `Capacity` to 2 but its explicit argument is 3"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/generics/inferred_equation_typed_const_local_conflict",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 134,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "generic data `IndexedPacket` where equation binds `Capacity` to 2 but its explicit argument is 3"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/generics/inferred_equation_typed_const_match_join_conflict",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 149,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "generic data `IndexedPacket` where equation binds `Capacity` to 2 but its explicit argument is 3"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/generics/inferred_equation_typed_const_other_machine_conflict",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 148,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "generic data `IndexedPacket` where equation binds `Capacity` to 2 but its explicit argument is 3"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/generics/inferred_equation_typed_const_other_state_conflict",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 117,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "generic data `IndexedPacket` where equation binds `Capacity` to 2 but its explicit argument is 3"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/generics/inferred_equation_typed_const_parameter_conflict",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 151,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "generic data `IndexedPacket` where equation binds `Capacity` to 2 but its explicit argument is 3"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/generics/inferred_equation_typed_const_target_body_conflict",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 243,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "generic data `IndexedPacket` where equation binds `Capacity` to 2 but its explicit argument is 3"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/generics/mixed_value_case_payload_wrong_carrier",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1079,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "construction of `Tagged` field `value` stores a boolean into a `u64` field, which holds a numeric value"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/generics/named_reference_equation_access",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 664,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "generic machine `capture` where type equation has conflicting reference access"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/generics/named_reference_equation_pointee",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 534,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "generic machine `capture` where type equation has conflicting element types"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/generics/named_reference_equation_undeclared_region",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 460,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "generic machine `capture` where type equation reference region is not a declared invocation lifetime"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/generics/named_reference_equation_wrong_result_source",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2527,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `capture$specialized$d77ed48b9b87917e$0` returns a view borrowing input `other`, which is not permitted by the declared result lifetime relation",
+        "machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/layouts/extent_view_unproved_field_domain",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1118,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "nonresident placement View cannot establish field qualifications; independent content-validity evidence is required"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/range/element_view_field_domain_occurrence",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 278,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `store` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/range/refined_element_view_outside_field_domain",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 357,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `store` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/ranges/case_payload_domain_literal_out_of_range",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1563,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "construction of `Level` field `amount`: value 11 is outside its declared range `0..=10`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/ranges/loop_saved_guard_stale_counter",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2402,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove index `main.index` is within length 3 in Main::main::body"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/slices/lane38_saved_predicate_reachable",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2092,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call inspect from replace: ascii_only(bytes[0..1]) (needs fact `ascii_only(bytes)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view)`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/termination/saved_boolean_after_write",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1308,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove the `terminates by` ranking for machine repeat",
+        "machine call cycle: `repeat` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/termination/saved_boolean_replaced",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 963,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "terminating machine repeat: cannot prove strict rank decrease on a recurrent arrival: the transition from `repeat` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step",
+        "machine call cycle: `repeat` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "fail/text/inline_byte_case_requires_field_domain",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 922,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "construction value is not proven in domain `[u8; N]::Ascii` in main state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance",
+        "construction of `Reply` field `content` is not proven in domain `[u8; N]::Ascii` in main state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    }
+  ],
+  "fixtures": []
+}

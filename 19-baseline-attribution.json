@@ -1,0 +1,230 @@
+[
+  {
+    "fixture": "fail/borrows/case_payload_duplicate_transfer",
+    "command": [
+      "build/generic-case-observation/producer-baseline/omega",
+      "--check",
+      "tests/omega/fail/borrows/case_payload_duplicate_transfer/main.omg"
+    ],
+    "source_sha256": "0055a8d3b740d6b674a12023b7e19f17dfddaa76229ad4de60220435b60c55ef",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `case_payload_duplicate_transfer` with 1 diagnostic(s)\n  error: cannot use `choice::Present.value` in machine `inspect` state `entry` (statement 2) after `choice::Present.value` was transferred or consumed: it holds no value; read what is needed before the transfer or assign a whole value to `choice::Present.value` first\n"
+  },
+  {
+    "fixture": "fail/borrows/reference_result_case_payload_missing_premise",
+    "command": [
+      "build/generic-case-observation/producer-baseline/omega",
+      "--check",
+      "tests/omega/fail/borrows/reference_result_case_payload_missing_premise/main.omg"
+    ],
+    "source_sha256": "b01455c84f5da19f06df9ad960c278e8689c966b0665751f99658a9c92c630cd",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `predicate_reference_result_case_payload` with 2 diagnostic(s)\n  error: cannot prove requires contract for call relay from main: choice == constructor:80:package:ed07ddbac2ea0f7045e9e31f123cff36ff00ddd5bd1ff6fe4585b3fc8dc7f8a3::Choice9:name:Some && choice.payload.target == constructor:78:package:ed07ddbac2ea0f7045e9e31f123cff36ff00ddd5bd1ff6fe4585b3fc8dc7f8a3::Cell9:name:Held (needs fact `choice == Choice::Some && choice.payload.target == Cell::Held` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n  error: cannot prove requires contract for call has_value from main: observed.payload.target == constructor:78:package:ed07ddbac2ea0f7045e9e31f123cff36ff00ddd5bd1ff6fe4585b3fc8dc7f8a3::Cell9:name:Held (needs fact `cell == Cell::Held` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n"
+  },
+  {
+    "fixture": "fail/facts/case_payload_transport_through_call_result_rejected",
+    "command": [
+      "build/generic-case-observation/producer-baseline/omega",
+      "--check",
+      "tests/omega/fail/facts/case_payload_transport_through_call_result_rejected/main.omg"
+    ],
+    "source_sha256": "cc9ea3405520876004acdad6e85512fd0b467713940f70917f44744579f6839f",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `case_payload_transport_call_result_invalid` with 1 diagnostic(s)\n  error: cannot prove ensures contract for exit from eval at statement 4: result <= 60\n"
+  },
+  {
+    "fixture": "fail/facts/case_payload_transport_through_const_name_rejected",
+    "command": [
+      "build/generic-case-observation/producer-baseline/omega",
+      "--check",
+      "tests/omega/fail/facts/case_payload_transport_through_const_name_rejected/main.omg"
+    ],
+    "source_sha256": "43c6b9b5d9333b22430fc76117a7cd9b9a12ac0829310c7987886a7c930d4fdd",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `case_payload_transport_const_name_invalid` with 1 diagnostic(s)\n  error: cannot prove ensures contract for exit from eval at statement 3: result <= 60\n"
+  },
+  {
+    "fixture": "fail/facts/case_payload_transport_through_field_rejected",
+    "command": [
+      "build/generic-case-observation/producer-baseline/omega",
+      "--check",
+      "tests/omega/fail/facts/case_payload_transport_through_field_rejected/main.omg"
+    ],
+    "source_sha256": "fd5acffbfd6c79af28c88fbbfdbcfb639f88ace9da5a7966f0c2838c63ba573e",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `case_payload_transport_field_invalid` with 1 diagnostic(s)\n  error: cannot prove ensures contract for exit from eval at statement 4: result <= 60\n"
+  },
+  {
+    "fixture": "fail/facts/case_payload_transport_through_local_rejected",
+    "command": [
+      "build/generic-case-observation/producer-baseline/omega",
+      "--check",
+      "tests/omega/fail/facts/case_payload_transport_through_local_rejected/main.omg"
+    ],
+    "source_sha256": "2fb69d7f670c8a0b5362466f7f4b5cf055b70ab265eedf27ed86ad5c791ae837",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `case_payload_transport_local_invalid` with 1 diagnostic(s)\n  error: cannot prove ensures contract for exit from eval at statement 4: result <= 60\n"
+  },
+  {
+    "fixture": "fail/facts/case_payload_transport_through_match_join_rejected",
+    "command": [
+      "build/generic-case-observation/producer-baseline/omega",
+      "--check",
+      "tests/omega/fail/facts/case_payload_transport_through_match_join_rejected/main.omg"
+    ],
+    "source_sha256": "05e727083032c5f7e16f5d3b863ee73f8d3f190d6dc764c6e6e1467a743c51de",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `case_payload_transport_match_join_invalid` with 1 diagnostic(s)\n  error: cannot prove ensures contract for exit from eval at statement 3: result <= 60\n"
+  },
+  {
+    "fixture": "fail/facts/case_payload_transport_through_other_machine_rejected",
+    "command": [
+      "build/generic-case-observation/producer-baseline/omega",
+      "--check",
+      "tests/omega/fail/facts/case_payload_transport_through_other_machine_rejected/main.omg"
+    ],
+    "source_sha256": "c9593d442cec36aeeba08f36205b7ab189804357e9241268c664ff9d63e25ea2",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `case_payload_transport_other_machine_invalid` with 1 diagnostic(s)\n  error: cannot prove ensures contract for exit from inspect at statement 3: result <= 60\n"
+  },
+  {
+    "fixture": "fail/facts/case_payload_transport_through_other_state_rejected",
+    "command": [
+      "build/generic-case-observation/producer-baseline/omega",
+      "--check",
+      "tests/omega/fail/facts/case_payload_transport_through_other_state_rejected/main.omg"
+    ],
+    "source_sha256": "bb0853b4a759d06e3e431d4af8a7e4c05028e9e5073a233edd08da049b90e402",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `case_payload_transport_other_state_invalid` with 1 diagnostic(s)\n  error: cannot prove ensures contract for exit from eval at statement 3: result <= 60\n"
+  },
+  {
+    "fixture": "fail/facts/case_payload_transport_through_parameter_rejected",
+    "command": [
+      "build/generic-case-observation/producer-baseline/omega",
+      "--check",
+      "tests/omega/fail/facts/case_payload_transport_through_parameter_rejected/main.omg"
+    ],
+    "source_sha256": "c0fd24872fcab75b78dd8d8f8e17c13a007c790e2385034ff53c3238ead000fe",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `case_payload_transport_parameter_invalid` with 1 diagnostic(s)\n  error: cannot prove ensures contract for exit from eval at statement 3: result <= 60\n"
+  },
+  {
+    "fixture": "fail/facts/case_payload_transport_through_target_body_rejected",
+    "command": [
+      "build/generic-case-observation/producer-baseline/omega",
+      "--check",
+      "tests/omega/fail/facts/case_payload_transport_through_target_body_rejected/main.omg"
+    ],
+    "source_sha256": "13451a5d3767c1babbb771cd3f76aeb12d0e6c839eecc2e2072bc427809de85f",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `case_payload_transport_target_body_invalid` with 4 diagnostic(s)\n  error: cannot prove ensures contract for exit from eval at statement 3: result <= 60\n  error: cannot prove ensures contract for exit from eval at statement 3: result <= 60\n  error: cannot prove ensures contract for exit from eval at statement 3: result <= 60\n  error: cannot prove ensures contract for exit from eval at statement 3: result <= 60\n"
+  },
+  {
+    "fixture": "pass/borrows/runtime_reference_result_alias_case_payload_exit",
+    "command": [
+      "build/generic-case-observation/producer-baseline/omega",
+      "--check",
+      "tests/omega/pass/borrows/runtime_reference_result_alias_case_payload_exit/main.omg"
+    ],
+    "source_sha256": "d366489920137700ecf22be2df969305536ab6fdc1d1ab007b8204a9a0bd0400",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `alias_transport` with 1 diagnostic(s)\n  error: target root slot `macos_arm64::ProgramEntry` takes boundary schema `MacosApplication` from a dependency's `targets/macos_arm64/entry.omg`, which needs an accepted program-entry binding; run `omega update` to review and accept it\n"
+  },
+  {
+    "fixture": "pass/borrows/runtime_reference_result_case_payload_exit",
+    "command": [
+      "build/generic-case-observation/producer-baseline/omega",
+      "--check",
+      "tests/omega/pass/borrows/runtime_reference_result_case_payload_exit/main.omg"
+    ],
+    "source_sha256": "79cf14f1c144d9675d6496638fb55487a585c79e1edf55a225d95d7ac27de3ee",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `predicate_reference_result_case_payload` with 1 diagnostic(s)\n  error: target root slot `macos_arm64::ProgramEntry` takes boundary schema `MacosApplication` from a dependency's `targets/macos_arm64/entry.omg`, which needs an accepted program-entry binding; run `omega update` to review and accept it\n"
+  },
+  {
+    "fixture": "pass/control_flow/qualified_case_payload_copy_exit",
+    "command": [
+      "build/generic-case-observation/producer-baseline/omega",
+      "--check",
+      "tests/omega/pass/control_flow/qualified_case_payload_copy_exit/main.omg"
+    ],
+    "source_sha256": "fa7c309dcbffbfd71f54e0c60a5b791662c791e5e123ebff06486060192bddf3",
+    "exit": 0,
+    "stdout": "compiled 20 source file(s) from /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/tests/omega/pass/control_flow/qualified_case_payload_copy_exit/main.omg; wrote_output=false\n",
+    "stderr": ""
+  },
+  {
+    "fixture": "pass/domains/runtime_selected_nested_field_domain_exit",
+    "command": [
+      "build/generic-case-observation/producer-baseline/omega",
+      "--check",
+      "tests/omega/pass/domains/runtime_selected_nested_field_domain_exit/main.omg"
+    ],
+    "source_sha256": "7f5aa56bc6139fe4fabe9f1ca35c2d33df225e2143b3b5e0b24b4c24680f09c7",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `selected_nested_field_domain` with 1 diagnostic(s)\n  error: machine `pick` returns a view borrowing the local `rows`, which does not outlive the call; return a view of storage that outlives the invocation instead\n"
+  },
+  {
+    "fixture": "pass/facts/case_payload_exclusive_loan_through_other_machine_exit",
+    "command": [
+      "build/generic-case-observation/producer-baseline/omega",
+      "--check",
+      "tests/omega/pass/facts/case_payload_exclusive_loan_through_other_machine_exit/main.omg"
+    ],
+    "source_sha256": "3a27e269ab154a7784cd4c260277c46ef5089803fcba29c8af1b2af17db8bea5",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `case_payload_exclusive_loan_through_other_machine` with 6 diagnostic(s)\n  error: machine `apply` state `entry` statement 0: cannot prove selected case for payload access `chosen.value`: captured source `chosen::Present.value` has no live case evidence\n  error: machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut chosen.value`: captured source `chosen::Present.value` has no live case evidence\n  error: machine `apply` state `entry` statement 0: cannot prove selected case for payload access `other.value`: captured source `other::Present.value` has no live case evidence\n  error: machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut other.value`: captured source `other::Present.value` has no live case evidence\n  error: machine `apply` state `entry` statement 1: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence\n  error: machine `apply` state `entry` statement 2: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence\n"
+  },
+  {
+    "fixture": "pass/facts/case_payload_exclusive_loan_through_parameter_exit",
+    "command": [
+      "build/generic-case-observation/producer-baseline/omega",
+      "--check",
+      "tests/omega/pass/facts/case_payload_exclusive_loan_through_parameter_exit/main.omg"
+    ],
+    "source_sha256": "394d4ba4f55ef5bf646b4e1100a71fe71a2776fb7122e083e1e23c431bdf5a75",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `case_payload_exclusive_loan_through_parameter` with 6 diagnostic(s)\n  error: machine `apply` state `entry` statement 0: cannot prove selected case for payload access `chosen.value`: captured source `chosen::Present.value` has no live case evidence\n  error: machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut chosen.value`: captured source `chosen::Present.value` has no live case evidence\n  error: machine `apply` state `entry` statement 0: cannot prove selected case for payload access `other.value`: captured source `other::Present.value` has no live case evidence\n  error: machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut other.value`: captured source `other::Present.value` has no live case evidence\n  error: machine `apply` state `entry` statement 1: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence\n  error: machine `apply` state `entry` statement 2: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence\n"
+  },
+  {
+    "fixture": "pass/facts/case_payload_exclusive_loan_through_target_body_exit",
+    "command": [
+      "build/generic-case-observation/producer-baseline/omega",
+      "--check",
+      "tests/omega/pass/facts/case_payload_exclusive_loan_through_target_body_exit/main.omg"
+    ],
+    "source_sha256": "11c28ee5e9c39d2481c2262e39e7f215178a5d3cf6f0df0f4bc14dc8b719ac1d",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `case_payload_exclusive_loan_through_target_body` with 24 diagnostic(s)\n  error: machine `apply` state `entry` statement 0: cannot prove selected case for payload access `chosen.value`: captured source `chosen::Present.value` has no live case evidence\n  error: machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut chosen.value`: captured source `chosen::Present.value` has no live case evidence\n  error: machine `apply` state `entry` statement 0: cannot prove selected case for payload access `other.value`: captured source `other::Present.value` has no live case evidence\n  error: machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut other.value`: captured source `other::Present.value` has no live case evidence\n  error: machine `apply` state `entry` statement 1: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence\n  error: machine `apply` state `entry` statement 2: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence\n  error: machine `apply` state `entry` statement 0: cannot prove selected case for payload access `chosen.value`: captured source `chosen::Present.value` has no live case evidence\n  error: machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut chosen.value`: captured source `chosen::Present.value` has no live case evidence\n  error: machine `apply` state `entry` statement 0: cannot prove selected case for payload access `other.value`: captured source `other::Present.value` has no live case evidence\n  error: machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut other.value`: captured source `other::Present.value` has no live case evidence\n  error: machine `apply` state `entry` statement 1: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence\n  error: machine `apply` state `entry` statement 2: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence\n  error: machine `apply` state `entry` statement 0: cannot prove selected case for payload access `chosen.value`: captured source `chosen::Present.value` has no live case evidence\n  error: machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut chosen.value`: captured source `chosen::Present.value` has no live case evidence\n  error: machine `apply` state `entry` statement 0: cannot prove selected case for payload access `other.value`: captured source `other::Present.value` has no live case evidence\n  error: machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut other.value`: captured source `other::Present.value` has no live case evidence\n  [truncated; 8 additional diagnostics omitted]\n"
+  },
+  {
+    "fixture": "pass/proofs/runtime_qualified_copy_across_case_payload_exit",
+    "command": [
+      "build/generic-case-observation/producer-baseline/omega",
+      "--check",
+      "tests/omega/pass/proofs/runtime_qualified_copy_across_case_payload_exit/main.omg"
+    ],
+    "source_sha256": "4e2e309cde5b72e4cf7fa71ca379b171a2f099af198f9fd171b1f9ffbceee405",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `runtime_qualified_copy_across_case_payload_exit` with 1 diagnostic(s)\n  error: target root slot `macos_arm64::ProgramEntry` takes boundary schema `MacosApplication` from a dependency's `targets/macos_arm64/entry.omg`, which needs an accepted program-entry binding; run `omega update` to review and accept it\n"
+  }
+]

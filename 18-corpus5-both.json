@@ -1,0 +1,1798 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "2f6555324361a668c37291ce697b048c7148a213",
+  "dirty": true,
+  "leg": "both",
+  "target": "macos_arm64",
+  "golden": "tests/omega/corpus_both_macos_arm64.txt",
+  "golden_reason_gaps": {
+    "rows": 0,
+    "of": 4708
+  },
+  "subset": true,
+  "filter": "saved_case_predicate,named_reference_equation,machine_type_equations,inferred_equation,structural_equation,field_domain,case_payload,saved_guard,saved_boolean,saved_predicate",
+  "shard": null,
+  "verdict": "recorded_regression",
+  "exit_code": 3,
+  "counts": {
+    "fixtures": 112,
+    "by_status": {
+      "built": 99,
+      "crashed": 2,
+      "checked": 5,
+      "rejected": 6
+    },
+    "wrong_reason": 0,
+    "wrong_reason_fixtures": [],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 5,
+    "lost_success_fixtures": [
+      "pass/control_flow/qualified_case_payload_copy_exit",
+      "pass/domains/runtime_selected_nested_field_domain_exit",
+      "pass/facts/case_payload_exclusive_loan_through_other_machine_exit",
+      "pass/facts/case_payload_exclusive_loan_through_parameter_exit",
+      "pass/facts/case_payload_exclusive_loan_through_target_body_exit"
+    ],
+    "pinned_off_target": 8,
+    "pinned_off_target_fixtures": [
+      "pass/borrows/runtime_reference_result_alias_case_payload_exit",
+      "pass/borrows/runtime_reference_result_case_payload_exit",
+      "pass/control_flow/qualified_case_payload_copy_exit",
+      "pass/domains/runtime_selected_nested_field_domain_exit",
+      "pass/facts/case_payload_exclusive_loan_through_other_machine_exit",
+      "pass/facts/case_payload_exclusive_loan_through_parameter_exit",
+      "pass/facts/case_payload_exclusive_loan_through_target_body_exit",
+      "pass/proofs/runtime_qualified_copy_across_case_payload_exit"
+    ],
+    "by_verdict": {}
+  },
+  "oracle_failures": [
+    "pass/borrows/runtime_reference_result_alias_case_payload_exit: expected native 0, observed crashed {}",
+    "pass/borrows/runtime_reference_result_case_payload_exit: expected native 0, observed crashed {}",
+    "pass/control_flow/qualified_case_payload_copy_exit: expected native 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/domains/runtime_selected_nested_field_domain_exit: expected native 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/facts/case_payload_exclusive_loan_through_other_machine_exit: expected native 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/facts/case_payload_exclusive_loan_through_parameter_exit: expected native 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/facts/case_payload_exclusive_loan_through_target_body_exit: expected native 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/proofs/runtime_qualified_copy_across_case_payload_exit: expected native 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/borrows/runtime_reference_result_alias_case_payload_exit: expected interpreted 0, observed crashed {}",
+    "pass/borrows/runtime_reference_result_case_payload_exit: expected interpreted 0, observed crashed {}",
+    "pass/control_flow/qualified_case_payload_copy_exit: expected interpreted 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/domains/runtime_selected_nested_field_domain_exit: expected interpreted 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/facts/case_payload_exclusive_loan_through_other_machine_exit: expected interpreted 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/facts/case_payload_exclusive_loan_through_parameter_exit: expected interpreted 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/facts/case_payload_exclusive_loan_through_target_body_exit: expected interpreted 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/proofs/runtime_qualified_copy_across_case_payload_exit: expected interpreted 0, observed rejected {'interpreter': 'unchecked'}"
+  ],
+  "infrastructure_error": null,
+  "golden_provenance": null,
+  "perf_context": null,
+  "observations": [
+    {
+      "fixture": "pass/atomics/runtime_case_payload_atomic_events_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5771,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/atomics/runtime_nested_case_payload_atomic_event_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5961,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/borrows/case_payload_shared_transition_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 23677,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "70",
+        "interpreter-exit": "70",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/borrows/case_payload_state_loan_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 23570,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "70",
+        "interpreter-exit": "70",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/borrows/runtime_case_payload_partial_transfer_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5866,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/borrows/runtime_forwarded_view_field_domain_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 23927,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "70",
+        "interpreter-exit": "70",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/borrows/runtime_reference_result_alias_case_payload_exit",
+      "tier": "pass",
+      "status": "crashed",
+      "millis": 0,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [
+        "fixture root /Users/zcanann/Documents/Projects/Omega/source/library/std is not inside the repository at /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/borrows/runtime_reference_result_case_payload_exit",
+      "tier": "pass",
+      "status": "crashed",
+      "millis": 0,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [
+        "fixture root /Users/zcanann/Documents/Projects/Omega/source/library/std is not inside the repository at /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/calls/case_payload_clone_observation_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 23339,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "70",
+        "interpreter-exit": "70",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/calls/runtime_case_payload_indexed_calls_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 23832,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "70",
+        "interpreter-exit": "70",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/calls/runtime_case_payload_scalar_array_read_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6222,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/cases/case_payload_member",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5495,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/cases/param_case_payload_return",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5073,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/cases/runtime_case_payload_policy_cast_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4913,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/contracts/runtime_case_payload_write_preserves_tag_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4916,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/control_flow/qualified_case_payload_copy_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 4330,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \"direct\", reason: \"resident membership home has no exact source projection\", gap: None })"
+      ],
+      "regressed_from": {
+        "status": "built",
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        }
+      },
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/control_flow/runtime_narrow_signed_case_payload_state_guard_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4267,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/control_flow/runtime_projected_case_payload_forwarding_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 16799,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "70",
+        "interpreter-exit": "70",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/control_flow/runtime_projected_case_payload_snapshots_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4032,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/control_flow/runtime_projected_float_case_payload_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 26633,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "70",
+        "interpreter-exit": "70",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/control_flow/runtime_projected_index_case_payload_forwarding_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 16079,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "70",
+        "interpreter-exit": "70",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/control_flow/runtime_projected_index_single_case_payload_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 16210,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "70",
+        "interpreter-exit": "70",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/control_flow/runtime_projected_single_case_payload_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 17193,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "70",
+        "interpreter-exit": "70",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/control_flow/runtime_returned_nested_case_payload_capture_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6478,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/control_flow/runtime_root_float_case_payload_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 29398,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "70",
+        "interpreter-exit": "70",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/control_flow/saved_case_predicate_disjoint_effects_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6047,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/control_flow/saved_case_predicate_receiver_writes_before_read_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5795,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/control_flow/self_case_payload_both_arms_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 17479,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "70",
+        "interpreter-exit": "70",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/data/runtime_case_payload_call_result_window_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 13828,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/data/runtime_mixed_case_payload_dispatch_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 19210,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "70",
+        "interpreter-exit": "70",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/domains/case_payload_call_restore_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 18885,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "70",
+        "interpreter-exit": "70",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/domains/case_payload_guarded_domain_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4515,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/domains/case_payload_predicate_domain_member_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 16635,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "70",
+        "interpreter-exit": "70",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/domains/runtime_selected_nested_field_domain_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 3491,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "machine `pick` returns a view borrowing the local `rows`, which does not outlive the call; return a view of storage that outlives the invocation instead"
+      ],
+      "regressed_from": {
+        "status": "built",
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        }
+      },
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/errors/reconstructed_case_payload_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 17194,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "70",
+        "interpreter-exit": "70",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/errors/returned_case_payload_from_parameter_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 17904,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "70",
+        "interpreter-exit": "70",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_exclusive_loan_through_call_result_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5384,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_exclusive_loan_through_const_name_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6709,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_exclusive_loan_through_field_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5833,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_exclusive_loan_through_local_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4877,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_exclusive_loan_through_match_join_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5519,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_exclusive_loan_through_other_machine_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 4678,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `chosen.value`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut chosen.value`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `other.value`: captured source `other::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut other.value`: captured source `other::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 1: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 2: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence"
+      ],
+      "regressed_from": {
+        "status": "built",
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        }
+      },
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_exclusive_loan_through_other_state_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6681,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_exclusive_loan_through_parameter_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 5206,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `chosen.value`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut chosen.value`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `other.value`: captured source `other::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut other.value`: captured source `other::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 1: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 2: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence"
+      ],
+      "regressed_from": {
+        "status": "built",
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        }
+      },
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_exclusive_loan_through_target_body_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 3878,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `chosen.value`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut chosen.value`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `other.value`: captured source `other::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut other.value`: captured source `other::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 1: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 2: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `chosen.value`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut chosen.value`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `other.value`: captured source `other::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut other.value`: captured source `other::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 1: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 2: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `chosen.value`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut chosen.value`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `other.value`: captured source `other::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut other.value`: captured source `other::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 1: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 2: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `chosen.value`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut chosen.value`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `other.value`: captured source `other::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut other.value`: captured source `other::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 1: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence",
+        "machine `apply` state `entry` statement 2: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence"
+      ],
+      "regressed_from": {
+        "status": "built",
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        }
+      },
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_layout_geometry_through_call_result_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5999,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_layout_geometry_through_const_name_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5541,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_layout_geometry_through_field_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5485,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_layout_geometry_through_local_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5104,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_layout_geometry_through_match_join_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5006,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_layout_geometry_through_other_machine_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 7478,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_layout_geometry_through_other_state_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6749,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_layout_geometry_through_parameter_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6434,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_layout_geometry_through_target_body_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 9630,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_call_result_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 7508,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_const_name_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 7550,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_field_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 7441,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_local_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6683,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_match_join_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5674,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_other_machine_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6017,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_other_state_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6232,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_parameter_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6243,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_target_body_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5697,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_transport_through_call_result_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6141,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_transport_through_const_name_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5656,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_transport_through_field_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5648,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_transport_through_local_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4886,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_transport_through_match_join_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5558,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_transport_through_other_machine_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5180,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_transport_through_other_state_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5541,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_transport_through_parameter_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5175,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/case_payload_transport_through_target_body_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5043,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_inferred_reference_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5033,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_call_result_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6759,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_const_name_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6076,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_field_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6097,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_local_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5810,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_match_join_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5497,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_other_machine_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5482,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_other_state_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5096,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_parameter_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 7647,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_target_body_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5972,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/float/runtime_ieee_saved_boolean_epochs_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 12524,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/generics/foreign_case_payload_reads_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 19852,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "70",
+        "interpreter-exit": "70",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/generics/inferred_equation_generic_result_projection_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5073,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/generics/inferred_equation_inferred_array_result_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4694,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/generics/inferred_equation_machine_binder_context_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6834,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/generics/inferred_equation_nested_forwarding_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6830,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/generics/inferred_equation_outer_context_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6523,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/generics/inferred_equation_reference_compatibility_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6046,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/generics/inferred_equation_typed_const_call_result_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5209,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/generics/inferred_equation_typed_const_const_name_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6648,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/generics/inferred_equation_typed_const_field_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6277,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/generics/inferred_equation_typed_const_local_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6374,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/generics/inferred_equation_typed_const_match_join_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6357,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/generics/inferred_equation_typed_const_other_machine_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6159,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/generics/inferred_equation_typed_const_other_state_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6283,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/generics/inferred_equation_typed_const_parameter_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6328,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/generics/inferred_equation_typed_const_target_body_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6644,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/generics/machine_type_equations",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2892,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/generics/named_reference_equation_reversed_telescope_order_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6111,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/generics/named_reference_equation_telescope_order_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5920,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/machines/machine_type_equations",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5869,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/ownership/runtime_linear_case_payload_forward_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6739,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/proofs/runtime_qualified_copy_across_case_payload_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 103710,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \"measure\", reason: \"membership source lacks its completed physical/source correspondence\", gap: None })"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/ranges/loop_saved_guard_disjoint_write_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5522,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/recast/case_payload_member_view_compile",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3228,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/relevance/erased_case_payload_field_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 13961,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "70",
+        "interpreter-exit": "70",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/structs/runtime_composed_case_payload_reads_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 14046,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "70",
+        "interpreter-exit": "70",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/structural/case_payload_record_member_read",
+      "tier": "pass",
+      "status": "built",
+      "millis": 11875,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "70",
+        "interpreter-exit": "70",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/termination/runtime_saved_boolean_descent_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4108,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    },
+    {
+      "fixture": "pass/text/runtime_inline_byte_case_payload_variants_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4168,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2f6555324361"
+    }
+  ],
+  "fixtures": []
+}

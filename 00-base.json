@@ -1,0 +1,6 @@
+{
+  "base": "a809ca2a41c21115180dce9d1ca68e94d90ebf65",
+  "parent": "STATE-LOCAL-VALUE-FRONTIER",
+  "previous_publication": "PR307",
+  "requirement": "Generic/reference saved case observations, with matching and fallback runtime discrimination."
+}

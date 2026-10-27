@@ -1,0 +1,113 @@
+[
+  {
+    "name": "access",
+    "positive": false,
+    "command": [
+      "build/generic-case-observation/producer-4/omega",
+      "--check",
+      "build/generic-case-observation/semantic-controls/access/main.omg"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `saved_case_parameter` with 1 diagnostic(s)\n  error: generic machine `capture` where type equation has conflicting reference access\n    in package `saved_case_parameter`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-case-observation/semantic-controls/access/main.omg:6:90\n"
+  },
+  {
+    "name": "conflicting_equation",
+    "positive": false,
+    "command": [
+      "build/generic-case-observation/producer-4/omega",
+      "--check",
+      "build/generic-case-observation/semantic-controls/conflicting_equation/main.omg"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `saved_case_parameter` with 1 diagnostic(s)\n  error: generic machine `capture` where type equation has conflicting reference access\n    in package `saved_case_parameter`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-case-observation/semantic-controls/conflicting_equation/main.omg:6:121\n"
+  },
+  {
+    "name": "inferred",
+    "positive": true,
+    "command": [
+      "build/generic-case-observation/producer-4/omega",
+      "run",
+      "--both",
+      "build/generic-case-observation/semantic-controls/inferred/main.omg"
+    ],
+    "exit": 200,
+    "stdout": "",
+    "stderr": "native compile FAILED:\n  error: cannot compile admitted project: checked compilation failed for package `saved_case_parameter` with 1 diagnostic(s)\n  error: machine `probe` static type argument uses undeclared lifetime `'storage'; declare it in the owner's generic parameter list\n"
+  },
+  {
+    "name": "ordered",
+    "positive": true,
+    "command": [
+      "build/generic-case-observation/producer-4/omega",
+      "run",
+      "--both",
+      "build/generic-case-observation/semantic-controls/ordered/main.omg"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "name": "pointee",
+    "positive": false,
+    "command": [
+      "build/generic-case-observation/producer-4/omega",
+      "--check",
+      "build/generic-case-observation/semantic-controls/pointee/main.omg"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `saved_case_parameter` with 1 diagnostic(s)\n  error: generic machine `capture` where type equation has conflicting element types\n    in package `saved_case_parameter`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-case-observation/semantic-controls/pointee/main.omg:6:90\n"
+  },
+  {
+    "name": "reversed",
+    "positive": true,
+    "command": [
+      "build/generic-case-observation/producer-4/omega",
+      "run",
+      "--both",
+      "build/generic-case-observation/semantic-controls/reversed/main.omg"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "name": "undeclared_region",
+    "positive": false,
+    "command": [
+      "build/generic-case-observation/producer-4/omega",
+      "--check",
+      "build/generic-case-observation/semantic-controls/undeclared_region/main.omg"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `saved_case_parameter` with 1 diagnostic(s)\n  error: generic machine `capture` where type equation reference region is not a declared invocation lifetime\n    in package `saved_case_parameter`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/generic-case-observation/semantic-controls/undeclared_region/main.omg:6:90\n"
+  },
+  {
+    "name": "wrong_result_source",
+    "positive": false,
+    "command": [
+      "build/generic-case-observation/producer-4/omega",
+      "--check",
+      "build/generic-case-observation/semantic-controls/wrong_result_source/main.omg"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `saved_case_parameter` with 2 diagnostic(s)\n  error: machine `capture$specialized$4044220beb6dc593$0` returns a view borrowing input `other`, which is not permitted by the declared result lifetime relation\n  error: machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence\n"
+  },
+  {
+    "name": "zero_domain",
+    "positive": false,
+    "command": [
+      "build/generic-case-observation/producer-4/omega",
+      "--check",
+      "build/generic-case-observation/semantic-controls/zero_domain/main.omg"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `saved_case_parameter` with 1 diagnostic(s)\n  error: construction of `Choice` field `amount`: value 0 is outside its declared range `1..=`\n"
+  }
+]

@@ -1,0 +1,76 @@
+{
+  "context": {
+    "parent": "STATE-LOCAL-VALUE-FRONTIER",
+    "host": "macOS ARM64",
+    "target": "macos_arm64",
+    "requirement": "Generic/reference saved case observations and runtime matching/fallback discrimination."
+  },
+  "semantic_contracts": [
+    {
+      "contract": "wiki/spec/language/generics.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/expressions",
+        "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation",
+        "omega-rust/psi/compilation/pipeline/03b_typed-trees-to-typed-trees/src/monomorphization"
+      ],
+      "classification": "missing_implementation",
+      "reason": "A static type equality must retain the declared reference type, including its lifetime and access. Named-lifetime reference syntax is a type operand, not a runtime borrow. Reuse TypeExpression and the ordinary type-reference parser; ordinary value-borrow syntax and type/value role rejection retain their semantics. Callable invocation lifetime binders in structural reference equations must retain their declared region relation through specialization. Discharge the reference constructor/access/pointee and preserve the formal equation before applying caller type substitutions; do not equate captured lifetime spellings or change region-erased runtime instance identity.",
+      "passages": [
+        "`==` between type expressions states exact normalized type equality, not value\nequality, assignability, compatible layout, or conformance. Generic constraints\nmay combine these propositions with ordinary Boolean connectives:",
+        "Each operand must resolve in its type role. A type/value mixture rejects rather\nthan converting a type to a runtime identifier. These propositions also serve\nas static branch conditions: a branch with established `T == u32` may use that\nequality to check its operations and values as u32. On leaving the branch, only\nfacts common to its surviving predecessors remain. An unspecialized body checks\nevery admitted alternative; one consumer cannot authorize an otherwise invalid\ngeneric body. Type parameters remain static even when their admissible set has\nseveral alternatives. No runtime type objects or RTTI are introduced.",
+        "One normalizer owns source equality, generic matching, and canonical type\nidentity. It retains exact nominal owner, carrier, generic arguments, reference\naccess/lifetimes, and domain roles/provenance. Equal layout or equal bytes do not\nidentify different nominal types. Transparent aliases use their specified\nexpansion; independently named domains are not merged because a proof suggests\nthat their predicates have the same inhabitants. Type equality does not perform\nambient conformance selection or permit changing the meaning of `==` on values."
+      ]
+    },
+    {
+      "contract": "wiki/spec/language/lifetimes.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/expressions",
+        "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation",
+        "omega-rust/psi/compilation/pipeline/03b_typed-trees-to-typed-trees/src/monomorphization"
+      ],
+      "classification": "missing_implementation",
+      "reason": "A static type equality must retain the declared reference type, including its lifetime and access. Named-lifetime reference syntax is a type operand, not a runtime borrow. Reuse TypeExpression and the ordinary type-reference parser; ordinary value-borrow syntax and type/value role rejection retain their semantics. Callable invocation lifetime binders in structural reference equations must retain their declared region relation through specialization. Discharge the reference constructor/access/pointee and preserve the formal equation before applying caller type substitutions; do not equate captured lifetime spellings or change region-erased runtime instance identity.",
+      "passages": [
+        "Lifetime binders use tick spelling in the declaration's `<>` list alongside\ntype, const and static-machine parameters. A reference places its lifetime\nbefore its access modifier: `&'buffer T`, `&'buffer mut T`, or\n`&'buffer write T`. Borrow-carrying data declares the lifetimes of its views:",
+        "Named data applications supply lifetime arguments before type/const/machine\narguments. They must match the declaration's lifetime arity and use binders\ndeclared in the lexical owner. Duplicate binders and undeclared tags reject.\nLifetime arguments are erased regions, separate from runtime generic arity,\nlayout and monomorphization. Erasure does not remove semantic lifetime relations\nor loan obligations. [Conformance telescopes](conformances.md#declaration-and-selection)\nhave their own normalized public mapping and application-elision rules.",
+        "An explicit result lifetime relates its reference leaves to the corresponding\ninput lifetime. The source must supply the result's declared access and remain\nlive for the result's use. A signature does not authorize returning unrelated\nstorage merely because its type has the same lifetime spelling."
+      ]
+    },
+    {
+      "contract": "wiki/spec/language/state_contracts.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Boolean expression matches consume the same evaluated saved observations as transition guards, across exact storage write intervals. Conditional payload domains survive joins only with per-branch evidence; an inactive case is not a missing domain.",
+      "passages": [
+        "## Mutation and subject identity\n\nFacts apply to their exact subjects and program points. Assignments first\n[capture their destination place](expressions.md#evaluation-schedule), including\nits selectors and bounds at that program point. They then evaluate the\nright-hand side and its effects, capture transferable evidence, and finally\ninvalidate overlapping destination facts and establish the new value at the\ncaptured place. Right-hand-side mutations invalidate their own overlapping facts\nwhen they occur; the captured selector is not a fact that the selector's live\nbinding still has its earlier value. Uninitialized storage\nhas no assumed zero. Copies transport facts about the captured value, not source\nexpressions to be reevaluated after mutation.\n\nA reference identifies live storage, not its former contents. Replacing a local\nreference binding changes that binding without redirecting aliases made from its\nprevious value. A write through the reference changes the referent, not the\nbinding. Stored reference leaves retain their captured origins until replacement\nor exposure invalidates that relation. Type or lifetime correspondence alone\ndoes not establish a returned reference's storage origin.\n\nCaller-visible mutation summaries include operand evaluation and callee writes.\nA complete empty summary preserves facts; an unknown summary proves no\nnon-interference. Fact invalidation uses storage footprints, while borrow\nauthorization uses the access route. Neither may-write summarie"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "parser-context-only",
+      "kind": "build",
+      "command": [
+        "cargo",
+        "check",
+        "--locked",
+        "-p",
+        "tokens-to-syntax-trees"
+      ],
+      "inputs": [
+        "omega-rust",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml"
+      ],
+      "artifacts": [],
+      "closure_reason": "Implementation context only; actual source-to-native witnesses and controls are required before acceptance.",
+      "final": false,
+      "expected_exit": 0,
+      "timeout_seconds": 300
+    }
+  ]
+}
