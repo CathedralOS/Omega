@@ -123,6 +123,12 @@ pub(crate) fn validate_linear_permission_events(
             &mut diagnostics,
         );
 
+        let has_case_places = places.iter().any(|place| {
+            place
+                .path
+                .iter()
+                .any(|segment| matches!(segment, facts::PlaceSegment::Case { .. }))
+        });
         let mut outcomes = Vec::new();
         super::permission_schedule::walk(
             program,
@@ -134,9 +140,11 @@ pub(crate) fn validate_linear_permission_events(
             ),
             |step, custody| {
                 let (places, selections) = custody;
-                if let Some(selected) = super::permission_schedule::SelectedCases::at_step(
-                    program, facts, machine, state, step,
-                ) {
+                if has_case_places
+                    && let Some(selected) = super::permission_schedule::SelectedCases::at_step(
+                        program, facts, state_flow, machine, state, step,
+                    )
+                {
                     selected.apply_claims(places);
                 }
                 match step {

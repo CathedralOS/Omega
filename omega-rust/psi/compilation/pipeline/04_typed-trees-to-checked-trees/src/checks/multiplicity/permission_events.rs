@@ -370,6 +370,25 @@ pub(crate) fn prepare_permission_events(
             ));
             continue;
         }
+        let state_needs_case_exclusions = !places.is_empty()
+            || !moves.is_empty()
+            || !temporary_owners.is_empty()
+            || statements.iter().any(|statement| {
+                statement.as_local_data().is_some_and(|local| {
+                    !local.relevance.is_erased()
+                        && validation::reference_result_custody::result_multiplicity(
+                            program,
+                            local.type_reference,
+                        ) != Multiplicity::Unrestricted
+                })
+            })
+            || program.state_parameters(state).iter().any(|parameter| {
+                !parameter.relevance.is_erased()
+                    && validation::reference_result_custody::result_multiplicity(
+                        program,
+                        parameter.type_reference,
+                    ) != Multiplicity::Unrestricted
+            });
         super::permission_schedule::walk(
             program,
             state,
@@ -384,9 +403,16 @@ pub(crate) fn prepare_permission_events(
             |step, custody| {
                 let (places, remaining, selections, selected_cleanup, instruction_dispositions) =
                     custody;
-                if let Some(selected) = super::permission_schedule::SelectedCases::at_step(
-                    program, facts, machine, state, step,
-                ) {
+                if state_needs_case_exclusions
+                    && let Some(selected) = super::permission_schedule::SelectedCases::at_step(
+                        program,
+                        facts,
+                        &state_flow,
+                        machine,
+                        state,
+                        step,
+                    )
+                {
                     selected.apply_claims(places);
                     selected.apply_cleanup(remaining);
                 }
@@ -830,6 +856,12 @@ pub(crate) fn record_crash_frontier_lower_bounds(
         let incoming = incoming_guards.for_machine(machine.symbol);
         let proven_conditional_claims =
             proven_conditional_entry_claims(program, state, incoming, &places);
+        let has_case_places = places.iter().any(|place| {
+            place
+                .path
+                .iter()
+                .any(|segment| matches!(segment, facts::PlaceSegment::Case { .. }))
+        });
 
         let mut ignored_diagnostics = Vec::new();
         super::permission_schedule::walk(
@@ -838,9 +870,11 @@ pub(crate) fn record_crash_frontier_lower_bounds(
             facts.flow.control.calls.span_or_empty(state_flow.calls),
             places,
             |step, places| {
-                if let Some(selected) = super::permission_schedule::SelectedCases::at_step(
-                    program, facts, machine, state, step,
-                ) {
+                if has_case_places
+                    && let Some(selected) = super::permission_schedule::SelectedCases::at_step(
+                        program, facts, state_flow, machine, state, step,
+                    )
+                {
                     selected.apply_claims(places);
                 }
                 match step {

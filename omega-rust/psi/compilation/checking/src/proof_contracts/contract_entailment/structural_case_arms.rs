@@ -1273,23 +1273,22 @@ fn recognize_structural_state_leaves_from<'a>(
                             outcome_judge.has_no_new_effects_or_guarantees_since(&judge)
                         })
                     {
-                        let dead_local = requirement.is_some()
-                            && local_symbol_is_dead_in_remaining_prefix(
-                                program,
-                                statements,
-                                &execution,
-                                execution_position + 1,
-                                local.symbol,
-                                requirement.as_deref().is_some_and(|observer| {
-                                    observer.site().state == state.symbol
-                                        && !observer.site().in_transition_target
-                                        && observer.site().statement_index < statements.len()
-                                        && !matches!(
-                                            statements[observer.site().statement_index],
-                                            StatementNode::Transition(_)
-                                        )
-                                }),
-                            );
+                        let dead_local = local_symbol_is_dead_in_remaining_prefix(
+                            program,
+                            statements,
+                            &execution,
+                            execution_position + 1,
+                            local.symbol,
+                            requirement.as_deref().is_some_and(|observer| {
+                                observer.site().state == state.symbol
+                                    && !observer.site().in_transition_target
+                                    && observer.site().statement_index < statements.len()
+                                    && !matches!(
+                                        statements[observer.site().statement_index],
+                                        StatementNode::Transition(_)
+                                    )
+                            }),
+                        );
                         if dead_local {
                             let judge_refs: Vec<_> = outcomes
                                 .iter()
