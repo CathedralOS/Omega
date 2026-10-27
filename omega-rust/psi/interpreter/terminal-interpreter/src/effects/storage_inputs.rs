@@ -215,12 +215,26 @@ impl BoundaryStorageInputs {
             .map(|guarantee| guarantee.domain)
             .collect::<Vec<_>>();
         if parameter.access == terminal_psi::StructuralAccess::MutableBorrow {
-            if !parameter.projected_qualifications.is_empty()
-                || !referent.projected_qualifications.is_empty()
-                || parameter
-                    .qualifications
+            let intrinsic = |path: &[terminal_psi::StructuralPathSegment], domain| {
+                terminal_semantics::scalar_projection_entails_membership(
+                    execution.program.structural_types().values(),
+                    execution.program.catalogs.structural_domains.iter(),
+                    referent.structural_type,
+                    path,
+                    domain,
+                )
+            };
+            if parameter
+                .projected_qualifications
+                .iter()
+                .any(|row| !intrinsic(&row.path, row.domain))
+                || referent
+                    .projected_qualifications
                     .iter()
-                    .any(|domain| !normal_qualifications.contains(domain))
+                    .any(|row| !intrinsic(&row.path, row.domain))
+                || parameter.qualifications.iter().any(|domain| {
+                    !normal_qualifications.contains(domain) && !intrinsic(&[], *domain)
+                })
             {
                 return Err(TerminalInterpretError::UnsupportedSemanticVariant(
                     "mutable host storage lacks exact normal qualification preservation",

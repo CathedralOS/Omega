@@ -1131,7 +1131,12 @@ impl Execution<'_, '_, '_> {
         else {
             return;
         };
-        let mut outputs: Vec<(Vec<PlaceSegment>, Vec<PlaceRoot>, bool)> = Vec::new();
+        let mut outputs: Vec<(
+            Vec<PlaceSegment>,
+            Vec<PlaceRoot>,
+            bool,
+            Option<Vec<checked_trees::FlowOperandRetainedSupplier>>,
+        )> = Vec::new();
         for source in sources {
             // The declaration supplies the lifetime relation, but the completed
             // value belongs to its contextual carrier. Generic preparation can
@@ -1152,9 +1157,9 @@ impl Execution<'_, '_, '_> {
             };
             let position = outputs
                 .iter()
-                .position(|(candidate, _, _)| *candidate == path)
+                .position(|(candidate, _, _, _)| *candidate == path)
                 .unwrap_or_else(|| {
-                    outputs.push((path.clone(), Vec::new(), true));
+                    outputs.push((path.clone(), Vec::new(), true, Some(Vec::new())));
                     outputs.len() - 1
                 });
             let Some((_, actual)) = inputs.get(source.parameter_index) else {
@@ -1170,19 +1175,56 @@ impl Execution<'_, '_, '_> {
             for root in roots {
                 crate::collections::push_unique(&mut outputs[position].1, root);
             }
+            let supplier = if source.source
+                == validation::borrow_contracts::ViewReturnInputSource::Stored
+                && self.is_view_type(actual.type_reference)
+            {
+                self.context
+                    .control
+                    .operand_retentions
+                    .is_valid(actual.retention)
+                    .then(|| {
+                        self.context
+                            .control
+                            .operand_retentions
+                            .get(actual.retention)
+                            .stored_value
+                    })
+                    .filter(|handle| self.context.control.operands.is_valid(*handle))
+            } else {
+                Some(self.context.control.operands.insert(*actual))
+            };
+            if let (Some(operand), Some(suppliers)) = (supplier, &mut outputs[position].3) {
+                let projection = self
+                    .context
+                    .control
+                    .operand_retained_paths
+                    .insert_many(source_path);
+                suppliers.push(checked_trees::FlowOperandRetainedSupplier {
+                    operand,
+                    projection,
+                });
+            } else {
+                // Retained roots remain valid lifetime exclusion, but partial
+                // source association cannot publish positive handback evidence.
+                outputs[position].3 = None;
+            }
         }
         // A literal-only result has no activation-relative input loan. Its
         // body-derived image relation establishes that specific empty frontier;
         // no other missing lifetime output is filled from a declaration shape.
         if let Some(images) = self.returned_image_paths(call, returned) {
             for path in images {
-                if !outputs.iter().any(|(candidate, _, _)| *candidate == path) {
-                    outputs.push((path, Vec::new(), true));
+                if !outputs
+                    .iter()
+                    .any(|(candidate, _, _, _)| *candidate == path)
+                {
+                    outputs.push((path, Vec::new(), true, Some(Vec::new())));
                 }
             }
         }
         let mut leaves = Vec::new();
-        for (path, roots, complete) in outputs {
+        for (path, roots, complete, suppliers) in outputs {
             let captured = if complete {
                 self.append_retention(&roots)
             } else {
@@ -1198,11 +1240,18 @@ impl Execution<'_, '_, '_> {
             );
             let captured = if self.context.control.operand_retentions.is_valid(captured) {
                 let profile = *self.context.control.operand_retentions.get(captured);
+                let lifetime_sources = suppliers.map(|suppliers| {
+                    self.context
+                        .control
+                        .operand_retained_suppliers
+                        .insert_many(suppliers)
+                });
                 self.context
                     .control
                     .operand_retentions
                     .insert(FlowOperandRetention {
                         descriptor,
+                        lifetime_sources,
                         ..profile
                     })
             } else {
@@ -1223,13 +1272,13 @@ impl Execution<'_, '_, '_> {
             }
         }
         if !leaves.is_empty() {
-            let roots = if let Some(root) = *retention {
+            let root_profile = if let Some(root) = *retention {
                 if !self.context.control.operand_retentions.is_valid(root) {
                     return;
                 }
-                self.context.control.operand_retentions.get(root).roots
+                *self.context.control.operand_retentions.get(root)
             } else {
-                HandleSpan::empty()
+                FlowOperandRetention::default()
             };
             let leaves = self
                 .context
@@ -1238,12 +1287,8 @@ impl Execution<'_, '_, '_> {
                 .insert_many(leaves);
             *retention = Some(self.context.control.operand_retentions.insert(
                 FlowOperandRetention {
-                    roots,
-                    alternatives: HandleSpan::empty(),
                     leaves,
-                    stored_value: Handle::invalid(),
-                    stored_projection: HandleSpan::empty(),
-                    ..Default::default()
+                    ..root_profile
                 },
             ));
         }

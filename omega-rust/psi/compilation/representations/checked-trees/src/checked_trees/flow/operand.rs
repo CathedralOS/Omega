@@ -84,6 +84,11 @@ pub struct FlowOperandRetention {
     /// scope; borrowing a holder does not inherit its pointee's scope.
     pub immutable_image: bool,
     pub roots: HandleSpan<facts::PlaceRoot>,
+    /// Actual completed inputs selected by the applied declared lifetime
+    /// relation. This preserves typed return obligations through opaque owned
+    /// carriers. It supplies neither descriptor geometry nor new permission;
+    /// those remain with the captured input and its checked loans.
+    pub lifetime_sources: Option<HandleSpan<FlowOperandRetainedSupplier>>,
     /// Exact completed inputs retaining the permission carried by a call store.
     /// These are supplier associations, not value equality or pointee snapshots.
     pub suppliers: HandleSpan<FlowOperandRetainedSupplier>,
@@ -144,9 +149,15 @@ pub struct FlowOperandFact {
     pub completion: FlowOperandCompletion,
     /// Actual receiver or source descriptor dependency, independently of value identity.
     pub backing: Handle<FlowOperandFact>,
-    /// Completed selectors and strict computation operands in evaluation order.
-    /// These inputs are neither stored children nor additional backing loans.
+    /// Captured computation operands in evaluation order, including a selected
+    /// short-circuit route. Presence alone does not guarantee execution on every
+    /// completion. These are neither stored children nor extra backing loans.
     pub evaluated_inputs: HandleSpan<FlowOperandFact>,
+    /// Start of the inputs whose execution depends on a selected route. None
+    /// guarantees the whole roster; Some(prefix) guarantees only that prefix.
+    /// This is an evaluation fact, independent of scalar predicates that later
+    /// writes may invalidate. A consumer must check the prefix fits the roster.
+    pub conditional_inputs_from: Option<usize>,
     /// Earlier whole value supplying an identity-preserving read; not custody.
     pub value_source: Handle<FlowOperandFact>,
     /// Writes already evaluated in this statement when the operand completed.

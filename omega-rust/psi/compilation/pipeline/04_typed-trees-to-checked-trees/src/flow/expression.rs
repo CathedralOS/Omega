@@ -87,6 +87,7 @@ struct CompletedValue {
     /// snapshots do not consume this place-only relationship.
     backing: Handle<checked_trees::FlowOperandFact>,
     evaluated_inputs: HandleSpan<checked_trees::FlowOperandFact>,
+    conditional_inputs_from: Option<usize>,
     referents: Option<HandleSpan<checked_trees::FlowOperandReferent>>,
     retention: Option<Handle<checked_trees::FlowOperandRetention>>,
     /// Descriptor contents substituted after operands, before callee writes.
@@ -99,6 +100,12 @@ struct CompletedValue {
 struct InvocationInputs<'evaluated> {
     operands: &'evaluated [checked_trees::FlowOperandFact],
     arguments: &'evaluated [checked_trees::FlowOperandFact],
+}
+
+#[derive(Default)]
+struct CompletedInvocation {
+    stores: Vec<stored_call_values::CallStore>,
+    operands: HandleSpan<checked_trees::FlowOperandFact>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -316,7 +323,7 @@ pub(super) fn append_statement_calls<'plans>(
                         .capture,
                 );
             }
-            let stores = execution.invoke(
+            let completed = execution.invoke(
                 InvocationSite::Statement,
                 InvocationInputs {
                     operands: &captured,
@@ -341,7 +348,7 @@ pub(super) fn append_statement_calls<'plans>(
                     observations: writes,
                 });
             }
-            execution.install_call_stores(stores);
+            execution.install_call_stores(completed.stores);
         }
         StatementNode::AssemblyFact(_) | StatementNode::Transition(_) => {}
     }
@@ -517,13 +524,13 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         inputs: InvocationInputs<'_>,
         contexts: &mut HandleSpan<FlowSemanticContextRef>,
         constraints: &mut HandleSpan<FlowConstraintRef>,
-    ) -> Vec<stored_call_values::CallStore> {
+    ) -> CompletedInvocation {
         let Some(invocation) = self
             .invocations
             .iter_mut()
             .find(|invocation| !invocation.visited && invocation.site == site)
         else {
-            return Vec::new();
+            return CompletedInvocation::default();
         };
         let _invoke_guard = phase_profile::guard("05.d.3.b.flow.expr.invoke");
         invocation.visited = true;
@@ -627,11 +634,12 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         // evaluated operands and must survive independently of their snapshots.
         call.exit_semantic_contexts = *contexts;
         call.exit_constraints = *constraints;
+        let operands = call.operands;
         self.context
             .control
             .calls
             .append_to_span(self.state_calls, call);
-        stores
+        CompletedInvocation { stores, operands }
     }
 
     pub(super) fn expression(
@@ -809,6 +817,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         capture.completion = completed.completion;
         capture.value_source = completed.value_source;
         capture.evaluated_inputs = completed.evaluated_inputs;
+        capture.conditional_inputs_from = completed.conditional_inputs_from;
         capture.backing = if observed_descriptor.is_valid() {
             observed_descriptor
         } else {
@@ -1023,6 +1032,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         capture.completion = completed.completion;
         capture.value_source = completed.value_source;
         capture.evaluated_inputs = completed.evaluated_inputs;
+        capture.conditional_inputs_from = completed.conditional_inputs_from;
         capture.backing = completed.backing;
         capture.type_reference = reference;
         if let Some(leaves) = completed.reference_leaves {
@@ -1134,6 +1144,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             completion: checked_trees::FlowOperandCompletion::Observation,
             backing: Handle::invalid(),
             evaluated_inputs: HandleSpan::empty(),
+            conditional_inputs_from: None,
             value_source: Handle::invalid(),
             entry_origin_writes: self.entry_origin_writes,
             entry_origin_unknown_write: self.entry_origin_unknown_write,
@@ -1469,6 +1480,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             value_source,
             backing,
             evaluated_inputs,
+            conditional_inputs_from,
             referents,
             retention,
             reference_leaves,
@@ -1584,10 +1596,11 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     self.evaluated_operand(binary.left, contexts, constraints)
                 };
                 if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
-                    let (value, completion, inputs) =
+                    let (value, completion, inputs, conditional_from) =
                         self.logical_expression(binary, evaluated_left, contexts, constraints);
                     *boolean_completion = completion;
                     *evaluated_inputs = inputs;
+                    *conditional_inputs_from = conditional_from;
                     return value;
                 }
                 let left_operand = evaluated_left.capture;
@@ -1697,7 +1710,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     .iter()
                     .map(|(_, operand)| *operand)
                     .collect::<Vec<_>>();
-                let stores = self.invoke(
+                let completed = self.invoke(
                     InvocationSite::Expression(expression),
                     InvocationInputs {
                         operands: &operands,
@@ -1706,6 +1719,10 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     contexts,
                     constraints,
                 );
+                // Share the invocation's exact captured operands. Cloning
+                // them would manufacture second evaluation occurrences and
+                // make retained-loan correspondence ambiguous.
+                *evaluated_inputs = completed.operands;
                 // A callee that returns one constructor installs that case on
                 // this call expression. The binding transport then keeps the
                 // tag; the call is not replayed at the payload projection.
@@ -1757,7 +1774,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                         observations: writes,
                     });
                 }
-                self.install_call_stores(stores);
+                self.install_call_stores(completed.stores);
                 self.capture_returned_retention(
                     expression,
                     destination,
