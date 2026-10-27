@@ -33,6 +33,7 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
     state_flow: &FlowStateFact,
     exit: &FlowExitFact,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    value_qualifications: &arena::Arena<checked_trees::CheckedValueQualification>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some(machine) = program.machine(exit.machine_symbol) else {
@@ -207,7 +208,21 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
                         call_frames,
                     )
             });
-        let root_satisfied = established_root
+        // Consume the formation walk's exact result judgment, never a cast's
+        // prepared receiving type or a different evaluation of its operand.
+        let qualified_root = path.is_empty()
+            && returned_storage.is_none()
+            && value_qualifications.iter().any(|(_, decision)| {
+                decision.machine == state_flow.machine_symbol
+                    && decision.state == state_flow.state_symbol
+                    && decision.statement_index as usize == exit.statement_index
+                    && decision.expression == returned
+                    && !decision.structural_value.is_valid()
+                    && decision.domain_symbol == domain_symbol
+                    && decision.semantic_domain == semantic_domain
+            });
+        let root_satisfied = qualified_root
+            || established_root
             || (returned_storage.is_none()
                 && path.is_empty()
                 && super::super::super::writes::value_proves_qualification_in_contexts(
@@ -219,6 +234,7 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
                     domain_symbol,
                     semantic_domain,
                     &entry_contexts,
+                    call_frames,
                 ));
         let satisfied = if let Some(subjects) = returned_storage.as_ref() {
             {

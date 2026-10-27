@@ -758,6 +758,7 @@ impl ConstructionWalk<'_, '_> {
                     obligation.symbol,
                     obligation.semantic_id,
                     contexts,
+                    self.frames,
                 ) || (!validation::field_domains::domain_requires_provenance(
                     program,
                     obligation.symbol,

@@ -166,6 +166,7 @@ impl ConstructionWalk<'_, '_> {
                 domain_symbol,
                 semantic_domain,
                 contexts,
+                frames,
             ) || vacuous
                 || live_bounds_satisfy_domain(
                     program,

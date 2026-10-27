@@ -218,6 +218,36 @@ pub(in crate::checks::contracts) fn value_proves_qualification_in_contexts(
     domain: SymbolHandle,
     identity: language_semantics::SemanticDomainId,
     contexts: &[facts::FactContextHandle],
+    frames: Option<&validation::CallFrameResolver<'_>>,
+) -> bool {
+    value_proves_qualification_with_domain_stack(
+        program,
+        facts,
+        state,
+        statement_index,
+        value,
+        domain,
+        identity,
+        contexts,
+        &mut Vec::new(),
+        frames,
+    )
+}
+
+/// Required-domain predicates share the outer proof's recursion stack. A child
+/// may prove its own predicates from an already supplied parent membership;
+/// the parent's authorized origin cannot be replaced by predicate truth.
+pub(super) fn value_proves_qualification_with_domain_stack(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    statement_index: usize,
+    value: ExpressionHandle,
+    domain: SymbolHandle,
+    identity: language_semantics::SemanticDomainId,
+    contexts: &[facts::FactContextHandle],
+    active: &mut Vec<(SymbolHandle, language_semantics::SemanticDomainId)>,
+    frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
     let subject = validation::canonical_place_from_expression_in_state(
         program,
@@ -239,11 +269,47 @@ pub(in crate::checks::contracts) fn value_proves_qualification_in_contexts(
         return false;
     }
     if validation::field_domains::domain_requires_provenance(program, domain) {
-        return subject.as_ref().is_some_and(|subject| {
+        if subject.as_ref().is_some_and(|subject| {
             super::super::exits::exact_scalar_membership(
                 program, facts, contexts, subject, domain, identity,
             )
-        });
+        }) {
+            return true;
+        }
+        // The selected invocation supplies its own checked result contract.
+        // A storage declaration, construction's receiving type or cast target
+        // supplies no such judgment. Casts retain separate formation decisions.
+        if completed_owned_call_carries_domain(
+            program,
+            facts,
+            state,
+            statement_index,
+            value,
+            domain,
+            identity,
+            frames,
+        ) {
+            return true;
+        }
+        let Some(declaration) = program.domain_definition_for_instance(domain, identity) else {
+            return false;
+        };
+        if !declaration.establishment_routes.is_empty() || declaration.alias.is_some() {
+            return false;
+        }
+        return super::member_domains::value_satisfies_domain_instance_predicates_in_contexts(
+            program,
+            facts,
+            state,
+            statement_index,
+            value,
+            domain,
+            identity,
+            contexts,
+            active,
+            None,
+            frames,
+        );
     }
     if value_result_type_carries_domain(program, state, statement_index, value, domain, identity) {
         return true;
@@ -270,9 +336,9 @@ pub(in crate::checks::contracts) fn value_proves_qualification_in_contexts(
         value,
         domain,
         contexts,
-        &mut Vec::new(),
+        active,
         None,
-        None,
+        frames,
     )
 }
 
@@ -329,6 +395,7 @@ pub(super) fn value_proves_domain_in_contexts(
             domain_symbol,
             language_semantics::SemanticDomainId::NULL,
             contexts,
+            None,
         ) && value_proves_qualification_in_contexts(
             program,
             facts,
@@ -338,6 +405,7 @@ pub(super) fn value_proves_domain_in_contexts(
             domain_symbol,
             language_semantics::SemanticDomainId::NULL,
             contexts,
+            None,
         ) {
             return true;
         }
@@ -482,6 +550,79 @@ fn value_result_type_carries_domain(
     else {
         return false;
     };
+    result_type_carries_domain(program, type_reference, domain_symbol, identity)
+}
+
+/// A detached owned result supplies its checked contract. Reference-bearing
+/// results instead owe membership on the live referent at consumption: a later
+/// operand can change that storage, so a declared result contract is insufficient.
+fn completed_owned_call_carries_domain(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    state_flow: &FlowStateFact,
+    statement_index: usize,
+    value: ExpressionHandle,
+    domain_symbol: SymbolHandle,
+    identity: language_semantics::SemanticDomainId,
+    frames: Option<&validation::CallFrameResolver<'_>>,
+) -> bool {
+    if !value.is_valid()
+        || !facts
+            .flow
+            .control
+            .calls
+            .span_or_empty(state_flow.calls)
+            .iter()
+            .any(|call| {
+                call.statement_index == statement_index && call.authored_expression == value
+            })
+    {
+        return false;
+    }
+    let Some((machine, state)) =
+        program.state_flow_site(state_flow.machine_symbol, state_flow.state_symbol)
+    else {
+        return false;
+    };
+    let Some(reference) =
+        validation::expression_result_type_reference(program, machine, state, value)
+    else {
+        return false;
+    };
+    let Some(frames) = frames else {
+        return false;
+    };
+    if validation::reference_shell(program, reference).is_some() {
+        return false;
+    }
+    let detached = if frames.value_is_reference_free(reference) {
+        true
+    } else {
+        // An opaque declaration has no inspectable source fields. Its exact
+        // selected closed carrier supplies the storage capability; an empty
+        // authored roster or Inert lifecycle alone cannot prove it borrow-free.
+        program
+            .closed_data_definition(reference)
+            .is_some_and(|data| {
+                data.supply_mode == language_semantics::DataSupplyMode::BoundaryOpaque
+                    && representation_selections::selection_for_opaque(
+                        program.opaque_representation_selections(),
+                        data.symbol,
+                    )
+                    .is_some_and(|selection| {
+                        frames.value_is_reference_free(selection.carrier_type())
+                    })
+            })
+    };
+    detached && result_type_carries_domain(program, reference, domain_symbol, identity)
+}
+
+fn result_type_carries_domain(
+    program: &dyn ::validation::CheckingInput,
+    type_reference: typed_trees::types::TypeReferenceHandle,
+    domain_symbol: SymbolHandle,
+    identity: language_semantics::SemanticDomainId,
+) -> bool {
     validation::field_domains::domain_constraint_identities(program, type_reference)
         .into_iter()
         .any(|(source, source_identity)| {
