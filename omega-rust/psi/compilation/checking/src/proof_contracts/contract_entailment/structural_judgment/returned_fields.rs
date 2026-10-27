@@ -86,6 +86,42 @@ impl StructuralJudge<'_> {
         {
             return decline("no owned structural result");
         }
+        let substitution = parameters
+            .iter()
+            .zip(actuals)
+            .map(|(parameter, value)| (parameter.name.as_str().to_owned(), value.clone()))
+            .collect::<Vec<_>>();
+        let can_memoize = self.returned_field_owners.is_empty()
+            && program
+                .machine(callee.symbol)
+                .is_some_and(|stored| std::ptr::eq(stored, callee));
+        if can_memoize
+            && let Some(memos) = crate::frozen_program::frozen_program_memos(program)
+            && let Ok(cached) = memos.returned_field_projections.lock()
+            && let Some(template) = cached.get(&callee.symbol).cloned()
+        {
+            drop(cached);
+            return template
+                .iter()
+                .filter_map(|(path, value)| {
+                    let subject = project_observed_value(
+                        program,
+                        entry.return_type,
+                        captured.clone(),
+                        path,
+                    )?;
+                    Some((subject, Self::substitute_term(value, &substitution)))
+                })
+                .collect();
+        }
+        let store_template = |template: Vec<(Vec<PlaceSegment>, StructuralTerm)>| {
+            if can_memoize
+                && let Some(memos) = crate::frozen_program::frozen_program_memos(program)
+                && let Ok(mut cached) = memos.returned_field_projections.lock()
+            {
+                cached.insert(callee.symbol, std::sync::Arc::new(template));
+            }
+        };
         let requires = machine_requires_facts(program, callee);
         let mut judge = Self::from_runtime_state_requires(program, callee, entry, &requires);
         judge.returned_field_owners = std::sync::Arc::clone(&self.returned_field_owners);
@@ -99,9 +135,11 @@ impl StructuralJudge<'_> {
             &mut diagnostics,
             None,
         ) else {
+            store_template(Vec::new());
             return decline("normal-return paths are incomplete or recurrent");
         };
         let Some(first) = leaves.first().filter(|_| diagnostics.is_empty()) else {
+            store_template(Vec::new());
             return decline("no independently checked normal-return leaves");
         };
         let first_value = first
@@ -136,12 +174,7 @@ impl StructuralJudge<'_> {
                 }
             }
         }
-        let substitution = parameters
-            .iter()
-            .zip(actuals)
-            .map(|(parameter, value)| (parameter.name.as_str().to_owned(), value.clone()))
-            .collect::<Vec<_>>();
-        projections
+        let template: Vec<(Vec<PlaceSegment>, StructuralTerm)> = projections
             .into_iter()
             .filter_map(|projection| {
                 if projection.path.is_empty() {
@@ -177,19 +210,27 @@ impl StructuralJudge<'_> {
                         declaration_input_value(&judge, parameters, &projected).then_some(projected)
                     })
                     .collect::<Option<Vec<_>>>()?;
-                let value = values.first()?;
-                if values.iter().any(|other| other != value) {
+                let value = values.first()?.clone();
+                if values.iter().any(|other| *other != value) {
                     return None;
                 }
+                Some((projection.path, value))
+            })
+            .collect();
+        let equations = template
+            .iter()
+            .filter_map(|(path, value)| {
                 let subject = project_observed_value(
                     program,
                     entry.return_type,
                     captured.clone(),
-                    &projection.path,
+                    path,
                 )?;
                 Some((subject, Self::substitute_term(value, &substitution)))
             })
-            .collect()
+            .collect();
+        store_template(template);
+        equations
     }
 }
 

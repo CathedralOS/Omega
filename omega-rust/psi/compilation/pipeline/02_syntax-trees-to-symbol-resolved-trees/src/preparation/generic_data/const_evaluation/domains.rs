@@ -7,7 +7,6 @@ use syntax_trees::identifier::JoinedSyntaxPath;
 
 use crate::preparation::generic_data::ConstScalarSpelling;
 use crate::preparation::generic_data::EvaluatedConst;
-use crate::preparation::generic_data::canonicalize_const_definition;
 use crate::preparation::generic_data::canonicalize_selected_const_definition;
 use crate::preparation::generic_data::collect_data_type_reference_positions;
 use crate::preparation::generic_data::const_integer_type;
@@ -84,7 +83,6 @@ pub(in crate::preparation::generic_data) fn domain_index_parameters<'syntax>(
 /// PDI1 generic identity.
 pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_indices(
     syntax: &mut SyntaxTrees,
-    const_definitions: &HashMap<String, ConstDefinition>,
     const_values: &HashMap<String, i128>,
     selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
     warnings: &mut Vec<Diagnostic>,
@@ -317,7 +315,6 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_indices(
             &name,
             family,
             arguments,
-            const_definitions,
             const_values,
             selection,
             &concrete_data_positions,
@@ -332,7 +329,6 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_applicati
     family_name: &str,
     family: &ClosedDomainFamily,
     arguments: Vec<TypeReferenceHandle>,
-    const_definitions: &HashMap<String, ConstDefinition>,
     const_values: &HashMap<String, i128>,
     selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
     concrete_data_positions: &[TypeReferenceHandle],
@@ -437,50 +433,10 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_applicati
                     );
                     continue;
                 }
-                super::module_constant_selection_gate(
-                    syntax,
-                    &name,
-                    const_values,
-                    const_definitions,
-                )?;
-                if let Some(value) = const_values.get(name.as_str(syntax)) {
-                    syntax.tables.type_references.replace_type_reference(
-                        argument,
-                        TypeReferenceNode::Named(Identifier::generated(value.to_string())),
-                    );
-                    continue;
-                }
-                let Some(definition) = const_definitions.get(name.as_str(syntax)) else {
-                    // A direct generic const binder is resolved and checked
-                    // later in its declaration context. Unknown names fail
-                    // there as well; never guess that a type is a value.
-                    continue;
-                };
-                let value = canonicalize_const_definition(syntax, definition, *parameter_type)
-                    .map_err(|reason| {
-                        Diagnostic::error(format!(
-                            "index argument for `{}::{parameter_name}` is invalid: {reason}",
-                            family_name
-                        ))
-                    })?;
-                // Structured values need the selected declaration's resolved
-                // carrier, which this lexical preparation does not own. Keep
-                // the authored name until ordinary resolution can retain it;
-                // typing publishes the canonical atom from that exact owner.
-                if matches!(
-                    value.decode_encoding(),
-                    Some(
-                        language_semantics::const_value::DecodedCanonicalConstValue::Array { .. }
-                            | language_semantics::const_value::DecodedCanonicalConstValue::Record { .. }
-                            | language_semantics::const_value::DecodedCanonicalConstValue::Variant { .. }
-                    )
-                ) {
-                    continue;
-                }
-                syntax.tables.type_references.replace_type_reference(
-                    argument,
-                    TypeReferenceNode::Named(Identifier::generated(value.atom())),
-                );
+                // This position still needs its enclosing lexical context.
+                // Let ordinary resolution select a const declaration or a
+                // local binder. A spelling-only fold here discards nominal
+                // carrier identity and can select past a shadowing binder.
             }
             TypeReferenceNode::ConstExpression(expression) => {
                 // PDI3 open indexed-domain expressions must survive this

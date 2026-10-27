@@ -6,6 +6,7 @@ use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionRecordError,
 };
 use symbol_resolved_trees::SymbolResolvedTrees;
+use symbol_resolved_trees::name::DiagnosticName;
 use symbols::SymbolKind;
 
 /// Attach the authored const selection to the substituted expression. The
@@ -176,6 +177,7 @@ pub(crate) fn finalize_const_argument_selections(
     slots: &[crate::resolution::lowerer::PendingConstArgumentSlot],
     lexical_inputs: &[crate::lowering::state::StateLexicalInputs],
 ) -> Result<(), Diagnostic> {
+    let mut selected_arguments = Vec::new();
     for (selection_ordinal, selection) in pending.iter().enumerate() {
         let origin = &selection.origin;
         let mut declarations = program.const_declarations.iter().filter(|declaration| {
@@ -223,7 +225,6 @@ pub(crate) fn finalize_const_argument_selections(
                 )
             });
         let mut matched = false;
-        let mut structured_arguments = Vec::new();
         for slot in slots
             .iter()
             .filter(|slot| slot.selection == selection_ordinal)
@@ -291,37 +292,17 @@ pub(crate) fn finalize_const_argument_selections(
                     )
                     .with_source_span(origin.reference));
                 }
-                structured_arguments.push(slot.arguments.handle_at(
-                    u32::try_from(slot.ordinal).map_err(|_| {
-                        Diagnostic::error("constant argument ordinal exceeds its retained span")
-                            .with_source_span(origin.reference)
-                    })?,
+                selected_arguments.push((
+                    slot.arguments,
+                    slot.ordinal,
+                    declaration.symbol,
+                    DiagnosticName::from_str(
+                        program.symbols.name(declaration.symbol),
+                        origin.reference,
+                    ),
                 ));
             }
             matched = true;
-        }
-        // The atom's schema label does not identify a nominal carrier. Keep
-        // the authenticated actual declaration on the same argument row until
-        // typing can publish its resolved carrier identity.
-        for argument in structured_arguments {
-            let symbol_resolved_trees::types::TypeReference::Named { symbol, name, .. } = program
-                .tables
-                .declarations
-                .child_type_references
-                .get_mut(argument)
-            else {
-                return Err(Diagnostic::error(
-                    "constant argument changed before carrier retention",
-                )
-                .with_source_span(origin.reference));
-            };
-            *symbol = declaration.symbol;
-            if selection.exposure.is_some() {
-                *name = symbol_resolved_trees::name::DiagnosticName::from_str(
-                    name.as_str(),
-                    origin.reference,
-                );
-            }
         }
         if requires_nominal_slot && !matched {
             return Err(Diagnostic::error(
@@ -338,6 +319,21 @@ pub(crate) fn finalize_const_argument_selections(
                     declaration.symbol,
                 )
                 .map_err(const_selection_record_diagnostic)?;
+        }
+    }
+    // Preparation's value encoding predates nominal symbol allocation. Once
+    // custody has joined the exact declaration and receiving carrier, publish
+    // that selected value rather than its provisional short type label. Defer
+    // replacement until every origin has checked the original argument.
+    for (arguments, ordinal, selected, selected_name) in selected_arguments {
+        let argument = &mut program
+            .tables
+            .declarations
+            .child_type_references
+            .span_mut_or_empty(arguments)[ordinal];
+        if let symbol_resolved_trees::types::TypeReference::Named { symbol, name, .. } = argument {
+            *symbol = selected;
+            *name = selected_name;
         }
     }
     Ok(())

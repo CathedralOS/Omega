@@ -102,6 +102,62 @@ pub(super) fn establish(
         ));
         semantic.append_ref(refs, fact);
     }
+    // The same independently checked store establishes the destination's
+    // conditional field invariants. A Case path means "if this alternative is
+    // active"; it never supplies its discriminator. Join values therefore keep
+    // payload validity without keeping a particular constructor or scalar.
+    // Publish after completion, not from an initializer-shape scan at entry.
+    if target_is_exact {
+        let declared_type = match statement {
+            StatementNode::LocalData(local) if local.initial_value.is_valid() => {
+                Some(local.type_reference)
+            }
+            StatementNode::Assignment(assignment) => program
+                .machine_by_symbol(machine_symbol)
+                .zip(validation::find_state_in_machine(
+                    program,
+                    machine_symbol,
+                    state_symbol,
+                ))
+                .and_then(|(machine, state)| {
+                    validation::field_domains::assignment_target_type_reference(
+                        program,
+                        machine,
+                        state,
+                        assignment.target,
+                    )
+                }),
+            _ => None,
+        };
+        if let Some(reference) = declared_type {
+            let target = semantic.places.get(target_place);
+            let root = target.root;
+            let prefix = semantic
+                .place_segments
+                .span_or_empty(target.segments)
+                .to_vec();
+            for row in validation::field_domains::declared_type_domain_rows(program, reference) {
+                if row.path.is_empty()
+                    || row.transfer
+                    || validation::field_domains::domain_requires_provenance(
+                        program,
+                        row.domain_symbol,
+                    )
+                {
+                    continue;
+                }
+                let mut path = prefix.clone();
+                path.extend_from_slice(&row.path);
+                let place = crate::semantic::places::append_place(semantic, root, &path);
+                let fact = semantic.append_fact(membership_fact(
+                    place,
+                    row.domain_symbol,
+                    row.semantic_domain,
+                ));
+                semantic.append_ref(refs, fact);
+            }
+        }
+    }
     let target = semantic.places.get(target_place);
     let target_segments = semantic.place_segments.span_or_empty(target.segments);
     if target_is_exact

@@ -638,7 +638,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_in_prefix_traced<'a>(
         )?;
         // Occurrence traversal marks every transition target as selected.
         // The exact terminal named occurrence instead has its control authority
-        // from terminal_call: final Always, no preceding transition or
+        // from terminal_invocation: final Always, no preceding transition or
         // continuation, and an ordinary result matching the enclosing return.
         // Nested expression calls cannot inherit that completion proof.
         let terminal_completion = is_terminal_call_occurrence(program, owner, state, call);

@@ -1,0 +1,37 @@
+// A whole-array shared view of four noncopy Entries has length 4; reading its extent satisfies require_four(view.len).
+// Intended invalid: the three-entry view cannot satisfy require_four.
+use omega::language::core::slice;
+data Entry { value: i32; }
+machine verify_view(view: &[Entry], original: addr, measured: u64) -> u64 crashes Trap {
+    transition view.len > 2 { true -> inspect(view, original, measured) _ -> bad() }
+    machine inspect(view: &[Entry], original: addr, measured: u64) -> u64 crashes Trap
+    requires view.len > 2 {
+        transition address_of(&view[0].value) == original && view[2].value == 9 {
+            true -> done(measured)
+            _ -> bad()
+        }
+    }
+    machine done(measured: u64) -> u64 { measured }
+    machine bad() -> u64 crashes Trap { crash Trap; }
+}
+
+machine whole_view<Element, const Count: u64>(items: &[Element; Count]) -> &[Element]
+ensures result.len == Count
+{ &items[..] }
+
+machine require_four(length: u64) -> u64
+requires length == 4
+{ length }
+machine borrow(entries: &[Entry; 3]) -> &[Entry]
+ensures result.len == 3
+{ whole_view<Entry, 3>(entries) }
+machine extent(entries: &[Entry; 3]) -> u64 crashes Trap {
+    let view: &[Entry] = borrow(entries);
+    verify_view(view, address_of(&entries[0].value), require_four(view.len))
+}
+machine main() crashes Trap {
+    let entries: [Entry; 3] = [Entry { value: 7 }, Entry { value: 8 }, Entry { value: 9 }];
+    transition extent(&entries) == 4 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

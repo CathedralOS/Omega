@@ -198,6 +198,33 @@ fn expression_types<'trees>(
             declared_type(syntax, trees, sources, name.symbol, false)
                 .map(|reference| vec![reference])
         }
+        expression::ExpressionNode::Borrow(borrow) => {
+            let targets = expression_types(
+                syntax,
+                trees,
+                sources,
+                borrow.target,
+                selection,
+                pending_diagnostics,
+            )?;
+            let mut borrowed = Vec::with_capacity(targets.len());
+            for (target, declaration) in targets {
+                // A borrow of a reference is a reborrow of its referent. Keep
+                // nested declared structure and its custody; the new outer
+                // region is elided and ordinary loan checking admits access.
+                let referee = match syntax.type_references.type_reference(target) {
+                    syntax_trees::types::TypeReferenceNode::Reference { referee, .. } => *referee,
+                    _ => target,
+                };
+                let reference = syntax
+                    .type_references
+                    .insert_reference(referee, borrow.access);
+                // The resolved declaration anchors nominal selection; the
+                // authored reference carries this expression's constructor.
+                borrowed.push((reference, declaration));
+            }
+            Some(borrowed)
+        }
         expression::ExpressionNode::Member(member) => projections::member_types(
             syntax,
             trees,

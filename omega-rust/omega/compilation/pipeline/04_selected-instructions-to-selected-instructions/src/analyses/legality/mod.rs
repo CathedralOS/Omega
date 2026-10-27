@@ -78,35 +78,9 @@ impl StagedOptimizedAllocationLegality {
         &self.ranges
     }
 
-    /// The live ranges over the current program.
-    pub const fn ranges(&self) -> &ValidatedLiveRanges {
-        self.ranges.ranges()
-    }
-
-    /// The liveness facts over the current program.
-    pub const fn liveness(&self) -> &ValidatedLiveness {
-        self.ranges.liveness()
-    }
-
-    /// The current selected program this legality describes.
-    pub const fn selected(&self) -> &ValidatedSelectedInstructions {
-        self.ranges.selected()
-    }
-
-    /// The target register environment admitted with the current program.
-    pub const fn register_environment(&self) -> &ValidatedTargetRegisterEnvironment {
-        self.ranges.register_environment()
-    }
-
-    /// The governing optimizer selections for this admission.
-    pub fn selections(&self) -> &OptimizationSelections {
-        self.ranges.selections()
-    }
-
-    /// The per-pass work budget admitted beside the same evidence.
-    pub fn budget_per_pass(&self) -> OptimizationWorkBudget {
-        self.ranges.budget_per_pass()
-    }
+    staged_producer_accessors!(
+        ranges; ranges, liveness, selected, register_environment, selections, budget_per_pass
+    );
 
     pub const fn legality(&self) -> &ValidatedAllocationLegality {
         &self.legality

@@ -1,111 +1,89 @@
-//! Reconstruct authored trust grants and their exact source occurrences.
+//! Join source-issued trust acceptances after Product declarations are available.
+//! Formation checks all authored operands; only completed Build operations grant
+//! acceptance. Declaration visibility does not select a provider or prove its body.
 
 use diagnostics::Diagnostic;
-use language_semantics::declaration_selection::BuildOperation;
-use symbols::JoinedPath;
+use language_semantics::declaration_selection::{
+    BuildOperation, ExecutedProductSelection, ProductDeclarationRequest,
+};
+use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
+use typed_trees::product_operand::{ProductOperandKind, resolve_product_path};
 
-/// Harvest namespace-qualified acceptances from the admitted build machine.
-/// Classification checks the compiler's Build namespace and explicit argument;
-/// an ordinary machine with the same spelling cannot grant authority.
-pub fn harvest_root_grants(
+pub fn collect_product_root_grants(
     typed: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-) -> Result<Vec<crate::AuthoredRootGrant>, Diagnostic> {
+    activation: Option<SymbolHandle>,
+    declared: &[std::sync::Arc<ProductDeclarationRequest>],
+    executed: &[ExecutedProductSelection],
+) -> Result<Vec<crate::AuthoredRootGrant>, Vec<Diagnostic>> {
+    for request in declared
+        .iter()
+        .filter(|request| request.operation == BuildOperation::BoundaryAcceptance)
+    {
+        subject(typed, request).map_err(|error| vec![error])?;
+    }
     let mut grants = Vec::new();
-    let mut record = |selector: &str, source_span: source::SourceSpan| {
-        if !grants
-            .iter()
-            .any(|grant: &crate::AuthoredRootGrant| grant.selector == selector)
-        {
-            grants.push(crate::AuthoredRootGrant {
-                selector: selector.to_owned(),
-                selecting_machine: machine.symbol,
-                source_span,
-            });
-        }
-    };
-    for state in typed.machine_states(machine) {
-        for statement in typed.statement_table.statements(state.statement_nodes) {
-            if let Some(expression) = statement.as_expression()
-                && validation::compiler_operations::build_operation(typed, *expression)
-                    == Some(BuildOperation::BoundaryAcceptance)
-                && let typed_trees::expression::ExpressionNode::Call(call) =
-                    typed.expression_table.expression(*expression)
-            {
-                let [argument] = call.machine_arguments.as_ref() else {
-                    return Err(Diagnostic::error(
-                        "boundary acceptance requires one declaration",
-                    ));
-                };
-                let selector = argument.path.joined_path();
-                record(
-                    &selector,
-                    authored_root_grant_expression_span(typed, *expression)?,
-                );
+    for event in executed
+        .iter()
+        .filter(|event| event.request.operation == BuildOperation::BoundaryAcceptance)
+    {
+        let result = (|| {
+            if !declared.contains(&event.request) || event.composition.is_some() {
+                return Err(Diagnostic::error(
+                    "boundary acceptance lost its source-issued declaration request",
+                ));
             }
+            activation
+                .filter(|symbol| typed.machine(*symbol).is_some())
+                .ok_or_else(|| {
+                    Diagnostic::error("boundary acceptance has no authoritative Build activation")
+                })?;
+            let machine_span = event.selecting_machine.ok_or_else(|| {
+                Diagnostic::error("boundary acceptance lost its authored machine coordinate")
+            })?;
+            let selecting_machine =
+                typed_trees::product_operand::resolve_build_request_author(typed, machine_span)
+                    .map_err(Diagnostic::error)?;
+            let selected = subject(typed, &event.request)?;
+            Ok(crate::AuthoredRootGrant {
+                selector: typed
+                    .product_declarations()
+                    .symbols
+                    .display_path(selected, "::"),
+                selecting_machine,
+                source_span: event.request.source_span,
+            })
+        })();
+        let grant = result
+            .map_err(|error: Diagnostic| vec![error.with_source_span(event.request.source_span)])?;
+        if !grants.contains(&grant) {
+            grants.push(grant);
         }
     }
     Ok(grants)
 }
 
-fn authored_root_grant_expression_span(
+fn subject(
     typed: &TypedTrees,
-    expression: typed_trees::expression::ExpressionHandle,
-) -> Result<source::SourceSpan, Diagnostic> {
-    let occurrences = typed
-        .expression_table
-        .authored_selection_occurrences(expression)
-        .filter_map(|occurrence| {
-            typed
-                .authored_declaration_selections()
-                .get(occurrence)
-                .filter(|selection| authored_root_grant_selection(**selection))
-                .map(|_| occurrence)
-        })
-        .collect::<Vec<_>>();
-    let [occurrence] = occurrences.as_slice() else {
-        return Err(Diagnostic::error(format!(
-            "build boundary grant expression has {} exact authored selection occurrences",
-            occurrences.len(),
-        )));
+    request: &ProductDeclarationRequest,
+) -> Result<SymbolHandle, Diagnostic> {
+    let [operand] = request.operands.as_ref() else {
+        return Err(
+            Diagnostic::error("boundary acceptance requires one Product subject")
+                .with_source_span(request.source_span),
+        );
     };
-    authored_root_grant_selection_span(typed, *occurrence)
-}
-
-fn authored_root_grant_selection_span(
-    typed: &TypedTrees,
-    occurrence: language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId,
-) -> Result<source::SourceSpan, Diagnostic> {
-    let selection = typed
-        .authored_declaration_selections()
-        .get(occurrence)
-        .filter(|selection| authored_root_grant_selection(**selection))
-        .ok_or_else(|| {
-            Diagnostic::error("build boundary grant has no exact authored selection evidence")
-        })?;
-    let span = selection.source_span();
-    if span.span.start >= span.span.end {
-        return Err(Diagnostic::error(
-            "build boundary grant has an empty authored source span",
-        ));
-    }
-    Ok(span)
-}
-
-fn authored_root_grant_selection(
-    selection: language_semantics::declaration_selection::AuthoredDeclarationSelection,
-) -> bool {
-    use language_semantics::declaration_selection::{
-        AuthoredDeclarationSelectionIntrinsic as Intrinsic,
-        AuthoredDeclarationSelectionKind as Kind,
-        AuthoredDeclarationSelectionLateBinding as LateBinding,
-        AuthoredDeclarationSelectionTarget as Target,
-    };
-    selection.kind() == Kind::Call
-        && matches!(
-            selection.target(),
-            Target::LateBound(LateBinding::CheckedCall)
-                | Target::Intrinsic(Intrinsic::BuildBoundaryAcceptance)
-        )
+    resolve_product_path(
+        typed,
+        &operand.path,
+        operand.source_span,
+        ProductOperandKind::BoundarySubject,
+    )
+    .ok_or_else(|| {
+        Diagnostic::error(format!(
+            "boundary acceptance `{}` does not resolve to one visible Product boundary subject",
+            operand.path,
+        ))
+        .with_source_span(operand.source_span)
+    })
 }

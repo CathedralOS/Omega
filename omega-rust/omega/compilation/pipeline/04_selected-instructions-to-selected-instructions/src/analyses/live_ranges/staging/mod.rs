@@ -53,30 +53,9 @@ impl StagedOptimizedLiveRanges {
         &self.liveness
     }
 
-    /// The liveness facts over the current program.
-    pub const fn liveness(&self) -> &ValidatedLiveness {
-        self.liveness.liveness()
-    }
-
-    /// The current selected program these ranges describe.
-    pub const fn selected(&self) -> &ValidatedSelectedInstructions {
-        self.liveness.selected()
-    }
-
-    /// The target register environment admitted with the current program.
-    pub const fn register_environment(&self) -> &ValidatedTargetRegisterEnvironment {
-        self.liveness.register_environment()
-    }
-
-    /// The governing optimizer selections for this admission.
-    pub fn selections(&self) -> &OptimizationSelections {
-        self.liveness.selections()
-    }
-
-    /// The per-pass work budget admitted beside the same evidence.
-    pub fn budget_per_pass(&self) -> OptimizationWorkBudget {
-        self.liveness.budget_per_pass()
-    }
+    staged_producer_accessors!(
+        liveness; liveness, selected, register_environment, selections, budget_per_pass
+    );
 
     pub const fn ranges(&self) -> &ValidatedLiveRanges {
         &self.ranges

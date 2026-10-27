@@ -464,6 +464,26 @@ fn const_field_projection<'value>(
                 .map(|(_, value)| Some(*value)))
         }
         ExpressionNode::Member(member) => {
+            // This projector is entered only with one data predicate's own
+            // completed field ledger. Its logical subject is not a runtime
+            // value or an outer lexical name; unavailable members stay fenced.
+            let logical_subject = match syntax.expressions.expression(member.receiver) {
+                ExpressionNode::Name(path) => {
+                    matches!(syntax.expressions.identifier_path_members(*path), [name]
+                        if name.as_str(syntax) == "self")
+                }
+                _ => false,
+            };
+            if logical_subject {
+                return Ok(Some(if member.case_variant.is_none() {
+                    fields
+                        .iter()
+                        .find(|(field, _)| *field == member.member.as_str(syntax))
+                        .map(|(_, value)| *value)
+                } else {
+                    None
+                }));
+            }
             let Some(receiver) =
                 const_field_projection(syntax, member.receiver, fields, evaluate_index)?
             else {

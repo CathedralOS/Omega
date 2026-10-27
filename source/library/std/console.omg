@@ -99,39 +99,40 @@ public NativeConsole satisfies Console {
 machine ConsoleNativeProvider::read_line(out_line: &mut [u8]) -> LineReadResult
 satisfies Console::read_line
 reaches Console {
-    transition { _ -> scan(out_line, 0) }
-    state scan(out_line: &mut [u8], position: u64) -> LineReadResult {
+    transition { _ -> block scan(out_line, 0) }
+    machine scan(out_line: &mut [u8], position: u64) -> LineReadResult {
         transition position < out_line.len {
-            true -> read(out_line, position, position + 1)
+            true -> block read(out_line, position, position + 1)
             false -> full(position)
         }
     }
-    state read(out_line: &mut [u8], position: u64, next: u64) -> LineReadResult {
+    machine read(out_line: &mut [u8], position: u64, next: u64) -> LineReadResult
+    requires position < out_line.len {
         let observed: ByteRead = block ConsoleNativeProvider::read_byte();
         transition observed {
-            ByteRead::Byte { value } -> store(out_line, position, next, value)
+            ByteRead::Byte { value } -> block store(out_line, position, next, value)
             ByteRead::Eof -> end(position)
         }
     }
-    state store(out_line: &mut [u8], position: u64, next: u64, value: i32) -> LineReadResult
-    requires value >= 0 && value <= 255
+    machine store(out_line: &mut [u8], position: u64, next: u64, value: i32) -> LineReadResult
+    requires position < out_line.len && value >= 0 && value <= 255
     {
         out_line[position] = value as u8;
         transition value == 10 {
             true -> complete(next)
-            false -> scan(out_line, next)
+            false -> block scan(out_line, next)
         }
     }
-    state full(count: u64) -> LineReadResult { LineReadResult::Full { count: count } }
-    state end(count: u64) -> LineReadResult { LineReadResult::EndOfInput { count: count } }
-    state complete(count: u64) -> LineReadResult { LineReadResult::LineComplete { count: count } }
+    machine full(count: u64) -> LineReadResult { LineReadResult::Full { count: count } }
+    machine end(count: u64) -> LineReadResult { LineReadResult::EndOfInput { count: count } }
+    machine complete(count: u64) -> LineReadResult { LineReadResult::LineComplete { count: count } }
 }
 
 // Friendly output is checked Omega code over the byte-level boundary leaf.
 // The writer belongs to this concrete provider closure and calls its byte leaf
 // directly; it does not receive or manufacture a separate service authority.
-// The private writer walks a borrowed byte view as one measured state
-// loop. Each guarded edge stages the head byte and tail slice; the loop state's
+// The private writer walks a borrowed byte view as one measured machine
+// cycle. Each guarded edge stages the head byte and tail slice; the helper's
 // body performs the byte effect only after that edge was selected.
 machine console_write_bytes(bytes: &[u8], newline: bool)
 terminates by bytes -> Slice::Length;
@@ -143,7 +144,8 @@ reaches
         false -> finish(newline)
     }
 
-    state emit(byte: u8, bytes: &[u8], newline: bool) {
+    machine emit(byte: u8, bytes: &[u8], newline: bool)
+    terminates by bytes -> Slice::Length; {
         let mut output: u8 = byte;
         ConsoleNativeProvider::write_byte(output as i32);
         transition bytes.len > 0 {
@@ -152,17 +154,17 @@ reaches
         }
     }
 
-    state finish(newline: bool) {
+    machine finish(newline: bool) {
         transition newline {
             true -> emit_newline(10)
             false -> done()
         }
     }
 
-    state emit_newline(byte: u8) {
+    machine emit_newline(byte: u8) {
         let mut output: u8 = byte;
         ConsoleNativeProvider::write_byte(output as i32);
     }
 
-    state done() { }
+    machine done() { }
 }

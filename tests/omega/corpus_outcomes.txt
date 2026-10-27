@@ -1879,8 +1879,12 @@ fail/build/authored_resolution_source_location rejected 22ms expected @a92f16431
 	machine `selected` is implemented twice for `local_unchecked` -- a target supplies exactly one implementation of a contract machine
 fail/build/behavior_exclusion_forged_protocol rejected 594ms expected @acc568b043eb
 	Build binding protocol requires source-issued designated product operands
-fail/build/boundary_acceptance_fabricated_activation rejected 268ms expected @a92f16431042
+fail/build/boundary_acceptance_fabricated_activation rejected 60ms expected @030cc694c7b9+wt
 	the compiler-owned Build activation cannot be copied into local `counterfeit`
+fail/build/boundary_acceptance_missing_subject rejected 803ms expected @030cc694c7b9+wt
+	boundary acceptance `Missing` does not resolve to one visible Product boundary subject
+fail/build/boundary_acceptance_wrong_kind rejected 799ms expected @030cc694c7b9+wt
+	boundary acceptance `Ordinary` does not resolve to one visible Product boundary subject
 fail/build/build_effects_undeclared rejected 148ms unexpected @a92f16431042
 	closed conformance `NativeConsole satisfies Console` member `write_line` does not identify one exact inherited overload; qualify the declaring trait and match the complete parameter/result-domain signature
 fail/build/build_fuel_exhausted rejected 2517ms expected @a92f16431042
@@ -2059,7 +2063,7 @@ fail/build/retained_domain_and_service_rows_invalid_index rejected 68ms expected
 	cannot prove scalar result domain for return from @const-qualification-INDEX-0 at statement 0: Below
 fail/build/retired_assumed_binding_receiver rejected 5ms expected @a92f16431042
 	tests/omega/fail/build/retired_assumed_binding_receiver/main.omg:2:36: receiver-style assumed binding is retired; use Build::assume_binding_contract<Required::operation, Supplied::operation>(builder)
-fail/build/retired_boundary_acceptance_receiver rejected 4ms expected @a92f16431042
+fail/build/retired_boundary_acceptance_receiver rejected 71ms expected @030cc694c7b9+wt
 	tests/omega/fail/build/retired_boundary_acceptance_receiver/main.omg:2:28: receiver-style boundary acceptance is retired; use Build::accept_boundary<Boundary>(builder)
 fail/build/retired_provider_selection_receiver rejected 5ms expected @a92f16431042
 	tests/omega/fail/build/retired_provider_selection_receiver/main.omg:2:28: receiver-style provider selection is retired; use Build::select_provider<Slot, Provider>(builder)
@@ -2073,6 +2077,8 @@ fail/build/retired_wire_compatibility_receiver rejected 4ms expected @a92f164310
 	tests/omega/fail/build/retired_wire_compatibility_receiver/main.omg:2:39: receiver-style wire compatibility is retired; use Build::require_wire_compatibility<Edge, Lineage, Local, Peer, Fact>(builder)
 fail/build/root_binding_foreign_helper_private_entry rejected 605ms expected @a92f16431042
 	root binding names `launch`, which is not a product declaration visible from this build source's package; borrowing Build does not grant the caller's product namespace
+fail/build/root_binding_forged_protocol rejected 654ms expected @030cc694c7b9+wt
+	Build binding protocol requires source-issued designated product operands
 fail/build/scoped_build_stops_before_unaccepted_effect rejected 3715ms expected @a92f16431042
 	restricted Build execution requires explicit consent; generated-source and final product findings are unavailable; pending request: RestrictedBuildRequest { operation: ScopedFilesystemExecution, read_grants: [RestrictedBuildGrant { root: SourceInventory, narrowed: true, captured: Some(BuildCapturedSourceInventory { entry_count: 5, file_bytes: 885, source_metadata_identity: BuildCanonicalSourceMetadataIdentity { policy_version: 1, source_content_commitment: [7, 52, 33, 12, 211, 241, 30, 234, 236, 20, 48, 27, 190, 202, 79, 150, 21, 254, 221, 38, 218, 29, 35, 57, 16, 127, 167, 233, 75, 193, 100, 114] } }) }], write_grants: [RestrictedBuildGrant { root: StagedOutput, narrowed: false, captured: None }], bounds: RestrictedBuildBounds { filesystem_sponsor_limits: Some(FilesystemSponsorLimits { maximum_entries: 4096, maximum_total_logical_bytes: 268435456, maximum_object_extent: 268435456 }), evaluation_sponsor_limits: None, required_outputs: [], artifact_only: false }, build_execution_profile: Some(MacosArm64), selected_target_profile: None }
 fail/build/service_audit_requires_boundary rejected 334ms expected @a92f16431042
@@ -4904,6 +4910,57 @@ fail/facts/applied_zero_establishment_through_parameter_unestablished rejected 2
 	machine `start` state `entry` statement 1: reading `value.<whole value>` crosses an open default-domain invariant window before data `Gate` is established: the zeroed representation is not yet a `Gate` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
 fail/facts/applied_zero_establishment_through_target_body_unestablished rejected 255ms expected @0360a23ad5f5+wt
 	machine `start` state `entry` statement 1: reading `value.<whole value>` crosses an open default-domain invariant window before data `Gate` is established: the zeroed representation is not yet a `Gate` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
+fail/facts/as_slice_views_generic_conflicting_backing_write_rejected rejected 2506ms expected @2a8584b4303a
+	statement 3 mutates `entries[0]` while local borrow `view` is still active (borrowed at statement 2; its last use is at statement 5)
+fail/facts/as_slice_views_generic_mismatched_const_argument_rejected rejected 700ms expected @2a8584b4303a
+	generic machine `whole_view` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
+fail/facts/as_slice_views_generic_narrowed_descriptor_rejected rejected 2506ms expected @2a8584b4303a
+	cannot prove requires contract for call require_four from main: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/as_slice_views_generic_offset_selector_rejected rejected 3069ms expected @2a8584b4303a
+	cannot prove requires contract for call require_four from main: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/as_slice_views_generic_root_rejected rejected 2898ms expected @2a8584b4303a
+	cannot prove requires contract for call require_four from main: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/as_slice_views_generic_runtime_value_as_const_rejected rejected 1111ms expected @2a8584b4303a
+	const parameter `Count` of `whole_view` cannot accept runtime-capable Value binder `Count`
+fail/facts/as_slice_views_generic_shadowed_extent_rejected rejected 2303ms expected @2a8584b4303a
+	cannot prove requires contract for call require_four from main: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/as_slice_views_generic_stale_extent_rejected rejected 2682ms expected @2a8584b4303a
+	cannot prove requires contract for call require_four from main: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/as_slice_views_generic_stored_reference_inner_bounds_rejected rejected 1632ms expected @2a8584b4303a
+	machine `main` state `entry` value call to `observe` violates required fact `owner < 2 && selected < 4`: the instantiated fact is structurally false (`1 < 2 && 4 < 4`)
+fail/facts/as_slice_views_generic_stored_reference_outer_bounds_rejected rejected 1348ms expected @2a8584b4303a
+	machine `main` state `entry` value call to `observe` violates required fact `owner < 2 && selected < 4`: the instantiated fact is structurally false (`2 < 2 && 2 < 4`)
+fail/facts/as_slice_views_generic_stored_reference_selectors_rejected rejected 2278ms expected @2a8584b4303a
+	cannot prove requires contract for call require_four from main: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/as_slice_views_generic_stored_reference_write_only_pointer_rejected rejected 1338ms expected @2a8584b4303a
+	machine `observe` state `entry` reads field `value` from write-only parameter `holders`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
+fail/facts/as_slice_views_generic_through_call_result_rejected rejected 2286ms expected @2a8584b4303a
+	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/as_slice_views_generic_through_const_name_rejected rejected 2253ms expected @2a8584b4303a
+	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/as_slice_views_generic_through_field_rejected rejected 2264ms expected @2a8584b4303a
+	cannot prove requires contract for call require_four from extent: holder.view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/as_slice_views_generic_through_local_rejected rejected 2251ms expected @2a8584b4303a
+	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/as_slice_views_generic_through_match_join_rejected rejected 2300ms expected @2a8584b4303a
+	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/as_slice_views_generic_through_other_machine_rejected rejected 2304ms expected @2a8584b4303a
+	cannot prove requires contract for call require_four from measure: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/as_slice_views_generic_through_other_state_rejected rejected 2310ms expected @2a8584b4303a
+	cannot prove requires contract for call require_four from measure: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/as_slice_views_generic_through_parameter_rejected rejected 2517ms expected @2a8584b4303a
+	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/as_slice_views_generic_through_target_body_rejected rejected 2443ms expected @2a8584b4303a
+	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/as_slice_views_generic_wrong_const_carrier_rejected rejected 688ms expected @2a8584b4303a
+	generic machine `whole_view` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
+fail/facts/as_slice_views_generic_wrong_extent_binder_rejected rejected 2178ms expected @2a8584b4303a
+	cannot prove ensures contract for exit from whole_view at statement 0: result.len == OtherCount
+	cannot prove requires contract for call require_four from main: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove ensures contract for exit from whole_view$specialized$8f8db9abed4a2576$0 at statement 0: result.len == 3
 fail/facts/as_slice_views_through_call_result_short_extent rejected 2704ms expected @a92f16431042
 	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/as_slice_views_through_const_name_short_extent rejected 2714ms expected @a92f16431042
@@ -7085,23 +7142,35 @@ fail/facts/crash_entry_signed_zero_through_parameter_rejected rejected 6776ms ex
 	call from `read_zero` to `maybe_nonzero` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/crash_entry_signed_zero_through_target_body_rejected rejected 7002ms expected @a92f16431042
 	call from `read_zero` to `forward` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/data_where_standing_through_call_result_rejected rejected 723ms expected @a92f16431042
+fail/facts/data_where_standing_const_coupled_false rejected 464ms expected @06b136c1a61f
+	constant `NAMED` is invalid: data constant `Counter` violates its default-domain predicate
+fail/facts/data_where_standing_const_missing_field_shadow rejected 444ms expected @06b136c1a61f
+	constant `NAMED` is invalid: missing const field `ceiling`
+fail/facts/data_where_standing_const_missing_member_shadow rejected 443ms expected @06b136c1a61f
+	constant `NAMED` is invalid: data constant `Counter` requires declaration-site default-domain proof checking
+fail/facts/data_where_standing_const_nested_false rejected 459ms expected @06b136c1a61f
+	constant `NAMED` is invalid: data constant `Counter` violates its default-domain predicate
+fail/facts/data_where_standing_const_scalar_false rejected 507ms expected @06b136c1a61f
+	constant `NAMED` is invalid: data constant `Counter` violates its default-domain predicate
+fail/facts/data_where_standing_root_rejected rejected 978ms expected @06b136c1a61f
+	exact arithmetic in machine `run` state `entry` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_through_call_result_rejected rejected 1050ms expected @06b136c1a61f
 	exact arithmetic in machine `compute` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_through_const_name_rejected rejected 759ms expected @a92f16431042
+fail/facts/data_where_standing_through_const_name_rejected rejected 1612ms expected @06b136c1a61f
 	exact arithmetic in machine `compute` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_through_field_rejected rejected 757ms expected @a92f16431042
+fail/facts/data_where_standing_through_field_rejected rejected 1061ms expected @06b136c1a61f
 	exact arithmetic in machine `compute` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_through_local_rejected rejected 830ms expected @a92f16431042
+fail/facts/data_where_standing_through_local_rejected rejected 1268ms expected @06b136c1a61f
 	exact arithmetic in machine `compute` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_through_match_join_rejected rejected 847ms expected @a92f16431042
+fail/facts/data_where_standing_through_match_join_rejected rejected 1273ms expected @06b136c1a61f
 	exact arithmetic in machine `compute` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_through_other_machine_rejected rejected 782ms expected @a92f16431042
+fail/facts/data_where_standing_through_other_machine_rejected rejected 1421ms expected @06b136c1a61f
 	exact arithmetic in machine `add` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_through_other_state_rejected rejected 765ms expected @a92f16431042
-	exact arithmetic in machine `compute` state `next` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_through_parameter_rejected rejected 1130ms expected @a92f16431042
+fail/facts/data_where_standing_through_other_state_rejected rejected 1418ms expected @06b136c1a61f
+	exact arithmetic in machine `next` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_through_parameter_rejected rejected 1436ms expected @06b136c1a61f
 	exact arithmetic in machine `compute` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_through_target_body_rejected rejected 808ms expected @a92f16431042
+fail/facts/data_where_standing_through_target_body_rejected rejected 1417ms expected @06b136c1a61f
 	exact arithmetic in machine `compute` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `compute` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `compute` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
@@ -12834,23 +12903,25 @@ fail/facts/saved_byte_predicate_through_target_body rejected 2692ms expected @a9
 	cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_case_predicate_through_call_result_rejected rejected 1364ms expected @ec25f66f10a3
-	machine `probe` state `entry` statement 7: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
-fail/facts/saved_case_predicate_through_const_name_rejected rejected 1511ms expected @ec25f66f10a3
-	machine `probe` state `entry` statement 7: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
-fail/facts/saved_case_predicate_through_field_rejected rejected 1305ms expected @ec25f66f10a3
-	machine `probe` state `entry` statement 6: cannot prove selected case for payload access `holder.choice.amount`: captured source `holder.choice::Full.amount` has no live case evidence
-fail/facts/saved_case_predicate_through_local_rejected rejected 1284ms expected @ec25f66f10a3
-	machine `probe` state `entry` statement 7: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
-fail/facts/saved_case_predicate_through_match_join_rejected rejected 1287ms expected @ec25f66f10a3
-	machine `probe` state `entry` statement 7: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
-fail/facts/saved_case_predicate_through_other_machine_rejected rejected 1165ms expected @ec25f66f10a3
+fail/facts/saved_case_predicate_inferred_reference_rejected rejected 5186ms expected @2f6555324361
+	machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
+fail/facts/saved_case_predicate_through_call_result_rejected rejected 5028ms expected @2f6555324361
+	machine `probe` state `entry` statement 6: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
+fail/facts/saved_case_predicate_through_const_name_rejected rejected 17078ms expected @2f6555324361
+	machine `probe` state `entry` statement 6: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
+fail/facts/saved_case_predicate_through_field_rejected rejected 17076ms expected @2f6555324361
+	machine `probe` state `entry` statement 5: cannot prove selected case for payload access `holder.choice.amount`: captured source `holder.choice::Full.amount` has no live case evidence
+fail/facts/saved_case_predicate_through_local_rejected rejected 7034ms expected @2f6555324361
+	machine `probe` state `entry` statement 6: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
+fail/facts/saved_case_predicate_through_match_join_rejected rejected 16887ms expected @2f6555324361
+	machine `probe` state `entry` statement 6: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
+fail/facts/saved_case_predicate_through_other_machine_rejected rejected 16833ms expected @2f6555324361
 	machine `quotient` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
-fail/facts/saved_case_predicate_through_other_state_rejected rejected 1146ms expected @ec25f66f10a3
+fail/facts/saved_case_predicate_through_other_state_rejected rejected 2956ms expected @2f6555324361
 	machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
-fail/facts/saved_case_predicate_through_parameter_rejected rejected 1117ms expected @ec25f66f10a3
+fail/facts/saved_case_predicate_through_parameter_rejected rejected 3090ms expected @2f6555324361
 	machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
-fail/facts/saved_case_predicate_through_target_body_rejected rejected 1089ms expected @ec25f66f10a3
+fail/facts/saved_case_predicate_through_target_body_rejected rejected 2918ms expected @2f6555324361
 	machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
 	machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
 	machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
@@ -18539,6 +18610,15 @@ fail/generics/mixed_value_case_payload_wrong_carrier rejected 955ms expected @a9
 	construction of `Tagged` field `value` stores a boolean into a `u64` field, which holds a numeric value
 fail/generics/mixed_value_nullary_case_false rejected 927ms expected @a92f16431042
 	data `Tagged` case `Empty` literal violates the case constraint: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/generics/named_reference_equation_access rejected 664ms expected @2f6555324361
+	generic machine `capture` where type equation has conflicting reference access
+fail/generics/named_reference_equation_pointee rejected 534ms expected @2f6555324361
+	generic machine `capture` where type equation has conflicting element types
+fail/generics/named_reference_equation_undeclared_region rejected 460ms expected @2f6555324361
+	generic machine `capture` where type equation reference region is not a declared invocation lifetime
+fail/generics/named_reference_equation_wrong_result_source rejected 2527ms expected @2f6555324361
+	machine `capture$specialized$d77ed48b9b87917e$0` returns a view borrowing input `other`, which is not permitted by the declared result lifetime relation
+	machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
 fail/generics/named_value_parameter_mismatch rejected 656ms expected @a92f16431042
 	machine `wrong` state `finish` terminal expression expects `Output`, got `named value`
 fail/generics/nominal_binder_structural_coincidence_rejected rejected 594ms expected @a92f16431042
@@ -22748,6 +22828,7 @@ pass/build/described_runner_entry_right_exit checked 6369ms check-target:macos_a
 pass/build/discarded_provider_selection_exit rejected 5857ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
 	build selects provider `omega_language_std::ConsoleNativeProvider` for slot `Console`, but candidate `<selected target>::ConsoleNativeProvider::satisfies::Console` is partial (4/6) and cannot be selected
 pass/build/entry_schema_same_leaf_exit checked 1937ms check-target:macos_arm64 @a92f16431042
+pass/build/executed_exclusion_values_exit checked 3300ms check-target:macos_arm64 @030cc694c7b9+wt
 pass/build/explicit_lifetime_entry_context_exit checked 1898ms check-target:macos_arm64 @a92f16431042
 pass/build/freestanding_unselected_completion checked 5583ms @a92f16431042
 pass/build/generated_source_selects_authored checked 4405ms published:files/generated.omg @a92f16431042
@@ -23665,14 +23746,14 @@ pass/core/content_transform_ended_parent_loan checked 1783ms @a92f16431042
 pass/core/content_transform_inactive_payload checked 1762ms @a92f16431042
 pass/core/content_transform_predicate_array checked 1763ms @a92f16431042
 pass/core/extent_core_surface checked 1771ms @a92f16431042
-pass/core/extent_root_provider_adapter checked 2539ms check-target:macos_arm64 @a92f16431042
+pass/core/extent_root_provider_adapter checked 3666ms check-target:macos_arm64 @030cc694c7b9+wt
 pass/core/generic_content_distinct_applications checked 3222ms check-target:macos_arm64 @a92f16431042
 pass/core/generic_content_static_callback checked 3176ms check-target:macos_arm64 @a92f16431042
 pass/core/interrupt_obligations_surface checked 1628ms @a92f16431042
 pass/core/interval_content_length_partition_exit checked 3256ms check-target:macos_arm64 @a92f16431042
 pass/core/interval_content_partition_exit checked 3334ms check-target:macos_arm64 @a92f16431042
 pass/core/materialized_owned_entry_return checked 12082ms terminal-runtime.update:unrequested terminal-runtime.pack:unrequested terminal-inspections:match @a92f16431042
-pass/core/named_extent_root_provider_adapter checked 2201ms @a92f16431042
+pass/core/named_extent_root_provider_adapter checked 2665ms @030cc694c7b9+wt
 pass/core/numeric_cross_signed_conversion_surface checked 7077ms check-target:macos_arm64 @a92f16431042
 pass/core/numeric_signed_narrowing_policies checked 25780ms check-target:macos_arm64 @a92f16431042
 pass/core/numeric_signed_to_unsigned_policies checked 23639ms check-target:macos_arm64 @a92f16431042
@@ -24373,6 +24454,19 @@ pass/facts/applied_zero_establishment_through_other_machine_exit checked 654ms c
 pass/facts/applied_zero_establishment_through_other_state_exit checked 652ms check-target:macos_arm64 @0360a23ad5f5+wt
 pass/facts/applied_zero_establishment_through_parameter_exit checked 654ms check-target:macos_arm64 @0360a23ad5f5+wt
 pass/facts/applied_zero_establishment_through_target_body_exit checked 734ms check-target:macos_arm64 @0360a23ad5f5+wt
+pass/facts/as_slice_views_generic_offset_selector_exit checked 3907ms check-target:macos_arm64 @2a8584b4303a
+pass/facts/as_slice_views_generic_root_exit checked 3901ms check-target:macos_arm64 @2a8584b4303a
+pass/facts/as_slice_views_generic_shadowed_extent_exit checked 3890ms check-target:macos_arm64 @2a8584b4303a
+pass/facts/as_slice_views_generic_stored_reference_selectors_exit checked 3904ms check-target:macos_arm64 @2a8584b4303a
+pass/facts/as_slice_views_generic_through_call_result_exit checked 3486ms check-target:macos_arm64 @2a8584b4303a
+pass/facts/as_slice_views_generic_through_const_name_exit checked 3498ms check-target:macos_arm64 @2a8584b4303a
+pass/facts/as_slice_views_generic_through_field_exit checked 3467ms check-target:macos_arm64 @2a8584b4303a
+pass/facts/as_slice_views_generic_through_local_exit checked 3443ms check-target:macos_arm64 @2a8584b4303a
+pass/facts/as_slice_views_generic_through_match_join_exit checked 3152ms check-target:macos_arm64 @2a8584b4303a
+pass/facts/as_slice_views_generic_through_other_machine_exit checked 3131ms check-target:macos_arm64 @2a8584b4303a
+pass/facts/as_slice_views_generic_through_other_state_exit checked 3110ms check-target:macos_arm64 @2a8584b4303a
+pass/facts/as_slice_views_generic_through_parameter_exit checked 3090ms check-target:macos_arm64 @2a8584b4303a
+pass/facts/as_slice_views_generic_through_target_body_exit checked 3104ms check-target:macos_arm64 @2a8584b4303a
 pass/facts/as_slice_views_through_call_result_exit checked 3228ms check-target:macos_arm64 @a92f16431042
 pass/facts/as_slice_views_through_const_name_exit checked 3265ms check-target:macos_arm64 @a92f16431042
 pass/facts/as_slice_views_through_field_exit checked 3244ms check-target:macos_arm64 @a92f16431042
@@ -25073,15 +25167,18 @@ pass/facts/crash_entry_signed_zero_through_other_machine_exit checked 11959ms ch
 pass/facts/crash_entry_signed_zero_through_other_state_exit checked 11788ms check-target:macos_arm64 @a92f16431042
 pass/facts/crash_entry_signed_zero_through_parameter_exit checked 8173ms check-target:macos_arm64 @a92f16431042
 pass/facts/crash_entry_signed_zero_through_target_body_exit checked 7322ms check-target:macos_arm64 @a92f16431042
-pass/facts/data_where_standing_through_call_result_exit checked 3188ms check-target:macos_arm64 @a92f16431042
-pass/facts/data_where_standing_through_const_name_exit checked 2966ms check-target:macos_arm64 @a92f16431042
-pass/facts/data_where_standing_through_field_exit checked 2513ms check-target:macos_arm64 @a92f16431042
-pass/facts/data_where_standing_through_local_exit checked 2312ms check-target:macos_arm64 @a92f16431042
-pass/facts/data_where_standing_through_match_join_exit checked 2313ms check-target:macos_arm64 @a92f16431042
-pass/facts/data_where_standing_through_other_machine_exit checked 3027ms check-target:macos_arm64 @a92f16431042
-pass/facts/data_where_standing_through_other_state_exit checked 3551ms check-target:macos_arm64 @a92f16431042
-pass/facts/data_where_standing_through_parameter_exit checked 3056ms check-target:macos_arm64 @a92f16431042
-pass/facts/data_where_standing_through_target_body_exit checked 3040ms check-target:macos_arm64 @a92f16431042
+pass/facts/data_where_standing_const_coupled_const checked 2363ms check-target:macos_arm64 @06b136c1a61f
+pass/facts/data_where_standing_const_nested_const checked 2363ms check-target:macos_arm64 @06b136c1a61f
+pass/facts/data_where_standing_root_exit checked 2704ms check-target:macos_arm64 @06b136c1a61f
+pass/facts/data_where_standing_through_call_result_exit checked 2687ms check-target:macos_arm64 @06b136c1a61f
+pass/facts/data_where_standing_through_const_name_exit checked 9769ms check-target:macos_arm64 @06b136c1a61f
+pass/facts/data_where_standing_through_field_exit checked 2661ms check-target:macos_arm64 @06b136c1a61f
+pass/facts/data_where_standing_through_local_exit checked 1721ms check-target:macos_arm64 @06b136c1a61f
+pass/facts/data_where_standing_through_match_join_exit checked 1496ms check-target:macos_arm64 @06b136c1a61f
+pass/facts/data_where_standing_through_other_machine_exit checked 1749ms check-target:macos_arm64 @06b136c1a61f
+pass/facts/data_where_standing_through_other_state_exit checked 2275ms check-target:macos_arm64 @06b136c1a61f
+pass/facts/data_where_standing_through_parameter_exit checked 2449ms check-target:macos_arm64 @06b136c1a61f
+pass/facts/data_where_standing_through_target_body_exit checked 2306ms check-target:macos_arm64 @06b136c1a61f
 pass/facts/dependent_subtract_through_call_result_exit checked 2838ms check-target:macos_arm64 @a92f16431042
 pass/facts/dependent_subtract_through_const_name_exit checked 2817ms check-target:macos_arm64 @a92f16431042
 pass/facts/dependent_subtract_through_field_exit checked 2425ms check-target:macos_arm64 @a92f16431042
@@ -27406,15 +27503,16 @@ pass/facts/saved_byte_predicate_through_other_machine checked 2840ms check-targe
 pass/facts/saved_byte_predicate_through_other_state checked 2289ms check-target:macos_arm64 @a92f16431042
 pass/facts/saved_byte_predicate_through_parameter checked 2395ms check-target:macos_arm64 @a92f16431042
 pass/facts/saved_byte_predicate_through_target_body checked 3271ms check-target:macos_arm64 @a92f16431042
-pass/facts/saved_case_predicate_through_call_result_exit checked 1557ms check-target:macos_arm64 @ec25f66f10a3
-pass/facts/saved_case_predicate_through_const_name_exit checked 1557ms check-target:macos_arm64 @ec25f66f10a3
-pass/facts/saved_case_predicate_through_field_exit checked 1549ms check-target:macos_arm64 @ec25f66f10a3
-pass/facts/saved_case_predicate_through_local_exit checked 1548ms check-target:macos_arm64 @ec25f66f10a3
-pass/facts/saved_case_predicate_through_match_join_exit checked 1548ms check-target:macos_arm64 @ec25f66f10a3
-pass/facts/saved_case_predicate_through_other_machine_exit checked 1548ms check-target:macos_arm64 @ec25f66f10a3
-pass/facts/saved_case_predicate_through_other_state_exit checked 1549ms check-target:macos_arm64 @ec25f66f10a3
-pass/facts/saved_case_predicate_through_parameter_exit checked 1549ms check-target:macos_arm64 @ec25f66f10a3
-pass/facts/saved_case_predicate_through_target_body_exit checked 1551ms check-target:macos_arm64 @ec25f66f10a3
+pass/facts/saved_case_predicate_inferred_reference_exit checked 5058ms check-target:macos_arm64 @2f6555324361
+pass/facts/saved_case_predicate_through_call_result_exit checked 4539ms check-target:macos_arm64 @2f6555324361
+pass/facts/saved_case_predicate_through_const_name_exit checked 5031ms check-target:macos_arm64 @2f6555324361
+pass/facts/saved_case_predicate_through_field_exit checked 4933ms check-target:macos_arm64 @2f6555324361
+pass/facts/saved_case_predicate_through_local_exit checked 5664ms check-target:macos_arm64 @2f6555324361
+pass/facts/saved_case_predicate_through_match_join_exit checked 6161ms check-target:macos_arm64 @2f6555324361
+pass/facts/saved_case_predicate_through_other_machine_exit checked 5867ms check-target:macos_arm64 @2f6555324361
+pass/facts/saved_case_predicate_through_other_state_exit checked 5636ms check-target:macos_arm64 @2f6555324361
+pass/facts/saved_case_predicate_through_parameter_exit checked 5442ms check-target:macos_arm64 @2f6555324361
+pass/facts/saved_case_predicate_through_target_body_exit checked 5654ms check-target:macos_arm64 @2f6555324361
 pass/facts/saved_observation_snapshot_through_call_result_exit checked 5728ms check-target:macos_arm64 @a92f16431042
 pass/facts/saved_observation_snapshot_through_const_name_exit checked 4328ms check-target:macos_arm64 @a92f16431042
 pass/facts/saved_observation_snapshot_through_field_exit checked 6163ms check-target:macos_arm64 @a92f16431042
@@ -29708,6 +29806,8 @@ pass/generics/machine_indexed_stream_dispatch checked 2991ms @a92f16431042
 pass/generics/machine_type_equations checked 1358ms @a92f16431042
 pass/generics/mixed_value_case_constructor_checked checked 1994ms check-target:macos_arm64 @a92f16431042
 pass/generics/mixed_value_nullary_case_checked checked 1992ms check-target:macos_arm64 @a92f16431042
+pass/generics/named_reference_equation_reversed_telescope_order_exit checked 5940ms check-target:macos_arm64 @2f6555324361
+pass/generics/named_reference_equation_telescope_order_exit checked 4955ms check-target:macos_arm64 @2f6555324361
 pass/generics/nominal_machine_parameter_satisfaction_compile checked 1397ms @a92f16431042
 pass/generics/omitted_data_binder_range_equation checked 5964ms check-target:macos_arm64 @a92f16431042
 pass/generics/omitted_fixed_domain_array_equation checked 2092ms @a92f16431042

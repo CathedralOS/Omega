@@ -120,7 +120,7 @@ pub(super) fn validate(
         for target in transition.targets() {
             if let TransitionTargetNode::Value(expression) =
                 program.statement_table.transition_target(target)
-                && !crate::machine_calls::calls::call_completes_unit_state(
+                && !crate::machine_calls::calls::unit_statement_call_is_admitted(
                     program,
                     machine,
                     state,

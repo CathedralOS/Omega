@@ -7,9 +7,9 @@
 //! invocation whose normal result completes this machine. Two placements
 //! exist, and neither bypasses the ordinary call plan:
 //!
-//! - An unconditional final arm (`transition { _ -> self.finish() }`) is the
+//! - An unconditional final arm (`transition { _ -> finish(value) }`) is the
 //!   state's last operation. The shared statement sequence plans it through
-//!   `call_occurrences::terminal_call`, exactly as a single-state body
+//!   `call_occurrences::terminal_invocation`, exactly as a single-state body
 //!   does, so its occurrence counts against the state's call roster and its
 //!   value result binds as the state's returned value; `completion` then
 //!   completes the state with that result, whatever its kind.
@@ -42,7 +42,7 @@
 use super::{
     CheckFacts, CheckedComposedUnitControlTerminatorPlan, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
-    ScalarCalleeClosure, TransitionExit, TransitionTargetNode, control,
+    ScalarCalleeClosure, TransitionExit, control,
 };
 use crate::execution::terminal_unit::calls::{ExpectedCallValueResult, build_call_operation};
 use crate::execution::terminal_unit::control::{
@@ -66,8 +66,12 @@ pub(super) fn invoked_callable(
     {
         return None;
     }
-    let target = control::terminal_target_symbol(program, transition.target)?;
-    validation::terminal_callable_target(program, machine, target).map(|(target, _)| target)
+    let invocation = validation::completing_transition_invocation(program, transition.target)?;
+    // The static binder records source reach custody after specialization.
+    // Invocation classification follows the resolved target, not that retained
+    // provenance marker. Unresolved binders still have no executable call plan.
+    validation::terminal_callable_target(program, machine, invocation.target)
+        .map(|(target, _)| target)
 }
 
 /// Only a destination outside the retained graph needs a call operation.
@@ -79,8 +83,10 @@ pub(super) fn external_callable(
     fused: &super::FusedStates<'_>,
     transition: &typed_trees::statement::TableTransition,
 ) -> Option<symbols::SymbolHandle> {
-    invoked_callable(program, machine, transition)
-        .filter(|target| super::fused_target_index(program, fused, *target).is_none())
+    let target = invoked_callable(program, machine, transition)?;
+    super::fused_target_index(program, fused, target)
+        .is_none()
+        .then_some(target)
 }
 
 /// Complete a state whose unconditional final arm invokes a machine outside
@@ -227,26 +233,14 @@ pub(super) fn arm_call(
     let mut occurrences = calls.iter().filter(|call| {
         call.statement_index == statement_ordinal as usize
             && !facts.flow.control.is_retired(state.symbol, call)
-            && match (
-                program.statement_table.transition_target(transition.target),
-                validation::find_call_site(
-                    program,
-                    machine.symbol,
-                    state.symbol,
-                    call.statement_index,
-                    call.call_ordinal,
-                ),
-            ) {
-                (
-                    TransitionTargetNode::Named { .. },
-                    Some(validation::CallSite::TransitionNamed { .. }),
-                ) => true,
-                (
-                    TransitionTargetNode::Value(expected),
-                    Some(validation::CallSite::Expression { expression, .. }),
-                ) => *expected == expression,
-                _ => false,
-            }
+            && validation::find_call_site(
+                program,
+                machine.symbol,
+                state.symbol,
+                call.statement_index,
+                call.call_ordinal,
+            )
+            .is_some_and(|site| site.completes_transition(program, transition.target))
             && validation::transition_call_target(
                 program,
                 machine,

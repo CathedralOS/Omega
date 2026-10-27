@@ -4,9 +4,6 @@
 //! contract. Witness reconstruction, closed-region observation, and exhaustive
 //! operation rewriting descend into named leaves.
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
-use optimization_core::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationSafetyClass,
-};
 use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate};
 
 mod observation;
@@ -20,28 +17,10 @@ pub(crate) fn validate_redundant_block_parameter_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
-    validate_candidate_contract(input, candidate)?;
-    validation::validate_redundant_block_parameter_candidate(input, candidate)
-}
-
-fn validate_candidate_contract(
-    input: &PsiOptimizationUnit,
-    candidate: &PsiRewriteCandidate,
-) -> Result<(), OptimizationUnitValidationError> {
-    super::contract::validate(
+    super::contract::admit(
         input,
         candidate,
-        b"omega.psi-rule.redundant-block-parameter.v1",
-        AnalysisSet::new([
-            AnalysisKind::ControlFlowGraph,
-            AnalysisKind::Dominators,
-            AnalysisKind::UseDefinition,
-        ]),
-        AnalysisInvalidationSet::new([AnalysisKind::UseDefinition, AnalysisKind::EffectSummaries]),
-        OptimizationSafetyClass::StructuralIdentity,
+        &super::contract::REDUNDANT_BLOCK_PARAMETER,
     )?;
-    if candidate.predicted_cost_delta() != -1 {
-        return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
-    }
-    Ok(())
+    validation::validate_redundant_block_parameter_candidate(input, candidate)
 }

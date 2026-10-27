@@ -28,6 +28,13 @@ pub(super) fn admit(
             &computed.declared_product_selections,
             &computed.product_selection_requests,
         )?;
+    let grants = trust_model::collect_product_root_grants(
+        typed,
+        computed.selected_build_machine_symbol,
+        &computed.declared_product_selections,
+        &computed.product_selection_requests,
+    )?;
+    computed.config.grants = grants;
     computed.config.opaque_representation_selections = representations;
     computed.config.provider_selections = providers;
     additional_declarations::admit(typed, computed)?;

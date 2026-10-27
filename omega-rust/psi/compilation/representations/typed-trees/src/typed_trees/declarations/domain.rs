@@ -282,35 +282,12 @@ fn closed_domain_argument_identity(
                 "indexed-domain constant differs from its selected declaration value",
             ));
         }
-        if let Some(language_semantics::const_value::DecodedCanonicalConstValue::Integer {
-            value,
-            ..
-        }) = value.decode_encoding()
-        {
-            return Ok(format!("integer:{expected}:{value}"));
-        }
-        return Ok(format!(
-            "const:{}:{}:{}",
-            value.type_name,
-            value.encoding.len(),
-            value.encoding
-        ));
+        return canonical_domain_const_identity(&value, expected);
     }
     if let Some(value) =
         language_semantics::const_value::CanonicalConstValue::from_atom(name.as_str())
     {
-        if value.type_name != expected {
-            return Err(Diagnostic::error(format!(
-                "indexed-domain argument has canonical type `{}`, expected `{expected}`",
-                value.type_name
-            )));
-        }
-        return Ok(format!(
-            "const:{}:{}:{}",
-            value.type_name,
-            value.encoding.len(),
-            value.encoding
-        ));
+        return canonical_domain_const_identity(&value, expected);
     }
     if name.as_str().parse::<i128>().is_ok() {
         return Ok(format!("integer:{expected}:{}", name.as_str()));
@@ -680,4 +657,31 @@ pub fn index_argument_is_closed(
     };
     crate::references::visit_type_reference(program, &mut closure, reference);
     !closure.open
+}
+
+/// Names and literal atoms denote the same admitted value in a domain index.
+/// Carrier admission remains exact; spelling and declaration identity do not
+/// distinguish equal values of that carrier.
+fn canonical_domain_const_identity(
+    value: &language_semantics::const_value::CanonicalConstValue,
+    expected: &str,
+) -> Result<String, Diagnostic> {
+    if value.type_name != expected {
+        return Err(Diagnostic::error(format!(
+            "indexed-domain argument has canonical type `{}`, expected `{expected}`",
+            value.type_name
+        )));
+    }
+    if let Some(language_semantics::const_value::DecodedCanonicalConstValue::Integer {
+        value,
+        ..
+    }) = value.decode_encoding()
+    {
+        return Ok(format!("integer:{expected}:{value}"));
+    }
+    Ok(format!(
+        "const:{expected}:{}:{}",
+        value.encoding.len(),
+        value.encoding
+    ))
 }

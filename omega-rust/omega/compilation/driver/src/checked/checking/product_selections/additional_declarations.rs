@@ -13,8 +13,7 @@ use typed_trees::TypedTrees;
 fn supported(operation: BuildOperation) -> bool {
     matches!(
         operation,
-        BuildOperation::BoundaryAcceptance
-            | BuildOperation::ServiceAudit
+        BuildOperation::ServiceAudit
             | BuildOperation::AssumedBindingContract
             | BuildOperation::WireCompatibilityRequest
     )
@@ -62,7 +61,6 @@ pub(super) fn admit(
             }
         }
     }
-    let mut grants = Vec::<trust_model::AuthoredRootGrant>::new();
     let mut audits = Vec::<ServiceAuditRegistration>::new();
     let mut assumed = Vec::new();
     let mut wire = Vec::<language_semantics::wire::WireCompatibilityDemand>::new();
@@ -91,23 +89,6 @@ pub(super) fn admit(
         .map_err(|reason| vec![Diagnostic::error(reason).with_source_span(request.source_span)])?;
         let subject = operand(typed, request, 0).map_err(|error| vec![error])?;
         match request.operation {
-            BuildOperation::BoundaryAcceptance => {
-                let selector = if let Some(declaration) = typed.trait_definition_by_symbol(subject)
-                {
-                    typed.trait_declaration_path(declaration)
-                } else {
-                    typed
-                        .normalized_hermetic_symbol_identity(subject)
-                        .map_err(|reason| vec![Diagnostic::error(reason)])?
-                };
-                if !grants.iter().any(|grant| grant.selector == selector) {
-                    grants.push(trust_model::AuthoredRootGrant {
-                        selector,
-                        selecting_machine: author,
-                        source_span: request.source_span,
-                    });
-                }
-            }
             BuildOperation::ServiceAudit => {
                 let declaration = typed
                     .trait_definition_by_symbol(subject)
@@ -189,7 +170,6 @@ pub(super) fn admit(
             }
         }
     }
-    computed.config.grants = grants;
     computed.config.service_audits = audits;
     computed.config.assumed_bindings = assumed;
     computed.config.wire_compatibility_demands = wire;

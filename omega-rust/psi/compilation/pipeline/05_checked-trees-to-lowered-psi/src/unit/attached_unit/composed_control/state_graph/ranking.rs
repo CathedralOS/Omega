@@ -37,15 +37,47 @@ use terminal_psi::{
     TerminalNaturalRankEdge,
 };
 
-/// A machine with a termination witness needs its ranks on the graph: stage
-/// 04's fused branch can publish none, and this route then has no certificate
-/// to emit.
+/// Retain every observation required by the exact admitted source body.
+/// A terminating wrapper can have no local cycle: its terminating callees
+/// own their own ranks. An authored witness alone therefore does not imply
+/// that this graph must contain a rank. Fused bodies retain their own judgment
+/// and each required cyclic-state observation, not just the dispatch owner's.
 pub(super) fn require_witness_ranks(
-    machine: &checked_trees::machine::Machine,
+    checked: &checked_trees::CheckedTrees,
     plan: &CheckedComposedUnitControlMachinePlan,
 ) -> Result<(), LoweringError> {
-    if plan.natural_ranks.is_empty() && machine.termination_plan.implementation_witness.is_some() {
-        return unsupported("Unit graph ranking certificate is not retained");
+    let arrivals = &checked.facts.termination.rank_arrivals;
+    for state in &plan.states {
+        let (owner, _) = crate::declarations::state_declaration(checked, state.state)?;
+        if owner.termination_plan.implementation_witness.is_none() {
+            continue;
+        }
+        let judgment = arrivals
+            .judgment_for_body(owner.symbol, owner.states)
+            .ok_or(LoweringError::Unsupported(
+                "Unit graph lost its exact termination judgment",
+            ))?;
+        if !judgment.local_terminates {
+            return unsupported("Unit graph has no admitted local termination judgment");
+        }
+        let observations =
+            arrivals
+                .observations
+                .span(judgment.observations)
+                .ok_or(LoweringError::Unsupported(
+                    "Unit graph lost its required rank observations",
+                ))?;
+        for required in observations.iter().filter(|rank| rank.state == state.state) {
+            if !plan.natural_ranks.iter().any(|rank| {
+                rank.state == required.state
+                    && rank.parameter == required.parameter
+                    && rank.parameter_position == required.parameter_position
+                    && rank.measure == required.measure
+                    && rank.observation.is_valid()
+            }) {
+                return unsupported("Unit graph ranking certificate is not retained");
+            }
+        }
     }
     Ok(())
 }

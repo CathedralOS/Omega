@@ -55,7 +55,7 @@ impl CallOccurrenceLedger {
     }
 }
 
-/// An unconditional named machine invocation completes this Unit body after
+/// An unconditional machine invocation completes this body after
 /// its ordinary call operation. Internal state destinations remain control
 /// edges; guarded invocations must not be hoisted into this linear sequence.
 /// Return the authored identity to join captured occurrences; the call builder
@@ -66,7 +66,7 @@ mod traced;
 pub(in crate::execution::terminal_unit) use collecting::call_owns_statement_computations;
 pub(in crate::execution::terminal_unit) use traced::outer_calls_in_prefix_traced;
 
-pub(in crate::execution::terminal_unit) fn terminal_call(
+pub(in crate::execution::terminal_unit) fn terminal_invocation(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -99,8 +99,17 @@ pub(in crate::execution::terminal_unit) fn terminal_call(
     {
         return None;
     }
-    let target = terminal_target_symbol(program, transition.target)?;
-    let (callable, return_type) = validation::terminal_callable_target(program, machine, target)?;
+    let invocation = validation::completing_transition_invocation(program, transition.target)?;
+    // The invocation selects the callee as its machine or as its entry
+    // state (a body-only machine resolves to the state itself); the flow
+    // call facts name the entry state either way, so the terminal call is
+    // identified by that resolved callable, not by the authored spelling.
+    let (callable, return_type) =
+        validation::terminal_callable_target(program, machine, invocation.target)?;
+    // Result custody belongs to the shared sequence: a retained value root
+    // owns its call computation, while an invocation without that root forwards
+    // its ordinary bound result. Unit has no value root. Classify every result
+    // here; the sequence schedules exactly one of those completion owners.
     (program.normalized_type_identity(return_type)
         == program.normalized_type_identity(state.return_type))
     .then_some(callable)
@@ -216,24 +225,6 @@ pub(in crate::execution::terminal_unit) fn outer_calls_traced<'a>(
     )
 }
 
-/// The retained callable of one exact terminal invocation, independently of
-/// its source syntax. Operands still belong to their ordinary call occurrence.
-pub(in crate::execution::terminal_unit) fn terminal_target_symbol(
-    program: &dyn validation::CheckingInput,
-    target: typed_trees::statement::TransitionTargetHandle,
-) -> Option<SymbolHandle> {
-    use typed_trees::statement::TransitionTargetNode;
-    match program.statement_table.transition_target(target) {
-        TransitionTargetNode::Named { path, .. } => Some(path.symbol),
-        TransitionTargetNode::Value(expression) => program
-            .expression_table
-            .call_node(*expression)
-            .map(|call| validation::call_target_symbol(program, call)),
-        TransitionTargetNode::Terminal => None,
-    }
-    .filter(|symbol| symbol.is_valid())
-}
-
 /// Authenticate the outer invocation of an unconditional terminal call. Nested
 /// operands can share its declaration but never inherit its control position.
 pub(in crate::execution::terminal_unit) fn is_terminal_call_occurrence(
@@ -242,7 +233,7 @@ pub(in crate::execution::terminal_unit) fn is_terminal_call_occurrence(
     state: &typed_trees::state::State,
     call: &checked_trees::FlowCallFact,
 ) -> bool {
-    let Some(expected) = terminal_call(program, machine, state, call.statement_index) else {
+    let Some(expected) = terminal_invocation(program, machine, state, call.statement_index) else {
         return false;
     };
     if validation::terminal_callable_target(program, machine, call.target_symbol)
@@ -257,24 +248,12 @@ pub(in crate::execution::terminal_unit) fn is_terminal_call_occurrence(
     else {
         return false;
     };
-    match (
-        program.statement_table.transition_target(transition.target),
-        validation::find_call_site_in_state(
-            program,
-            machine,
-            state,
-            call.statement_index,
-            call.call_ordinal,
-        ),
-    ) {
-        (
-            typed_trees::statement::TransitionTargetNode::Named { .. },
-            Some(validation::CallSite::TransitionNamed { .. }),
-        ) => true,
-        (
-            typed_trees::statement::TransitionTargetNode::Value(expected),
-            Some(validation::CallSite::Expression { expression, .. }),
-        ) => *expected == expression,
-        _ => false,
-    }
+    validation::find_call_site_in_state(
+        program,
+        machine,
+        state,
+        call.statement_index,
+        call.call_ordinal,
+    )
+    .is_some_and(|site| site.completes_transition(program, transition.target))
 }
