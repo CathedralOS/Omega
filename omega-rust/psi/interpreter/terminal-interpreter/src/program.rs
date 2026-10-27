@@ -20,6 +20,7 @@
 //! filesystem, and creates no global runtime or thread — compilation remains
 //! the separate upstream authority that produced the bytes.
 
+use crate::effects::{AdmittedBoundarySupply, TerminalRuntimeSupplies};
 use crate::errors::{TerminalArtifactInterpretError, TerminalInterpretError};
 use evaluation_accounting::EvaluationInvocationAccount;
 mod declarations;
@@ -384,8 +385,6 @@ impl<'artifact> TerminalProgram<'artifact> {
         &self,
         request: crate::effects::TerminalRuntimeSupplyRequest<'_>,
     ) -> Result<crate::effects::TerminalRuntimeSupplies, TerminalInterpretError> {
-        use crate::effects::{AdmittedBoundarySupply, TerminalRuntimeSupplies};
-
         if request
             .installation
             .is_some_and(|installation| installation.terminal_psi() != self.program.identity)
@@ -440,57 +439,87 @@ impl<'artifact> TerminalProgram<'artifact> {
             .validate_layout_selection(Some(&installation))?;
         self.program.resolve_entry(Some(&installation))?;
         for &boundary in request.host_imports {
-            let rejected = |reason| TerminalInterpretError::RuntimeSupplySelectionRejected {
+            self.select_external_supply(
+                &mut installation,
                 boundary,
-                reason,
-            };
-            let declaration = self
-                .program
-                .boundary_machines()
-                .get(&boundary)
-                .ok_or_else(|| rejected("host import names no declared boundary"))?;
-            if declaration.role != terminal_psi::BoundaryDeclarationRole::Callable {
-                return Err(rejected(
-                    "host import names contract evidence rather than a callable",
-                ));
-            }
-            if compiler_owns_boundary_execution(declaration) {
-                return Err(rejected(
-                    "compiler primitive cannot be replaced by a host import",
-                ));
-            }
-            if self.program.is_target_family_head(boundary) {
-                let member = crate::calls::target_families::selected_member(
-                    &self.program,
-                    installation.target_machines.as_ref(),
-                    boundary,
-                )?;
-                if !matches!(member, terminal_psi::TargetMachineCallable::Boundary(_)) {
-                    return Err(rejected(
-                        "a checked target-family member cannot be replaced by a host import",
-                    ));
-                }
-            }
-            if declaration.completion != terminal_psi::BoundaryCompletion::NormalReturn {
-                return Err(rejected(
-                    "external completion requires separate domain admission",
-                ));
-            }
-            if installation.supplies.contains_key(&boundary)
-                || installation
-                    .assumed_bindings
-                    .iter()
-                    .any(|binding| binding.required == boundary)
-            {
-                return Err(rejected(
-                    "host import duplicates or competes with a selected supply",
-                ));
-            }
-            installation
-                .supplies
-                .insert(boundary, AdmittedBoundarySupply::HostImport);
+                AdmittedBoundarySupply::HostImport,
+            )?;
         }
         Ok(installation)
+    }
+
+    /// Reserve a static component slot before execution. No implementation is
+    /// chosen here: a call before exact admitted installation fails, and host
+    /// adapters cannot fulfill the reservation. A running instance permits
+    /// installation only while paused at a checked readiness crossing.
+    pub fn defer_component(
+        &self,
+        mut installation: TerminalRuntimeSupplies,
+        boundary: BoundaryMachineId,
+    ) -> Result<TerminalRuntimeSupplies, TerminalInterpretError> {
+        if installation.terminal_psi != self.program.identity {
+            return Err(TerminalInterpretError::ProviderInstallationIdentityMismatch);
+        }
+        self.select_external_supply(
+            &mut installation,
+            boundary,
+            AdmittedBoundarySupply::DeferredComponent,
+        )?;
+        Ok(installation)
+    }
+
+    fn select_external_supply(
+        &self,
+        installation: &mut TerminalRuntimeSupplies,
+        boundary: BoundaryMachineId,
+        supply: AdmittedBoundarySupply,
+    ) -> Result<(), TerminalInterpretError> {
+        let rejected =
+            |reason| TerminalInterpretError::RuntimeSupplySelectionRejected { boundary, reason };
+        let declaration = self
+            .program
+            .boundary_machines()
+            .get(&boundary)
+            .ok_or_else(|| rejected("external supply names no declared boundary"))?;
+        if declaration.role != terminal_psi::BoundaryDeclarationRole::Callable {
+            return Err(rejected(
+                "external supply names contract evidence rather than a callable",
+            ));
+        }
+        if compiler_owns_boundary_execution(declaration) {
+            return Err(rejected(
+                "compiler primitive cannot be replaced by an external supply",
+            ));
+        }
+        if self.program.is_target_family_head(boundary) {
+            let member = crate::calls::target_families::selected_member(
+                &self.program,
+                installation.target_machines.as_ref(),
+                boundary,
+            )?;
+            if !matches!(member, terminal_psi::TargetMachineCallable::Boundary(_)) {
+                return Err(rejected(
+                    "a checked target-family member cannot be replaced by an external supply",
+                ));
+            }
+        }
+        if declaration.completion != terminal_psi::BoundaryCompletion::NormalReturn {
+            return Err(rejected(
+                "external completion requires separate domain admission",
+            ));
+        }
+        if installation.supplies.contains_key(&boundary)
+            || installation
+                .assumed_bindings
+                .iter()
+                .any(|binding| binding.required == boundary)
+        {
+            return Err(rejected(
+                "external supply duplicates or competes with a selected supply",
+            ));
+        }
+        installation.supplies.insert(boundary, supply);
+        Ok(())
     }
 
     /// Default host-import descriptions without a receiving-host supply choice:

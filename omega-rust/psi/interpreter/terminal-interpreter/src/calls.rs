@@ -17,7 +17,7 @@ use crate::custody::{
     remove_affine_root, validate_boundary_requirements,
 };
 use crate::effects::results::TerminalEffectResult;
-use crate::effects::{TerminalEffect, TerminalEffectHandler};
+use crate::effects::{TerminalEffect, TerminalEffectHandler, TerminalEffectRejection};
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{OperationFlow, SuspendedCall, SuspendedCallResult, TerminalExecution};
 use crate::results::TerminalExecutionStatus;
@@ -438,6 +438,14 @@ impl<'artifact> TerminalExecution<'artifact> {
             }
         }
         let supply = self.boundary_supplies.get(&boundary).copied();
+        if supply == Some(crate::effects::AdmittedBoundarySupply::DeferredComponent) {
+            return Err(TerminalInterpretError::EffectRejected {
+                operation: operation.id,
+                rejection: TerminalEffectRejection::new(
+                    "component provider was called before its admitted installation",
+                ),
+            });
+        }
         if let Some(crate::effects::AdmittedBoundarySupply::ComponentProvider { .. }) = supply {
             return self.execute_component_call(operation, &scalar_arguments, meter, components);
         }

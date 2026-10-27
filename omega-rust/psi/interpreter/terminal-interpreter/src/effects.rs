@@ -211,6 +211,9 @@ pub(crate) enum AdmittedBoundarySupply {
         provider_boundary: BoundaryMachineId,
         candidate: MachineId,
     },
+    /// The host schedules an independently checked component. This reserves
+    /// a route, not a callable implementation or a host-adapter permission.
+    DeferredComponent,
     HostImport,
 }
 

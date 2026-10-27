@@ -58,14 +58,24 @@ drivers or producing stages. The hosting application installs the admitted
 adapters. Generic loading and execution require neither those optional adapters
 nor source recompilation. Exact SDK packaging remains an engineering choice.
 
-Establish every demanded provider slot in the selected executable closure before
-execution, including possible dynamic calls. A branch merely expected not to
+Ordinary entry execution establishes every demanded provider slot in the selected
+executable closure before execution, including possible dynamic calls. A branch merely expected not to
 run cannot excuse missing supply; code outside that closure need not demand
 one. Missing adapter or target-environment support prevents that interpretation
 and names the missing requirement and its demand. Do not run native code as an
 implicit fallback, replace selected services, or increase authority. The
 [test runner](testing.md#execution-plan) may explicitly schedule both engines;
 their availability and outcomes remain separate.
+
+The explicit [Build provider-readiness protocol](provider_selection.md#build-provider-readiness)
+admits a different lifecycle: reserve the exact static component slot before
+entry, retain the activation at its checked readiness crossing, install the
+independently admitted component, then resume that same activation. Reservation
+is not supply or a host-adapter permission. Calling the pending slot rejects;
+ordinary fuel exhaustion does not authorize installation, and installation
+cannot replace an existing binding. The component's whole callable closure is
+admitted before it executes. This is explicit scheduling, never speculation
+that an unbound branch will not run.
 
 ## Imports, exports, and provider slots
 
@@ -90,7 +100,8 @@ Neither `public` nor `satisfies` alone exports a callable ABI. No `main`, `run`,
 An instance's import roster identifies each exact slot/occurrence, closed
 requirement application, and full contract. Multiple static roles use distinct
 applications or wrapper requirements, not same-typed source fields. Establish
-every demanded import before running guest code; missing, duplicate,
+every demanded import before running guest code, except an explicitly reserved
+component under the readiness lifecycle above; missing, duplicate,
 wrong-instance, incompatible, ambiguous, or unauthorized supply rejects without
 an ambient fallback. Provider supply does not transfer authority; operation
 arguments and admitted receiver policy carry their own obligations.

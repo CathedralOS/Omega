@@ -11,6 +11,27 @@ public Immediate satisfies Readiness {
     machine replace(value: &mut i32) { value = 42; }
 }
 
+public boundary trait ProviderGate {
+    machine wait(value: i32) -> i32 reaches suspends;
+}
+public OpenGate satisfies ProviderGate {
+    machine wait(value: i32) -> i32 { value }
+}
+
+// The interpreter installs the selected Readiness::wait component while this
+// distinct, checked host crossing retains the original caller continuation.
+machine component_entry() reaches Readiness ProviderGate suspends; {
+    Readiness::observe(1);
+    let ignored: i32 = suspend ProviderGate::wait(0);
+    let result: i32 = suspend await_value(42);
+    Readiness::observe(result);
+}
+
+machine component_premature_entry() reaches Readiness suspends; {
+    let result: i32 = suspend await_value(42);
+    Readiness::observe(result);
+}
+
 machine await_value(value: i32) -> i32 reaches Readiness suspends; {
     suspend Readiness::wait(value)
 }

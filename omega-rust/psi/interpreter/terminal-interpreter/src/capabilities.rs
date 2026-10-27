@@ -259,6 +259,7 @@ pub(crate) fn check_with_private_entry_ram(
                             }
                             Some(
                                 AdmittedBoundarySupply::HostImport
+                                | AdmittedBoundarySupply::DeferredComponent
                                 | AdmittedBoundarySupply::ComponentProvider { .. },
                             ) => {
                                 imports.insert(*boundary);

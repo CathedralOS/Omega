@@ -163,9 +163,8 @@ pub enum TerminalBindingRejection {
 pub enum TerminalInstanceError {
     /// The instance is closed; no new entry is admitted.
     Closed,
-    /// Demanded imports without an established binding. Every demanded import
-    /// must be established before guest code runs — the roster is checked
-    /// whole, before the first operation.
+    /// Demanded imports without a binding or an explicitly deferred component
+    /// route. Ordinary unbound host imports still reject before guest effects.
     UnboundImports { missing: Vec<BoundaryMachineId> },
     UnboundExternalCompletions {
         missing: Vec<crate::capabilities::TerminalExternalCompletionDemand>,
@@ -213,8 +212,8 @@ pub struct TerminalInstance<'host, 'artifact> {
     /// Exact reachable host slots under this instance's provider installation.
     /// Retained unused declarations impose no binding requirement.
     required_imports: Vec<BoundaryMachineId>,
-    /// Established import bindings by exact slot. Empty at construction;
-    /// `invoke` refuses to start while a demanded import is unbound.
+    /// Established host bindings by exact slot. Empty at construction; deferred
+    /// component routes cannot be fulfilled by a host adapter.
     bindings: BTreeMap<BoundaryMachineId, TerminalImportBinding<'host>>,
     components: ComponentBindings<'host, 'artifact>,
     /// Whether `invoke` has admitted the entry. Close of a paused activation
@@ -298,7 +297,10 @@ impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
         if self.execution.as_ref().is_some_and(|execution| {
             matches!(
                 execution.boundary_supplies.get(&slot),
-                Some(crate::effects::AdmittedBoundarySupply::ComponentProvider { .. })
+                Some(
+                    crate::effects::AdmittedBoundarySupply::ComponentProvider { .. }
+                        | crate::effects::AdmittedBoundarySupply::DeferredComponent
+                )
             )
         }) {
             return Err(TerminalBindingRejection::ProviderRealized { boundary: slot });
@@ -345,7 +347,6 @@ impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
         let selected = binding.selected();
         let boundary = selected.receiving_boundary();
         if self.closed
-            || self.invoked
             || selected.receiver() != self.program.terminal_psi()
             || !self.required_imports.contains(&boundary)
             || self.bindings.contains_key(&boundary)
@@ -360,17 +361,30 @@ impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
             provider_boundary: selected.provider_boundary(),
             candidate: selected.candidate(),
         };
-        if self
+        let execution = self
             .execution
-            .as_ref()
-            .and_then(|execution| execution.boundary_supplies.get(&boundary))
-            != Some(&expected)
+            .as_mut()
+            .ok_or("component receiver is closed")?;
+        let deferred = execution.boundary_supplies.get(&boundary)
+            == Some(&crate::effects::AdmittedBoundarySupply::DeferredComponent);
+        if self.invoked
+            && (!deferred || execution.awaiting_effect.is_none() || execution.failure.is_some())
         {
+            return Err(
+                "component installation requires its reserved slot and a checked readiness pause"
+                    .into(),
+            );
+        }
+        if !deferred && execution.boundary_supplies.get(&boundary) != Some(&expected) {
             return Err(
                 "component binding differs from the receiver's exact admitted supply".into(),
             );
         }
         binding.require_ready()?;
+        // Complete the reserved route only after the full producing closure
+        // and exact import/export contract have been admitted. No guest state
+        // or effect cursor is reconstructed by installation.
+        execution.boundary_supplies.insert(boundary, expected);
         self.components.insert(boundary, binding);
         Ok(())
     }
@@ -452,11 +466,10 @@ impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
     /// Drive the entry invocation until it completes, crashes, or pauses on
     /// the fuel meter or an explicitly checked host-readiness crossing.
     ///
-    /// The whole demanded-import roster must be established first: a missing
-    /// binding rejects before the first guest operation, so no host effect
-    /// can run for an unbound slot. A fuel pause preserves custody — resume
-    /// by calling `invoke` again with a replenished meter; already-committed
-    /// effects are never replayed.
+    /// Ordinary demanded imports must be established before the first guest
+    /// operation. An explicitly deferred component may remain pending, but
+    /// calling it before admitted installation fails. Both fuel and checked
+    /// readiness pauses preserve the same invocation and committed effects.
     pub fn invoke(
         &mut self,
         meter: &mut TerminalFuelMeter,
@@ -464,7 +477,15 @@ impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
         if self.closed {
             return Err(TerminalInstanceError::Closed);
         }
-        let missing = self.unbound_imports().collect::<Vec<_>>();
+        let missing = self
+            .unbound_imports()
+            .filter(|boundary| {
+                self.execution
+                    .as_ref()
+                    .and_then(|execution| execution.boundary_supplies.get(boundary))
+                    != Some(&crate::effects::AdmittedBoundarySupply::DeferredComponent)
+            })
+            .collect::<Vec<_>>();
         if !missing.is_empty() {
             return Err(TerminalInstanceError::UnboundImports { missing });
         }
