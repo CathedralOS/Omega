@@ -13,6 +13,36 @@ pub(super) struct Observation {
 }
 
 impl Implication<'_> {
+    pub(super) fn record_observes_integer(
+        &mut self,
+        identity: usize,
+        projection: &[facts::PlaceSegment],
+        value: &Integer,
+        path: &Path,
+    ) -> Option<bool> {
+        // Reuse already-read observations of this exact enclosing record.
+        // This query never rereads storage or introduces an integer premise.
+        for position in 0..self.records.len() {
+            self.spend()?;
+            let observation = &self.records[position];
+            if observation.identity != identity || !observation.projection.starts_with(projection) {
+                continue;
+            }
+            match observation.value.clone() {
+                Value::Integer { value: formal, .. } if contains(value, &formal) => {
+                    return Some(true);
+                }
+                Value::Collection { identity, .. }
+                    if self.collection_observes_integer(identity, value, path)? =>
+                {
+                    return Some(true);
+                }
+                _ => {}
+            }
+        }
+        Some(false)
+    }
+
     pub(super) fn record_member(
         &mut self,
         mut path: Path,

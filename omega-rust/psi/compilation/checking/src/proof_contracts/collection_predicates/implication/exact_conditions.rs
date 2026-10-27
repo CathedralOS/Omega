@@ -1,7 +1,7 @@
 //! Whole conjunctions of authored integer observations. Candidate atoms grant
 //! nothing: every atom owes necessity, the complete conjunction owes its own
 //! converse, and partial reads must form from preceding guards without P.
-use super::super::{PredicateApplication, PredicateOrderingConsequence};
+use super::super::{PredicateApplication, PredicateIntegerOperand, PredicateOrderingConsequence};
 use super::*;
 
 pub(in crate::proof_contracts::collection_predicates) fn exact_conjunction(
@@ -48,9 +48,10 @@ pub(in crate::proof_contracts::collection_predicates) fn exact_conjunction(
         );
     }
     let mut candidates = Vec::new();
-    for expression in expressions {
+    let mut seen = Vec::new();
+    for expression in &expressions {
         proof.spend()?;
-        let Some(binary) = program.expression_table.binary_node(expression) else {
+        let Some(binary) = program.expression_table.binary_node(*expression) else {
             continue;
         };
         if !matches!(
@@ -61,7 +62,8 @@ pub(in crate::proof_contracts::collection_predicates) fn exact_conjunction(
                 | BinaryOperator::LessOrEqual
                 | BinaryOperator::Greater
                 | BinaryOperator::GreaterOrEqual
-        ) || !has_builtin_binary_expression_meaning(program, machine, Some(entry), expression)
+        ) || !has_builtin_binary_expression_meaning(program, machine, Some(entry), *expression)
+            || seen.contains(expression)
         {
             continue;
         }
@@ -81,90 +83,210 @@ pub(in crate::proof_contracts::collection_predicates) fn exact_conjunction(
         ) else {
             continue;
         };
-        if candidates
-            .iter()
-            .any(|(previous, _, _)| *previous == expression)
-        {
-            continue;
-        }
-        let reads = matches!(left, super::super::PredicateIntegerOperand::Read(_))
-            || matches!(right, super::super::PredicateIntegerOperand::Read(_));
-        candidates.push((
-            expression,
-            reads,
-            PredicateOrderingConsequence {
+        seen.push(*expression);
+        candidates.push(Candidate {
+            left: binary.left,
+            right: binary.right,
+            condition: PredicateOrderingConsequence {
                 left,
                 right,
                 operator: binary.operator,
             },
-        ));
+        });
     }
-    // Pure guards precede any operation whose bounds they can establish. A
-    // more complex dependency which this order cannot form simply refuses.
-    candidates.sort_by_key(|(_, reads, _)| *reads);
+    // Retain authored guards first. Every later partial read must form from
+    // preceding conditions, independently of the predicate being replaced.
+    candidates.sort_by_key(Candidate::has_reads);
     let mut selected = Vec::new();
-    for (expression, _, condition) in candidates {
-        let binary = program.expression_table.binary_node(expression)?;
-        let mut necessary = true;
-        for (path, goal) in proof.inert_comparison(&frame, initial.clone(), binary)? {
-            if proof.generalized_activation(
-                application.machine,
-                0,
-                arguments.clone(),
-                path,
-                &goal,
-                Judgment::Consequence,
-                0,
-            ) != Some(true)
-            {
-                necessary = false;
-                break;
+    let mut paths = vec![initial.clone()];
+    for candidate in candidates {
+        if necessary(
+            &mut proof,
+            application,
+            &frame,
+            &arguments,
+            &initial,
+            &candidate,
+        )? {
+            paths = proof.form_condition(&frame, &paths, &candidate)?;
+            selected.push(candidate.condition);
+        }
+    }
+    if sufficient(&mut proof, application, &arguments, &paths)? {
+        return (!selected.is_empty()).then_some(selected);
+    }
+
+    // A helper may establish a relation without spelling that comparison in
+    // this body. Questions retain original callee expressions, never atoms
+    // imported from a separate proof or a reverse lookup of repeated actuals.
+    let mut subjects = Vec::new();
+    for expression in expressions {
+        proof.spend()?;
+        let Some(reference) =
+            crate::expression_result_type_reference(program, machine, entry, expression)
+        else {
+            continue;
+        };
+        let Some(carrier) = program
+            .primitive_type_reference(reference)
+            .filter(|carrier| carrier.is_fixed_integer())
+        else {
+            continue;
+        };
+        if program.arithmetic_domain_for_type_reference(reference)
+            != numerics::arithmetic::ArithmeticDomain::Exact
+        {
+            continue;
+        }
+        let Some(operand) = super::super::predicate_integer_operand(
+            program,
+            machine.symbol,
+            application.arguments,
+            expression,
+        ) else {
+            continue;
+        };
+        let identity = match &operand {
+            PredicateIntegerOperand::Argument(_) => {
+                let (position, projection) =
+                    crate::immutable_entry_integer_projection(program, machine.symbol, expression)?;
+                SubjectIdentity::Parameter(position, projection)
             }
+            PredicateIntegerOperand::Read(_) => SubjectIdentity::Read(
+                crate::immutable_entry_indexed_read_identity(program, expression)?,
+            ),
+            PredicateIntegerOperand::Integer(_) => continue,
+        };
+        if subjects
+            .iter()
+            .any(|previous: &Subject| previous.identity == identity)
+        {
+            continue;
         }
-        if necessary {
-            selected.push((expression, condition));
-        }
+        subjects.push(Subject {
+            identity,
+            expression,
+            operand,
+            carrier,
+        });
     }
-    if selected.is_empty() {
-        return None;
-    }
-    let mut paths = vec![initial];
-    for (expression, _) in &selected {
-        let mut next = Vec::new();
-        for path in paths {
-            // The ordinary expression reader independently checks each index
-            // under only the preceding conjunction. Inert reads cannot pass here.
-            for (path, value) in proof.expression(&frame, path, *expression, 0)? {
-                let Value::Boolean(value) = value else {
-                    return None;
+    // Authored read operands are the relevant questions before unrelated
+    // scalar-field pairs. All scans and judgments share the original budget.
+    subjects.sort_by_key(|subject| !matches!(subject.identity, SubjectIdentity::Read(_)));
+    for left in 0..subjects.len() {
+        for right in (left + 1)..subjects.len() {
+            if subjects[left].carrier != subjects[right].carrier {
+                continue;
+            }
+            for operator in [
+                BinaryOperator::NotEqual,
+                BinaryOperator::Equal,
+                BinaryOperator::Less,
+                BinaryOperator::LessOrEqual,
+                BinaryOperator::Greater,
+                BinaryOperator::GreaterOrEqual,
+            ] {
+                proof.spend()?;
+                let candidate = Candidate {
+                    left: subjects[left].expression,
+                    right: subjects[right].expression,
+                    condition: PredicateOrderingConsequence {
+                        left: subjects[left].operand.clone(),
+                        right: subjects[right].operand.clone(),
+                        operator,
+                    },
                 };
-                if let Some(path) = proof.assume(path, &value, true)? {
-                    next.push(path);
+                if !necessary(
+                    &mut proof,
+                    application,
+                    &frame,
+                    &arguments,
+                    &initial,
+                    &candidate,
+                )? {
+                    continue;
+                }
+                paths = proof.form_condition(&frame, &paths, &candidate)?;
+                selected.push(candidate.condition);
+                if sufficient(&mut proof, application, &arguments, &paths)? {
+                    return Some(selected);
                 }
             }
         }
-        paths = next;
     }
-    for path in paths {
+    None
+}
+
+struct Candidate {
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+    condition: PredicateOrderingConsequence,
+}
+impl Candidate {
+    fn has_reads(&self) -> bool {
+        matches!(self.condition.left, PredicateIntegerOperand::Read(_))
+            || matches!(self.condition.right, PredicateIntegerOperand::Read(_))
+    }
+}
+#[derive(PartialEq, Eq)]
+enum SubjectIdentity {
+    Parameter(usize, Vec<facts::PlaceSegment>),
+    Read(crate::ImmutableEntryReadIdentity),
+}
+struct Subject {
+    identity: SubjectIdentity,
+    expression: ExpressionHandle,
+    operand: PredicateIntegerOperand,
+    carrier: typed_trees::types::PrimitiveType,
+}
+
+fn necessary(
+    proof: &mut Implication<'_>,
+    application: &PredicateApplication<'_>,
+    frame: &Frame,
+    arguments: &[Value],
+    initial: &Path,
+    candidate: &Candidate,
+) -> Option<bool> {
+    for (path, goal) in proof.condition(frame, initial.clone(), candidate, true)? {
         if proof.generalized_activation(
             application.machine,
             0,
-            arguments.clone(),
+            arguments.to_vec(),
             path,
+            &goal,
+            Judgment::Consequence,
+            0,
+        ) != Some(true)
+        {
+            return Some(false);
+        }
+    }
+    Some(true)
+}
+
+fn sufficient(
+    proof: &mut Implication<'_>,
+    application: &PredicateApplication<'_>,
+    arguments: &[Value],
+    paths: &[Path],
+) -> Option<bool> {
+    for path in paths {
+        proof.spend()?;
+        if proof.generalized_activation(
+            application.machine,
+            0,
+            arguments.to_vec(),
+            path.clone(),
             &Boolean::Constant(true),
             Judgment::RequiredResult,
             0,
         ) != Some(true)
         {
-            return None;
+            return Some(false);
         }
     }
-    Some(
-        selected
-            .into_iter()
-            .map(|(_, condition)| condition)
-            .collect(),
-    )
+    Some(true)
 }
 
 impl Implication<'_> {
@@ -192,21 +314,62 @@ impl Implication<'_> {
             })
             .collect()
     }
-    fn inert_comparison(
+    fn condition(
         &mut self,
         frame: &Frame,
         path: Path,
-        binary: &typed_trees::expression::TableBinaryExpression,
+        candidate: &Candidate,
+        inert: bool,
     ) -> Option<Vec<(Path, Boolean)>> {
         let mut rows = Vec::new();
-        for (path, left) in self.inert_integer(frame, path, binary.left)? {
-            for (path, right) in self.inert_integer(frame, path, binary.right)? {
+        for (path, left) in self.condition_integer(frame, path, candidate.left, inert)? {
+            for (path, right) in self.condition_integer(frame, path, candidate.right, inert)? {
                 rows.push((
                     path,
-                    Boolean::Comparison(compare(binary.operator, left.clone(), right)),
+                    Boolean::Comparison(compare(candidate.condition.operator, left.clone(), right)),
                 ));
             }
         }
         (!rows.is_empty()).then_some(rows)
+    }
+
+    fn condition_integer(
+        &mut self,
+        frame: &Frame,
+        path: Path,
+        expression: ExpressionHandle,
+        inert: bool,
+    ) -> Option<Vec<(Path, Integer)>> {
+        if inert {
+            return self.inert_integer(frame, path, expression);
+        }
+        self.expression(frame, path, expression, 0)?
+            .into_iter()
+            .map(|(path, value)| {
+                let Value::Integer { value, .. } = value else {
+                    return None;
+                };
+                Some((path, value))
+            })
+            .collect()
+    }
+
+    fn form_condition(
+        &mut self,
+        frame: &Frame,
+        paths: &[Path],
+        candidate: &Candidate,
+    ) -> Option<Vec<Path>> {
+        let mut next = Vec::new();
+        for path in paths {
+            // Ordinary source readers own each bound and exact occurrence;
+            // no inert question can supply executable read formation.
+            for (path, value) in self.condition(frame, path.clone(), candidate, false)? {
+                if let Some(path) = self.assume(path, &value, true)? {
+                    next.push(path);
+                }
+            }
+        }
+        Some(next)
     }
 }

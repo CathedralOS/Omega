@@ -354,16 +354,164 @@ impl StructuralJudge<'_> {
         predicate: StructuralTerm,
         depth: usize,
     ) -> StructuralJudgment {
+        let resolved = self.resolve_at(predicate.clone(), depth + 1);
         match self.judge_equation(
-            self.resolve_at(predicate.clone(), depth + 1),
+            resolved.clone(),
             super::value_predicates::boolean_term(true),
             depth + 1,
         ) {
-            StructuralJudgment::Unknown => self
-                .observed_float_predicate_judgment(&predicate, depth)
-                .unwrap_or_else(|| self.observed_integer_predicate_judgment(&predicate)),
+            StructuralJudgment::Unknown => {
+                let direct = self
+                    .observed_float_predicate_judgment(&predicate, depth)
+                    .unwrap_or_else(|| self.observed_integer_predicate_judgment(&predicate));
+                if matches!(direct, StructuralJudgment::Unknown)
+                    && self.proves_observed_integer_boolean(&resolved, depth) == Some(true)
+                {
+                    StructuralJudgment::Proven
+                } else {
+                    direct
+                }
+            }
             judgment => judgment,
         }
+    }
+
+    /// Branch-wise truth is incomplete for alternatives such as x < y or
+    /// y < x under an already observed disequality. Deny the complete formed
+    /// question in a private integer query, and discharge every alternative.
+    /// Denial never contributes to operation formation or another proof goal.
+    fn proves_observed_integer_boolean(
+        &self,
+        predicate: &StructuralTerm,
+        depth: usize,
+    ) -> Option<bool> {
+        if !self.runtime_body_values || self.case_facts_only || depth >= 32 {
+            return None;
+        }
+        let mut observations = IntegerObservations {
+            engine: Engine::for_explicit_bindings(self.program),
+            atoms: Vec::new(),
+            operations: Vec::new(),
+            carrier_bounds: Vec::new(),
+            installed_carrier_bounds: 0,
+        };
+        let mut remaining = 64usize;
+        let alternatives =
+            self.integer_boolean_alternatives(predicate, false, &mut observations, &mut remaining)?;
+        let goal_operations = 0..observations.operations.len();
+        let mut premises = self.observed_integer_premises(&mut observations);
+        let retained = premises.clone();
+        // Only real prefix facts may admit a partial operand. Install the
+        // denied question below, after all of its operations have formed.
+        if !observations.install_premises(&mut premises) || !observations.admitted(goal_operations)
+        {
+            return None;
+        }
+        let admitted = retained
+            .into_iter()
+            .filter(|(_, operations)| observations.admitted(operations.clone()))
+            .map(|(comparison, _)| comparison)
+            .collect::<Vec<_>>();
+        for alternative in alternatives {
+            let mut comparisons = admitted.clone();
+            comparisons.extend(alternative);
+            // Intake the complete batch together: an unoriented prior NE must
+            // see the denied branch's bounds, without gaining a direction in
+            // the original context. The admitted engine keeps operation laws
+            // and the exact private captured-value atom namespace.
+            let mut engine = observations.engine.clone();
+            if !engine.integer_comparisons_unsatisfiable(comparisons) {
+                return Some(false);
+            }
+        }
+        Some(true)
+    }
+
+    fn integer_boolean_alternatives(
+        &self,
+        predicate: &StructuralTerm,
+        holds: bool,
+        observations: &mut IntegerObservations<'_>,
+        remaining: &mut usize,
+    ) -> Option<Vec<Vec<Comparison>>> {
+        *remaining = remaining.checked_sub(1)?;
+        let predicate = predicate.semantic_value();
+        let truth = super::value_predicates::boolean_term(holds);
+        if *predicate == truth {
+            return Some(vec![Vec::new()]);
+        }
+        if *predicate == super::value_predicates::boolean_term(!holds) {
+            return Some(Vec::new());
+        }
+        if let Some((operand, truth)) = self.boolean_equality_operand(predicate, &truth) {
+            return self.integer_boolean_alternatives(
+                &operand,
+                truth == super::value_predicates::boolean_term(true),
+                observations,
+                remaining,
+            );
+        }
+        if let StructuralTerm::ScalarBinary {
+            references,
+            operator,
+            meaning,
+            left,
+            right,
+        } = predicate
+            && matches!(operator, BinaryOperator::And | BinaryOperator::Or)
+        {
+            if !meaning.iter().all(|(primitive, domain)| {
+                *primitive == PrimitiveType::Bool
+                    && *domain == numerics::arithmetic::ArithmeticDomain::Exact
+            }) || ![left, right]
+                .into_iter()
+                .zip(references)
+                .all(|(operand, reference)| {
+                    super::super::structural_terms::scalar_operand_is_observed(
+                        self.program,
+                        *reference,
+                        operand,
+                    )
+                })
+            {
+                return None;
+            }
+            let left = self.integer_boolean_alternatives(left, holds, observations, remaining)?;
+            let right = self.integer_boolean_alternatives(right, holds, observations, remaining)?;
+            if (*operator == BinaryOperator::And) == holds {
+                if left.len().checked_mul(right.len())? > 32 {
+                    return None;
+                }
+                let mut alternatives = Vec::new();
+                for first in &left {
+                    for second in &right {
+                        if first.len().checked_add(second.len())? > 64 {
+                            return None;
+                        }
+                        let mut combined = first.clone();
+                        combined.extend(second.iter().cloned());
+                        alternatives.push(combined);
+                    }
+                }
+                return Some(alternatives);
+            }
+            if left.len().checked_add(right.len())? > 32 {
+                return None;
+            }
+            let mut alternatives = left;
+            alternatives.extend(right);
+            return Some(alternatives);
+        }
+        let (operator, left, right) = self.integer_comparison(predicate, observations)?;
+        Some(vec![vec![(
+            if holds {
+                operator
+            } else {
+                operator.complement()?
+            },
+            left,
+            right,
+        )]])
     }
 
     /// Prepare independently formed premises once, then fork their exact
