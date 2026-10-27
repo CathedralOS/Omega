@@ -13,7 +13,7 @@ use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 
 mod authored;
-pub use authored::harvest_root_grants;
+pub use authored::collect_product_root_grants;
 
 /// Package claims require package-level review; individual accepted-machine
 /// grants cannot substitute for it. The early typed checking gate reconstructs

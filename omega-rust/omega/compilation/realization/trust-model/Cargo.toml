@@ -17,4 +17,3 @@ language-semantics = { path = "../../../../psi/foundation/language-semantics" }
 source = { path = "../../../../psi/foundation/source" }
 symbols = { path = "../../../../psi/foundation/symbols" }
 typed-trees = { path = "../../../../psi/compilation/representations/typed-trees" }
-validation = { path = "../../../../psi/compilation/checking" }

@@ -229,7 +229,9 @@ impl<'program> Evaluator<'program> {
                     } else {
                         CompositionMode::Fused
                     }),
-                    BuildOperation::RepresentationSelection | BuildOperation::ServiceExclusion
+                    BuildOperation::RepresentationSelection
+                    | BuildOperation::ServiceExclusion
+                    | BuildOperation::BoundaryAcceptance
                         if independent.is_none() =>
                     {
                         None
@@ -240,7 +242,10 @@ impl<'program> Evaluator<'program> {
                         );
                     }
                 };
-                let selecting_machine = if request.operation == BuildOperation::ServiceExclusion {
+                let selecting_machine = if matches!(
+                    request.operation,
+                    BuildOperation::ServiceExclusion | BuildOperation::BoundaryAcceptance
+                ) {
                     Some(
                         self.program
                             .symbols

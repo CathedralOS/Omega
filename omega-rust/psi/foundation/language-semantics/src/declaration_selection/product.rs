@@ -24,13 +24,17 @@ impl Default for BuildSelectionRequest {
 }
 
 impl BuildSelectionRequest {
-    /// Behavior exclusions name the enclosing machine. Other selections retain
+    /// Behavior exclusions and trust acceptances name the enclosing machine. Other selections retain
     /// their operand scopes directly and need no lexical machine subject.
     pub fn requires_lexical_subject(&self) -> bool {
         match self {
             Self::Exclusion(_) => true,
             Self::Declaration(request) => {
-                request.operation == super::BuildOperation::ServiceExclusion
+                matches!(
+                    request.operation,
+                    super::BuildOperation::ServiceExclusion
+                        | super::BuildOperation::BoundaryAcceptance
+                )
             }
             Self::Entry(_) => false,
         }

@@ -221,7 +221,9 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter<'_, '_> {
                     } else {
                         CompositionMode::Fused
                     }),
-                    BuildOperation::RepresentationSelection | BuildOperation::ServiceExclusion
+                    BuildOperation::RepresentationSelection
+                    | BuildOperation::ServiceExclusion
+                    | BuildOperation::BoundaryAcceptance
                         if independent.is_none() =>
                     {
                         None

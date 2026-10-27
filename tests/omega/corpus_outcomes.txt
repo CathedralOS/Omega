@@ -1877,8 +1877,12 @@ fail/build/artifact_only_unsealed_output_refused rejected 145ms expected publish
 	Terminal Build failed: required output `manifest.txt` of `build` failed: staged output never sealed at OperationId(54) in MachineId(12)/BlockId(33) at Some(OperationId(54))
 fail/build/authored_resolution_source_location rejected 22ms expected @a92f16431042
 	machine `selected` is implemented twice for `local_unchecked` -- a target supplies exactly one implementation of a contract machine
-fail/build/boundary_acceptance_fabricated_activation rejected 268ms expected @a92f16431042
+fail/build/boundary_acceptance_fabricated_activation rejected 60ms expected @030cc694c7b9+wt
 	the compiler-owned Build activation cannot be copied into local `counterfeit`
+fail/build/boundary_acceptance_missing_subject rejected 803ms expected @030cc694c7b9+wt
+	boundary acceptance `Missing` does not resolve to one visible Product boundary subject
+fail/build/boundary_acceptance_wrong_kind rejected 799ms expected @030cc694c7b9+wt
+	boundary acceptance `Ordinary` does not resolve to one visible Product boundary subject
 fail/build/build_effects_undeclared rejected 148ms unexpected @a92f16431042
 	closed conformance `NativeConsole satisfies Console` member `write_line` does not identify one exact inherited overload; qualify the declaring trait and match the complete parameter/result-domain signature
 fail/build/build_fuel_exhausted rejected 2517ms expected @a92f16431042
@@ -2054,7 +2058,7 @@ fail/build/retained_domain_and_service_rows_invalid_index rejected 68ms expected
 	cannot prove scalar result domain for return from @const-qualification-INDEX-0 at statement 0: Below
 fail/build/retired_assumed_binding_receiver rejected 5ms expected @a92f16431042
 	tests/omega/fail/build/retired_assumed_binding_receiver/main.omg:2:36: receiver-style assumed binding is retired; use Build::assume_binding_contract<Required::operation, Supplied::operation>(builder)
-fail/build/retired_boundary_acceptance_receiver rejected 4ms expected @a92f16431042
+fail/build/retired_boundary_acceptance_receiver rejected 71ms expected @030cc694c7b9+wt
 	tests/omega/fail/build/retired_boundary_acceptance_receiver/main.omg:2:28: receiver-style boundary acceptance is retired; use Build::accept_boundary<Boundary>(builder)
 fail/build/retired_provider_selection_receiver rejected 5ms expected @a92f16431042
 	tests/omega/fail/build/retired_provider_selection_receiver/main.omg:2:28: receiver-style provider selection is retired; use Build::select_provider<Slot, Provider>(builder)
@@ -2068,6 +2072,8 @@ fail/build/retired_wire_compatibility_receiver rejected 4ms expected @a92f164310
 	tests/omega/fail/build/retired_wire_compatibility_receiver/main.omg:2:39: receiver-style wire compatibility is retired; use Build::require_wire_compatibility<Edge, Lineage, Local, Peer, Fact>(builder)
 fail/build/root_binding_foreign_helper_private_entry rejected 605ms expected @a92f16431042
 	root binding names `launch`, which is not a product declaration visible from this build source's package; borrowing Build does not grant the caller's product namespace
+fail/build/root_binding_forged_protocol rejected 654ms expected @030cc694c7b9+wt
+	Build binding protocol requires source-issued designated product operands
 fail/build/scoped_build_stops_before_unaccepted_effect rejected 3715ms expected @a92f16431042
 	restricted Build execution requires explicit consent; generated-source and final product findings are unavailable; pending request: RestrictedBuildRequest { operation: ScopedFilesystemExecution, read_grants: [RestrictedBuildGrant { root: SourceInventory, narrowed: true, captured: Some(BuildCapturedSourceInventory { entry_count: 5, file_bytes: 885, source_metadata_identity: BuildCanonicalSourceMetadataIdentity { policy_version: 1, source_content_commitment: [7, 52, 33, 12, 211, 241, 30, 234, 236, 20, 48, 27, 190, 202, 79, 150, 21, 254, 221, 38, 218, 29, 35, 57, 16, 127, 167, 233, 75, 193, 100, 114] } }) }], write_grants: [RestrictedBuildGrant { root: StagedOutput, narrowed: false, captured: None }], bounds: RestrictedBuildBounds { filesystem_sponsor_limits: Some(FilesystemSponsorLimits { maximum_entries: 4096, maximum_total_logical_bytes: 268435456, maximum_object_extent: 268435456 }), evaluation_sponsor_limits: None, required_outputs: [], artifact_only: false }, build_execution_profile: Some(MacosArm64), selected_target_profile: None }
 fail/build/service_audit_requires_boundary rejected 334ms expected @a92f16431042
@@ -22788,6 +22794,7 @@ pass/build/described_runner_entry_right_exit checked 6369ms check-target:macos_a
 pass/build/discarded_provider_selection_exit rejected 5857ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
 	build selects provider `omega_language_std::ConsoleNativeProvider` for slot `Console`, but candidate `<selected target>::ConsoleNativeProvider::satisfies::Console` is partial (4/6) and cannot be selected
 pass/build/entry_schema_same_leaf_exit checked 1937ms check-target:macos_arm64 @a92f16431042
+pass/build/executed_exclusion_values_exit checked 3300ms check-target:macos_arm64 @030cc694c7b9+wt
 pass/build/explicit_lifetime_entry_context_exit checked 1898ms check-target:macos_arm64 @a92f16431042
 pass/build/freestanding_unselected_completion checked 5583ms @a92f16431042
 pass/build/generated_source_selects_authored checked 4405ms published:files/generated.omg @a92f16431042
@@ -23696,14 +23703,14 @@ pass/core/content_transform_ended_parent_loan checked 1783ms @a92f16431042
 pass/core/content_transform_inactive_payload checked 1762ms @a92f16431042
 pass/core/content_transform_predicate_array checked 1763ms @a92f16431042
 pass/core/extent_core_surface checked 1771ms @a92f16431042
-pass/core/extent_root_provider_adapter checked 2539ms check-target:macos_arm64 @a92f16431042
+pass/core/extent_root_provider_adapter checked 3666ms check-target:macos_arm64 @030cc694c7b9+wt
 pass/core/generic_content_distinct_applications checked 3222ms check-target:macos_arm64 @a92f16431042
 pass/core/generic_content_static_callback checked 3176ms check-target:macos_arm64 @a92f16431042
 pass/core/interrupt_obligations_surface checked 1628ms @a92f16431042
 pass/core/interval_content_length_partition_exit checked 3256ms check-target:macos_arm64 @a92f16431042
 pass/core/interval_content_partition_exit checked 3334ms check-target:macos_arm64 @a92f16431042
 pass/core/materialized_owned_entry_return checked 12082ms terminal-runtime.update:unrequested terminal-runtime.pack:unrequested terminal-inspections:match @a92f16431042
-pass/core/named_extent_root_provider_adapter checked 2201ms @a92f16431042
+pass/core/named_extent_root_provider_adapter checked 2665ms @030cc694c7b9+wt
 pass/core/numeric_cross_signed_conversion_surface checked 7077ms check-target:macos_arm64 @a92f16431042
 pass/core/numeric_signed_narrowing_policies checked 25780ms check-target:macos_arm64 @a92f16431042
 pass/core/numeric_signed_to_unsigned_policies checked 23639ms check-target:macos_arm64 @a92f16431042

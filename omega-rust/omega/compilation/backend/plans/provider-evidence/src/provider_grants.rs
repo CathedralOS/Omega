@@ -4,7 +4,7 @@
 use crate::provider_plan::{ProviderPlan, ProviderPlanDigest};
 use diagnostics::Diagnostic;
 
-/// One statically harvested root grant and its exact authored custody.
+/// One executed root grant and its exact authored custody.
 ///
 /// Selection strings remain transitional compiler input. The machine and span
 /// prevent package review from rediscovering authority from a spelling after
