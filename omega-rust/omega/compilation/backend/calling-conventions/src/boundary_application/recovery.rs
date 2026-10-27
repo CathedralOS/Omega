@@ -28,8 +28,15 @@ impl BoundaryCallingApplicationCandidate {
             callback_context,
             callback_context_closed,
         } = self;
-        if plan.call.policy.architecture() != target.architecture {
-            return Err("recovered calling policy and target disagree".to_owned());
+        // The target owns the signature's geometry, not necessarily its ABI
+        // policy: a portable semantic arrival and its target-physical arrival
+        // retain distinct applications. Match ordinary boundary-plan validation
+        // here; the selected receiving slot independently admits both policies.
+        if plan.call.policy.architecture() != plan.state.initial_regime.architecture() {
+            return Err(format!(
+                "recovered calling application `{requirement_identity}` for {target:?} has policy {:?} incompatible with initial machine regime {:?}",
+                plan.call.policy, plan.state.initial_regime,
+            ));
         }
         let graph = BoundaryValueGraph {
             shapes: &signature.shapes,
