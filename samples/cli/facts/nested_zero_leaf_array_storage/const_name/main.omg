@@ -1,7 +1,7 @@
 // Fact: an owned record with 512-by-512 zero-leaf array elements preserves its two stored sentinels and its last empty row through transport and copying with sixteen bytes of value storage.
 // Expected exit: 0
 use omega::language::core::external_binding;
-const EXTENT: u64 = 512;
+public const EXTENT: u64 = 512;
 public data Packet [copy] { before: u64; empty: [[[u8; 0]; EXTENT]; EXTENT]; after: u64; }
 public boundary trait ZeroLeafProvider {
  machine make() -> Packet reaches;
