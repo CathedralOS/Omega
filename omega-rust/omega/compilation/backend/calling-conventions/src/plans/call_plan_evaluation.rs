@@ -555,11 +555,9 @@ fn evaluate_system_v_amd64(signature: &CallSignature) -> Result<CallPlan, PlanDi
                 result.shape.alignment,
             )]
         } else {
-            integer_register_fragment_locations(
-                result.shape,
-                &[MachineRegister::X86Rax, MachineRegister::X86Rdx],
-                0,
-            )
+            register_fragments(result.shape, 8, 0, |index| {
+                [MachineRegister::X86Rax, MachineRegister::X86Rdx][usize::from(index)]
+            })
         };
     }
     if let Some(result) = plan.result.as_mut()
@@ -568,7 +566,7 @@ fn evaluate_system_v_amd64(signature: &CallSignature) -> Result<CallPlan, PlanDi
             ValueClass::HomogeneousFloatAggregate { .. }
         )
     {
-        result.locations = sysv_sse_fragment_locations(result.shape, 0);
+        result.locations = register_fragments(result.shape, 8, 0, MachineRegister::X86Xmm);
     }
     Ok(plan)
 }
@@ -596,7 +594,8 @@ fn evaluate_aapcs64(signature: &CallSignature) -> Result<CallPlan, PlanDiagnosti
                 result.shape.alignment,
             )];
         } else if result.shape.byte_size > 8 {
-            result.locations = integer_register_fragment_locations(result.shape, &integer, 0);
+            result.locations =
+                register_fragments(result.shape, 8, 0, |index| integer[usize::from(index)]);
         }
     }
     Ok(plan)
@@ -712,17 +711,20 @@ fn evaluate_split_bank_call(
             if policy == CallingPolicy::SystemVAMD64
                 && matches!(shape.class, ValueClass::HomogeneousFloatAggregate { .. })
             {
-                locations.extend(sysv_sse_fragment_locations(shape, float_index));
+                locations.extend(register_fragments(
+                    shape,
+                    8,
+                    float_index,
+                    MachineRegister::X86Xmm,
+                ));
             } else {
                 let members = float_members.expect("float register count came from members");
-                let member_size = shape.byte_size / u32::from(members);
-                for member in 0..members {
-                    locations.push(ValueLocation::register(
-                        float_register(float_index + member),
-                        u32::from(member) * member_size,
-                        member_size,
-                    ));
-                }
+                locations.extend(register_fragments(
+                    shape,
+                    shape.byte_size / u32::from(members),
+                    float_index,
+                    float_register,
+                ));
             }
             float_index += registers_needed;
         } else if float_members.is_none() && shape.byte_size > 16 {
@@ -748,11 +750,9 @@ fn evaluate_split_bank_call(
                 integer_index = integer_index.next_multiple_of(2);
             }
             if integer_index + register_count <= integer_registers.len() {
-                locations.extend(integer_register_fragment_locations(
-                    shape,
-                    integer_registers,
-                    integer_index,
-                ));
+                locations.extend(register_fragments(shape, 8, integer_index as u8, |index| {
+                    integer_registers[usize::from(index)]
+                }));
                 integer_index += register_count;
             } else {
                 // AAPCS64 advances NGRN to eight after a register-exhausted
@@ -793,31 +793,22 @@ fn evaluate_split_bank_call(
     })
 }
 
-fn integer_register_fragment_locations(
+/// Spread `shape` over consecutive registers of one bank as `fragment_bytes`
+/// sized fragments, each fragment's payload clipped to the value's remaining
+/// extent; `register` maps an absolute bank index to its machine register.
+fn register_fragments(
     shape: ValueShape,
-    registers: &[MachineRegister],
-    first_register: usize,
+    fragment_bytes: u32,
+    first_index: u8,
+    register: impl Fn(u8) -> MachineRegister,
 ) -> Vec<ValueLocation> {
-    (0..(shape.byte_size.div_ceil(8) as usize))
+    (0..shape.byte_size.div_ceil(fragment_bytes))
         .map(|fragment| {
-            let value_byte_offset = fragment * 8;
+            let value_byte_offset = fragment * fragment_bytes;
             ValueLocation::register(
-                registers[first_register + fragment],
-                value_byte_offset as u32,
-                ((shape.byte_size as usize) - value_byte_offset).min(8) as u32,
-            )
-        })
-        .collect()
-}
-
-fn sysv_sse_fragment_locations(shape: ValueShape, first_register: u8) -> Vec<ValueLocation> {
-    (0..shape.byte_size.div_ceil(8))
-        .map(|fragment| {
-            let value_byte_offset = fragment * 8;
-            ValueLocation::register(
-                MachineRegister::X86Xmm(first_register + fragment as u8),
+                register(first_index + fragment as u8),
                 value_byte_offset,
-                (shape.byte_size - value_byte_offset).min(8),
+                (shape.byte_size - value_byte_offset).min(fragment_bytes),
             )
         })
         .collect()
@@ -1031,18 +1022,12 @@ fn result_placement(
                 "borrowed references cannot be call results".into(),
             ));
         }
-        ValueClass::HomogeneousFloatAggregate { members } => {
-            let member_size = shape.byte_size / u32::from(members);
-            (0..members)
-                .map(|member| {
-                    ValueLocation::register(
-                        float_register(member),
-                        u32::from(member) * member_size,
-                        member_size,
-                    )
-                })
-                .collect()
-        }
+        ValueClass::HomogeneousFloatAggregate { members } => register_fragments(
+            shape,
+            shape.byte_size / u32::from(members),
+            0,
+            float_register,
+        ),
         ValueClass::SystemVAggregate { first, second } => {
             let classes = [first, second];
             let mut integer_index = 0usize;
