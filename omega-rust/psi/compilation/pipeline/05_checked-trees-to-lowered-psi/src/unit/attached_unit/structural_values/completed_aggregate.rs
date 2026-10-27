@@ -16,6 +16,7 @@ use super::super::{
 };
 use super::member_memberships;
 use crate::emission::operation_emission::buffer::{OperationBuffer, structural_result_declaration};
+use crate::unit::attached_unit::structural_values::ValueOutcome;
 use terminal_psi::{
     RecordFieldInitializer, RecordFieldValue, StructuralArgument, StructuralFieldDeclaration,
     StructuralParameterDeclaration, StructuralPathQualification, StructuralPathSegment,
@@ -212,9 +213,9 @@ impl super::emission::Emission<'_, '_, '_> {
         field_index: usize,
         source_count: usize,
         claims: &mut Vec<terminal_psi::StructuralResultClaimBinding>,
-    ) -> Result<RecordFieldValue, LoweringError> {
+    ) -> Result<ValueOutcome<RecordFieldValue>, LoweringError> {
         use checked_trees::CheckedStructuralRecordFieldValue;
-        Ok(match field.value {
+        Ok(ValueOutcome::Normal(match field.value {
             CheckedStructuralRecordFieldValue::Scalar(value) => {
                 let evaluated = self.scalar(identities, role, value, source_count)?;
                 self.scalar_field_value(
@@ -248,12 +249,15 @@ impl super::emission::Emission<'_, '_, '_> {
                         &target.field_type,
                         field.type_reference,
                     )?;
-                    let completed = self.child_constructor_operand(
+                    let ValueOutcome::Normal(completed) = self.child_constructor_operand(
                         identities,
                         child_type,
                         value,
                         field.type_reference,
-                    )?;
+                    )?
+                    else {
+                        return Ok(ValueOutcome::NoNormal);
+                    };
                     if self.multiplicity == StructuralMultiplicity::Affine {
                         for claim in completed.claims {
                             let mut path = prefix.clone();
@@ -267,6 +271,6 @@ impl super::emission::Emission<'_, '_, '_> {
                     RecordFieldValue::Structural(completed.argument)
                 }
             }
-        })
+        }))
     }
 }

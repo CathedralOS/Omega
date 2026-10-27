@@ -50,6 +50,7 @@ pub(super) fn requires_graph_storage_replay(operations: &[AbstractOperation]) ->
         matches!(
             operation,
             AbstractOperation::SelectImplementation { .. }
+                | AbstractOperation::InvokeNoNormal { .. }
                 | AbstractOperation::ExternalCompletion { .. }
                 | AbstractOperation::CallStructural {
                     callee: abstract_operations::AbstractCallTarget::Dynamic { .. },
@@ -530,10 +531,38 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                     || ieee_float_builtin_retained(operation, targeted, selected)
                     || placed_scalar_retained(operation, targeted, selected)
                     || selected.calls.iter().any(|row| row.owner.operation() == Some(*psi_operation) && matches!(row.call.source, legalized_operations::NativeCallOrigin::InstalledProvider { .. } | legalized_operations::NativeCallOrigin::TargetFamily { .. } | legalized_operations::NativeCallOrigin::ProgramEntry { .. }))
-                    || selected.normalized_foreign_calls.iter().any(|row| row.invocation_site == semantic_vocabulary::BoundaryInvocationSite::Operation(*psi_operation)),
+                    || selected.normalized_foreign_calls.iter().any(|row| row.invocation_site == semantic_vocabulary::InvocationSite::Operation(*psi_operation)),
                 AbstractOperation::Crash { .. } => control_flow::retained(operation, targeted),
+                AbstractOperation::InvokeNoNormal {
+                    psi_edge, callee, arguments, structural_arguments, claim_transfers,
+                    requirement_obligations, crash_continuations,
+                } => {
+                    // A no-normal callee may have no emitted return records.
+                    // Its entry graph still owns its full declared calling plan.
+                    let (_, target) = function(source, *callee)?;
+                    let call_plan = &target.graph.call_plan;
+                    selected.calls.iter().filter(|row| {
+                        row.owner == target_operations::CallSiteOwner::InvokeNoNormal(*psi_edge)
+                            && row.call.target == target_operations::NativeCallTarget::Machine(*callee)
+                            && row.call.call_plan == *call_plan
+                            && row.call.result_placement == call_plan.result
+                            && row.call.structural_result.is_none()
+                            && row.call.descriptor_origins.is_empty()
+                            && row.call.claim_transfers == *claim_transfers
+                            && row.call.requirement_obligations == *requirement_obligations
+                            && row.call.crash_continuations == *crash_continuations
+                            && row.call.arguments.iter().filter_map(|argument| match argument {
+                                legalized_operations::LegalizedScalarArgument::Scalar { source, .. } => Some(*source),
+                                _ => None,
+                            }).eq(arguments.iter().copied())
+                            && row.call.arguments.iter().filter_map(|argument| match argument {
+                                legalized_operations::LegalizedScalarArgument::Structural { semantic, .. } => Some(semantic),
+                                _ => None,
+                            }).eq(structural_arguments)
+                    }).count() == 1 && control_flow::retained(operation, targeted)
+                }
                 AbstractOperation::ExternalCompletion { psi_edge, boundary, .. } => {
-                    let site = semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(*psi_edge);
+                    let site = semantic_vocabulary::InvocationSite::ExternalCompletion(*psi_edge);
                     (selected.boundary_settlements.iter().filter(|row| row.settlement.invocation_site() == site).count()
                         + selected.normalized_foreign_calls.iter().filter(|row| row.invocation_site == site && row.call.boundary == *boundary).count()
                         + selected.calls.iter().filter(|row| row.owner == target_operations::CallSiteOwner::ExternalCompletion(*psi_edge)
@@ -1052,9 +1081,11 @@ fn temporary_stack_bytes_for_function(
     selected.function(machine).ok_or(Error::Mismatch(
         "missing selected function for temporary stack replay",
     ))?;
-    temporary_stack_bytes_for_selected_functions(selected, rows, encoded)?.remove(&machine).ok_or(
-        Error::Mismatch("missing selected function for temporary stack replay"),
-    )
+    temporary_stack_bytes_for_selected_functions(selected, rows, encoded)?
+        .remove(&machine)
+        .ok_or(Error::Mismatch(
+            "missing selected function for temporary stack replay",
+        ))
 }
 
 fn temporary_stack_bytes_for_selected_functions(

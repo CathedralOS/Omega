@@ -94,6 +94,7 @@ pub(super) fn encode_catalog(bytes: &mut CanonicalBytes, catalog: &RuntimeEviden
             call.runtime_result.as_ref(),
             |bytes, result| match result {
                 terminal_psi::ProofOutputRuntimeResult::Unit => bytes.u8(1),
+                terminal_psi::ProofOutputRuntimeResult::NoNormal => bytes.u8(3),
                 terminal_psi::ProofOutputRuntimeResult::Scalar(scalar_type) => {
                     bytes.u8(2);
                     encode_scalar_type(bytes, *scalar_type);
@@ -101,7 +102,9 @@ pub(super) fn encode_catalog(bytes: &mut CanonicalBytes, catalog: &RuntimeEviden
             },
         );
         encode_optional(bytes, call.runtime_call.as_ref(), |bytes, runtime| {
-            bytes.id(runtime.operation);
+            let mut site = Vec::new();
+            runtime.site.encode_identity(&mut site);
+            bytes.slice(&site, |bytes, value| bytes.u8(*value));
             bytes.id(runtime.callee);
         });
         bytes.slice(&call.evidence_arguments, |bytes, argument| {
@@ -149,7 +152,7 @@ mod tests {
             static_requirement_dispatch: None,
             runtime_result: Some(ProofOutputRuntimeResult::Unit),
             runtime_call: Some(ProofOutputRuntimeCall {
-                operation: OperationId::new(1).unwrap(),
+                site: OperationId::new(1).unwrap().into(),
                 callee: machine,
             }),
             evidence_arguments: vec![ProofOutputEvidenceArgument {
@@ -179,7 +182,7 @@ mod tests {
             .runtime_call
             .as_mut()
             .unwrap()
-            .operation = OperationId::new(2).unwrap();
+            .site = OperationId::new(2).unwrap().into();
         assert_ne!(before, encoded(&module));
     }
 }

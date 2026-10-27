@@ -103,6 +103,7 @@ impl<'program> Evaluator<'program> {
                 _ => "select",
             },
         };
+        let requires_selecting_machine = binding.requires_lexical_subject();
         let preparation = protocol.and_then(|name| match name {
             "prepare" => Some(true),
             name if name == operation => Some(false),
@@ -235,10 +236,10 @@ impl<'program> Evaluator<'program> {
                     } else {
                         CompositionMode::Fused
                     }),
-                    BuildOperation::RepresentationSelection
-                    | BuildOperation::ServiceExclusion
-                    | BuildOperation::BoundaryAcceptance
-                        if independent.is_none() =>
+                    operation
+                        if operation.selects_product_declarations()
+                            && operation != BuildOperation::ProviderSelection
+                            && independent.is_none() =>
                     {
                         None
                     }
@@ -248,10 +249,7 @@ impl<'program> Evaluator<'program> {
                         );
                     }
                 };
-                let selecting_machine = if matches!(
-                    request.operation,
-                    BuildOperation::ServiceExclusion | BuildOperation::BoundaryAcceptance
-                ) {
+                let selecting_machine = if requires_selecting_machine {
                     Some(
                         self.program
                             .symbols

@@ -1319,8 +1319,12 @@ pub(super) fn adapt(
             Terminator::ExternalCompletion {
                 structural_arguments,
                 ..
+            }
+            | Terminator::InvokeNoNormal {
+                structural_arguments,
+                ..
             } => {
-                // External completion observes its actuals but never contributes
+                // A nonreturning invocation observes its actuals but never contributes
                 // a normal-return descriptor or a post-call ownership frontier.
                 for argument in structural_arguments {
                     if let Some(source) = location(argument.place, &argument.path, None) {

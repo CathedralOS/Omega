@@ -448,11 +448,13 @@ impl StateGraphEmission<'_, '_> {
         )?;
         let current_parameters = evaluation.current_parameters(&state_parameters);
         let state_parameters = current_parameters.as_ref();
-        if operations.external_completion.is_some() {
+        if operations.invocation_completion.is_some() {
             sequence.require_closed()?;
-            let terminator = operations.take_external_completion(&mut next_edge)?.ok_or(
-                LoweringError::Unsupported("external completion lost its evaluated invocation"),
-            )?;
+            let terminator = operations
+                .take_invocation_completion(&mut next_edge)?
+                .ok_or(LoweringError::Unsupported(
+                    "external completion lost its evaluated invocation",
+                ))?;
             let body_end = operations.len();
             return self.seal_state(
                 identities,
@@ -1135,6 +1137,11 @@ impl StateGraphEmission<'_, '_> {
             )
         };
         let terminator = match &state.terminator {
+            CheckedComposedUnitControlTerminatorPlan::InvokeNoNormal { .. }
+            | CheckedComposedUnitControlTerminatorPlan::EvaluateNoNormal => {
+                return unsupported("nonreturning state lost its evaluated invocation");
+            }
+
             CheckedComposedUnitControlTerminatorPlan::Guarded { .. } => guarded_return.ok_or(
                 LoweringError::Unsupported("guarded structural emission absent"),
             )?,

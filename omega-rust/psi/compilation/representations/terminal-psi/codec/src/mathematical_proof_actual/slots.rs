@@ -234,6 +234,47 @@ pub(super) fn collect(module: &TerminalModule) -> Result<Vec<Slot<'_>>, Error> {
                     }
                 }
             }
+            if let Some(invocation) = block.terminator.module_invocation() {
+                let mut candidates = module
+                    .machines
+                    .iter()
+                    .filter(|machine| machine.id == invocation.callee);
+                let target = candidates.next().ok_or(Error::SourceCarrierMismatch)?;
+                if candidates.next().is_some() {
+                    return Err(Error::SourceCarrierMismatch);
+                }
+                let formals = &target.contract.erased_proof_formals;
+                let actuals = invocation.erased_proof_arguments;
+                if has_mathematical(module, formals)
+                    || actuals.iter().any(|term| {
+                        contains_mathematical(
+                            module,
+                            term,
+                            &block.erased_proof_formals,
+                            &owner.contract.erased_proof_formals,
+                        )
+                    })
+                {
+                    // Tag 8 is an invocation edge, not an operation ordinal.
+                    // Keep the source edge identity even when its numeric id
+                    // equals an ordinary operation in the same block.
+                    slots.push(Slot {
+                        key: (
+                            owner.id.get(),
+                            block.id.get(),
+                            8,
+                            block.terminator.edge().get(),
+                            0,
+                        ),
+                        target: (invocation.callee.get(), 0),
+                        owner,
+                        block,
+                        callee: target.declaration.as_ref(),
+                        formals,
+                        actuals,
+                    });
+                }
+            }
             let edges = match &block.terminator {
                 Terminator::Jump {
                     edge,

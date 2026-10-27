@@ -15,6 +15,7 @@ use crate::expression_preparation::bindings::LoanAccess;
 use crate::expression_preparation::bindings::structural_paths::{
     PreparedStructuralPathSegment, prepare_structural_argument_path,
 };
+use crate::unit::attached_unit::structural_values::ValueOutcome;
 use checked_trees::CheckedUnitStructuralArgumentPlan;
 
 impl Emission<'_, '_, '_> {
@@ -28,7 +29,7 @@ impl Emission<'_, '_, '_> {
         storage: checked_trees::CheckedReferenceStorage,
         completion: super::CompletionOccurrence,
         continuation: Option<&mut ValueContinuation>,
-    ) -> Result<PlaceId, LoweringError> {
+    ) -> Result<ValueOutcome<PlaceId>, LoweringError> {
         // Address demand belongs to the original source, including a scalar
         // formal. Reuse ordinary argument preparation so representation views
         // lend that home's bits rather than creating storage of the viewed type.
@@ -67,12 +68,15 @@ impl Emission<'_, '_, '_> {
             // Backing completes through its own producer occurrence, not the
             // descriptor's child roster. The shared construction/call owner
             // publishes that exact home's claims before the loan is formed.
-            let completed = self.child_constructor_operand(
+            let ValueOutcome::Normal(completed) = self.child_constructor_operand(
                 identities,
                 root_type,
                 source_value,
                 node.type_reference,
-            )?;
+            )?
+            else {
+                return Ok(ValueOutcome::NoNormal);
+            };
             // The loan and its later retirement name this exact home. Keep
             // its expression identity at establishment, not a reconstructed
             // initializer or a second evaluation during cleanup.
@@ -216,9 +220,9 @@ impl Emission<'_, '_, '_> {
             };
             return if let Some(continuation) = continuation {
                 self.complete_loan(argument, continuation, loan)?;
-                Ok(continuation.place)
+                Ok(ValueOutcome::Normal(continuation.place))
             } else {
-                self.direct_borrow(argument)
+                self.direct_borrow(argument).map(ValueOutcome::Normal)
             };
         }
         // The offset is an operand of this carrier establishment, not a live
@@ -245,5 +249,6 @@ impl Emission<'_, '_, '_> {
         let place = carrier.id;
         self.environment.private_places.push(carrier);
         self.completed(identities, place, completion, continuation)
+            .map(ValueOutcome::Normal)
     }
 }

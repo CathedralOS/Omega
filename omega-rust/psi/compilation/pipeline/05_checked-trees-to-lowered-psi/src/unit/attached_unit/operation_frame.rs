@@ -438,6 +438,19 @@ impl OperationEnvironment<'_> {
             frame.emit(identities, operand)?;
             return Ok(None);
         }
+        if !operand.has_normal_continuation() {
+            frame.emit_call(
+                identities,
+                operand,
+                CallInputs {
+                    evaluated_scalar_arguments: evaluated,
+                    byte_places,
+                    evaluated_selectors,
+                    completed_structural_arguments,
+                },
+            )?;
+            return Ok(None);
+        }
         let result = result.ok_or(LoweringError::Unsupported(
             "structural operand call has no result",
         ))?;
@@ -505,6 +518,7 @@ impl OperationFrame<'_, '_> {
         matches!(
             operation,
             CheckedUnitEffectOperationPlan::RegisterAccess { .. }
+                | CheckedUnitEffectOperationPlan::EvaluateStructuralValue { .. }
                 | CheckedUnitEffectOperationPlan::EstablishLocal(
                     checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { .. }
                 )
@@ -577,6 +591,9 @@ impl OperationFrame<'_, '_> {
                 service_reach,
             ),
             CheckedUnitEffectOperationPlan::Store(store) => self.store(identities, store),
+            CheckedUnitEffectOperationPlan::EvaluateStructuralValue { .. } => {
+                self.evaluate_structural_value(identities, operation)
+            }
             CheckedUnitEffectOperationPlan::EstablishLocal(binding) => {
                 self.establish_local(identities, operation, binding)
             }

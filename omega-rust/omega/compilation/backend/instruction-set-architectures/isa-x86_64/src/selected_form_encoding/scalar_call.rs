@@ -147,7 +147,9 @@ pub fn validate_x86_64_selected_scalar_call_template(
         .ok_or(X86_64ScalarCallTemplateError::InstructionKindMismatch)?;
     let unit = matches!(kind, SelectedInstructionKind::CallUnit { .. });
     let expected_alternative = MachineAlternativeKey {
-        family: if unit {
+        family: if matches!(kind, SelectedInstructionKind::InvokeNoNormal { .. }) {
+            MachineAlternativeFamily::InvokeNoNormal
+        } else if unit {
             MachineAlternativeFamily::CallUnit
         } else if matches!(kind, SelectedInstructionKind::CallAggregate { .. }) {
             MachineAlternativeFamily::CallAggregate
@@ -160,7 +162,11 @@ pub fn validate_x86_64_selected_scalar_call_template(
         return Err(X86_64ScalarCallTemplateError::AlternativeMismatch);
     }
     let (expected_operand_views, expected) =
-        expected_call_mechanics(abi, physical, kind, operand_views)?;
+        if matches!(kind, SelectedInstructionKind::InvokeNoNormal { .. }) {
+            expected_no_normal_mechanics(abi, physical, operand_views, effects)?
+        } else {
+            expected_call_mechanics(abi, physical, kind, operand_views)?
+        };
     if effects != &expected {
         return Err(X86_64ScalarCallTemplateError::EffectMismatch);
     }
@@ -640,6 +646,63 @@ mod tests {
             Err(X86_64ScalarCallTemplateError::FixupMismatch)
         );
     }
+}
+
+/// The invocation's full declared ABI key was validated upstream. At the
+/// physical boundary reconstruct every admitted native call row and require
+/// its complete read/write/clobber/stack effects, not merely register names.
+fn expected_no_normal_mechanics(
+    abi: X86_64SelectedAbi,
+    physical: &ValidatedPhysicalRegisterModel,
+    operand_views: &[RegisterViewId],
+    effects: &MachineEncodedEffects,
+) -> Result<(Vec<RegisterViewId>, MachineEncodedEffects), X86_64ScalarCallTemplateError> {
+    let microsoft = abi == X86_64SelectedAbi::Microsoft;
+    let keys = if microsoft {
+        crate::x86_64_microsoft_register_call_keys()
+            .into_iter()
+            .chain(crate::x86_64_microsoft_register_unit_call_keys())
+            .chain(crate::x86_64_microsoft_mixed_unit_call_keys())
+            .chain(crate::register_model::x86_64_microsoft_aggregate_call_keys())
+            .chain(crate::x86_64_microsoft_mixed_aggregate_call_keys())
+            .collect::<Vec<_>>()
+    } else {
+        crate::x86_64_system_v_register_call_keys()
+            .into_iter()
+            .chain(crate::x86_64_system_v_register_unit_call_keys())
+            .chain(crate::x86_64_system_v_mixed_unit_call_keys())
+            .chain(crate::register_model::x86_64_system_v_aggregate_call_keys())
+            .chain(crate::x86_64_system_v_mixed_aggregate_call_keys())
+            .collect::<Vec<_>>()
+    };
+    let keys = keys
+        .into_iter()
+        .chain(crate::x86_64_float_scalar_call_keys(microsoft))
+        .chain(crate::x86_64_indirect_aggregate_call_keys(microsoft))
+        .collect::<Vec<_>>();
+    let catalog = x86_64_register_constraint_catalog_for(physical);
+    let stack = physical
+        .model()
+        .view_named("rsp")
+        .ok_or(X86_64ScalarCallTemplateError::NonCanonicalPhysicalModel)?
+        .id;
+    for row in &catalog.constraints {
+        if !keys.contains(&row.key)
+            || row.operands.len() != operand_views.len()
+            || !row
+                .operands
+                .iter()
+                .zip(operand_views)
+                .all(|(operand, view)| operand.fixed_view == Some(*view))
+        {
+            continue;
+        }
+        let expected = crate::machine_effects::user_direct_call_effects(row, stack);
+        if &expected == effects {
+            return Ok((operand_views.to_vec(), expected));
+        }
+    }
+    Err(X86_64ScalarCallTemplateError::EffectMismatch)
 }
 
 fn expected_call_mechanics(

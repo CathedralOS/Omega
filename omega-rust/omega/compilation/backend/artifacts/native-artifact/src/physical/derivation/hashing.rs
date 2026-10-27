@@ -116,12 +116,16 @@ pub(crate) fn hash_boundary_settlement_record(
     settlement: &machine_code::BoundarySettlementRecord,
 ) -> Result<(), &'static str> {
     match settlement.invocation_site {
-        semantic_vocabulary::BoundaryInvocationSite::Operation(operation) => {
+        semantic_vocabulary::InvocationSite::Operation(operation) => {
             digest.byte(0);
             digest.raw(&operation.get().to_le_bytes());
         }
-        semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) => {
+        semantic_vocabulary::InvocationSite::ExternalCompletion(edge) => {
             digest.byte(1);
+            digest.raw(&edge.get().to_le_bytes());
+        }
+        semantic_vocabulary::InvocationSite::InvokeNoNormal(edge) => {
+            digest.byte(2);
             digest.raw(&edge.get().to_le_bytes());
         }
     }
@@ -809,6 +813,11 @@ pub(crate) fn hash_call_site_owner(
         CallSiteOwner::Operation(operation) => {
             digest.byte(1);
             digest.raw(&operation.get().to_le_bytes());
+            digest.raw(&0_u32.to_le_bytes());
+        }
+        CallSiteOwner::InvokeNoNormal(edge) => {
+            digest.byte(4);
+            digest.raw(&edge.get().to_le_bytes());
             digest.raw(&0_u32.to_le_bytes());
         }
         CallSiteOwner::ExternalCompletion(edge) => {

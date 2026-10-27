@@ -6,6 +6,8 @@
 //! restoration. Validate the entire entry namespace before simplifying Boolean
 //! expressions, then use the shared contract converter for IEEE comparisons so
 //! unordered negation and exact binary32/binary64 formats survive publication.
+//! Entry leaves retain their exact carrier, including addresses. Comparing an
+//! address neither interprets it as count geometry nor grants storage authority.
 use super::{
     BTreeMap, CheckedBooleanExpression, CheckedScalarExpression, LoweringError, PrimitiveType,
     Proposition, ScalarTerm, ScalarType, StructuralParameterDeclaration, StructuralTypeDeclaration,
@@ -114,9 +116,6 @@ fn validate_integer_namespace(expression: &CheckedScalarExpression) -> Result<()
         CheckedScalarExpression::Parameter { primitive_type, .. }
         | CheckedScalarExpression::ErasedParameter { primitive_type, .. }
         | CheckedScalarExpression::StructuralParameterField { primitive_type, .. } => {
-            if *primitive_type == PrimitiveType::Addr {
-                return unsupported("runtime requirement cannot use an address carrier");
-            }
             integer_scalar_type(*primitive_type).map(|_| ())
         }
         CheckedScalarExpression::IntegerLiteral { .. }

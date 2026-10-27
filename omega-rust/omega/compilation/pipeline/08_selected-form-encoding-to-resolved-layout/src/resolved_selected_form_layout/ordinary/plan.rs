@@ -190,7 +190,7 @@ fn instruction_size(
         SelectedFormEncodingState::UnresolvedInternalMachineCall { .. } => {
             if !matches!(
                 instruction.kind,
-                selected_instructions::selected_call_triple_pattern!(..)
+                selected_instructions::selected_call_pattern!(..)
             ) {
                 return unexpected(instruction.id);
             }

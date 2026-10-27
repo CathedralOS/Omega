@@ -65,7 +65,8 @@ impl Retirement<'_> {
                         } => calls
                             .iter()
                             .find(|call| call.value == *value)
-                            .and_then(|call| call.operation().call())
+                            .and_then(|call| call.operation())
+                            .and_then(CheckedUnitEffectOperationPlan::call)
                             .is_some_and(|call| !self.call_retains_carrier(call, parent)),
                         // Copying a resident descriptor retains its original
                         // backing, not the bytes of the supplying carrier home.

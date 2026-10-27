@@ -591,10 +591,7 @@ fn operand_chain_length(
 /// roster. Admission decides the pair; this is only the source-bound
 /// candidate surface and the joint measure's call term.
 pub(crate) fn is_call_consumer(kind: SelectedInstructionKind) -> bool {
-    matches!(
-        kind,
-        selected_instructions::selected_call_triple_pattern!(..)
-    )
+    matches!(kind, selected_instructions::selected_call_pattern!(..))
 }
 
 /// The joint measure a committed step must strictly drop: the plan's

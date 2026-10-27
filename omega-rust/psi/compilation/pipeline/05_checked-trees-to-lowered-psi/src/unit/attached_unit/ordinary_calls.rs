@@ -1,18 +1,18 @@
 //! Shared ordinary call operands, requirements and crash substitution.
 use super::super::{
     BTreeMap, MachineId, ObligationId, Proposition, StructuralArgument,
-    StructuralParameterDeclaration, StructuralTypeDeclaration, ValueId,
-    structural_crash_argument_type, substitute_structural_crash_route_roots,
+    StructuralParameterDeclaration, StructuralTypeDeclaration, structural_crash_argument_type,
+    substitute_structural_crash_route_roots,
 };
 use super::parameters::call_index_selectors;
 use super::{
-    CheckedTrees, CheckedUnitEffectOperationPlan, ClaimTransfer, LoweringError, OperationResult,
-    PlaceId, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId, ValueDeclaration,
+    CheckedTrees, CheckedUnitEffectOperationPlan, LoweringError, OperationResult, PlaceId,
+    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId, ValueDeclaration,
     allocate_dense, argument_evaluation, lookup_type_id, lower_checked_crash_route_buckets,
     lower_structural_arguments, lower_structural_crash_route_buckets, place_id, primitive_locals,
     unsupported,
 };
-use crate::direct_calls::{DirectCall, DirectCallResult};
+use crate::direct_calls::{DirectCall, DirectCallResult, ModuleInvocationArguments};
 use crate::emission::claim_bindings::emitted_claim_transfers;
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
 use crate::emission::operation_emission::calls::CallEmissionContext;
@@ -31,21 +31,7 @@ pub(crate) struct Target<'a> {
     pub source_checked_requires: &'a [Proposition],
 }
 
-pub(crate) struct PreparedCall {
-    pub arguments: Vec<ValueId>,
-    /// Proof-only erased actuals in the callee's erased-formal order.
-    pub erased_arguments: Vec<semantic_vocabulary::ScalarTerm>,
-    /// Erased proof-only actuals in the callee's erased-proof roster order.
-    pub erased_proof_arguments: Vec<semantic_vocabulary::ProofTerm>,
-    pub structural_arguments: Vec<StructuralArgument>,
-    /// The emitted transfer roster: checked rows plus each completed-result
-    /// `self` consume's minted claim, in canonical order.
-    pub claim_transfers: Vec<ClaimTransfer>,
-    pub requirement_obligations: Vec<ObligationId>,
-    pub crash_continuations: Vec<terminal_psi::CrashRouteBucket>,
-}
-
-impl PreparedCall {
+impl ModuleInvocationArguments {
     /// Emit the prepared lanes as one direct call to `callee` through the
     /// single call emitter, for `result` to choose its Terminal operation.
     #[allow(clippy::too_many_arguments)]
@@ -113,7 +99,7 @@ pub(super) fn prepare(
     next_value: &mut u64,
     operations: &mut OperationBuffer,
     current_claims: &mut crate::emission::current_claims::CurrentClaimNames,
-) -> Result<PreparedCall, LoweringError> {
+) -> Result<ModuleInvocationArguments, LoweringError> {
     // All ordinary result kinds share operand custody and callee contracts.
     // Result formation and publication remain with the operation frame.
     let Some((call, erased_scalar_arguments, erased_proof_arguments)) = operation
@@ -252,7 +238,7 @@ pub(super) fn prepare(
         },
     )?;
     let requirement_obligations = prepare_requirement_obligations(&target, calls, operations)?;
-    Ok(PreparedCall {
+    Ok(ModuleInvocationArguments {
         arguments: terminal_scalar_arguments,
         erased_arguments,
         erased_proof_arguments,
@@ -269,7 +255,7 @@ pub(super) fn prepare(
 /// (`scalar_lowering/effects.rs`) both evaluate their scalar actuals first
 /// and then owe the callee the same requirement obligations, erased proof
 /// terms, structural arguments, crash continuations and claim transfers
-/// before `PreparedCall::emit`. A target with a lowered signature takes the
+/// before `ModuleInvocationArguments::emit`. A target with a lowered signature takes the
 /// signature's contract; a standalone scalar catalog has no signature and
 /// keeps its exact requirement count with checked crash routes over the
 /// evaluated actuals, which is what a callee without structural formals
@@ -292,7 +278,7 @@ pub(crate) fn prepare_computed_module_call(
     next_value: &mut u64,
     operations: &mut OperationBuffer,
     current_claims: &mut crate::emission::current_claims::CurrentClaimNames,
-) -> Result<PreparedCall, LoweringError> {
+) -> Result<ModuleInvocationArguments, LoweringError> {
     let signature = calls
         .signatures
         .iter()
@@ -379,7 +365,7 @@ pub(crate) fn prepare_computed_module_call(
         &emitted_structural_arguments,
         current_claims,
     )?;
-    Ok(PreparedCall {
+    Ok(ModuleInvocationArguments {
         arguments: arguments.iter().map(|argument| argument.id).collect(),
         erased_arguments,
         erased_proof_arguments,
@@ -530,7 +516,7 @@ pub(super) fn emit_structural(
     checked: &CheckedTrees,
     state: symbols::SymbolHandle,
     operation: &CheckedUnitEffectOperationPlan,
-    prepared: PreparedCall,
+    prepared: ModuleInvocationArguments,
     callee: MachineId,
     type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     structural_types: &[terminal_psi::StructuralTypeDeclaration],

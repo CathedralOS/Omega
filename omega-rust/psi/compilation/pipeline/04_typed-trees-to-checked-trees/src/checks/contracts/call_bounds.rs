@@ -72,7 +72,10 @@ fn prove(
         validation::CallSite::Expression {
             call: source_call, ..
         } => {
-            if source_call.target_symbol != call.target_symbol
+            if validation::call_target_entry_symbol(
+                program,
+                validation::call_target_symbol(program, source_call),
+            ) != call.target_symbol
                 || (source_call.receiver.is_valid()
                     && validation::canonical_place_from_expression(program, source_call.receiver)
                         .is_none())

@@ -748,6 +748,7 @@ fn lower_transition_target_node(
                 }
             }
             Ok(TransitionTarget::Named(NamedTransitionTarget {
+                receiver_symbol: Default::default(),
                 head_symbol: SymbolHandle::invalid(),
                 symbol: SymbolHandle::invalid(),
                 storage: NamedTransitionTargetStorage {

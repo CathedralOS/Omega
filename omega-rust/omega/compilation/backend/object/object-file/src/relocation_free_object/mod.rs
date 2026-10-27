@@ -220,8 +220,8 @@ pub enum RelocationFreeObjectDecodeError {
     InvalidSymbolId,
     InvalidBoundary,
     InvalidOperation,
-    InvalidBoundaryInvocationSite,
-    UnknownBoundaryInvocationSiteTag(u8),
+    InvalidInvocationSite,
+    UnknownInvocationSiteTag(u8),
     UnknownTargetArchitecture(u8),
     UnknownObjectFormat(u8),
     UnknownSymbolPolicy(u8),
@@ -928,13 +928,13 @@ fn decode_plan_content(
 
 fn decode_boundary_invocation_site(
     cursor: &mut Cursor<'_>,
-) -> Result<semantic_vocabulary::BoundaryInvocationSite, RelocationFreeObjectDecodeError> {
+) -> Result<semantic_vocabulary::InvocationSite, RelocationFreeObjectDecodeError> {
     let tag = cursor.byte()?;
     let identity = cursor.u64()?;
-    semantic_vocabulary::BoundaryInvocationSite::from_tagged_identity(tag, identity).ok_or_else(
+    semantic_vocabulary::InvocationSite::from_tagged_identity(tag, identity).ok_or_else(
         || match tag {
-            0 | 1 => RelocationFreeObjectDecodeError::InvalidBoundaryInvocationSite,
-            _ => RelocationFreeObjectDecodeError::UnknownBoundaryInvocationSiteTag(tag),
+            0 | 1 => RelocationFreeObjectDecodeError::InvalidInvocationSite,
+            _ => RelocationFreeObjectDecodeError::UnknownInvocationSiteTag(tag),
         },
     )
 }

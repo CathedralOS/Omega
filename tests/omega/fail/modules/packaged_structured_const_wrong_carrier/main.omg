@@ -1,0 +1,6 @@
+// Expected reject: actual selected const carrier differs from the receiving Token.
+use carrier_control_dependency::main;
+data ImpostorToken [copy] { marker: u64; }
+const WRONG: ImpostorToken = ImpostorToken { marker: 1 };
+machine rejects(value: u64 in Tagged<WRONG>) {}
+machine main() {}

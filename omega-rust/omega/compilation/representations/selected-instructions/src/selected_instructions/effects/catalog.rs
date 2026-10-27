@@ -36,6 +36,9 @@ pub fn validate_machine_effect_catalog(
         return Err(MachineEffectCatalogValidationError::RegisterConstraintRootMismatch);
     }
     let selected = catalog.selected_keys.in_identity_order();
+    if catalog.selected_keys.invoke_no_normal != catalog.selected_keys.ordinary_call_constraints() {
+        return Err(MachineEffectCatalogValidationError::DeclarationRosterMismatch);
+    }
     if selected.iter().copied().collect::<BTreeSet<_>>().len() != selected.len() {
         return Err(MachineEffectCatalogValidationError::DuplicateSelectedConstraintKey);
     }
@@ -232,6 +235,7 @@ machine_semantic_kinds! {
     { fixed ControlRegisterWrite },
 
     { fixed AtomicFence },
+    { fixed InvokeNoNormal },
     {
         /// One `Trapping` primitive at one carrier: the exact result, or an
         /// in-function architectural trap when the policy predicate holds.
@@ -414,11 +418,13 @@ pub enum MachineAlternativeFamily {
     TrappingInteger(TrappingForm),
     NearestIeeeFloatArithmetic(IeeeFloatArithmeticForm),
     FloatResultPolicy(FloatResultPolicyForm),
+    InvokeNoNormal,
 }
 
 impl From<MachineSemanticKind> for MachineAlternativeFamily {
     fn from(value: MachineSemanticKind) -> Self {
         match value {
+            MachineSemanticKind::InvokeNoNormal => Self::InvokeNoNormal,
             MachineSemanticKind::SystemRegisterRead => Self::SystemRegisterRead,
             MachineSemanticKind::SystemRegisterWrite => Self::SystemRegisterWrite,
             MachineSemanticKind::ControlRegisterRead => Self::ControlRegisterRead,
@@ -651,6 +657,12 @@ pub enum MachineCallEffect {
     /// Returning local invocation; the encoded control retains direct versus
     /// indirect selection without changing its data calling convention.
     InternalNormalReturnV1 {
+        pre_call_stack_alignment: u16,
+    },
+    /// The physical call enters the ordinary declared ABI, retaining its
+    /// caller activation and return-address footprint. There is no semantic
+    /// result, caller resumption or normal frame-release credit.
+    InternalNoNormalV1 {
         pre_call_stack_alignment: u16,
     },
     /// Call to an admitted foreign boundary that returns normally. Its encoded

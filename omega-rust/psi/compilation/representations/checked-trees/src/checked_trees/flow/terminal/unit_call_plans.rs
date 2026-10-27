@@ -115,6 +115,10 @@ pub enum CheckedUnitCallRoute {
 /// What a call binds for the operations after it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedUnitCallResult {
+    /// The exact checked module invocation has no normal continuation. Its
+    /// declared callee signature remains intact; no value or normal custody
+    /// receipt enters this caller. This supplies no abandonment authority.
+    NoNormal,
     /// Nothing.
     Unit,
     /// A primitive in the dense scalar namespace. A boundary result binds the
@@ -213,6 +217,14 @@ impl CheckedUnitCallPlan {
                 )
             ),
             BoundaryCompletion::NormalReturn => match (&route, &result, &transfers) {
+                (
+                    CheckedUnitCallRoute::Module {
+                        contract_commitment,
+                        ..
+                    },
+                    Result::NoNormal,
+                    Transfers::Claims(_),
+                ) => contract_commitment.is_some(),
                 (
                     CheckedUnitCallRoute::ActivationStorage {
                         operation:
@@ -357,6 +369,13 @@ impl CheckedUnitCallPlan {
         self.completion
     }
 
+    /// Continuation, unlike abandonment, follows the invocation outcome. A
+    /// checked nonreturning cycle cannot grant disposal or loan completion.
+    pub fn has_normal_continuation(&self) -> bool {
+        self.completion == BoundaryCompletion::NormalReturn
+            && self.result != CheckedUnitCallResult::NoNormal
+    }
+
     pub fn result(&self) -> &CheckedUnitCallResult {
         &self.result
     }
@@ -370,7 +389,10 @@ impl CheckedUnitCallPlan {
     fn retains_source_site(&self) -> bool {
         self.is_boundary()
             || matches!(self.route, CheckedUnitCallRoute::ActivationStorage { .. })
-            || matches!(self.result, CheckedUnitCallResult::Structural { .. })
+            || matches!(
+                self.result,
+                CheckedUnitCallResult::Structural { .. } | CheckedUnitCallResult::NoNormal
+            )
     }
 
     /// The exact authored call site the row retains for target-owned

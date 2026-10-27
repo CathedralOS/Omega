@@ -9,18 +9,64 @@
 //! by an unrelated arena with the same revision during product pruning.
 
 use super::{FlowControlFacts, FlowStateFact};
-use crate::checked_trees::keyed_rows::KeyedRows;
+use crate::checked_trees::keyed_rows::{DurableRows, KeyedRows};
 use arena::Handle;
+use std::sync::OnceLock;
 use symbols::SymbolHandle;
 type Arena<T> = arena::PagedArenaSet<T>;
 
 /// Flow-state storage and its derived machine relationships share one owner.
 /// Arena mutation is exposed for producers, but cannot retain a stale index.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Default)]
 pub struct FlowStateTable {
     arena: Arena<FlowStateFact>,
     machine_rows: KeyedRows<SymbolHandle, FlowStateFact>,
     state_rows: KeyedRows<SymbolHandle, FlowStateFact>,
+    // The page roster is unchanged throughout an immutable read window.
+    // Mutable arena access clears this exact revision together with the rows.
+    revision: OnceLock<u64>,
+}
+
+impl Clone for FlowStateTable {
+    fn clone(&self) -> Self {
+        Self {
+            arena: self.arena.clone(),
+            machine_rows: self.machine_rows.clone(),
+            state_rows: self.state_rows.clone(),
+            revision: OnceLock::new(),
+        }
+    }
+}
+
+impl std::fmt::Debug for FlowStateTable {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("FlowStateTable")
+            .field("arena", &self.arena)
+            .field("machine_rows", &self.machine_rows)
+            .field("state_rows", &self.state_rows)
+            .finish()
+    }
+}
+
+impl PartialEq for FlowStateTable {
+    fn eq(&self, other: &Self) -> bool {
+        self.arena == other.arena
+    }
+}
+
+impl Eq for FlowStateTable {}
+
+impl DurableRows for FlowStateTable {
+    type Row = FlowStateFact;
+
+    fn revision(&self) -> u64 {
+        *self.revision.get_or_init(|| self.arena.revision())
+    }
+
+    fn rows(&self) -> impl Iterator<Item = (Handle<FlowStateFact>, &FlowStateFact)> {
+        self.arena.iter()
+    }
 }
 
 impl From<Arena<FlowStateFact>> for FlowStateTable {
@@ -29,6 +75,7 @@ impl From<Arena<FlowStateFact>> for FlowStateTable {
             arena,
             machine_rows: KeyedRows::default(),
             state_rows: KeyedRows::default(),
+            revision: OnceLock::new(),
         }
     }
 }
@@ -43,6 +90,7 @@ impl std::ops::Deref for FlowStateTable {
 
 impl std::ops::DerefMut for FlowStateTable {
     fn deref_mut(&mut self) -> &mut Self::Target {
+        self.revision.take();
         self.machine_rows.clear();
         self.state_rows.clear();
         &mut self.arena
@@ -56,7 +104,7 @@ impl FlowControlFacts {
         read: impl FnOnce(&[Handle<FlowStateFact>]) -> Result,
     ) -> Result {
         self.states.machine_rows.with_rows(
-            &self.states.arena,
+            &self.states,
             |state| state.machine_symbol,
             &machine,
             read,
@@ -66,7 +114,7 @@ impl FlowControlFacts {
     /// First recorded row with this exact state symbol.
     pub fn state_by_symbol(&self, state: SymbolHandle) -> Option<&FlowStateFact> {
         self.states.state_rows.with_rows(
-            &self.states.arena,
+            &self.states,
             |row| row.state_symbol,
             &state,
             |rows| rows.first().map(|handle| self.states.get(*handle)),
@@ -154,6 +202,10 @@ mod tests {
                     );
                 }
             }
+            assert_eq!(
+                facts.states.revision.get().copied(),
+                Some(facts.states.arena.revision())
+            );
         };
         let mut facts = FlowControlFacts::default();
         assert_roster(&facts);
@@ -180,7 +232,10 @@ mod tests {
             assert_roster(&facts);
         }
         let snapshot = facts.clone();
+        assert!(snapshot.states.revision.get().is_none());
+        assert_eq!(facts, snapshot);
         facts.states.get_mut(first).machine_symbol = other_machine;
+        assert!(facts.states.revision.get().is_none());
         assert_roster(&facts);
         assert_roster(&snapshot);
         // Replacing the arena through mutable access cannot inherit a warm
@@ -200,6 +255,7 @@ mod tests {
         assert_roster(&equal_revision);
         assert_eq!(equal_revision.states.revision(), replacement.revision());
         *equal_revision.states = replacement;
+        assert!(equal_revision.states.revision.get().is_none());
         assert_roster(&equal_revision);
         facts.states.insert(FlowStateFact {
             machine_symbol: replacement_machine,

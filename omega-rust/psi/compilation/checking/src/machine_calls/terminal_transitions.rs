@@ -1,19 +1,26 @@
-//! Named boundary transitions are terminal value calls, not machine-state
-//! jumps. Normalize their complete declaration path into the ordinary call
+//! Named terminal invocations use ordinary call results, while local states remain
+//! control edges. Normalize the complete declaration path into the ordinary call
 //! representation before result-overload selection. Operand checks, effects,
 //! requires contracts, result compatibility and provider selection then share
 //! the expression path; a qualified name alone never admits execution.
 
-use symbols::{SymbolHandle, SymbolKind};
+use symbols::SymbolKind;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{
     ExpressionHandle, ExpressionNode, TableCallExpression, TableNamePath,
 };
 use typed_trees::statement::TransitionTargetNode;
 
-pub(super) fn normalize_boundary_transition_calls(program: &mut TypedTrees) {
+pub fn normalize_terminal_transition_calls(
+    program: &mut TypedTrees,
+    first_machine: usize,
+    completed_machines: &[symbols::SymbolHandle],
+) {
     let mut targets = Vec::new();
-    for machine in program.machines() {
+    for (index, machine) in program.machines().iter().enumerate() {
+        if index < first_machine && !completed_machines.contains(&machine.symbol) {
+            continue;
+        }
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
                 let Some(transition) = statement.as_transition() else {
@@ -25,13 +32,28 @@ pub(super) fn normalize_boundary_transition_calls(program: &mut TypedTrees) {
                     else {
                         continue;
                     };
-                    // An already resolved machine/state identity stays a jump.
+                    let members = program.statement_table.name_path_members(path.members);
+                    if members.is_empty() {
+                        continue;
+                    }
+                    let callable =
+                        crate::terminal_callable_target(program, machine, path.symbol).is_some();
+                    // A named implementation is code, not a state container.
+                    // Its exact scoped head permits ordinary member binding,
+                    // even before a selected member receives its final symbol.
+                    let implementation_namespace = !path.symbol.is_valid()
+                        && path.receiver_symbol.is_valid()
+                        && matches!(
+                            program.symbols.get(path.receiver_symbol).kind,
+                            SymbolKind::Conformance | SymbolKind::ConformanceParameter
+                        );
                     if path.symbol.is_valid()
+                        && !callable
+                        && !implementation_namespace
                         && program.operator_definition_by_symbol(path.symbol).is_none()
                     {
                         continue;
                     }
-                    let members = program.statement_table.name_path_members(path.members);
                     // A resolved value head is not a declaration namespace, even
                     // if its source spelling matches a boundary family.
                     if members.len() > 1
@@ -44,15 +66,20 @@ pub(super) fn normalize_boundary_transition_calls(program: &mut TypedTrees) {
                                 | SymbolKind::Domain
                                 | SymbolKind::Machine
                                 | SymbolKind::Trait
+                                | SymbolKind::Conformance
+                                | SymbolKind::ConformanceParameter
                         )
                     {
                         continue;
                     }
-                    if program.operators().iter().any(|operator| {
-                        operator.is_boundary
-                            && operator.spelling.is_none()
-                            && program.operator_path_members(operator.name) == members
-                    }) && !targets.contains(&target)
+                    if (callable
+                        || implementation_namespace
+                        || program.operators().iter().any(|operator| {
+                            operator.is_boundary
+                                && operator.spelling.is_none()
+                                && program.operator_path_members(operator.name) == members
+                        }))
+                        && !targets.contains(&target)
                     {
                         targets.push(target);
                     }
@@ -78,6 +105,10 @@ pub(super) fn normalize_boundary_transition_calls(program: &mut TypedTrees) {
             .name_path_members(path.members)
             .to_vec();
         let leaf = members.pop().expect("boundary declaration has a path");
+        // Both ends come from source resolution. Neither package aliases nor
+        // root-allocated implementation machines recreate a missing qualifier.
+        let namespace_head = path.head_symbol;
+        let namespace_endpoint = path.receiver_symbol;
         let receiver = if members.is_empty() {
             ExpressionHandle::invalid()
         } else {
@@ -92,12 +123,8 @@ pub(super) fn normalize_boundary_transition_calls(program: &mut TypedTrees) {
                 .insert(ExpressionNode::Name(TableNamePath {
                     members: namespace,
                     member_symbols: arena::HandleSpan::empty(),
-                    head_symbol: path.head_symbol,
-                    symbol: if namespace.count() == 1 {
-                        path.head_symbol
-                    } else {
-                        SymbolHandle::invalid()
-                    },
+                    head_symbol: namespace_head,
+                    symbol: namespace_endpoint,
                 }));
             program
                 .expression_table

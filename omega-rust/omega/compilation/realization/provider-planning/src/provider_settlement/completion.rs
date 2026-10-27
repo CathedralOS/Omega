@@ -324,31 +324,8 @@ impl CompletionReview<'_> {
                     CheckedScalarComputationKind::Qualification { operand, .. } => {
                         self.scalar(&CheckedCallScalarArgument::Computation(*operand), values)
                     }
-                    CheckedScalarComputationKind::Call {
-                        callee: checked_trees::CheckedScalarCallee::Body { machine, state },
-                        arguments,
-                        structural_arguments,
-                        temporary_cleanups,
-                        claim_transfers,
-                        ..
-                    } if structural_arguments.is_empty()
-                        && temporary_cleanups.is_empty()
-                        && claim_transfers.is_empty() =>
-                    {
-                        let computations = &self.checked.facts.values.scalar_computations;
-                        let arguments = computations
-                            .operands
-                            .span(*arguments)
-                            .ok_or("completion call has missing checked operand storage")?
-                            .iter()
-                            .map(|argument| {
-                                self.scalar(
-                                    &CheckedCallScalarArgument::Computation(*argument),
-                                    values,
-                                )
-                            })
-                            .collect::<Result<Vec<_>, _>>()?;
-                        let result = self.machine(*machine, *state, arguments)?;
+                    CheckedScalarComputationKind::Call { .. } => {
+                        let result = self.scalar_invocation(&node.kind, values)?;
                         if !result.returns || !result.leaves.is_empty() {
                             return Err("completion operand has an external completion before its consuming invocation".into());
                         }
@@ -405,12 +382,12 @@ impl CompletionReview<'_> {
         }
     }
 
-    fn located_scalar(
-        &mut self,
+    fn located_scalar_argument(
+        &self,
         statement_ordinal: u32,
         role: checked_trees::CheckedScalarExpressionRole,
         values: &Values,
-    ) -> Result<Origin, String> {
+    ) -> Result<CheckedCallScalarArgument, String> {
         let computations = &self.checked.facts.values.scalar_computations;
         let mut roots =
             computations.roots_for_statement_role(values.state, statement_ordinal, role);
@@ -427,7 +404,89 @@ impl CompletionReview<'_> {
             }
             _ => return Err("completion has missing or ambiguous checked scalar custody".into()),
         };
+        Ok(value)
+    }
+
+    fn located_scalar(
+        &mut self,
+        statement_ordinal: u32,
+        role: checked_trees::CheckedScalarExpressionRole,
+        values: &Values,
+    ) -> Result<Origin, String> {
+        let value = self.located_scalar_argument(statement_ordinal, role, values)?;
         self.scalar(&value, values)
+    }
+
+    /// A no-normal marker is not an external-completion receipt. Follow its
+    /// retained checked call and original actuals through the same selected
+    /// provider review; a crash, unresolved call or cycle still refuses.
+    fn no_normal_scalar(
+        &mut self,
+        argument: &CheckedCallScalarArgument,
+        values: &Values,
+    ) -> Result<Outcome, String> {
+        let CheckedCallScalarArgument::Computation(handle) = argument else {
+            return Err("nonreturning completion has no checked invocation".into());
+        };
+        let computations = &self.checked.facts.values.scalar_computations;
+        if !computations.nodes.is_valid(*handle) {
+            return Err("nonreturning completion has missing checked computation".into());
+        }
+        match &computations.nodes.get(*handle).kind {
+            CheckedScalarComputationKind::Qualification { operand, .. } => {
+                self.no_normal_scalar(&CheckedCallScalarArgument::Computation(*operand), values)
+            }
+            CheckedScalarComputationKind::Call { .. } => {
+                let outcome =
+                    self.scalar_invocation(&computations.nodes.get(*handle).kind, values)?;
+                if outcome.returns {
+                    return Err(
+                        "nonreturning completion invocation has a normal return path".into(),
+                    );
+                }
+                Ok(outcome)
+            }
+            _ => Err(
+                "completion review cannot authenticate this nonreturning scalar invocation".into(),
+            ),
+        }
+    }
+
+    /// Both receiving and nonreceiving scalar positions use the same checked
+    /// call admission and exact argument-origin transport.
+    fn scalar_invocation(
+        &mut self,
+        computation: &CheckedScalarComputationKind,
+        values: &Values,
+    ) -> Result<Outcome, String> {
+        let CheckedScalarComputationKind::Call {
+            callee: checked_trees::CheckedScalarCallee::Body { machine, state },
+            arguments,
+            structural_arguments,
+            temporary_cleanups,
+            claim_transfers,
+            ..
+        } = computation
+        else {
+            return Err("completion review requires an exact checked body invocation".into());
+        };
+        if !structural_arguments.is_empty()
+            || !temporary_cleanups.is_empty()
+            || !claim_transfers.is_empty()
+        {
+            return Err(
+                "completion review cannot close this scalar call's structural custody".into(),
+            );
+        }
+        let computations = &self.checked.facts.values.scalar_computations;
+        let arguments = computations
+            .operands
+            .span(*arguments)
+            .ok_or("completion call has missing checked operand storage")?
+            .iter()
+            .map(|argument| self.scalar(&CheckedCallScalarArgument::Computation(*argument), values))
+            .collect::<Result<Vec<_>, _>>()?;
+        self.machine(*machine, *state, arguments)
     }
 
     fn scalar_destination(
@@ -442,6 +501,18 @@ impl CompletionReview<'_> {
             }
             checked_trees::CheckedScalarBranchDestination::Crash { .. } => {
                 Err("aborting provider does not establish external completion".into())
+            }
+            checked_trees::CheckedScalarBranchDestination::InvokeNoNormal {
+                statement_ordinal,
+                is_continuation,
+            } => {
+                let role = if *is_continuation {
+                    checked_trees::CheckedScalarExpressionRole::ContinuationReturn
+                } else {
+                    checked_trees::CheckedScalarExpressionRole::Return
+                };
+                let value = self.located_scalar_argument(*statement_ordinal, role, values)?;
+                self.no_normal_scalar(&value, values)
             }
             checked_trees::CheckedScalarBranchDestination::Return {
                 statement_ordinal,

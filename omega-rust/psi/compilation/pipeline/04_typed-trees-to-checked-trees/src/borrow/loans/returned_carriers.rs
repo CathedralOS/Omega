@@ -364,7 +364,8 @@ fn completed_field_sources(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     arguments: &[ExpressionHandle],
 ) -> Option<Result<Vec<CompletedReturnSource>, usize>> {
-    let (machine, state) = validation::find_state(program, target)?;
+    let entered_target = validation::call_target_entry_symbol(program, target);
+    let (machine, state) = validation::find_state(program, entered_target)?;
     if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
         || !machine.body_is_present
     {

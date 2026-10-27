@@ -360,6 +360,7 @@ fn build_operation_spellings_are_the_exact_authored_vocabulary() {
     assert_eq!(
         BuildOperation::ALL.map(BuildOperation::authored_spelling),
         [
+            "await_provider",
             "select_provider",
             "assume_binding_contract",
             "select_representation",
@@ -418,6 +419,7 @@ fn build_operations_map_onto_their_intrinsic_selection_targets() {
     assert_eq!(
         BuildOperation::ALL.map(BuildOperation::intrinsic),
         [
+            Intrinsic::BuildProviderReadiness,
             Intrinsic::BuildProviderSelection,
             Intrinsic::BuildAssumedBindingContract,
             Intrinsic::BuildRepresentationSelection,

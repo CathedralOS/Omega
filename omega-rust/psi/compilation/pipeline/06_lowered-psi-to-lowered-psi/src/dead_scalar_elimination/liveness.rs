@@ -54,7 +54,8 @@ pub(super) fn eliminate(
                 }
             }
             Terminator::Return { value, .. } => pending.push(*value),
-            Terminator::ExternalCompletion { arguments, .. } => {
+            Terminator::InvokeNoNormal { arguments, .. }
+            | Terminator::ExternalCompletion { arguments, .. } => {
                 pending.extend(arguments.iter().copied());
             }
             Terminator::Crash { .. } => return, // Retain exact guard-term inputs.

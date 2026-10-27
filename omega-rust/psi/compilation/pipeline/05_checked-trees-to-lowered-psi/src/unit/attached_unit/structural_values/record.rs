@@ -10,6 +10,7 @@ use super::super::{
 use super::completed_aggregate::{self, CompletedAggregate};
 use super::emission;
 use crate::emission::operation_emission::expressions::emit_scalar_leaf;
+use crate::unit::attached_unit::structural_values::ValueOutcome;
 use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue};
 
 impl emission::Emission<'_, '_, '_> {
@@ -17,7 +18,7 @@ impl emission::Emission<'_, '_, '_> {
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         value: checked_trees::CheckedStructuralValueHandle,
-    ) -> Result<PlaceId, LoweringError> {
+    ) -> Result<ValueOutcome<PlaceId>, LoweringError> {
         let node = self
             .checked
             .facts
@@ -86,7 +87,7 @@ impl emission::Emission<'_, '_, '_> {
                 }
                 continue;
             }
-            let value = self.completed_member_value(
+            let ValueOutcome::Normal(value) = self.completed_member_value(
                 identities,
                 field,
                 target,
@@ -100,7 +101,10 @@ impl emission::Emission<'_, '_, '_> {
                 initialized.len(),
                 source_count,
                 &mut claims,
-            )?;
+            )?
+            else {
+                return Ok(ValueOutcome::NoNormal);
+            };
             initialized.push((
                 position,
                 terminal_psi::RecordFieldInitializer {
@@ -136,7 +140,7 @@ impl emission::Emission<'_, '_, '_> {
         self.operations
             .set_structural_result_claims(place, claims)?;
         self.environment.private_places.push(declaration);
-        Ok(place)
+        Ok(ValueOutcome::Normal(place))
     }
 
     /// Omitted scalar fields are checked zero operands, not structural children.

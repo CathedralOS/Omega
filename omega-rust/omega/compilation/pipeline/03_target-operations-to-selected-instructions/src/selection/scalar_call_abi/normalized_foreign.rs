@@ -12,7 +12,7 @@ use calling_conventions::validate_boundary_entry_plan;
 use legalized_operations::{LegalizedNormalizedForeignCall, LegalizedValueDefinition};
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::{RegisterConstraintKey, RegisterInstructionConstraint};
-use semantic_vocabulary::BoundaryInvocationSite;
+use semantic_vocabulary::InvocationSite;
 use target_operations::{
     TargetBoundaryResult, TargetStructuralArgumentSource, TargetUnitScalarArgumentSource,
 };
@@ -144,7 +144,7 @@ pub(crate) fn validate(
     function: usize,
     source: &LegalizedScalarFunction,
     call: &LegalizedNormalizedForeignCall,
-    invocation_site: BoundaryInvocationSite,
+    invocation_site: InvocationSite,
     result: Option<LegalizedValueDefinition>,
     key: RegisterConstraintKey,
     constraint: &RegisterInstructionConstraint,

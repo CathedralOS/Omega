@@ -48,13 +48,8 @@ pub(crate) fn request(
             )));
         }
     }
-    let Some(
-        operation @ (BuildOperation::ProviderReadiness
-        | BuildOperation::ProviderSelection
-        | BuildOperation::RepresentationSelection
-        | BuildOperation::ServiceExclusion
-        | BuildOperation::BoundaryAcceptance),
-    ) = BuildOperation::from_call_target(name)
+    let Some(operation) = BuildOperation::from_call_target(name)
+        .filter(|operation| operation.has_designated_operands())
     else {
         return Ok(None);
     };
@@ -68,15 +63,12 @@ pub(crate) fn request(
     {
         return Ok(None);
     }
-    let operand_count = if matches!(
-        operation,
-        BuildOperation::ServiceExclusion | BuildOperation::BoundaryAcceptance
-    ) {
-        1
+    let operand_count_valid = if operation == BuildOperation::ProviderReadiness {
+        operands.len() == 2
     } else {
-        2
+        operation.product_operand_count_valid(operands.len())
     };
-    if operands.len() != operand_count
+    if !operand_count_valid
         || evidence_count != 0
         || !(ordinary_count == 1
             || (operation == BuildOperation::ProviderSelection && ordinary_count == 2))
@@ -84,11 +76,14 @@ pub(crate) fn request(
         return Err(Diagnostic::error(format!(
             "{} requires {} and its explicit mutable Build argument",
             operation.authored_spelling(),
-            if operand_count == 1 {
-                "one bare declaration operand"
-            } else {
-                "two bare declaration operands"
-            }
+            match operation {
+                BuildOperation::ServiceExclusion
+                | BuildOperation::ServiceAudit
+                | BuildOperation::BoundaryAcceptance => "one bare declaration operand",
+                BuildOperation::WireCompatibilityRequest =>
+                    "four schema declaration operands and compatibility facts",
+                _ => "two bare declaration operands",
+            },
         ))
         .with_source_span(span));
     }

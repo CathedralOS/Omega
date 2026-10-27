@@ -19,7 +19,7 @@ use crate::legalization::scalar_graph_input::structural_parameters;
 pub(super) fn reconstruct(
     argument: &terminal_psi::StructuralArgument,
     position: usize,
-    call_operation: semantic_vocabulary::OperationId,
+    call_operation: semantic_vocabulary::InvocationSite,
     caller: &PsiOptimizationFunction,
     callee: abstract_operations::AbstractCallSignature<'_>,
     call: &CallPlan,
@@ -214,7 +214,7 @@ pub(super) fn reconstruct(
     let indices = target::control_flow::sources::call_indices(
         native,
         caller,
-        target_operations::CallSiteOwner::Operation(call_operation),
+        target_operations::CallSiteOwner::from(call_operation),
         &elements,
     )?;
     let placement = call
@@ -294,7 +294,7 @@ pub(in crate::legalization::scalar_graph_input) fn node_site(
 pub(in crate::legalization::scalar_graph_input) fn precedes(
     caller: &PsiOptimizationFunction,
     producer_site: (semantic_vocabulary::BlockId, usize),
-    call_operation: semantic_vocabulary::OperationId,
+    call_operation: semantic_vocabulary::InvocationSite,
     argument: &terminal_psi::StructuralArgument,
 ) -> Result<bool, LegalizationError> {
     let call_site = call_site(caller, call_operation, argument)?;
@@ -307,18 +307,11 @@ pub(in crate::legalization::scalar_graph_input) fn precedes(
 
 fn call_site(
     caller: &PsiOptimizationFunction,
-    call_operation: semantic_vocabulary::OperationId,
+    call_operation: semantic_vocabulary::InvocationSite,
     argument: &terminal_psi::StructuralArgument,
 ) -> Result<(semantic_vocabulary::BlockId, usize), LegalizationError> {
-    node_site(caller, |operation| match operation {
-        abstract_operations::boundary_or_structural_call_pair_pattern!(
-            psi_operation,
-            structural_arguments,
-            ..
-        ) => *psi_operation == call_operation && structural_arguments.contains(argument),
-        _ => false,
-    })
-    .ok_or(LegalizationError::custody())
+    super::super::invocations::position(caller, call_operation, Some(argument))
+        .ok_or(LegalizationError::custody())
 }
 
 /// The one `EstablishTrivialAffineLocal` minting `place`: its operation,

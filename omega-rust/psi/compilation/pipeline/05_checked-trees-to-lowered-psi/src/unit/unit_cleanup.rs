@@ -483,7 +483,11 @@ pub(crate) fn retained_call_cleanups(
         .flat_map(move |(_, call)| {
             continuation_cleanups(
                 control,
-                call.operands().iter().chain(call.completions().iter()),
+                call.operands().iter().chain(
+                    call.completions()
+                        .into_iter()
+                        .flat_map(|sequence| sequence.iter()),
+                ),
             )
         })
 }

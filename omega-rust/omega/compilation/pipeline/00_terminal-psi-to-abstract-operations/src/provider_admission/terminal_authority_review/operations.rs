@@ -32,7 +32,7 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge {
             abstract_operations::AbstractCallTarget::Machine(machine) => AuthorityEdge::Internal(*machine),
             abstract_operations::AbstractCallTarget::Dynamic { interface, slot, .. } => AuthorityEdge::Dynamic { interface: *interface, slot: *slot },
         },
-        AbstractOperation::Call { callee, .. } => AuthorityEdge::Internal(*callee),
+        AbstractOperation::Call { callee, .. } | AbstractOperation::InvokeNoNormal { callee, .. } => AuthorityEdge::Internal(*callee),
         AbstractOperation::BoundaryCall { boundary, .. }
         | AbstractOperation::ExternalCompletion { boundary, .. } => AuthorityEdge::Boundary(*boundary),
         AbstractOperation::PortWrite { service, port, psi_operation, .. } => {

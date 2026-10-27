@@ -336,7 +336,8 @@ fn retain_storage(
                     case.cleanup_actions.retain(|action| action.place() != home);
                 }
             }
-            terminal_psi::Terminator::Crash { .. }
+            terminal_psi::Terminator::InvokeNoNormal { .. }
+            | terminal_psi::Terminator::Crash { .. }
             | terminal_psi::Terminator::ExternalCompletion { .. } => {}
         }
     }

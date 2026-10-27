@@ -159,7 +159,7 @@ pub(super) fn establish(
 /// registered as value storage; this transient pointer names referent storage.
 pub(in crate::selection::construction::scalar_graph) fn load(
     builder: &mut Builder<'_>,
-    row: &LegalizedScalarInstruction,
+    row: &impl super::super::call_arguments::InvocationArgumentSource,
     place: semantic_vocabulary::PlaceId,
     home: selected_instructions::VirtualRegisterId,
 ) -> Result<selected_instructions::VirtualRegisterId, SelectedInstructionError> {
@@ -168,7 +168,7 @@ pub(in crate::selection::construction::scalar_graph) fn load(
         place,
         home,
         0,
-        selected_instructions::SelectedMemoryAccessOrigin::Operation(row.operation),
+        super::super::call_arguments::invocation_memory_origin(row),
         provenance(row),
     )
 }
@@ -204,7 +204,7 @@ pub(in crate::selection::construction::scalar_graph) fn load_pointer_word(
 /// different word; recording zero would attribute a padded field to its parent.
 pub(in crate::selection::construction::scalar_graph) fn load_scalar_referent(
     builder: &mut Builder<'_>,
-    row: &LegalizedScalarInstruction,
+    row: &impl super::super::call_arguments::InvocationArgumentSource,
     place: semantic_vocabulary::PlaceId,
     descriptor: selected_instructions::VirtualRegisterId,
     reference: Option<&crate::selection::reference_input::BorrowedReferenceAddress>,
@@ -242,7 +242,7 @@ pub(in crate::selection::construction::scalar_graph) fn load_scalar_referent(
 
 pub(in crate::selection::construction::scalar_graph) fn borrowed_argument(
     builder: &mut Builder<'_>,
-    row: &LegalizedScalarInstruction,
+    row: &impl super::super::call_arguments::InvocationArgumentSource,
     place: semantic_vocabulary::PlaceId,
     address: &crate::selection::reference_input::BorrowedReferenceAddress,
 ) -> Result<selected_instructions::VirtualRegisterId, SelectedInstructionError> {

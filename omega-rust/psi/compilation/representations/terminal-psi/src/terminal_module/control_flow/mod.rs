@@ -2,7 +2,9 @@
 
 mod atomic;
 mod float_result_policy;
+mod invocations;
 mod machines;
+pub use invocations::{ModuleInvocation, ModuleInvocationInputs};
 mod operations;
 mod ranking;
 mod record_field;

@@ -65,43 +65,6 @@ pub(super) fn check_statement_borrows<'p>(
             continue;
         };
 
-        // The host preparation is observational, but the authored designated
-        // operand still requires exclusive Build authority. Preserve that
-        // obligation without inventing a write to every field of Build.
-        if let Some(expression) = statement_node.as_expression()
-            && let typed_trees::expression::ExpressionNode::Call(commit) =
-                program.expression_table.expression(*expression)
-            && commit.build_selection.is_valid()
-            && let Some(preparation) = program
-                .expression_table
-                .expression_handles(commit.arguments)
-                .first()
-            && let typed_trees::expression::ExpressionNode::Call(preparation) =
-                program.expression_table.expression(*preparation)
-            && let Some(receiver) = program
-                .expression_table
-                .expression_handles(preparation.arguments)
-                .first()
-        {
-            let description = program
-                .expression_table
-                .expression_handles(commit.arguments)
-                .get(1)
-                .copied()
-                .unwrap_or_default();
-            super::calls::check_exclusive_place_use(
-                program,
-                facts,
-                state_flow,
-                statement,
-                *receiver,
-                description,
-                stated_premises,
-                diagnostics,
-                bound_lookup,
-            );
-        }
-
         for (loan_handle, loan) in facts
             .borrow
             .state_loans(borrow_state)

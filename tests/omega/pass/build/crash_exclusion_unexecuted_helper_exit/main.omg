@@ -1,0 +1,24 @@
+// Expected exit: 0
+// Application root: one assertion through the selected implementation. The
+// entry keeps the requirement's public Trap allowance; the build decides
+// whether the composed product may actually trap.
+use assert_kit::main::Assert;
+
+data Main {
+}
+
+machine Main::main(main: &mut Main)
+reaches Assert
+crashes Trap
+{
+    Assert::check(1 == 1);
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start()
+reaches Assert
+crashes Trap
+{
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

@@ -1,6 +1,6 @@
 //! Ephemeral source joins retained alongside, never inside, portable Terminal artifacts.
 
-pub use semantic_vocabulary::BoundaryInvocationSite as LoweredSourceCallSite;
+pub use semantic_vocabulary::InvocationSite as LoweredSourceCallSite;
 use semantic_vocabulary::{BlockId, MachineId, OperationId};
 use terminal_psi::ValueDeclaration;
 

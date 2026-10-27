@@ -227,7 +227,7 @@ pub struct PlacedNormalizedForeignCallResolution {
     pub caller: MachineId,
     pub block: SelectedBlockId,
     pub instruction: SelectedInstructionId,
-    pub invocation_site: semantic_vocabulary::BoundaryInvocationSite,
+    pub invocation_site: semantic_vocabulary::InvocationSite,
     pub boundary: semantic_vocabulary::BoundaryMachineId,
     pub ordinal: u32,
     pub call_function_offset: u64,

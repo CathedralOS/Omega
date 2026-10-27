@@ -39,7 +39,7 @@ impl ProhibitedSite {
             }
             ProhibitedSite::BoundaryCall {
                 block,
-                operation,
+                site,
                 boundary,
             } => {
                 let identity =
@@ -51,7 +51,17 @@ impl ProhibitedSite {
                                 .unwrap_or("<undeclared boundary>")
                         })
                         .unwrap_or("<undeclared boundary>");
-                format!("call to boundary `{identity}` (block {block}, operation {operation})")
+                match site {
+                    semantic_vocabulary::InvocationSite::Operation(operation) => format!(
+                        "call to boundary `{identity}` (block {block}, operation {operation})"
+                    ),
+                    semantic_vocabulary::InvocationSite::ExternalCompletion(edge) => format!(
+                        "external completion to boundary `{identity}` (block {block}, edge {edge})"
+                    ),
+                    semantic_vocabulary::InvocationSite::InvokeNoNormal(edge) => {
+                        format!("invocation of boundary `{identity}` (block {block}, edge {edge})")
+                    }
+                }
             }
             ProhibitedSite::CheckedInstruction { block, operation } => {
                 format!("checked instruction (block {block}, operation {operation})")

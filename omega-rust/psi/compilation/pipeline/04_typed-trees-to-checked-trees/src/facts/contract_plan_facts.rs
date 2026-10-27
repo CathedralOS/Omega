@@ -997,14 +997,18 @@ fn computation_contains_trapping_operation(
                 for operation in call
                     .operands()
                     .iter()
-                    .chain(std::iter::once(call.operation()))
+                    .chain(call.operation())
                     .flat_map(checked_trees::CheckedUnitEffectOperationPlan::with_value_calls)
                 {
                     if let checked_trees::CheckedUnitEffectOperationPlan::EstablishLocal(
                         checked_trees::CheckedUnitLocalBindingPlan::StructuralValue {
                             value, ..
                         },
-                    ) = operation
+                    )
+                    | checked_trees::CheckedUnitEffectOperationPlan::EvaluateStructuralValue {
+                        value,
+                        ..
+                    } = operation
                         && let Some(children) = values.value_dependencies(*value)
                     {
                         for child in children {

@@ -434,6 +434,9 @@ pub(crate) fn operation_scalar_types_match(
                     abstract_operations::AbstractFunctionResult::Structural(_)
                 )
         }),
+        O::InvokeNoNormal { callee, arguments, .. } => functions.get(callee).is_some_and(|callee| {
+            arguments.len() == callee.parameters.len() && arguments.iter().zip(&callee.parameters).all(|(value, parameter)| scalar(*value) == Some(parameter.scalar_type))
+        }),
         O::ExternalCompletion { boundary, kind, arguments, .. } => boundary_machines.get(boundary).is_some_and(|boundary| {
             boundary.completion == semantic_vocabulary::BoundaryCompletion::External(*kind)
                 && boundary.result.is_unit()

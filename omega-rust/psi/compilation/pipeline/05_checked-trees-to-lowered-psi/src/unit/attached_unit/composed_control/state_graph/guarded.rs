@@ -131,7 +131,7 @@ pub(super) fn emit(
             identities,
             checked,
             state,
-            super::cleanup::destination(catalogs.cleanup_control, state, &guard.destination)?,
+            &guard.destination,
             &return_values[position],
             catalogs,
             parameters,
@@ -169,13 +169,9 @@ pub(super) fn emit(
         operations.structural_values.truncate(retained_bindings);
         operations.storage_observations.clear();
     }
-    let fallback_exit = super::cleanup::destination(
-        catalogs.cleanup_control,
-        state,
-        fallback.as_ref().ok_or(LoweringError::Unsupported(
-            "ordered return lost its fallback destination",
-        ))?,
-    )?;
+    let fallback_destination = fallback.as_ref().ok_or(LoweringError::Unsupported(
+        "ordered return lost its fallback destination",
+    ))?;
     let fallback =
         return_values
             .last()
@@ -187,7 +183,7 @@ pub(super) fn emit(
         identities,
         checked,
         state,
-        fallback_exit,
+        fallback_destination,
         fallback,
         catalogs,
         parameters,
@@ -210,7 +206,7 @@ pub(super) fn emit_return(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     state: &CheckedComposedUnitControlStatePlan,
-    exit: checked_trees::FlowClaimJoinExit,
+    destination: &checked_trees::CheckedScalarBranchDestination,
     operation: &CheckedUnitEffectOperationPlan,
     catalogs: &mut catalogs::ComposedCatalogs,
     parameters: &[StructuralParameterDeclaration],
@@ -242,6 +238,16 @@ pub(super) fn emit_return(
         operations,
         sequence,
     )?;
+    if operations.invocation_completion.is_some() {
+        sequence.require_closed()?;
+        return operations.take_invocation_completion(next_edge)?.ok_or(
+            LoweringError::Unsupported("ordered no-normal return lost its evaluated invocation"),
+        );
+    }
+    if !operation.has_normal_continuation() {
+        return unsupported("ordered no-normal value lost its evaluated invocation");
+    }
+    let exit = super::cleanup::destination(catalogs.cleanup_control, state, destination)?;
     complete_structural_return(
         identities, claims, checked, state, exit, operation, catalogs, parameters, evaluation,
         values, next_value, next_block, next_edge, operations,

@@ -16,6 +16,130 @@ pub(super) fn project(
     let cleanup_calls =
         scalar_graph_input::cleanup_calls::expected(&node.operation, function, native, plan, unit)?;
     let mut result = match &node.operation {
+        AbstractOperation::InvokeNoNormal {
+            psi_edge,
+            callee,
+            arguments,
+            structural_arguments,
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+        } => {
+            let mut candidates = native
+                .functions
+                .iter()
+                .filter(|row| row.machine == function.machine)
+                .flat_map(|row| &row.graph.blocks)
+                .filter_map(|block| match &block.terminator {
+                    target_operations::TargetControlTerminator::InvokeNoNormal {
+                        psi_edge: edge,
+                        callee: target,
+                        call_plan,
+                        scalar_arguments,
+                        arguments: structural,
+                        placed_bindings,
+                        claim_transfers: transfers,
+                        requirement_obligations: requires,
+                        crash_continuations: crashes,
+                        declared_result,
+                    } if edge == psi_edge && target == callee => Some((
+                        call_plan,
+                        scalar_arguments,
+                        structural,
+                        placed_bindings,
+                        transfers,
+                        requires,
+                        crashes,
+                        declared_result,
+                    )),
+                    _ => None,
+                });
+            let (
+                call_plan,
+                scalars,
+                structural,
+                placed,
+                transfers,
+                requires,
+                crashes,
+                declared_result,
+            ) = candidates.next().ok_or(Error::custody())?;
+            if candidates.next().is_some()
+                || transfers != claim_transfers
+                || requires != requirement_obligations
+                || crashes != crash_continuations
+                || scalars.len() != arguments.len()
+                || structural.len() != structural_arguments.len()
+                || scalars
+                    .iter()
+                    .zip(arguments)
+                    .any(|(actual, expected)| actual.source.source_value() != *expected)
+                || structural
+                    .iter()
+                    .zip(structural_arguments)
+                    .any(|(actual, expected)| {
+                        actual.place != expected.place
+                            || actual.path != expected.path
+                            || actual.access != expected.access
+                    })
+                || unit
+                    .function(*callee)
+                    .is_none_or(|function| &function.result != declared_result)
+            {
+                return Err(Error::custody());
+            }
+            let mut actuals = scalars
+                .iter()
+                .map(
+                    |argument| legalized_operations::LegalizedScalarArgument::Scalar {
+                        source: argument.source.source_value(),
+                        placement: argument.placement.clone(),
+                    },
+                )
+                .collect::<Vec<_>>();
+            for (argument, semantic) in structural.iter().zip(structural_arguments) {
+                actuals.push(legalized_operations::LegalizedScalarArgument::Structural {
+                    indices: crate::legalization::runtime_indices::projection(
+                        function,
+                        unit,
+                        optimization_unit::PsiProvenance::Edge(*psi_edge),
+                        argument.root_structural_type,
+                        &argument.path,
+                        &unit.structural_types,
+                    )?,
+                    semantic: semantic.clone(),
+                    target: argument.clone(),
+                });
+            }
+            if call_plan != &scalar_graph_input::callee_plan(*callee, native, plan, unit)? {
+                return Err(Error::custody());
+            }
+            let call = legalized_operations::LegalizedScalarCall {
+                descriptor_origins: Vec::new(),
+                placed_bindings: placed.clone(),
+                source: target_operations::NativeCallOrigin::Authored,
+                target: target_operations::NativeCallTarget::Machine(*callee),
+                call_plan: call_plan.clone(),
+                arguments: actuals,
+                result_placement: call_plan.result.clone(),
+                structural_result: None,
+                claim_transfers: transfers.clone(),
+                requirement_obligations: requires.clone(),
+                crash_continuations: crashes.clone(),
+            };
+            call.validate_no_normal_shape()
+                .map_err(|_| Error::custody())?;
+            call.validate_source(&node.ownership)
+                .map_err(|_| Error::custody())?;
+            Ok(LegalizedScalarTerminator::InvokeNoNormal {
+                psi_edge: *psi_edge,
+                call,
+                declared_result: declared_result.clone(),
+                fuel: node.fuel.clone(),
+                effect: node.effect,
+                ownership: node.ownership.clone(),
+            })
+        }
         AbstractOperation::ExternalCompletion {
             psi_edge,
             boundary,

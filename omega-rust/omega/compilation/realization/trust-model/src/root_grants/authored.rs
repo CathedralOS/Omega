@@ -41,16 +41,9 @@ pub fn collect_product_root_grants(
             let machine_span = event.selecting_machine.ok_or_else(|| {
                 Diagnostic::error("boundary acceptance lost its authored machine coordinate")
             })?;
-            let selecting_machine = typed
-                .machines()
-                .iter()
-                .find(|machine| {
-                    typed.symbols.symbol_source_span(machine.symbol) == Some(machine_span)
-                })
-                .map(|machine| machine.symbol)
-                .ok_or_else(|| {
-                    Diagnostic::error("boundary acceptance lost its authored selecting machine")
-                })?;
+            let selecting_machine =
+                typed_trees::product_operand::resolve_build_request_author(typed, machine_span)
+                    .map_err(Diagnostic::error)?;
             let selected = subject(typed, &event.request)?;
             Ok(crate::AuthoredRootGrant {
                 selector: typed

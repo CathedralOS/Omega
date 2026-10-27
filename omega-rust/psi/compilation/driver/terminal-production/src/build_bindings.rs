@@ -101,8 +101,7 @@ pub(super) fn capture(
                     "Build call lost its designated operands before publication",
                 )
             })?;
-        let semantic_vocabulary::BoundaryInvocationSite::Operation(operation) =
-            occurrence.terminal_site
+        let semantic_vocabulary::InvocationSite::Operation(operation) = occurrence.terminal_site
         else {
             return Err(diagnostics::Diagnostic::error(
                 "Build binding lost its ordinary result-producing call",

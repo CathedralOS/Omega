@@ -229,19 +229,53 @@ pub(in crate::execution::terminal_unit) fn build(
     // expression of a value body, or the scalar-control terminator's own
     // statements. Those belong to the terminator and `completion`. A walk
     // that stops anywhere else would leave the authored statements after
-    // it unplanned, so the body has no route.
+    // it unplanned, so the body has no route. A proven nonreturning expression
+    // stays in the prefix: it evaluates its call rather than supplying a value
+    // to the return owner, independently of the declared result carrier.
     let sequenced = |index: usize, statement: &StatementNode| {
-        (!matches!(statement, StatementNode::Transition(_))
-            || call_occurrences::terminal_invocation(program, machine, state, index).is_some())
-            && !is_arm_destructure_marker(statement)
-            && !matches!(statement, StatementNode::Expression(expression)
-                if !is_unit(program, state.return_type)
-                    && (!matches!(program.expression_table.expression(*expression), ExpressionNode::Call(_))
-                        || u32::try_from(index).ok().is_some_and(|ordinal| facts.values.scalar_computations.root_at(
-                            state.symbol, ordinal, CheckedScalarExpressionRole::Return,
-                        ).is_some() || facts.values.structural_values.root_for_expression(
-                            state.symbol, ordinal, *expression,
-                        ).is_some())))
+        let terminal_call = matches!(statement, StatementNode::Transition(_))
+            && call_occurrences::terminal_invocation(program, machine, state, index).is_some();
+        if (matches!(statement, StatementNode::Transition(_)) && !terminal_call)
+            || is_arm_destructure_marker(statement)
+        {
+            return false;
+        }
+        // A normalized terminal invocation and a bare tail expression share
+        // their retained completion owner. The call occurrence ledger already
+        // assigns that owner's nested calls; do not invoke the outer call a
+        // second time through the statement roster.
+        let completion_expression = match statement {
+            StatementNode::Expression(expression) => Some(*expression),
+            StatementNode::Transition(transition) if terminal_call => {
+                match program.statement_table.transition_target(transition.target) {
+                    typed_trees::statement::TransitionTargetNode::Value(expression) => {
+                        Some(*expression)
+                    }
+                    _ => None,
+                }
+            }
+            _ => None,
+        };
+        !completion_expression.is_some_and(|expression| {
+            !is_unit(program, state.return_type)
+                && validation::expression_normal_completion_possible(program, expression)
+                    != Some(false)
+                && (!matches!(
+                    program.expression_table.expression(expression),
+                    ExpressionNode::Call(_)
+                ) || u32::try_from(index).ok().is_some_and(|ordinal| {
+                    facts
+                        .values
+                        .scalar_computations
+                        .root_at(state.symbol, ordinal, CheckedScalarExpressionRole::Return)
+                        .is_some()
+                        || facts
+                            .values
+                            .structural_values
+                            .root_for_expression(state.symbol, ordinal, expression)
+                            .is_some()
+                }))
+        })
     };
     let execution_order = program
         .statement_table
@@ -298,7 +332,7 @@ pub(in crate::execution::terminal_unit) fn build(
     // borrowed carriers alike, including values consumed by this prefix.
     let owner_candidates =
         reference_retirement::OwnerCandidates::new(program, facts, machine.symbol, state.symbol)?;
-    let mut operations = Vec::new();
+    let mut operations = Vec::<CheckedUnitEffectOperationPlan>::new();
     let mut place_loans = Vec::new();
     // Erased borrow carriers have no storage binding: the sequence advances
     // past their declarations while each use's planner joins the captured
@@ -373,6 +407,12 @@ pub(in crate::execution::terminal_unit) fn build(
         .iter()
         .copied()
     {
+        if operations
+            .last()
+            .is_some_and(|operation| !operation.has_normal_continuation())
+        {
+            break;
+        }
         let statement = &statements[index];
         if let StatementNode::Expression(expression) = statement
             && program
@@ -675,6 +715,12 @@ pub(in crate::execution::terminal_unit) fn build(
                 result_stores: call_result_stores,
             },
         )?;
+        if operations
+            .last()
+            .is_some_and(|operation| !operation.has_normal_continuation())
+        {
+            break;
+        }
     }
     drop(_loop_guard);
     trace.statement(None);
@@ -807,6 +853,59 @@ pub(in crate::execution::terminal_unit) fn scalar_control(
 ) -> Option<(checked_trees::CheckedUnitScalarControlPlan, usize)> {
     let primitive_type = program.primitive_type_reference(state.return_type)?;
     let (terminator, prefix_count) = returning_terminator(program, facts, machine, state)?;
+    let retained_return = |statement, continuation| {
+        let role = if continuation {
+            CheckedScalarExpressionRole::ContinuationReturn
+        } else {
+            CheckedScalarExpressionRole::Return
+        };
+        facts
+            .values
+            .scalar_expressions
+            .bound_expression_at(state.symbol, statement, role)
+            .is_some()
+            || facts
+                .values
+                .scalar_computations
+                .root_at(state.symbol, statement, role)
+                .is_some()
+    };
+    let retained_destination =
+        |destination: &checked_trees::CheckedScalarBranchDestination| match destination {
+            checked_trees::CheckedScalarBranchDestination::Return {
+                statement_ordinal,
+                is_continuation,
+            } => retained_return(*statement_ordinal, *is_continuation),
+            _ => false,
+        };
+    // A completion coordinate does not establish a scalar value. Ordinary
+    // terminal invocations may own their result through an arm call instead;
+    // only the retained expression lane can publish scalar-control returns.
+    let complete = match &terminator {
+        checked_trees::CheckedScalarStateTerminator::Return { statement_ordinal } => {
+            retained_return(*statement_ordinal, false)
+        }
+        checked_trees::CheckedScalarStateTerminator::Conditional {
+            when_true,
+            when_false,
+            ..
+        } => retained_destination(when_true) && retained_destination(when_false),
+        checked_trees::CheckedScalarStateTerminator::Guarded { arms, fallback } => {
+            facts
+                .flow
+                .guarded_exits
+                .exits
+                .span(*arms)?
+                .iter()
+                .all(|arm| retained_destination(&arm.destination))
+                && fallback.as_ref().is_none_or(retained_destination)
+        }
+        checked_trees::CheckedScalarStateTerminator::Crash { .. } => true,
+        _ => false,
+    };
+    if !complete {
+        return None;
+    }
     Some((
         checked_trees::CheckedUnitScalarControlPlan {
             primitive_type,

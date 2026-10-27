@@ -79,7 +79,9 @@ fn exact_mutable_referent(
         }
         _ => return None,
     };
-    if !target_symbol.is_valid() || target_symbol != call.target_symbol {
+    if !target_symbol.is_valid()
+        || validation::call_target_entry_symbol(program, target_symbol) != call.target_symbol
+    {
         return None;
     }
     let parameters = validation::call_target_parameters(program, target_symbol)?;
@@ -147,19 +149,16 @@ fn exact_mutable_referent(
             StatementNode::LocalData(local) => Some(local.symbol),
             _ => None,
         });
-    if borrow
-        .state_loans(borrow_state)
-        .any(|(handle, loan)| {
-            !returned_loans.contains(&handle)
-                && order.at_or_before(loan.statement_index, call.statement_index)
-                && order.at_or_before(call.statement_index, loan.last_use_statement_index)
-                && (loan.root == facts::PlaceRoot::Symbol(source_symbol)
-                    || loan.owner_symbol == source_symbol
-                    || loan.source_owner_symbol == source_symbol)
-                && !(loan.statement_index == call.statement_index
-                    && Some(loan.owner_symbol) == result_owner)
-        })
-    {
+    if borrow.state_loans(borrow_state).any(|(handle, loan)| {
+        !returned_loans.contains(&handle)
+            && order.at_or_before(loan.statement_index, call.statement_index)
+            && order.at_or_before(call.statement_index, loan.last_use_statement_index)
+            && (loan.root == facts::PlaceRoot::Symbol(source_symbol)
+                || loan.owner_symbol == source_symbol
+                || loan.source_owner_symbol == source_symbol)
+            && !(loan.statement_index == call.statement_index
+                && Some(loan.owner_symbol) == result_owner)
+    }) {
         return None;
     }
     Some(())
@@ -292,7 +291,7 @@ fn preceding_reborrow_preserves_carrier(
     ) else {
         return false;
     };
-    if authored.target_symbol != call.target_symbol {
+    if validation::call_target_entry_symbol(program, authored.target_symbol) != call.target_symbol {
         return false;
     }
     let Some(parameters) = validation::call_target_parameters(program, call.target_symbol) else {

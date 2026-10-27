@@ -32,17 +32,18 @@ pub(super) fn encode_proof_output_call(
     }
     writer.boolean(invocation.runtime_result.is_some());
     if let Some(runtime_result) = invocation.runtime_result {
-        writer.boolean(matches!(
-            runtime_result,
-            ProofOutputRuntimeResult::Scalar(_)
-        ));
-        if let ProofOutputRuntimeResult::Scalar(runtime_value) = runtime_result {
-            encode_scalar_type(writer, runtime_value);
+        match runtime_result {
+            ProofOutputRuntimeResult::Unit => writer.u8(0),
+            ProofOutputRuntimeResult::Scalar(scalar) => {
+                writer.u8(1);
+                encode_scalar_type(writer, scalar);
+            }
+            ProofOutputRuntimeResult::NoNormal => writer.u8(2),
         }
     }
     writer.boolean(invocation.runtime_call.is_some());
     if let Some(runtime_call) = invocation.runtime_call {
-        writer.id(runtime_call.operation);
+        crate::sections::semantic_module::wire::encode_invocation_site(writer, runtime_call.site);
         writer.id(runtime_call.callee);
     }
     writer.len(
@@ -103,10 +104,11 @@ pub(super) fn decode_proof_output_call(
         runtime_result: reader
             .boolean()?
             .then(|| {
-                Ok(if reader.boolean()? {
-                    ProofOutputRuntimeResult::Scalar(decode_scalar_type(reader)?)
-                } else {
-                    ProofOutputRuntimeResult::Unit
+                Ok(match reader.u8()? {
+                    0 => ProofOutputRuntimeResult::Unit,
+                    1 => ProofOutputRuntimeResult::Scalar(decode_scalar_type(reader)?),
+                    2 => ProofOutputRuntimeResult::NoNormal,
+                    tag => return Err(CodecError::InvalidTag("ProofOutputRuntimeResult", tag)),
                 })
             })
             .transpose()?,
@@ -114,7 +116,7 @@ pub(super) fn decode_proof_output_call(
             .boolean()?
             .then(|| {
                 Ok(ProofOutputRuntimeCall {
-                    operation: reader.id("OperationId")?,
+                    site: crate::sections::semantic_module::wire::decode_invocation_site(reader)?,
                     callee: reader.id("MachineId")?,
                 })
             })

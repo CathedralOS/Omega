@@ -1358,6 +1358,10 @@ fn encode_cleanup_calls(
     encode_len(bytes, calls.len());
     for (owner, call) in calls {
         match owner {
+            target_operations::CallSiteOwner::InvokeNoNormal(edge) => {
+                bytes.push(3);
+                crate::codec_bytes::push_encoded(bytes, edge.get().to_le_bytes());
+            }
             target_operations::CallSiteOwner::ExternalCompletion(edge) => {
                 bytes.push(2);
                 crate::codec_bytes::push_encoded(bytes, edge.get().to_le_bytes());
@@ -1383,6 +1387,35 @@ fn encode_cleanup_calls(
 
 fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator) {
     match terminator {
+        LegalizedScalarTerminator::InvokeNoNormal {
+            psi_edge,
+            call,
+            declared_result,
+            fuel,
+            effect,
+            ownership,
+        } => {
+            bytes.push(8);
+            crate::codec_bytes::push_encoded(bytes, psi_edge.get().to_le_bytes());
+            let invocation = call.canonical_bytes();
+            encode_len(bytes, invocation.len());
+            bytes.extend_from_slice(&invocation);
+            match declared_result {
+                abstract_operations::AbstractFunctionResult::Unit => bytes.push(0),
+                abstract_operations::AbstractFunctionResult::Scalar(result) => {
+                    bytes.push(1);
+                    crate::codec_bytes::push_encoded(bytes, result.value.get().to_le_bytes());
+                    encode_scalar_type(bytes, result.scalar_type);
+                }
+                abstract_operations::AbstractFunctionResult::Structural(result) => {
+                    bytes.push(2);
+                    super::structural_result::encode_result(bytes, result);
+                }
+            }
+            encode_fuel(bytes, fuel);
+            encode_effect(bytes, *effect);
+            encode_ownership_roster(bytes, ownership);
+        }
         LegalizedScalarTerminator::ExternalCompletion {
             psi_edge,
             boundary,

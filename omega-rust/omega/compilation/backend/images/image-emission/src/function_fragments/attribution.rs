@@ -54,6 +54,7 @@ fn build_ordinal_index(
         } else {
             match operation {
                 abstract_operations::return_or_return_unit_pattern!(psi_edge, ..)
+                | AbstractOperation::InvokeNoNormal { psi_edge, .. }
                 | AbstractOperation::ExternalCompletion { psi_edge, .. }
                 | AbstractOperation::Crash { psi_edge, .. }
                 | AbstractOperation::ReturnStructural { psi_edge, .. }
@@ -107,6 +108,7 @@ pub(super) fn ordinal(source: &AbstractFunction, site: SemanticCodeSite) -> Resu
             } else {
                 match operation {
                     abstract_operations::return_or_return_unit_pattern!(psi_edge, ..)
+                    | AbstractOperation::InvokeNoNormal { psi_edge, .. }
                     | AbstractOperation::ExternalCompletion { psi_edge, .. }
                     | AbstractOperation::Crash { psi_edge, .. }
                     | AbstractOperation::ReturnStructural { psi_edge, .. }
@@ -238,7 +240,7 @@ pub(super) fn produce(
             Control::NormalizedForeignCall {
                 invocation_site, ..
             } => {
-                if let semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) =
+                if let semantic_vocabulary::InvocationSite::ExternalCompletion(edge) =
                     invocation_site
                 {
                     push(SemanticCodeSite::Edge(*edge), offset, length)?;
@@ -391,8 +393,13 @@ pub(super) fn validate(
             Control::NormalizedForeignCall {
                 invocation_site, ..
             } => match invocation_site {
-                semantic_vocabulary::BoundaryInvocationSite::Operation(_) => Vec::new(),
-                semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) => {
+                semantic_vocabulary::InvocationSite::InvokeNoNormal(_) => {
+                    return Err(Error::Mismatch(
+                        "foreign invocation names a module invocation edge",
+                    ));
+                }
+                semantic_vocabulary::InvocationSite::Operation(_) => Vec::new(),
+                semantic_vocabulary::InvocationSite::ExternalCompletion(edge) => {
                     vec![*edge]
                 }
             },
@@ -487,7 +494,7 @@ fn supports(
             } => {
                 ordinary
                     && *invocation_site
-                        == semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge)
+                        == semantic_vocabulary::InvocationSite::ExternalCompletion(edge)
             }
         },
     }

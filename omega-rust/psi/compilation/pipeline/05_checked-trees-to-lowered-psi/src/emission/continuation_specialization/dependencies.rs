@@ -137,7 +137,8 @@ pub(super) fn live_inputs(
                     LoweredSourceCallSite::Operation(operation) => {
                         definitions.operations.contains(&operation)
                     }
-                    LoweredSourceCallSite::ExternalCompletion(edge) => {
+                    LoweredSourceCallSite::InvokeNoNormal(edge)
+                    | LoweredSourceCallSite::ExternalCompletion(edge) => {
                         definitions.edges.contains(&edge)
                     }
                 })

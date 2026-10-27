@@ -5,6 +5,23 @@ use super::MachineSemanticKind;
 use crate::SelectedConstraintKeys;
 
 impl SelectedConstraintKeys {
+    /// One stable physical ABI roster, independently of invocation completion.
+    pub fn ordinary_call_constraints(&self) -> Vec<RegisterConstraintKey> {
+        let mut rows = Vec::new();
+        for key in self
+            .call_unit
+            .iter()
+            .chain(&self.call_unit_mixed)
+            .chain(&self.call_scalar)
+            .chain(&self.call_aggregate)
+        {
+            if !rows.contains(key) {
+                rows.push(*key);
+            }
+        }
+        rows
+    }
+
     pub fn in_identity_order(&self) -> Vec<RegisterConstraintKey> {
         [
             self.placed_read,
@@ -239,7 +256,7 @@ impl SelectedConstraintKeys {
             MachineSemanticKind::ImageAddress => {
                 return self.byte_literal_image_address;
             }
-            MachineSemanticKind::CallUnit => return None,
+            MachineSemanticKind::CallUnit | MachineSemanticKind::InvokeNoNormal => return None,
             MachineSemanticKind::CompareI64Zero => self.compare_i64_zero,
             MachineSemanticKind::MaterializeI64 => self.materialize_i64,
             MachineSemanticKind::MaterializeBooleanEqual => self.materialize_boolean,
@@ -368,12 +385,15 @@ impl SelectedConstraintKeys {
                 if matches!(
                     semantic,
                     MachineSemanticKind::CallScalar
+                        | MachineSemanticKind::InvokeNoNormal
                         | MachineSemanticKind::CallUnit
                         | MachineSemanticKind::CallAggregate
                         | MachineSemanticKind::ReturnAggregate
                         | MachineSemanticKind::NormalizedForeignCall
                 ) {
-                    (if semantic == MachineSemanticKind::CallAggregate {
+                    (if semantic == MachineSemanticKind::InvokeNoNormal {
+                        &self.invoke_no_normal
+                    } else if semantic == MachineSemanticKind::CallAggregate {
                         &self.call_aggregate
                     } else if semantic == MachineSemanticKind::ReturnAggregate {
                         &self.return_aggregate

@@ -346,6 +346,10 @@ pub(crate) fn close_typed_cohort(
         .instantiate_nominal_machine_parameter_contracts()
         .and_then(|_| lowerer.typed_trees.prepare_applied_callable_signatures())
         .map_err(|message| Diagnostic::error(message.to_owned()))?;
+    crate::type_reference::normalize_const_argument_carriers(
+        &mut lowerer.typed_trees,
+        cohort.typed_type_references,
+    )?;
     normalize_domain_constraints(
         lowerer.source_trees,
         &mut lowerer.typed_trees,
@@ -378,6 +382,11 @@ pub(crate) fn close_typed_cohort(
         &mut lowerer.typed_trees,
         cohort.machines,
     )?;
+    validation::normalize_terminal_transition_calls(
+        &mut lowerer.typed_trees,
+        cohort.typed_machines,
+        cohort.completed_machines,
+    );
     bind_dynamic_call_targets(&mut lowerer.typed_trees)
 }
 

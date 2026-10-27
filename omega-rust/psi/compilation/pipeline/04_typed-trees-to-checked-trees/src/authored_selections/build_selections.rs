@@ -129,31 +129,9 @@ pub(super) fn validate(
             }
             BuildSelectionRequest::Declaration(binding) => {
                 use language_semantics::declaration_selection::BuildOperation;
-                if !matches!(
-                    binding.operation,
-                    BuildOperation::ProviderSelection
-                        | BuildOperation::RepresentationSelection
-                        | BuildOperation::ServiceExclusion
-                        | BuildOperation::BoundaryAcceptance
-                ) || binding.operands.len()
-                    != if matches!(
-                        binding.operation,
-                        BuildOperation::ServiceExclusion | BuildOperation::BoundaryAcceptance
-                    ) {
-                        1
-                    } else {
-                        2
-                    }
-                    || binding.operands.iter().any(|operand| {
-                        operand.path.is_empty()
-                            || operand.source_span.span.start >= operand.source_span.span.end
-                    })
-                {
-                    return Err(Diagnostic::error(
-                        "Product selection lost its admitted declaration operand shape",
-                    )
-                    .with_source_span(span));
-                }
+                binding
+                    .validate_shape()
+                    .map_err(|reason| Diagnostic::error(reason).with_source_span(span))?;
                 match operation {
                     "prepare" | "select" => 1,
                     "select_mode" if binding.operation == BuildOperation::ProviderSelection => 2,

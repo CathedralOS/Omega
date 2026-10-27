@@ -30,6 +30,7 @@ use typed_trees as typed;
 
 mod arithmetic_results;
 mod computed_results;
+mod const_arguments;
 mod constraints;
 mod direct;
 mod generic_origins;
@@ -65,6 +66,7 @@ pub(super) fn retain_supplied_operand_owner(
 
 pub(crate) use arithmetic_results::retain_arithmetic_result_type;
 pub(crate) use computed_results::retain_computed_result_types;
+pub(crate) use const_arguments::normalize_const_argument_carriers;
 pub(crate) use generic_origins::validate_range_arguments;
 
 use direct::lower_type_reference_handle_with_context;
@@ -214,12 +216,26 @@ pub(super) fn lower_named_type_reference(
         exposure,
         language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference,
     )?;
-    Ok(typed_trees
-        .type_reference_table
-        .insert(typed::types::TypeReferenceNode::Named {
-            symbol,
-            name: crate::lowerer::name::lower_name(name),
-        }))
+    let reference =
+        typed_trees
+            .type_reference_table
+            .insert(typed::types::TypeReferenceNode::Named {
+                symbol,
+                name: crate::lowerer::name::lower_name(name),
+            });
+    if source_trees.const_declaration(symbol).is_some() {
+        typed_trees
+            .type_reference_table
+            .attach_constant_origins(
+                reference,
+                [typed::types::TypeConstantOrigin {
+                    declaration: symbol,
+                    reference: name.source_span(),
+                }],
+            )
+            .map_err(Diagnostic::error)?;
+    }
+    Ok(reference)
 }
 
 pub(crate) fn retain_static_path_selection(

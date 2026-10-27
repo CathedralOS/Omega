@@ -15,7 +15,7 @@
 
 mod descriptor_sources;
 mod incoming_origins;
-mod named_returns;
+mod invocation_returns;
 mod presence;
 
 use super::{
@@ -69,7 +69,13 @@ pub(super) fn terminal_call_sources(
         call.statement_index,
         call.call_ordinal,
     )?;
-    if captures.transition_call(state, call.statement_index, target)? != call {
+    if captures.return_call(
+        state,
+        call.statement_index,
+        target,
+        ExpressionHandle::invalid(),
+    )? != call
+    {
         return None;
     }
     captures.normal_returns(
@@ -174,7 +180,10 @@ impl Captures<'_> {
                 StatementNode::Expression(expression)
                     if statement_index + 1 == statements.len() =>
                 {
-                    sites.push((Default::default(), Some(*expression), None));
+                    let target = Default::default();
+                    let call =
+                        self.ordinary_return_call(state, statement_index, target, *expression)?;
+                    sites.push((target, Some(*expression), call));
                 }
                 StatementNode::Transition(transition) => {
                     if matches!(transition.exit, TransitionExit::Crash(_)) {
@@ -186,10 +195,21 @@ impl Captures<'_> {
                         }
                         match self.program.statement_table.transition_target(target) {
                             TransitionTargetNode::Value(expression) => {
-                                sites.push((target, Some(*expression), None));
+                                let call = self.ordinary_return_call(
+                                    state,
+                                    statement_index,
+                                    target,
+                                    *expression,
+                                )?;
+                                sites.push((target, Some(*expression), call));
                             }
                             TransitionTargetNode::Named { .. } => {
-                                let call = self.transition_call(state, statement_index, target)?;
+                                let call = self.return_call(
+                                    state,
+                                    statement_index,
+                                    target,
+                                    ExpressionHandle::invalid(),
+                                )?;
                                 if let Some(destination) =
                                     crate::call_target_state(self.program, call.target_symbol)
                                     && self.flow(destination.symbol)?.machine_symbol
@@ -217,9 +237,13 @@ impl Captures<'_> {
             for (transition_target, expression, call) in sites {
                 completed = true;
                 if let Some(call) = call {
-                    for source in
-                        self.named_return_sources(state, transition_target, call, loans, active)?
-                    {
+                    for source in self.invocation_return_sources(
+                        state,
+                        transition_target,
+                        call,
+                        loans,
+                        active,
+                    )? {
                         if !output.contains(&source) {
                             output.push(source);
                             if output.len() > super::MAX_REFERENCE_ORIGIN_LEAVES {
@@ -291,11 +315,37 @@ impl Captures<'_> {
         completed.then_some(output)
     }
 
-    fn transition_call(
+    /// Whole ordinary results use the callee's complete body relation. Abstract
+    /// requirements retain the existing captured-expression contract owner.
+    fn ordinary_return_call(
         &self,
         state: &typed_trees::state::State,
         statement_index: usize,
         target: typed_trees::statement::TransitionTargetHandle,
+        expression: ExpressionHandle,
+    ) -> Option<Option<&checked_trees::FlowCallFact>> {
+        let Some(call) = self.program.expression_table.call_node(expression) else {
+            return Some(None);
+        };
+        if call.static_requirement_dispatch.is_some()
+            || call.static_machine_parameter.is_valid()
+            || !crate::call_target_has_checked_body_contract(
+                self.program,
+                crate::call_target_symbol(self.program, call),
+            )
+        {
+            return Some(None);
+        }
+        self.return_call(state, statement_index, target, expression)
+            .map(Some)
+    }
+
+    fn return_call(
+        &self,
+        state: &typed_trees::state::State,
+        statement_index: usize,
+        target: typed_trees::statement::TransitionTargetHandle,
+        expression: ExpressionHandle,
     ) -> Option<&checked_trees::FlowCallFact> {
         let flow = self.flow(state.symbol)?;
         let machine = self.program.machine_by_symbol(flow.machine_symbol)?;
@@ -308,14 +358,34 @@ impl Captures<'_> {
             .iter()
             .filter(|call| {
                 call.statement_index == statement_index
-                    && !call.authored_expression.is_valid()
-                    && crate::transition_call_target(
-                        self.program,
-                        machine,
-                        state,
-                        statement_index,
-                        call.call_ordinal,
-                    ) == Some(target)
+                    && call.authored_expression == expression
+                    && (!target.is_valid()
+                        || crate::transition_call_target(
+                            self.program,
+                            machine,
+                            state,
+                            statement_index,
+                            call.call_ordinal,
+                        ) == Some(target))
+                    && (!expression.is_valid() || {
+                        self.program
+                            .expression_table
+                            .call_node(expression)
+                            .is_some_and(|source| {
+                                crate::call_target_entry_symbol(
+                                    self.program,
+                                    crate::call_target_symbol(self.program, source),
+                                ) == call.target_symbol
+                                    && matches!(
+                                        crate::find_call_site_in_state(
+                                            self.program, machine, state,
+                                            statement_index, call.call_ordinal,
+                                        ),
+                                        Some(crate::CallSite::Expression { expression: actual, call: selected })
+                                            if actual == expression && std::ptr::eq(selected, source)
+                                    )
+                            })
+                    })
             });
         let call = calls.next()?;
         calls.next().is_none().then_some(call)

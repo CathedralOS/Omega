@@ -693,7 +693,7 @@ pub(super) fn emit_call_operations(
             catalogs.temporary_places.push(local.declaration);
             sequence.primitive_locals.push(local);
         }
-        if operations.external_completion.is_some() {
+        if operations.invocation_completion.is_some() {
             break;
         }
     }

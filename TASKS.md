@@ -1469,13 +1469,11 @@ decision (`SourceChecked`) into stage 05 and stage 00.
     `source/library/core/{content,extent}.omg` identities (where only proved
     bodies and admitted declarations supply theorem roots, retaining every
     reachable return alternative, capture epoch, and invocation correlation).
-  - Carry per-invocation geometry, backing, and live supply through provider
-    planning and native settlement in
-    `omega-rust/omega/compilation/realization/provider-planning/src/{service_schema/mod.rs,provider_planning/qualification_grants.rs}`
-    and stage 05 `unit/attached_unit/catalog.rs` so
-    `tests/omega/pass/core/content_retained_custody_round_trip` receives an
-    authorized initial claim from its selected admitted `InitialSupply::acquire`
-    invocation and executes its submit/complete cycle.
+  - Complete general per-invocation geometry, simultaneous live supply, and
+    shared backing across
+    providers must retain exact custody through provider planning and native
+    settlement, including rejection of stale, replayed or duplicate supply.
+    Fresh native allocation and constructor shape alone establish no claim.
   - Complete canonical execution qualification of the hosted-entry programs
     `tests/omega/pass/terminal_psi/{content_custody_exit,structural_content_passthrough}`
     using bundled Content and quantity identities.

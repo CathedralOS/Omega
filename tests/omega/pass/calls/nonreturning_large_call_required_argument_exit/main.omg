@@ -1,0 +1,15 @@
+// Expected exit: 0
+// A nonreturning four-word result is a required argument; the parent must not enter.
+use omega::language::core::process_exit;
+use omega_language_std::process_exit;
+
+data Large [copy] { first: u64; second: u64; third: u64; fourth: u64; }
+machine stop_large() -> Large reaches ProcessExit {
+    ProcessExit::exit_process(0);
+}
+machine parent(value: Large) reaches ProcessExit {
+    ProcessExit::exit_process(43);
+}
+machine main() reaches ProcessExit {
+    parent(stop_large());
+}

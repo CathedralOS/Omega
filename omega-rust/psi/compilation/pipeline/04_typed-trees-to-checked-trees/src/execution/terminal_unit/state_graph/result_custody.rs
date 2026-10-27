@@ -56,7 +56,8 @@ pub(super) fn account<'calls>(
 ) -> Option<()> {
     let statements = program.statement_table.statements(state.statement_nodes);
     trace.phase("state graph: result custody accounting");
-    let abandons_custody = terminator.abandons_custody(operations, &facts.flow.guarded_exits)?;
+    let has_normal_continuation =
+        terminator.has_normal_continuation(operations, &facts.flow.guarded_exits)?;
     // The first guard executes before selecting any exit. Later ordered
     // guards execute only on a remaining path; their transfers cannot stand
     // in for unconditional ownership. The retained computation itself owns
@@ -623,7 +624,7 @@ pub(super) fn account<'calls>(
         let return_arm_owns =
             |arm: &CheckedConditionalReturnArm,
              uses: &[(usize, CheckedUnitStructuralArgumentPlan)]| {
-                arm.abandons_custody()
+                !arm.has_normal_continuation()
                     || arm.definite_call_transfers(
                         &facts.values,
                         call_schedules,
@@ -639,7 +640,7 @@ pub(super) fn account<'calls>(
         // With no normal exit there is no transfer/disposal owner here to
         // count beside an earlier in-sequence consumption.
         let has_normal_exit = !terminator.successors().is_empty()
-            || return_arms.iter().any(|arm| !arm.abandons_custody());
+            || return_arms.iter().any(|arm| arm.has_normal_continuation());
         let mut closed_sum_all_reference_returns = false;
         // Every normal completion owes its own transfer or exact cleanup
         // receipt. A move in one alternative cannot cover a sibling return.
@@ -845,7 +846,9 @@ pub(super) fn account<'calls>(
                 }
             }
             // A crash abandons custody; it owns no normal disposal.
-            CheckedComposedUnitControlTerminatorPlan::Crash { .. } => false,
+            CheckedComposedUnitControlTerminatorPlan::Crash { .. }
+            | CheckedComposedUnitControlTerminatorPlan::InvokeNoNormal { .. }
+            | CheckedComposedUnitControlTerminatorPlan::EvaluateNoNormal => false,
         } || selection_source_disposition;
         // A whole owned argument ends an affine local's custody at the call,
         // just as it ends a linear result or an inline operand's custody.
@@ -999,7 +1002,7 @@ pub(super) fn account<'calls>(
             + construction_transfers
             + reference_releases
             + independent_view_releases;
-        if total != 1 && !(total == 0 && abandons_custody) {
+        if total != 1 && !(total == 0 && !has_normal_continuation) {
             trace.phase(if total == 0 {
                 "state graph: structural result has no selected disposition"
             } else if construction_transfers != 0 && reference_releases != 0 {

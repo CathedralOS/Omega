@@ -14,6 +14,10 @@ pub(super) use access::view_access;
 pub(super) fn requires_descriptor(source: &LegalizedScalarFunction, place: PlaceId) -> bool {
     transferred(source, place)
         || source.blocks.iter().any(|block| matches!(&block.terminator,
+            LegalizedScalarTerminator::InvokeNoNormal { call, .. } if call.arguments.iter().any(|argument|
+                matches!(argument, LegalizedScalarArgument::Structural { semantic, .. }
+                    if semantic.place == place))))
+        || source.blocks.iter().any(|block| matches!(&block.terminator,
             LegalizedScalarTerminator::Return(returned) | LegalizedScalarTerminator::ReturnCleanup { returned, .. } if matches!(&returned.value,
                 legalized_operations::LegalizedScalarReturnValue::SharedDescriptor { place: returned } if *returned == place)
                 || matches!(&returned.value,
@@ -58,6 +62,7 @@ pub(super) fn transferred(source: &LegalizedScalarFunction, place: PlaceId) -> b
     source.blocks.iter().any(|block| {
         let successors = match &block.terminator {
             legalized_operations::LegalizedScalarTerminator::Crash { .. }
+            | legalized_operations::LegalizedScalarTerminator::InvokeNoNormal { .. }
             | legalized_operations::LegalizedScalarTerminator::ExternalCompletion { .. }
             | legalized_operations::LegalizedScalarTerminator::Return(_)
             | legalized_operations::LegalizedScalarTerminator::ReturnCleanup { .. }
@@ -151,6 +156,19 @@ pub(super) fn accepts(
     call: OperationId,
     target: &TargetStructuralArgument,
 ) -> Option<()> {
+    accepts_at(
+        source,
+        semantic_vocabulary::InvocationSite::Operation(call),
+        target,
+    )
+}
+
+pub(super) fn accepts_at(
+    source: &LegalizedScalarFunction,
+    call: semantic_vocabulary::InvocationSite,
+    target: &TargetStructuralArgument,
+) -> Option<()> {
+    super::scalar_call_abi::input_site::use_cut(source, call)?;
     if let TargetStructuralArgumentSource::BlockParameter { block, place } = target.source {
         let owner = source.block(block)?;
         let parameter = owner.structural_parameter(place)?;
@@ -205,7 +223,11 @@ pub(super) fn accepts(
         }
     }
     let signature = source.structural.as_ref()?;
-    let producer = producer_strictly_before_use(source, psi_operation, call)?;
+    let producer =
+        super::scalar_call_abi::input_site::producer_before_use(source, psi_operation, call)?;
+    if producer.2.result.is_some() {
+        return None;
+    }
     if let Some(result) = producer.2.kind.get_structural_result()
         && !terminal_semantics::borrowed_referent_matches(
             signature.structural_types.iter(),
@@ -326,7 +348,7 @@ pub(super) fn accepts(
 /// affine result, so multiplicity admits Affine beside Unrestricted.
 pub(super) fn accepts_view_loan(
     source: &LegalizedScalarFunction,
-    call: OperationId,
+    call: semantic_vocabulary::InvocationSite,
     target: &TargetStructuralArgument,
 ) -> Option<()> {
     let TargetStructuralArgumentSource::EstablishedElementView { psi_operation } = target.source
@@ -345,7 +367,11 @@ pub(super) fn accepts_view_loan(
         return None;
     }
     let signature = source.structural.as_ref()?;
-    let producer = producer_strictly_before_use(source, psi_operation, call)?;
+    let producer =
+        super::scalar_call_abi::input_site::producer_before_use(source, psi_operation, call)?;
+    if producer.2.result.is_some() {
+        return None;
+    }
     let (result, destination) = match &producer.2.kind {
         LegalizedScalarInstructionKind::EstablishElementView {
             result,
@@ -458,33 +484,4 @@ pub(super) fn descriptor_result(
         return None;
     }
     Some((operation, result))
-}
-
-/// The `psi_operation` producer row ordered strictly before the `call` row's
-/// instruction position, or `None` when either is absent, the producer
-/// yields a register, or it does not precede the use in its block.
-fn producer_strictly_before_use<'source>(
-    source: &'source LegalizedScalarFunction,
-    psi_operation: OperationId,
-    call: OperationId,
-) -> Option<(
-    semantic_vocabulary::BlockId,
-    usize,
-    &'source legalized_operations::LegalizedScalarInstruction,
-)> {
-    let mut occurrences = source.blocks.iter().flat_map(|block| {
-        block
-            .instructions
-            .iter()
-            .enumerate()
-            .map(move |(position, row)| (block.id, position, row))
-    });
-    let producer = occurrences
-        .clone()
-        .find(|(_, _, row)| row.operation == psi_operation)?;
-    let used = occurrences.find(|(_, _, row)| row.operation == call)?;
-    if producer.2.result.is_some() || producer.0 == used.0 && producer.1 >= used.1 {
-        return None;
-    }
-    Some(producer)
 }

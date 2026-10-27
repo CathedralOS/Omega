@@ -80,6 +80,16 @@ pub(super) fn check_compatibility<'p>(
             );
             let target_name = call_target_label(program, call.target_symbol);
             let entry_constraints = call_borrow_constraints(program, call, state_flow, facts);
+            check_build_selection_receiver(
+                program,
+                facts,
+                state_flow,
+                calls,
+                call,
+                &available_premises,
+                diagnostics,
+                bound_lookup,
+            );
             check_call_access_conflicts(
                 program,
                 facts,
@@ -94,6 +104,118 @@ pub(super) fn check_compatibility<'p>(
             );
         }
     }
+}
+
+/// Source recording calls require exclusive Build use even though their host
+/// preparation only observes identity. Judge the exact evaluated preparation
+/// prefix, independently of whether the commit is a statement or a nested
+/// expression. The emitted protocol never manufactures writes to Build fields.
+fn check_build_selection_receiver<'p>(
+    program: &'p dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    state_flow: &FlowStateFact,
+    calls: &[BorrowCallFact],
+    commit: &BorrowCallFact,
+    premises: &[super::overlap::StatedOrderingPremise],
+    diagnostics: &mut Vec<Diagnostic>,
+    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
+) {
+    if !commit.authored_expression.is_valid() {
+        return;
+    }
+    let Some(operation) = program
+        .expression_table
+        .call_node(commit.authored_expression)
+    else {
+        return;
+    };
+    if !operation.build_selection.is_valid() || operation.target.as_str() == "prepare" {
+        return;
+    }
+    let request = program
+        .expression_table
+        .build_selection_request(operation.build_selection);
+    let arguments = program
+        .expression_table
+        .expression_handles(operation.arguments);
+    let receiver_preparation = arguments.first().and_then(|expression| {
+        let preparation = program.expression_table.call_node(*expression)?;
+        let retained = program
+            .expression_table
+            .build_selection_request(preparation.build_selection)?;
+        // Copies allocate independent request handles for each call. Their
+        // source-issued payload, never arena-index equality, links the pair.
+        if preparation.target.as_str() != "prepare" || Some(retained) != request {
+            return None;
+        }
+        let receiver = program
+            .expression_table
+            .expression_handles(preparation.arguments)
+            .first()?;
+        Some((*expression, *receiver))
+    });
+    let Some((preparation_expression, receiver)) = receiver_preparation else {
+        diagnostics.push(Diagnostic::error(
+            "Build product operation lost its source-issued receiver preparation",
+        ));
+        return;
+    };
+    let Some(prefix) = calls.iter().rev().find(|call| {
+        call.statement_index == commit.statement_index
+            && call.authored_expression == preparation_expression
+    }) else {
+        diagnostics.push(Diagnostic::error(
+            "Build product operation lost its evaluated receiver preparation",
+        ));
+        return;
+    };
+    let Some(statement) = facts
+        .flow
+        .control
+        .statements
+        .span_or_empty(state_flow.statements)
+        .iter()
+        .find(|statement| statement.statement_index == commit.statement_index)
+    else {
+        diagnostics.push(Diagnostic::error(
+            "Build product operation lost its containing statement frontier",
+        ));
+        return;
+    };
+    // Call ordinals identify authored sites, not evaluation order. The exact
+    // argument edge establishes that preparation precedes commit; the shared
+    // evaluated schedule and captured entry constraints establish its frontier.
+    if !invocation_is_evaluated(program, facts, state_flow, prefix) {
+        diagnostics.push(Diagnostic::error(
+            "Build product receiver preparation is absent from its evaluated schedule",
+        ));
+        return;
+    }
+    let Some(frontier) = facts.flow.state_call(
+        state_flow,
+        prefix.statement_index,
+        prefix.call_ordinal,
+        prefix.target_symbol,
+        prefix.receiver_symbol,
+    ) else {
+        diagnostics.push(Diagnostic::error(
+            "Build product receiver preparation lost its exact call-entry frontier",
+        ));
+        return;
+    };
+    let mut prefix_statement = statement.clone();
+    prefix_statement.entry_constraints = frontier.entry_constraints;
+    check_exclusive_place_use(
+        program,
+        facts,
+        state_flow,
+        &prefix_statement,
+        receiver,
+        arguments.get(1).copied().unwrap_or_default(),
+        premises,
+        diagnostics,
+        bound_lookup,
+    );
 }
 
 fn call_borrow_constraints<'a>(

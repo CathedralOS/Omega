@@ -73,7 +73,7 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         | O::StructuralCase { .. }
         | abstract_operations::return_or_return_unit_pattern!()
         | abstract_operations::return_structural_or_crash_pattern!() => None,
-        O::ExternalCompletion { .. } => None,
+        O::ExternalCompletion { .. } | O::InvokeNoNormal { .. } => None,
     }
 }
 

@@ -186,7 +186,9 @@ fn admit_call_target(
         }
         (
             CheckedUnitCallRoute::Module { .. },
-            CheckedUnitCallResult::Unit | CheckedUnitCallResult::Structural { .. },
+            CheckedUnitCallResult::Unit
+            | CheckedUnitCallResult::Structural { .. }
+            | CheckedUnitCallResult::NoNormal,
         ) => {
             // Call admission consumes this roster's exact body,
             // not a different return catalog's coverage promise.
@@ -326,6 +328,7 @@ pub(super) fn retain_available(
                 ),
                 // Selected execution already joined exact realization custody.
                 CheckedUnitEffectOperationPlan::RegisterAccess { .. }
+                | CheckedUnitEffectOperationPlan::EvaluateStructuralValue { .. }
                 | CheckedUnitEffectOperationPlan::EstablishLocal(
                     checked_trees::CheckedUnitLocalBindingPlan::ScalarArray { .. },
                 )
@@ -441,7 +444,8 @@ pub(super) fn retain_available(
                     // are dense, and a sum field's copy or construction and
                     // its window repair stay in-frame. A port write is a
                     // checked physical event with exact operands, not a call.
-                    CheckedUnitEffectOperationPlan::Store(_)
+                    CheckedUnitEffectOperationPlan::EvaluateStructuralValue { .. }
+                    | CheckedUnitEffectOperationPlan::Store(_)
                     | CheckedUnitEffectOperationPlan::AtomicFence { .. }
                     | CheckedUnitEffectOperationPlan::AtomicAccess(_)
                     | CheckedUnitEffectOperationPlan::RegisterAccess { .. }

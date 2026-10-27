@@ -201,14 +201,19 @@ fn const_index_type_name(
 ) -> Result<String, Diagnostic> {
     use crate::types::{FixedArrayLength, TypeReferenceNode};
     match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Named { name, .. } => Ok(name.as_str().to_owned()),
-        TypeReferenceNode::FixedArray {
-            element_type,
-            length: FixedArrayLength::Literal(length),
-        } => Ok(format!(
-            "[{}; {length}]",
-            const_index_type_name(program, *element_type)?
-        )),
+        TypeReferenceNode::Named { name, .. }
+            if program
+                .type_reference_table
+                .primitive_type(type_reference)
+                .is_some() =>
+        {
+            Ok(name.as_str().to_owned())
+        }
+        TypeReferenceNode::Named { .. }
+        | TypeReferenceNode::FixedArray {
+            length: FixedArrayLength::Literal(_),
+            ..
+        } => Ok(program.normalized_type_identity_text(type_reference)),
         TypeReferenceNode::Constrained { base_type, .. } => {
             const_index_type_name(program, *base_type)
         }
@@ -262,32 +267,27 @@ fn closed_domain_argument_identity(
             )),
         };
     }
-    // A selected constant denotes its value, not the declaration's name.
-    // Receiving-carrier admission checks the exact declaration type separately.
-    // Share the canonical identity with the same normalized literal value.
-    if let Some(declaration) = program.const_declaration_by_symbol(*symbol)
-        && let Some(encoding) = declaration
-            .evaluated_value
-            .as_ref()
-            .and_then(|value| value.encoding())
-    {
-        return Ok(format!("const:{expected}:{}:{encoding}", encoding.len()));
+    if let Some(value) = crate::typed_trees::canonical_const_declaration_value(program, *symbol) {
+        if value.type_name != expected {
+            return Err(Diagnostic::error(format!(
+                "indexed-domain selected constant has canonical type `{}`, expected `{expected}`",
+                value.type_name
+            )));
+        }
+        if let Some(retained) =
+            language_semantics::const_value::CanonicalConstValue::from_atom(name.as_str())
+            && retained.encoding != value.encoding
+        {
+            return Err(Diagnostic::error(
+                "indexed-domain constant differs from its selected declaration value",
+            ));
+        }
+        return canonical_domain_const_identity(&value, expected);
     }
     if let Some(value) =
         language_semantics::const_value::CanonicalConstValue::from_atom(name.as_str())
     {
-        if value.type_name != expected {
-            return Err(Diagnostic::error(format!(
-                "indexed-domain argument has canonical type `{}`, expected `{expected}`",
-                value.type_name
-            )));
-        }
-        return Ok(format!(
-            "const:{}:{}:{}",
-            value.type_name,
-            value.encoding.len(),
-            value.encoding
-        ));
+        return canonical_domain_const_identity(&value, expected);
     }
     if name.as_str().parse::<i128>().is_ok() {
         return Ok(format!("integer:{expected}:{}", name.as_str()));
@@ -717,4 +717,31 @@ pub fn index_argument_is_closed(
     };
     crate::references::visit_type_reference(program, &mut closure, reference);
     !closure.open
+}
+
+/// Names and literal atoms denote the same admitted value in a domain index.
+/// Carrier admission remains exact; spelling and declaration identity do not
+/// distinguish equal values of that carrier.
+fn canonical_domain_const_identity(
+    value: &language_semantics::const_value::CanonicalConstValue,
+    expected: &str,
+) -> Result<String, Diagnostic> {
+    if value.type_name != expected {
+        return Err(Diagnostic::error(format!(
+            "indexed-domain argument has canonical type `{}`, expected `{expected}`",
+            value.type_name
+        )));
+    }
+    if let Some(language_semantics::const_value::DecodedCanonicalConstValue::Integer {
+        value,
+        ..
+    }) = value.decode_encoding()
+    {
+        return Ok(format!("integer:{expected}:{value}"));
+    }
+    Ok(format!(
+        "const:{expected}:{}:{}",
+        value.encoding.len(),
+        value.encoding
+    ))
 }

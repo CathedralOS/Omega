@@ -265,7 +265,11 @@ impl Builder<'_, '_> {
                         let selectors = self.projection_selector_evaluations(*argument, *argument)?;
                         let mut argument_plan = crate::execution::terminal_unit::structural_computation_argument(
                             self.program,
-                            self.borrow,
+                            crate::flow::CapturedSubjectFacts {
+                                semantic: self.semantic,
+                                flow: self.flow,
+                                borrow: self.borrow,
+                            },
                             self.machine,
                             state,
                             self.flow.control.calls.get(source_call),
@@ -287,7 +291,11 @@ impl Builder<'_, '_> {
                             self.operators,
                             self.pure,
                             self.plans,
-                            self.borrow,
+                            crate::flow::CapturedSubjectFacts {
+                                semantic: self.semantic,
+                                flow: self.flow,
+                                borrow: self.borrow,
+                            },
                             self.machine,
                             state,
                             self.flow.control.calls.get(source_call),

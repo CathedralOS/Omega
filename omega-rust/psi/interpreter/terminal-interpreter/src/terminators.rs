@@ -42,6 +42,42 @@ struct SelectedSuccessor<'edge> {
 }
 
 impl TerminalExecution<'_> {
+    /// A no-normal invocation still evaluates its ordinary actuals and enters
+    /// the callee. The callee owns its crash or external outcome; this edge
+    /// creates neither a second event nor a normal result or cleanup receipt.
+    pub(crate) fn settle_invoke_no_normal(
+        &mut self,
+        terminator: &Terminator,
+        meter: &mut TerminalFuelMeter,
+    ) -> Result<TerminatorFlow, TerminalInterpretError> {
+        let Terminator::InvokeNoNormal {
+            edge,
+            callee,
+            arguments,
+            structural_arguments,
+            claim_transfers,
+            ..
+        } = terminator
+        else {
+            return Err(malformed());
+        };
+        let scalar_arguments = arguments
+            .iter()
+            .map(|argument| self.scalar_value(*argument))
+            .collect::<Result<Vec<_>, _>>()?;
+        if let Err(error) = meter.charge_terminator(terminator) {
+            return meter_status(error).map(TerminatorFlow::Yield);
+        }
+        self.begin_no_normal_call(
+            *callee,
+            *edge,
+            &scalar_arguments,
+            structural_arguments,
+            claim_transfers,
+        )?;
+        Ok(TerminatorFlow::Continue)
+    }
+
     /// Claim paths under one live place — every terminator-side frontier
     /// walk reads the same projection.
     fn live_claim_paths_at(
@@ -289,6 +325,7 @@ impl TerminalExecution<'_> {
         terminator: &Terminator,
         meter: &mut TerminalFuelMeter,
     ) -> Result<TerminatorFlow, TerminalInterpretError> {
+        self.reject_no_normal_return()?;
         let Terminator::Return {
             value,
             cleanup_actions,
@@ -323,6 +360,7 @@ impl TerminalExecution<'_> {
         terminator: &Terminator,
         meter: &mut TerminalFuelMeter,
     ) -> Result<TerminatorFlow, TerminalInterpretError> {
+        self.reject_no_normal_return()?;
         let Terminator::ReturnUnit {
             cleanup_actions, ..
         } = terminator

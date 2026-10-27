@@ -106,12 +106,10 @@ pub(in crate::execution::terminal_unit) fn terminal_invocation(
     // identified by that resolved callable, not by the authored spelling.
     let (callable, return_type) =
         validation::terminal_callable_target(program, machine, invocation.target)?;
-    // A retained value expression owns its result computation, including its
-    // calls. Unit has no such value root and must retain the invocation itself
-    // in the operation sequence. Never schedule both owners for one call.
-    if invocation.expression.is_valid() && !is_unit(program, return_type) {
-        return None;
-    }
+    // Result custody belongs to the shared sequence: a retained value root
+    // owns its call computation, while an invocation without that root forwards
+    // its ordinary bound result. Unit has no value root. Classify every result
+    // here; the sequence schedules exactly one of those completion owners.
     (program.normalized_type_identity(return_type)
         == program.normalized_type_identity(state.return_type))
     .then_some(callable)
@@ -225,4 +223,37 @@ pub(in crate::execution::terminal_unit) fn outer_calls_traced<'a>(
         std::ops::Bound::Unbounded,
         trace,
     )
+}
+
+/// Authenticate the outer invocation of an unconditional terminal call. Nested
+/// operands can share its declaration but never inherit its control position.
+pub(in crate::execution::terminal_unit) fn is_terminal_call_occurrence(
+    program: &dyn validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    call: &checked_trees::FlowCallFact,
+) -> bool {
+    let Some(expected) = terminal_invocation(program, machine, state, call.statement_index) else {
+        return false;
+    };
+    if validation::terminal_callable_target(program, machine, call.target_symbol)
+        .is_none_or(|(target, _)| target != expected)
+    {
+        return false;
+    }
+    let Some(transition) = program
+        .statement_table
+        .statement_at(state, call.statement_index)
+        .and_then(StatementNode::as_transition)
+    else {
+        return false;
+    };
+    validation::find_call_site_in_state(
+        program,
+        machine,
+        state,
+        call.statement_index,
+        call.call_ordinal,
+    )
+    .is_some_and(|site| site.completes_transition(program, transition.target))
 }

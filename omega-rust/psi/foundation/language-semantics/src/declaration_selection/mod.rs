@@ -6,8 +6,8 @@ pub use product::{
     BuildSelectionRequest, CompositionMode, DescribedProductEntry, DescribedProductProvider,
     DescribedProductSchema, EnumExclusionRequest, ExclusionVocabulary, ExecutedBuildSelection,
     ExecutedEnumExclusion, ExecutedProductSelection, ExecutedRootBinding,
-    ProductDeclarationOperand, ProductDeclarationRequest, ProviderReadinessRequest,
-    RootBindingOperand, RootBindingRequest, RootBindingSelection,
+    ProductDeclarationOperand, ProductDeclarationRequest, ProductOperandRole,
+    ProviderReadinessRequest, RootBindingOperand, RootBindingRequest, RootBindingSelection,
 };
 
 /// Whether an authored declaration selection contributes only to an
@@ -349,6 +349,13 @@ pub enum AuthoredDeclarationSelectionIntrinsic {
     ByteSequencePredicate(crate::byte_predicates::ByteSequencePredicate),
     /// Runtime storage referent exposure; carries no retained loan or access authority.
     StorageAddress,
+    /// An inert Product locator of one source-issued Build recording request.
+    /// It grants no host nameability; the Product join must resolve this exact role.
+    BuildProductOperand {
+        operation: BuildOperation,
+        position: usize,
+        role: ProductOperandRole,
+    },
     BuildProviderSelection,
     /// `Build::assume_binding_contract<Required::operation, Supplied::operation>(b)`:
     /// the consuming root's runtime-only authorization of one boundary

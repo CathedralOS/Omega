@@ -7,7 +7,7 @@ use crate::LegalizationError;
 use abstract_operations::AbstractOperationPlan;
 use calling_conventions::{CallPlan, ValueShape};
 use optimization_unit::PsiOptimizationFunction;
-use semantic_vocabulary::{OperationId, StructuralPlaceKind};
+use semantic_vocabulary::StructuralPlaceKind;
 use target_operations::{
     TargetOperationPlan, TargetStructuralArgument, TargetStructuralArgumentSource,
 };
@@ -17,7 +17,7 @@ use terminal_psi::{
 
 pub(super) fn argument(
     actual: &StructuralArgument,
-    call_operation: OperationId,
+    call_operation: semantic_vocabulary::InvocationSite,
     caller: &PsiOptimizationFunction,
     formal: &StructuralParameterDeclaration,
     call: &CallPlan,
@@ -41,15 +41,7 @@ pub(super) fn argument(
     {
         return Ok(None);
     }
-    let after = caller
-        .blocks
-        .iter()
-        .find_map(|block| {
-            block.nodes.iter().position(|node| matches!(&node.operation,
-            abstract_operations::boundary_or_structural_call_pair_pattern!(psi_operation,structural_arguments, ..)
-            if *psi_operation == call_operation && structural_arguments.contains(actual)
-        )).map(|position| (block.id, position))
-        })
+    let after = super::super::invocations::position(caller, call_operation, Some(actual))
         .ok_or(LegalizationError::custody())?;
     let (root, source, result_custody) = if let Some(arrival) =
         caller.arrival_parameter(actual.place)
@@ -196,7 +188,7 @@ pub(super) fn argument(
         indices: super::super::target::control_flow::sources::call_indices(
             native,
             caller,
-            target_operations::CallSiteOwner::Operation(call_operation),
+            target_operations::CallSiteOwner::from(call_operation),
             &elements,
         )?,
         source,

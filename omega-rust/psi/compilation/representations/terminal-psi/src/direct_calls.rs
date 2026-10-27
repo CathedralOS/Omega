@@ -10,6 +10,7 @@ pub enum DirectCallRole {
     Unit,
     Scalar,
     Structural,
+    NoNormal,
 }
 
 /// A direct call's callee, result role and operand lanes, borrowed from

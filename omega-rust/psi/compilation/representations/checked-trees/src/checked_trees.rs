@@ -172,8 +172,8 @@ pub use values::{
     CheckedStructuralParameterField, CheckedStructuralPredicatePathSegment,
     CheckedStructuralRecordField, CheckedStructuralRecordFieldValue, CheckedStructuralValue,
     CheckedStructuralValueHandle, CheckedStructuralValueKind, CheckedStructuralValuePlans,
-    CheckedStructuralValueRoot, CheckedSubsliceSite, CheckedValueFact, CheckedValueFacts,
-    CheckedValueHandle, CheckedValueOrigin, CheckedValueStatementRole,
+    CheckedStructuralValueRoot, CheckedSubsliceSite, CheckedValueCompletion, CheckedValueFact,
+    CheckedValueFacts, CheckedValueHandle, CheckedValueOrigin, CheckedValueStatementRole,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

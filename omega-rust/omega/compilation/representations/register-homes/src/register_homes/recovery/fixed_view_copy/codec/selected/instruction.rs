@@ -110,6 +110,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::CopyBytes => 59,
         SelectedInstructionKind::Store64 { .. } => 17,
         SelectedInstructionKind::FrameAddress { .. } => 18,
+        SelectedInstructionKind::InvokeNoNormal { .. } => 248,
         SelectedInstructionKind::CallUnit { .. } => 19,
         SelectedInstructionKind::Jump => 14,
         SelectedInstructionKind::CompareI64Zero => 0,
@@ -321,7 +322,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
             crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
             bytes.extend_from_slice(&accepted_fact.bytes());
         }
-        selected_instructions::selected_call_triple_pattern!(target, ..) => {
+        selected_instructions::selected_call_pattern!(target, ..) => {
             target.encode_identity(bytes);
         }
         SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } => {
@@ -526,6 +527,9 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec) fn decode_kind(
                 SelectedInstructionKind::FrameAddress { slot, byte_offset }
             }
         }
+        248 => SelectedInstructionKind::InvokeNoNormal {
+            target: decode_call_target(cursor)?,
+        },
         19 => SelectedInstructionKind::CallUnit {
             target: decode_call_target(cursor)?,
         },

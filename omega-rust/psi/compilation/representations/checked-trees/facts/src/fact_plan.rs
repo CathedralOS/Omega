@@ -521,7 +521,9 @@ impl FactPlan {
         }
     }
 
-    fn fact_place_bucket_hash(&self, place: FactPlace) -> u64 {
+    /// Scratch partition key only: callers must still compare complete subjects
+    /// with `fact_places_equal` before sharing any evidence or storage epoch.
+    pub fn fact_place_bucket_hash(&self, place: FactPlace) -> u64 {
         use std::hash::{Hash, Hasher};
         let mut hash = std::collections::hash_map::DefaultHasher::new();
         std::mem::discriminant(&place).hash(&mut hash);

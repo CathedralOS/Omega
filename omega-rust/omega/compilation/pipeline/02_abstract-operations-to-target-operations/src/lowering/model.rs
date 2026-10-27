@@ -38,7 +38,7 @@ pub enum LoweringError {
     PlacedCallCustody {
         caller: MachineId,
         callee: MachineId,
-        operation: OperationId,
+        invocation: semantic_vocabulary::InvocationSite,
         runtime_position: usize,
         reason: PlacedCallCustodyError,
     },
@@ -53,17 +53,17 @@ pub enum LoweringError {
     ProviderInstallationIdentityMismatch,
     DuplicateSelectedBoundaryCall {
         machine: MachineId,
-        operation: semantic_vocabulary::BoundaryInvocationSite,
+        operation: semantic_vocabulary::InvocationSite,
         boundary: BoundaryMachineId,
     },
     UnknownSelectedBoundaryCall {
         machine: MachineId,
-        operation: semantic_vocabulary::BoundaryInvocationSite,
+        operation: semantic_vocabulary::InvocationSite,
         boundary: BoundaryMachineId,
     },
     SelectedBoundaryCallEvidenceMismatch {
         machine: MachineId,
-        operation: semantic_vocabulary::BoundaryInvocationSite,
+        operation: semantic_vocabulary::InvocationSite,
         boundary: BoundaryMachineId,
     },
     SelectedBoundaryCallShapeMismatch {
@@ -79,7 +79,7 @@ pub enum LoweringError {
     BoundarySettlementOverlapsInstalledProvider(BoundaryMachineId),
     PartialInstalledProviderBoundary {
         machine: MachineId,
-        invocation_site: semantic_vocabulary::BoundaryInvocationSite,
+        invocation_site: semantic_vocabulary::InvocationSite,
         boundary: BoundaryMachineId,
     },
     DuplicateBoundarySettlement(BoundaryMachineId),
