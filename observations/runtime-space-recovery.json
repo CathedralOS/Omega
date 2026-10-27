@@ -1,0 +1,4 @@
+{
+  "reason": "Runner build succeeded; copying executable and concurrent baseline archival hit ENOSPC. Deleted only incomplete runner copy and incomplete gzip, moved complete original runner without rebuilding or changing bytes. No qualification active.",
+  "runner_sha256": "0f7b567a51a33305ab855c410c68daf28dc5483e4d6c2d06106f7e365cb3595d"
+}

@@ -1,0 +1,238 @@
+   Compiling proc-macro2 v1.0.107
+    Checking arena v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/psi/foundation/arena)
+    Checking semantic-vocabulary v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/psi/foundation/semantic-vocabulary)
+   Compiling quote v1.0.47
+   Compiling syn v3.0.4
+    Checking source v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/psi/foundation/source)
+    Checking layout-plans v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/psi/foundation/layout-plans)
+    Checking symbols v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/psi/foundation/symbols)
+    Checking diagnostics v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/psi/foundation/diagnostics)
+    Checking access-plans v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/psi/foundation/access-plans)
+    Checking language-semantics v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/psi/foundation/language-semantics)
+   Compiling serde_derive v1.0.229
+    Checking flow-effects v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/psi/foundation/flow-effects)
+    Checking terminal-psi v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/psi/compilation/representations/terminal-psi)
+    Checking serde v1.0.229
+    Checking proof-admission v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/psi/compilation/proof/admission)
+    Checking typed-trees v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/psi/compilation/representations/typed-trees)
+    Checking facts v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/psi/compilation/representations/checked-trees/facts)
+    Checking representation-selections v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/psi/compilation/checking/representation-planning/selections)
+    Checking checked-trees v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/psi/compilation/representations/checked-trees)
+    Checking validation v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/psi/compilation/checking)
+error[E0425]: cannot find function `struct_trace` in module `super`
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_case_arms/call_entries.rs:152:19
+    |
+152 |         if super::struct_trace()
+    |                   ^^^^^^^^^^^^ not found in `super`
+    |
+help: consider importing this function
+    |
+  9 + use crate::proof_contracts::contract_entailment::struct_trace;
+    |
+help: if you import `struct_trace`, refer to it directly
+    |
+152 -         if super::struct_trace()
+152 +         if struct_trace()
+    |
+
+warning: unused import: `AppliedTraitScope`
+ --> omega-rust/psi/compilation/checking/src/declarations/traits/conformance/bounds.rs:9:37
+  |
+9 | use typed_trees::trait_definition::{AppliedTraitScope, TraitDefinition};
+  |                                     ^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `std::collections::BTreeSet`
+  --> omega-rust/psi/compilation/checking/src/machine_calls/call_cycles.rs:14:5
+   |
+14 | use std::collections::BTreeSet;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `diagnostics::Diagnostic`
+  --> omega-rust/psi/compilation/checking/src/machine_calls/call_cycles/rank_components.rs:13:5
+   |
+13 | use diagnostics::Diagnostic;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `MachineSymbols`
+ --> omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/parameter_relative_origins.rs:6:36
+  |
+6 | use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
+  |                                    ^^^^^^^^^^^^^^
+
+warning: unused import: `MachineSymbols`
+ --> omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/reference_subjects.rs:5:32
+  |
+5 |     FrameSourcePlace, Machine, MachineSymbols, State, StateParameter, Sta...
+  |                                ^^^^^^^^^^^^^^
+
+warning: unused import: `super::super as frames`
+ --> omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/stored_calls/slot_relations.rs:4:5
+  |
+4 | use super::super as frames;
+  |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `super::super as frames`
+ --> omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/stored_calls/instantiation.rs:4:5
+  |
+4 | use super::super as frames;
+  |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `super::super as frames`
+ --> omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/stored_calls/transfers.rs:4:5
+  |
+4 | use super::super as frames;
+  |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `captured_reference_projection_sources`
+  --> omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/stored_origins.rs:60:44
+   |
+60 | ...ection_origins, captured_reference_projection_sources,
+   |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `unit_returns::call_completes_unit_state`
+  --> omega-rust/psi/compilation/checking/src/machine_calls/calls.rs:61:16
+   |
+61 | pub(crate) use unit_returns::call_completes_unit_state;
+   |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `immutable_runtime_parameter`
+   --> omega-rust/psi/compilation/checking/src/machine_calls/calls.rs:918:5
+    |
+918 |     immutable_runtime_parameter,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unnecessary parentheses around pattern
+   --> omega-rust/psi/compilation/checking/src/machine_calls/static_bindings.rs:651:16
+    |
+651 |         && let (TypeParameterKind::Const {
+    |                ^
+...
+656 |         }) = parameter.kind
+    |          ^
+    |
+    = note: `#[warn(unused_parens)]` (part of `#[warn(unused)]`) on by default
+help: remove these parentheses
+    |
+651 ~         && let TypeParameterKind::Const {
+652 |             type_reference: expected,
+...
+655 |             type_reference: expected,
+656 ~         } = parameter.kind
+    |
+
+warning: unused import: `same_value`
+  --> omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/ordered_values.rs:32:46
+   |
+32 | pub(super) use congruence::{ValueComparison, same_value};
+   |                                              ^^^^^^^^^^
+
+warning: unused import: `BTreeMap`
+ --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/ranking_range/lengths.rs:9:5
+  |
+9 |     BTreeMap, BigInt, BinaryOperator, Comparison, Engine, ExpressionHandl...
+  |     ^^^^^^^^
+
+warning: unnecessary parentheses around pattern
+    --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment.rs:2285:28
+     |
+2285 | ...let (typed_trees::data::TypeParameterKind::Const { type_reference }
+     |        ^
+2286 | ...yped_trees::data::TypeParameterKind::Value { type_reference }) =
+     |                                                                 ^
+     |
+help: remove these parentheses
+     |
+2285 ~                     && let typed_trees::data::TypeParameterKind::Const { type_reference }
+2286 ~                     | typed_trees::data::TypeParameterKind::Value { type_reference } =
+     |
+
+warning: unused imports: `ContentBackingAddressGoal`, `ContentConservationImplication`, `completed_value_content_conservation_dependencies`, `completed_value_has_content_conservation_candidate`, `completed_value_preserves_entry_projection`, `completed_value_proves_backing_addresses`, and `completed_value_proves_content_conservation`
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment.rs:133:34
+    |
+133 |     ConditionalContentGuarantee, ContentBackingAddressGoal, ContentConservationDependencies,
+    |                                  ^^^^^^^^^^^^^^^^^^^^^^^^^
+134 |     ContentConservationImplication, completed_value_content_conservation_dependencies,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+135 |     completed_value_has_content_conservation_candidate, completed_value_preserves_entry_projection,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+136 |     completed_value_proves_backing_addresses, completed_value_proves_content_conservation,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `CapturedIntegerOperation`, `CapturedNumericObservations`, `CapturedScalarAssociation`, `CapturedScalarObservation`, `NumericObservationDemand`, and `captured_numeric_observations`
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment.rs:140:5
+    |
+140 |     CapturedIntegerOperation, CapturedNumericObservations, CapturedScalarAssociation,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^
+141 |     CapturedScalarObservation, NumericObservationDemand, captured_numeric_observations,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `anonymous_integer_math_literal`
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment.rs:148:5
+    |
+148 |     anonymous_integer_math_literal, anonymous_integer_value, proof_inte...
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `is_citation_statement`
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment.rs:187:64
+    |
+187 | ...ated_fact_established, is_citation_statement,
+    |                           ^^^^^^^^^^^^^^^^^^^^^
+
+warning: unnecessary parentheses around pattern
+  --> omega-rust/psi/compilation/checking/src/value_custody/const_expressions.rs:91:16
+   |
+91 |         if let (TypeParameterKind::Const {
+   |                ^
+...
+96 |         }) = parameter.kind
+   |          ^
+   |
+help: remove these parentheses
+   |
+91 ~         if let TypeParameterKind::Const {
+92 |             type_reference: expected,
+...
+95 |             type_reference: expected,
+96 ~         } = parameter.kind
+   |
+
+warning: unused variable: `dispatched`
+   --> omega-rust/psi/compilation/checking/src/machine_calls/call_cycles/runtime_ranking.rs:186:9
+    |
+186 |     let dispatched = dispatched_implementations(program);
+    |         ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_dispatched`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unreachable pattern
+   --> omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/type_capabilities.rs:222:11
+    |
+212 |         | TypeReferenceNode::DynamicTrait { .. } => false,
+    |           -------------------------------------- matches all the relevant values
+...
+222 |         | TypeReferenceNode::DynamicTrait { .. } => {
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ no value can reach this
+    |
+    = note: `#[warn(unreachable_patterns)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+    --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/normal_returns.rs:1401:13
+     |
+1401 |         let mut outcomes: Vec<NormalReturnPath<'program>> = contexts
+     |             ----^^^^^^^^
+     |             |
+     |             help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `result_presentation`
+    --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/normal_returns.rs:2608:38
+     |
+2608 | ...me(captured), Some(result_presentation)) = (&captured, &result_pres...
+     |                       ^^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_result_presentation`
+
+For more information about this error, try `rustc --explain E0425`.
+warning: `validation` (lib) generated 24 warnings
+error: could not compile `validation` (lib) due to 1 previous error; 24 warnings emitted

@@ -1,0 +1,6 @@
+{
+  "raw_path": "build/product-nested/runtime-base-producer/omega",
+  "archive": "build/product-nested/runtime-base-producer/omega.gz",
+  "sha256": "e0c9b8351028a32dc6cec9fbcd777aa2053414c01984af1f9d816cd9069e4091",
+  "reason": "Completed baseline observations; exact producer archived losslessly. Restore raw path before replay."
+}

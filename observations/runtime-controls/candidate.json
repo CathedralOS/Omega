@@ -1,0 +1,38 @@
+[
+  {
+    "name": "disjoint",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/product-nested/runtime-candidate-producer/omega",
+      "--check",
+      "build/product-nested/runtime-controls/disjoint/main.omg"
+    ],
+    "source_sha256": "a41c1aa98a05b6ae49d1e68bfb9fddae68bb871c1b74144d6e5439ea8cc6fbfe",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `private_arithmetic_local` with 1 diagnostic(s)\n  error: exact arithmetic in machine `apply` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `private_arithmetic_local`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/product-nested/runtime-controls/disjoint/main.omg:7:17\n"
+  },
+  {
+    "name": "overlap",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/product-nested/runtime-candidate-producer/omega",
+      "--check",
+      "build/product-nested/runtime-controls/overlap/main.omg"
+    ],
+    "source_sha256": "0e95899a97f4ed70a236f5a1114278851cda491c4e5e36a033bfb60b8d8d8cd4",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `private_arithmetic_local` with 1 diagnostic(s)\n  error: exact arithmetic in machine `apply` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `private_arithmetic_local`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/product-nested/runtime-controls/overlap/main.omg:7:17\n"
+  },
+  {
+    "name": "alias_overlap",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/product-nested/runtime-candidate-producer/omega",
+      "--check",
+      "build/product-nested/runtime-controls/alias_overlap/main.omg"
+    ],
+    "source_sha256": "ca95ed5a7a63ffcefe0cc0267a3042b8c1f652f74b547b0480702fc2d7b30d76",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `private_arithmetic_local` with 1 diagnostic(s)\n  error: exact arithmetic in machine `apply` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `private_arithmetic_local`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/product-nested/runtime-controls/alias_overlap/main.omg:7:17\n"
+  }
+]

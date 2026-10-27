@@ -1,0 +1,13 @@
+{
+  "baseline": "baf1b6ea0633681bcc2cf34d563d748a47fadb36",
+  "producer": "d871d8aaf7a98bfb2f0bb27de86aac844c5c8a3a",
+  "host": "macOS ARM64",
+  "nine_places_both_zero": 9,
+  "zero_arrival_reject_twins": 9,
+  "overlapping_write_rejects": 2,
+  "source_fixtures": 149,
+  "native_terminal_outcomes": 66,
+  "qualification": "Authenticates retained actual engine observations; does not execute or relabel engines.",
+  "remaining": "Mutable referent-field bound probe still refuses; parent product migration and other invocation obligations remain open.",
+  "setup_correction": "Generated const-name witness has a one-argument probe, unlike other places. Its two calls omitted the newly explicit output actual. Corrected setup; original source and observations retained, no valid-positive baseline claim for original const setup."
+}

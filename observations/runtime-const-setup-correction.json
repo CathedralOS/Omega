@@ -1,0 +1,15 @@
+{
+  "reason": "Generated const-name witness has a one-argument probe, unlike other places. Its two calls omitted the newly explicit output actual. Corrected setup; original source and observations retained, no valid-positive baseline claim for original const setup.",
+  "changes": [
+    {
+      "path": "samples/cli/facts/nested_machine_invocation/private_arithmetic/mutable/const_name/main.omg",
+      "original_sha256": "79274060ccbbf115aa534c3db5ae98cf12eab55eb630170e6efb666db69398a7",
+      "corrected_sha256": "c076bf26939e28a94d786a66a2b544f654aa7207b70cf9afe36ffc4d70feb237"
+    },
+    {
+      "path": "samples/cli/facts/nested_machine_invocation/private_arithmetic/mutable/const_name/invalid/main.omg",
+      "original_sha256": "807a439e70dad12ffa8e04a3ee5f43fb567cf49c1be3befb4a907212713fea0b",
+      "corrected_sha256": "135c08e3e3ae7ebfb34d382df4a5c102a03de9586b6db59f3f1b15291d50004e"
+    }
+  ]
+}

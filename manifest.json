@@ -1,0 +1,175 @@
+{
+  "pr": 402,
+  "submitted_head": "286c3a66623fcdda18830cd7d81ea8bc8d78d506",
+  "fixed_base": "baf1b6ea0633681bcc2cf34d563d748a47fadb36",
+  "producer_revision": "d871d8aaf7a98bfb2f0bb27de86aac844c5c8a3a",
+  "qualification_revision": "286c3a66623fcdda18830cd7d81ea8bc8d78d506",
+  "qualification_receipt": {
+    "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/product-nested/runtime-qualification.records/d183733fb9244c078b10132a0f4b9ffb.json",
+    "sha256": "c501c35b2b9eb6beed972626f0b8e8c98fe8a42d507daba4f09fad98bd749ac4"
+  },
+  "applicability": "Actual engine observations retain their original producer and source revisions. Compiler and libraries equal the submitted head; later source changes only pin fixtures, prose and goldens. Qualification validates retained engine observations, without reexecuting them. Native execution was macOS ARM64 only.",
+  "artifacts": "Frozen compiler executables remain local and are omitted from this evidence branch. Exact source bundles, build receipts, binary digests and verified profiles are retained.",
+  "files": [
+    {
+      "evidence_path": "qualification/runtime-qualification.json.gz",
+      "sha256": "c093ffc4e1a6c25c85fef36528ff6972a6c008055b573df5baddc9aec58f8f13"
+    },
+    {
+      "evidence_path": "qualification/runtime-qualification-config.json.gz",
+      "sha256": "ea4f312c609cf51138566708d6bf734c694651db9c46836b5fc7f495f9c78221"
+    },
+    {
+      "evidence_path": "qualification/observation-receipt.json.gz",
+      "sha256": "6060ed8861965c7bc74a15a2002246b7edb18a376f2a25935b2b3c5287ba8dca"
+    },
+    {
+      "evidence_path": "qualification/validator-stdout.txt",
+      "sha256": "967cf74e3f998bd3916695470a7d4c6a91cf2c34ff3f37a68d3a2cafe08e0b0d"
+    },
+    {
+      "evidence_path": "qualification/validator-stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "evidence_path": "observations/validate-runtime.py",
+      "sha256": "882d519f8ba3674aacac4c10ce2d4de963387a425d3fc15f2a69c1bf1f23650d"
+    },
+    {
+      "evidence_path": "observations/runtime-acceptance.json",
+      "sha256": "c8264cdb6cec8226916f5cab8dd0c64b5cf208fb5e1d92509bb6a94777af7d77"
+    },
+    {
+      "evidence_path": "observations/runtime-base-producer.json",
+      "sha256": "f80bfadf49cd3d9005118bed5150ca297bb422f9d813af2de5a11e158eed6256"
+    },
+    {
+      "evidence_path": "observations/runtime-candidate-producer.json",
+      "sha256": "0d699224e0ab9d1ad74fd19da4f9e669902de69d21b1d56faf45bd5c21a96f31"
+    },
+    {
+      "evidence_path": "observations/runtime-runner-producer.json",
+      "sha256": "2d9f4ce13642880c7b4ebb721b8d99f8386b7e7aa3a591d7c8402f6ae9909cb3"
+    },
+    {
+      "evidence_path": "observations/runtime-row-tracked-baseline.json",
+      "sha256": "5528a782d3427ae26800910f3c8fd3155908926d2888ee61a17db473bb723fcd"
+    },
+    {
+      "evidence_path": "observations/runtime-row-candidate.json",
+      "sha256": "364ad70175cf3912293df5fbed7814874cedd82141d9a232e26146afbf4a8706"
+    },
+    {
+      "evidence_path": "observations/runtime-row-corrected-baseline.json",
+      "sha256": "a9e8294c1c5709b7a37564f8b2b4a242b0f6d7bab87723854d02a20e97b9645c"
+    },
+    {
+      "evidence_path": "observations/runtime-row-corrected-candidate.json",
+      "sha256": "38b2f3d8935fe0ecc705c2f7e18f6d0dcfb04938f9e7d2913d29fe2e327e42d0"
+    },
+    {
+      "evidence_path": "observations/runtime-corrected-frozen-inputs.json",
+      "sha256": "463e6ecdd6cd9f03053021bc36f992344365e113aac1463c8e4e5695eaf39378"
+    },
+    {
+      "evidence_path": "observations/runtime-tracked-frozen-inputs.json",
+      "sha256": "6660b9532468e9f9bef4014cb948d2f804c5e0f43877472fdfb40b209832d734"
+    },
+    {
+      "evidence_path": "observations/runtime-const-setup-correction.json",
+      "sha256": "433e4790aef5c530aa859bba9a403fa8106550294a46e3051d9557858d1ed2d3"
+    },
+    {
+      "evidence_path": "observations/runtime-entry-current-context.json",
+      "sha256": "9b258e00b3f5389ebe9e0b853673d45fd8da41588e42a0d1de1031b08d1c7426"
+    },
+    {
+      "evidence_path": "observations/runtime-corpus-source.json",
+      "sha256": "c53b8ed45eba6f6bd4fd3176e8640064badfaa6724e4bb70064f2e3512133e83"
+    },
+    {
+      "evidence_path": "observations/runtime-corpus-both.json",
+      "sha256": "9cad8ee7b982cd3834a8aafcd40a0badb8cad2e333b14d9125ea3fc448f1a6ce"
+    },
+    {
+      "evidence_path": "observations/runtime-controls/baseline.json",
+      "sha256": "2eeb10db1af31b494f93c15a22df0517d6559534bd7aff3b4bc3c1ca4c37f5fb"
+    },
+    {
+      "evidence_path": "observations/runtime-controls/candidate.json",
+      "sha256": "5dd2b3bf772797f6825b9dab85cc7c6a5e30a2206924905073fadce62b218280"
+    },
+    {
+      "evidence_path": "observations/runtime-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "evidence_path": "observations/runtime-check.log",
+      "sha256": "d8bd81959ef7e2f0071144f8d2bf78bcedf2a92b6b2ed5865b77a5bfaff523ea"
+    },
+    {
+      "evidence_path": "observations/runtime-golden-splice.json",
+      "sha256": "0619d268a6c9ebdb67cbb84cfa32259f77575a335593a9724ef94f7f953b75a4"
+    },
+    {
+      "evidence_path": "observations/runtime-space-recovery.json",
+      "sha256": "189fb4bf786a05bc25ff6c4b565ba190e58a27690baaa6d010e6afb5fb3f1516"
+    },
+    {
+      "evidence_path": "observations/runtime-base-archive.json",
+      "sha256": "b3440b658e3f5bad01547f95973e05766d08cb63fb35c06374d013197ae3be06"
+    },
+    {
+      "evidence_path": "producer-builds/runtime-base-build.jsonl",
+      "sha256": "3904981cfd8af5d9751ee80e1514aa1dd59c5715aae2013233d67f634ef94f02"
+    },
+    {
+      "evidence_path": "producer-builds/runtime-candidate-build.jsonl",
+      "sha256": "c30a5e0d7b39af0bed2b0612b8a9b958b45b800658c03925af05399c3fb79bf0"
+    },
+    {
+      "evidence_path": "producer-builds/runtime-runner-build.jsonl",
+      "sha256": "4074065f0a0e5455a653e32c8e8aa46c9999719ea06bcb12cdf0df42307f40fa"
+    },
+    {
+      "evidence_path": "source/254c8f6b38f2dc15669035a393693f06dadc3ace.bundle",
+      "sha256": "e9aaae3c25907fe4a37c13bff0bf2c83ffe17c95b4108f1775498a550373c14e"
+    },
+    {
+      "evidence_path": "source/286c3a66623fcdda18830cd7d81ea8bc8d78d506.bundle",
+      "sha256": "b6304444e937816774078300dd6f7f7025e021a3fda1ce94a93768157d5cda08"
+    },
+    {
+      "evidence_path": "replay/runtime-original-const-setup/main.omg",
+      "sha256": "79274060ccbbf115aa534c3db5ae98cf12eab55eb630170e6efb666db69398a7"
+    },
+    {
+      "evidence_path": "replay/runtime-original-const-setup/invalid/main.omg",
+      "sha256": "807a439e70dad12ffa8e04a3ee5f43fb567cf49c1be3befb4a907212713fea0b"
+    },
+    {
+      "evidence_path": "replay/runtime-controls/disjoint/build.omg",
+      "sha256": "17905ad419ce4b3cb96929c8fee94f86da2a6d2fcd3d168fe26e5fd06a7c6670"
+    },
+    {
+      "evidence_path": "replay/runtime-controls/disjoint/main.omg",
+      "sha256": "a41c1aa98a05b6ae49d1e68bfb9fddae68bb871c1b74144d6e5439ea8cc6fbfe"
+    },
+    {
+      "evidence_path": "replay/runtime-controls/overlap/build.omg",
+      "sha256": "17905ad419ce4b3cb96929c8fee94f86da2a6d2fcd3d168fe26e5fd06a7c6670"
+    },
+    {
+      "evidence_path": "replay/runtime-controls/overlap/main.omg",
+      "sha256": "0e95899a97f4ed70a236f5a1114278851cda491c4e5e36a033bfb60b8d8d8cd4"
+    },
+    {
+      "evidence_path": "replay/runtime-controls/alias_overlap/build.omg",
+      "sha256": "17905ad419ce4b3cb96929c8fee94f86da2a6d2fcd3d168fe26e5fd06a7c6670"
+    },
+    {
+      "evidence_path": "replay/runtime-controls/alias_overlap/main.omg",
+      "sha256": "ca95ed5a7a63ffcefe0cc0267a3042b8c1f652f74b547b0480702fc2d7b30d76"
+    }
+  ]
+}

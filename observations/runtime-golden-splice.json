@@ -1,0 +1,14 @@
+[
+  {
+    "path": "tests/omega/corpus_outcomes.txt",
+    "new_rows": 20,
+    "only_replaced_rows": [],
+    "reason": "Only new mutable-helper observations added with original record revisions. All preexisting rows, comments and context metadata unchanged."
+  },
+  {
+    "path": "tests/omega/corpus_both_macos_arm64.txt",
+    "new_rows": 9,
+    "only_replaced_rows": [],
+    "reason": "Only new mutable-helper observations added with original record revisions. All preexisting rows, comments and context metadata unchanged."
+  }
+]
