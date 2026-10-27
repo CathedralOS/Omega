@@ -466,40 +466,44 @@ impl SelectionProduction {
             };
             // A known receiving occurrence may retain the earlier selection
             // graph. The home alone cannot select it after a replacement.
-            let origin_selection = facts.flow.ownership.with_state_owned_selections(
-                state,
-                |handles| -> Result<arena::Handle<checked_trees::FlowOwnedSelectionReceipt>, Diagnostic> {
-                    let mut origins = handles.iter().copied().filter(|&handle| {
-                        let receipt = facts.flow.ownership.owned_selections.get(handle);
-                        receipt.machine == machine
-                            && receipt.state == state
-                            && receipt.destination == owner.source.root
-                            && receipt.value.is_valid()
-                            && owner.source.segments.starts_with(
-                                facts
-                                    .flow
-                                    .ownership
-                                    .segments
-                                    .span_or_empty(receipt.destination_path),
-                            )
-                            && provenance
-                                == PermissionProvenance::Established {
-                                    machine_symbol: machine,
-                                    state_symbol: state,
-                                    source: PermissionEventSource::Statement {
-                                        statement_index: receipt.statement_ordinal as usize,
-                                    },
-                                }
-                    });
-                    let origin = origins.next().unwrap_or_default();
-                    if origins.next().is_some() {
-                        return Err(Diagnostic::error(
-                            "selected source has ambiguous receiving custody",
-                        ));
-                    }
-                    Ok(origin)
-                },
-            )?;
+            let origin_selection =
+                facts.flow.ownership.with_state_owned_selections(
+                    state,
+                    |handles| -> Result<
+                        arena::Handle<checked_trees::FlowOwnedSelectionReceipt>,
+                        Diagnostic,
+                    > {
+                        let mut origins = handles.iter().copied().filter(|&handle| {
+                            let receipt = facts.flow.ownership.owned_selections.get(handle);
+                            receipt.machine == machine
+                                && receipt.state == state
+                                && receipt.destination == owner.source.root
+                                && receipt.value.is_valid()
+                                && owner.source.segments.starts_with(
+                                    facts
+                                        .flow
+                                        .ownership
+                                        .segments
+                                        .span_or_empty(receipt.destination_path),
+                                )
+                                && provenance
+                                    == PermissionProvenance::Established {
+                                        machine_symbol: machine,
+                                        state_symbol: state,
+                                        source: PermissionEventSource::Statement {
+                                            statement_index: receipt.statement_ordinal as usize,
+                                        },
+                                    }
+                        });
+                        let origin = origins.next().unwrap_or_default();
+                        if origins.next().is_some() {
+                            return Err(Diagnostic::error(
+                                "selected source has ambiguous receiving custody",
+                            ));
+                        }
+                        Ok(origin)
+                    },
+                )?;
             transfers.push(FlowOwnedSelectionTransfer {
                 source_type_reference: owner.type_reference,
                 root: owner.source.root,
