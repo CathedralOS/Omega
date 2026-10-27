@@ -6,7 +6,7 @@
 //! Project observed integer terms into the existing arithmetic engine, with a
 //! query-local atom per complete value identity. No source expression is replayed,
 //! no caller state is reread, and no future call guarantee enters the premises.
-//! Wrapping/saturating operations remain opaque values rather than integer laws;
+//! Completed policy values retain wrapping/clamping before entering integer laws;
 //! Each expanded operation retains its carrier formation obligation until the
 //! authenticated premises establish it, independently of the requested goal.
 
@@ -16,6 +16,8 @@ use super::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use std::ops::Range;
 use typed_trees::expression::BinaryOperator;
 use typed_trees::types::PrimitiveType;
+
+mod policy_values;
 
 type Comparison = (BinaryOperator, Polynomial, Polynomial);
 
@@ -38,6 +40,7 @@ struct IntegerProjectionRegistrations {
     atoms: usize,
     operations: usize,
     carrier_bounds: usize,
+    policy_values: usize,
     engine: (usize, usize, usize, usize),
 }
 
@@ -71,6 +74,7 @@ struct IntegerObservations<'program> {
     operations: Vec<ObservedOperation>,
     carrier_bounds: Vec<ObservedCarrierBounds>,
     installed_carrier_bounds: usize,
+    policy_values: Vec<policy_values::ObservedPolicyValue>,
 }
 
 /// Every retained comparison and operation has been independently admitted.
@@ -86,12 +90,13 @@ impl<'program> PreparedIntegerPremises<'program> {
     }
 }
 
-impl IntegerObservations<'_> {
+impl<'program> IntegerObservations<'program> {
     fn projection_registrations(&self) -> IntegerProjectionRegistrations {
         IntegerProjectionRegistrations {
             atoms: self.atoms.len(),
             operations: self.operations.len(),
             carrier_bounds: self.carrier_bounds.len(),
+            policy_values: self.policy_values.len(),
             engine: self.engine.integer_projection_registrations(),
         }
     }
@@ -195,7 +200,24 @@ impl IntegerObservations<'_> {
         }
     }
 
-    fn install_premises(&mut self, premises: &mut Vec<(Comparison, Range<usize>)>) -> bool {
+    fn install_premises(
+        &mut self,
+        premises: &mut Vec<(Comparison, Range<usize>)>,
+        judge: &StructuralJudge<'program>,
+    ) -> bool {
+        loop {
+            if !self.admit_formed_premises(premises) {
+                return false;
+            }
+            match self.expand_policy_values(judge) {
+                Some(true) => {}
+                Some(false) => return true,
+                None => return false,
+            }
+        }
+    }
+
+    fn admit_formed_premises(&mut self, premises: &mut Vec<(Comparison, Range<usize>)>) -> bool {
         if self.installed_carrier_bounds < self.carrier_bounds.len() {
             let comparisons = self.carrier_bounds[self.installed_carrier_bounds..]
                 .iter()
@@ -323,6 +345,7 @@ impl StructuralJudge<'_> {
             operations: Vec::new(),
             carrier_bounds: Vec::new(),
             installed_carrier_bounds: 0,
+            policy_values: Vec::new(),
         };
         let Some(value) = self.mathematical_value(&value, &mut observations, 0) else {
             return CarrierFit::Unknown;
@@ -356,7 +379,8 @@ impl StructuralJudge<'_> {
         };
         let goal_operations = 0..observations.operations.len();
         let mut premises = self.observed_integer_premises(&mut observations);
-        if !observations.install_premises(&mut premises) || !observations.admitted(goal_operations)
+        if !observations.install_premises(&mut premises, self)
+            || !observations.admitted(goal_operations)
         {
             return CarrierFit::Unknown;
         }
@@ -437,6 +461,7 @@ impl StructuralJudge<'_> {
             operations: Vec::new(),
             carrier_bounds: Vec::new(),
             installed_carrier_bounds: 0,
+            policy_values: Vec::new(),
         };
         let mut remaining = 64usize;
         let alternatives =
@@ -446,15 +471,18 @@ impl StructuralJudge<'_> {
         let retained = premises.clone();
         // Only real prefix facts may admit a partial operand. Install the
         // denied question below, after all of its operations have formed.
-        if !observations.install_premises(&mut premises) || !observations.admitted(goal_operations)
+        if !observations.install_premises(&mut premises, self)
+            || !observations.admitted(goal_operations)
         {
             return None;
         }
         let admitted = retained
             .into_iter()
             .filter(|(comparison, operations)| {
-                matches!(comparison.0, BinaryOperator::Equal | BinaryOperator::NotEqual)
-                    && observations.admitted(operations.clone())
+                matches!(
+                    comparison.0,
+                    BinaryOperator::Equal | BinaryOperator::NotEqual
+                ) && observations.admitted(operations.clone())
             })
             .map(|(comparison, _)| comparison)
             .collect::<Vec<_>>();
@@ -623,8 +651,7 @@ impl StructuralJudge<'_> {
                 return Some(0);
             }
             if matches!(ge_eq_judgment, StructuralJudgment::Unknown) {
-                let resolved =
-                    resolved_ge.unwrap_or_else(|| self.resolve_at(greater_or_equal, 1));
+                let resolved = resolved_ge.unwrap_or_else(|| self.resolve_at(greater_or_equal, 1));
                 if self.proves_observed_integer_boolean(&resolved, 1) == Some(true) {
                     return Some(0);
                 }
@@ -874,7 +901,7 @@ impl StructuralJudge<'_> {
                     let goal_has_no_operations = operations.is_empty();
                     // Only this goal has registered since the sealed premise context.
                     // Even an unavailable projection is discarded with this whole fork.
-                    if !observations.install_premises(&mut Vec::new())
+                    if !observations.install_premises(&mut Vec::new(), self)
                         || !observations.admitted(operations)
                     {
                         return None;
@@ -899,10 +926,11 @@ impl StructuralJudge<'_> {
             operations: Vec::new(),
             carrier_bounds: Vec::new(),
             installed_carrier_bounds: 0,
+            policy_values: Vec::new(),
         };
         let mut premises = self.project_observed_integer_premises(&mut observations);
         if !premises.complete
-            || !observations.install_premises(&mut premises.comparisons)
+            || !observations.install_premises(&mut premises.comparisons, self)
             || !premises.comparisons.is_empty()
             || !observations.admitted(0..observations.operations.len())
         {
@@ -940,12 +968,13 @@ impl StructuralJudge<'_> {
             operations: Vec::new(),
             carrier_bounds: Vec::new(),
             installed_carrier_bounds: 0,
+            policy_values: Vec::new(),
         };
         let comparison = self.integer_comparison(predicate, &mut observations)?;
         let goal_operations = 0..observations.operations.len();
         let mut comparisons = self.observed_integer_premises(&mut observations);
         let retained = comparisons.clone();
-        if !observations.install_premises(&mut comparisons)
+        if !observations.install_premises(&mut comparisons, self)
             || !observations.admitted(goal_operations)
         {
             return None;
@@ -953,8 +982,10 @@ impl StructuralJudge<'_> {
         let admitted = retained
             .into_iter()
             .filter(|(comparison, operations)| {
-                matches!(comparison.0, BinaryOperator::Equal | BinaryOperator::NotEqual)
-                    && observations.admitted(operations.clone())
+                matches!(
+                    comparison.0,
+                    BinaryOperator::Equal | BinaryOperator::NotEqual
+                ) && observations.admitted(operations.clone())
             })
             .map(|(comparison, _)| comparison)
             .collect();
@@ -1102,6 +1133,7 @@ impl StructuralJudge<'_> {
             operations: Vec::new(),
             carrier_bounds: Vec::new(),
             installed_carrier_bounds: 0,
+            policy_values: Vec::new(),
         };
         for capture in view
             .applications
@@ -1134,7 +1166,8 @@ impl StructuralJudge<'_> {
         }
         let goal_operations = 0..observations.operations.len();
         let mut premises = self.observed_integer_premises(&mut observations);
-        if !observations.install_premises(&mut premises) || !observations.admitted(goal_operations)
+        if !observations.install_premises(&mut premises, self)
+            || !observations.admitted(goal_operations)
         {
             return StructuralJudgment::Unknown;
         }
@@ -1361,6 +1394,7 @@ impl StructuralJudge<'_> {
         // intrinsic bounds apply only to opaque leaves, never to a computation
         // waiting to prove formation or to an anonymous integer literal.
         observations.install_observed_carrier_bounds(primitive, &value)?;
+        observations.defer_policy_value(position, value.clone());
         Some(value)
     }
 
