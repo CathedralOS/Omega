@@ -102,7 +102,7 @@ pub(super) fn plan(
         return None;
     }
     if matches!(statement, StatementNode::Transition(_))
-        && super::super::call_occurrences::terminal_named_call(program, machine, state, index)
+        && super::super::call_occurrences::terminal_invocation(program, machine, state, index)
             != Some(call.target_symbol)
     {
         return None;

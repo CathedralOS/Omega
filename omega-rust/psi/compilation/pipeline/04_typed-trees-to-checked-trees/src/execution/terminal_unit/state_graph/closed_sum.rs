@@ -377,6 +377,29 @@ pub(super) fn build(
         // give one wildcard call several generated result identities, defeating
         // the emitter's common completion and duplicating its source coordinate.
         let returning_arm = match program.statement_table.transition_target(transition.target) {
+            _ if terminal_calls::external_callable(program, machine, fused, transition)
+                .is_some() =>
+            {
+                trace.phase("state graph: terminator: case successors: terminal call");
+                let arm = terminal_calls::arm_call(
+                    program,
+                    facts,
+                    scalar_callees,
+                    shapes,
+                    machine,
+                    state,
+                    structural,
+                    entry_claims,
+                    edge_calls.local_results,
+                    operations,
+                    result,
+                    next_scalar_binding,
+                    transition,
+                    ordinal,
+                    trace,
+                )?;
+                Some(arm)
+            }
             // An authored `(expression)` arm completes with the same
             // producer plan a ConditionalReturn carries. Payload observations
             // belong to each selected case's emission namespace, not to a
@@ -429,30 +452,6 @@ pub(super) fn build(
                         operations.extend(operand_calls);
                         checked_trees::CheckedConditionalReturnArm::Structural(operation)
                     };
-                Some(arm)
-            }
-            TransitionTargetNode::Named { .. }
-                if terminal_calls::external_callable(program, machine, fused, transition)
-                    .is_some() =>
-            {
-                trace.phase("state graph: terminator: case successors: terminal call");
-                let arm = terminal_calls::arm_call(
-                    program,
-                    facts,
-                    scalar_callees,
-                    shapes,
-                    machine,
-                    state,
-                    structural,
-                    entry_claims,
-                    edge_calls.local_results,
-                    operations,
-                    result,
-                    next_scalar_binding,
-                    transition,
-                    ordinal,
-                    trace,
-                )?;
                 Some(arm)
             }
             TransitionTargetNode::Named { .. } => None,

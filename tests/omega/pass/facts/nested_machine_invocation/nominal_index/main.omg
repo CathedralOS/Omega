@@ -1,0 +1,21 @@
+// Expected exit: 0
+data Unit [copy] { value: u64; }
+const METERS: Unit = Unit { value: 1 };
+const SAME_METERS: Unit = Unit { value: 1 };
+const INDEX: u64 = 7;
+domain<const Index: u64> u64::Indexed<Index>;
+machine integer_index(value: u64 in Indexed<INDEX>) -> u64 in Indexed<7> { value }
+domain<T, const U: Unit> T::Quantity<U>;
+machine read(value: u64 in Quantity<METERS>) -> u64 in Quantity<SAME_METERS> {
+    forward(value)
+    machine forward(value: u64 in Quantity<METERS>) -> u64 in Quantity<SAME_METERS> { value }
+}
+machine main() crashes Trap {
+    let value: u64 in Quantity<METERS> = 42 as u64 in Quantity<METERS>;
+    let result: u64 = read(value) as u64;
+    let indexed: u64 in Indexed<INDEX> = 42 as u64 in Indexed<INDEX>;
+    let indexed_result: u64 = integer_index(indexed) as u64;
+    transition result == 42 && indexed_result == 42 { true -> done() _ -> failed() }
+    machine done() {}
+    machine failed() crashes Trap { crash Trap; }
+}

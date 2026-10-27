@@ -297,7 +297,8 @@ pub fn validate_closed_const_argument(
     if !argument.is_valid()
         || !matches!(
             program.type_reference_table.type_reference(argument),
-            TypeReferenceNode::Named { symbol, .. } if !symbol.is_valid()
+            TypeReferenceNode::Named { symbol, .. }
+                if !symbol.is_valid() || program.const_declaration_by_symbol(*symbol).is_some()
         )
     {
         return Err(vec![Diagnostic::error(format!(

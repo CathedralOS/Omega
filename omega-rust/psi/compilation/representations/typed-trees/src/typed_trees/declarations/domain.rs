@@ -262,6 +262,17 @@ fn closed_domain_argument_identity(
             )),
         };
     }
+    // A selected constant denotes its value, not the declaration's name.
+    // Receiving-carrier admission checks the exact declaration type separately.
+    // Share the canonical identity with the same normalized literal value.
+    if let Some(declaration) = program.const_declaration_by_symbol(*symbol)
+        && let Some(encoding) = declaration
+            .evaluated_value
+            .as_ref()
+            .and_then(|value| value.encoding())
+    {
+        return Ok(format!("const:{expected}:{}:{encoding}", encoding.len()));
+    }
     if let Some(value) =
         language_semantics::const_value::CanonicalConstValue::from_atom(name.as_str())
     {

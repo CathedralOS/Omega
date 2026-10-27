@@ -306,15 +306,8 @@ pub(crate) fn desugar_generic_data_instances_in(
     }
     normalize_domain_head_positions(syntax, selection, &domain_head_positions);
 
-    canonicalize_closed_domain_indices(
-        syntax,
-        &const_definitions,
-        &const_values,
-        selection,
-        warnings,
-        &work,
-    )
-    .map_err(|diagnostic| vec![diagnostic])?;
+    canonicalize_closed_domain_indices(syntax, &const_values, selection, warnings, &work)
+        .map_err(|diagnostic| vec![diagnostic])?;
 
     if generic_data.is_empty() {
         return Ok(());
@@ -373,15 +366,8 @@ pub(crate) fn desugar_generic_data_instances_in(
         if !work.is_all() {
             let domain_positions = work.type_positions(syntax, TypePositionPurpose::Identity, true);
             normalize_domain_head_positions(syntax, selection, &domain_positions);
-            canonicalize_closed_domain_indices(
-                syntax,
-                &const_definitions,
-                &const_values,
-                selection,
-                warnings,
-                &work,
-            )
-            .map_err(|diagnostic| vec![diagnostic])?;
+            canonicalize_closed_domain_indices(syntax, &const_values, selection, warnings, &work)
+                .map_err(|diagnostic| vec![diagnostic])?;
         }
         let storage_positions =
             work.type_positions(syntax, TypePositionPurpose::Materialization, false);

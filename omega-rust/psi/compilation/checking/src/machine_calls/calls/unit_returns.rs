@@ -2,6 +2,7 @@
 
 use super::{ExpressionHandle, Machine, State, TypeReferenceHandle, TypeReferenceNode};
 use language_semantics::declaration_selection::BuildOperation;
+use typed_trees::statement::{StatementNode, TransitionTargetNode};
 /// A standalone call may perform Unit work before later statements. The final
 /// expression still has the state's return contract. Call this for a direct
 /// statement root; recursive validators must also retain the current use
@@ -24,15 +25,34 @@ pub fn unit_statement_call_is_admitted(
         return true;
     }
     let statements = program.statement_table.statements(state.statement_nodes);
-    let mut occurrences = statements.iter().enumerate().filter_map(|(position, statement)| {
-        matches!(statement, typed_trees::statement::StatementNode::Expression(root) if *root == expression)
-            .then_some(position)
-    });
-    let Some(position) = occurrences.next() else {
+    let mut occurrences = statements
+        .iter()
+        .enumerate()
+        .filter_map(|(position, statement)| match statement {
+            StatementNode::Expression(root) if *root == expression => Some((position, false)),
+            StatementNode::Transition(transition)
+                if transition.targets().any(|target| {
+                    matches!(
+                        program.statement_table.transition_target(target),
+                        TransitionTargetNode::Value(root) if *root == expression
+                    )
+                }) =>
+            {
+                Some((position, true))
+            }
+            _ => None,
+        });
+    let Some((position, terminal_arm)) = occurrences.next() else {
         return false;
     };
     if occurrences.next().is_some() {
         return false;
+    }
+    if terminal_arm {
+        // The whole invocation completes this caller. Unit is legal here,
+        // never as an argument or operand nested inside the arm expression.
+        return unit_type(program, state.return_type)
+            && call_returns_unit(program, machine, expression);
     }
     if position + 1 == statements.len() {
         return unit_return_call_is_admitted(program, machine, state, expression);
