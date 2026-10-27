@@ -642,7 +642,7 @@ fn finish_references(roots: ReferenceCollector) -> ProgramReferences {
     }
 }
 
-struct MachineSidecarIndex {
+pub struct MachineSidecarIndex {
     specializations: Vec<(SymbolHandle, u32)>,
     service_reaches: Vec<(SymbolHandle, u32)>,
 }
@@ -666,7 +666,7 @@ fn sidecar_symbol_rows(
 }
 
 impl MachineSidecarIndex {
-    fn build(program: &TypedTrees) -> Self {
+    pub fn build(program: &TypedTrees) -> Self {
         let mut specializations: Vec<(SymbolHandle, u32)> = program
             .machine_specializations
             .iter()
@@ -688,14 +688,27 @@ impl MachineSidecarIndex {
     }
 }
 
+pub fn collect_machine_references(
+    program: &TypedTrees,
+    machine: &crate::machine::Machine,
+    sidecars: &MachineSidecarIndex,
+) -> ProgramReferences {
+    let mut roots = ReferenceCollector::default();
+    if roots.declaration(machine.symbol) {
+        visit_machine_with_sidecars(program, &mut roots, machine, Some(sidecars));
+    }
+    finish_references(roots)
+}
+
 /// Visit the current declaration roots and their owned references. Detached
 /// backing-arena nodes are not additional source or executable occurrences.
 pub fn visit_program(program: &TypedTrees, roots: &mut impl TypedReferences) {
     visit_declarations(program, roots);
-    let sidecars = MachineSidecarIndex::build(program);
+    let mut sidecars = None;
     for machine in program.machines() {
         if roots.declaration(machine.symbol) {
-            visit_machine_with_sidecars(program, roots, machine, Some(&sidecars));
+            let sidecars = sidecars.get_or_insert_with(|| MachineSidecarIndex::build(program));
+            visit_machine_with_sidecars(program, roots, machine, Some(sidecars));
         }
     }
 }
