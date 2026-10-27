@@ -1,8 +1,5 @@
 //! Optimizer module role: executable entrance. State-argument specialization validation.
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
-use optimization_core::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationSafetyClass,
-};
 use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate};
 
 mod replay;
@@ -13,28 +10,10 @@ pub fn validate_state_argument_specialization_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
-    super::contract::validate(
+    super::contract::admit(
         input,
         candidate,
-        b"omega.psi-rule.state-argument-specialization.v1",
-        AnalysisSet::new([
-            AnalysisKind::ScalarConstants,
-            AnalysisKind::StronglyConnectedComponents,
-        ]),
-        AnalysisInvalidationSet::new([
-            AnalysisKind::ControlFlowGraph,
-            AnalysisKind::Dominators,
-            AnalysisKind::PostDominators,
-            AnalysisKind::LoopForest,
-            AnalysisKind::StronglyConnectedComponents,
-            AnalysisKind::UseDefinition,
-            AnalysisKind::ExecutableEdges,
-            AnalysisKind::ScalarConstants,
-            AnalysisKind::ValueRanges,
-            AnalysisKind::EffectSummaries,
-            AnalysisKind::ValueLiveness,
-        ]),
-        OptimizationSafetyClass::StructuralIdentity,
+        &super::contract::STATE_ARGUMENT_SPECIALIZATION,
     )?;
     if !candidate.substitutions().is_empty() {
         return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
