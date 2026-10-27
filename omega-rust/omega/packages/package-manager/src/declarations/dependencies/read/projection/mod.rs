@@ -4,7 +4,6 @@ use super::{
     BuildDependencyProjection, DependencyProjections, DependencyPurpose, DependencySourceRequest,
     ProjectedDependencies,
 };
-use crate::declarations::roles::convert_shared_declaration;
 use build_declarations as shared;
 use syntax_trees::SyntaxTrees;
 
@@ -89,7 +88,7 @@ fn project_build_and_dependencies(
     }
     Ok((
         BuildDependencyProjection::new(
-            convert_shared_declaration(role_projection.into_declaration()),
+            role_projection.into_declaration(),
             DependencyProjections::new(
                 ProjectedDependencies::from(product_requests),
                 ProjectedDependencies::from(build_requests),
