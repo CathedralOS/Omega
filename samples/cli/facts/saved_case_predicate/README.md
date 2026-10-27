@@ -61,14 +61,14 @@ The requirement evidence is bounded to this operation:
   execution. Other hosted bindings and target bodies are checked; Windows and
   Linux execution remain unverified on this machine.
 
-Producer: source `604d61e14260bdb0e9e2e50d4dc0fcb72e9c847f`, optimized
-executable SHA-256 `0fd5f0ce797526168ba86f83de21b2292ff36d35f7f390fc827028de7654e845`.
+Producer: source `ec25f66f10a33964c7cb7919abe8dd68310b8679`, optimized
+executable SHA-256 `bae86e60fa9e508db5b8af1c54dc9553fa008bf72d71065a877d7415c5beb08f`.
 All ten positive programs run with native and Terminal exit 0 on macOS ARM64;
 all ten replacement twins reject selected-case access. A separate fresh-tag
 probe starts Empty and observes the Full value written by the receiver call,
 so its exit-zero result requires that call's effects. Negated receiver tests
 challenge the opposite polarity, and stale/trailing-write controls must reject.
-The focused corpus record retains actual audited executions and refusals.
+The audited corpus run completes 49 programs with native/Terminal exit 0, including this row, saved numeric/byte snapshots, stored loans, descriptor replacement and reference projection. Field and tag observations share the checked fresh-receiver retirement and normal-completion route: the reference carrier ends after the read, before its backing owner; an established outer operand keeps its enclosing consumer lifetime. Target reference custody remains independently checked.
 
 The parent remains open for remaining generic/reference saved observations,
 single-evaluation pattern destructuring, and matching-host Windows/Linux

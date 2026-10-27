@@ -3042,6 +3042,10 @@ fail/control_flow/saved_case_predicate_guard_write_retires rejected 667ms expect
 	machine `quotient` state `entry` statement 2: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
 fail/control_flow/saved_case_predicate_local_write_retires rejected 667ms expected @09efd3f91286
 	machine `quotient` state `entry` statement 3: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
+fail/control_flow/saved_case_predicate_receiver_trailing_write_rejected rejected 1154ms expected @ec25f66f10a3
+	machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
+fail/control_flow/saved_case_predicate_receiver_writes_before_read_rejected rejected 1514ms expected @ec25f66f10a3
+	machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
 fail/control_flow/single_case_guarded_arm_nonexhaustive rejected 129ms expected @a92f16431042
 	match over `Carried` is not exhaustive: it relies on arms the compiler cannot count (predicate domains, guarded patterns, or value compares); add a `_` arm
 fail/control_flow/state_result_differs_from_machine_result rejected 1648ms expected @a92f16431042
@@ -12683,23 +12687,23 @@ fail/facts/saved_byte_predicate_through_target_body rejected 2692ms expected @a9
 	cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_case_predicate_through_call_result_rejected rejected 1144ms expected @408a6f6e240a
+fail/facts/saved_case_predicate_through_call_result_rejected rejected 1364ms expected @ec25f66f10a3
 	machine `probe` state `entry` statement 7: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
-fail/facts/saved_case_predicate_through_const_name_rejected rejected 1125ms expected @408a6f6e240a
+fail/facts/saved_case_predicate_through_const_name_rejected rejected 1511ms expected @ec25f66f10a3
 	machine `probe` state `entry` statement 7: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
-fail/facts/saved_case_predicate_through_field_rejected rejected 1184ms expected @408a6f6e240a
+fail/facts/saved_case_predicate_through_field_rejected rejected 1305ms expected @ec25f66f10a3
 	machine `probe` state `entry` statement 6: cannot prove selected case for payload access `holder.choice.amount`: captured source `holder.choice::Full.amount` has no live case evidence
-fail/facts/saved_case_predicate_through_local_rejected rejected 1149ms expected @408a6f6e240a
+fail/facts/saved_case_predicate_through_local_rejected rejected 1284ms expected @ec25f66f10a3
 	machine `probe` state `entry` statement 7: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
-fail/facts/saved_case_predicate_through_match_join_rejected rejected 1402ms expected @408a6f6e240a
+fail/facts/saved_case_predicate_through_match_join_rejected rejected 1287ms expected @ec25f66f10a3
 	machine `probe` state `entry` statement 7: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
-fail/facts/saved_case_predicate_through_other_machine_rejected rejected 1391ms expected @408a6f6e240a
+fail/facts/saved_case_predicate_through_other_machine_rejected rejected 1165ms expected @ec25f66f10a3
 	machine `quotient` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
-fail/facts/saved_case_predicate_through_other_state_rejected rejected 1155ms expected @408a6f6e240a
+fail/facts/saved_case_predicate_through_other_state_rejected rejected 1146ms expected @ec25f66f10a3
 	machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
-fail/facts/saved_case_predicate_through_parameter_rejected rejected 1287ms expected @408a6f6e240a
+fail/facts/saved_case_predicate_through_parameter_rejected rejected 1117ms expected @ec25f66f10a3
 	machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
-fail/facts/saved_case_predicate_through_target_body_rejected rejected 1068ms expected @408a6f6e240a
+fail/facts/saved_case_predicate_through_target_body_rejected rejected 1089ms expected @ec25f66f10a3
 	machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
 	machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
 	machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
@@ -23414,6 +23418,7 @@ pass/control_flow/runtime_tuple_transition_exit checked 6513ms check-target:maco
 pass/control_flow/runtime_two_index_state_loans_exit checked 2217ms check-target:macos_arm64 @a92f16431042
 pass/control_flow/runtime_wrapping_division_reused_inputs_exit checked 6771ms check-target:macos_arm64 @a92f16431042
 pass/control_flow/saved_case_predicate_disjoint_effects_exit checked 2002ms check-target:macos_arm64 @a92f16431042
+pass/control_flow/saved_case_predicate_receiver_writes_before_read_exit checked 1557ms check-target:macos_arm64 @ec25f66f10a3
 pass/control_flow/scalar_loop_interior_header_exit checked 6614ms check-target:macos_arm64 @a92f16431042
 pass/control_flow/self_case_payload_both_arms_exit checked 6218ms check-target:macos_arm64 @a92f16431042
 pass/control_flow/self_loop_state_compile checked 1681ms @a92f16431042
@@ -27184,15 +27189,15 @@ pass/facts/saved_byte_predicate_through_other_machine checked 2840ms check-targe
 pass/facts/saved_byte_predicate_through_other_state checked 2289ms check-target:macos_arm64 @a92f16431042
 pass/facts/saved_byte_predicate_through_parameter checked 2395ms check-target:macos_arm64 @a92f16431042
 pass/facts/saved_byte_predicate_through_target_body checked 3271ms check-target:macos_arm64 @a92f16431042
-pass/facts/saved_case_predicate_through_call_result_exit checked 1486ms check-target:macos_arm64 @408a6f6e240a
-pass/facts/saved_case_predicate_through_const_name_exit checked 1486ms check-target:macos_arm64 @408a6f6e240a
-pass/facts/saved_case_predicate_through_field_exit checked 1486ms check-target:macos_arm64 @408a6f6e240a
-pass/facts/saved_case_predicate_through_local_exit checked 1459ms check-target:macos_arm64 @408a6f6e240a
-pass/facts/saved_case_predicate_through_match_join_exit checked 1459ms check-target:macos_arm64 @408a6f6e240a
-pass/facts/saved_case_predicate_through_other_machine_exit checked 1459ms check-target:macos_arm64 @408a6f6e240a
-pass/facts/saved_case_predicate_through_other_state_exit checked 1439ms check-target:macos_arm64 @408a6f6e240a
-pass/facts/saved_case_predicate_through_parameter_exit checked 1457ms check-target:macos_arm64 @408a6f6e240a
-pass/facts/saved_case_predicate_through_target_body_exit checked 1423ms check-target:macos_arm64 @408a6f6e240a
+pass/facts/saved_case_predicate_through_call_result_exit checked 1557ms check-target:macos_arm64 @ec25f66f10a3
+pass/facts/saved_case_predicate_through_const_name_exit checked 1557ms check-target:macos_arm64 @ec25f66f10a3
+pass/facts/saved_case_predicate_through_field_exit checked 1549ms check-target:macos_arm64 @ec25f66f10a3
+pass/facts/saved_case_predicate_through_local_exit checked 1548ms check-target:macos_arm64 @ec25f66f10a3
+pass/facts/saved_case_predicate_through_match_join_exit checked 1548ms check-target:macos_arm64 @ec25f66f10a3
+pass/facts/saved_case_predicate_through_other_machine_exit checked 1548ms check-target:macos_arm64 @ec25f66f10a3
+pass/facts/saved_case_predicate_through_other_state_exit checked 1549ms check-target:macos_arm64 @ec25f66f10a3
+pass/facts/saved_case_predicate_through_parameter_exit checked 1549ms check-target:macos_arm64 @ec25f66f10a3
+pass/facts/saved_case_predicate_through_target_body_exit checked 1551ms check-target:macos_arm64 @ec25f66f10a3
 pass/facts/saved_observation_snapshot_through_call_result_exit checked 5728ms check-target:macos_arm64 @a92f16431042
 pass/facts/saved_observation_snapshot_through_const_name_exit checked 4328ms check-target:macos_arm64 @a92f16431042
 pass/facts/saved_observation_snapshot_through_field_exit checked 6163ms check-target:macos_arm64 @a92f16431042
