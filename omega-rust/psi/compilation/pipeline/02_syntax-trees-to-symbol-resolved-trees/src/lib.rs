@@ -76,7 +76,8 @@ pub mod pre_resolution {
     pub use crate::resolution::{
         ConstArgumentSelection, ConstDestinationObligation, ConstInitializerPayload,
         ConstInitializerSelection, prepare_const_initializer_selection,
-        resolve_call_result_selection, resolve_const_argument_selection,
-        resolve_deferred_initializer_probe, resolve_deferred_numeric_probe, resolve_numeric_probe,
+        prepare_const_qualification_selection, resolve_call_result_selection,
+        resolve_const_argument_selection, resolve_deferred_initializer_probe,
+        resolve_deferred_numeric_probe, resolve_numeric_probe,
     };
 }
