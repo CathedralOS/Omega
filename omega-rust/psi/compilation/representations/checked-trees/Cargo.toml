@@ -23,3 +23,7 @@ proof-admission = { path = "../../proof/admission" }
 source = { path = "../../../foundation/source" }
 symbols = { path = "../../../foundation/symbols" }
 typed-trees = { path = "../typed-trees" }
+
+[dev-dependencies]
+# The source guards delegate their scan to the shared audit crate.
+source-audit = { path = "../../../foundation/source-audit" }
