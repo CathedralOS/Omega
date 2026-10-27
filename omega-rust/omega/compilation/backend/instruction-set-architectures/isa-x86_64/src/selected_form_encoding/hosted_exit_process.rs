@@ -8,7 +8,7 @@ use super::{
 use crate::selected_form_encoding::request_validation::resolve_registers;
 use register_model::RegisterConstraintKey;
 use selected_instructions::{
-    MachineAlternativeFamily, MachineAlternativeKey, MachineEffectDeclaration,
+    MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier, MachineEffectDeclaration,
     MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect,
     MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
     MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior, SelectedInstructionKind,
@@ -47,11 +47,12 @@ pub(crate) fn declaration(
     target: NativeTarget,
     constraint: RegisterConstraintKey,
 ) -> Result<MachineEffectDeclaration, X86_64SelectedFormEncodingError> {
-    Ok(super::hosted_alternative_declaration(
+    Ok(super::alternative_declaration(
         constraint,
         MachineSemanticKind::HostedExitProcessI32,
         MachineMemoryEffect::NoneV1,
         MachineTrapBehavior::HostedExitReturnedV1,
+        MachineBarrier::ExternalEffect,
         MachineAlternativeFamily::HostedExitProcessI32,
         MachineSizeKnowledge::ExactBytes(12),
         effects(target)?,
