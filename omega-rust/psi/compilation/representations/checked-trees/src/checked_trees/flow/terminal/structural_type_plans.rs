@@ -396,6 +396,9 @@ impl CheckedByteSequenceCarrier {
 /// One normalized structural qualification required by a retained parameter.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedUnitStructuralDomainPlan {
+    /// Same-subject memberships retained independently of the local predicate.
+    /// None is unknown; Some([]) is a completely represented empty relation.
+    pub required_memberships: Option<Vec<SemanticDomainId>>,
     /// The retained predicate/issuer vocabulary describes the complete source
     /// theory; no independent role, cleanup, alias or refinement is omitted.
     pub complete_predicate_theory: bool,

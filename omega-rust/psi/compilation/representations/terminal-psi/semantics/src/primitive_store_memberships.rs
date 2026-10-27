@@ -161,7 +161,8 @@ fn whole_scalar_domains<'types, 'domain>(
         StructuralPathQualification::selected_suffix(path, written)?;
         let carrier = crate::qualification_path_carrier(types.clone(), root, path)?;
         if scalar::primitive_carrier(types.clone(), carrier).is_some() {
-            result.push(exact_domain(domains.clone(), carrier, identity)?);
+            let domain = exact_domain(domains.clone(), carrier, identity)?;
+            result.extend(scalar::required_domains(domains.clone(), domain)?);
         }
     }
     Some(result)
@@ -181,9 +182,14 @@ pub fn primitive_store_preserves_scalar_memberships<'types, 'domain>(
     written: &[StructuralPathSegment],
     value: &terminal_psi::ValueDeclaration,
 ) -> bool {
-    let Some(required) =
-        whole_scalar_domains(types.clone(), domains, root, whole, projected, written)
-    else {
+    let Some(required) = whole_scalar_domains(
+        types.clone(),
+        domains.clone(),
+        root,
+        whole,
+        projected,
+        written,
+    ) else {
         return false;
     };
     let actual = if value.qualifications.is_empty() {
@@ -203,60 +209,36 @@ pub fn primitive_store_preserves_scalar_memberships<'types, 'domain>(
     };
     required.into_iter().all(|required| {
         required.establishment_routes.is_empty()
-            || scalar_domain_matches(types.clone(), required, catalog, actual, value.scalar_type)
+            || scalar_domain_matches(
+                types.clone(),
+                domains.clone(),
+                required,
+                catalog,
+                actual,
+                value.scalar_type,
+            )
     })
 }
 
-fn scalar_domain_matches<'types>(
+fn scalar_domain_matches<'types, 'domain>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
-    required: &StructuralDomainDeclaration,
+    domains: impl Iterator<Item = &'domain StructuralDomainDeclaration> + Clone,
+    required: &'domain StructuralDomainDeclaration,
     catalog: &terminal_psi::ScalarQualificationCatalog,
     actual: &[semantic_vocabulary::ScalarDomainId],
     carrier: semantic_vocabulary::ScalarType,
 ) -> bool {
-    let Some(predicate) = scalar::refinement(types, required) else {
-        return false;
-    };
-    if predicate.carrier() != carrier {
-        return false;
-    }
     let mut matching = catalog.domains.iter().filter(|domain| {
         domain.semantic_domain == required.semantic_domain && domain.carrier == carrier
     });
     let Some(domain) = matching.next() else {
         return false;
     };
-    if matching.next().is_some()
-        || !actual.contains(&domain.id)
-        || !scalar::same_routes(required, domain)
-    {
-        return false;
-    }
-    let actual_proposition = match &domain.predicate {
-        Some(actual_predicate) => {
-            let mut proposition = actual_predicate.proposition.clone();
-            proposition.remap_value_ids(|value| {
-                if value == actual_predicate.subject {
-                    semantic_vocabulary::ScalarRefinement::SUBJECT
-                } else {
-                    value
-                }
-            });
-            proposition
-        }
-        // Canonical obligation-free scalar atoms omit their predicate; their
-        // structural presentation must still explicitly retain the empty theory.
-        None if domain.establishment_routes.is_empty() => semantic_vocabulary::Proposition::Truth,
-        None => return false,
-    };
-    let Ok(actual) = semantic_vocabulary::ScalarRefinement::new(domain.carrier, actual_proposition)
-    else {
-        return false;
-    };
-    let required = StructuralFieldType::RefinedScalar(predicate);
-    let actual = StructuralFieldType::RefinedScalar(actual);
-    crate::scalar_field_entails(&required, &actual)
-        && crate::scalar_field_entails(&actual, &required)
+    matching.next().is_none()
+        && domain
+            .missing_membership_requirements(&catalog.domains, actual)
+            .is_some_and(|missing| missing.is_empty())
+        && scalar::same_theory(types, domains, required, domain, catalog)
 }
 
 /// Store an already established scalar in addressable primitive storage without
@@ -298,7 +280,14 @@ pub fn primitive_scalar_memberships<'types, 'domain>(
         });
         let domain = matching.next()?;
         if matching.next().is_some()
-            || !scalar_domain_matches(types.clone(), domain, catalog, actual, value.scalar_type)
+            || !scalar_domain_matches(
+                types.clone(),
+                domains.clone(),
+                domain,
+                catalog,
+                actual,
+                value.scalar_type,
+            )
         {
             return None;
         }

@@ -73,16 +73,24 @@ impl BoundaryMachineResult {
                         .iter()
                         .all(|domain| expected.qualifications.contains(domain))
                     && expected.qualifications.iter().all(|domain| {
-                        result.qualifications.contains(domain)
-                            || domains.iter().any(|domain_declaration| {
-                                domain_declaration.id == *domain
-                                    && domain_declaration.carrier == expected.structural_type
-                                    && (domain_declaration.establishment_routes.is_empty()
-                                        || domain_declaration.authorizes_boundary_requirement(
-                                            requirement,
-                                            declaration,
-                                        ))
-                            })
+                        domains.iter().any(|domain_declaration| {
+                            domain_declaration.id == *domain
+                                && domain_declaration.carrier == expected.structural_type
+                                && domain_declaration
+                                    .missing_membership_requirements(
+                                        domains,
+                                        &result.qualifications,
+                                    )
+                                    .is_some_and(|missing| {
+                                        missing.into_iter().all(|required| {
+                                            required.establishment_routes.is_empty()
+                                                || required.authorizes_boundary_requirement(
+                                                    requirement,
+                                                    declaration,
+                                                )
+                                        })
+                                    })
+                        })
                     })
                     && expected
                         .projected_qualifications
@@ -347,14 +355,24 @@ impl BoundaryMachineDeclaration {
                     .iter()
                     .find(|declaration| declaration.id == *domain)
                     .is_none_or(|declaration| {
-                        declaration.content_projection.is_none()
-                            && !declaration.establishment_routes.is_empty()
-                            && !declaration.authorizes_boundary_requirement(
-                                self.identity,
-                                self.declaration
-                                    .as_ref()
-                                    .map(|callable| callable.source.semantic_declaration),
-                            )
+                        declaration
+                            .required_domain_closure(domains)
+                            .is_none_or(|required| {
+                                required.into_iter().any(|node| {
+                                    // Content conservation still owns direct content
+                                    // results. A child annotation cannot substitute
+                                    // for that parent's separate conservation edge.
+                                    (node.id != declaration.id && node.content_projection.is_some())
+                                        || (node.content_projection.is_none()
+                                            && !node.establishment_routes.is_empty()
+                                            && !node.authorizes_boundary_requirement(
+                                                self.identity,
+                                                self.declaration.as_ref().map(|callable| {
+                                                    callable.source.semantic_declaration
+                                                }),
+                                            ))
+                                })
+                            })
                     })
             })
     }
