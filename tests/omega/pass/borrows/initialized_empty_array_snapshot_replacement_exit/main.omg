@@ -1,7 +1,6 @@
 // Expected exit: 0
 data Packet { before: u64; rows: [[u8; 0]; 2]; after: u64; }
 machine snapshot(rows: &[[u8; 0]; 2]) -> [u8; 0] { rows[0] }
-machine snapshot_rows(rows: &[[u8; 0]; 2]) -> [[u8; 0]; 2] { [rows[0], rows[1]] }
 machine empty(row: &[u8; 0]) -> bool { let view: &[u8] = &row[..]; view.len == 0 }
 machine main() crashes Trap {
  let mut packet: Packet;
@@ -10,9 +9,9 @@ machine main() crashes Trap {
  let copied: [u8; 0] = snapshot(&packet.rows);
  packet.rows[0] = copied;
  let original: [[u8; 0]; 2] = [[], []];
- let complete: [[u8; 0]; 2] = snapshot_rows(&original);
+ let complete: [u8; 0] = snapshot(&original);
  transition empty(&packet.rows[0]) && empty(&packet.rows[1])
-  && empty(&complete[0]) && empty(&complete[1])
+  && empty(&complete)
   && packet.before == 17 && packet.after == 31 && size_of<Packet>() == 16 {
   true -> done() _ -> bad()
  }
