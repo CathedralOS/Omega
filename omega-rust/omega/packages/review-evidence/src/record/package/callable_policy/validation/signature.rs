@@ -91,22 +91,20 @@ impl Scope<'_> {
     }
 }
 
-fn scope(callable: &PackagePolicyCallable) -> Scope<'_> {
+/// Root binder telescope of one callable's own statics and formals.
+fn callable_scope(callable: &PackagePolicyCallable) -> Scope<'_> {
     Scope {
-        outer: None,
-        statics: &[],
-        policy_statics: &callable.type_parameters,
-        proposition_binders: &[],
-        static_offset: 0,
-        lifetimes: callable.lifetime_parameter_count,
         parameters: callable.parameters.len(),
         result: callable.return_type.is_some(),
-        domain_subject: false,
+        ..crate::record::public_policy::validation::scope(
+            &callable.type_parameters,
+            callable.lifetime_parameter_count,
+        )
     }
 }
 
 pub(super) fn validate(callable: &PackagePolicyCallable) -> Result {
-    let scope = scope(callable);
+    let scope = callable_scope(callable);
     u32::try_from(scope.lifetimes).map_err(|_| "callable lifetime count exceeds portable width")?;
     for (index, parameter) in callable.parameters.iter().enumerate() {
         text(&parameter.name)?;
@@ -192,7 +190,7 @@ pub(super) fn expression(
     value: &PackageReviewContractExpression,
     callable: &PackagePolicyCallable,
 ) -> Result {
-    let mut scope = scope(callable);
+    let mut scope = callable_scope(callable);
     scope.result = false;
     expressions::expression(value, &scope, 0)
 }
