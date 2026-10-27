@@ -65,10 +65,7 @@ pub(super) fn inspect_verified_git_cache_entry<Evidence, PlannerError>(
     };
     if fetch_remote {
         let canonical_config = repository.read_canonical_config()?;
-        let fetch_revision = match selection {
-            GitRevisionSelection::Recorded(recorded) => recorded.commit.as_str(),
-            GitRevisionSelection::Ordinary(_) => requested_rev,
-        };
+        let fetch_revision = selection.fetch_revision(requested_rev);
         let arguments = bounded_git_fetch_arguments(fetch_locator, fetch_revision, limits);
         let fetched = repository.run_git(executor, arguments.iter());
         if let Err(error @ SourceResolveError::GitCleanupFailed { .. }) = fetched {

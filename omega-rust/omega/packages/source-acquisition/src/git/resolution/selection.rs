@@ -87,4 +87,48 @@ impl<'a> GitRevisionSelection<'a> {
             Self::Recorded(recorded) => Some(&recorded.tree),
         }
     }
+
+    /// A missing retained entry may be acquired only when the selection
+    /// authorizes transport: an unpinned ordinary request, or a recorded
+    /// revision explicitly admitted for fetch.
+    pub(super) fn permits_new_acquisition(self) -> bool {
+        match self {
+            Self::Ordinary(pin) => pin.is_none(),
+            Self::Recorded(recorded) => {
+                recorded.acquisition == GitExactRevisionAcquisition::AllowFetch
+            }
+        }
+    }
+
+    /// The object format a created cache entry must assume, when the selection
+    /// already names one. An ordinary request lets the fetched commit select
+    /// its own format.
+    pub(super) fn known_object_algorithm(self) -> Option<GitObjectIdAlgorithm> {
+        match self {
+            Self::Ordinary(_) => None,
+            Self::Recorded(recorded) => Some(recorded.algorithm),
+        }
+    }
+
+    /// The recorded revision's own absence failure, when the selection refuses
+    /// transport and the retained cache holds no such entry.
+    pub(super) fn offline_unavailable(self) -> Option<SourceResolveError> {
+        match self {
+            Self::Recorded(recorded)
+                if recorded.acquisition == GitExactRevisionAcquisition::Offline =>
+            {
+                Some(recorded.unavailable())
+            }
+            Self::Ordinary(_) | Self::Recorded(_) => None,
+        }
+    }
+
+    /// The revision a fetch of this selection targets: the recorded commit, or
+    /// the request's own revision for ordinary resolution.
+    pub(super) fn fetch_revision(self, requested_rev: &'a str) -> &'a str {
+        match self {
+            Self::Ordinary(_) => requested_rev,
+            Self::Recorded(recorded) => recorded.commit.as_str(),
+        }
+    }
 }

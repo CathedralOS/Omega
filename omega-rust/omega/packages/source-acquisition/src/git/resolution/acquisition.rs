@@ -24,7 +24,6 @@ use cap_std::fs::Dir as CapabilityDirectory;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
-use super::exact_revision::GitExactRevisionAcquisition;
 use super::issuance::finalize_git_resolution;
 use super::materialization::{GitMaterializedSource, materialize_whole_git_source};
 use super::repository::inspect_verified_git_cache_entry;
@@ -150,12 +149,7 @@ pub(super) fn with_git_repository_from_retained_cache<Evidence, Output, PlannerE
         )?;
         entry_lock.verify_path_identity()?;
 
-        let permits_new_acquisition = match selection {
-            GitRevisionSelection::Ordinary(pin) => pin.is_none(),
-            GitRevisionSelection::Recorded(recorded) => {
-                recorded.acquisition == GitExactRevisionAcquisition::AllowFetch
-            }
-        };
+        let permits_new_acquisition = selection.permits_new_acquisition();
         if cache_entry_existed
             && permits_new_acquisition
             && discard_incomplete_entry(
@@ -207,41 +201,23 @@ pub(super) fn with_git_repository_from_retained_cache<Evidence, Output, PlannerE
                 }
                 .into());
             }
-            if let GitRevisionSelection::Recorded(recorded) = selection
-                && recorded.acquisition == GitExactRevisionAcquisition::Offline
-            {
-                return Err(recorded.unavailable().into());
+            if let Some(unavailable) = selection.offline_unavailable() {
+                return Err(unavailable.into());
             }
-            let creation_result = match selection {
-                GitRevisionSelection::Recorded(recorded) => create_git_cache_entry(
-                    &executor,
-                    cache_dir,
-                    entry_lock.parent(),
-                    &entry_root,
-                    &entry_name,
-                    &cache_identity,
-                    locator_identity,
-                    request.fetch_locator(),
-                    requested_rev,
-                    execution_transport,
-                    limits,
-                    Some(recorded.algorithm),
-                ),
-                GitRevisionSelection::Ordinary(_) => create_git_cache_entry(
-                    &executor,
-                    cache_dir,
-                    entry_lock.parent(),
-                    &entry_root,
-                    &entry_name,
-                    &cache_identity,
-                    locator_identity,
-                    request.fetch_locator(),
-                    requested_rev,
-                    execution_transport,
-                    limits,
-                    None,
-                ),
-            };
+            let creation_result = create_git_cache_entry(
+                &executor,
+                cache_dir,
+                entry_lock.parent(),
+                &entry_root,
+                &entry_name,
+                &cache_identity,
+                locator_identity,
+                request.fetch_locator(),
+                requested_rev,
+                execution_transport,
+                limits,
+                selection.known_object_algorithm(),
+            );
             reconcile_git_cache_operation_result(
                 creation_result,
                 entry_lock.verify_path_identity(),
