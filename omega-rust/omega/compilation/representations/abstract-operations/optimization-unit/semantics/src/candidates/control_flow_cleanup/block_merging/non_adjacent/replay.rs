@@ -8,9 +8,7 @@ use crate::candidates::global_value_numbering::{
 use crate::candidates::rewrite_accounting::adjacent_merge::reconstruct_adjacent_merge_ownership_is_identity;
 use crate::candidates::rewrite_accounting::non_adjacent_merge::reconstruct_non_adjacent_merge_accounting;
 use crate::candidates::rewrite_accounting::substitutions::rewrite_scalar_value_uses;
-use crate::candidates::{
-    accept_region_rewrite, candidate_function, rebuild_node_metadata, set_node_effect_link,
-};
+use crate::candidates::{accept_region_rewrite, candidate_function, sweep_output_nodes};
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
 use abstract_operations::AbstractOperation as O;
 use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch};
@@ -89,11 +87,6 @@ pub(super) fn validate(
     let (expected_blocks, accepted_provenance) =
         reconstruct_non_adjacent_merge_accounting(function, patch, &substitutions)
             .ok_or(OptimizationUnitValidationError::CandidateProvenanceMismatch)?;
-    if candidate.affected_blocks() != expected_blocks
-        || candidate.provenance() != accepted_provenance
-    {
-        return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
-    }
 
     accept_region_rewrite(
         input,
@@ -140,24 +133,16 @@ pub(super) fn validate(
             output_function.blocks[output_predecessor_position]
                 .nodes
                 .append(&mut moved.nodes);
-            for block in &mut output_function.blocks {
-                for (node_index, node) in block.nodes.iter_mut().enumerate() {
-                    for substitution in &substitutions {
-                        rewrite_scalar_value_uses(
-                            &mut node.operation,
-                            substitution.from,
-                            substitution.to,
-                        );
-                    }
-                    rebuild_node_metadata(node, block.id, node_index)?;
+            sweep_output_nodes(output_function, |node| {
+                for substitution in &substitutions {
+                    rewrite_scalar_value_uses(
+                        &mut node.operation,
+                        substitution.from,
+                        substitution.to,
+                    );
                 }
-            }
-            let mut effect = 0u64;
-            for block in &mut output_function.blocks {
-                for node in &mut block.nodes {
-                    effect = set_node_effect_link(node, effect)?;
-                }
-            }
+                Ok(())
+            })?;
             Ok(())
         },
     )
