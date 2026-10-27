@@ -53,14 +53,14 @@ blocks;
         _ -> malformed(checking_harness)
     }
 
-    state packages(checking_harness: &mut CheckingHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
+    machine packages(checking_harness: &mut CheckingHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
         transition remaining > 0 {
             true -> package_row(checking_harness, sources, parser, remaining)
             _ -> dependencies(checking_harness, sources, parser)
         }
     }
 
-    state package_row(checking_harness: &mut CheckingHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
+    machine package_row(checking_harness: &mut CheckingHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
         let toolchain: HarnessWord = block CheckingHarness::read_u32(checking_harness);
         let mut name: ModulePath;
         ModulePath::clear(&mut name);
@@ -71,7 +71,7 @@ blocks;
         }
     }
 
-    state add_package(
+    machine add_package(
         checking_harness: &mut CheckingHarness,
         sources: &mut SourceSet,
         parser: &mut Parser,
@@ -86,7 +86,7 @@ blocks;
         }
     }
 
-    state dependencies(checking_harness: &mut CheckingHarness, sources: &mut SourceSet, parser: &mut Parser) {
+    machine dependencies(checking_harness: &mut CheckingHarness, sources: &mut SourceSet, parser: &mut Parser) {
         let count: HarnessWord = block CheckingHarness::read_u32(checking_harness);
         transition count.complete {
             true -> dependency(checking_harness, sources, parser, count.value)
@@ -94,14 +94,14 @@ blocks;
         }
     }
 
-    state dependency(checking_harness: &mut CheckingHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
+    machine dependency(checking_harness: &mut CheckingHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
         transition remaining > 0 {
             true -> dependency_row(checking_harness, sources, parser, remaining)
             _ -> units(checking_harness, sources, parser)
         }
     }
 
-    state dependency_row(checking_harness: &mut CheckingHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
+    machine dependency_row(checking_harness: &mut CheckingHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
         let requester: HarnessWord = block CheckingHarness::read_u32(checking_harness);
         let scope: HarnessWord = block CheckingHarness::read_u32(checking_harness);
         let mut alias: ModulePath;
@@ -116,7 +116,7 @@ blocks;
         }
     }
 
-    state dependency_scope(
+    machine dependency_scope(
         checking_harness: &mut CheckingHarness,
         sources: &mut SourceSet,
         parser: &mut Parser,
@@ -132,7 +132,7 @@ blocks;
         }
     }
 
-    state add_dependency(
+    machine add_dependency(
         checking_harness: &mut CheckingHarness,
         sources: &mut SourceSet,
         parser: &mut Parser,
@@ -149,7 +149,7 @@ blocks;
         }
     }
 
-    state units(checking_harness: &mut CheckingHarness, sources: &mut SourceSet, parser: &mut Parser) {
+    machine units(checking_harness: &mut CheckingHarness, sources: &mut SourceSet, parser: &mut Parser) {
         let count: HarnessWord = block CheckingHarness::read_u32(checking_harness);
         transition count.complete {
             true -> unit(checking_harness, sources, parser, count.value)
@@ -157,14 +157,14 @@ blocks;
         }
     }
 
-    state unit(checking_harness: &mut CheckingHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
+    machine unit(checking_harness: &mut CheckingHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
         transition remaining > 0 {
             true -> unit_row(checking_harness, sources, parser, remaining)
             _ -> prepare_resolve(checking_harness, sources, parser)
         }
     }
 
-    state unit_row(checking_harness: &mut CheckingHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
+    machine unit_row(checking_harness: &mut CheckingHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
         let unit_package: HarnessWord = block CheckingHarness::read_u32(checking_harness);
         let mut module_path: ModulePath;
         ModulePath::clear(&mut module_path);
@@ -175,7 +175,7 @@ blocks;
         }
     }
 
-    state source(
+    machine source(
         checking_harness: &mut CheckingHarness,
         sources: &mut SourceSet,
         parser: &mut Parser,
@@ -192,7 +192,7 @@ blocks;
         }
     }
 
-    state source_byte(
+    machine source_byte(
         checking_harness: &mut CheckingHarness,
         sources: &mut SourceSet,
         parser: &mut Parser,
@@ -208,7 +208,7 @@ blocks;
         }
     }
 
-    state source_read(
+    machine source_read(
         checking_harness: &mut CheckingHarness,
         sources: &mut SourceSet,
         parser: &mut Parser,
@@ -225,7 +225,7 @@ blocks;
         }
     }
 
-    state source_store(
+    machine source_store(
         checking_harness: &mut CheckingHarness,
         sources: &mut SourceSet,
         parser: &mut Parser,
@@ -243,7 +243,7 @@ blocks;
         }
     }
 
-    state tokenize(
+    machine tokenize(
         checking_harness: &mut CheckingHarness,
         sources: &mut SourceSet,
         parser: &mut Parser,
@@ -259,7 +259,7 @@ blocks;
         }
     }
 
-    state parse(
+    machine parse(
         checking_harness: &mut CheckingHarness,
         sources: &mut SourceSet,
         parser: &mut Parser,
@@ -275,7 +275,7 @@ blocks;
         }
     }
 
-    state add(
+    machine add(
         checking_harness: &mut CheckingHarness,
         sources: &mut SourceSet,
         parser: &mut Parser,
@@ -291,13 +291,13 @@ blocks;
         }
     }
 
-    state prepare_resolve(checking_harness: &mut CheckingHarness, sources: &SourceSet, parser: &Parser) {
+    machine prepare_resolve(checking_harness: &mut CheckingHarness, sources: &SourceSet, parser: &Parser) {
         let mut resolver: Resolver;
         Resolver::initialize(&mut resolver);
         transition { _ -> resolve(checking_harness, sources, parser, &mut resolver) }
     }
 
-    state resolve(
+    machine resolve(
         checking_harness: &mut CheckingHarness,
         sources: &SourceSet,
         parser: &Parser,
@@ -310,12 +310,12 @@ blocks;
         }
     }
 
-    state prepare_type(checking_harness: &mut CheckingHarness, sources: &SourceSet, parser: &Parser, resolver: &mut Resolver) {
+    machine prepare_type(checking_harness: &mut CheckingHarness, sources: &SourceSet, parser: &Parser, resolver: &mut Resolver) {
         let mut typer: Typer;
         transition { _ -> type_check(checking_harness, sources, parser, resolver, &mut typer) }
     }
 
-    state type_check(
+    machine type_check(
         checking_harness: &mut CheckingHarness,
         sources: &SourceSet,
         parser: &Parser,
@@ -329,12 +329,12 @@ blocks;
         }
     }
 
-    state prepare_check(checking_harness: &mut CheckingHarness, parser: &Parser, resolver: &Resolver, typer: &Typer) {
+    machine prepare_check(checking_harness: &mut CheckingHarness, parser: &Parser, resolver: &Resolver, typer: &Typer) {
         let mut checker: Checker;
         transition { _ -> check(checking_harness, parser, resolver, typer, &mut checker) }
     }
 
-    state check(checking_harness: &mut CheckingHarness, parser: &Parser, resolver: &Resolver, typer: &Typer, checker: &mut Checker) {
+    machine check(checking_harness: &mut CheckingHarness, parser: &Parser, resolver: &Resolver, typer: &Typer, checker: &mut Checker) {
         Checker::check(checker, &parser.output, &resolver.output, &typer.output);
         CheckingHarness::write_checking_observation(checking_harness, &checker.output);
         transition checker.output.accepted {
@@ -343,35 +343,35 @@ blocks;
         }
     }
 
-    state accepted(checking_harness: &mut CheckingHarness) {
+    machine accepted(checking_harness: &mut CheckingHarness) {
         Console::exit_process(0);
     }
 
-    state check_rejected(checking_harness: &mut CheckingHarness) {
+    machine check_rejected(checking_harness: &mut CheckingHarness) {
         Console::exit_process(247);
     }
 
-    state type_rejected(checking_harness: &mut CheckingHarness) {
+    machine type_rejected(checking_harness: &mut CheckingHarness) {
         Console::exit_process(249);
     }
 
-    state resolve_rejected(checking_harness: &mut CheckingHarness) {
+    machine resolve_rejected(checking_harness: &mut CheckingHarness) {
         Console::exit_process(248);
     }
 
-    state parse_rejected(checking_harness: &mut CheckingHarness) {
+    machine parse_rejected(checking_harness: &mut CheckingHarness) {
         Console::exit_process(250);
     }
 
-    state lex_rejected(checking_harness: &mut CheckingHarness) {
+    machine lex_rejected(checking_harness: &mut CheckingHarness) {
         Console::exit_process(251);
     }
 
-    state source_full(checking_harness: &mut CheckingHarness) {
+    machine source_full(checking_harness: &mut CheckingHarness) {
         Console::exit_process(252);
     }
 
-    state malformed(checking_harness: &mut CheckingHarness) {
+    machine malformed(checking_harness: &mut CheckingHarness) {
         Console::exit_process(253);
     }
 }
@@ -383,14 +383,14 @@ blocks;
 {
     transition { _ -> next(checking_harness, 0, 0, 1) }
 
-    state next(checking_harness: &mut CheckingHarness, read: u64 in Trapping, value: u64 in Trapping, scale: u64 in Trapping) -> HarnessWord {
+    machine next(checking_harness: &mut CheckingHarness, read: u64 in Trapping, value: u64 in Trapping, scale: u64 in Trapping) -> HarnessWord {
         transition read < 4 {
             true -> byte(checking_harness, read, value, scale)
             _ -> word(value)
         }
     }
 
-    state byte(checking_harness: &mut CheckingHarness, read: u64 in Trapping, value: u64 in Trapping, scale: u64 in Trapping) -> HarnessWord {
+    machine byte(checking_harness: &mut CheckingHarness, read: u64 in Trapping, value: u64 in Trapping, scale: u64 in Trapping) -> HarnessWord {
         let input: ByteRead = block Console::read_byte();
         transition input {
             ByteRead::Byte { value as byte } -> next(checking_harness, read + 1, value + (byte as u64 in Trapping) * scale, scale * 256)
@@ -398,11 +398,11 @@ blocks;
         }
     }
 
-    state word(value: u64 in Trapping) -> HarnessWord {
+    machine word(value: u64 in Trapping) -> HarnessWord {
         HarnessWord { value: value, complete: true }
     }
 
-    state ended() -> HarnessWord {
+    machine ended() -> HarnessWord {
         HarnessWord { value: 0, complete: false }
     }
 }
@@ -420,14 +420,14 @@ blocks;
         _ -> failed()
     }
 
-    state byte(checking_harness: &mut CheckingHarness, path: &mut ModulePath, left: u64 in Trapping) -> bool {
+    machine byte(checking_harness: &mut CheckingHarness, path: &mut ModulePath, left: u64 in Trapping) -> bool {
         transition left > 0 {
             true -> read(checking_harness, path, left)
             _ -> complete()
         }
     }
 
-    state read(checking_harness: &mut CheckingHarness, path: &mut ModulePath, left: u64 in Trapping) -> bool {
+    machine read(checking_harness: &mut CheckingHarness, path: &mut ModulePath, left: u64 in Trapping) -> bool {
         let input: ByteRead = block Console::read_byte();
         transition input {
             ByteRead::Byte { value } -> store(checking_harness, path, left, value)
@@ -435,7 +435,7 @@ blocks;
         }
     }
 
-    state store(checking_harness: &mut CheckingHarness, path: &mut ModulePath, left: u64 in Trapping, value: i32) -> bool {
+    machine store(checking_harness: &mut CheckingHarness, path: &mut ModulePath, left: u64 in Trapping, value: i32) -> bool {
         let kept: bool = ModulePath::append(path, value as u8);
         transition kept {
             true -> byte(checking_harness, path, left - 1)
@@ -443,11 +443,11 @@ blocks;
         }
     }
 
-    state complete() -> bool {
+    machine complete() -> bool {
         true
     }
 
-    state failed() -> bool {
+    machine failed() -> bool {
         false
     }
 }
@@ -478,14 +478,14 @@ crashes Trap
     CheckingHarness::write_u64(checking_harness, output.diagnostic_count as u64 in Trapping);
     transition { _ -> rejection(checking_harness, output, 0) }
 
-    state rejection(checking_harness: &mut CheckingHarness, output: &Checks, index: u64 in Trapping) {
+    machine rejection(checking_harness: &mut CheckingHarness, output: &Checks, index: u64 in Trapping) {
         transition index < output.diagnostic_count {
             true -> diagnostic(checking_harness, output, index)
             _ -> machines(checking_harness, output)
         }
     }
 
-    state diagnostic(checking_harness: &mut CheckingHarness, output: &Checks, index: u64 in Trapping) {
+    machine diagnostic(checking_harness: &mut CheckingHarness, output: &Checks, index: u64 in Trapping) {
         let rejected: CheckDiagnostic = Checks::diagnostic(output, index);
         let tag: u8 = CheckingHarness::diagnostic_tag(rejected.code);
         CheckingHarness::write_byte(checking_harness, tag);
@@ -493,19 +493,19 @@ crashes Trap
         transition { _ -> rejection(checking_harness, output, index + 1) }
     }
 
-    state machines(checking_harness: &mut CheckingHarness, output: &Checks) {
+    machine machines(checking_harness: &mut CheckingHarness, output: &Checks) {
         CheckingHarness::write_u64(checking_harness, output.machine_count as u64 in Trapping);
         transition { _ -> machine(checking_harness, output, 0) }
     }
 
-    state machine(checking_harness: &mut CheckingHarness, output: &Checks, index: u64 in Trapping) {
+    machine machine(checking_harness: &mut CheckingHarness, output: &Checks, index: u64 in Trapping) {
         transition index < output.machine_count {
             true -> routes(checking_harness, output, index)
             _ -> done()
         }
     }
 
-    state routes(checking_harness: &mut CheckingHarness, output: &Checks, index: u64 in Trapping) {
+    machine routes(checking_harness: &mut CheckingHarness, output: &Checks, index: u64 in Trapping) {
         let routes: CrashRoutes = Checks::routes(output, index);
         let declares_trap: u8 = CheckingHarness::boolean_tag(routes.declares_trap);
         let declares_abort: u8 = CheckingHarness::boolean_tag(routes.declares_abort);
@@ -520,7 +520,7 @@ crashes Trap
         transition { _ -> machine(checking_harness, output, index + 1) }
     }
 
-    state done() {}
+    machine done() {}
 }
 
 machine CheckingHarness::boolean_tag(value: bool) -> u8 {
@@ -529,7 +529,7 @@ machine CheckingHarness::boolean_tag(value: bool) -> u8 {
         _ -> tag(0)
     }
 
-    state tag(number: u8) -> u8 {
+    machine tag(number: u8) -> u8 {
         number
     }
 }
@@ -563,7 +563,7 @@ machine CheckingHarness::diagnostic_tag(value: CheckDiagnosticCode) -> u8 {
         CheckDiagnosticCode::RankRangeUnproven -> tag(24)
     }
 
-    state tag(number: u8) -> u8 {
+    machine tag(number: u8) -> u8 {
         number
     }
 }
