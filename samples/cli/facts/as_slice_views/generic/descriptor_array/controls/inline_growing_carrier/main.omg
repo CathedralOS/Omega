@@ -1,0 +1,4 @@
+// Intended invalid: an inline growing recursive carrier has no runtime layout.
+data Growing<Element> { value: Element; next: Growing<[Element; 2]>; }
+machine inspect(value: &Growing<u8>) -> u64 { 0 }
+machine main() {}

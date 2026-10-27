@@ -1,0 +1,8 @@
+// Intended invalid: a contract goal cannot establish formation of its own partial call.
+machine four(value: u64) -> u64 requires value == 4 { value }
+machine success() {}
+machine failure() crashes Trap { crash Trap; }
+machine partial(value: u64) -> u64 requires value > 0 { value }
+machine computed() -> u64 ensures result == partial(0) { 4 }
+const SAVED: u64 = computed();
+machine main() crashes Trap { let actual: u64 = four(SAVED); transition actual == 4 { true -> success() _ -> failure() } }

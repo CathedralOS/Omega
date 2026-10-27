@@ -1,0 +1,15 @@
+// Intended invalid: an alias call replaces the descriptor, so its old extent is unavailable.
+use omega::language::core::slice;
+data Slot { view: &[u8]; }
+machine before_four(length: u64) -> u64 requires length == 4 { length }
+machine after_four(length: u64) -> u64 requires length == 4 { length }
+machine replace(items: &mut [Slot; 2]) { items[1u64].view = "xyz"; }
+machine success() {}
+machine failure() crashes Trap { crash Trap; }
+machine main() crashes Trap {
+    let mut items: [Slot; 2] = [Slot { view: "abcd" }, Slot { view: "wxyz" }];
+    let before: u64 = before_four(items[1u64].view.len);
+    replace(&mut items);
+    let after: u64 = after_four(items[1u64].view.len);
+    transition before == 4 && after == 4 { true -> success() _ -> failure() }
+}

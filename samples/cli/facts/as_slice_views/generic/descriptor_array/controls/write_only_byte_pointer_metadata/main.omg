@@ -1,0 +1,21 @@
+// Intended invalid: reading a stored pointer requires readable parent authority.
+// Byte field metadata uses the explicit non-payload observation rule.
+use omega::language::core::slice;
+data ByteHolder { padding: u64; view: &[u8]; }
+data Carrier { padding: u64; owner: &ByteHolder; }
+machine measured(home: &write Carrier) -> u64 { home.owner.view.len }
+machine success() {}
+machine failure() crashes Trap { crash Trap; }
+machine main() crashes Trap {
+    let backing: [u8; 4] = [7u8, 8u8, 9u8, 10u8];
+    let view: &[u8] = &backing[..];
+    let mut holder: ByteHolder = ByteHolder { padding: 19, view: view };
+    let mut carrier: Carrier = Carrier { padding: 31, owner: &holder };
+    let measured_extent: u64 = measured(&write carrier);
+    transition measured_extent == 4 && holder.padding == 19
+        && holder.view[2u64] == 9u8
+        {
+        true -> success()
+        false -> failure()
+    }
+}

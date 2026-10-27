@@ -1,0 +1,6 @@
+// Expected rejection: constant invocation cannot admit a crashing selected token body.
+data Input [copy] { value: u64; }
+machine + Input::combine(left: Input, right: Input) -> u64 crashes Trap { crash Trap; }
+machine computed() -> u64 crashes Trap { Input { value: 1 } + Input { value: 2 } }
+const SAVED: u64 = computed();
+machine main() -> u64 { SAVED }

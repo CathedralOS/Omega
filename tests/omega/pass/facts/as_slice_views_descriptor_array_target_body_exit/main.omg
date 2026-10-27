@@ -1,0 +1,46 @@
+// A whole-array shared view of four noncopy Entries has length 4; reading its extent satisfies require_four(view.len).
+// Expected exit: 0
+use omega::language::core::slice;
+const SECOND_COUNT: u64 = 4;
+data Entry { prefix: u32; value: i32; }
+data Holder { padding: u64; view: &[Entry]; }
+machine whole_view<Element, const Count: u64>(items: &[Element; Count]) -> &[Element]
+ensures result.len == Count { &items[..] }
+machine require_four(length: u64) -> u64 requires length == 4 { length }
+machine verify(holders: &[Holder; 2], padding: u64, original_first: addr, original_second: addr) -> bool
+requires holders[0u64].view.len == 4 && holders[1u64].view.len == 4
+{
+    let first_length: u64 = require_four(holders[0u64].view.len);
+    let second_length: u64 = require_four(holders[1u64].view.len);
+    first_length == 4 && second_length == 4
+        && holders[0u64].padding == 17 && holders[1u64].padding == padding
+        && holders[0u64].view[2u64].value == 90 && holders[1u64].view[2u64].value == 9
+        && address_of(&holders[0u64].view[2u64].value) == original_first
+        && address_of(&holders[1u64].view[2u64].value) == original_second
+        && original_first != original_second
+}
+machine success() {}
+machine failure() crashes Trap { crash Trap; }
+windows_x86_64 machine extent(holders: &[Holder; 2], original_first: addr, original_second: addr) -> bool
+requires holders[0u64].view.len == 4 && holders[1u64].view.len == 4
+{ verify(holders, 19, original_first, original_second) }
+linux_x86_64 machine extent(holders: &[Holder; 2], original_first: addr, original_second: addr) -> bool
+requires holders[0u64].view.len == 4 && holders[1u64].view.len == 4
+{ verify(holders, 19, original_first, original_second) }
+macos_arm64 machine extent(holders: &[Holder; 2], original_first: addr, original_second: addr) -> bool
+requires holders[0u64].view.len == 4 && holders[1u64].view.len == 4
+{ verify(holders, 19, original_first, original_second) }
+linux_arm64 machine extent(holders: &[Holder; 2], original_first: addr, original_second: addr) -> bool
+requires holders[0u64].view.len == 4 && holders[1u64].view.len == 4
+{ verify(holders, 19, original_first, original_second) }
+machine main() crashes Trap {
+    let first: [Entry; 4] = [Entry { prefix: 31, value: 70 }, Entry { prefix: 32, value: 80 }, Entry { prefix: 33, value: 90 }, Entry { prefix: 34, value: 100 }];
+    let second: [Entry; SECOND_COUNT] = [Entry { prefix: 11, value: 7 }, Entry { prefix: 12, value: 8 }, Entry { prefix: 13, value: 9 }, Entry { prefix: 14, value: 10 }];
+    let original_first: addr = address_of(&first[2u64].value);
+    let original_second: addr = address_of(&second[2u64].value);
+    let left: &[Entry] = whole_view<Entry, 4>(&first);
+    let right: &[Entry] = whole_view<Entry, SECOND_COUNT>(&second);
+    let holders: [Holder; 2] = [Holder { padding: 17, view: left }, Holder { padding: 19, view: right }];
+    let checked: bool = extent(&holders, original_first, original_second);
+    transition checked { true -> success() _ -> failure() }
+}

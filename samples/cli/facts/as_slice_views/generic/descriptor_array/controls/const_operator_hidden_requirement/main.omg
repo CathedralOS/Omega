@@ -1,0 +1,7 @@
+// Expected rejection: selected token body's nested call still owes its requires clause.
+data Input [copy] { value: u64; }
+machine partial(value: u64) -> u64 requires value > 0 { value }
+machine + Input::combine(left: Input, right: Input) -> u64 { partial(0) }
+machine computed() -> u64 { Input { value: 1 } + Input { value: 2 } }
+const SAVED: u64 = computed();
+machine main() -> u64 { SAVED }

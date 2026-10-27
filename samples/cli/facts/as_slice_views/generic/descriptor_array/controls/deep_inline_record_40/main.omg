@@ -1,0 +1,66 @@
+// A whole-array shared view of four noncopy Entries has length 4; reading its extent satisfies require_four(view.len).
+// Expected exit: 0
+use omega::language::core::slice;
+data Entry { prefix: u32; value: i32; }
+data Holder { padding: u64; view: &[Entry]; }
+data Layer1 { payload: Holder; }
+data Layer2 { payload: Layer1; }
+data Layer3 { payload: Layer2; }
+data Layer4 { payload: Layer3; }
+data Layer5 { payload: Layer4; }
+data Layer6 { payload: Layer5; }
+data Layer7 { payload: Layer6; }
+data Layer8 { payload: Layer7; }
+data Layer9 { payload: Layer8; }
+data Layer10 { payload: Layer9; }
+data Layer11 { payload: Layer10; }
+data Layer12 { payload: Layer11; }
+data Layer13 { payload: Layer12; }
+data Layer14 { payload: Layer13; }
+data Layer15 { payload: Layer14; }
+data Layer16 { payload: Layer15; }
+data Layer17 { payload: Layer16; }
+data Layer18 { payload: Layer17; }
+data Layer19 { payload: Layer18; }
+data Layer20 { payload: Layer19; }
+data Layer21 { payload: Layer20; }
+data Layer22 { payload: Layer21; }
+data Layer23 { payload: Layer22; }
+data Layer24 { payload: Layer23; }
+data Layer25 { payload: Layer24; }
+data Layer26 { payload: Layer25; }
+data Layer27 { payload: Layer26; }
+data Layer28 { payload: Layer27; }
+data Layer29 { payload: Layer28; }
+data Layer30 { payload: Layer29; }
+data Layer31 { payload: Layer30; }
+data Layer32 { payload: Layer31; }
+data Layer33 { payload: Layer32; }
+data Layer34 { payload: Layer33; }
+data Layer35 { payload: Layer34; }
+data Layer36 { payload: Layer35; }
+data Layer37 { payload: Layer36; }
+data Layer38 { payload: Layer37; }
+data Layer39 { payload: Layer38; }
+data Layer40 { payload: Layer39; }
+machine whole_view<Element, const Count: u64>(items: &[Element; Count]) -> &[Element]
+ensures result.len == Count { &items[..] }
+machine require_four(length: u64) -> u64 requires length == 4 { length }
+machine observe(holders: &[Layer40; 2], owner: u64, selected: u64, original: addr) -> bool
+requires owner < 2 && selected < holders[owner].payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.view.len
+{ address_of(&holders[owner].payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.view[selected].value) == original }
+machine success() {}
+machine failure() crashes Trap { crash Trap; }
+machine main() crashes Trap {
+    let first: [Entry; 4] = [Entry { prefix: 31, value: 70 }, Entry { prefix: 32, value: 80 }, Entry { prefix: 33, value: 90 }, Entry { prefix: 34, value: 100 }];
+    let second: [Entry; 4] = [Entry { prefix: 11, value: 7 }, Entry { prefix: 12, value: 8 }, Entry { prefix: 13, value: 9 }, Entry { prefix: 14, value: 10 }];
+    let left: &[Entry] = whole_view<Entry, 4>(&first);
+    let right: &[Entry] = whole_view<Entry, 4>(&second);
+    let mut holders: [Layer40; 2] = [Layer40 { payload: Layer39 { payload: Layer38 { payload: Layer37 { payload: Layer36 { payload: Layer35 { payload: Layer34 { payload: Layer33 { payload: Layer32 { payload: Layer31 { payload: Layer30 { payload: Layer29 { payload: Layer28 { payload: Layer27 { payload: Layer26 { payload: Layer25 { payload: Layer24 { payload: Layer23 { payload: Layer22 { payload: Layer21 { payload: Layer20 { payload: Layer19 { payload: Layer18 { payload: Layer17 { payload: Layer16 { payload: Layer15 { payload: Layer14 { payload: Layer13 { payload: Layer12 { payload: Layer11 { payload: Layer10 { payload: Layer9 { payload: Layer8 { payload: Layer7 { payload: Layer6 { payload: Layer5 { payload: Layer4 { payload: Layer3 { payload: Layer2 { payload: Layer1 { payload: Holder { padding: 17, view: left } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } }, Layer40 { payload: Layer39 { payload: Layer38 { payload: Layer37 { payload: Layer36 { payload: Layer35 { payload: Layer34 { payload: Layer33 { payload: Layer32 { payload: Layer31 { payload: Layer30 { payload: Layer29 { payload: Layer28 { payload: Layer27 { payload: Layer26 { payload: Layer25 { payload: Layer24 { payload: Layer23 { payload: Layer22 { payload: Layer21 { payload: Layer20 { payload: Layer19 { payload: Layer18 { payload: Layer17 { payload: Layer16 { payload: Layer15 { payload: Layer14 { payload: Layer13 { payload: Layer12 { payload: Layer11 { payload: Layer10 { payload: Layer9 { payload: Layer8 { payload: Layer7 { payload: Layer6 { payload: Layer5 { payload: Layer4 { payload: Layer3 { payload: Layer2 { payload: Layer1 { payload: Holder { padding: 19, view: right } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } }];
+    let measured: u64 = require_four(holders[1].payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.payload.view.len);
+    let original: addr = address_of(&second[2].value);
+    transition measured == 4 && observe(&holders, 1, 2, original) {
+        true -> success()
+        false -> failure()
+    }
+}

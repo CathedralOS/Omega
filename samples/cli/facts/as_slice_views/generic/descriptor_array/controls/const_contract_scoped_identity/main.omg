@@ -1,0 +1,11 @@
+// Expected exit: 0
+machine four(value: u64) -> u64 requires value == 4 { value }
+machine success() {}
+machine failure() crashes Trap { crash Trap; }
+data First {}
+data Second {}
+const First::COUNT: u64 = 4;
+const Second::COUNT: u64 = 3;
+machine computed() -> u64 ensures result == First::COUNT { 4 }
+const SAVED: u64 = computed();
+machine main() crashes Trap { let actual: u64 = four(SAVED); transition actual == 4 { true -> success() _ -> failure() } }

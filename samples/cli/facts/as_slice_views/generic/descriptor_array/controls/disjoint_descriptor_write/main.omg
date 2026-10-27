@@ -1,0 +1,29 @@
+// A whole-array shared view of four noncopy Entries has length 4; reading its extent satisfies require_four(view.len).
+// Expected exit: 0
+use omega::language::core::slice;
+data Entry { prefix: u32; value: i32; }
+data Holder { padding: u64; view: &[Entry]; }
+machine whole_view<Element, const Count: u64>(items: &[Element; Count]) -> &[Element]
+ensures result.len == Count { &items[..] }
+machine require_four(length: u64) -> u64 requires length == 4 { length }
+machine observe(holders: &[Holder; 2], owner: u64, selected: u64, original: addr) -> bool
+requires owner < 2 && selected < holders[owner].view.len
+{ address_of(&holders[owner].view[selected].value) == original }
+machine success() {}
+machine failure() crashes Trap { crash Trap; }
+machine main() crashes Trap {
+    let first: [Entry; 4] = [Entry { prefix: 31, value: 70 }, Entry { prefix: 32, value: 80 }, Entry { prefix: 33, value: 90 }, Entry { prefix: 34, value: 100 }];
+    let second: [Entry; 4] = [Entry { prefix: 11, value: 7 }, Entry { prefix: 12, value: 8 }, Entry { prefix: 13, value: 9 }, Entry { prefix: 14, value: 10 }];
+    let left: &[Entry] = whole_view<Entry, 4>(&first);
+    let right: &[Entry] = whole_view<Entry, 4>(&second);
+    let mut holders: [Holder; 2] = [Holder { padding: 17, view: left }, Holder { padding: 19, view: right }];
+    let short_backing: [Entry; 3] = [Entry { prefix: 1, value: 1 }, Entry { prefix: 2, value: 2 }, Entry { prefix: 3, value: 3 }];
+    let short: &[Entry] = whole_view<Entry, 3>(&short_backing);
+    holders[0].view = short;
+    let measured: u64 = require_four(holders[1].view.len);
+    let original: addr = address_of(&second[2].value);
+    transition measured == 4 && observe(&holders, 1, 2, original) {
+        true -> success()
+        false -> failure()
+    }
+}

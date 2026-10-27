@@ -1,0 +1,18 @@
+// Expected exit: 0
+// The exact selected conformance capture preserves its separate method tuple.
+trait Choice {
+    machine pick<const Output: u64>() -> u64 ensures result == Output;
+}
+Selected<const Captured: u64> satisfies Choice {
+    machine pick<const Output: u64>() -> u64 ensures result == Output { Output }
+}
+machine choose<Operations satisfies Choice, const Output: u64>() -> u64
+{ Operations::pick<Output>() }
+const SAVED: u64 = choose<Selected<7>, 4>();
+machine four(value: u64) -> u64 requires value == 4 { value }
+machine success() {}
+machine failure() crashes Trap { crash Trap; }
+machine main() crashes Trap {
+    let actual: u64 = four(SAVED);
+    transition actual == 4 { true -> success() _ -> failure() }
+}

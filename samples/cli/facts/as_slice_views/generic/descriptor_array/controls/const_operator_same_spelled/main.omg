@@ -1,0 +1,19 @@
+// Expected exit: 0
+// Distinct exact token declarations and nested call operands retain selection.
+data Left [copy] { value: u64; }
+data Right [copy] { value: u64; }
+const LEFT_RESULT: u64 = 9;
+const RIGHT_RESULT: u64 = 13;
+machine + Left::combine(left: Left, right: Left) -> u64 { LEFT_RESULT }
+machine + Right::combine(left: Right, right: Right) -> u64 { RIGHT_RESULT }
+machine make_left() -> Left { Left { value: 1 } }
+machine make_right() -> Right { Right { value: 2 } }
+machine left_result() -> u64 { make_left() + make_left() }
+machine right_result() -> u64 { make_right() + make_right() }
+const SAVED_LEFT: u64 = left_result();
+const SAVED_RIGHT: u64 = right_result();
+machine success() {}
+machine failure() crashes Trap { crash Trap; }
+machine main() crashes Trap {
+    transition SAVED_LEFT == 9 && SAVED_RIGHT == 13 { true -> success() _ -> failure() }
+}

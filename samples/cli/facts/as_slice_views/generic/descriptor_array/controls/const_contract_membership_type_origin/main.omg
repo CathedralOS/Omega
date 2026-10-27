@@ -1,0 +1,15 @@
+// Expected exit: 0
+// LIMIT appears only in this contract membership's exact type argument.
+// The named issuer establishes this otherwise nominal membership; the
+// retained type argument is the only dependency on LIMIT.
+domain<Value> u64::Tagged<Value> established by computed;
+const LIMIT: u64 = 4;
+machine computed() -> u64 ensures result in Tagged<[u8; LIMIT]> { 4 }
+const SAVED: u64 = computed();
+machine four(value: u64) -> u64 requires value == 4 { value }
+machine success() {}
+machine failure() crashes Trap { crash Trap; }
+machine main() crashes Trap {
+    let actual: u64 = four(SAVED);
+    transition actual == 4 { true -> success() _ -> failure() }
+}
