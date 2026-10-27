@@ -1961,6 +1961,17 @@ pass/facts/nested_fourteen_level_record_field_bound_through_other_machine_exit b
 pass/facts/nested_fourteen_level_record_field_bound_through_other_state_exit built 46962ms exit:0 interpreter-exit:0 interpreter:agrees @80e7797d0e1e+wt
 pass/facts/nested_fourteen_level_record_field_bound_through_parameter_exit built 45256ms exit:0 interpreter-exit:0 interpreter:agrees @80e7797d0e1e+wt
 pass/facts/nested_fourteen_level_record_field_bound_through_target_body_exit built 46510ms exit:0 interpreter-exit:0 interpreter:agrees @80e7797d0e1e+wt
+pass/facts/nested_machine_effectful_completion_call_result_exit built 4684ms exit:0 interpreter-exit:0 interpreter:agrees @165e14d1f48d
+pass/facts/nested_machine_effectful_completion_caller_storage_exit built 4490ms exit:0 interpreter-exit:0 interpreter:agrees @165e14d1f48d
+pass/facts/nested_machine_effectful_completion_const_name_exit built 4775ms exit:0 interpreter-exit:0 interpreter:agrees @165e14d1f48d
+pass/facts/nested_machine_effectful_completion_field_exit built 4583ms exit:0 interpreter-exit:0 interpreter:agrees @165e14d1f48d
+pass/facts/nested_machine_effectful_completion_local_exit built 10067ms exit:0 interpreter-exit:0 interpreter:agrees @165e14d1f48d
+pass/facts/nested_machine_effectful_completion_match_join_exit built 10075ms exit:0 interpreter-exit:0 interpreter:agrees @165e14d1f48d
+pass/facts/nested_machine_effectful_completion_other_machine_exit built 10587ms exit:0 interpreter-exit:0 interpreter:agrees @165e14d1f48d
+pass/facts/nested_machine_effectful_completion_other_state_exit built 10667ms exit:0 interpreter-exit:0 interpreter:agrees @165e14d1f48d
+pass/facts/nested_machine_effectful_completion_parameter_exit built 5548ms exit:0 interpreter-exit:0 interpreter:agrees @165e14d1f48d
+pass/facts/nested_machine_effectful_completion_renamed_formals_exit built 5528ms exit:0 interpreter-exit:0 interpreter:agrees @165e14d1f48d
+pass/facts/nested_machine_effectful_completion_target_body_exit built 4990ms exit:0 interpreter-exit:0 interpreter:agrees @165e14d1f48d
 pass/facts/nested_machine_inferred_requirement_call_result_exit built 3184ms exit:0 interpreter-exit:0 interpreter:agrees @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 pass/facts/nested_machine_inferred_requirement_const_name_exit built 3506ms exit:0 interpreter-exit:0 interpreter:agrees @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 pass/facts/nested_machine_inferred_requirement_field_exit built 3099ms exit:0 interpreter-exit:0 interpreter:agrees @b011da5f273a04a924bc79cfa9df3bef5bcd6674

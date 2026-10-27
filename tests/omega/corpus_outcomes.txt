@@ -11365,6 +11365,33 @@ fail/facts/nested_fourteen_level_record_field_bound_through_target_body_rejected
 	exact arithmetic in machine `check_target` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `check_target` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `check_target` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/nested_machine_effectful_completion_call_result_rejected rejected 2011ms expected @165e14d1f48d
+	cannot prove ensures contract for exit from probe at statement 0: result != -1
+fail/facts/nested_machine_effectful_completion_const_name_rejected rejected 2116ms expected @165e14d1f48d
+	cannot prove ensures contract for exit from probe at statement 0: result != -1
+fail/facts/nested_machine_effectful_completion_field_rejected rejected 2063ms expected @165e14d1f48d
+	cannot prove ensures contract for exit from probe at statement 1: result != -1
+fail/facts/nested_machine_effectful_completion_local_rejected rejected 1955ms expected @165e14d1f48d
+	cannot prove ensures contract for exit from probe at statement 1: result != -1
+fail/facts/nested_machine_effectful_completion_match_join_rejected rejected 2161ms expected @165e14d1f48d
+	cannot prove ensures contract for exit from probe at statement 1: result != -1
+fail/facts/nested_machine_effectful_completion_other_machine_rejected rejected 1994ms expected @165e14d1f48d
+	cannot prove ensures contract for exit from probe at statement 0: result != -1
+fail/facts/nested_machine_effectful_completion_other_state_rejected rejected 2010ms expected @165e14d1f48d
+	cannot prove ensures contract for exit from probe at statement 0: result != -1
+fail/facts/nested_machine_effectful_completion_overwritten_guard_rejected rejected 2005ms expected @165e14d1f48d
+	cannot prove ensures contract for exit from probe at statement 2: result != -1
+fail/facts/nested_machine_effectful_completion_parameter_rejected rejected 2112ms expected @165e14d1f48d
+	cannot prove ensures contract for exit from probe at statement 0: result != -1
+fail/facts/nested_machine_effectful_completion_stale_caller_storage_rejected rejected 1959ms expected @165e14d1f48d
+	cannot prove ensures contract for exit from probe at statement 1: output.value == 42
+fail/facts/nested_machine_effectful_completion_stale_initializer_rejected rejected 1608ms expected @165e14d1f48d
+	cannot prove ensures contract for exit from probe at statement 1: result != -1
+fail/facts/nested_machine_effectful_completion_target_body_rejected rejected 1645ms expected @165e14d1f48d
+	cannot prove ensures contract for exit from probe at statement 0: result != -1
+	cannot prove ensures contract for exit from probe at statement 0: result != -1
+	cannot prove ensures contract for exit from probe at statement 0: result != -1
+	cannot prove ensures contract for exit from probe at statement 0: result != -1
 fail/facts/nested_machine_inferred_requirement_call_result_rejected rejected 2179ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/nested_machine_inferred_requirement_const_name_rejected rejected 2202ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
@@ -27448,6 +27475,17 @@ pass/facts/nested_fourteen_level_record_field_bound_through_other_machine_exit c
 pass/facts/nested_fourteen_level_record_field_bound_through_other_state_exit checked 2827ms check-target:macos_arm64 @a92f16431042
 pass/facts/nested_fourteen_level_record_field_bound_through_parameter_exit checked 1925ms check-target:macos_arm64 @a92f16431042
 pass/facts/nested_fourteen_level_record_field_bound_through_target_body_exit checked 2803ms check-target:macos_arm64 @a92f16431042
+pass/facts/nested_machine_effectful_completion_call_result_exit checked 4696ms check-target:macos_arm64 @165e14d1f48d
+pass/facts/nested_machine_effectful_completion_caller_storage_exit checked 4607ms check-target:macos_arm64 @165e14d1f48d
+pass/facts/nested_machine_effectful_completion_const_name_exit checked 4552ms check-target:macos_arm64 @165e14d1f48d
+pass/facts/nested_machine_effectful_completion_field_exit checked 4545ms check-target:macos_arm64 @165e14d1f48d
+pass/facts/nested_machine_effectful_completion_local_exit checked 5021ms check-target:macos_arm64 @165e14d1f48d
+pass/facts/nested_machine_effectful_completion_match_join_exit checked 5123ms check-target:macos_arm64 @165e14d1f48d
+pass/facts/nested_machine_effectful_completion_other_machine_exit checked 5039ms check-target:macos_arm64 @165e14d1f48d
+pass/facts/nested_machine_effectful_completion_other_state_exit checked 4926ms check-target:macos_arm64 @165e14d1f48d
+pass/facts/nested_machine_effectful_completion_parameter_exit checked 4562ms check-target:macos_arm64 @165e14d1f48d
+pass/facts/nested_machine_effectful_completion_renamed_formals_exit checked 4512ms check-target:macos_arm64 @165e14d1f48d
+pass/facts/nested_machine_effectful_completion_target_body_exit checked 4389ms check-target:macos_arm64 @165e14d1f48d
 pass/facts/nested_machine_inferred_requirement_call_result_exit checked 3029ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 pass/facts/nested_machine_inferred_requirement_const_name_exit checked 2983ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 pass/facts/nested_machine_inferred_requirement_field_exit checked 2717ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
