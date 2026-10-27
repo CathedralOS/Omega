@@ -11,7 +11,7 @@ use super::framing::Encoder;
 use super::source::{encode_package_key, encode_source_identity, encode_source_lineage};
 use crate::declarations::AliasName;
 use crate::declarations::dependencies::read::{
-    DependencyProjections, PackageSelection, ProjectedDependencies,
+    DependencyProjections, DependencyPurpose, PackageSelection, ProjectedDependencies,
 };
 use crate::resolution::graph::ResolvedSourceIdentity;
 use crate::resolution::source::PackageSourceNavigation;
@@ -84,11 +84,17 @@ fn encode_subject_to(
 ) -> Result<(), CanonicalSourceClosureSubjectError> {
     encoder.fixed(SOURCE_CLOSURE_SUBJECT_MAGIC);
     // Existing subjects retain their exact v7 identity and decision bindings.
-    // Only a subject carrying the new execution-only rows uses the v8 extension.
+    // Build-only catalog subjects retain v8. Queries add Product-purpose rows
+    // whose explicit purpose is part of v9 identity, never a new import grant.
+    let purpose_tagged_catalog = catalog_dependencies
+        .iter()
+        .any(|dependency| dependency.purpose != DependencyPurpose::Build);
     encoder.u16(if catalog_dependencies.is_empty() {
         7
-    } else {
+    } else if purpose_tagged_catalog {
         SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION
+    } else {
+        8
     });
     encode_target_profile(encoder, target_profile, limits)?;
     encode_root_selection(encoder, root, limits)?;
@@ -116,6 +122,12 @@ fn encode_subject_to(
                 limits.maximum_request_bytes,
             )?;
             encoder.count(dependency.ordinal)?;
+            if purpose_tagged_catalog {
+                encoder.byte(match dependency.purpose {
+                    DependencyPurpose::Product => 0,
+                    DependencyPurpose::Build => 1,
+                });
+            }
             encode_dependency_request(encoder, Request::from(&dependency.request), limits)?;
             encoder.bytes_bounded(
                 dependency.provider.canonical_bytes(),

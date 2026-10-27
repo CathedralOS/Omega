@@ -84,6 +84,84 @@ impl Clone for DeferredProductSources {
 }
 
 impl DeferredProductSources {
+    /// Inspect the frozen authored Product namespace while Build is paused.
+    /// This does not settle the root, append its generated outputs, or grant
+    /// executable Product authority. The original Build parse prefix is shared.
+    pub fn assemble_query(
+        &self,
+        inputs: &crate::source_imports::ProductQueryInputs,
+        timings: &mut CompileTimings,
+    ) -> Result<AssembledSyntax, Vec<Diagnostic>> {
+        let checkpoint = &self.checkpoint;
+        checkpoint.validate_child(inputs.original())?;
+        let mut storage = checkpoint.source_storage.as_ref().clone();
+        inputs.mount(&mut storage)?;
+        let mut imports = ImportQueue::default();
+        for source in storage.sources.files() {
+            imports.mark_loaded(&source.path, source.dependency_scope);
+        }
+        for root in checkpoint
+            .product_roots
+            .iter()
+            .flat_map(|roots| roots.iter())
+        {
+            imports.seed(root.clone(), source::DependencyScope::Product);
+        }
+        load_source_frontiers(
+            &mut storage,
+            &mut imports,
+            SourceRouting::Query(inputs),
+            timings,
+        )?;
+        imports.seed(
+            crate::source_imports::bundled_core_root()?.join("code_layout.omg"),
+            source::DependencyScope::Product,
+        );
+        for scope in [
+            source::DependencyScope::Build,
+            source::DependencyScope::Product,
+        ] {
+            if sources_mention_floats(&storage, scope) {
+                imports.seed(
+                    crate::source_imports::bundled_core_root()?.join("float_operations.omg"),
+                    scope,
+                );
+            }
+        }
+        for seed in inputs.entry_contract_seeds(&storage)? {
+            imports.seed(
+                seed.register_custody(&mut storage),
+                source::DependencyScope::Product,
+            );
+        }
+        load_source_frontiers(
+            &mut storage,
+            &mut imports,
+            SourceRouting::Query(inputs),
+            timings,
+        )?;
+        let mut bindings = append_build_prelude(&mut storage, checkpoint.build_source_id, timings)?;
+        bindings.extend(crate::source_imports::retain_module_import_bindings(
+            &storage,
+        )?);
+        let build_scope_sources = storage
+            .sources
+            .files()
+            .filter(|file| file.dependency_scope == source::DependencyScope::Build)
+            .map(|file| file.source_id)
+            .collect();
+        Ok(AssembledSyntax {
+            syntax_trees: storage.syntax_trees,
+            sources: Arc::new(storage.sources),
+            anonymous_owner: None,
+            product_sources: None,
+            build_source_id: checkpoint.build_source_id,
+            source_scoped_top_level_bindings: bindings,
+            generated_source_custody: Vec::new(),
+            build_scope_sources,
+        })
+    }
+
     /// Revalidate a sibling's live custody even when its frontend is retained.
     /// An anonymous capture must join the same named source owner as assembly.
     pub fn admit_inputs(
@@ -343,28 +421,8 @@ impl ImmutableSourceParseCheckpoint {
                 timings,
             )?;
         }
-        let mut source_scoped_top_level_bindings = Vec::new();
-        if let Some(prelude) =
-            crate::source_imports::prepare_build_prelude(&source_storage, self.build_source_id)
-        {
-            let parsed = SourceInput::Retained(
-                [LoadedSource {
-                    source_id: SourceId(source_storage.next_source_id()),
-                    path: PathBuf::from("<build-prelude>"),
-                    source: Arc::from(prelude.source.as_str()),
-                    origin: Some(SourceOrigin::Toolchain),
-                    scope: source::DependencyScope::Build,
-                }]
-                .into_iter()
-                .collect(),
-            )
-            .append(
-                &mut source_storage.syntax_trees,
-                &mut ParsingTimings(timings),
-            )?;
-            source_storage.extend(parsed)?;
-            source_scoped_top_level_bindings = prelude.bindings;
-        }
+        let mut source_scoped_top_level_bindings =
+            append_build_prelude(&mut source_storage, self.build_source_id, timings)?;
         // Wire codec machines are compiler-generated source, admitted by the
         // ordinary pipeline like the build prelude above them. They load as a
         // package source under the product root so generated machines carry
@@ -570,14 +628,43 @@ fn load_imports(
     phase: PackageImportPhase,
     timings: &mut CompileTimings,
 ) -> Result<Vec<PendingPackageImport>, Vec<Diagnostic>> {
+    load_source_frontiers(
+        source_storage,
+        imports,
+        SourceRouting::Compilation {
+            root_path,
+            package_inputs,
+            phase,
+        },
+        timings,
+    )
+}
+
+enum SourceRouting<'inputs> {
+    Compilation {
+        root_path: &'inputs Path,
+        package_inputs: Option<&'inputs PackageCompilationInputs>,
+        phase: PackageImportPhase,
+    },
+    Query(&'inputs crate::source_imports::ProductQueryInputs),
+}
+
+fn load_source_frontiers(
+    source_storage: &mut SourceStorage,
+    imports: &mut ImportQueue,
+    routing: SourceRouting<'_>,
+    timings: &mut CompileTimings,
+) -> Result<Vec<PendingPackageImport>, Vec<Diagnostic>> {
     let mut retained_requests = Vec::new();
     while imports.has_pending() {
         let frontier = imports.take_frontier();
-        let frontier = match package_inputs {
-            Some(package_inputs) => {
-                validate_package_source_frontier(frontier, package_inputs, source_storage)?
-            }
-            None => frontier,
+        let frontier = match &routing {
+            SourceRouting::Compilation {
+                package_inputs: Some(package_inputs),
+                ..
+            } => validate_package_source_frontier(frontier, package_inputs, source_storage)?,
+            SourceRouting::Query(inputs) => inputs.validate_frontier(frontier, source_storage)?,
+            _ => frontier,
         };
         let parsed = SourceInput::Files {
             frontier,
@@ -588,31 +675,64 @@ fn load_imports(
             &mut source_storage.syntax_trees,
             &mut ParsingTimings(timings),
         )?;
-        let discovered = match package_inputs {
-            Some(package_inputs) => {
+        let discovered = match &routing {
+            SourceRouting::Compilation {
+                package_inputs: Some(package_inputs),
+                phase,
+                ..
+            } => {
                 let (discovered, mut requests) = discover_package_imports(
                     &parsed,
                     &source_storage.syntax_trees,
                     package_inputs,
-                    phase,
+                    *phase,
                     &mut source_storage.resolved_imports,
                     &source_storage.toolchain_contract_custody,
                 )?;
                 retained_requests.append(&mut requests);
                 discovered
             }
-            None => discover_imports(
+            SourceRouting::Compilation {
+                root_path,
+                package_inputs: None,
+                ..
+            } => discover_imports(
                 &parsed,
                 &source_storage.syntax_trees,
                 root_path,
                 &source_storage.filesystem,
                 &mut source_storage.resolved_imports,
             )?,
+            SourceRouting::Query(inputs) => inputs.discover(&parsed, source_storage)?,
         };
         imports.enqueue(discovered)?;
         source_storage.extend(parsed)?;
     }
     Ok(retained_requests)
+}
+
+fn append_build_prelude(
+    storage: &mut SourceStorage,
+    build_source: Option<SourceId>,
+    timings: &mut CompileTimings,
+) -> Result<Vec<symbols::SourceScopedTopLevelBinding>, Vec<Diagnostic>> {
+    let Some(prelude) = crate::source_imports::prepare_build_prelude(storage, build_source) else {
+        return Ok(Vec::new());
+    };
+    let parsed = SourceInput::Retained(
+        [LoadedSource {
+            source_id: SourceId(storage.next_source_id()),
+            path: PathBuf::from("<build-prelude>"),
+            source: Arc::from(prelude.source.as_str()),
+            origin: Some(SourceOrigin::Toolchain),
+            scope: source::DependencyScope::Build,
+        }]
+        .into_iter()
+        .collect(),
+    )
+    .append(&mut storage.syntax_trees, &mut ParsingTimings(timings))?;
+    storage.extend(parsed)?;
+    Ok(prelude.bindings)
 }
 
 /// Observe Psi's source work using the package invocation's existing report.

@@ -7,6 +7,7 @@ use super::{
 };
 use super::{request_view::Request, usage::Budget};
 use crate::declarations::BuildDeclarationKind;
+#[cfg(test)]
 use crate::declarations::dependencies::read::DependencyPurpose;
 use crate::resolution::graph::{ExactTargetPackageSourceClosure, ResolvedSourceIdentity};
 
@@ -24,11 +25,11 @@ pub(super) fn project(
                 for (selection, graph) in observation
                     .selections
                     .iter()
-                    .zip(observation.provider_graphs())
+                    .zip(observation.dependency_graphs())
                 {
                     let observer = &observation.source;
                     let request = observer
-                        .dependency_requests(DependencyPurpose::Build)
+                        .dependency_requests(selection.purpose)
                         .get(selection.request_ordinal)
                         .ok_or_else(|| Error::new("catalog provider has no issued request"))?;
                     let provider = CanonicalSourceClosureSubject::from_resolved_without_catalog(
@@ -41,12 +42,14 @@ pub(super) fn project(
                             observer.resolution().clone(),
                         ),
                         navigation: observer.navigation().clone(),
+                        purpose: selection.purpose,
                         ordinal: selection.request_ordinal,
                         request: CanonicalDependencySourceRequest::from(request),
                         provider,
                     };
                     if let Some(previous) = dependencies.iter().find(|previous| {
                         previous.observer.key() == dependency.observer.key()
+                            && previous.purpose == dependency.purpose
                             && previous.ordinal == dependency.ordinal
                     }) {
                         if previous != &dependency {
@@ -69,6 +72,7 @@ pub(super) fn project(
         left.observer
             .key()
             .cmp(right.observer.key())
+            .then(left.purpose.cmp(&right.purpose))
             .then(left.ordinal.cmp(&right.ordinal))
     });
     Ok(dependencies)
@@ -101,8 +105,12 @@ pub(super) fn validate(
             .filter(|count| *count <= limits.maximum_dependency_requests)
             .ok_or_else(|| Error::new("catalog execution exceeds its dependency limit"))?;
         if previous.is_some_and(|previous| {
-            (previous.observer.key(), previous.ordinal)
-                >= (dependency.observer.key(), dependency.ordinal)
+            (previous.observer.key(), previous.purpose, previous.ordinal)
+                >= (
+                    dependency.observer.key(),
+                    dependency.purpose,
+                    dependency.ordinal,
+                )
         }) {
             return Err(Error::new(
                 "catalog dependencies are not in strict canonical order",
@@ -128,7 +136,7 @@ pub(super) fn validate(
         };
         let edge = CanonicalDependencySourceSelection {
             requester: dependency.observer.key().clone(),
-            purpose: DependencyPurpose::Build,
+            purpose: dependency.purpose,
             dependency_index: dependency.ordinal,
             request: dependency.request.clone(),
             alias,
@@ -252,6 +260,7 @@ mod tests {
             navigation: PackageSourceNavigation::Member(
                 package_source::SourceRelativePath::parse("unselected").unwrap(),
             ),
+            purpose: DependencyPurpose::Build,
             ordinal: 0,
             request: CanonicalDependencySourceRequest::Git {
                 explicit_alias: None,
@@ -267,6 +276,45 @@ mod tests {
             &mut Budget::new(usize::MAX),
         )
         .unwrap()
+    }
+
+    #[test]
+    fn catalog_query_roundtrip_keeps_purpose_local_ordinals_distinct() {
+        let previous = catalog_graph();
+        let mut dependencies = previous.catalog_dependencies.clone();
+        let mut queried = dependencies[0].clone();
+        queried.purpose = DependencyPurpose::Product;
+        dependencies.push(queried);
+        dependencies.sort_by_key(|dependency| dependency.purpose);
+        let subject = source_graph("selected", "https://catalog.invalid/workspace.git")
+            .with_catalog_dependencies(
+                dependencies,
+                Limits::default(),
+                &mut Budget::new(usize::MAX),
+            )
+            .unwrap();
+        let text = subject.canonical_text(Limits::default()).unwrap();
+        assert!(text.starts_with("omega-source-closure 4\n"));
+        assert!(text.contains("ordinal 0\npurpose \"product\"\n"));
+        let recovered =
+            CanonicalSourceClosureSubject::recover_text(&text, Limits::default()).unwrap();
+        assert_eq!(recovered, subject);
+        assert_eq!(recovered.packages().len(), 1);
+        assert_eq!(recovered.catalog_dependencies.len(), 2);
+        assert!(!previous.same_source_graph(&subject));
+        let mut changed = previous.clone();
+        changed.catalog_dependencies[0].purpose = DependencyPurpose::Product;
+        assert!(
+            !previous.same_source_graph(&changed),
+            "purpose is a source reuse input"
+        );
+        assert!(
+            CanonicalSourceClosureSubject::recover_text(
+                &text.replace("omega-source-closure 4", "omega-source-closure 3"),
+                Limits::default()
+            )
+            .is_err()
+        );
     }
 
     #[test]

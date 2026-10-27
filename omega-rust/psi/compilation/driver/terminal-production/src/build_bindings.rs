@@ -43,10 +43,17 @@ pub struct TerminalBuildBindingCall {
 pub struct TerminalBuildBindings {
     identity: terminal_codec::TerminalExecutionIdentity,
     calls: Vec<TerminalBuildBindingCall>,
+    queries: Vec<crate::TerminalBuildQueryCall>,
     declarations: Vec<std::sync::Arc<ProductDeclarationRequest>>,
 }
 
 impl TerminalBuildBindings {
+    pub fn queries_for(
+        &self,
+        artifact: terminal_codec::TerminalExecutionView<'_>,
+    ) -> Option<&[crate::TerminalBuildQueryCall]> {
+        (self.identity == artifact.custody_identity()).then_some(&self.queries)
+    }
     pub fn calls_for(
         &self,
         artifact: terminal_codec::TerminalExecutionView<'_>,
@@ -65,10 +72,12 @@ impl TerminalBuildBindings {
         artifact: terminal_codec::TerminalExecutionView<'_>,
         calls: Vec<TerminalBuildBindingCall>,
         declarations: Vec<std::sync::Arc<ProductDeclarationRequest>>,
+        queries: Vec<crate::TerminalBuildQueryCall>,
     ) -> Self {
         Self {
             identity: artifact.custody_identity(),
             calls,
+            queries,
             declarations,
         }
     }

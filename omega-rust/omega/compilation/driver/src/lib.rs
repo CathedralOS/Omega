@@ -45,6 +45,7 @@ pub use crate::checked::{
 };
 pub use build_evaluation::BuildSnapshotRequest;
 pub use checked::SourceCompilation;
+pub use checked::checking::ProductQueries;
 pub use checked::{PackageReviewFailure, PackageReviewProduct, PackageReviewSource};
 pub use compilation_products::{
     CompileFailure, CompileOptions, CompileOutcomes, CompileRequest, CompileTargetOutcome,

@@ -42,15 +42,16 @@ pub fn collect_root_bindings(
                     );
                     continue;
                 }
-                if typed.machine(described.machine_symbol).is_none() {
-                    return Err(vec![
-                        Diagnostic::error(
-                            "product description names a machine outside the admitted program",
-                        )
-                        .with_source_span(binding.source_span),
-                    ]);
-                }
-                (described.machine_name.clone(), described.machine_symbol)
+                let selected = described
+                    .declaration
+                    .rejoin(
+                        &typed.symbols,
+                        typed.machines().iter().map(|machine| machine.symbol),
+                    )
+                    .map_err(|reason| {
+                        vec![Diagnostic::error(reason).with_source_span(binding.source_span)]
+                    })?;
+                (described.machine_name.clone(), selected)
             }
             RootBindingSelection::AuthoredPath(implementation) => {
                 let implementation = implementation.clone();

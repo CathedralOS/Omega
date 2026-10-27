@@ -10,6 +10,7 @@ pub(super) fn capture<Action: Copy>(
         semantic_vocabulary::OperationId,
         semantic_vocabulary::BoundaryMachineId,
         Action,
+        source::SourceSpan,
     )>,
     diagnostics::Diagnostic,
 > {
@@ -37,16 +38,21 @@ pub(super) fn capture<Action: Copy>(
     let mut calls = Vec::new();
     for occurrence in &lowered.source_call_occurrences {
         use checked_trees::NominalMachineUseSite as Site;
-        let target = match occurrence.source_site {
+        let (target, source_span) = match occurrence.source_site {
             Some(Site::Statement(statement)) => {
                 match checked.statement_table.statement(statement) {
-                    typed_trees::statement::StatementNode::Call(call) => call.target_symbol,
+                    typed_trees::statement::StatementNode::Call(call) => {
+                        (call.target_symbol, call.source_span)
+                    }
                     _ => continue,
                 }
             }
             Some(Site::Expression(expression)) => {
                 match checked.expression_table.expression(expression) {
-                    typed_trees::expression::ExpressionNode::Call(call) => call.target_symbol,
+                    typed_trees::expression::ExpressionNode::Call(call) => (
+                        call.target_symbol,
+                        checked.expression_table.source_span(expression),
+                    ),
                     _ => continue,
                 }
             }
@@ -65,6 +71,7 @@ pub(super) fn capture<Action: Copy>(
             operation,
             crate::build_bindings::emitted_boundary(lowered, operation)?,
             *action,
+            source_span,
         ));
     }
     Ok(calls)
