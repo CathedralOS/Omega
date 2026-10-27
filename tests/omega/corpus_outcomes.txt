@@ -8351,6 +8351,25 @@ fail/facts/float_result_equality_through_parameter_rejected rejected 5541ms expe
 	cannot prove ensures contract for exit from read_kept at statement 0: result == item.kept && result == 7.0
 fail/facts/float_result_equality_through_target_body_rejected rejected 5526ms expected @a92f16431042
 	cannot prove ensures contract for exit from read_kept at statement 0: result == item.kept && result == 7.0
+fail/facts/foreign_borrowed_array_view_call_result rejected 1039ms expected @ee5082cfdacc
+	statement 6 reads `buffer.cells[1].value` while local borrow `routed` is still active (borrowed at statement 5; its last use is at statement 8)
+fail/facts/foreign_borrowed_array_view_const_name rejected 850ms expected @ee5082cfdacc
+	statement 5 reads `buffer.cells[1].value` while local borrow `pending` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/facts/foreign_borrowed_array_view_field rejected 843ms expected @ee5082cfdacc
+	statement 7 reads `buffer.cells[1].value` while local borrow `routed` is still active (borrowed at statement 6; its last use is at statement 9)
+fail/facts/foreign_borrowed_array_view_local rejected 857ms expected @ee5082cfdacc
+	statement 5 reads `buffer.cells[1].value` while local borrow `pending` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/facts/foreign_borrowed_array_view_match_join rejected 852ms expected @ee5082cfdacc
+	statement 7 reads `buffer.cells[1].value` while local borrow `routed` is still active (borrowed at statement 5; its last use is at statement 9)
+	statement 7 reads `buffer.cells[1].value` while local borrow `routed` is still active (borrowed at statement 5; its last use is at statement 9)
+fail/facts/foreign_borrowed_array_view_other_machine rejected 1056ms expected @ee5082cfdacc
+	statement 6 reads `buffer.cells[1].value` while local borrow `routed` is still active (borrowed at statement 5; its last use is at statement 8)
+fail/facts/foreign_borrowed_array_view_other_state rejected 1058ms expected @ee5082cfdacc
+	statement 6 reads `buffer.cells[1].value` while local borrow `routed` is still active (borrowed at statement 5; its last use is at statement 8)
+fail/facts/foreign_borrowed_array_view_parameter rejected 1118ms expected @ee5082cfdacc
+	statement 5 reads `buffer.cells[1].value` while local borrow `pending` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/facts/foreign_borrowed_array_view_target_body rejected 848ms expected @ee5082cfdacc
+	statement 6 reads `buffer.cells[1].value` while local borrow `routed` is still active (borrowed at statement 5; its last use is at statement 8)
 fail/facts/foreign_indirect_float_record_result_through_call_result_rejected rejected 1070ms expected @4c1bfc01217a+wt
 	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
 fail/facts/foreign_indirect_float_record_result_through_const_name_rejected rejected 1043ms expected @4c1bfc01217a+wt
@@ -26183,6 +26202,15 @@ pass/facts/float_result_equality_through_other_machine_exit checked 12385ms chec
 pass/facts/float_result_equality_through_other_state_exit checked 9330ms check-target:macos_arm64 @a92f16431042
 pass/facts/float_result_equality_through_parameter_exit checked 10166ms check-target:macos_arm64 @a92f16431042
 pass/facts/float_result_equality_through_target_body_exit checked 7575ms check-target:macos_arm64 @a92f16431042
+pass/facts/foreign_borrowed_array_view_call_result checked 3052ms check-target:macos_arm64 @ee5082cfdacc
+pass/facts/foreign_borrowed_array_view_const_name checked 2640ms check-target:macos_arm64 @ee5082cfdacc
+pass/facts/foreign_borrowed_array_view_field checked 2463ms check-target:macos_arm64 @ee5082cfdacc
+pass/facts/foreign_borrowed_array_view_local checked 2412ms check-target:macos_arm64 @ee5082cfdacc
+pass/facts/foreign_borrowed_array_view_match_join checked 2489ms check-target:macos_arm64 @ee5082cfdacc
+pass/facts/foreign_borrowed_array_view_other_machine checked 2958ms check-target:macos_arm64 @ee5082cfdacc
+pass/facts/foreign_borrowed_array_view_other_state checked 2967ms check-target:macos_arm64 @ee5082cfdacc
+pass/facts/foreign_borrowed_array_view_parameter checked 2925ms check-target:macos_arm64 @ee5082cfdacc
+pass/facts/foreign_borrowed_array_view_target_body checked 2456ms check-target:macos_arm64 @ee5082cfdacc
 pass/facts/foreign_indirect_float_record_result_through_call_result_exit checked 1993ms check-target:macos_arm64 @4c1bfc01217a+wt
 pass/facts/foreign_indirect_float_record_result_through_const_name_exit checked 1993ms check-target:macos_arm64 @4c1bfc01217a+wt
 pass/facts/foreign_indirect_float_record_result_through_field_exit checked 1959ms check-target:macos_arm64 @4c1bfc01217a+wt
