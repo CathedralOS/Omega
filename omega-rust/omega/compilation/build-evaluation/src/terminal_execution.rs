@@ -44,7 +44,7 @@ pub struct ReturnedBuild {
     pub(crate) source_join:
         Option<std::sync::Arc<package_compilation::PackageCompilationSourceInputs>>,
     pub(crate) requests: Vec<IssuedBuildRequest>,
-    pub(crate) provider_sources: Vec<BuildDependencySelection>,
+    pub(crate) demanded_sources: Vec<BuildDependencySelection>,
     pub(crate) settings: EvaluatedBuildSettings,
     pub(crate) optimization_report: optimization_core::OptimizationReportRequest,
     pub(crate) root_bindings: Vec<ExecutedRootBinding>,
@@ -69,11 +69,11 @@ impl ReturnedBuild {
         &self.requests
     }
 
-    /// Exact dependency occurrences whose code was installed during this
-    /// activation. Catalog observations retain these execution dependencies
-    /// without claiming completion of unrelated Product requests.
-    pub fn provider_sources(&self) -> &[BuildDependencySelection] {
-        &self.provider_sources
+    /// Exact dependencies used during this activation, for helper execution or
+    /// declaration queries. Catalog observations retain these demands without
+    /// claiming completion of unrelated Product requests.
+    pub fn demanded_sources(&self) -> &[BuildDependencySelection] {
+        &self.demanded_sources
     }
 }
 
@@ -116,8 +116,12 @@ impl<'code> TerminalBuildHost<'code> {
             original.clone(),
             Some(account),
         )?;
-        let bindings =
-            TerminalBuildBindingHost::new(artifact, produced.build_bindings(), original.clone())?;
+        let bindings = TerminalBuildBindingHost::new(
+            artifact,
+            produced.build_bindings(),
+            original.clone(),
+            Some(account),
+        )?;
         let filesystem = crate::terminal_filesystem::TerminalBuildFilesystemHost::new(
             produced,
             &original,
@@ -156,6 +160,11 @@ impl<'code> TerminalBuildHost<'code> {
             .build_bindings()
             .calls_for(artifact)
             .ok_or("Build bindings lost their artifact custody")?;
+        let query_calls = self
+            .produced
+            .build_bindings()
+            .queries_for(artifact)
+            .ok_or("Build queries lost their artifact custody")?;
         let filesystem_calls = self
             .produced
             .build_filesystem()
@@ -173,6 +182,7 @@ impl<'code> TerminalBuildHost<'code> {
             .iter()
             .map(|call| call.boundary)
             .chain(binding_calls.iter().map(|call| call.boundary))
+            .chain(query_calls.iter().map(|call| call.boundary))
             .chain(filesystem_calls.iter().map(|call| call.boundary))
             .collect::<Vec<_>>();
         host_imports.sort_unstable();
@@ -219,7 +229,9 @@ impl<'code> TerminalBuildHost<'code> {
                 instance
                     .bind_import(boundary, self.requests.adapter(declaration.into()))
                     .map_err(describe)?;
-            } else if binding_calls.iter().any(|call| call.boundary == boundary) {
+            } else if binding_calls.iter().any(|call| call.boundary == boundary)
+                || query_calls.iter().any(|call| call.boundary == boundary)
+            {
                 instance
                     .bind_import(boundary, self.bindings.adapter(declaration.into()))
                     .map_err(describe)?;
@@ -245,7 +257,7 @@ impl<'code> TerminalBuildHost<'code> {
             fuel,
             state: ActivationState::Running,
             requests: Vec::new(),
-            provider_sources: Vec::new(),
+            demanded_sources: Vec::new(),
         })
     }
 }
@@ -264,16 +276,55 @@ pub struct TerminalBuildActivation<'host, 'code> {
     fuel: TerminalFuelMeter,
     state: ActivationState,
     requests: Vec<IssuedBuildRequest>,
-    provider_sources: Vec<BuildDependencySelection>,
+    demanded_sources: Vec<BuildDependencySelection>,
 }
 
 pub struct TerminalBuildStep<'step> {
     pub requests: &'step [IssuedBuildRequest],
     pub returned: bool,
     pub awaiting_provider: Option<crate::terminal_bindings::BuildProviderRequest>,
+    pub awaiting_query: Option<std::sync::Arc<crate::terminal_bindings::BuildProductQuery>>,
 }
 
 impl<'host, 'code> TerminalBuildActivation<'host, 'code> {
+    /// Resume only the exact demand that paused this activation. A failed answer
+    /// poisons it rather than allowing later effects to conceal query failure.
+    pub fn answer_query(
+        &mut self,
+        request: &crate::terminal_bindings::BuildProductQuery,
+        answer: crate::terminal_bindings::BuildProductDescription,
+        dependencies: &[BuildDependencySelection],
+    ) -> Result<(), String> {
+        if !matches!(self.state, ActivationState::Running) {
+            return Err("Product query answer requires a live activation".into());
+        }
+        self.state = ActivationState::Refused;
+        for selected in dependencies {
+            if selected.purpose != build_declarations::DependencyPurpose::Product
+                || self
+                    .requests
+                    .iter()
+                    .filter(|issued| {
+                        matches!(
+                            issued.request(),
+                            build_declarations::BuildRequest::Dependency {
+                                purpose: build_declarations::DependencyPurpose::Product,
+                                ..
+                            }
+                        )
+                    })
+                    .nth(selected.request_ordinal)
+                    .is_none()
+            {
+                return Err("Product query dependency has no issued Product request".into());
+            }
+        }
+        self.host.bindings.answer_query(request, answer)?;
+        self.demanded_sources.extend_from_slice(dependencies);
+        self.state = ActivationState::Running;
+        Ok(())
+    }
+
     /// Complete immutable ledger issued so far, including earlier fuel slices.
     pub fn requests(&self) -> &[IssuedBuildRequest] {
         &self.requests
@@ -335,7 +386,7 @@ impl<'host, 'code> TerminalBuildActivation<'host, 'code> {
             }
         }
         self.host.bindings.provider_installed(provider)?;
-        self.provider_sources.push(selected);
+        self.demanded_sources.push(selected);
         self.state = ActivationState::Running;
         Ok(())
     }
@@ -361,9 +412,13 @@ impl<'host, 'code> TerminalBuildActivation<'host, 'code> {
             TerminalExecutionStatus::SponsorExhausted(_) => false,
             TerminalExecutionStatus::AwaitingEffect(_) => {
                 if self.host.bindings.awaiting_provider()?.is_none() {
-                    return Err(
-                        "Build paused without an admitted provider readiness request".into(),
-                    );
+                    return Err("Build paused without an admitted provider demand".into());
+                }
+                false
+            }
+            TerminalExecutionStatus::HostComputationPending(_) => {
+                if self.host.bindings.awaiting_query()?.is_none() {
+                    return Err("Build paused without an admitted Product query".into());
                 }
                 false
             }
@@ -378,6 +433,7 @@ impl<'host, 'code> TerminalBuildActivation<'host, 'code> {
             requests: &self.requests[first_request..],
             returned,
             awaiting_provider: self.host.bindings.awaiting_provider()?,
+            awaiting_query: self.host.bindings.awaiting_query()?,
         })
     }
 
@@ -414,7 +470,7 @@ impl<'host, 'code> TerminalBuildActivation<'host, 'code> {
             declaration,
             source_join: None,
             requests: self.requests,
-            provider_sources: self.provider_sources,
+            demanded_sources: self.demanded_sources,
             settings,
             optimization_report,
             root_bindings,

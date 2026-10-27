@@ -17,13 +17,14 @@ use std::path::Path;
 use std::sync::Arc;
 
 /// A compiler-authenticated declaration and the closed source graphs actually
-/// used to compute it. Pending Product requests remain inert observations.
+/// used to compute or describe declarations for it. Undemanded Product requests
+/// remain inert observations.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkspaceMemberObservation {
     declaration: SourceBuildDeclaration,
     pub(crate) source: super::PackageSourceCustody,
     pub(crate) selections: Vec<build_evaluation::BuildDependencySelection>,
-    providers: Vec<Arc<super::ResolvedBuildSources>>,
+    dependencies: Vec<Arc<super::ResolvedBuildSources>>,
 }
 
 impl WorkspaceMemberObservation {
@@ -31,20 +32,17 @@ impl WorkspaceMemberObservation {
         acquired: &AcquiredBuildSource,
         declaration: SourceBuildDeclaration,
         returned: &build_evaluation::ReturnedBuild,
-        providers: Vec<Arc<super::ResolvedBuildSources>>,
+        dependencies: Vec<Arc<super::ResolvedBuildSources>>,
     ) -> Result<Self, String> {
         if declaration.declaration() != returned.declaration()
-            || returned.provider_sources().len() != providers.len()
+            || returned.demanded_sources().len() != dependencies.len()
             || returned
-                .provider_sources()
+                .demanded_sources()
                 .iter()
-                .zip(&providers)
-                .any(|(selected, graph)| {
-                    selected.purpose != build_declarations::DependencyPurpose::Build
-                        || selected.package != graph.root()
-                })
+                .zip(&dependencies)
+                .any(|(selected, graph)| selected.package != graph.root())
         {
-            return Err("workspace observation lost an executed provider source graph".into());
+            return Err("workspace observation lost a demanded dependency source graph".into());
         }
         if acquired.source_capture() != declaration.source_capture() {
             return Err("workspace observation belongs to another source capture".into());
@@ -52,8 +50,8 @@ impl WorkspaceMemberObservation {
         Ok(Self {
             declaration,
             source: acquired.declare_build(returned)?.custody,
-            selections: returned.provider_sources().to_vec(),
-            providers,
+            selections: returned.demanded_sources().to_vec(),
+            dependencies,
         })
     }
 
@@ -61,8 +59,8 @@ impl WorkspaceMemberObservation {
         &self.declaration
     }
 
-    pub fn provider_graphs(&self) -> &[Arc<super::ResolvedBuildSources>] {
-        &self.providers
+    pub fn dependency_graphs(&self) -> &[Arc<super::ResolvedBuildSources>] {
+        &self.dependencies
     }
 }
 

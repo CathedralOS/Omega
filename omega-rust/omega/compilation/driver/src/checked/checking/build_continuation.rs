@@ -104,6 +104,13 @@ pub(super) fn prepare_build_invocation(
 }
 
 impl BuildSourceInvocation {
+    pub(super) fn product_queries(&self) -> super::ProductQueries {
+        super::ProductQueries::new(
+            &self.frontier,
+            self.package_inputs.clone(),
+            self.build_execution_profile,
+        )
+    }
     pub(super) fn validate_return(
         &self,
         returned: &build_evaluation::ReturnedBuild,

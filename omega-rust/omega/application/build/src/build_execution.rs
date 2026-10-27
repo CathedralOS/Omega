@@ -121,7 +121,8 @@ pub(crate) fn execute_returned_build(
     request: CheckedCompileRequest,
 ) -> Result<ReturnedPackageBuild, CompileFailure> {
     let mut invocation = compiler.begin_package_build(request)?;
-    let returned = execute_build(invocation.execution())?;
+    let mut queries = invocation.product_queries();
+    let returned = execute_build(invocation.execution(), Some(&mut queries))?;
     Ok(ReturnedPackageBuild {
         invocation,
         returned,
@@ -132,6 +133,7 @@ pub(crate) fn execute_returned_build(
 /// source and package consumers; its retained ledger still requires final join.
 pub(crate) fn execute_build(
     execution: Option<&mut build_evaluation::PreparedBuildExecution>,
+    mut queries: Option<&mut compiler::ProductQueries>,
 ) -> Result<Option<build_evaluation::ReturnedBuild>, CompileFailure> {
     let returned = if let Some(execution) = execution {
         let mut host = execution.host()?;
@@ -143,6 +145,16 @@ pub(crate) fn execute_build(
         let mut activation = host.start().map_err(refuse)?;
         loop {
             let step = activation.advance(1024).map_err(refuse)?;
+            if let Some(query) = step.awaiting_query {
+                let queries = queries
+                    .as_mut()
+                    .ok_or_else(|| refuse("Build query has no retained source context".into()))?;
+                let description = queries.describe(&query, Vec::new())?;
+                activation
+                    .answer_query(&query, description, &[])
+                    .map_err(refuse)?;
+                continue;
+            }
             if step.awaiting_provider.is_some() {
                 return Err(refuse(
                     "Build provider readiness requires dependency scheduling".into(),

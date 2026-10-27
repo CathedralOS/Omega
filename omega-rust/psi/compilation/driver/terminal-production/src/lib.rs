@@ -12,6 +12,7 @@ mod build_bindings;
 mod build_filesystem;
 mod build_protocol;
 mod build_provider;
+mod build_queries;
 mod build_requests;
 mod composition_admission;
 mod custody;
@@ -26,6 +27,7 @@ pub use build_filesystem::{
     TerminalBuildFilesystem, TerminalBuildFilesystemCall, TerminalBuildFilesystemOperation,
 };
 pub use build_provider::{BuildProviderProductionRequest, ProducedBuildProvider};
+pub use build_queries::{TerminalBuildQueryCall, TerminalBuildQueryOperation};
 pub use build_requests::{
     TerminalBuildRequestCall, TerminalBuildRequestOperation, TerminalBuildRequests,
 };

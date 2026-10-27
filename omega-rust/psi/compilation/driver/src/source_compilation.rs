@@ -140,6 +140,24 @@ impl SourceCompilationRequest {
 }
 
 impl SourceContinuation {
+    /// Describe a Product entry without completing or executing its body. The
+    /// caller supplies the slot's source-signature contract, not a truth bit.
+    pub fn describe_entry(
+        &self,
+        occurrence: source::SourceSpan,
+        path: &[u8],
+        slot: &[u8],
+        compatibility: &dyn typed_trees::product_operand::ProductEntryCompatibility,
+    ) -> Result<language_semantics::declaration_selection::DescribedProductEntry, String> {
+        validation::product_queries::describe_entry(
+            self.typed(),
+            occurrence,
+            path,
+            slot,
+            compatibility,
+        )
+    }
+
     /// Whether two admitted Build continuations have exactly the same remaining
     /// source work. A common pre-Build origin alone is insufficient: Build may
     /// have elaborated declarations or consumed different evaluation obligations.
@@ -162,48 +180,15 @@ impl SourceContinuation {
         selected: symbols::SymbolHandle,
     ) -> Result<symbols::SymbolHandle, Vec<Diagnostic>> {
         let refuse = |reason| vec![Diagnostic::error(reason)];
-        let span = previous
-            .typed()
-            .symbols
-            .symbol_source_span(selected)
-            .ok_or_else(|| refuse("selected machine has no retained declaration coordinate"))?;
-        let original = previous
-            .typed()
-            .symbols
-            .source_file(span)
-            .ok_or_else(|| refuse("selected machine lost its original source"))?;
-        let current = self
-            .typed()
-            .symbols
-            .source_file(span)
-            .ok_or_else(|| refuse("selected machine has no source in the new context"))?;
-        if original.source != current.source
-            || original.source_id != current.source_id
-            || original.path != current.path
-            || original.package_root != current.package_root
-            || original.origin != current.origin
-            || original.resolution_stratum != current.resolution_stratum
-            || original.dependency_scope != current.dependency_scope
-            || original
-                .package_identity
-                .is_some_and(|owner| Some(owner) != current.package_identity)
-        {
-            return Err(refuse(
-                "selected machine source changed between compilation contexts",
-            ));
-        }
-        let mut matches = self.typed().machines().iter().filter(|machine| {
-            self.typed().symbols.symbol_source_span(machine.symbol) == Some(span)
-        });
-        let selected = matches
-            .next()
-            .ok_or_else(|| refuse("selected machine declaration is absent from the new context"))?;
-        if matches.next().is_some() {
-            return Err(refuse(
-                "selected machine declaration is ambiguous in the new context",
-            ));
-        }
-        Ok(selected.symbol)
+        let declaration =
+            symbols::RetainedDeclaration::capture(&previous.typed().symbols, selected)
+                .map_err(refuse)?;
+        declaration
+            .rejoin(
+                &self.typed().symbols,
+                self.typed().machines().iter().map(|machine| machine.symbol),
+            )
+            .map_err(refuse)
     }
 
     pub fn build_input(&mut self) -> BuildSourceInput<'_> {

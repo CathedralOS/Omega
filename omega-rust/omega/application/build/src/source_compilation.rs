@@ -14,7 +14,9 @@ pub fn compile_sources(
 ) -> Result<compiler::CompileOutcomes, Vec<Diagnostic>> {
     compiler::checked::run_on_compile_thread(|| {
         let mut prepared = compiler.begin_compilation(request)?;
-        let returned = crate::build_execution::execute_build(prepared.execution());
+        let mut queries = prepared.product_queries();
+        let returned =
+            crate::build_execution::execute_build(prepared.execution(), queries.as_mut());
         compiler.complete_compilation(prepared, returned)
     })
 }
@@ -26,7 +28,9 @@ pub fn check_source(
 ) -> compilation_products::CheckedCompileOutcome {
     let result = compiler::checked::run_on_compile_thread(|| {
         let mut prepared = compiler.begin_source_compilation(request)?;
-        let returned = crate::build_execution::execute_build(prepared.execution());
+        let mut queries = prepared.product_queries();
+        let returned =
+            crate::build_execution::execute_build(prepared.execution(), Some(&mut queries));
         Ok::<_, CompileFailure>(compiler.complete_source_check(prepared, returned))
     });
     match result {
@@ -51,7 +55,9 @@ pub fn produce_source(
             .map_err(|failure| {
                 compiler::CompilationProductError::Production(failure.into_diagnostics())
             })?;
-        let returned = crate::build_execution::execute_build(prepared.execution());
+        let mut queries = prepared.product_queries();
+        let returned =
+            crate::build_execution::execute_build(prepared.execution(), Some(&mut queries));
         compiler.complete_source_product(prepared, returned, product)
     })
 }

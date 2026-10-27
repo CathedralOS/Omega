@@ -128,6 +128,7 @@ fn exclusion_tickets_reject_foreign_receivers_and_replay(checked: &compiler::Che
         artifact,
         produced.build_bindings(),
         original.clone(),
+        None,
     )
     .unwrap();
     let calls = produced.build_bindings().calls_for(artifact).unwrap();

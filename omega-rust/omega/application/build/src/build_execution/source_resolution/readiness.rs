@@ -33,7 +33,13 @@ struct SourceBuild {
 
 struct ExecutedSourceBuild {
     build: ReturnedPackageBuild,
-    providers: Vec<Arc<ResolvedBuildSources>>,
+    dependencies: Vec<Arc<ResolvedBuildSources>>,
+}
+
+struct QueryDependencies {
+    inputs: Vec<package_compilation::source_imports::ProductQueryDependency>,
+    graphs: Vec<Arc<ResolvedBuildSources>>,
+    selections: Vec<build_evaluation::BuildDependencySelection>,
 }
 
 pub(super) struct ReadinessScheduler<'session, 'operation> {
@@ -79,11 +85,11 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                 .ok_or_else(|| Source("Build work was already consumed".into()))?;
             if !resolved.contains(identity) {
                 // Unselected members are declarations, not Product roots. Only
-                // their actually executed provider closures can account for a
+                // their actually demanded dependency closures can account for a
                 // source absent from the selected Product graph.
                 let mut observed = false;
                 for catalog in &self.catalog_builds {
-                    for graph in catalog.observation.provider_graphs() {
+                    for graph in catalog.observation.dependency_graphs() {
                         if graph.contains(identity) {
                             join_source(graph, identity, &mut build)?;
                             observed = true;
@@ -92,7 +98,7 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                 }
                 if !observed {
                     return Err(Source(
-                        "executed helper is absent from the final source graph".into(),
+                        "demanded dependency is absent from the final source graph".into(),
                     ));
                 }
                 continue;
@@ -161,12 +167,13 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
         acquired: &AcquiredBuildSource,
         request: CheckedCompileRequest,
     ) -> Result<ExecutedSourceBuild, ProjectSourceResolutionError> {
-        let mut providers = Vec::new();
+        let mut dependency_graphs = Vec::new();
         let mut invocation = self
             .session
             .compiler
             .begin_package_build(request)
             .map_err(Compilation)?;
+        let mut queries = invocation.product_queries();
         let returned = if let Some(execution) = invocation.execution() {
             let mut host = execution
                 .host()
@@ -174,6 +181,18 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
             let mut activation = host.start().map_err(Source)?;
             loop {
                 let step = activation.advance(1024).map_err(Source)?;
+                if let Some(query) = step.awaiting_query {
+                    let dependencies =
+                        self.prepare_query_dependencies(acquired, activation.requests())?;
+                    let description = queries
+                        .describe(&query, dependencies.inputs)
+                        .map_err(|diagnostics| Compilation(diagnostics.into()))?;
+                    activation
+                        .answer_query(&query, description, &dependencies.selections)
+                        .map_err(Source)?;
+                    dependency_graphs.extend(dependencies.graphs);
+                    continue;
+                }
                 if step.returned {
                     break;
                 }
@@ -204,7 +223,7 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                             &provider,
                         )
                         .map_err(Source)?;
-                    providers.push(resolved);
+                    dependency_graphs.push(resolved);
                 }
             }
             Some(activation.complete().map_err(Source)?)
@@ -216,7 +235,7 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                 invocation,
                 returned,
             },
-            providers,
+            dependencies: dependency_graphs,
         })
     }
 
@@ -264,6 +283,62 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
             Source(format!(
                 "Build provider qualifier `{alias}` has no issued Build dependency"
             ))
+        })
+    }
+
+    fn prepare_query_dependencies(
+        &mut self,
+        requester: &AcquiredBuildSource,
+        requests: &[build_evaluation::terminal_requests::IssuedBuildRequest],
+    ) -> Result<QueryDependencies, ProjectSourceResolutionError> {
+        let mut dependencies = Vec::new();
+        let mut graphs = Vec::new();
+        let mut selections = Vec::new();
+        let issued = requests.iter().filter_map(|issued| match issued.request() {
+            BuildRequest::Dependency {
+                purpose: DependencyPurpose::Product,
+                alias,
+                ..
+            } => Some(alias),
+            _ => None,
+        });
+        for (ordinal, alias) in issued.enumerate() {
+            let selection = self
+                .acquisitions
+                .acquire_issued(requester, requests, DependencyPurpose::Product, ordinal)
+                .map_err(Source)?;
+            let acquired = self.finish_acquisition(selection)?;
+            let entry = acquired.entry_path();
+            let dependency = self.execute_source(acquired, &entry, Default::default())?;
+            self.sources[dependency]
+                .declared
+                .require_dependency()
+                .map_err(Source)?;
+            let resolved = Arc::new(self.resolve_graph(dependency)?);
+            self.settle_graph(&resolved)?;
+            let declared = &self.sources[dependency].declared;
+            dependencies.push(
+                package_compilation::source_imports::ProductQueryDependency {
+                    alias: alias.as_ref().map_or_else(
+                        || declared.package_name().to_owned(),
+                        |alias| alias.as_str().to_owned(),
+                    ),
+                    inputs: resolved
+                        .compilation_inputs(declared.identity())
+                        .map_err(Source)?,
+                },
+            );
+            graphs.push(resolved);
+            selections.push(build_evaluation::BuildDependencySelection {
+                purpose: DependencyPurpose::Product,
+                request_ordinal: ordinal,
+                package: declared.identity(),
+            });
+        }
+        Ok(QueryDependencies {
+            inputs: dependencies,
+            graphs,
+            selections,
         })
     }
 
@@ -343,7 +418,7 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                         acquired,
                         declaration,
                         normal_return(&build)?,
-                        executed.providers,
+                        executed.dependencies,
                     )
                     .map_err(Source)?;
                 declarations.push(observation.clone());
