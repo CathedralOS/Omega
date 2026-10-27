@@ -7,11 +7,11 @@
 //! bare propositions so the mathematical-core denotation re-decides the
 //! exact check this module performs — one relation, two readers.
 
+use super::dispatched_rule;
 use super::integer_math_normalization::{
     lift_exact_integer_order, lower_integer_math_relation,
     propositions_match_under_integer_math_normalization,
 };
-use super::dispatched_rule;
 use super::{AcceptanceBuilder, AcceptedProofRule, ProofError, mathematical_order, scalar_order};
 use semantic_vocabulary::{IntegerMathTerm, Proposition, ScalarType};
 use terminal_psi::{ProofNode, ProofRule};

@@ -2,8 +2,8 @@
 //! assumptions, and the introduction and elimination of conjunction,
 //! disjunction and implication.
 
-use super::integer_math_normalization::propositions_match_under_integer_math_normalization;
 use super::dispatched_rule;
+use super::integer_math_normalization::propositions_match_under_integer_math_normalization;
 use super::{AcceptanceBuilder, AcceptedProofRule, ProofError, RuleScope};
 use crate::decide_primitive;
 use semantic_vocabulary::Proposition;

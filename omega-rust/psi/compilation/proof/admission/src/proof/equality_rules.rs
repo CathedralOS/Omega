@@ -5,8 +5,8 @@
 //! bare propositions so the mathematical-core denotation re-decides the
 //! exact check this module performs — one relation, two readers.
 
-use super::integer_math_normalization::propositions_match_under_integer_math_normalization;
 use super::dispatched_rule;
+use super::integer_math_normalization::propositions_match_under_integer_math_normalization;
 use super::{AcceptanceBuilder, AcceptedProofRule, ProofError, RuleScope};
 use semantic_vocabulary::{Proposition, PropositionContext};
 use terminal_psi::{ProofNode, ProofRule};

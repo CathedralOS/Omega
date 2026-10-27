@@ -10,8 +10,8 @@
 
 use std::collections::BTreeSet;
 
-use super::integer_math_normalization::lower_integer_math_relation;
 use super::dispatched_rule;
+use super::integer_math_normalization::lower_integer_math_relation;
 use super::{AcceptanceBuilder, AcceptedProofRule, ProofError, RuleScope};
 use crate::{
     CheckedIntegerCastChain, CheckedIntegerCorrelatedForbiddenRoots,
