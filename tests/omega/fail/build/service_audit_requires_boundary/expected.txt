@@ -1,1 +1,1 @@
-Build operand `Ordinary` does not resolve to one visible Product declaration of role BoundarySubject in the admitted source frontier
+Build declaration operand does not resolve to one visible product declaration of the required kind
