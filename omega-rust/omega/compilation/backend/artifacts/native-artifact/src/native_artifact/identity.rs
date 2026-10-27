@@ -91,17 +91,9 @@ pub(super) fn derive_native_artifact_identity(
     let mut digest =
         crate::digest_encoder::DomainDigestEncoder::new(NATIVE_ARTIFACT_IDENTITY_DOMAIN);
     digest.raw(&fields.terminal_artifact_identity);
-    digest.raw(&[match fields.target.architecture {
-        target::Architecture::Aarch64 => 1,
-        target::Architecture::X86_64 => 2,
-    }]);
-    digest.raw(&[match fields.target.object_format {
-        target::ObjectFormat::Elf => 1,
-        target::ObjectFormat::MachO => 2,
-        target::ObjectFormat::Coff => 3,
-    }]);
-    digest.raw(&canonical_usize(fields.target.pointer_size));
-    digest.raw(&canonical_usize(fields.target.pointer_alignment));
+    // The target's canonical wire identity: architecture, object format,
+    // pointer size and alignment, stated once by the target owner.
+    digest.raw(&fields.target.wire_identity_bytes());
     hash_bytes(&mut digest, fields.object_text_bytes);
     hash_bytes(&mut digest, fields.image_bytes);
     hash_bytes(&mut digest, fields.final_text_bytes);
@@ -258,17 +250,7 @@ pub(super) fn foreign_call_custody_digest(calls: &[image_emission::ObjectForeign
             None => digest.raw(&[0]),
             Some(control) => {
                 digest.raw(&[1]);
-                digest.raw(&[match control.target.architecture {
-                    target::Architecture::Aarch64 => 1,
-                    target::Architecture::X86_64 => 2,
-                }]);
-                digest.raw(&[match control.target.object_format {
-                    target::ObjectFormat::Elf => 1,
-                    target::ObjectFormat::MachO => 2,
-                    target::ObjectFormat::Coff => 3,
-                }]);
-                digest.raw(&canonical_usize(control.target.pointer_size));
-                digest.raw(&canonical_usize(control.target.pointer_alignment));
+                digest.raw(&control.target.wire_identity_bytes());
                 digest.raw(&control.saved_slot_byte_offset.to_le_bytes());
                 for value in [
                     control.save_offset,
@@ -284,17 +266,7 @@ pub(super) fn foreign_call_custody_digest(calls: &[image_emission::ObjectForeign
             None => digest.raw(&[0]),
             Some(control) => {
                 digest.raw(&[1]);
-                digest.raw(&[match control.target.architecture {
-                    target::Architecture::Aarch64 => 1,
-                    target::Architecture::X86_64 => 2,
-                }]);
-                digest.raw(&[match control.target.object_format {
-                    target::ObjectFormat::Elf => 1,
-                    target::ObjectFormat::MachO => 2,
-                    target::ObjectFormat::Coff => 3,
-                }]);
-                digest.raw(&canonical_usize(control.target.pointer_size));
-                digest.raw(&canonical_usize(control.target.pointer_alignment));
+                digest.raw(&control.target.wire_identity_bytes());
                 digest.raw(&control.saved_slot_byte_offset.to_le_bytes());
                 for value in [
                     control.save_offset,
