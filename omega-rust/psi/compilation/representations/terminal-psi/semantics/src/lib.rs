@@ -277,6 +277,7 @@ mod primitive_store_memberships;
 pub use primitive_store_memberships::{
     primitive_scalar_memberships, primitive_store_byte_predicates,
     primitive_store_preserves_scalar_memberships, primitive_store_restriction,
+    scalar_projection_entails_membership,
 };
 
 pub mod evidence_calls;

@@ -139,11 +139,10 @@ pub(in crate::flow) fn captured_sources(
                 }
                 result.append(common?);
             }
-            for source in profile
-                .lifetime_sources
-                .into_iter()
-                .flat_map(|span| control.operand_retained_suppliers.span_or_empty(span))
-            {
+            for source in match profile.lifetime_sources {
+                Some(span) => control.operand_retained_suppliers.span(span)?,
+                None => &[],
+            } {
                 if !control.operands.is_valid(source.operand) {
                     return None;
                 }

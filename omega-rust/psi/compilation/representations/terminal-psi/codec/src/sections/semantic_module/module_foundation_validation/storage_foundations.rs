@@ -505,7 +505,17 @@ fn validate_reference_membership(
                         &mut captured,
                     );
                 }
-                result.projected_qualifications.iter().all(|row| captured.contains(row))
+                result.projected_qualifications.iter().all(|row| {
+                    captured.contains(row) || row.path.strip_prefix(&[terminal_psi::StructuralPathSegment::Referent])
+                        .is_some_and(|relative| {
+                            let mut path = source_path.to_vec();
+                            path.extend_from_slice(relative);
+                            terminal_semantics::scalar_projection_entails_membership(
+                                module.structural_types.iter(), module.structural_domains.iter(),
+                                source_type, &path, row.domain,
+                            )
+                        })
+                })
                 // Mutable formation retains preservation obligations, not just
                 // optional observations. Erasing a row cannot erase a debt.
                 && (*access == terminal_psi::StructuralAccess::SharedBorrow
