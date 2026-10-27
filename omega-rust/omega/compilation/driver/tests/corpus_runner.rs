@@ -1208,11 +1208,15 @@ fn build_native_fixture(
             )]
         })?;
     let report = &reports[primary].1;
+    if let Some(capture) = capture {
+        capture
+            .observe_components(report)
+            .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?;
+    }
     native_component_descriptions::inspect(
         report,
         root_path.parent().unwrap_or(root_path),
         build_dir,
-        capture,
     )
     .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?;
     if let Some(artifact) = report.retained_native_artifact() {
