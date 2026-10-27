@@ -299,6 +299,9 @@ fn conjunct_field_intervals(
         bounds
             .into_iter()
             .map(|bound| {
+                if !literal_comparison_has_builtin_meaning(program, fields, owner, bound) {
+                    return None;
+                }
                 // Floats retain their own literal/carrier judgment; they are
                 // never replaced by an integer interval.
                 let value = program.expression_table.integer_node(bound.literal)?;
@@ -317,6 +320,46 @@ fn conjunct_field_intervals(
     } else {
         exact_predicate_field_intervals(program, fields, owner, conjunct)
     }
+}
+
+fn literal_comparison_has_builtin_meaning(
+    program: &dyn crate::CheckingInput,
+    fields: &[&DataField],
+    owner: symbols::SymbolHandle,
+    bound: FieldLiteralBound,
+) -> bool {
+    use language_core::OperatorSpelling;
+
+    let Some(field) = fields.iter().find(|field| field.symbol == bound.field) else {
+        return false;
+    };
+    let Some(binary) = program.expression_table.binary_node(bound.conjunct) else {
+        return false;
+    };
+    let spelling = match binary.operator {
+        BinaryOperator::Less => OperatorSpelling::Less,
+        BinaryOperator::LessOrEqual => OperatorSpelling::LessEqual,
+        BinaryOperator::Greater => OperatorSpelling::Greater,
+        BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
+        BinaryOperator::Equal => OperatorSpelling::Equal,
+        _ => return false,
+    };
+    // Keep declared qualifications in overload lookup. An unstamped anonymous
+    // literal is unknown, never an assumed copy of the opposite field's type.
+    let field_type = Some(field.type_reference);
+    let literal_type = crate::landed_integer_literal_type_reference(program, bound.literal);
+    let operands = if side_selects_field(program, binary.left, field.symbol) {
+        [field_type, literal_type]
+    } else {
+        [literal_type, field_type]
+    };
+    typed_trees::operator::has_builtin_spelled_expression_meaning(
+        program,
+        owner,
+        bound.conjunct,
+        spelling,
+        &operands,
+    )
 }
 
 /// Retiring a declaration predicate requires equivalence, not merely a useful
