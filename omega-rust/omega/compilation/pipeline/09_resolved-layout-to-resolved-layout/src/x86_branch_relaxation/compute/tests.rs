@@ -108,42 +108,13 @@ fn conditional_function(
                     image_address_fixup: None,
                 }],
             },
-            ResolvedSelectedBlockLayout {
-                block: fallthrough,
-                offset: fallthrough_offset,
-                byte_count: u64::try_from(fallthrough_arm_bytes).unwrap(),
-                instructions: vec![ResolvedSelectedFormRow {
-                    instruction: SelectedInstructionId(1),
-                    alternative: MachineAlternativeKey {
-                        family: MachineAlternativeFamily::ReturnScalar,
-                        variant: 0,
-                    },
-                    offset: fallthrough_offset,
-                    bytes: vec![0x90; fallthrough_arm_bytes],
-                    branch: None,
-                    internal_machine_fixup: None,
-                    normalized_foreign_call_fixup: None,
-                    image_address_fixup: None,
-                }],
-            },
-            ResolvedSelectedBlockLayout {
-                block: taken,
-                offset: taken_offset,
-                byte_count: 1,
-                instructions: vec![ResolvedSelectedFormRow {
-                    instruction: SelectedInstructionId(2),
-                    alternative: MachineAlternativeKey {
-                        family: MachineAlternativeFamily::ReturnScalar,
-                        variant: 0,
-                    },
-                    offset: taken_offset,
-                    bytes: vec![0xc3],
-                    branch: None,
-                    internal_machine_fixup: None,
-                    normalized_foreign_call_fixup: None,
-                    image_address_fixup: None,
-                }],
-            },
+            padding_block(
+                fallthrough,
+                fallthrough_offset,
+                SelectedInstructionId(1),
+                fallthrough_arm_bytes,
+            ),
+            return_block(taken, taken_offset, SelectedInstructionId(2)),
         ],
     }
 }
@@ -166,24 +137,7 @@ fn backward_conditional_function(target_block_bytes: usize) -> ResolvedSelectedF
         machine: MachineId::new(1).unwrap(),
         byte_count: fallthrough_offset + 1,
         blocks: vec![
-            ResolvedSelectedBlockLayout {
-                block: taken,
-                offset: 0,
-                byte_count: branch_offset,
-                instructions: vec![ResolvedSelectedFormRow {
-                    instruction: SelectedInstructionId(0),
-                    alternative: MachineAlternativeKey {
-                        family: MachineAlternativeFamily::ReturnScalar,
-                        variant: 0,
-                    },
-                    offset: 0,
-                    bytes: vec![0x90; target_block_bytes],
-                    branch: None,
-                    internal_machine_fixup: None,
-                    normalized_foreign_call_fixup: None,
-                    image_address_fixup: None,
-                }],
-            },
+            padding_block(taken, 0, SelectedInstructionId(0), target_block_bytes),
             ResolvedSelectedBlockLayout {
                 block: entry,
                 offset: branch_offset,
@@ -213,24 +167,7 @@ fn backward_conditional_function(target_block_bytes: usize) -> ResolvedSelectedF
                     image_address_fixup: None,
                 }],
             },
-            ResolvedSelectedBlockLayout {
-                block: fallthrough,
-                offset: fallthrough_offset,
-                byte_count: 1,
-                instructions: vec![ResolvedSelectedFormRow {
-                    instruction: SelectedInstructionId(2),
-                    alternative: MachineAlternativeKey {
-                        family: MachineAlternativeFamily::ReturnScalar,
-                        variant: 0,
-                    },
-                    offset: fallthrough_offset,
-                    bytes: vec![0xc3],
-                    branch: None,
-                    internal_machine_fixup: None,
-                    normalized_foreign_call_fixup: None,
-                    image_address_fixup: None,
-                }],
-            },
+            return_block(fallthrough, fallthrough_offset, SelectedInstructionId(2)),
         ],
     }
 }
@@ -315,42 +252,13 @@ fn jump_across_branch_function(fallthrough_arm_bytes: usize) -> ResolvedSelected
                     image_address_fixup: None,
                 }],
             },
-            ResolvedSelectedBlockLayout {
-                block: fallthrough,
-                offset: fallthrough_offset,
-                byte_count: u64::try_from(fallthrough_arm_bytes).unwrap(),
-                instructions: vec![ResolvedSelectedFormRow {
-                    instruction: SelectedInstructionId(2),
-                    alternative: MachineAlternativeKey {
-                        family: MachineAlternativeFamily::ReturnScalar,
-                        variant: 0,
-                    },
-                    offset: fallthrough_offset,
-                    bytes: vec![0x90; fallthrough_arm_bytes],
-                    branch: None,
-                    internal_machine_fixup: None,
-                    normalized_foreign_call_fixup: None,
-                    image_address_fixup: None,
-                }],
-            },
-            ResolvedSelectedBlockLayout {
-                block: taken,
-                offset: taken_offset,
-                byte_count: 1,
-                instructions: vec![ResolvedSelectedFormRow {
-                    instruction: SelectedInstructionId(3),
-                    alternative: MachineAlternativeKey {
-                        family: MachineAlternativeFamily::ReturnScalar,
-                        variant: 0,
-                    },
-                    offset: taken_offset,
-                    bytes: vec![0xc3],
-                    branch: None,
-                    internal_machine_fixup: None,
-                    normalized_foreign_call_fixup: None,
-                    image_address_fixup: None,
-                }],
-            },
+            padding_block(
+                fallthrough,
+                fallthrough_offset,
+                SelectedInstructionId(2),
+                fallthrough_arm_bytes,
+            ),
+            return_block(taken, taken_offset, SelectedInstructionId(3)),
         ],
     }
 }
@@ -371,6 +279,58 @@ fn conditional_branch_mut(
         machine_code::ResolvedBranchEvidence::Jump(_) => {
             panic!("the fixture row must carry a conditional branch")
         }
+    }
+}
+
+/// A filler block: `bytes` `0x90` rows ending in a return. Every fixture pads
+/// an arm with one.
+fn padding_block(
+    block: SelectedBlockId,
+    offset: u64,
+    instruction: SelectedInstructionId,
+    bytes: usize,
+) -> ResolvedSelectedBlockLayout {
+    ResolvedSelectedBlockLayout {
+        block,
+        offset,
+        byte_count: u64::try_from(bytes).unwrap(),
+        instructions: vec![return_row(instruction, offset, vec![0x90; bytes])],
+    }
+}
+
+/// The taken arm: one `ret` row.
+fn return_block(
+    block: SelectedBlockId,
+    offset: u64,
+    instruction: SelectedInstructionId,
+) -> ResolvedSelectedBlockLayout {
+    ResolvedSelectedBlockLayout {
+        block,
+        offset,
+        byte_count: 1,
+        instructions: vec![return_row(instruction, offset, vec![0xc3])],
+    }
+}
+
+/// The filler row those blocks carry: a return-scalar alternative, no branch,
+/// and the three layout fixup slots empty.
+fn return_row(
+    instruction: SelectedInstructionId,
+    offset: u64,
+    bytes: Vec<u8>,
+) -> ResolvedSelectedFormRow {
+    ResolvedSelectedFormRow {
+        instruction,
+        alternative: MachineAlternativeKey {
+            family: MachineAlternativeFamily::ReturnScalar,
+            variant: 0,
+        },
+        offset,
+        bytes,
+        branch: None,
+        internal_machine_fixup: None,
+        normalized_foreign_call_fixup: None,
+        image_address_fixup: None,
     }
 }
 
@@ -822,12 +782,12 @@ fn branch_chain_function(
         };
         blocks.push(ResolvedSelectedBlockLayout {
             block: SelectedBlockId(index),
-            offset,
+            offset: offset,
             byte_count: 6,
             instructions: vec![ResolvedSelectedFormRow {
                 instruction: SelectedInstructionId(index),
                 alternative: alternative(),
-                offset,
+                offset: offset,
                 bytes: near.bytes().to_vec(),
                 branch: Some(Box::new(machine_code::ResolvedBranchEvidence::Conditional(
                     machine_code::ResolvedConditionalBranchEvidence {
@@ -850,42 +810,17 @@ fn branch_chain_function(
             }],
         });
     }
-    blocks.push(ResolvedSelectedBlockLayout {
-        block: padding,
-        offset: padding_offset,
-        byte_count: u64::try_from(padding_bytes).unwrap(),
-        instructions: vec![ResolvedSelectedFormRow {
-            instruction: SelectedInstructionId(branch_count),
-            alternative: MachineAlternativeKey {
-                family: MachineAlternativeFamily::ReturnScalar,
-                variant: 0,
-            },
-            offset: padding_offset,
-            bytes: vec![0x90; padding_bytes],
-            branch: None,
-            internal_machine_fixup: None,
-            normalized_foreign_call_fixup: None,
-            image_address_fixup: None,
-        }],
-    });
-    blocks.push(ResolvedSelectedBlockLayout {
-        block: taken,
-        offset: taken_offset,
-        byte_count: 1,
-        instructions: vec![ResolvedSelectedFormRow {
-            instruction: SelectedInstructionId(branch_count + 1),
-            alternative: MachineAlternativeKey {
-                family: MachineAlternativeFamily::ReturnScalar,
-                variant: 0,
-            },
-            offset: taken_offset,
-            bytes: vec![0xc3],
-            branch: None,
-            internal_machine_fixup: None,
-            normalized_foreign_call_fixup: None,
-            image_address_fixup: None,
-        }],
-    });
+    blocks.push(padding_block(
+        padding,
+        padding_offset,
+        SelectedInstructionId(branch_count),
+        padding_bytes,
+    ));
+    blocks.push(return_block(
+        taken,
+        taken_offset,
+        SelectedInstructionId(branch_count + 1),
+    ));
     ResolvedSelectedFunctionLayout {
         machine: MachineId::new(1).unwrap(),
         byte_count: taken_offset + 1,
