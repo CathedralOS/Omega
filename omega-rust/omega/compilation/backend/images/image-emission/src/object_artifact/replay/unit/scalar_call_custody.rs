@@ -951,14 +951,11 @@ fn expected_x86_immediate(bytes: &mut Vec<u8>, register: u8, bits: u64) {
 }
 
 pub(crate) fn expected_x86_stack_store(bytes: &mut Vec<u8>, register: u8, offset: u32) {
-    bytes.push(0x48 | (((register >> 3) & 1) << 2));
-    bytes.push(0x89);
-    if offset <= i8::MAX as u32 {
-        bytes.extend_from_slice(&[0x44 | ((register & 7) << 3), 0x24, offset as u8]);
-    } else {
-        bytes.extend_from_slice(&[0x84 | ((register & 7) << 3), 0x24]);
-        crate::codec_bytes::push_encoded(bytes, offset.to_le_bytes());
-    }
+    // A scalar stack home is one eight-byte ABI word; that width is admitted.
+    crate::object_artifact::replay::instruction_loads::x86_replay_stack_store(
+        bytes, register, offset, 8,
+    )
+    .expect("eight-byte stack store is an admitted instruction");
 }
 
 fn expected_x86_normalize(bytes: &mut Vec<u8>, register: u8, scalar: ScalarType) {

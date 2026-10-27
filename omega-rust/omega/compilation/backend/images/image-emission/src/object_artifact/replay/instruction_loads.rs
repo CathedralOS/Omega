@@ -82,38 +82,82 @@ pub(crate) fn expected_aarch64_memory_load(
     Some(0xf940_0000 | ((offset / 8) << 10) | (u32::from(base) << 5) | u32::from(register))
 }
 
-pub(crate) fn x86_replay_rsp_load(
-    bytes: &mut Vec<u8>,
-    register: u8,
-    byte_offset: u32,
-    byte_size: u32,
-) -> Option<()> {
+/// Append the REX (and operand-size) prefix selecting `byte_size` for an x86-64
+/// `mov`, taking REX.R from `register` and REX.B from `base`.
+fn x86_mov_prefix(bytes: &mut Vec<u8>, register: u8, base: u8, byte_size: u32) -> Option<()> {
+    let extension = (((register >> 3) & 1) << 2) | ((base >> 3) & 1);
     match byte_size {
-        1 => {
-            bytes.push(0x40 | (((register >> 3) & 1) << 2));
-            bytes.extend_from_slice(&[0x0f, 0xb6]);
-        }
-        2 => {
-            bytes.push(0x66);
-            bytes.push(0x40 | (((register >> 3) & 1) << 2));
-            bytes.extend_from_slice(&[0x0f, 0xb7]);
-        }
-        8 => {
-            bytes.push(0x48 | (((register >> 3) & 1) << 2));
-            bytes.push(0x8b);
-        }
-        4 => {
-            bytes.push(0x40 | (((register >> 3) & 1) << 2));
-            bytes.push(0x8b);
-        }
+        1 | 4 => bytes.push(0x40 | extension),
+        2 => bytes.extend_from_slice(&[0x66, 0x40 | extension]),
+        8 => bytes.push(0x48 | extension),
         _ => return None,
     }
+    Some(())
+}
+
+/// Append the ModRM byte and displacement addressing `[rsp + byte_offset]`.
+fn x86_rsp_modrm(bytes: &mut Vec<u8>, register: u8, byte_offset: u32) {
     if byte_offset <= i8::MAX as u32 {
         bytes.extend_from_slice(&[0x44 | ((register & 7) << 3), 0x24, byte_offset as u8]);
     } else {
         bytes.extend_from_slice(&[0x84 | ((register & 7) << 3), 0x24]);
         crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
     }
+}
+
+/// Append the ModRM byte and displacement addressing `[base + byte_offset]`.
+fn x86_memory_modrm(bytes: &mut Vec<u8>, register: u8, base: u8, byte_offset: u32) {
+    if byte_offset == 0 && (base & 7) != 5 {
+        bytes.push(((register & 7) << 3) | (base & 7));
+    } else if byte_offset <= i8::MAX as u32 {
+        bytes.extend_from_slice(&[0x40 | ((register & 7) << 3) | (base & 7), byte_offset as u8]);
+    } else {
+        bytes.push(0x80 | ((register & 7) << 3) | (base & 7));
+        crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
+    }
+}
+
+pub(crate) fn x86_replay_rsp_load(
+    bytes: &mut Vec<u8>,
+    register: u8,
+    byte_offset: u32,
+    byte_size: u32,
+) -> Option<()> {
+    x86_mov_prefix(bytes, register, 0, byte_size)?;
+    match byte_size {
+        1 => bytes.extend_from_slice(&[0x0f, 0xb6]),
+        2 => bytes.extend_from_slice(&[0x0f, 0xb7]),
+        4 | 8 => bytes.push(0x8b),
+        _ => return None,
+    }
+    x86_rsp_modrm(bytes, register, byte_offset);
+    Some(())
+}
+
+/// Append the `mov [rsp + byte_offset], register` of `byte_size` bytes.
+pub(crate) fn x86_replay_stack_store(
+    bytes: &mut Vec<u8>,
+    register: u8,
+    byte_offset: u32,
+    byte_size: u32,
+) -> Option<()> {
+    x86_mov_prefix(bytes, register, 0, byte_size)?;
+    bytes.push(if byte_size == 1 { 0x88 } else { 0x89 });
+    x86_rsp_modrm(bytes, register, byte_offset);
+    Some(())
+}
+
+/// Append the `mov [base + byte_offset], register` of `byte_size` bytes.
+pub(crate) fn x86_replay_memory_store(
+    bytes: &mut Vec<u8>,
+    register: u8,
+    base: u8,
+    byte_offset: u32,
+    byte_size: u32,
+) -> Option<()> {
+    x86_mov_prefix(bytes, register, base, byte_size)?;
+    bytes.push(if byte_size == 1 { 0x88 } else { 0x89 });
+    x86_memory_modrm(bytes, register, base, byte_offset);
     Some(())
 }
 
@@ -125,17 +169,7 @@ pub(crate) fn x86_replay_memory_load(
 ) {
     bytes.push(0x40 | (((destination >> 3) & 1) << 2) | ((base >> 3) & 1));
     bytes.extend_from_slice(&[0x0f, 0xb6]);
-    if byte_offset == 0 && (base & 7) != 5 {
-        bytes.push(((destination & 7) << 3) | (base & 7));
-    } else if byte_offset <= i8::MAX as u32 {
-        bytes.extend_from_slice(&[
-            0x40 | ((destination & 7) << 3) | (base & 7),
-            byte_offset as u8,
-        ]);
-    } else {
-        bytes.push(0x80 | ((destination & 7) << 3) | (base & 7));
-        crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
-    }
+    x86_memory_modrm(bytes, destination, base, byte_offset);
 }
 
 pub(crate) fn aarch64_replay_stack_load(
