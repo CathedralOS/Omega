@@ -54,12 +54,11 @@ impl SpillChoicePlan {
                     let point = LiveRangePoint(cursor.u32()?);
                     let incoming = VirtualRegisterId(cursor.u32()?);
                     let incoming_class = RegisterClassId(cursor.u16()?);
-                    let candidate_count = cursor.length()?;
-                    let mut incoming_common_candidates =
-                        Vec::with_capacity(candidate_count.min(cursor.remaining()));
-                    for _ in 0..candidate_count {
-                        incoming_common_candidates.push(RegisterViewId(cursor.u16()?));
-                    }
+                    let incoming_common_candidates =
+                        crate::codec_bytes::decode_list::<_, SpillChoiceDecodeError>(
+                            &mut cursor,
+                            |cursor| Ok(RegisterViewId(cursor.u16()?)),
+                        )?;
                     let resident_count = cursor.length()?;
                     let mut active_residents =
                         Vec::with_capacity(resident_count.min(cursor.remaining()));

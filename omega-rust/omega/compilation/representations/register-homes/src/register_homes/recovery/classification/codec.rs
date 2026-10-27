@@ -62,20 +62,21 @@ impl RecoveryClassificationPlan {
             .map_err(|_| RecoveryClassificationDecodeError::InvalidBudget)?;
         let usage = OptimizationWorkUsage::decode(cursor.take(40)?)
             .map_err(|_| RecoveryClassificationDecodeError::InvalidUsage)?;
-        let function_count = cursor.length()?;
-        let mut functions = Vec::with_capacity(function_count.min(cursor.remaining()));
-        for _ in 0..function_count {
-            let machine = machine(&mut cursor)?;
-            let classification = crate::cursor::optional(
-                &mut cursor,
-                |c| Ok(classification_row(&mut *c)?),
-                RecoveryClassificationDecodeError::UnknownOption,
-            )?;
-            functions.push(FunctionRecoveryClassification {
-                machine,
-                classification,
-            });
-        }
+        let functions = crate::codec_bytes::decode_list::<_, RecoveryClassificationDecodeError>(
+            &mut cursor,
+            |cursor| {
+                let machine = machine(&mut *cursor)?;
+                let classification = crate::cursor::optional(
+                    &mut *cursor,
+                    |c| Ok(classification_row(&mut *c)?),
+                    RecoveryClassificationDecodeError::UnknownOption,
+                )?;
+                Ok(FunctionRecoveryClassification {
+                    machine,
+                    classification,
+                })
+            },
+        )?;
         if cursor.remaining() != 0 {
             return Err(RecoveryClassificationDecodeError::TrailingBytes);
         }
@@ -342,26 +343,10 @@ fn definition_site(
 fn provenance(
     cursor: &mut crate::cursor::Cursor<'_>,
 ) -> Result<SelectedInstructionProvenance, RecoveryClassificationDecodeError> {
-    let operation_count = cursor.length()?;
-    let mut operations = Vec::with_capacity(operation_count.min(cursor.remaining()));
-    for _ in 0..operation_count {
-        operations.push(operation_id(cursor)?);
-    }
-    let value_count = cursor.length()?;
-    let mut values = Vec::with_capacity(value_count.min(cursor.remaining()));
-    for _ in 0..value_count {
-        values.push(value_id(cursor)?);
-    }
-    let edge_count = cursor.length()?;
-    let mut edges = Vec::with_capacity(edge_count.min(cursor.remaining()));
-    for _ in 0..edge_count {
-        edges.push(edge_id(cursor)?);
-    }
-    let obligation_count = cursor.length()?;
-    let mut obligations = Vec::with_capacity(obligation_count.min(cursor.remaining()));
-    for _ in 0..obligation_count {
-        obligations.push(obligation_id(cursor)?);
-    }
+    let operations = crate::codec_bytes::decode_list(cursor, operation_id)?;
+    let values = crate::codec_bytes::decode_list(cursor, value_id)?;
+    let edges = crate::codec_bytes::decode_list(cursor, edge_id)?;
+    let obligations = crate::codec_bytes::decode_list(cursor, obligation_id)?;
     let fuel_count = cursor.length()?;
     let mut fuel = Vec::with_capacity(fuel_count.min(cursor.remaining()));
     for _ in 0..fuel_count {

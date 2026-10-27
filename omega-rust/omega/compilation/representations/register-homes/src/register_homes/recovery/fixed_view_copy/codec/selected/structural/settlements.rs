@@ -323,12 +323,7 @@ pub(super) fn decode_call_source(
             };
             let boundary = decode_id(cursor, BoundaryMachineId::new)?;
             let provider = provider::decode(cursor, retain_projected_qualifications)?;
-            let source_count = cursor.length()?;
-            let mut completion_claim_sources =
-                Vec::with_capacity(source_count.min(cursor.remaining()));
-            for _ in 0..source_count {
-                completion_claim_sources.push(decode_completion_claim_source(cursor)?);
-            }
+            let completion_claim_sources = decode_list(cursor, decode_completion_claim_source)?;
             let completion_receipts = decode_list(cursor, decode_completion_receipt)?;
             Ok(NativeCallOrigin::InstalledProvider {
                 boundary,
