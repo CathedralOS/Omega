@@ -55,6 +55,22 @@ fn checked(left: u64, right: u64) -> Result<u64, WorkDefect> {
     left.checked_add(right).ok_or(WorkDefect::Overflow)
 }
 
+/// Admit an already-accumulated receipt against the pass's budget: `refused`
+/// names the family's own over-budget refusal, which receives the exact
+/// requirement and budget the comparison rejected. A pass that names its
+/// refusal here does not restate the comparison or the payload it carries.
+pub(crate) fn admit<E>(
+    usage: OptimizationWorkUsage,
+    budget: OptimizationWorkBudget,
+    refused: impl FnOnce(OptimizationWorkUsage, OptimizationWorkBudget) -> E,
+) -> Result<(), E> {
+    if usage.within(budget) {
+        Ok(())
+    } else {
+        Err(refused(usage, budget))
+    }
+}
+
 /// One bounded pass's receipt under construction.
 pub(crate) struct Work {
     usage: OptimizationWorkUsage,
@@ -93,14 +109,10 @@ impl Work {
         self,
         budget: OptimizationWorkBudget,
     ) -> Result<OptimizationWorkUsage, WorkDefect> {
-        if self.usage.within(budget) {
-            Ok(self.usage)
-        } else {
-            Err(WorkDefect::BudgetExceeded {
-                required: self.usage,
-                budget,
-            })
-        }
+        admit(self.usage, budget, |required, budget| {
+            WorkDefect::BudgetExceeded { required, budget }
+        })?;
+        Ok(self.usage)
     }
 }
 

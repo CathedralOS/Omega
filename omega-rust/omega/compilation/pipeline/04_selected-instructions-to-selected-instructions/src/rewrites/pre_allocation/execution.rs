@@ -1006,16 +1006,9 @@ pub(super) fn ensure_pre_allocation_budget(
     usage: OptimizationWorkUsage,
     budget: OptimizationWorkBudget,
 ) -> Result<(), OptimizedPreAllocationCustodyError> {
-    if usage.within(budget) {
-        Ok(())
-    } else {
-        Err(
-            OptimizedPreAllocationCustodyError::PreAllocationBudgetExceeded {
-                required: usage,
-                budget,
-            },
-        )
-    }
+    crate::work_accounting::admit(usage, budget, |required, budget| {
+        OptimizedPreAllocationCustodyError::PreAllocationBudgetExceeded { required, budget }
+    })
 }
 
 /// Rebuild the analyses the committed step must carry: a transformation may

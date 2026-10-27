@@ -268,16 +268,9 @@ pub(super) fn ensure_selected_lowering_budget(
     usage: OptimizationWorkUsage,
     budget: OptimizationWorkBudget,
 ) -> Result<(), OptimizedLiteralFoldCustodyError> {
-    if usage.within(budget) {
-        Ok(())
-    } else {
-        Err(
-            OptimizedLiteralFoldCustodyError::SelectedLoweringBudgetExceeded {
-                required: usage,
-                budget,
-            },
-        )
-    }
+    crate::work_accounting::admit(usage, budget, |required, budget| {
+        OptimizedLiteralFoldCustodyError::SelectedLoweringBudgetExceeded { required, budget }
+    })
 }
 
 pub(super) fn validate_selected_lowering_policies(
