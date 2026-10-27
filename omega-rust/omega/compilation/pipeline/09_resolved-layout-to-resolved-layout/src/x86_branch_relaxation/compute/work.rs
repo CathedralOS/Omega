@@ -35,3 +35,13 @@ pub(super) fn checked_delta(
     i64::try_from(i128::from(target) - i128::from(base))
         .map_err(|_| OptimizedX86BranchRelaxationError::OffsetOverflow)
 }
+
+/// The offset a row of `bytes` bytes ends at. Every reflow site advances an
+/// offset by a row width, so the checked add and its narrowing live here once.
+pub(super) fn advance(offset: u64, bytes: usize) -> Result<u64, OptimizedX86BranchRelaxationError> {
+    let width =
+        u64::try_from(bytes).map_err(|_| OptimizedX86BranchRelaxationError::OffsetOverflow)?;
+    offset
+        .checked_add(width)
+        .ok_or(OptimizedX86BranchRelaxationError::OffsetOverflow)
+}

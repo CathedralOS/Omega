@@ -2,18 +2,14 @@
 
 use std::collections::BTreeMap;
 
-use isa_x86_64::{
-    encode_x86_64_selected_i64_less_than_branch_form, encode_x86_64_selected_nonzero_branch_form,
-    encode_x86_64_selected_short_nonzero_branch_form,
-    encode_x86_64_selected_u64_less_than_branch_form,
-};
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::{SelectedBlockId, SelectedInstructionId};
 
-use machine_code::{ResolvedConditionalBranchPredicate, ResolvedSelectedFunctionLayout};
+use machine_code::ResolvedSelectedFunctionLayout;
 
 use super::super::error::OptimizedX86BranchRelaxationError;
-use super::work::checked_delta;
+use super::lane;
+use super::work::{advance, checked_delta};
 
 pub(super) fn reflow_production_functions(
     functions: &mut [ResolvedSelectedFunctionLayout],
@@ -34,10 +30,7 @@ pub(super) fn reflow_production_functions(
                                 jump.target_block,
                             ),
                         )?;
-                        let end = row
-                            .offset
-                            .checked_add(5)
-                            .ok_or(OptimizedX86BranchRelaxationError::OffsetOverflow)?;
+                        let end = advance(row.offset, row.bytes.len())?;
                         let displacement = checked_delta(target, end)?;
                         let encoded = isa_x86_64::encode_x86_64_selected_jump_form(
                             physical,
@@ -65,42 +58,16 @@ pub(super) fn reflow_production_functions(
                     &offsets,
                     row.instruction,
                 )?;
-                let encoded = match (branch.predicate, row.bytes.len()) {
-                    (ResolvedConditionalBranchPredicate::NonZeroV1, 2) => {
-                        encode_x86_64_selected_short_nonzero_branch_form(
-                            physical,
-                            row.alternative,
-                            branch.byte_displacement,
-                        )
-                    }
-                    (ResolvedConditionalBranchPredicate::NonZeroV1, 6) => {
-                        encode_x86_64_selected_nonzero_branch_form(
-                            physical,
-                            row.alternative,
-                            branch.byte_displacement,
-                        )
-                    }
-                    (ResolvedConditionalBranchPredicate::U64LessThanV1, 2 | 6) => {
-                        encode_x86_64_selected_u64_less_than_branch_form(
-                            physical,
-                            row.alternative,
-                            branch.byte_displacement,
-                        )
-                    }
-                    (ResolvedConditionalBranchPredicate::I64LessThanV1, 2 | 6) => {
-                        encode_x86_64_selected_i64_less_than_branch_form(
-                            physical,
-                            row.alternative,
-                            branch.byte_displacement,
-                        )
-                    }
-                    _ => {
-                        return Err(OptimizedX86BranchRelaxationError::MalformedBranch(
-                            row.instruction,
-                        ));
-                    }
-                }
-                .map_err(OptimizedX86BranchRelaxationError::X86_64)?;
+                let near = lane::near_width(row.bytes.len()).ok_or(
+                    OptimizedX86BranchRelaxationError::MalformedBranch(row.instruction),
+                )?;
+                let encoded = lane::encode(
+                    branch.predicate,
+                    near,
+                    physical,
+                    row.alternative,
+                    branch.byte_displacement,
+                )?;
                 if encoded.bytes().len() != row.bytes.len() {
                     return Err(OptimizedX86BranchRelaxationError::MalformedBranch(
                         row.instruction,
@@ -129,12 +96,7 @@ fn assign_dense_offsets(
         let start = offset;
         for row in &mut block.instructions {
             row.offset = offset;
-            offset = offset
-                .checked_add(
-                    u64::try_from(row.bytes.len())
-                        .map_err(|_| OptimizedX86BranchRelaxationError::OffsetOverflow)?,
-                )
-                .ok_or(OptimizedX86BranchRelaxationError::OffsetOverflow)?;
+            offset = advance(offset, row.bytes.len())?;
         }
         block.byte_count = offset - start;
     }
@@ -155,12 +117,7 @@ fn rewrite_branch_offsets(
     let fallthrough = *offsets.get(&branch.when_fallthrough_block).ok_or(
         OptimizedX86BranchRelaxationError::MissingTargetBlock(branch.when_fallthrough_block),
     )?;
-    let end = instruction_offset
-        .checked_add(
-            u64::try_from(instruction_size)
-                .map_err(|_| OptimizedX86BranchRelaxationError::OffsetOverflow)?,
-        )
-        .ok_or(OptimizedX86BranchRelaxationError::OffsetOverflow)?;
+    let end = advance(instruction_offset, instruction_size)?;
     if fallthrough != end {
         return Err(OptimizedX86BranchRelaxationError::BranchFallthroughMismatch(instruction));
     }
