@@ -6,6 +6,7 @@ use super::{
     MAXIMUM_BYTES_PER_SNAPSHOT, MAXIMUM_ENTRIES_PER_SNAPSHOT, MAXIMUM_METADATA_BYTES_PER_SNAPSHOT,
 };
 use super::{PackageSourcePatchError, PackageSourcePatchSide};
+use crate::Hex;
 use crate::resolution::source::PackageSourceCustody;
 use package_source::local::operations::{
     capture_verified_package_source_snapshot, verify_package_source_snapshot,
@@ -297,7 +298,7 @@ fn render_file_summary(
     output.push(side)?;
     output.push("_content_commitment ")?;
     match bytes {
-        Some(bytes) => output.push_hex(&file_content_commitment(bytes))?,
+        Some(bytes) => output.push(&Hex(&file_content_commitment(bytes)).to_string())?,
         None => output.push("absent")?,
     }
     output.push("\n")

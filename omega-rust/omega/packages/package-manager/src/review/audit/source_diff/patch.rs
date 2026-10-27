@@ -1,5 +1,6 @@
 //! Source-patch model and rendering workflow.
 
+use crate::Hex;
 use crate::declarations::PackageKey;
 use crate::resolution::source::{PackageSourceCustody, PackageSourceSelectionEvidenceError};
 use crate::review::timings;
@@ -201,12 +202,12 @@ pub(crate) fn render_package_source_patch(
     output.push("\n")?;
     output.push("baseline_key ")?;
     match baseline {
-        Some(baseline) => output.push_hex(&baseline.key().identity().digest())?,
+        Some(baseline) => output.push(&Hex(&baseline.key().identity().digest()).to_string())?,
         None => output.push("none")?,
     }
     output.push("\n")?;
     output.push("candidate_key ")?;
-    output.push_hex(&candidate.key().identity().digest())?;
+    output.push(&Hex(&candidate.key().identity().digest()).to_string())?;
     output.push("\n")?;
     render_resolution(
         &mut output,
