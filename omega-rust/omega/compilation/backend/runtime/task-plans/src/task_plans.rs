@@ -105,6 +105,20 @@ impl TaskArgumentLayout {
 /// or corrupted field table from inflating padding into an unbounded image.
 const MAX_TASK_ARGUMENT_ALIGNMENT: u64 = 1 << 16;
 
+/// Every byte extent a task plan retains obeys one alignment rule: a nonzero
+/// power of two. The marshalling field table, the activation's fixed stack
+/// shape and the composed same-stack contributions all state their alignment
+/// demands through this owner, so a plan cannot admit an extent one validator
+/// accepts and another rejects.
+fn validate_alignment(alignment: u64, subject: &str) -> Result<(), TaskPlanDiagnostic> {
+    if alignment == 0 || !alignment.is_power_of_two() {
+        return Err(TaskPlanDiagnostic(format!(
+            "{subject} alignment {alignment} is not a nonzero power of two"
+        )));
+    }
+    Ok(())
+}
+
 /// Pack `(bytes, alignment)` argument demands into their canonical field
 /// extents: each argument lands at the next offset aligned to its own
 /// alignment, and the image extent rounds the final cursor up to the widest
@@ -116,11 +130,7 @@ fn pack_task_argument_fields(
     let mut cursor = 0u64;
     let mut image_alignment = 1u64;
     for (index, (bytes, alignment)) in arguments.enumerate() {
-        if alignment == 0 || !alignment.is_power_of_two() {
-            return Err(TaskPlanDiagnostic(format!(
-                "task argument field {index} alignment {alignment} is not a nonzero power of two"
-            )));
-        }
+        validate_alignment(alignment, &format!("task argument field {index}"))?;
         if alignment > MAX_TASK_ARGUMENT_ALIGNMENT {
             return Err(TaskPlanDiagnostic(format!(
                 "task argument field {index} alignment {alignment} exceeds the marshalling \
@@ -354,12 +364,7 @@ fn validate_activation_plan_shape(
             "activation stack size must be nonzero".into(),
         ));
     }
-    if candidate.stack_plan.alignment == 0 || !candidate.stack_plan.alignment.is_power_of_two() {
-        return Err(TaskPlanDiagnostic(format!(
-            "activation stack alignment {} is not a nonzero power of two",
-            candidate.stack_plan.alignment
-        )));
-    }
+    validate_alignment(candidate.stack_plan.alignment, "activation stack")?;
     if candidate.may_suspend && candidate.canonical_suspension_crossings.is_empty() {
         return Err(TaskPlanDiagnostic(
             "a suspending activation has no canonical suspension crossings".into(),

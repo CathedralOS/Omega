@@ -21,6 +21,7 @@
 //! Projections spelled `wcsu` carry the worst-case stack usage (WCSU) that the
 //! storage contract defines.
 
+use super::validate_alignment;
 use crate::fnv1a::Fnv1a;
 use crate::task_plans::identities::commitment_digest;
 
@@ -334,15 +335,6 @@ pub fn validate_task_stack_frame_summary(
     summary.unresolved_calls.sort_unstable();
     summary.unresolved_calls.dedup();
     Ok(ValidatedTaskStackFrameSummary(summary))
-}
-
-fn validate_alignment(alignment: u64, subject: &str) -> Result<(), TaskPlanDiagnostic> {
-    if alignment == 0 || !alignment.is_power_of_two() {
-        return Err(TaskPlanDiagnostic(format!(
-            "{subject} alignment {alignment} is not a nonzero power of two"
-        )));
-    }
-    Ok(())
 }
 
 /// Bind a frame's validated content: its identity, its exact local extent
