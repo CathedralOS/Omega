@@ -1,0 +1,70 @@
+{
+  "source_revision": "2a8584b4303a273e7881c7532211b0f80b2066d1",
+  "producer": {
+    "revision": "2a8584b4303a273e7881c7532211b0f80b2066d1",
+    "host": "linux-build",
+    "target": "linux_x86_64",
+    "inputs": {
+      "omega-rust": "e07d37940e3a6c1cca494d0c2821147a97c8e45b",
+      "source/library": "827c8009266e2a7a7ba70e37183c520bd5ea60d4",
+      "Cargo.toml": "89b91e0ff3eb217a0775be1474de23ccdbee0736",
+      "Cargo.lock": "97119c39dd4ca030370f0363d39fb1bbfe85137d",
+      "rust-toolchain.toml": "34677fc928123970d13e8b81641724e2a9e6f929",
+      ".mbx.toml": "01936c829d4a01217a0c7cd07235b65b6f6be11b"
+    },
+    "executables": {
+      "omega": {
+        "path": "/home/jarod/Omega-s27b/build/swarm/ssh27/s27b/generic-array-view/recheck-linux-2a8584/producer/5896eb4f3573f4495d9257fa14ac1445f86b9b70f79fe3d430ff6fd37e6a4616/omega",
+        "sha256": "5896eb4f3573f4495d9257fa14ac1445f86b9b70f79fe3d430ff6fd37e6a4616",
+        "profile": {
+          "binary": "/home/jarod/Omega-s27b/target/debug/omega",
+          "sha256": "5896eb4f3573f4495d9257fa14ac1445f86b9b70f79fe3d430ff6fd37e6a4616",
+          "profile": {
+            "schema": "omega-compiler-build-profile-v1",
+            "opt_level": "1"
+          }
+        }
+      },
+      "corpus_runner": {
+        "path": "/home/jarod/Omega-s27b/build/swarm/ssh27/s27b/generic-array-view/recheck-linux-2a8584/producer/6e89b7a6469a1eef5f2dbae6d54026c801cb8240336d269a03aa654e4d6c20d4/corpus_runner-60508f1fc384e60c",
+        "sha256": "6e89b7a6469a1eef5f2dbae6d54026c801cb8240336d269a03aa654e4d6c20d4",
+        "profile": {
+          "binary": "/home/jarod/Omega-s27b/target/debug/build/compiler/60508f1fc384e60c/out/corpus_runner-60508f1fc384e60c",
+          "sha256": "6e89b7a6469a1eef5f2dbae6d54026c801cb8240336d269a03aa654e4d6c20d4",
+          "profile": {
+            "schema": "omega-compiler-build-profile-v1",
+            "opt_level": "1"
+          }
+        }
+      }
+    }
+  },
+  "qualification_receipt": {
+    "path": "/home/jarod/Omega-s27b/build/swarm/ssh27/s27b/final-linux-qualification-8eca68666797.records/90adee58fd3643f5b7de6c997c98c528.json",
+    "sha256": "d5ce09e04f62bc7b9d3b4b9fa125952eff1aa4c9602ab58c5031b75ec873951b"
+  },
+  "goldens": [
+    {
+      "path": "/home/jarod/Omega-s27b/tests/omega/corpus_both_linux_x86_64.txt",
+      "rows": 13,
+      "inserted_lines": 13,
+      "deleted_lines": 0,
+      "before_sha256": "e2174862b878739f033881a797cfd10d75dffe9b1b96823e7d18cf17ea55f298",
+      "after_sha256": "66be14af4dfdcff0d15b4884987455f708a1f9ba9a2a0d23922de23222650eab",
+      "record_sha256": "e4171fc951e3141286e5f38b03a4c0f77c9cd01fae8d25be02690bd36c05ffe1"
+    },
+    {
+      "path": "/home/jarod/Omega-s27b/tests/omega/corpus_outcomes.txt",
+      "rows": 36,
+      "inserted_lines": 64,
+      "deleted_lines": 0,
+      "before_sha256": "f0999701708cd3277a50ce5a21d1694c8b153155a6376fc97f1a04c7a651f994",
+      "after_sha256": "7f904a8fb3476ad4330739359f1554ac2120fe5fa6840cea52ea143772b0e719",
+      "record_sha256": "8fd60c5a882145f6e2fb5de13436fecb3a68623ac835b1ab54aa2f7d5cd5cbb7"
+    }
+  ],
+  "source_bundle": {
+    "path": "/home/jarod/Omega-s27b/build/corpus-source/2a8584b4303a273e7881c7532211b0f80b2066d1.bundle",
+    "sha256": "316f775c5e4c8505233ac5800824da33f855cca26464ac4b5e4bb62745a8e5d6"
+  }
+}

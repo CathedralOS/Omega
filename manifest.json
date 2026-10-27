@@ -1,0 +1,8 @@
+{
+  "source_revision": "8d8faf5f5570fb3b6470c5866f2e62b116a7cbe4",
+  "producer_revision": "2a8584b4303a273e7881c7532211b0f80b2066d1",
+  "base": "178897a3f89a7158387d7df5d4c14ee42e772701",
+  "claim": "1cfe3386ac36457daa85c6e8cc5164e7",
+  "source_bundle_sha256": "c22fcaa725edec13fe8fafa3b52f8aa84381eeefb44d7db94be368182d0420c0",
+  "approval": "Independent exact8d source/runtime review approved; Linux13publicboth+13pinboth+23rejects, Windows same;128both/271checking fixed-base comparisons0lost. Native matching ARM acceptance and broader parent remain open."
+}

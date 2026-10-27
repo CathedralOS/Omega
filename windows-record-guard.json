@@ -1,0 +1,61 @@
+{
+  "source_revision": "2a8584b4303a273e7881c7532211b0f80b2066d1",
+  "producer": {
+    "revision": "2a8584b4303a273e7881c7532211b0f80b2066d1",
+    "host": "windows-build",
+    "target": "windows_x86_64",
+    "inputs": {
+      "omega-rust": "e07d37940e3a6c1cca494d0c2821147a97c8e45b",
+      "source/library": "827c8009266e2a7a7ba70e37183c520bd5ea60d4",
+      "Cargo.toml": "89b91e0ff3eb217a0775be1474de23ccdbee0736",
+      "Cargo.lock": "97119c39dd4ca030370f0363d39fb1bbfe85137d",
+      "rust-toolchain.toml": "34677fc928123970d13e8b81641724e2a9e6f929",
+      ".mbx.toml": "01936c829d4a01217a0c7cd07235b65b6f6be11b"
+    },
+    "executables": {
+      "omega": {
+        "path": "C:\\Users\\jarod\\Omega-s27b\\build\\swarm\\ssh27\\s27b\\generic-array-view\\recheck-windows-2a8584\\producer\\bb54bf634b0bb71d6a8270e56ca2cf288a58d71f972d5776ff4119868b3195a8\\omega.exe",
+        "sha256": "bb54bf634b0bb71d6a8270e56ca2cf288a58d71f972d5776ff4119868b3195a8",
+        "profile": {
+          "binary": "C:\\Users\\jarod\\Omega-s27b\\target\\debug\\omega.exe",
+          "sha256": "bb54bf634b0bb71d6a8270e56ca2cf288a58d71f972d5776ff4119868b3195a8",
+          "profile": {
+            "schema": "omega-compiler-build-profile-v1",
+            "opt_level": "1"
+          }
+        }
+      },
+      "corpus_runner": {
+        "path": "C:\\Users\\jarod\\Omega-s27b\\build\\swarm\\ssh27\\s27b\\generic-array-view\\recheck-windows-2a8584\\producer\\606c3eb3e93ae7e10691573fe49f7238ad51db772614bcf151a3558344b801c7\\corpus_runner-eba4859732122289.exe",
+        "sha256": "606c3eb3e93ae7e10691573fe49f7238ad51db772614bcf151a3558344b801c7",
+        "profile": {
+          "binary": "C:\\Users\\jarod\\Omega-s27b\\target\\debug\\build\\compiler\\eba4859732122289\\out\\corpus_runner-eba4859732122289.exe",
+          "sha256": "606c3eb3e93ae7e10691573fe49f7238ad51db772614bcf151a3558344b801c7",
+          "profile": {
+            "schema": "omega-compiler-build-profile-v1",
+            "opt_level": "1"
+          }
+        }
+      }
+    }
+  },
+  "qualification_receipt": {
+    "path": "C:\\Users\\jarod\\Omega-s27b\\build\\swarm\\ssh27\\s27b\\final-windows-qualification-8eca68666797.records\\ba95ac2718c84af5ab4a03fbdc2b7821.json",
+    "sha256": "f4b5c8bd757a12aa0a7e5a96c91c31b7fd278884615e12d902bcc0a06ce05d24"
+  },
+  "goldens": [
+    {
+      "path": "C:\\Users\\jarod\\Omega-s27b\\tests\\omega\\corpus_both_windows_x86_64.txt",
+      "rows": 13,
+      "inserted_lines": 13,
+      "deleted_lines": 0,
+      "before_sha256": "d8ed6578dc4faf831475c5dfbc7b5a109f79daa0d3a5257a64b42565880ee876",
+      "after_sha256": "86e8d1c624675aed94acdad9a5ca3545ccc38712d2ad75341acf54ba309fdb5a",
+      "record_sha256": "f2938cf233395bcabe2edde1332880a7719c544afbcabf643275eb4899d4af26"
+    }
+  ],
+  "source_bundle": {
+    "path": "C:\\Users\\jarod\\Omega-s27b\\build\\corpus-source\\2a8584b4303a273e7881c7532211b0f80b2066d1.bundle",
+    "sha256": "c22fcaa725edec13fe8fafa3b52f8aa84381eeefb44d7db94be368182d0420c0"
+  }
+}

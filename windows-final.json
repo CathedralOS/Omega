@@ -1,0 +1,56 @@
+{
+  "source_revision": "8d8faf5f5570fb3b6470c5866f2e62b116a7cbe4",
+  "producer_revision": "2a8584b4303a273e7881c7532211b0f80b2066d1",
+  "state": "C:\\Users\\jarod\\Omega-s27b\\build\\swarm\\ssh27\\s27b\\final-windows-qualification-8eca68666797.json",
+  "receipt": {
+    "path": "C:\\Users\\jarod\\Omega-s27b\\build\\swarm\\ssh27\\s27b\\final-windows-qualification-8eca68666797.records\\22224e7751754d5fa412b333781d7884.json",
+    "sha256": "dd1361c4423bfe2346757593b70e2f4a2f34ee85de5095f0c84a68de44589835"
+  },
+  "id": "22224e7751754d5fa412b333781d7884",
+  "exit": 0,
+  "invalidations": [],
+  "outputs": {
+    "capture_summary": {
+      "path": "C:\\Users\\jarod\\Omega-s27b\\build\\swarm\\ssh27\\s27b\\generic-array-view\\bound-windows-8d8faf5f5570\\observations\\886a0c182df840d88f4446a2c064020b\\capture-summary.json",
+      "sha256": "dda58c6cc36ef1076859821e5ff5dea5cb99acdb67c203bb4cc0eebf93ee3456"
+    },
+    "output_manifest": {
+      "path": "C:\\Users\\jarod\\Omega-s27b\\build\\swarm\\ssh27\\s27b\\generic-array-view\\bound-windows-8d8faf5f5570\\observations\\886a0c182df840d88f4446a2c064020b\\output-manifest.json",
+      "sha256": "52d6bada430951c30230457f28419267f5a6a3965f6564e9d5f03a3eee0ce961"
+    }
+  },
+  "compiler_profiles": [
+    {
+      "binary": "C:\\Users\\jarod\\Omega-s27b\\build\\swarm\\ssh27\\s27b\\generic-array-view\\recheck-windows-2a8584\\producer\\bb54bf634b0bb71d6a8270e56ca2cf288a58d71f972d5776ff4119868b3195a8\\omega.exe",
+      "profile": {
+        "opt_level": "1",
+        "schema": "omega-compiler-build-profile-v1"
+      },
+      "sha256": "bb54bf634b0bb71d6a8270e56ca2cf288a58d71f972d5776ff4119868b3195a8"
+    },
+    {
+      "binary": "C:\\Users\\jarod\\Omega-s27b\\build\\swarm\\ssh27\\s27b\\generic-array-view\\recheck-windows-2a8584\\producer\\606c3eb3e93ae7e10691573fe49f7238ad51db772614bcf151a3558344b801c7\\corpus_runner-eba4859732122289.exe",
+      "profile": {
+        "opt_level": "1",
+        "schema": "omega-compiler-build-profile-v1"
+      },
+      "sha256": "606c3eb3e93ae7e10691573fe49f7238ad51db772614bcf151a3558344b801c7"
+    }
+  ],
+  "comparisons": {
+    "both": {
+      "path": "C:\\Users\\jarod\\Omega-s27b\\build\\swarm\\ssh27\\s27b\\generic-array-view\\qualified-windows-2a8584b4303a\\compare-both.json",
+      "sha256": "2e08789273668a98f7554bd08fc02338f4085bf414815cb434ac2246ff633ca8",
+      "observed_revision": "2a8584b4303a273e7881c7532211b0f80b2066d1",
+      "consumer_revision": "8d8faf5f5570fb3b6470c5866f2e62b116a7cbe4",
+      "fixture_count": 128
+    },
+    "checking": {
+      "path": "C:\\Users\\jarod\\Omega-s27b\\build\\swarm\\ssh27\\s27b\\generic-array-view\\qualified-windows-2a8584b4303a\\compare-checking.json",
+      "sha256": "8d6cdbfa0e41cab61003d7f9ad5077547191bfc163af461cf00c48d7e2b92dcd",
+      "observed_revision": "2a8584b4303a273e7881c7532211b0f80b2066d1",
+      "consumer_revision": "8d8faf5f5570fb3b6470c5866f2e62b116a7cbe4",
+      "fixture_count": 271
+    }
+  }
+}
