@@ -106,9 +106,13 @@ separately.
 The [stack-argument witness](stack_entry_occurrence/main.omg) lends five distinct
 occurrences, crossing the first Windows stack-argument boundary after four
 register arguments. Only occurrence four changes its transmit byte to 9.
-Current records do not establish fresh macOS execution or Linux ARM64 lending;
-unsupported native lenders still refuse explicitly. This is private hosted RAM,
-not a device-provider or Atomic establishment claim.
+Linux ARM64 uses the same exact-allocation lifecycle and AAPCS64 X0–X7 pointer
+placement, with Linux write and exit-group syscalls and an independent final-byte
+reader. Qualification records distinguish named QEMU/PRoot execution on Linux
+x86-64 from physical ARM hardware execution. Fresh macOS execution and physical
+Linux ARM64 execution remain unverified. Unsupported native placements still
+refuse explicitly. This is private hosted RAM, not a device-provider or Atomic
+establishment claim.
 
 The companion [free local-state row](../free_entry_local_state/README.md) proves
 ordinary local ownership and executable cleanup without supplied parameters.
