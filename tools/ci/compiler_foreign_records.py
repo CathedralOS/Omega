@@ -14,6 +14,7 @@ import shutil
 import subprocess
 import time
 import tempfile
+from typing import Optional
 
 import compiler_fact_rows
 
@@ -195,6 +196,7 @@ class OwnedFactRow:
     relative: str
     fixture_prefix: str
     additional_projects: tuple = ()
+    provider_recipe: Optional[str] = "fixture/prepare.py"
 
 
 OWNED_ROWS = {
@@ -202,6 +204,7 @@ OWNED_ROWS = {
     "arrays": OwnedFactRow("foreign_scalar_record_result/arrays", "foreign_owned_array_record"),
     "zero-leaf": OwnedFactRow("nested_zero_leaf_array_storage", "nested_zero_leaf_array_storage",
                               (("zeroed_source", "nested_zero_leaf_array_storage_zeroed_source"),)),
+    "scalar-backing": OwnedFactRow("foreign_scalar_backing", "foreign_scalar_backing", provider_recipe=None),
 }
 COHORTS = ("scalar-opaque",) + tuple(OWNED_ROWS)
 
@@ -247,10 +250,10 @@ def provider_path(library):
             os.environ[key] = previous
 
 
-def prepare_provider(fact, output):
+def prepare_provider(fact, output, recipe_relative="fixture/prepare.py"):
     """Authenticate the real matching-host C fixture before a compiler build."""
     output.mkdir(parents=True, exist_ok=False)
-    recipe = fact / "fixture/prepare.py"
+    recipe = fact / recipe_relative
     arguments = [sys.executable, str(recipe), "--output", str(output)]
     result = subprocess.run(arguments, cwd=compiler_pilot.ROOT, stdin=subprocess.DEVNULL,
                             capture_output=True, text=True, timeout=180)
@@ -295,11 +298,15 @@ def owned_row(output, fact, specification, library, producer):
     projects = specification.additional_projects
     positives, negatives = compiler_fact_rows.fixtures(
         compiler_pilot.ROOT, fact, specification.fixture_prefix, additional_projects=projects)
+    # Installed host libraries need no fixture build. A required recipe still
+    # fails during preparation; absence is explicit in the cohort specification.
+    folders = ((output / "provider", (fact / specification.provider_recipe).parent)
+               if specification.provider_recipe is not None else ())
     resources = {str(path): compiler_fact_rows.digest(path)
-                 for folder in (output / "provider", fact / "fixture")
+                 for folder in folders
                  for path in folder.iterdir() if path.is_file()}
     (output / "resource-inputs.json").write_text(json.dumps(resources, indent=2) + "\n", encoding="utf-8")
-    with provider_path(library):
+    with provider_path(library) if library is not None else nullcontext():
         inventory = compiler_fact_rows.prepare(output, fact, producer, additional_projects=projects)
         status = compiler_pilot.run_suite(str(output.relative_to(compiler_pilot.ROOT / "build")),
                                          positives, negatives, producer=producer)
@@ -352,7 +359,9 @@ def main(arguments=None):
             cohort = attempt / name
             cohort.mkdir()
             try:
-                library = prepare_provider(plans[name][0], cohort / "provider") if name in plans else None
+                specification = plans[name][1] if name in plans else None
+                library = (prepare_provider(plans[name][0], cohort / "provider", specification.provider_recipe)
+                           if specification is not None and specification.provider_recipe is not None else None)
                 ready.append((name, cohort, library, record))
             except (OSError, ValueError, subprocess.SubprocessError) as error:
                 record["error"] = str(error)

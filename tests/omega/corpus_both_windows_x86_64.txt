@@ -3075,6 +3075,15 @@ pass/facts/foreign_retained_shared_borrow_raw_same_carrier_called rejected 4305m
 	target legalization failed: SourceCustodyMismatch { machine: Some(MachineId(1)), operation: None, site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
 pass/facts/foreign_retained_shared_borrow_target_body rejected 3090ms interpreter:unchecked @5f668826adf3+wt
 	target legalization failed: SourceCustodyMismatch { machine: Some(MachineId(1)), operation: None, site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
+pass/facts/foreign_scalar_backing_through_call_result_exit built 7702ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @6fe58fe64b38
+pass/facts/foreign_scalar_backing_through_const_name_exit built 7505ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @6fe58fe64b38
+pass/facts/foreign_scalar_backing_through_field_exit built 7516ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @6fe58fe64b38
+pass/facts/foreign_scalar_backing_through_local_exit built 37614ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @6fe58fe64b38
+pass/facts/foreign_scalar_backing_through_match_join_exit built 6379ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @6fe58fe64b38
+pass/facts/foreign_scalar_backing_through_other_machine_exit built 6376ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @6fe58fe64b38
+pass/facts/foreign_scalar_backing_through_other_state_exit built 6475ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @6fe58fe64b38
+pass/facts/foreign_scalar_backing_through_parameter_exit built 6336ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @6fe58fe64b38
+pass/facts/foreign_scalar_backing_through_target_body_exit built 6484ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @6fe58fe64b38
 pass/facts/forty_variant_enum_payload_bound_through_call_result_exit built 3448ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/forty_variant_enum_payload_bound_through_const_name_exit built 3369ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/forty_variant_enum_payload_bound_through_field_exit built 3324ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
