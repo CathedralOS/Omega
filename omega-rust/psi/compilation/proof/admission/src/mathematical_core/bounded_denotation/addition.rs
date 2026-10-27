@@ -388,16 +388,7 @@ impl Denotation {
         conclusion: &Proposition,
     ) -> Result<Option<TermHandle>, BoundedDenotationError> {
         self.direct_binary_bound_evidence(
-            &BinaryBoundOperation {
-                target: crate::term_matchers::exact_integer_add,
-                is_target_operation: crate::term_matchers::is_math_add,
-                right_antitone: false,
-                terms: Self::add_terms,
-                monotone: |denotation, arguments| {
-                    denotation.add_law_application(Law::MonotoneBoth, arguments)
-                },
-                numeral_equation: Self::numeral_sum,
-            },
+            &Addition::bound_operation(),
             premise,
             evidence,
             witness,
@@ -427,16 +418,7 @@ impl Denotation {
         conclusion: &Proposition,
     ) -> Result<Option<TermHandle>, BoundedDenotationError> {
         self.exact_binary_definition_bound_evidence(
-            &BinaryBoundOperation {
-                target: crate::term_matchers::exact_integer_add,
-                is_target_operation: crate::term_matchers::is_math_add,
-                right_antitone: false,
-                terms: Self::add_terms,
-                monotone: |denotation, arguments| {
-                    denotation.add_law_application(Law::MonotoneBoth, arguments)
-                },
-                numeral_equation: Self::numeral_sum,
-            },
+            &Addition::bound_operation(),
             left_bound,
             left_evidence,
             right_bound,
@@ -672,6 +654,23 @@ impl Denotation {
 }
 
 impl Addition {
+    /// The binary bound-operation descriptor both exact-add entry points hand
+    /// the shared evidence owners: the exact-add operand terms, two-sided
+    /// monotonicity, and the numeral-sum bridge. The direct and definition
+    /// forms differ only in what they pass beside it, so it is written once.
+    fn bound_operation() -> BinaryBoundOperation {
+        BinaryBoundOperation {
+            target: crate::term_matchers::exact_integer_add,
+            is_target_operation: crate::term_matchers::is_math_add,
+            right_antitone: false,
+            terms: Denotation::add_terms,
+            monotone: |denotation, arguments| {
+                denotation.add_law_application(Law::MonotoneBoth, arguments)
+            },
+            numeral_equation: Denotation::numeral_sum,
+        }
+    }
+
     /// Exact internally audited semantic roster, excluding arbitrary source,
     /// decision and value-parameter assumptions sharing the signature.
     pub(super) fn source_safety_roster(&self) -> Vec<u32> {
