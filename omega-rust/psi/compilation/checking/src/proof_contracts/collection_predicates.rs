@@ -123,10 +123,88 @@ fn predicate_call(
         return None;
     }
     let machine = exploration::admitted_predicate_machine(program, call.target_symbol, false)?;
-    Some(PredicateApplication {
-        machine,
-        arguments: program.expression_table.expression_handles(call.arguments),
-    })
+    let arguments = program.expression_table.expression_handles(call.arguments);
+    if arguments.len() != call.arguments.len() {
+        return None;
+    }
+    Some(PredicateApplication { machine, arguments })
+}
+
+/// The full declared carrier of an unconditional integer proof formal.
+/// Representation-only queries unwrap qualifications; they cannot establish a
+/// callee's additional domain or reference-formation obligations.
+pub(crate) fn bare_integer_parameter_type(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> Option<typed_trees::types::PrimitiveType> {
+    if !program
+        .type_reference_table
+        .contains_type_reference(reference)
+    {
+        return None;
+    }
+    if !matches!(
+        program.type_reference_table.type_reference(reference),
+        typed_trees::types::TypeReferenceNode::Named { .. }
+    ) {
+        return None;
+    }
+    program
+        .primitive_type_reference(reference)
+        .filter(|primitive| primitive.is_fixed_integer())
+}
+
+/// Judge a complete ordinary predicate at exact closed integer actuals using
+/// the same checked-body explorer as construction and implication. Canonical
+/// bytes supply values, never membership. False and undecided outcomes remain
+/// distinct; no interval consequence substitutes for the complete predicate.
+pub(crate) fn closed_integer_predicate_value(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    values: &[(i128, Option<TypeReferenceHandle>)],
+) -> Option<bool> {
+    let application = predicate_call(program, expression)?;
+    let machine = program.machines().get(application.machine)?;
+    let states = program.machine_states(machine);
+    if states.len() != machine.states.len() {
+        return None;
+    }
+    let entry = states.first()?;
+    let parameters = program.state_parameters(entry);
+    if parameters.len() != entry.parameters.len()
+        || parameters.len() != values.len()
+        || parameters.len() != application.arguments.len()
+    {
+        return None;
+    }
+    let knowledge = parameters
+        .iter()
+        .zip(application.arguments)
+        .zip(values)
+        .map(|((parameter, actual), (value, actual_type))| {
+            let primitive = bare_integer_parameter_type(program, parameter.type_reference)?;
+            if let Some(actual_type) = actual_type {
+                if program.primitive_type_reference(*actual_type) != Some(primitive) {
+                    return None;
+                }
+            } else {
+                let literal = program.expression_table.integer_node(*actual)?;
+                if literal.landing().is_some_and(|landing| {
+                    typed_trees::types::PrimitiveType::from_name(landing.landed_type.name())
+                        != Some(primitive)
+                        || landing.domain != numerics::arithmetic::ArithmeticDomain::Exact
+                }) {
+                    return None;
+                }
+            }
+            let (minimum, maximum) = primitive.integer_bounds()?;
+            if *value < minimum || *value > maximum {
+                return None;
+            }
+            Some(ArgumentKnowledge::Integer(IntegerSet::singleton(*value)))
+        })
+        .collect::<Option<Vec<_>>>()?;
+    unfold(program, application.machine, &knowledge)?.decided()
 }
 
 /// One exact caller actual or a checked mathematical integer bound.
