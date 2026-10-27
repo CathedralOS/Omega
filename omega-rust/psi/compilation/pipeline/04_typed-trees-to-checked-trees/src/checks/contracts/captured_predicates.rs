@@ -13,9 +13,9 @@ use checked_trees::{CheckFacts, FlowOperandFact, FlowStateFact};
 use validation::CanonicalPlace;
 
 pub(super) struct CapturedBinding<'facts> {
-    position: usize,
-    place: CanonicalPlace,
-    epoch: &'facts FlowOperandFact,
+    pub(super) position: usize,
+    pub(super) place: CanonicalPlace,
+    pub(super) epoch: &'facts FlowOperandFact,
 }
 
 pub(super) fn retain_bindings<'facts>(
@@ -34,19 +34,14 @@ pub(super) fn retain_bindings<'facts>(
             epoch,
         });
     }
-    if ![
-        (captured.observation_type, &captured.observation_projection),
-        (captured.type_reference, &captured.projection),
-    ]
-    .into_iter()
-    .enumerate()
-    .all(|(position, (reference, projection))| {
+    let stable_copy = |reference, projection: &crate::flow::LiteralExpressionProjection| {
         validation::project_type_reference_from_segments(program, reference, &projection.remaining)
-            .is_some_and(|selected| {
-                crate::flow::operand_binds_stable_copy(program, selected)
-                    || (position == 1 && captured.producer_epoch.is_some())
-            })
-    }) {
+            .is_some_and(|selected| crate::flow::operand_binds_stable_copy(program, selected))
+    };
+    if !stable_copy(captured.observation_type, &captured.observation_projection)
+        || (captured.producer_epoch.is_none()
+            && !stable_copy(captured.type_reference, &captured.projection))
+    {
         return;
     }
     let Some(observed) = crate::flow::captured_observation_places(program, &facts.flow, captured)
@@ -199,7 +194,27 @@ pub(super) fn transport(
                                 candidate.epoch,
                                 &observation.place,
                             )
-                    })?;
+                    });
+                    let Some(destination) = destination else {
+                        // A closed value in this producer's surviving contexts
+                        // has no mutable dependency to rebind. This also covers
+                        // inline literal actuals in a checked call guarantee.
+                        // Unknown values still require an agreeing capture;
+                        // neither this predicate nor the goal is a premise.
+                        let value = crate::values::scalar_value_at_place(
+                            program,
+                            &facts.semantic,
+                            contexts
+                                .iter()
+                                .map(|context| facts.semantic.contexts.get(*context)),
+                            &observation.place,
+                        )?;
+                        *operand = super::call_values::observed_literal(
+                            value,
+                            observation.operand.primitive_type()?,
+                        )?;
+                        return Some(());
+                    };
                     let binding = &required.bindings[destination.position];
                     let rebound = BoundObservation {
                         operand: operand.clone(),

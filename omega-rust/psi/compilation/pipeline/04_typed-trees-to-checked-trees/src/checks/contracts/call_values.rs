@@ -745,7 +745,7 @@ fn scalar_at(
     })
 }
 
-fn observed_literal(
+pub(super) fn observed_literal(
     value: facts::ScalarValue,
     primitive: typed_trees::types::PrimitiveType,
 ) -> Option<CheckedScalarExpression> {
@@ -845,6 +845,28 @@ fn proves_bound_predicate_mode<'program>(
     if crate::facts::boolean_predicates::map_observations(&mut current.expression, &mut |operand| {
         let observation = predicate.binding(&operand)?;
         let actual = actual(observation)?;
+        // Scalar observation is a universal judgment over the completed value
+        // inventory, including selected alternatives. Do it before asking for
+        // one symbolic producer; several agreeing values are still one exact
+        // scalar, while differing or unproved alternatives establish nothing.
+        if fold_observed_values
+            && let Some(frames) = frames
+            && let Some(capture) = captured_operand(program, facts, state, call, &actual)
+            && let Some(value) = super::prover::captured_scalar_at_path(
+                program,
+                facts,
+                state,
+                capture.row(),
+                &actual.path,
+                call.statement_index.checked_add(1)?,
+                call.entry_constraints,
+                frames,
+            )
+            && let Some(literal) = observed_literal(value, operand.primitive_type()?)
+        {
+            *operand = literal;
+            return Some(());
+        }
         let captured = captured_value(program, facts, state, call, &actual)?;
         let capture = captured.observation.row();
         let capture_type = captured.observation_type;
