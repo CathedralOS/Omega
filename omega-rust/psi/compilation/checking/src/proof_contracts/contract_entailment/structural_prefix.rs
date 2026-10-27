@@ -5,6 +5,10 @@
 //! statement or a recurrent successor. State Requires describe this invocation;
 //! machine Requires apply here only when this is the machine's entry state.
 
+mod private_arrivals;
+
+pub(super) use private_arrivals::observe_private_arrivals;
+
 use super::citations::{CitationFacts, machine_requires_facts};
 use super::structural_case_arms::{
     recognize_structural_case_arms, recognize_structural_state_prefix,
@@ -149,6 +153,17 @@ pub(super) trait StructuralPrefixVisitor {
     /// visitor that owns a different entry point overrides `visit` and leaves
     /// this unreachable.
     fn observe<'program>(&mut self, observation: PrefixObservation<'_, 'program>);
+
+    /// A closed private invocation supplies an independently checked enclosing
+    /// root and actual entry frame. Consumers own any additional theorem use:
+    /// operand formation does not acquire recursive conclusions from this hook.
+    fn observe_private_arrival<'program>(
+        &mut self,
+        _root: &Machine,
+        observation: PrefixObservation<'_, 'program>,
+    ) {
+        self.observe(observation);
+    }
 
     /// Establish this observation's premises - the arm's hypotheses and
     /// equations, its contradiction test, and the selected call's published

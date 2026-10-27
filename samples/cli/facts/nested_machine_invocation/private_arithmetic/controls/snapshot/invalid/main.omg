@@ -1,0 +1,24 @@
+// Scalar actuals retain their value when a later argument changes the source storage.
+data Cell { value: u64; canary: u64; }
+machine clear(cell: &mut Cell) -> bool ensures cell.value == 0; {
+    cell.value = 0;
+    true
+}
+machine probe(cell: &mut Cell) -> u64 {
+    transition cell.value > 0 {
+        true -> apply(clear(cell), cell.value)
+        false -> 0
+    }
+    machine apply(selected: bool, value: u64) -> u64 {
+        let result: u64 = value - 1;
+        match selected { true -> result, false -> 0 }
+    }
+}
+machine main() crashes Trap {
+    let mut cell: Cell = Cell { value: 7, canary: 17 };
+    let result: u64 = probe(&mut cell);
+    transition result == 6 && cell.value == 0 && cell.canary == 17 {
+        true -> done() false -> bad()
+    }
+    machine done() {} machine bad() crashes Trap { crash Trap; }
+}
