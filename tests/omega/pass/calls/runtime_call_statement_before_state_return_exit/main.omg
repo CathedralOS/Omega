@@ -13,7 +13,7 @@ machine advance(store: &mut Store) -> bool {
         true -> mutate(store)
         false -> (false)
     }
-    state mutate(store: &mut Store) -> bool {
+    machine mutate(store: &mut Store) -> bool {
         Counter::add(&mut store.counters[store.count], 40);
         store.count = store.count + 1;
         true
@@ -26,7 +26,7 @@ machine Main::main(context: &mut Main) reaches Console {
         true -> finish(context, 42)
         false -> finish(context, 1)
     }
-    state finish(context: &mut Main, code: i32) {
+    machine finish(context: &mut Main, code: i32) {
         Console::exit_process(code);
     }
 }

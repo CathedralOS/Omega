@@ -13,21 +13,21 @@ public machine clip(lower: Node, upper: Node, water: f64) -> WetSegment {
         true -> dry(lower.elevation)
         false -> choose_top(lower, upper, water)
     }
-    state dry(elevation: f64) -> WetSegment {
+    machine dry(elevation: f64) -> WetSegment {
         WetSegment { lower: elevation, upper: elevation, lower_width: 0.0, upper_width: 0.0 }
     }
-    state choose_top(lower: Node, upper: Node, water: f64) -> WetSegment {
+    machine choose_top(lower: Node, upper: Node, water: f64) -> WetSegment {
         transition water < upper.elevation {
             true -> partial(lower, upper, water)
             false -> full(lower, upper)
         }
     }
-    state partial(lower: Node, upper: Node, water: f64) -> WetSegment {
+    machine partial(lower: Node, upper: Node, water: f64) -> WetSegment {
         let fraction: f64 = (water - lower.elevation) / (upper.elevation - lower.elevation);
         WetSegment { lower: lower.elevation, upper: water,
             lower_width: lower.width, upper_width: lower.width + fraction * (upper.width - lower.width) }
     }
-    state full(lower: Node, upper: Node) -> WetSegment {
+    machine full(lower: Node, upper: Node) -> WetSegment {
         WetSegment { lower: lower.elevation, upper: upper.elevation,
             lower_width: lower.width, upper_width: upper.width }
     }

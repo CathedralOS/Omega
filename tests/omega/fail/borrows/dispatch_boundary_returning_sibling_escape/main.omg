@@ -3,7 +3,7 @@
 data Node { value: u64; }
 machine choose(node: &mut Node, take: bool) -> &mut Node {
     transition take { true -> (node) false -> invalid() }
-    state invalid() -> &mut Node {
+    machine invalid() -> &mut Node {
         let mut local: Node = Node { value: 71 };
         &mut local
     }

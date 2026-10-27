@@ -32,9 +32,9 @@ machine main() crashes Trap {
     let attached: Ticket in Issued<First> = Factory::issue(&factory, 31);
     let third: u64 = read<First>(attached);
     transition { _ -> finish(observed, other, third) }
-    state finish(observed: u64, other: u64, third: u64) {
+    machine finish(observed: u64, other: u64, third: u64) {
         transition observed == 73 && other == 19 && third == 31 { true -> done() _ -> wrong() }
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

@@ -7,18 +7,18 @@ invokes Console;
     // Runtime recursion is tail-only. Find the highest decimal place, then
     // emit left to right using state backedges and a positive divisor.
     transition { _ -> scale(value, 1) }
-    state scale(value: u64, divisor: u64)
+    machine scale(value: u64, divisor: u64)
     requires divisor > 0 {
         transition divisor <= 1844674407370955161 && value / divisor >= 10 {
             true -> grow(value, divisor)
             false -> digit(value, divisor)
         }
     }
-    state grow(value: u64, divisor: u64)
+    machine grow(value: u64, divisor: u64)
     requires divisor > 0 && divisor <= 1844674407370955161 {
         transition { _ -> scale(value, divisor * 10) }
     }
-    state digit(value: u64, divisor: u64)
+    machine digit(value: u64, divisor: u64)
     requires divisor > 0 {
         Console::write_byte((value / divisor % 10 + 48) as i32);
         transition divisor >= 10 {
@@ -26,11 +26,11 @@ invokes Console;
             false -> done()
         }
     }
-    state remaining(value: u64, divisor: u64)
+    machine remaining(value: u64, divisor: u64)
     requires divisor >= 10 {
         transition { _ -> digit(value % divisor, divisor / 10) }
     }
-    state done() { }
+    machine done() { }
 }
 
 public machine report(linkage: &Linkage) reaches Console

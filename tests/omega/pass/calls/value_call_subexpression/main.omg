@@ -48,7 +48,7 @@ machine Main::main(main: &mut Main) reaches Console {
         false -> bad(main, 71)
     }
 
-    state parenthesized(main: &mut Main) {
+    machine parenthesized(main: &mut Main) {
         let bare: i32 = (twelve());
         transition bare == 12 {
             true -> cast(main)
@@ -56,7 +56,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state cast(main: &mut Main) {
+    machine cast(main: &mut Main) {
         let wide: i64 = twelve() as i64;
         transition wide == 12 {
             true -> compare(main)
@@ -64,7 +64,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state compare(main: &mut Main) {
+    machine compare(main: &mut Main) {
         let equal: bool = twelve() == 12;
         transition equal {
             true -> either_side(main)
@@ -72,7 +72,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state either_side(main: &mut Main) {
+    machine either_side(main: &mut Main) {
         let negated: i32 = 0 - twelve();
         let raised: i32 = 1 + twelve();
         transition negated == -12 && raised == 13 {
@@ -81,7 +81,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state arguments(main: &mut Main) {
+    machine arguments(main: &mut Main) {
         let doubled: i32 = Main::add(main, twelve(), twelve());
         transition doubled == 24 {
             true -> store(main)
@@ -89,7 +89,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state store(main: &mut Main) {
+    machine store(main: &mut Main) {
         main.total = twelve() * 2;
         transition main.total == 24 {
             true -> guard(main)
@@ -97,14 +97,14 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state guard(main: &mut Main) {
+    machine guard(main: &mut Main) {
         transition twelve() + 1 == 13 {
             true -> ordered(main)
             false -> bad(main, 78)
         }
     }
 
-    state ordered(main: &mut Main) {
+    machine ordered(main: &mut Main) {
         let digits: u32 in Wrapping = Main::tick(main) * 10 + Main::tick(main);
         transition digits == 12 && main.ticks == 2 {
             true -> short_circuit(main)
@@ -112,7 +112,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state short_circuit(main: &mut Main) {
+    machine short_circuit(main: &mut Main) {
         let skipped: bool = false && Main::tick(main) == 3;
         transition !skipped && main.ticks == 2 {
             true -> good(main)
@@ -120,8 +120,8 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

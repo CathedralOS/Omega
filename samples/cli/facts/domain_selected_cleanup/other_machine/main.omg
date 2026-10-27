@@ -11,8 +11,8 @@ machine release_keeper<'storage>(keeper: &mut Keeper<'storage>) requires keeper.
 machine observe(keeper: &Keeper) {}
 machine check(output: &Counter) crashes Trap {
     transition output.value == 7 && output.invocations == 1 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine consume(keeper: Keeper) requires keeper.code == 7 {}
 machine forward(keeper: Keeper) requires keeper.code == 7 { consume(keeper); }

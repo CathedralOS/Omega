@@ -20,11 +20,11 @@ machine Main::check(main: &Main, text: &[u8] in Utf8) reaches Console {
         _ -> bad(main)
     }
 
-    state good(main: &Main) {
+    machine good(main: &Main) {
         Console::exit_process(70);
     }
 
-    state bad(main: &Main) {
+    machine bad(main: &Main) {
         Console::exit_process(71);
     }
 }
@@ -39,18 +39,18 @@ machine Main::main(main: &mut Main) reaches Console {
         false -> wrong(main)
     }
 
-    state raw_bytes(main: &mut Main) {
+    machine raw_bytes(main: &mut Main) {
         transition main.raw == "\xff\x00" {
             true -> report(main)
             false -> wrong(main)
         }
     }
 
-    state report(main: &mut Main) {
+    machine report(main: &mut Main) {
         Main::check(main, main.name);
     }
 
-    state wrong(main: &mut Main) {
+    machine wrong(main: &mut Main) {
         Console::exit_process(72);
     }
 }

@@ -27,30 +27,30 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> failed(71)
     }
 
-    state check_sibling(sibling: bool, element: bool, stored: bool) {
+    machine check_sibling(sibling: bool, element: bool, stored: bool) {
         transition sibling {
             true -> failed(72)
             _ -> check_element(element, stored)
         }
     }
 
-    state check_element(element: bool, stored: bool) {
+    machine check_element(element: bool, stored: bool) {
         transition element {
             true -> check_stored(stored)
             _ -> failed(73)
         }
     }
 
-    state check_stored(stored: bool) {
+    machine check_stored(stored: bool) {
         transition stored {
             true -> done()
             _ -> failed(74)
         }
     }
 
-    state done() { Console::exit_process(70); }
+    machine done() { Console::exit_process(70); }
 
-    state failed(code: i32) { Console::exit_process(code); }
+    machine failed(code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

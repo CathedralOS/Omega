@@ -6,13 +6,13 @@ public data Problem [copy] { first: Material; second: Material; conductance: f64
 public data Evolution [copy] { energy: f64; elapsed: f64; success: bool; }
 public machine temperature(material: &Material, enthalpy: f64) -> f64 {
     transition enthalpy < 0.0 { true -> (material.melting + enthalpy / material.capacity) _ -> upper(material, enthalpy) }
-    state upper(material: &Material, enthalpy: f64) -> f64 {
+    machine upper(material: &Material, enthalpy: f64) -> f64 {
         transition enthalpy > material.latent { true -> (material.melting + (enthalpy - material.latent) / material.capacity) _ -> (material.melting) }
     }
 }
 public machine fraction(material: &Material, enthalpy: f64) -> f64 {
     transition enthalpy <= 0.0 { true -> 0.0 _ -> upper(material, enthalpy) }
-    state upper(material: &Material, enthalpy: f64) -> f64 { transition enthalpy >= material.latent { true -> 1.0 _ -> (enthalpy / material.latent) } }
+    machine upper(material: &Material, enthalpy: f64) -> f64 { transition enthalpy >= material.latent { true -> 1.0 _ -> (enthalpy / material.latent) } }
 }
 // At an endpoint the derivative uses the phase entered by the heat flow.
 // Its direction, rather than a tolerance band, disambiguates boundary slopes.
@@ -32,17 +32,17 @@ public machine magnitude(value: f64) -> f64 { transition value < 0.0 { true -> (
 // floating-mode change, fused contraction or relaxed math is requested.
 machine decay(value: f64) -> f64 {
     transition { _ -> reduce(value, 0) }
-    state reduce(value: f64, count: i32) -> f64 {
+    machine reduce(value: f64, count: i32) -> f64 {
         transition value > 0.5 && count >= 0 && count < 32 { true -> reduce(value * 0.5, count + 1) _ -> series(value, count, 1, 1.0, 1.0) }
     }
-    state series(value: f64, count: i32, index: i32, term: f64, sum: f64) -> f64 {
+    machine series(value: f64, count: i32, index: i32, term: f64, sum: f64) -> f64 {
         transition index >= 1 && index < 25 { true -> term(value, count, index, term, sum) _ -> square(sum, count) }
     }
-    state term(value: f64, count: i32, index: i32, term: f64, sum: f64) -> f64 requires index >= 1 && index < 25 {
+    machine term(value: f64, count: i32, index: i32, term: f64, sum: f64) -> f64 requires index >= 1 && index < 25 {
         let next: f64 = term * (-value) / F64::from_i32(index);
         transition { _ -> series(value, count, index + 1, next, sum + next) }
     }
-    state square(value: f64, count: i32) -> f64 {
+    machine square(value: f64, count: i32) -> f64 {
         transition count > 0 && count <= 32 { true -> square(value * value, count - 1) _ -> value }
     }
 }
@@ -51,10 +51,10 @@ machine decay(value: f64) -> f64 {
 machine change(speed: f64, rate: f64, duration: f64) -> f64 {
     let value: f64 = rate * duration;
     transition value < 0.01 { true -> series(speed, duration, value, 1, 1.0, 1.0) _ -> (speed / rate * (1.0 - decay(value))) }
-    state series(speed: f64, duration: f64, value: f64, index: i32, term: f64, sum: f64) -> f64 {
+    machine series(speed: f64, duration: f64, value: f64, index: i32, term: f64, sum: f64) -> f64 {
         transition index >= 1 && index < 12 { true -> term(speed, duration, value, index, term, sum) _ -> (speed * duration * sum) }
     }
-    state term(speed: f64, duration: f64, value: f64, index: i32, term: f64, sum: f64) -> f64 requires index >= 1 && index < 12 {
+    machine term(speed: f64, duration: f64, value: f64, index: i32, term: f64, sum: f64) -> f64 requires index >= 1 && index < 12 {
         let next: f64 = term * (-value) / F64::from_i32(index + 1);
         transition { _ -> series(speed, duration, value, index + 1, next, sum + next) }
     }
@@ -63,8 +63,8 @@ machine change(speed: f64, rate: f64, duration: f64) -> f64 {
 // Only four boundaries exist. Equal current boundaries are already entered.
 machine nearer(current: f64, candidate: f64, best: f64, positive: bool) -> f64 {
     transition positive { true -> forward(current, candidate, best) _ -> backward(current, candidate, best) }
-    state forward(current: f64, candidate: f64, best: f64) -> f64 { transition candidate > current && candidate < best { true -> candidate _ -> best } }
-    state backward(current: f64, candidate: f64, best: f64) -> f64 { transition candidate < current && candidate > best { true -> candidate _ -> best } }
+    machine forward(current: f64, candidate: f64, best: f64) -> f64 { transition candidate > current && candidate < best { true -> candidate _ -> best } }
+    machine backward(current: f64, candidate: f64, best: f64) -> f64 { transition candidate < current && candidate > best { true -> candidate _ -> best } }
 }
 machine boundary(problem: &Problem, energy: f64, positive: bool) -> f64 {
     let far: f64 = match positive { true -> 1000000000.0 _ -> -1000000000.0 };
@@ -75,13 +75,13 @@ machine boundary(problem: &Problem, energy: f64, positive: bool) -> f64 {
 }
 public machine evolve(problem: &Problem, initial_energy: f64, duration: f64) -> Evolution {
     transition { _ -> segment(problem, initial_energy, duration, 0.0, 0) }
-    state segment(problem: &Problem, energy: f64, duration: f64, elapsed: f64, events: i32) -> Evolution {
+    machine segment(problem: &Problem, energy: f64, duration: f64, elapsed: f64, events: i32) -> Evolution {
         transition elapsed >= duration { true -> Evolution { energy: energy, elapsed: elapsed, success: true } _ -> budget(problem, energy, duration, elapsed, events) }
     }
-    state budget(problem: &Problem, energy: f64, duration: f64, elapsed: f64, events: i32) -> Evolution {
+    machine budget(problem: &Problem, energy: f64, duration: f64, elapsed: f64, events: i32) -> Evolution {
         transition events >= 0 && events < 16 { true -> solve(problem, energy, duration, elapsed, events) _ -> Evolution { energy: energy, elapsed: elapsed, success: false } }
     }
-    state solve(problem: &Problem, energy: f64, duration: f64, elapsed: f64, events: i32) -> Evolution {
+    machine solve(problem: &Problem, energy: f64, duration: f64, elapsed: f64, events: i32) -> Evolution {
         let first: f64 = problem.first.initial - energy / problem.first.mass;
         let second: f64 = problem.second.initial + energy / problem.second.mass;
         let speed: f64 = problem.conductance * (temperature(&problem.first, first) - temperature(&problem.second, second));
@@ -96,10 +96,10 @@ public machine evolve(problem: &Problem, initial_energy: f64, duration: f64) -> 
     }
     // Monotone affine flow permits a bounded bisection of the event time.
     // Boundary energy is installed exactly; at most four events are crossed.
-    state locate(problem: &Problem, energy: f64, duration: f64, elapsed: f64, events: i32, speed: f64, rate: f64, endpoint: f64, low: f64, high: f64, iteration: i32) -> Evolution {
+    machine locate(problem: &Problem, energy: f64, duration: f64, elapsed: f64, events: i32, speed: f64, rate: f64, endpoint: f64, low: f64, high: f64, iteration: i32) -> Evolution {
         transition iteration >= 0 && iteration < 60 { true -> bisect(problem, energy, duration, elapsed, events, speed, rate, endpoint, low, high, iteration) _ -> arrived(problem, endpoint, duration, elapsed, events, low, high) }
     }
-    state bisect(problem: &Problem, energy: f64, duration: f64, elapsed: f64, events: i32, speed: f64, rate: f64, endpoint: f64, low: f64, high: f64, iteration: i32) -> Evolution requires iteration >= 0 && iteration < 60 {
+    machine bisect(problem: &Problem, energy: f64, duration: f64, elapsed: f64, events: i32, speed: f64, rate: f64, endpoint: f64, low: f64, high: f64, iteration: i32) -> Evolution requires iteration >= 0 && iteration < 60 {
         let middle: f64 = (low + high) * 0.5;
         let distance: f64 = change(speed, rate, middle);
         transition magnitude(distance) < magnitude(endpoint - energy) {
@@ -107,7 +107,7 @@ public machine evolve(problem: &Problem, initial_energy: f64, duration: f64) -> 
             _ -> locate(problem, energy, duration, elapsed, events, speed, rate, endpoint, low, middle, iteration + 1)
         }
     }
-    state arrived(problem: &Problem, endpoint: f64, duration: f64, elapsed: f64, events: i32, low: f64, high: f64) -> Evolution {
+    machine arrived(problem: &Problem, endpoint: f64, duration: f64, elapsed: f64, events: i32, low: f64, high: f64) -> Evolution {
         let next: f64 = elapsed + (low + high) * 0.5;
         transition next > elapsed && events >= 0 && events < 16 { true -> segment(problem, endpoint, duration, next, events + 1) _ -> Evolution { energy: endpoint, elapsed: next, success: false } }
     }

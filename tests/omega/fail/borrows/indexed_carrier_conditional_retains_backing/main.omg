@@ -7,11 +7,11 @@ requires slots.len == 2 {
         true -> write(slots, replacement)
         false -> done()
     }
-    state write(slots: &'carrier mut [Held<'input>], replacement: &'input Cell)
+    machine write(slots: &'carrier mut [Held<'input>], replacement: &'input Cell)
     requires slots.len == 2 {
         slots[0].target = replacement;
     }
-    state done() {}
+    machine done() {}
 }
 
 machine selected(choice: bool) -> u32 {

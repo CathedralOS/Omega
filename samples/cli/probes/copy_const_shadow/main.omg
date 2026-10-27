@@ -47,5 +47,5 @@ machine copy_const_shadow() {
         _ -> done(71)
     }
 
-    state done(code: i32) {}
+    machine done(code: i32) {}
 }

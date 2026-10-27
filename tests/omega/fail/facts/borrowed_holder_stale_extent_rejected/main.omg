@@ -16,6 +16,6 @@ machine main() crashes Trap {
     let second: bool = observe(&mut shelf);
     let observed: bool = first && second && backing[0] == 19;
     transition observed { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

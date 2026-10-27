@@ -10,11 +10,11 @@ machine print_integer(value: i64) reaches Console {
         true -> negative(value)
         false -> scan(value, 1000000000000000000, false)
     }
-    state negative(value: i64) {
+    machine negative(value: i64) {
         Console::write("-");
         transition { _ -> scan(value, 1000000000000000000, false) }
     }
-    state scan(value: i64, divisor: i64, started: bool)
+    machine scan(value: i64, divisor: i64, started: bool)
     requires divisor >= 1 requires divisor <= 1000000000000000000 {
         let remainder: i64 = (value / divisor) % 10;
         transition remainder != 0 || started || divisor == 1 {
@@ -22,7 +22,7 @@ machine print_integer(value: i64) reaches Console {
             false -> advance(value, divisor, false)
         }
     }
-    state digit(value: i64, divisor: i64, remainder: i64)
+    machine digit(value: i64, divisor: i64, remainder: i64)
     requires divisor >= 1 requires divisor <= 1000000000000000000
     requires remainder >= -9 requires remainder <= 9 {
         transition remainder < 0 {
@@ -30,26 +30,26 @@ machine print_integer(value: i64) reaches Console {
             false -> unsigned_digit(value, divisor, remainder)
         }
     }
-    state signed_digit(value: i64, divisor: i64, remainder: i64)
+    machine signed_digit(value: i64, divisor: i64, remainder: i64)
     requires divisor >= 1 requires divisor <= 1000000000000000000
     requires remainder >= -9 requires remainder < 0 {
         Console::write_byte((48 - remainder) as i32);
         transition { _ -> advance(value, divisor, true) }
     }
-    state unsigned_digit(value: i64, divisor: i64, remainder: i64)
+    machine unsigned_digit(value: i64, divisor: i64, remainder: i64)
     requires divisor >= 1 requires divisor <= 1000000000000000000
     requires remainder >= 0 requires remainder <= 9 {
         Console::write_byte((48 + remainder) as i32);
         transition { _ -> advance(value, divisor, true) }
     }
-    state advance(value: i64, divisor: i64, started: bool)
+    machine advance(value: i64, divisor: i64, started: bool)
     requires divisor >= 1 requires divisor <= 1000000000000000000 {
         transition divisor >= 10 {
             true -> scan(value, divisor / 10, started)
             false -> finished()
         }
     }
-    state finished() { }
+    machine finished() { }
 }
 machine print_number(value: f64) reaches Console {
     let integer: i64 in Saturating = I64::from_f64(value * 1000000000000.0);

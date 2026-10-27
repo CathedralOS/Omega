@@ -23,6 +23,6 @@ machine main() crashes Trap {
     let counted: u32 = span(&bag.items);
     let held: Held = Held { count: counted };
     transition held.count == 3 && counted == 3 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

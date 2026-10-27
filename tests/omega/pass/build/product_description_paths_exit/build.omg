@@ -22,13 +22,13 @@ machine build(builder: &mut Build) {
 
 machine choose(builder: &mut Build, correct: bool) {
     transition correct { true -> good(builder) _ -> bad(builder) }
-    state good(builder: &mut Build) {
+    machine good(builder: &mut Build) {
         Build::bind(builder, macos_arm64::ProgramEntry, main);
         Build::bind(builder, linux_arm64::ProgramEntry, main);
         Build::bind(builder, linux_x86_64::ProgramEntry, main);
         Build::bind(builder, windows_x86_64::ProgramEntry, main);
     }
-    state bad(builder: &mut Build) {
+    machine bad(builder: &mut Build) {
         // Fail during Build, before root-binding discovery can produce a product.
         _ = BuildProduct::entry(&builder.product, "incorrect_description_path", "macos_arm64::ProgramEntry");
     }

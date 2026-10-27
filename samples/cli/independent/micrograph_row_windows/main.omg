@@ -27,7 +27,7 @@ machine main() crashes Trap {
     image.labels[2] = 3;
     image.labels[3] = 4;
     transition { _ -> paint(&mut image) }
-    state paint(image: &mut Image) {
+    machine paint(image: &mut Image) {
         write_pair(half(image, 0));
         let view: &mut [i32] = half(image, 0);
         let held: Held = Held { values: view };
@@ -37,6 +37,6 @@ machine main() crashes Trap {
             false -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -6,7 +6,7 @@ requires narrow >= 300u16 && narrow <= 501u16
 {
     let wide: u64 = narrow as u64;
     transition { _ -> step(wide) }
-    state step(w: u64) -> i32 requires w >= 300u64 && w <= 501u64 {
+    machine step(w: u64) -> i32 requires w >= 300u64 && w <= 501u64 {
         let diff1: u64 = 500u64 - w;
         let diff2: u64 = w - 300u64;
         transition diff1 == 100u64 && diff2 == 100u64 {
@@ -22,6 +22,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

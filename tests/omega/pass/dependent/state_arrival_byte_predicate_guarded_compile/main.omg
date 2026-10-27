@@ -21,11 +21,11 @@ machine Main::main(main: &mut Main) {
         true -> checked(main, view)
         false -> bad()
     }
-    state checked(main: &mut Main, view: &[u8])
+    machine checked(main: &mut Main, view: &[u8])
     requires
         valid_utf8(view)
     {
         main.result = view.len;
     }
-    state bad() { }
+    machine bad() { }
 }

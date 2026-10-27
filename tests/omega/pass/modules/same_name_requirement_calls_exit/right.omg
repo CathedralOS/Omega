@@ -23,7 +23,7 @@ invokes Console;
 {
     Sink::emit(82);
     transition { _ -> deliver(runner, 70) }
-    state deliver(runner: &mut Runner, code: i32) {
+    machine deliver(runner: &mut Runner, code: i32) {
         Sink::emit(10);
         Console::exit_process(code);
     }

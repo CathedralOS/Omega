@@ -141,6 +141,7 @@ pub(crate) use numeric_observations::{
     CapturedScalarObservation, NumericObservationDemand, captured_numeric_observations,
 };
 pub(crate) use proof_edges::proof_edge_strict_decrease_judged;
+pub(crate) use proof_edges::proof_interval_strict_decrease_judged;
 pub(crate) use proof_integer::mathematical_integer_operands;
 
 pub(crate) use proof_integer::{

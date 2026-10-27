@@ -27,11 +27,11 @@ machine exercise(base: u8) -> u8 crashes Trap {
         true -> step(combined)
         _ -> bad()
     }
-    state step(c: u8) -> u8 {
+    machine step(c: u8) -> u8 {
         let relayed: u8 = Relay::forward(c);
         verify_combined(relayed)
     }
-    state bad() { crash Trap; }
+    machine bad() -> u8 { crash Trap; }
 }
 
 machine main() crashes Trap {
@@ -40,6 +40,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

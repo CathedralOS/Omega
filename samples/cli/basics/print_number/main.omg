@@ -49,14 +49,14 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> step(main)
     }
 
-    state step(main: &mut Main) {
+    machine step(main: &mut Main) {
         transition main.i < 5 {
             true -> add(main)
             _ -> render(main)
         }
     }
 
-    state add(main: &mut Main) {
+    machine add(main: &mut Main) {
         main.elem = main.nums[main.i];
         main.sum = main.sum + main.elem;
         main.i = main.i + 1;
@@ -74,14 +74,14 @@ machine Main::main(main: &mut Main) reaches Console {
     // domain `requires valid_utf8(bytes)` cannot re-establish that domain, so each
     // write is dominated by a guard proving the byte is ASCII. A literal write
     // (`main.out[0] = 49`) needs no guard -- the literal proves itself.
-    state render(main: &mut Main) {
+    machine render(main: &mut Main) {
         main.out = "000";
         main.digit = main.sum / 100;
         main.digit = main.digit + 48;
         main.ch = narrow_i32_to_u8_trapping(main.digit as i32);
         transition main.ch < 128 { true -> hundreds(main) _ -> bad(main) }
     }
-    state hundreds(main: &mut Main) {
+    machine hundreds(main: &mut Main) {
         main.out[0] = main.ch;
         main.digit = main.sum / 10;
         main.digit = main.digit % 10;
@@ -89,14 +89,14 @@ machine Main::main(main: &mut Main) reaches Console {
         main.ch = narrow_i32_to_u8_trapping(main.digit as i32);
         transition main.ch < 128 { true -> tens(main) _ -> bad(main) }
     }
-    state tens(main: &mut Main) {
+    machine tens(main: &mut Main) {
         main.out[1] = main.ch;
         main.digit = main.sum % 10;
         main.digit = main.digit + 48;
         main.ch = narrow_i32_to_u8_trapping(main.digit as i32);
         transition main.ch < 128 { true -> ones(main) _ -> bad(main) }
     }
-    state ones(main: &mut Main) {
+    machine ones(main: &mut Main) {
         main.out[2] = main.ch;
         Console::write_line(main.out);
         Console::write_line("PASS: the sum 150 printed above (exit 0)");
@@ -104,7 +104,7 @@ machine Main::main(main: &mut Main) reaches Console {
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(0);
     }
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::write_line("FAIL: a computed digit char left ASCII (exit 1)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);

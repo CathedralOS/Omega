@@ -13,6 +13,6 @@ machine main() crashes Trap {
     let saved: i64 in Nonnegative = choose(true, existing);
     let fresh: i64 in Nonnegative = choose(false, existing);
     transition saved == 17 && fresh == 17 { true -> done() _ -> wrong() }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

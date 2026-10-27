@@ -20,25 +20,25 @@ machine Main::main(main: &mut Main) reaches Console {
     main.idx = 0;
     main.jdx = 1;
     transition (main.idx < 3) && (main.jdx < 3) { true -> go(main.idx, main.jdx, main) _ -> bad(main) }
-    state go(i: u64, j: u64, main: &mut Main) requires i <= 2, j <= 2 {
+    machine go(i: u64, j: u64, main: &mut Main) requires i <= 2, j <= 2 {
         transition (main.sarr[i] + main.sarr[1] == 255) { true -> ordered(main, i, j) _ -> bad_eq(main) }
     }
-    state ordered(main: &mut Main, i: u64, j: u64) requires i <= 2, j <= 2 {
+    machine ordered(main: &mut Main, i: u64, j: u64) requires i <= 2, j <= 2 {
         // Bounded params forward range-preservingly (per-state env facts
         // cannot re-prove main.idx here; the param chain carries the proof).
         transition (main.sarr[i] + main.sarr[1] <= 255) { true -> both_runtime(main, i, j) _ -> bad_ord(main) }
     }
-    state both_runtime(main: &mut Main, i: u64, j: u64) requires i <= 2, j <= 2 {
+    machine both_runtime(main: &mut Main, i: u64, j: u64) requires i <= 2, j <= 2 {
         // BOTH operands runtime-indexed: no const-indexed sibling exists for
         // the `.or()` witness fallback to lean on -- each side must resolve
         // its element domain independently through the data-field path.
         transition (main.sarr[i] + main.sarr[j] == 255) { true -> good(main) _ -> bad_both(main) }
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main) { Console::exit_process(71); }
-    state bad_eq(main: &mut Main) { Console::exit_process(72); }
-    state bad_ord(main: &mut Main) { Console::exit_process(73); }
-    state bad_both(main: &mut Main) { Console::exit_process(74); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(71); }
+    machine bad_eq(main: &mut Main) { Console::exit_process(72); }
+    machine bad_ord(main: &mut Main) { Console::exit_process(73); }
+    machine bad_both(main: &mut Main) { Console::exit_process(74); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

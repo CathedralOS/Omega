@@ -5,6 +5,6 @@ machine main() crashes Trap {
  let value: i32 in Wrapping = 7;
  let result: i32 = keep(23, &value);
  transition result == 23 { true -> good() false -> bad() }
- state good() {}
- state bad() { crash Trap; }
+ machine good() {}
+ machine bad() { crash Trap; }
 }

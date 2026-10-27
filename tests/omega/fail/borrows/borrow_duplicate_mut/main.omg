@@ -8,7 +8,7 @@ machine Main::main(main: &mut Main) -> i32 {
     }
     
 
-    state swap(left: &mut i32, right: &mut i32) {
+    machine swap(left: &mut i32, right: &mut i32) -> i32 {
         left = right;
 
         transition {
@@ -16,7 +16,7 @@ machine Main::main(main: &mut Main) -> i32 {
         }
     }
 
-    state shutdown() {
+    machine shutdown() -> i32 {
         0
     }
 }

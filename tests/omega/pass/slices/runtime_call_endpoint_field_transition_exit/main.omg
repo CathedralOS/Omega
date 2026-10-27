@@ -11,7 +11,7 @@ machine Window::count(window: &Window, limit: u64) -> u64
 requires limit <= 3
 {
     transition { _ -> observed(&window.values[..Window::endpoint(limit)]) }
-    state observed(view: &[u8]) -> u64 { view.len }
+    machine observed(view: &[u8]) -> u64 { view.len }
 }
 
 data Main {
@@ -24,8 +24,8 @@ machine Main::main(context: &mut Main) reaches Console {
         true -> good(context)
         false -> bad(context)
     }
-    state good(context: &mut Main) { Console::exit_process(70); }
-    state bad(context: &mut Main) { Console::exit_process(71); }
+    machine good(context: &mut Main) { Console::exit_process(70); }
+    machine bad(context: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

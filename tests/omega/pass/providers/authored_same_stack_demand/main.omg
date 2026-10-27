@@ -38,7 +38,7 @@ machine Main::main(main: &mut Main) reaches TextOutput invokes TextOutput; {
     let carried: addr = protocol_of(main);
     TextOutput::output_string(carried);
     transition { _ -> other(main) }
-    state other(main: &mut Main) {
+    machine other(main: &mut Main) {
         TextOutput::query(main.services);
     }
 }

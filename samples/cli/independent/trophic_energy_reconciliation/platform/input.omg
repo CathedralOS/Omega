@@ -8,7 +8,7 @@ blocks;
 crashes Trap
 {
     transition { _ -> scan(0, false, 0) }
-    state scan(accumulated: i32 in Saturating, seen: bool, digits: u64) -> i32 in Saturating {
+    machine scan(accumulated: i32 in Saturating, seen: bool, digits: u64) -> i32 in Saturating {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
             ByteRead::Eof -> finish(accumulated, seen)
@@ -16,25 +16,25 @@ crashes Trap
             _ -> (-1)
         }
     }
-    state classify(accumulated: i32 in Saturating, seen: bool, digits: u64, byte: i32) -> i32 in Saturating {
+    machine classify(accumulated: i32 in Saturating, seen: bool, digits: u64, byte: i32) -> i32 in Saturating {
         transition byte == 32 || byte == 10 {
             true -> separator(accumulated, seen, digits)
             false -> digit(accumulated, digits, byte)
         }
     }
-    state separator(accumulated: i32 in Saturating, seen: bool, digits: u64) -> i32 in Saturating {
+    machine separator(accumulated: i32 in Saturating, seen: bool, digits: u64) -> i32 in Saturating {
         transition seen {
             true -> (accumulated)
             false -> scan(accumulated, seen, digits)
         }
     }
-    state digit(accumulated: i32 in Saturating, digits: u64, byte: i32) -> i32 in Saturating {
+    machine digit(accumulated: i32 in Saturating, digits: u64, byte: i32) -> i32 in Saturating {
         transition byte >= 48 && byte <= 57 && digits < 4 {
             true -> accumulate(accumulated, digits, byte)
             false -> (-1)
         }
     }
-    state accumulate(accumulated: i32 in Saturating, digits: u64, byte: i32) -> i32 in Saturating
+    machine accumulate(accumulated: i32 in Saturating, digits: u64, byte: i32) -> i32 in Saturating
     requires digits < 4 {
         let next: i32 in Saturating = accumulated * 10 + (byte as i32 in Saturating) - 48;
         transition next <= 1000 {
@@ -42,7 +42,7 @@ crashes Trap
             false -> (-1)
         }
     }
-    state finish(accumulated: i32 in Saturating, seen: bool) -> i32 in Saturating {
+    machine finish(accumulated: i32 in Saturating, seen: bool) -> i32 in Saturating {
         transition seen { true -> (accumulated) false -> (-1) }
     }
 }
@@ -58,13 +58,13 @@ crashes Trap
         ByteRead::Byte { value } -> separator(value)
         _ -> (false)
     }
-    state separator(value: i32) -> bool {
+    machine separator(value: i32) -> bool {
         transition value == 32 || value == 10 {
             true -> again()
             false -> (false)
         }
     }
-    state again() -> bool {
+    machine again() -> bool {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
             ByteRead::Eof -> (true)

@@ -36,7 +36,7 @@ reaches Console + FilesystemNamespaceMutation + FilesystemMetadataMutation + Fil
     let target: [u16; 64] in FixtureTarget = relative_target();
     let created: u8 = block FixtureSymlink::create(&link, &target, 2);
     transition created != 0 { true -> relative(main) false -> finish(main, 71) }
-    state relative(main: &mut Main) {
+    machine relative(main: &mut Main) {
         main.buffer[12] = 176;
         main.buffer[63] = 175;
         let count: i64 = block WindowsFilesystemHost::read_link("omega_raw_readlink", &mut main.buffer, 64);
@@ -48,7 +48,7 @@ reaches Console + FilesystemNamespaceMutation + FilesystemMetadataMutation + Fil
             false -> finish(main, 72)
         }
     }
-    state prefix(main: &mut Main) {
+    machine prefix(main: &mut Main) {
         main.buffer[0] = 173;
         main.buffer[10] = 177;
         let count: i64 = block WindowsFilesystemHost::read_link("omega_raw_readlink", &mut main.buffer, 10);
@@ -58,7 +58,7 @@ reaches Console + FilesystemNamespaceMutation + FilesystemMetadataMutation + Fil
             false -> finish(main, 73)
         }
     }
-    state arguments(main: &mut Main) {
+    machine arguments(main: &mut Main) {
         main.buffer[0] = 178;
         let zero: i64 = block WindowsFilesystemHost::read_link("omega_raw_readlink", &mut main.buffer, 0);
         let missing_zero: i64 = block WindowsFilesystemHost::read_link("omega_raw_readlink_missing", &mut main.buffer, 0);
@@ -68,16 +68,16 @@ reaches Console + FilesystemNamespaceMutation + FilesystemMetadataMutation + Fil
             false -> finish(main, 74)
         }
     }
-    state missing(main: &mut Main) {
+    machine missing(main: &mut Main) {
         let count: i64 = block WindowsFilesystemHost::read_link("omega_raw_readlink_missing", &mut main.buffer, 64);
         transition count < 0 && main.buffer[0] == 178 { true -> plain(main) false -> finish(main, 75) }
     }
-    state plain(main: &mut Main) {
+    machine plain(main: &mut Main) {
         let stale: i32 = block WindowsFilesystemHost::remove_directory("omega_raw_readlink_plain");
         let created: i32 = block WindowsFilesystemHost::create_directory("omega_raw_readlink_plain");
         transition created == 0 { true -> refuse_plain(main) false -> finish(main, 76) }
     }
-    state refuse_plain(main: &mut Main) {
+    machine refuse_plain(main: &mut Main) {
         let count: i64 = block WindowsFilesystemHost::read_link("omega_raw_readlink_plain", &mut main.buffer, 64);
         let zero: i64 = block WindowsFilesystemHost::read_link("omega_raw_readlink_plain", &mut main.buffer, 0);
         let removed: i32 = block WindowsFilesystemHost::remove_directory("omega_raw_readlink_plain");
@@ -86,14 +86,14 @@ reaches Console + FilesystemNamespaceMutation + FilesystemMetadataMutation + Fil
             false -> finish(main, 77)
         }
     }
-    state absolute_link(main: &mut Main) {
+    machine absolute_link(main: &mut Main) {
         let removed: i32 = block WindowsFilesystemHost::delete_file("omega_raw_readlink");
         let link: [u16; 19] in FixtureLink = fixture_link();
         let target: [u16; 64] in FixtureTarget = absolute_target();
         let created: u8 = block FixtureSymlink::create(&link, &target, 2);
         transition removed == 0 && created != 0 { true -> absolute(main) false -> finish(main, 78) }
     }
-    state absolute(main: &mut Main) {
+    machine absolute(main: &mut Main) {
         main.buffer[20] = 179;
         let count: i64 = block WindowsFilesystemHost::read_link("omega_raw_readlink", &mut main.buffer, 64);
         transition count == 20 && main.buffer[0] == 92 && main.buffer[1] == 92
@@ -104,29 +104,29 @@ reaches Console + FilesystemNamespaceMutation + FilesystemMetadataMutation + Fil
             false -> finish(main, 79)
         }
     }
-    state malformed_link(main: &mut Main) {
+    machine malformed_link(main: &mut Main) {
         let removed: i32 = block WindowsFilesystemHost::delete_file("omega_raw_readlink");
         let link: [u16; 19] in FixtureLink = fixture_link();
         let target: [u16; 64] in FixtureTarget = malformed_target();
         let created: u8 = block FixtureSymlink::create(&link, &target, 2);
         transition removed == 0 && created != 0 { true -> malformed(main) false -> finish(main, 80) }
     }
-    state malformed(main: &mut Main) {
+    machine malformed(main: &mut Main) {
         main.buffer[0] = 180;
         // The invalid surrogate lies beyond the requested one-byte prefix.
         // Copying a prefix before validating the whole target would pass it.
         let count: i64 = block WindowsFilesystemHost::read_link("omega_raw_readlink", &mut main.buffer, 1);
         transition count == -1113 && main.buffer[0] == 180 { true -> finish(main, 70) false -> finish(main, 81) }
     }
-    state finish(main: &mut Main, code: i32) {
+    machine finish(main: &mut Main, code: i32) {
         let removed: i32 = block WindowsFilesystemHost::delete_file("omega_raw_readlink");
         let plain: i32 = block WindowsFilesystemHost::remove_directory("omega_raw_readlink_plain");
         transition code != 70 { true -> done(code) false -> cleanup(removed) }
     }
-    state cleanup(removed: i32) {
+    machine cleanup(removed: i32) {
         transition removed == 0 { true -> done(70) false -> done(82) }
     }
-    state done(code: i32) { Console::exit_process(code); }
+    machine done(code: i32) { Console::exit_process(code); }
 }
 
 machine fixture_link() -> [u16; 19] in FixtureLink {

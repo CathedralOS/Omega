@@ -15,7 +15,7 @@ machine compute_other_state(lhs: i32, rhs: i32) -> i32
 {
     let diff: i32 = lhs - rhs;
     transition { _ -> step(diff) }
-    state step(d: i32) -> i32 {
+    machine step(d: i32) -> i32 {
         verify_diff(d)
     }
 }
@@ -30,6 +30,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

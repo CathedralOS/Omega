@@ -24,12 +24,12 @@ public linux_x86_64 machine SinkProvider::provider_defaults(defaults: &mut SinkP
 
 public macos_arm64 machine SinkProvider::take(name: [u8; 7]) -> u64 satisfies Sink::take {
     transition { _ -> ret() }
-    state ret() -> u64 { 7 }
+    machine ret() -> u64 { 7 }
 }
 
 public linux_x86_64 machine SinkProvider::take(name: [u8; 7]) -> u64 satisfies Sink::take {
     transition { _ -> ret() }
-    state ret() -> u64 { 7 }
+    machine ret() -> u64 { 7 }
 }
 
 data Main {

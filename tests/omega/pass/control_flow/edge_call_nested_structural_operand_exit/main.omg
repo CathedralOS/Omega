@@ -24,16 +24,16 @@ machine Main::main(context: &mut Main) reaches Console {
     context.total = 0;
     transition { _ -> literal(context) }
 
-    state literal(context: &mut Main) {
+    machine literal(context: &mut Main) {
         transition { _ -> take(Main::shift(&mut context.counter, Pair { a: 1, b: 2 }, 10), context) }
     }
 
-    state take(pair: Pair, context: &mut Main) {
+    machine take(pair: Pair, context: &mut Main) {
         context.total = context.total + pair.a + pair.b;
         transition { _ -> finish((context.total + context.counter.calls) as i32, context) }
     }
 
-    state finish(code: i32, context: &mut Main) {
+    machine finish(code: i32, context: &mut Main) {
         Console::exit_process(code);
     }
 }

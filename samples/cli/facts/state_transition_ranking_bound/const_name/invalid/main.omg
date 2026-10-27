@@ -12,7 +12,7 @@ ensures result <= 61
         false -> step(current)
     }
 
-    state step(c: u64) -> u64
+    machine step(c: u64) -> u64
     requires c <= 100 && c > 61
     {
         let next: u64 = c - 10;
@@ -22,7 +22,7 @@ ensures result <= 61
         }
     }
 
-    state done(rem: u64) -> u64
+    machine done(rem: u64) -> u64
     requires rem <= 61
     {
         rem
@@ -42,6 +42,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

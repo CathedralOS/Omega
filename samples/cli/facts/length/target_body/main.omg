@@ -25,6 +25,6 @@ machine main() crashes Trap {
     let items: [u8; 4] = [4, 7, 8, 9];
     let window: &[u8] = &items[0..3];
     transition read_at(window, window.len) == 8 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

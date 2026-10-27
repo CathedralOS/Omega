@@ -11,14 +11,14 @@ machine Inventory::bump(inventory: Inventory) -> Inventory {
         true -> increment(inventory)
         false -> preserve(inventory)
     }
-    state increment(inventory: Inventory) -> Inventory {
+    machine increment(inventory: Inventory) -> Inventory {
         let marker: i32 = inventory.marker;
         let counter: Counter = inventory.counter;
         let slots: i32 = counter.slots;
         drop(counter);
         Inventory { marker: marker, counter: Counter { slots: ((slots as i32 in Wrapping) + 1) as i32 } }
     }
-    state preserve(inventory: Inventory) -> Inventory { inventory }
+    machine preserve(inventory: Inventory) -> Inventory { inventory }
 }
 
 machine apply(holder: &mut Holder) -> i32 {
@@ -41,7 +41,7 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, 42)
         false -> finish(main, 1)
     }
-    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -23,14 +23,14 @@ machine leading(text: &TextBuffer) -> Leading crashes Trap {
         _ -> inspect(text)
     }
 
-    state inspect(text: &TextBuffer) -> Leading {
+    machine inspect(text: &TextBuffer) -> Leading {
         transition 0 < text.used {
             true -> read(text)
             _ -> (Leading::Empty)
         }
     }
 
-    state read(text: &TextBuffer) -> Leading {
+    machine read(text: &TextBuffer) -> Leading {
         let byte: u8 = text.storage[0];
         transition {
             _ -> (Leading::Byte { value: byte as u64 })
@@ -47,14 +47,14 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
         Leading::Empty -> finish(71)
     }
 
-    state check(value: u64) {
+    machine check(value: u64) {
         transition value == 79 {
             true -> finish(70)
             _ -> finish(72)
         }
     }
 
-    state finish(code: i32) {
+    machine finish(code: i32) {
         Console::exit_process(code);
     }
 }
@@ -69,8 +69,8 @@ machine TextBuffer::view(buffer: &TextBuffer) -> &[u8] in Utf8 crashes Trap {
         true -> checked(bytes)
         false -> bad()
     }
-    state checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
-    state bad() { crash Trap; }
+    machine checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
+    machine bad() -> &[u8] in Utf8 { crash Trap; }
 }
 machine TextBuffer::equal(buffer: &TextBuffer, expected: &[u8]) -> bool crashes Trap {
     let bytes: &[u8] in Utf8 = TextBuffer::view(buffer);

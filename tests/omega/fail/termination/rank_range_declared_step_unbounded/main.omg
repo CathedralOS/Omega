@@ -6,7 +6,7 @@ requires remaining <= 9;
 terminates by remaining in 0..=9;
 -> u32 {
     transition { _ -> pair(remaining, remaining, stride) }
-    state pair(live: u32, saved: u32, step: u32)
+    machine pair(live: u32, saved: u32, step: u32) -> u32
     requires live <= 9 && saved <= 9;
     {
         transition live >= step {

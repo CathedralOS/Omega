@@ -8,6 +8,6 @@ machine main() crashes Trap {
     let mut index: u64 = 0;
     bump(&mut rooms[index], switch(&mut index));
     transition rooms[0].exit_count == 1 && rooms[1].exit_count == 10 && index == 1 { true -> done() false -> wrong() }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

@@ -7,28 +7,28 @@ windows_x86_64 machine target_exercise() -> bool crashes Trap {
         ActivationClaimAttempt::Established { claim } -> divide(claim)
         ActivationClaimAttempt::Rejected -> (false)
     }
-    state divide(claim: ActivationClaim) -> bool {
+    machine divide(claim: ActivationClaim) -> bool {
         transition ActivationClaim::split<16>(claim, 4) {
             ActivationClaimSplit::Covered { lower, upper } -> merge_children(lower, upper)
             ActivationClaimSplit::Rejected { claim } -> return_rejected(claim)
         }
     }
-    state return_rejected(claim: ActivationClaim) -> bool {
+    machine return_rejected(claim: ActivationClaim) -> bool {
         ActivationClaim::release(claim);
         false
     }
-    state merge_children(lower: ActivationClaim, upper: ActivationClaim) -> bool {
+    machine merge_children(lower: ActivationClaim, upper: ActivationClaim) -> bool {
         transition ActivationClaim::merge(lower, upper) {
             ActivationClaimMerge::Covered { claim } -> restored(claim)
             ActivationClaimMerge::Rejected { lower, upper } -> merge_rejected(lower, upper)
         }
     }
-    state merge_rejected(lower: ActivationClaim, upper: ActivationClaim) -> bool {
+    machine merge_rejected(lower: ActivationClaim, upper: ActivationClaim) -> bool {
         ActivationClaim::release(upper);
         ActivationClaim::release(lower);
         false
     }
-    state restored(claim: ActivationClaim) -> bool {
+    machine restored(claim: ActivationClaim) -> bool {
         ActivationClaim::release(claim);
         true
     }
@@ -39,28 +39,28 @@ linux_x86_64 machine target_exercise() -> bool crashes Trap {
         ActivationClaimAttempt::Established { claim } -> divide(claim)
         ActivationClaimAttempt::Rejected -> (false)
     }
-    state divide(claim: ActivationClaim) -> bool {
+    machine divide(claim: ActivationClaim) -> bool {
         transition ActivationClaim::split<16>(claim, 4) {
             ActivationClaimSplit::Covered { lower, upper } -> merge_children(lower, upper)
             ActivationClaimSplit::Rejected { claim } -> return_rejected(claim)
         }
     }
-    state return_rejected(claim: ActivationClaim) -> bool {
+    machine return_rejected(claim: ActivationClaim) -> bool {
         ActivationClaim::release(claim);
         false
     }
-    state merge_children(lower: ActivationClaim, upper: ActivationClaim) -> bool {
+    machine merge_children(lower: ActivationClaim, upper: ActivationClaim) -> bool {
         transition ActivationClaim::merge(lower, upper) {
             ActivationClaimMerge::Covered { claim } -> restored(claim)
             ActivationClaimMerge::Rejected { lower, upper } -> merge_rejected(lower, upper)
         }
     }
-    state merge_rejected(lower: ActivationClaim, upper: ActivationClaim) -> bool {
+    machine merge_rejected(lower: ActivationClaim, upper: ActivationClaim) -> bool {
         ActivationClaim::release(upper);
         ActivationClaim::release(lower);
         false
     }
-    state restored(claim: ActivationClaim) -> bool {
+    machine restored(claim: ActivationClaim) -> bool {
         ActivationClaim::release(claim);
         true
     }
@@ -71,28 +71,28 @@ macos_arm64 machine target_exercise() -> bool crashes Trap {
         ActivationClaimAttempt::Established { claim } -> divide(claim)
         ActivationClaimAttempt::Rejected -> (false)
     }
-    state divide(claim: ActivationClaim) -> bool {
+    machine divide(claim: ActivationClaim) -> bool {
         transition ActivationClaim::split<16>(claim, 4) {
             ActivationClaimSplit::Covered { lower, upper } -> merge_children(lower, upper)
             ActivationClaimSplit::Rejected { claim } -> return_rejected(claim)
         }
     }
-    state return_rejected(claim: ActivationClaim) -> bool {
+    machine return_rejected(claim: ActivationClaim) -> bool {
         ActivationClaim::release(claim);
         false
     }
-    state merge_children(lower: ActivationClaim, upper: ActivationClaim) -> bool {
+    machine merge_children(lower: ActivationClaim, upper: ActivationClaim) -> bool {
         transition ActivationClaim::merge(lower, upper) {
             ActivationClaimMerge::Covered { claim } -> restored(claim)
             ActivationClaimMerge::Rejected { lower, upper } -> merge_rejected(lower, upper)
         }
     }
-    state merge_rejected(lower: ActivationClaim, upper: ActivationClaim) -> bool {
+    machine merge_rejected(lower: ActivationClaim, upper: ActivationClaim) -> bool {
         ActivationClaim::release(upper);
         ActivationClaim::release(lower);
         false
     }
-    state restored(claim: ActivationClaim) -> bool {
+    machine restored(claim: ActivationClaim) -> bool {
         ActivationClaim::release(claim);
         true
     }
@@ -103,28 +103,28 @@ linux_arm64 machine target_exercise() -> bool crashes Trap {
         ActivationClaimAttempt::Established { claim } -> divide(claim)
         ActivationClaimAttempt::Rejected -> (false)
     }
-    state divide(claim: ActivationClaim) -> bool {
+    machine divide(claim: ActivationClaim) -> bool {
         transition ActivationClaim::split<16>(claim, 4) {
             ActivationClaimSplit::Covered { lower, upper } -> merge_children(lower, upper)
             ActivationClaimSplit::Rejected { claim } -> return_rejected(claim)
         }
     }
-    state return_rejected(claim: ActivationClaim) -> bool {
+    machine return_rejected(claim: ActivationClaim) -> bool {
         ActivationClaim::release(claim);
         false
     }
-    state merge_children(lower: ActivationClaim, upper: ActivationClaim) -> bool {
+    machine merge_children(lower: ActivationClaim, upper: ActivationClaim) -> bool {
         transition ActivationClaim::merge(lower, upper) {
             ActivationClaimMerge::Covered { claim } -> restored(claim)
             ActivationClaimMerge::Rejected { lower, upper } -> merge_rejected(lower, upper)
         }
     }
-    state merge_rejected(lower: ActivationClaim, upper: ActivationClaim) -> bool {
+    machine merge_rejected(lower: ActivationClaim, upper: ActivationClaim) -> bool {
         ActivationClaim::release(upper);
         ActivationClaim::release(lower);
         false
     }
-    state restored(claim: ActivationClaim) -> bool {
+    machine restored(claim: ActivationClaim) -> bool {
         ActivationClaim::release(claim);
         true
     }
@@ -136,6 +136,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

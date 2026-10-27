@@ -22,25 +22,25 @@ crashes Trap
         _ -> unfixed(typer, syntax, index, values, extent)
     }
 
-    state unfixed(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, values: JoinedValues, extent: u64 in Trapping) {
+    machine unfixed(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, values: JoinedValues, extent: u64 in Trapping) {
         transition values.count > 0 {
             true -> unlanded(typer, syntax, index, values, extent)
             _ -> empty(typer, index, extent)
         }
     }
 
-    state empty(typer: &mut Typer, index: u64 in Trapping, extent: u64 in Trapping) {
+    machine empty(typer: &mut Typer, index: u64 in Trapping, extent: u64 in Trapping) {
         let choice_row: TypeRow = TypeRow::of(TypeKind::AnonymousChoice);
         let choice: u64 in Trapping = TypeTable::intern(&mut typer.output.types, choice_row);
         transition { _ -> array(typer, index, TypeKind::AnonymousArray, choice, extent) }
     }
 
-    state typed(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, values: JoinedValues, element: u64 in Trapping, extent: u64 in Trapping) {
+    machine typed(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, values: JoinedValues, element: u64 in Trapping, extent: u64 in Trapping) {
         Typer::admit_joined(typer, syntax, values, element);
         transition { _ -> array(typer, index, TypeKind::Array, element, extent) }
     }
 
-    state unlanded(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, values: JoinedValues, extent: u64 in Trapping) {
+    machine unlanded(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, values: JoinedValues, extent: u64 in Trapping) {
         let join: UnlandedJoin = Typer::unlanded_join(typer, syntax, values);
         let shaped: bool = Typer::unlanded(typer, join.joined);
         transition join.mismatch > 0 {
@@ -50,14 +50,14 @@ crashes Trap
     }
 
     // Elements that all end in `Never` make an array of `Never`.
-    state joined(typer: &mut Typer, index: u64 in Trapping, element: u64 in Trapping, extent: u64 in Trapping, shaped: bool) {
+    machine joined(typer: &mut Typer, index: u64 in Trapping, element: u64 in Trapping, extent: u64 in Trapping, shaped: bool) {
         transition shaped {
             true -> array(typer, index, TypeKind::AnonymousArray, element, extent)
             _ -> array(typer, index, TypeKind::Array, element, extent)
         }
     }
 
-    state array(typer: &mut Typer, index: u64 in Trapping, kind: TypeKind, element: u64 in Trapping, extent: u64 in Trapping) {
+    machine array(typer: &mut Typer, index: u64 in Trapping, kind: TypeKind, element: u64 in Trapping, extent: u64 in Trapping) {
         let mut row: TypeRow = TypeRow::of(kind);
         row.inner = element;
         row.length = extent;
@@ -65,7 +65,7 @@ crashes Trap
         Typing::set_expression_type(&mut typer.output, index, handle);
     }
 
-    state mismatched(typer: &mut Typer, syntax: &SyntaxTrees, value: u64 in Trapping) {
+    machine mismatched(typer: &mut Typer, syntax: &SyntaxTrees, value: u64 in Trapping) {
         let written: Expression = SyntaxTrees::expression(syntax, value);
         Typing::reject(&mut typer.output, TypeDiagnosticCode::MismatchedTypes, written.source_span);
     }

@@ -17,17 +17,17 @@ machine probe(raw: u32) -> i32
         true -> check(xored)
         false -> bad()
     }
-    state check(res: u32) {
+    machine check(res: u32) -> i32 {
         transition {
             _ -> next_state(res)
         }
     }
-    state next_state(forwarded_res: u32)
+    machine next_state(forwarded_res: u32) -> i32
         requires forwarded_res >= 40u32 && forwarded_res <= 63u32
     {
         verify_xored(forwarded_res)
     }
-    state bad() -> i32 { 1i32 }
+    machine bad() -> i32 { 1i32 }
 }
 
 machine main() crashes Trap {
@@ -36,6 +36,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

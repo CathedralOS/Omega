@@ -15,7 +15,7 @@ machine push(stack: &mut Stack, value: u32) -> bool {
         true -> store(stack, value)
         _ -> (false)
     }
-    state store(stack: &mut Stack, value: u32) -> bool
+    machine store(stack: &mut Stack, value: u32) -> bool
     requires stack.count < 8
     {
         stack.items[stack.count] = value;
@@ -29,7 +29,7 @@ machine pop(stack: &mut Stack) -> Popped {
         true -> take(stack)
         _ -> (Popped::Empty)
     }
-    state take(stack: &mut Stack) -> Popped
+    machine take(stack: &mut Stack) -> Popped
     requires stack.count > 0 && stack.count <= 8
     {
         stack.count = stack.count - 1;
@@ -46,14 +46,14 @@ machine Main::main(main: &mut Main) reaches Console {
         Popped::Value { value } -> popped(main, value)
         Popped::Empty -> missed(main)
     }
-    state popped(main: &mut Main, value: u32) {
+    machine popped(main: &mut Main, value: u32) {
         transition value == 30 && main.stack.count == 1 {
             true -> reached(main)
             _ -> missed(main)
         }
     }
-    state reached(main: &mut Main) { Console::exit_process(70); }
-    state missed(main: &mut Main) { Console::exit_process(71); }
+    machine reached(main: &mut Main) { Console::exit_process(70); }
+    machine missed(main: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -11,7 +11,7 @@ machine select(items: &[Item], index: u64, output: &mut Output)
         true -> write(items[index], output)
         false -> {}
     }
-    state write(item: Item, output: &mut Output) {
+    machine write(item: Item, output: &mut Output) {
         output.kind = item.kind;
         output.value = item.value;
     }
@@ -28,13 +28,13 @@ machine Main::main(main: &mut Main) reaches Console {
         Kind::First -> finish(main, 1)
         Kind::Second -> check_value(main)
     }
-    state check_value(main: &mut Main) {
+    machine check_value(main: &mut Main) {
         transition main.output.value == 22 {
             true -> finish(main, 70)
             false -> finish(main, 2)
         }
     }
-    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

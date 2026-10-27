@@ -1435,7 +1435,7 @@ fn parses_named_bodyless_signature_contract_bindings() {
 }
 
 #[test]
-fn parses_explicit_state_arrival_requires() {
+fn parses_nested_machine_requires() {
     let source = r#"
         machine walk(value: i32) {
             transition value > 0 {
@@ -1443,26 +1443,31 @@ fn parses_explicit_state_arrival_requires() {
                 false -> done()
             }
 
-            state positive(value: i32)
+            machine positive(value: i32)
             requires
                 value > 0
             {
             }
 
-            state done() {
+            machine done() {
             }
         }
     "#;
 
-    let parsed = super::parse_source(source, "state arrival requires should parse");
+    let parsed = super::parse_source(source, "nested machine requires should parse");
     let machine = super::root_machine(&parsed, "machine root item");
-    let positive = parsed
-        .items
-        .state_handles(machine.states)
-        .iter()
-        .map(|handle| parsed.items.state(*handle))
-        .find(|state| state.name.as_str(&parsed) == "positive")
-        .expect("positive state");
+    let positive = machine
+        .nested_machines
+        .handles()
+        .find_map(|handle| match parsed.items.item(handle) {
+            syntax_trees::item::Item::Machine(child)
+                if child.name.as_str(&parsed) == "positive" =>
+            {
+                Some(child)
+            }
+            _ => None,
+        })
+        .expect("positive machine");
     let contracts = parsed.items.capability_contracts(positive.contracts);
     assert_eq!(contracts.len(), 1);
     assert!(matches!(

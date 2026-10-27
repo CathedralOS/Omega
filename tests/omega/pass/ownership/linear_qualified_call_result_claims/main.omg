@@ -48,7 +48,7 @@ machine is_zero_exclusive(counter: &mut Counter in Counter::Ready) -> bool {
 
 machine is_zero_arrival(counter: &Counter in Counter::Ready) -> bool {
     transition { _ -> arrived(counter) }
-    state arrived(current: &Counter in Counter::Ready) -> bool { current.code == 0 }
+    machine arrived(current: &Counter in Counter::Ready) -> bool { current.code == 0 }
 }
 
 machine pass(receipt: Receipt in Receipt::Issued) -> Receipt in Receipt::Issued { receipt }
@@ -61,7 +61,7 @@ machine issue(code: i32) -> Receipt in Receipt::Issued {
 
 machine forward(receipt: Receipt in Receipt::Issued) -> Receipt in Receipt::Issued {
     transition { _ -> returning(receipt) }
-    state returning(held: Receipt in Receipt::Issued) -> Receipt in Receipt::Issued { held }
+    machine returning(held: Receipt in Receipt::Issued) -> Receipt in Receipt::Issued { held }
 }
 
 machine make_slot(code: i32) -> Slot { Slot { receipt: pass(issue(code)) } }
@@ -125,7 +125,7 @@ machine acknowledge_choice(choice: SlotChoice, expected: i32)
         SlotChoice::Present { slot } -> acknowledge_slot(slot, expected)
         SlotChoice::Empty {} -> empty()
     }
-    state empty() {}
+    machine empty() {}
 }
 
 machine acknowledge_slot(slot: Slot, expected: i32) reaches Acknowledgement crashes Trap {
@@ -156,8 +156,8 @@ machine guard_constructed(mut slot: Slot, replacement: Receipt in Receipt::Issue
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 machine branch_constructed(first: bool, slot: Slot) -> Holder<Slot> {
@@ -176,8 +176,8 @@ machine replace(slot: &mut Slot, replacement: Receipt in Receipt::Issued)
 
 machine verify(correct: bool) crashes Trap {
     transition correct { true -> good() _ -> bad() }
-    state good() {}
-    state bad() { crash Trap; }
+    machine good() {}
+    machine bad() { crash Trap; }
 }
 
 machine verify_payload(receipt: &Receipt in Receipt::Issued) crashes Trap {

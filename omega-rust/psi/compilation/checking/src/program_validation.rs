@@ -24,7 +24,7 @@ use crate::value_custody::locals::validate_local_data_names;
 use crate::{
     OpaqueDataPropertyReceipt, TopLevelSymbols, ValidatedBoundaryOperatorApplication,
     ValidatedFloatMeaningEqualityProposition, ValidatedFloatMeaningProjectionInvocation,
-    ValidatedIntegerEmbeddingCall, ValidatedProofRecursiveComponent, build_definition_fact_plan,
+    ValidatedIntegerEmbeddingCall, ValidatedProofCallComponent, build_definition_fact_plan,
     collect_dynamic_implementation_selections, declarations::declaration_visibility,
     declarations::operators, declarations::transitions, infer_operational_may,
     infer_service_reaches, machine_calls::call_cycles, machine_calls::callable_overloads,
@@ -103,9 +103,9 @@ pub struct ProgramValidationFacts {
     pub specification_calls:
         Vec<crate::machine_calls::denotational_calls::SpecificationCallRequest>,
     pub integer_embedding_calls: Vec<ValidatedIntegerEmbeddingCall>,
-    /// Canonical proof-only call SCCs accepted by the structural-subterm
-    /// validator. Every exact internal call site retains its own witness.
-    pub proof_recursive_components: Vec<ValidatedProofRecursiveComponent>,
+    /// Complete proof-call SCCs with structural or source-judged computed
+    /// descent. Only structural witnesses are portable certificates.
+    pub proof_recursive_components: Vec<ValidatedProofCallComponent>,
     /// Independently judged exact self-call decreases for private progress;
     /// semantic predecessors do not authorize structural induction hypotheses.
     pub self_call_descents: Vec<crate::ValidatedSelfCallDescent>,
@@ -369,8 +369,7 @@ fn validate<'program>(
     let mut self_call_descents = Vec::new();
     let proof_recursive_components =
         phase_profile::scope("05.d.2.a.1a5.call_cycles_and_properties", || {
-            let components =
-                call_cycles::validate_machine_call_cycles(program, &symbols, &mut diagnostics);
+            let components = call_cycles::validate_machine_call_cycles(program, &mut diagnostics);
             let (opaque_property_receipts, allow_pending_opaque_copy) = match opaque_properties {
                 OpaquePropertyValidation::Required(receipts) => (receipts, false),
                 OpaquePropertyValidation::PendingBuildSelection => (&[][..], true),

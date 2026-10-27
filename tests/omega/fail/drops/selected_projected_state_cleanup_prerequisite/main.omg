@@ -105,7 +105,7 @@ machine select_and_cleanup(output: &mut Counter, spare: &mut Counter, pick: bool
     let alternate: Pair = Pair { first: Carrier { output: spare, byte: 66 }, second: Marker { byte: 89 } };
     let selected: Carrier = match pick { true -> original.first, false -> alternate.first };
     transition { _ -> finish(selected) }
-    state finish(receiver: Carrier) {
+    machine finish(receiver: Carrier) {
         observe(&Keeper { carrier: receiver, code: 40 });
     }
 }
@@ -118,8 +118,8 @@ machine exercise(pick: bool) reaches Console crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 data Main {}
 machine Main::main(main: &mut Main) reaches Console crashes Trap {

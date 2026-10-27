@@ -9,8 +9,8 @@ machine fallback(output: &mut Output, first: bool, second: bool) {
         second -> two(output)
         _ -> {}
     }
-    state one(output: &mut Output) { output.value = 11; }
-    state two(output: &mut Output) { output.value = 22; }
+    machine one(output: &mut Output) { output.value = 11; }
+    machine two(output: &mut Output) { output.value = 22; }
 }
 
 machine middle(output: &mut Output, first: bool, second: bool) {
@@ -19,8 +19,8 @@ machine middle(output: &mut Output, first: bool, second: bool) {
         second -> {}
         _ -> two(output)
     }
-    state one(output: &mut Output) { output.value = 11; }
-    state two(output: &mut Output) { output.value = 22; }
+    machine one(output: &mut Output) { output.value = 11; }
+    machine two(output: &mut Output) { output.value = 22; }
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -42,7 +42,7 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, 70)
         false -> finish(main, 1)
     }
-    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

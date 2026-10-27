@@ -14,7 +14,7 @@ machine windows_removal_error(code: u32) -> u32 {
 
 machine windows_removal_status(code: u32) -> i32 {
     transition code == 0 { true -> 0 false -> failed(code) }
-    state failed(code: u32) -> i32 {
+    machine failed(code: u32) -> i32 {
         transition code <= 2147483647 {
             true -> (narrow_i64_to_i32_wrapping(0 - widen_u32_to_i64(code)))
             false -> (-31)
@@ -31,7 +31,7 @@ reaches FilesystemNamespaceMutation {
         true -> (original)
         false -> completion(closed)
     }
-    state completion(closed: i32) -> u32 {
+    machine completion(closed: i32) -> u32 {
         transition closed != 0 {
             true -> 0
             false -> (windows_removal_error(WindowsFilesystemIo::c_get_last_error()))
@@ -48,7 +48,7 @@ reaches FilesystemNamespaceMutation {
         true -> block windows_removal_close(handle, 0)
         false -> failed(handle)
     }
-    state failed(handle: i64 in WindowsPrivateNonalertFileOrAbsent) -> u32 requires handle != 0 {
+    machine failed(handle: i64 in WindowsPrivateNonalertFileOrAbsent) -> u32 requires handle != 0 {
         let code: u32 = windows_removal_error(WindowsFilesystemIo::c_get_last_error());
         block windows_removal_close(handle, code)
     }

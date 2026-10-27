@@ -13,17 +13,17 @@ public data Lab {
 public machine totals(lab:&mut Lab) {
  lab.momentum_x=0.0; lab.momentum_y=0.0; lab.energy=0.0;
  transition { _ -> scan(lab,0) }
- state scan(lab:&mut Lab,index:u64) {
+ machine scan(lab:&mut Lab,index:u64) {
   transition index < lab.count && index < 4 { true -> add(lab,index) _ -> done() }
  }
- state add(lab:&mut Lab,index:u64) requires index < 4 {
+ machine add(lab:&mut Lab,index:u64) requires index < 4 {
   let disk:Disk=lab.disks[index];
   lab.momentum_x=lab.momentum_x+disk.mass*disk.vx;
   lab.momentum_y=lab.momentum_y+disk.mass*disk.vy;
   lab.energy=lab.energy+0.5*disk.mass*(disk.vx*disk.vx+disk.vy*disk.vy);
   transition index < 4 { true -> scan(lab,index+1) _ -> done() }
  }
- state done() {}
+ machine done() {}
 }
 public machine validate(lab:&mut Lab) {
  lab.valid=false;
@@ -32,10 +32,10 @@ public machine validate(lab:&mut Lab) {
   && lab.restitution >= 0.0 && lab.restitution <= 1.0 {
   true -> scan(lab,0) _ -> done()
  }
- state scan(lab:&mut Lab,index:u64) {
+ machine scan(lab:&mut Lab,index:u64) {
   transition index < lab.count && index < 4 { true -> disk(lab,index) _ -> pairs(lab,0,1) }
  }
- state disk(lab:&mut Lab,index:u64) requires index < 4 {
+ machine disk(lab:&mut Lab,index:u64) requires index < 4 {
   let d:Disk=lab.disks[index];
   transition d.mass >= 0.1 && d.mass <= 10.0 && d.radius >= 0.1 && d.radius <= 2.0
    && d.x >= -100.0 && d.x <= 100.0 && d.y >= -100.0 && d.y <= 100.0
@@ -43,32 +43,32 @@ public machine validate(lab:&mut Lab) {
    true -> next(lab,index) _ -> done()
   }
  }
- state next(lab:&mut Lab,index:u64) {
+ machine next(lab:&mut Lab,index:u64) {
   transition index < 4 { true -> scan(lab,index+1) _ -> done() }
  }
- state pairs(lab:&mut Lab,left:u64,right:u64) {
+ machine pairs(lab:&mut Lab,left:u64,right:u64) {
   transition left < lab.count && left < 4 {
    true -> pair_bound(lab,left,right) _ -> accepted(lab)
   }
  }
- state pair_bound(lab:&mut Lab,left:u64,right:u64) requires left < 4 {
+ machine pair_bound(lab:&mut Lab,left:u64,right:u64) requires left < 4 {
   transition right < lab.count && right < 4 {
    true -> pair(lab,left,right) _ -> next_left(lab,left)
   }
  }
- state pair(lab:&mut Lab,left:u64,right:u64) requires left < 4 && right < 4 {
+ machine pair(lab:&mut Lab,left:u64,right:u64) requires left < 4 && right < 4 {
   let a:Disk=lab.disks[left]; let b:Disk=lab.disks[right];
   let dx:f64=b.x-a.x; let dy:f64=b.y-a.y; let radius:f64=a.radius+b.radius;
   transition dx*dx+dy*dy >= radius*radius-0.000000001 {
    true -> next_right(lab,left,right) _ -> done()
   }
  }
- state next_right(lab:&mut Lab,left:u64,right:u64) {
+ machine next_right(lab:&mut Lab,left:u64,right:u64) {
   transition right < 4 { true -> pairs(lab,left,right+1) _ -> done() }
  }
- state next_left(lab:&mut Lab,left:u64) {
+ machine next_left(lab:&mut Lab,left:u64) {
   transition left < 4 { true -> pairs(lab,left+1,left+2) _ -> done() }
  }
- state accepted(lab:&mut Lab) {lab.valid=true;}
- state done() {}
+ machine accepted(lab:&mut Lab) {lab.valid=true;}
+ machine done() {}
 }

@@ -12,21 +12,21 @@ machine cells_valid(cells: &[i32; 4]) -> bool {
         _ -> (false)
     }
 
-    state at_1(cells: &[i32; 4]) -> bool {
+    machine at_1(cells: &[i32; 4]) -> bool {
         transition cells[1] == 0 || cells[1] == 1 {
             true -> at_2(cells)
             _ -> (false)
         }
     }
 
-    state at_2(cells: &[i32; 4]) -> bool {
+    machine at_2(cells: &[i32; 4]) -> bool {
         transition cells[2] == 0 || cells[2] == 1 {
             true -> at_3(cells)
             _ -> (false)
         }
     }
 
-    state at_3(cells: &[i32; 4]) -> bool {
+    machine at_3(cells: &[i32; 4]) -> bool {
         transition cells[3] == 0 || cells[3] == 1 {
             true -> (true)
             _ -> (false)

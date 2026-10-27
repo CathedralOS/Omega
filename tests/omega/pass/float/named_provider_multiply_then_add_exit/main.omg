@@ -42,22 +42,22 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> fail(main, 71)
     }
 
-    state check64(main: &mut Main) {
+    machine check64(main: &mut Main) {
         transition main.result64 == 0.0 {
             true -> check_overflow32(main)
             _ -> fail(main, 72)
         }
     }
 
-    state check_overflow32(main: &mut Main) {
+    machine check_overflow32(main: &mut Main) {
         transition main.overflow32 > (main.maximum32 as f32) {
             true -> good(main)
             _ -> fail(main, 73)
         }
     }
 
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state fail(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine fail(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

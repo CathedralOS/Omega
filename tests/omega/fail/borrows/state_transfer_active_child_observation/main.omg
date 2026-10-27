@@ -3,5 +3,5 @@ data Control { value: i32; }
 machine transfer(control: &mut Control) {
     let child: &i32 = &control.value;
     transition { _ -> done(control, control.value, child) }
-    state done(control: &mut Control, value: i32, child: &i32) { control.value = value; let observed: i32 = child; }
+    machine done(control: &mut Control, value: i32, child: &i32) { control.value = value; let observed: i32 = child; }
 }

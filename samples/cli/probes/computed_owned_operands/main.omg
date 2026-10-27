@@ -36,8 +36,8 @@ machine advance(log: &mut i32) {
         true -> second(log)
         false -> wrong(log)
     }
-    state second(log: &mut i32) { log = 2; }
-    state wrong(log: &mut i32) { log = 9; }
+    machine second(log: &mut i32) { log = 2; }
+    machine wrong(log: &mut i32) { log = 9; }
 }
 
 data Receipt [linear] { code: i32 in Wrapping; }
@@ -99,7 +99,7 @@ machine main() crashes Trap {
         false -> bad()
     }
 
-    state later(ticket: Ticket) {
+    machine later(ticket: Ticket) {
         let carried: i32 in Wrapping = take(ticket) + take(make(24));
         transition carried == 47 {
             true -> done()
@@ -107,6 +107,6 @@ machine main() crashes Trap {
         }
     }
 
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

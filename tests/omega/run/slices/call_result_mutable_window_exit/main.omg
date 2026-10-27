@@ -39,7 +39,7 @@ machine main() crashes Trap {
         true -> tail(&mut trace)
         false -> bad()
     }
-    state tail(trace: &mut [f64; 4]) {
+    machine tail(trace: &mut [f64; 4]) {
         let selected: &mut [f64] = window(trace, 1);
         let trailing: Held = hold(selected);
         write_pair(trailing.values);
@@ -52,6 +52,6 @@ machine main() crashes Trap {
             false -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

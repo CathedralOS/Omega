@@ -19,8 +19,8 @@ ensures embed(Total) <= 10 * embed(Length)
         Vector::Nil { .. } -> done()
         Vector::Cons { previous, previous_total, head, tail, .. } -> step(previous, previous_total, head, tail)
     }
-    state done() requires Length == 0 && Total == 0 {}
-    state step(previous: u64, previous_total: u64, head: u64, tail [erased]: Vector<previous, previous_total>)
+    machine done() requires Length == 0 && Total == 0 {}
+    machine step(previous: u64, previous_total: u64, head: u64, tail [erased]: Vector<previous, previous_total>)
     requires head <= 10 && embed(previous) + 1 == embed(Length)
              && embed(previous_total) + embed(head) == embed(Total)
     {
@@ -49,6 +49,6 @@ machine main() crashes Trap {
     let nil [erased]: Vector<0, 0> = Vector::Nil;
     let remaining: u64 = through_parameter<0, 0, 1, 7>(nil);
     transition remaining == 73 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -14,13 +14,13 @@ machine build(builder: &mut Build) {
         true -> good(builder)
         _ -> bad(builder)
     }
-    state good(builder: &mut Build) {
+    machine good(builder: &mut Build) {
         Build::bind(builder, macos_arm64::ProgramEntry, main);
         Build::bind(builder, linux_arm64::ProgramEntry, main);
         Build::bind(builder, linux_x86_64::ProgramEntry, main);
         Build::bind(builder, windows_x86_64::ProgramEntry, main);
     }
-    state bad(builder: &mut Build) {
+    machine bad(builder: &mut Build) {
         _ = BuildProduct::entry(&builder.product, "incorrect_const_dependency", "macos_arm64::ProgramEntry");
     }
 }

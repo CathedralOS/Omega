@@ -9,7 +9,7 @@ machine read(envelope: &Envelope, position: u64) -> i32
         true -> at(envelope, position)
         false -> 0
     }
-    state at(envelope: &Envelope, position: u64) -> i32
+    machine at(envelope: &Envelope, position: u64) -> i32
     requires position < envelope.window.cells.len
     {
         envelope.window.cells[position].value
@@ -28,7 +28,7 @@ machine main() crashes Trap {
         true -> inspect(&envelope)
         false -> bad()
     }
-    state inspect(envelope: &Envelope)
+    machine inspect(envelope: &Envelope)
     requires envelope.window.cells.len > 1
     {
         let observed: i32 = read(envelope, 1);
@@ -37,6 +37,6 @@ machine main() crashes Trap {
             false -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

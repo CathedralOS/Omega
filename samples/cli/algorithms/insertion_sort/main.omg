@@ -66,11 +66,11 @@ machine Main::cmp_swap_01(main: &mut Main) {
         true -> do_swap_01(main, a, b)
         _ -> done_01()
     }
-    state do_swap_01(main: &mut Main, a: i32, b: i32) {
+    machine do_swap_01(main: &mut Main, a: i32, b: i32) {
         main.s.arr[0] = b;
         main.s.arr[1] = a;
     }
-    state done_01() {}
+    machine done_01() {}
 }
 
 machine Main::cmp_swap_12(main: &mut Main) {
@@ -80,11 +80,11 @@ machine Main::cmp_swap_12(main: &mut Main) {
         true -> do_swap_12(main, a, b)
         _ -> done_12()
     }
-    state do_swap_12(main: &mut Main, a: i32, b: i32) {
+    machine do_swap_12(main: &mut Main, a: i32, b: i32) {
         main.s.arr[1] = b;
         main.s.arr[2] = a;
     }
-    state done_12() {}
+    machine done_12() {}
 }
 
 machine Main::cmp_swap_23(main: &mut Main) {
@@ -94,11 +94,11 @@ machine Main::cmp_swap_23(main: &mut Main) {
         true -> do_swap_23(main, a, b)
         _ -> done_23()
     }
-    state do_swap_23(main: &mut Main, a: i32, b: i32) {
+    machine do_swap_23(main: &mut Main, a: i32, b: i32) {
         main.s.arr[2] = b;
         main.s.arr[3] = a;
     }
-    state done_23() {}
+    machine done_23() {}
 }
 
 machine Main::cmp_swap_34(main: &mut Main) {
@@ -108,11 +108,11 @@ machine Main::cmp_swap_34(main: &mut Main) {
         true -> do_swap_34(main, a, b)
         _ -> done_34()
     }
-    state do_swap_34(main: &mut Main, a: i32, b: i32) {
+    machine do_swap_34(main: &mut Main, a: i32, b: i32) {
         main.s.arr[3] = b;
         main.s.arr[4] = a;
     }
-    state done_34() {}
+    machine done_34() {}
 }
 
 machine Main::cmp_swap_45(main: &mut Main) {
@@ -122,11 +122,11 @@ machine Main::cmp_swap_45(main: &mut Main) {
         true -> do_swap_45(main, a, b)
         _ -> done_45()
     }
-    state do_swap_45(main: &mut Main, a: i32, b: i32) {
+    machine do_swap_45(main: &mut Main, a: i32, b: i32) {
         main.s.arr[4] = b;
         main.s.arr[5] = a;
     }
-    state done_45() {}
+    machine done_45() {}
 }
 
 // ---- Bubble sort passes ----
@@ -189,14 +189,14 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> bad0(main)
     }
 
-    state bad0(main: &mut Main) {
+    machine bad0(main: &mut Main) {
         Console::write_line("FAIL: arr[0] != 1 after sorting (exit 71)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(71);
     }
 
-    state check1(main: &mut Main) {
+    machine check1(main: &mut Main) {
         let v1: i32 = main.s.arr[1];
         transition v1 == 2 {
             true -> check2(main)
@@ -204,14 +204,14 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state bad1(main: &mut Main) {
+    machine bad1(main: &mut Main) {
         Console::write_line("FAIL: arr[1] != 2 after sorting (exit 72)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(72);
     }
 
-    state check2(main: &mut Main) {
+    machine check2(main: &mut Main) {
         let v2: i32 = main.s.arr[2];
         transition v2 == 3 {
             true -> check3(main)
@@ -219,14 +219,14 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state bad2(main: &mut Main) {
+    machine bad2(main: &mut Main) {
         Console::write_line("FAIL: arr[2] != 3 after sorting (exit 73)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(73);
     }
 
-    state check3(main: &mut Main) {
+    machine check3(main: &mut Main) {
         let v3: i32 = main.s.arr[3];
         transition v3 == 5 {
             true -> check4(main)
@@ -234,14 +234,14 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state bad3(main: &mut Main) {
+    machine bad3(main: &mut Main) {
         Console::write_line("FAIL: arr[3] != 5 after sorting (exit 74)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(74);
     }
 
-    state check4(main: &mut Main) {
+    machine check4(main: &mut Main) {
         let v4: i32 = main.s.arr[4];
         transition v4 == 7 {
             true -> check5(main)
@@ -249,14 +249,14 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state bad4(main: &mut Main) {
+    machine bad4(main: &mut Main) {
         Console::write_line("FAIL: arr[4] != 7 after sorting (exit 75)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(75);
     }
 
-    state check5(main: &mut Main) {
+    machine check5(main: &mut Main) {
         let v5: i32 = main.s.arr[5];
         transition v5 == 8 {
             true -> good(main)
@@ -264,14 +264,14 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state bad5(main: &mut Main) {
+    machine bad5(main: &mut Main) {
         Console::write_line("FAIL: arr[5] != 8 after sorting (exit 76)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(76);
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::write_line("PASS: array sorted to [1,2,3,5,7,8] (exit 70)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);

@@ -51,11 +51,11 @@ machine Main::main(main: &mut Main) {
         true -> Main::pass(main)
         _ -> Main::fail(main)
     }
-    state pass(main: &mut Main) {
+    machine pass(main: &mut Main) {
         main.total = forward<u64>(main.count) as u64 in Wrapping;
         main.hits = 1;
     }
-    state fail(main: &mut Main) { main.hits = -1; }
+    machine fail(main: &mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

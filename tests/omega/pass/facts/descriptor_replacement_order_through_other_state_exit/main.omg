@@ -21,7 +21,7 @@ machine replace<'storage>(mut bundle: Bundle<'storage>, intermediate: &'storage 
 
 machine relay<'storage>(bundle: Bundle<'storage>) -> Bundle<'storage> {
     transition { _ -> finish(bundle) }
-    state finish(bundle: Bundle<'storage>) -> Bundle<'storage> { bundle }
+    machine finish(bundle: Bundle<'storage>) -> Bundle<'storage> { bundle }
 }
 
 machine main() crashes Trap {
@@ -36,6 +36,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

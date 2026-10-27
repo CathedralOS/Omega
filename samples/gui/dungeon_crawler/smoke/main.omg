@@ -20,32 +20,32 @@ machine Smoke::steps(game: &mut Game, direction: i32, count: u32)
 terminates by count -> Nat::Descending;
 requires direction >= -1 && direction < 4 {
     transition count > 0 { true -> step(game, direction, count) _ -> done() }
-    state step(game: &mut Game, direction: i32, count: u32) requires count > 0 && direction >= -1 && direction < 4 {
+    machine step(game: &mut Game, direction: i32, count: u32) requires count > 0 && direction >= -1 && direction < 4 {
         Game::walk(game, direction);
         transition { _ -> Smoke::steps(game, direction, count - 1) }
     }
-    state done() {}
+    machine done() {}
 }
 
 machine Smoke::fight(game: &mut Game, count: u32)
 terminates by count -> Nat::Descending;
 {
     transition count > 0 { true -> step(game, count) _ -> done() }
-    state step(game: &mut Game, count: u32) requires count > 0 {
+    machine step(game: &mut Game, count: u32) requires count > 0 {
         Game::tick(game, -1, true);
         transition { _ -> Smoke::fight(game, count - 1) }
     }
-    state done() {}
+    machine done() {}
 }
 
 machine Smoke::main(smoke: &mut Smoke) reaches Console {
     transition { _ -> rules(smoke) }
-    state rules(smoke: &mut Smoke) {
+    machine rules(smoke: &mut Smoke) {
     Console::write_line("check: rules");
     let rules: bool = Game::verify(&mut smoke.game);
     transition rules { true -> pixels(smoke) _ -> failed() }
     }
-    state pixels(smoke: &mut Smoke) {
+    machine pixels(smoke: &mut Smoke) {
         Console::write_line("check: pixels");
         Game::reset(&mut smoke.game);
         let frame: Frame = Game::capture(&smoke.game);
@@ -58,7 +58,7 @@ machine Smoke::main(smoke: &mut Smoke) reaches Console {
             _ -> failed()
         }
     }
-    state wall_collision(smoke: &mut Smoke) {
+    machine wall_collision(smoke: &mut Smoke) {
         Console::write_line("check: wall collision");
         Smoke::steps(&mut smoke.game, 3, 100);
         transition smoke.game.camera.room == 0 && smoke.game.actors.items[0].position.x >= 20 {
@@ -66,19 +66,19 @@ machine Smoke::main(smoke: &mut Smoke) reaches Console {
             _ -> failed()
         }
     }
-    state campaign(smoke: &mut Smoke) {
+    machine campaign(smoke: &mut Smoke) {
         Console::write_line("check: atrium doorway");
         Game::reset(&mut smoke.game);
         Smoke::steps(&mut smoke.game, 0, 16);
         Smoke::steps(&mut smoke.game, 1, 62);
         transition smoke.game.camera.room == 1 { true -> archive(smoke) _ -> failed() }
     }
-    state archive(smoke: &mut Smoke) {
+    machine archive(smoke: &mut Smoke) {
         Console::write_line("check: moss hall doorway");
         Smoke::steps(&mut smoke.game, 1, 116);
         transition smoke.game.camera.room == 2 { true -> chest(smoke) _ -> failed() }
     }
-    state chest(smoke: &mut Smoke) {
+    machine chest(smoke: &mut Smoke) {
         Console::write_line("check: archive key");
         Smoke::steps(&mut smoke.game, 0, 24);
         Smoke::steps(&mut smoke.game, 1, 54);
@@ -96,23 +96,23 @@ machine Smoke::main(smoke: &mut Smoke) reaches Console {
             _ -> failed()
         }
     }
-    state shrine(smoke: &mut Smoke) {
+    machine shrine(smoke: &mut Smoke) {
         Console::write_line("check: locked shrine doorway");
         Smoke::steps(&mut smoke.game, 0, 24);
         transition smoke.game.camera.room == 5 { true -> relic(smoke) _ -> failed() }
     }
-    state relic(smoke: &mut Smoke) {
+    machine relic(smoke: &mut Smoke) {
         Console::write_line("check: shrine relic");
         Smoke::steps(&mut smoke.game, 0, 45);
         smoke.game.actors.items[0].facing = 1;
         Smoke::fight(&mut smoke.game, 240);
         transition smoke.game.progress.won && smoke.game.actors.items[0].vitality.current > 0 { true -> passed() _ -> failed() }
     }
-    state passed() {
+    machine passed() {
         Console::write_line("PASS: dungeon campaign, collision, combat, pixels");
         Console::exit_process(0);
     }
-    state failed() {
+    machine failed() {
         Console::write_line("FAIL: dungeon acceptance");
         Console::exit_process(1);
     }

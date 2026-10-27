@@ -15,13 +15,13 @@ machine CapturedLocal::main(main: &mut CapturedLocal) {
         _ -> miss(main)
     }
 
-    state measure(main: &mut CapturedLocal, captured: u64) {
+    machine measure(main: &mut CapturedLocal, captured: u64) {
         let held: u64 = captured;
         CapturedLocal::fill(&mut held);
         main.answer = held;
     }
 
-    state miss(main: &mut CapturedLocal) { main.answer = 71; }
+    machine miss(main: &mut CapturedLocal) { main.answer = 71; }
 }
 
 // A `&mut` loan survives the callee's own control flow: `fill` takes the
@@ -38,8 +38,8 @@ machine ConditionalWrite::fill(cell: &mut u64) {
         _ -> skip(cell)
     }
 
-    state mark(cell: &mut u64) { cell = 5; }
-    state skip(cell: &mut u64) { cell = 6; }
+    machine mark(cell: &mut u64) { cell = 5; }
+    machine skip(cell: &mut u64) { cell = 6; }
 }
 
 machine ConditionalWrite::main(main: &mut ConditionalWrite) {
@@ -50,8 +50,8 @@ machine ConditionalWrite::main(main: &mut ConditionalWrite) {
         _ -> bad(main)
     }
 
-    state good(main: &mut ConditionalWrite) { main.answer = 70; }
-    state bad(main: &mut ConditionalWrite) { main.answer = 71; }
+    machine good(main: &mut ConditionalWrite) { main.answer = 70; }
+    machine bad(main: &mut ConditionalWrite) { main.answer = 71; }
 }
 
 // Execute both original machine bodies; the checks observe their authored values.
@@ -64,6 +64,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

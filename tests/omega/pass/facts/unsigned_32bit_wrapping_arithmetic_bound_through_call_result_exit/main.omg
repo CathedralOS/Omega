@@ -21,8 +21,8 @@ ensures result >= 50u32 && result <= 100u32
         true -> pass(sum)
         _ -> bad()
     }
-    state pass(s: u32) -> u32 { s }
-    state bad() { crash Trap; }
+    machine pass(s: u32) -> u32 { s }
+    machine bad() -> u32 { crash Trap; }
 }
 
 machine exercise(lhs: u32 in Wrapping, rhs: u32 in Wrapping) -> u32 crashes Trap {
@@ -36,6 +36,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -29,11 +29,11 @@ machine Main::main(main: &mut Main) reaches Console {
         false -> bad(main)
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::exit_process(181);
     }
 
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::exit_process(90);
     }
 }
@@ -46,7 +46,7 @@ machine Main::fill_literal(bag: &mut Bag, fresh: Node) {
         _ -> done()
     }
 
-    state done() {
+    machine done() {
     }
 }
 
@@ -59,7 +59,7 @@ machine Main::fill_param(bag: &mut Bag, fresh: Node, at: u64)
         _ -> done()
     }
 
-    state done() {
+    machine done() {
     }
 }
 
@@ -69,7 +69,7 @@ machine Main::fill_direct(bag: &mut Bag, fresh: Node) {
         _ -> done()
     }
 
-    state done() {
+    machine done() {
     }
 }
 

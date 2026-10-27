@@ -10,13 +10,13 @@ machine Keeper::drop(keeper: &mut Keeper) requires keeper.code == 7 {
 machine observe(keeper: &Keeper) {}
 machine check(output: &Counter) crashes Trap {
     transition output.value == 7 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine main() crashes Trap {
     let seed: Seed = Seed { code: 6 };
     transition { _ -> consume(seed) }
-    state consume(seed: Seed) requires seed.code == 6 {
+    machine consume(seed: Seed) requires seed.code == 6 {
     let mut output: Counter = Counter { value: 0 };
     observe(&Keeper { output: &mut output, code: seed.code });
     check(&output);

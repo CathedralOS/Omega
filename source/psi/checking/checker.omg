@@ -207,14 +207,14 @@ crashes Trap
     Checker::derive_frames(checker, syntax, resolution, typing);
     transition { _ -> next_machine(checker, syntax, resolution, typing, 0) }
 
-    state next_machine(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping) {
+    machine next_machine(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping) {
         transition index < syntax.machine_count && checker.output.diagnostic_count < 64 {
             true -> machine(checker, syntax, resolution, typing, index)
             _ -> settle(checker, syntax, resolution)
         }
     }
 
-    state machine(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping) {
+    machine machine(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping) {
         let item: MachineItem = SyntaxTrees::machine_item(syntax, index);
         transition item.has_body {
             true -> body(checker, syntax, resolution, typing, index)
@@ -222,7 +222,7 @@ crashes Trap
         }
     }
 
-    state body(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping) {
+    machine body(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping) {
         Checker::check_machine(checker, syntax, resolution, typing, index);
         transition { _ -> next_machine(checker, syntax, resolution, typing, index + 1) }
     }
@@ -230,7 +230,7 @@ crashes Trap
     // A body that rejected may have stopped before some of its crash sites;
     // its routes are then a subset of what it derives, so settling them
     // finds no cause that a whole walk would not.
-    state settle(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution) {
+    machine settle(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution) {
         Checker::settle_routes(checker, syntax);
         Checker::settle_termination(checker, syntax, resolution);
         Checker::check_supply(checker, syntax, resolution);
@@ -250,14 +250,14 @@ crashes Trap
     checker.supplied_count = 0;
     transition { _ -> next(checker, syntax, 0) }
 
-    state next(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine next(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.machine_count {
             true -> declared(checker, syntax, index)
             _ -> done()
         }
     }
 
-    state declared(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine declared(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping) {
         let item: MachineItem = SyntaxTrees::machine_item(syntax, index);
         let routes: CrashRoutes = Checker::declared_routes(syntax, item);
         Checks::set_routes(&mut checker.output, index, routes);
@@ -265,7 +265,7 @@ crashes Trap
         transition { _ -> next(checker, syntax, index + 1) }
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // A machine's declared crash causes. A private machine with a body and no
@@ -289,14 +289,14 @@ crashes Trap
 {
     transition { _ -> next(syntax, first, first + count, false, false) }
 
-    state next(syntax: &SyntaxTrees, index: u64 in Trapping, end: u64 in Trapping, trap: bool, abort: bool) -> CrashRoutes {
+    machine next(syntax: &SyntaxTrees, index: u64 in Trapping, end: u64 in Trapping, trap: bool, abort: bool) -> CrashRoutes {
         transition index < end {
             true -> clause(syntax, index, end, trap, abort)
             _ -> finished(trap, abort)
         }
     }
 
-    state clause(syntax: &SyntaxTrees, index: u64 in Trapping, end: u64 in Trapping, trap: bool, abort: bool) -> CrashRoutes {
+    machine clause(syntax: &SyntaxTrees, index: u64 in Trapping, end: u64 in Trapping, trap: bool, abort: bool) -> CrashRoutes {
         let clause: Clause = SyntaxTrees::clause(syntax, index);
         let crashes: bool = clause.kind == ClauseKind::Crashes;
         let traps: bool = crashes && clause.cause == CrashCause::Trap;
@@ -304,7 +304,7 @@ crashes Trap
         transition { _ -> next(syntax, index + 1, end, trap || traps, abort || aborts) }
     }
 
-    state finished(trap: bool, abort: bool) -> CrashRoutes {
+    machine finished(trap: bool, abort: bool) -> CrashRoutes {
         CrashRoutes { declares_trap: trap, declares_abort: abort, inferred: false, trap: false, abort: false }
     }
 }
@@ -349,31 +349,31 @@ crashes Trap
         _ -> too_many(checker, item)
     }
 
-    state cleared(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem) {
+    machine cleared(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem) {
         Checker::clear_edges(checker, item.state_count + 1);
         transition { _ -> arrivals(checker, syntax, resolution, typing, index, item, 0) }
     }
 
-    state arrivals(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
+    machine arrivals(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
         transition offset < item.state_count {
             true -> unreached(checker, syntax, resolution, typing, index, item, offset)
             _ -> explore(checker, syntax, resolution, typing, index, item)
         }
     }
 
-    state unreached(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
+    machine unreached(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
         Checker::reset_arrival(checker, offset);
         transition { _ -> arrivals(checker, syntax, resolution, typing, index, item, offset + 1) }
     }
 
-    state explore(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem) {
+    machine explore(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem) {
         Checker::derive_demand(checker, syntax, resolution, typing, item);
         Checker::open_entry(checker, syntax, resolution, typing, item);
         Checker::walk_body(checker, syntax, resolution, typing, item.first_statement, item.statement_count, false);
         transition { _ -> drain(checker, syntax, resolution, typing, index, item) }
     }
 
-    state drain(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem) {
+    machine drain(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem) {
         transition checker.queue_count > 0 && checker.output.machine_accepted {
             true -> revisit(checker, syntax, resolution, typing, index, item)
             _ -> closed(checker, syntax, resolution, typing, index, item)
@@ -381,12 +381,12 @@ crashes Trap
     }
 
     // The fact-gathering walks took every edge the checking walk can.
-    state closed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem) {
+    machine closed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem) {
         Checker::close_edges(checker, index, item.state_count + 1);
         transition { _ -> check_entry(checker, syntax, resolution, typing, index, item) }
     }
 
-    state revisit(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem) {
+    machine revisit(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem) {
         let offset: u64 in Trapping = Checker::dequeue(checker);
         Checker::walk_state(checker, syntax, resolution, typing, offset, true, false);
         transition { _ -> drain(checker, syntax, resolution, typing, index, item) }
@@ -394,7 +394,7 @@ crashes Trap
 
     // Crash routes come from the checking walk alone: a fact-gathering walk
     // may see a site its settled facts disprove.
-    state check_entry(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem) {
+    machine check_entry(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem) {
         checker.trap_route = false;
         checker.abort_route = false;
         Checker::open_entry(checker, syntax, resolution, typing, item);
@@ -414,7 +414,7 @@ crashes Trap
         transition { _ -> check_state(checker, syntax, resolution, typing, index, item, 0) }
     }
 
-    state check_state(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
+    machine check_state(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
         transition offset < item.state_count && checker.output.machine_accepted {
             true -> reached(checker, syntax, resolution, typing, index, item, offset)
             _ -> publish(checker, index, item)
@@ -423,13 +423,13 @@ crashes Trap
 
     // A state no walk reached is still checked, from its parameters'
     // carrier ranges and its own `requires` facts alone.
-    state reached(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
+    machine reached(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
         let arrived: bool = Checker::was_reached(checker, offset);
         Checker::walk_state(checker, syntax, resolution, typing, offset, arrived, true);
         transition { _ -> check_state(checker, syntax, resolution, typing, index, item, offset + 1) }
     }
 
-    state publish(checker: &mut Checker, index: u64 in Trapping, item: MachineItem) {
+    machine publish(checker: &mut Checker, index: u64 in Trapping, item: MachineItem) {
         let routes: CrashRoutes = Checks::routes(&checker.output, index);
         let local: CrashRoutes = CrashRoutes {
             declares_trap: routes.declares_trap,
@@ -445,15 +445,15 @@ crashes Trap
         }
     }
 
-    state overflowed(checker: &mut Checker, item: MachineItem) {
+    machine overflowed(checker: &mut Checker, item: MachineItem) {
         Checks::reject(&mut checker.output, CheckDiagnosticCode::CheckCapacityExceeded, item.source_span);
     }
 
-    state too_many(checker: &mut Checker, item: MachineItem) {
+    machine too_many(checker: &mut Checker, item: MachineItem) {
         Checks::reject(&mut checker.output, CheckDiagnosticCode::CheckCapacityExceeded, item.source_span);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // The entry body's places: its parameters, each integer one in its
@@ -494,7 +494,7 @@ crashes Trap
         _ -> opened(checker, syntax, resolution, typing, state, checking)
     }
 
-    state arrived(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping, state: StateItem, checking: bool) {
+    machine arrived(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping, state: StateItem, checking: bool) {
         Checker::arrive(checker, offset);
         Checker::restore_ranges(checker, typing);
         transition { _ -> opened(checker, syntax, resolution, typing, state, checking) }
@@ -502,7 +502,7 @@ crashes Trap
 
     // A body whose paths did not take their arrival's numbering keeps only
     // its places' carrier ranges.
-    state opened(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, state: StateItem, checking: bool) {
+    machine opened(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, state: StateItem, checking: bool) {
         Checker::assume_parameter_qualifications(checker, syntax, resolution, typing, state.first_parameter, state.parameter_count);
         Checker::assume_requirements(checker, syntax, resolution, typing, state.first_clause, state.clause_count);
         Checker::install_domains(checker, syntax, resolution, typing);
@@ -516,7 +516,7 @@ crashes Trap
     // The checking walk owns the body while its places are open: the
     // ownership walk (ownership.omg) reads the storage origins its
     // reference locals captured.
-    state owned(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, state: StateItem) {
+    machine owned(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, state: StateItem) {
         Checker::own_body(
             checker,
             syntax,
@@ -530,7 +530,7 @@ crashes Trap
         );
     }
 
-    state done() {}
+    machine done() {}
 }
 
 machine Checker::enter_parameters(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, first: u64 in Trapping, count: u64 in Trapping)
@@ -538,21 +538,21 @@ crashes Trap
 {
     transition { _ -> next(checker, syntax, typing, first, first + count) }
 
-    state next(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, index: u64 in Trapping, end: u64 in Trapping) {
+    machine next(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, index: u64 in Trapping, end: u64 in Trapping) {
         transition index < end {
             true -> enter(checker, syntax, typing, index, end)
             _ -> done()
         }
     }
 
-    state enter(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, index: u64 in Trapping, end: u64 in Trapping) {
+    machine enter(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, index: u64 in Trapping, end: u64 in Trapping) {
         let parameter: Parameter = SyntaxTrees::parameter(syntax, index);
         let type_handle: u64 in Trapping = Typing::reference_type(typing, parameter.type_reference);
         let place: u64 in Trapping = Checker::place(checker, typing, PlaceKind::Parameter, index, 0, type_handle);
         transition { _ -> next(checker, syntax, typing, index + 1, end) }
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // Machine-local state tables, guarded by the state's offset.
@@ -564,7 +564,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    state reset(checker: &mut Checker, offset: u64 in Trapping)
+    machine reset(checker: &mut Checker, offset: u64 in Trapping)
     requires offset < 128
     {
         checker.reached[offset] = false;
@@ -574,7 +574,7 @@ crashes Trap
         checker.path_counts[offset] = 0;
     }
 
-    state invalid() {
+    machine invalid() {
         crash Trap;
     }
 }
@@ -587,13 +587,13 @@ crashes Trap
         _ -> invalid()
     }
 
-    state read(checker: &Checker, offset: u64 in Trapping) -> bool
+    machine read(checker: &Checker, offset: u64 in Trapping) -> bool
     requires offset < 128
     {
         checker.reached[offset]
     }
 
-    state invalid() -> bool {
+    machine invalid() -> bool {
         crash Trap;
     }
 }
@@ -606,13 +606,13 @@ crashes Trap
         _ -> invalid()
     }
 
-    state copy(checker: &mut Checker, offset: u64 in Trapping)
+    machine copy(checker: &mut Checker, offset: u64 in Trapping)
     requires offset < 128
     {
         checker.zone = checker.arrivals[offset];
     }
 
-    state invalid() {
+    machine invalid() {
         crash Trap;
     }
 }
@@ -625,14 +625,14 @@ crashes Trap
         _ -> invalid()
     }
 
-    state pop(checker: &mut Checker, index: u64) -> u64 in Trapping {
+    machine pop(checker: &mut Checker, index: u64) -> u64 in Trapping {
         transition index < 128 {
             true -> read(checker, index)
             _ -> invalid()
         }
     }
 
-    state read(checker: &mut Checker, index: u64) -> u64 in Trapping
+    machine read(checker: &mut Checker, index: u64) -> u64 in Trapping
     requires index < 128
     {
         let offset: u64 = checker.queue[index];
@@ -643,14 +643,14 @@ crashes Trap
         }
     }
 
-    state unqueued(checker: &mut Checker, offset: u64) -> u64 in Trapping
+    machine unqueued(checker: &mut Checker, offset: u64) -> u64 in Trapping
     requires offset < 128
     {
         checker.queued[offset] = false;
         offset as u64 in Trapping
     }
 
-    state invalid() -> u64 in Trapping {
+    machine invalid() -> u64 in Trapping {
         crash Trap;
     }
 }
@@ -663,7 +663,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    state candidate(checker: &mut Checker, offset: u64 in Trapping)
+    machine candidate(checker: &mut Checker, offset: u64 in Trapping)
     requires offset < 128
     {
         let queued: bool = checker.queued[offset];
@@ -673,7 +673,7 @@ crashes Trap
         }
     }
 
-    state push(checker: &mut Checker, offset: u64 in Trapping, index: u64)
+    machine push(checker: &mut Checker, offset: u64 in Trapping, index: u64)
     requires offset < 128
     {
         transition index < 128 {
@@ -682,7 +682,7 @@ crashes Trap
         }
     }
 
-    state write(checker: &mut Checker, offset: u64 in Trapping, index: u64)
+    machine write(checker: &mut Checker, offset: u64 in Trapping, index: u64)
     requires offset < 128, index < 128
     {
         checker.queue[index] = offset as u64;
@@ -690,9 +690,9 @@ crashes Trap
         checker.queued[offset] = true;
     }
 
-    state done() {}
+    machine done() {}
 
-    state invalid() {
+    machine invalid() {
         crash Trap;
     }
 }
@@ -719,7 +719,7 @@ crashes Trap
 
     // Project each integer parameter's argument, numbering them as the
     // state's body will.
-    state parameter(
+    machine parameter(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         typing: &Typing,
@@ -735,7 +735,7 @@ crashes Trap
         }
     }
 
-    state argument(
+    machine argument(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         typing: &Typing,
@@ -757,7 +757,7 @@ crashes Trap
         }
     }
 
-    state projected(
+    machine projected(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         typing: &Typing,
@@ -773,31 +773,31 @@ crashes Trap
     }
 
     // Then the field paths below its other arguments.
-    state paths(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, item: StateItem, offset: u64 in Trapping, first_subject: u64 in Trapping) {
+    machine paths(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, item: StateItem, offset: u64 in Trapping, first_subject: u64 in Trapping) {
         let count: u64 in Trapping = Checker::project_paths(checker, syntax, typing, expression, item, offset, first_subject);
         transition { _ -> project(checker, offset, count) }
     }
 
-    state project(checker: &mut Checker, offset: u64 in Trapping, count: u64 in Trapping) {
+    machine project(checker: &mut Checker, offset: u64 in Trapping, count: u64 in Trapping) {
         Zone::open(&mut checker.contribution, 64);
         transition { _ -> row(checker, offset, count, 0) }
     }
 
-    state row(checker: &mut Checker, offset: u64 in Trapping, count: u64 in Trapping, from: u64 in Trapping) {
+    machine row(checker: &mut Checker, offset: u64 in Trapping, count: u64 in Trapping, from: u64 in Trapping) {
         transition from < count {
             true -> column(checker, offset, count, from, 0)
             _ -> joined(checker, offset)
         }
     }
 
-    state column(checker: &mut Checker, offset: u64 in Trapping, count: u64 in Trapping, from: u64 in Trapping, to: u64 in Trapping) {
+    machine column(checker: &mut Checker, offset: u64 in Trapping, count: u64 in Trapping, from: u64 in Trapping, to: u64 in Trapping) {
         transition to < count {
             true -> pair(checker, offset, count, from, to)
             _ -> row(checker, offset, count, from + 1)
         }
     }
 
-    state pair(checker: &mut Checker, offset: u64 in Trapping, count: u64 in Trapping, from: u64 in Trapping, to: u64 in Trapping) {
+    machine pair(checker: &mut Checker, offset: u64 in Trapping, count: u64 in Trapping, from: u64 in Trapping, to: u64 in Trapping) {
         let first: Value = Checker::projection_at(checker, from);
         let second: Value = Checker::projection_at(checker, to);
         let bound: Bound = Checker::projected_bound(checker, first, second);
@@ -807,16 +807,16 @@ crashes Trap
         }
     }
 
-    state stored(checker: &mut Checker, offset: u64 in Trapping, count: u64 in Trapping, from: u64 in Trapping, to: u64 in Trapping, bound: Bound) {
+    machine stored(checker: &mut Checker, offset: u64 in Trapping, count: u64 in Trapping, from: u64 in Trapping, to: u64 in Trapping, bound: Bound) {
         Zone::set(&mut checker.contribution, from, to, bound);
         transition { _ -> column(checker, offset, count, from, to + 1) }
     }
 
-    state joined(checker: &mut Checker, offset: u64 in Trapping) {
+    machine joined(checker: &mut Checker, offset: u64 in Trapping) {
         Checker::join_arrival(checker, offset);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // The bound on `second - first` for two projected argument values.
@@ -828,12 +828,12 @@ crashes Trap
         _ -> intervals(first, second)
     }
 
-    state related(checker: &Checker, first: Value, second: Value) -> Bound {
+    machine related(checker: &Checker, first: Value, second: Value) -> Bound {
         let bound: Bound = Checker::difference_bound(checker, first, second);
         bound
     }
 
-    state intervals(first: Value, second: Value) -> Bound {
+    machine intervals(first: Value, second: Value) -> Bound {
         let bound: Bound = Bound::add(second.ceiling, first.floor);
         bound
     }
@@ -847,7 +847,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    state arrival(checker: &mut Checker, offset: u64 in Trapping)
+    machine arrival(checker: &mut Checker, offset: u64 in Trapping)
     requires offset < 128
     {
         let reached: bool = checker.reached[offset];
@@ -857,7 +857,7 @@ crashes Trap
         }
     }
 
-    state first(checker: &mut Checker, offset: u64 in Trapping)
+    machine first(checker: &mut Checker, offset: u64 in Trapping)
     requires offset < 128
     {
         let order: u64 in Trapping = checker.discovered as u64 in Trapping;
@@ -869,7 +869,7 @@ crashes Trap
         Checker::enqueue(checker, offset);
     }
 
-    state loosen(checker: &mut Checker, offset: u64 in Trapping)
+    machine loosen(checker: &mut Checker, offset: u64 in Trapping)
     requires offset < 128
     {
         checker.previous = checker.arrivals[offset];
@@ -881,7 +881,7 @@ crashes Trap
         }
     }
 
-    state loosened(checker: &mut Checker, offset: u64 in Trapping)
+    machine loosened(checker: &mut Checker, offset: u64 in Trapping)
     requires offset < 128
     {
         let count: u64 in Trapping = checker.loosenings[offset] as u64 in Trapping;
@@ -894,23 +894,23 @@ crashes Trap
         }
     }
 
-    state widen(checker: &mut Checker, offset: u64 in Trapping)
+    machine widen(checker: &mut Checker, offset: u64 in Trapping)
     requires offset < 128
     {
         Zone::widen(&mut checker.merged, &checker.previous);
         transition { _ -> store(checker, offset) }
     }
 
-    state store(checker: &mut Checker, offset: u64 in Trapping)
+    machine store(checker: &mut Checker, offset: u64 in Trapping)
     requires offset < 128
     {
         checker.arrivals[offset] = checker.merged;
         Checker::enqueue(checker, offset);
     }
 
-    state done() {}
+    machine done() {}
 
-    state invalid() {
+    machine invalid() {
         crash Trap;
     }
 }
@@ -923,13 +923,13 @@ crashes Trap
         _ -> invalid()
     }
 
-    state write(checker: &mut Checker, subject: u64 in Trapping, value: Value)
+    machine write(checker: &mut Checker, subject: u64 in Trapping, value: Value)
     requires subject < 64
     {
         checker.projection[subject] = value;
     }
 
-    state invalid() {
+    machine invalid() {
         crash Trap;
     }
 }
@@ -942,13 +942,13 @@ crashes Trap
         _ -> invalid()
     }
 
-    state read(checker: &Checker, subject: u64 in Trapping) -> Value
+    machine read(checker: &Checker, subject: u64 in Trapping) -> Value
     requires subject < 64
     {
         checker.projection[subject]
     }
 
-    state invalid() -> Value {
+    machine invalid() -> Value {
         crash Trap;
     }
 }
@@ -964,7 +964,7 @@ crashes Trap
         _ -> done()
     }
 
-    state binder(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, selection: Selection) {
+    machine binder(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, selection: Selection) {
         let clauses: CallClauses = Checker::call_clauses(syntax, resolution, selection);
         let causes: CrashRoutes = Checker::declared_causes(syntax, clauses.first_clause, clauses.clause_count);
         checker.trap_route = checker.trap_route || causes.declares_trap;
@@ -972,14 +972,14 @@ crashes Trap
         Checker::record_binder_call(checker);
     }
 
-    state machine(checker: &mut Checker, callee: u64 in Trapping) {
+    machine machine(checker: &mut Checker, callee: u64 in Trapping) {
         transition checker.call_count < 32768 {
             true -> write(checker, checker.call_count, callee)
             _ -> full(checker)
         }
     }
 
-    state write(checker: &mut Checker, index: u64, callee: u64 in Trapping)
+    machine write(checker: &mut Checker, index: u64, callee: u64 in Trapping)
     requires index < 32768
     {
         checker.callers[index] = checker.machine as u64;
@@ -987,11 +987,11 @@ crashes Trap
         checker.call_count = index + 1;
     }
 
-    state full(checker: &mut Checker) {
+    machine full(checker: &mut Checker) {
         checker.overflowed = true;
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // A call of machine `callee` from machine `caller` that supplies its
@@ -1013,7 +1013,7 @@ crashes Trap
         _ -> done()
     }
 
-    state selected(checker: &mut Checker, syntax: &SyntaxTrees, call: u64 in Trapping, callee: u64 in Trapping) {
+    machine selected(checker: &mut Checker, syntax: &SyntaxTrees, call: u64 in Trapping, callee: u64 in Trapping) {
         let item: MachineItem = SyntaxTrees::machine_item(syntax, callee);
         let binds: bool = Checker::binds_machines(syntax, item.first_generic_parameter, item.generic_parameter_count);
         transition binds {
@@ -1022,25 +1022,25 @@ crashes Trap
         }
     }
 
-    state supplying(checker: &mut Checker, call: u64 in Trapping, callee: u64 in Trapping) {
+    machine supplying(checker: &mut Checker, call: u64 in Trapping, callee: u64 in Trapping) {
         transition checker.supplied_count < 1024 {
             true -> write(checker, checker.supplied_count, call, callee)
             _ -> full(checker)
         }
     }
 
-    state write(checker: &mut Checker, index: u64, call: u64 in Trapping, callee: u64 in Trapping)
+    machine write(checker: &mut Checker, index: u64, call: u64 in Trapping, callee: u64 in Trapping)
     requires index < 1024
     {
         checker.supplied[index] = SuppliedCall { caller: checker.machine as u64, call: call as u64, callee: callee as u64 };
         checker.supplied_count = index + 1;
     }
 
-    state full(checker: &mut Checker) {
+    machine full(checker: &mut Checker) {
         checker.overflowed = true;
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // Whether any generic parameter in `first .. first + count` is a machine
@@ -1050,14 +1050,14 @@ crashes Trap
 {
     transition { _ -> next(syntax, first, count, 0) }
 
-    state next(syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, offset: u64 in Trapping) -> bool {
+    machine next(syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, offset: u64 in Trapping) -> bool {
         transition offset < count {
             true -> parameter(syntax, first, count, offset)
             _ -> none()
         }
     }
 
-    state parameter(syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, offset: u64 in Trapping) -> bool {
+    machine parameter(syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, offset: u64 in Trapping) -> bool {
         let generic: GenericParameter = SyntaxTrees::generic_parameter(syntax, first + offset);
         transition generic.kind == GenericParameterKind::Machine {
             true -> found()
@@ -1065,11 +1065,11 @@ crashes Trap
         }
     }
 
-    state found() -> bool {
+    machine found() -> bool {
         true
     }
 
-    state none() -> bool {
+    machine none() -> bool {
         false
     }
 }
@@ -1087,7 +1087,7 @@ crashes Trap
         _ -> unframed(checker, syntax, typing, expression)
     }
 
-    state framed(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, callee: u64 in Trapping) {
+    machine framed(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, callee: u64 in Trapping) {
         let item: MachineItem = SyntaxTrees::machine_item(syntax, callee);
         let unknown: bool = Checker::writes_unknown(checker, callee);
         transition { _ -> next(checker, syntax, typing, expression, callee, item.first_parameter, item.parameter_count, unknown, 0) }
@@ -1095,11 +1095,11 @@ crashes Trap
 
     // Unknown writes release every exclusive argument whole, so no callee
     // frame is read.
-    state unframed(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression) {
+    machine unframed(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression) {
         transition { _ -> next(checker, syntax, typing, expression, 0, 0, 0, true, 0) }
     }
 
-    state next(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, callee: u64 in Trapping, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, unknown: bool, offset: u64 in Trapping) {
+    machine next(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, callee: u64 in Trapping, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, unknown: bool, offset: u64 in Trapping) {
         let count: u64 in Trapping = Checker::operand_count(expression);
         transition offset < count {
             true -> argument(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset)
@@ -1107,7 +1107,7 @@ crashes Trap
         }
     }
 
-    state argument(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, callee: u64 in Trapping, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, unknown: bool, offset: u64 in Trapping) {
+    machine argument(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, callee: u64 in Trapping, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, unknown: bool, offset: u64 in Trapping) {
         let handle: u64 in Trapping = Checker::operand(syntax, expression, offset);
         let value: Value = Checker::value_at(checker, handle);
         let exclusive: bool = Checker::exclusive_value(typing, handle);
@@ -1118,7 +1118,7 @@ crashes Trap
         }
     }
 
-    state origin(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, callee: u64 in Trapping, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, unknown: bool, offset: u64 in Trapping, handle: u64 in Trapping, whole: bool) {
+    machine origin(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, callee: u64 in Trapping, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, unknown: bool, offset: u64 in Trapping, handle: u64 in Trapping, whole: bool) {
         let place: u64 in Trapping = Checker::storage_origin(checker, syntax, typing, handle);
         transition place > 0 {
             true -> lent(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset, handle, place, whole)
@@ -1129,7 +1129,7 @@ crashes Trap
     // A complete empty frame cannot mutate even an unknown referent. Any
     // nonempty frame needs an origin; a returned reference is not evidence
     // of a disjoint new place.
-    state unknown_origin(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, callee: u64 in Trapping, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, unknown: bool, offset: u64 in Trapping, whole: bool) {
+    machine unknown_origin(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, callee: u64 in Trapping, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, unknown: bool, offset: u64 in Trapping, whole: bool) {
         let changes: bool = Checker::frame_changes(checker, syntax, callee, whole);
         transition changes {
             true -> unrepresented(checker, expression)
@@ -1137,12 +1137,12 @@ crashes Trap
         }
     }
 
-    state unrepresented(checker: &mut Checker, expression: Expression) {
+    machine unrepresented(checker: &mut Checker, expression: Expression) {
         Checks::reject(&mut checker.output, CheckDiagnosticCode::UnsupportedCheck, expression.source_span);
     }
 
     // The operands evaluated before the call keep what they read there.
-    state lent(
+    machine lent(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         typing: &Typing,
@@ -1163,7 +1163,7 @@ crashes Trap
         }
     }
 
-    state changed(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, callee: u64 in Trapping, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, unknown: bool, offset: u64 in Trapping, lender: u64 in Trapping, place: u64 in Trapping, whole: bool) {
+    machine changed(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, callee: u64 in Trapping, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, unknown: bool, offset: u64 in Trapping, lender: u64 in Trapping, place: u64 in Trapping, whole: bool) {
         checker.write_epoch = checker.write_epoch + 1;
         let write: WriteFootprint = WriteFootprint { place: place, callee: callee, whole: whole };
         Checker::snapshot_operands(checker, syntax, typing, expression, lender, write);
@@ -1173,17 +1173,17 @@ crashes Trap
         }
     }
 
-    state released(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, callee: u64 in Trapping, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, unknown: bool, offset: u64 in Trapping, place: u64 in Trapping) {
+    machine released(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, callee: u64 in Trapping, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, unknown: bool, offset: u64 in Trapping, place: u64 in Trapping) {
         Checker::forget_place(checker, typing, place);
         transition { _ -> next(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset + 1) }
     }
 
-    state narrowed(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, callee: u64 in Trapping, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, unknown: bool, offset: u64 in Trapping, place: u64 in Trapping) {
+    machine narrowed(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, callee: u64 in Trapping, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, unknown: bool, offset: u64 in Trapping, place: u64 in Trapping) {
         Checker::forget_written_fields(checker, typing, place, callee);
         transition { _ -> next(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset + 1) }
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // An empty complete write frame changes no storage and must not prevent
@@ -1197,14 +1197,14 @@ crashes Trap
         _ -> field(checker, syntax, callee, 0)
     }
 
-    state field(checker: &Checker, syntax: &SyntaxTrees, callee: u64 in Trapping, index: u64 in Trapping) -> bool {
+    machine field(checker: &Checker, syntax: &SyntaxTrees, callee: u64 in Trapping, index: u64 in Trapping) -> bool {
         transition index < syntax.field_count {
             true -> inspected(checker, syntax, callee, index)
             _ -> answer(false)
         }
     }
 
-    state inspected(checker: &Checker, syntax: &SyntaxTrees, callee: u64 in Trapping, index: u64 in Trapping) -> bool {
+    machine inspected(checker: &Checker, syntax: &SyntaxTrees, callee: u64 in Trapping, index: u64 in Trapping) -> bool {
         let writes: bool = Checker::writes_field(checker, callee, index);
         transition writes {
             true -> answer(true)
@@ -1212,7 +1212,7 @@ crashes Trap
         }
     }
 
-    state answer(changes: bool) -> bool {
+    machine answer(changes: bool) -> bool {
         changes
     }
 }
@@ -1226,14 +1226,14 @@ crashes Trap
     Checker::forget_aliases(checker, place);
     transition { _ -> next(checker, typing, place, callee, 0) }
 
-    state next(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, callee: u64 in Trapping, index: u64 in Trapping) {
+    machine next(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, callee: u64 in Trapping, index: u64 in Trapping) {
         transition index < checker.place_count {
             true -> visit(checker, typing, place, callee, index)
             _ -> done()
         }
     }
 
-    state visit(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, callee: u64 in Trapping, index: u64 in Trapping) {
+    machine visit(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, callee: u64 in Trapping, index: u64 in Trapping) {
         let candidate: Place = Checker::place_at(checker, index);
         let inside: bool = Checker::within(checker, index + 1, place);
         let written: bool = Checker::writes_field(checker, callee, candidate.handle);
@@ -1243,12 +1243,12 @@ crashes Trap
         }
     }
 
-    state forgotten(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, callee: u64 in Trapping, index: u64 in Trapping) {
+    machine forgotten(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, callee: u64 in Trapping, index: u64 in Trapping) {
         Checker::forget_place(checker, typing, index + 1);
         transition { _ -> next(checker, typing, place, callee, index + 1) }
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // Settle crash routes over the call graph: a caller derives each cause its
@@ -1260,14 +1260,14 @@ crashes Trap
 {
     transition { _ -> sweep(checker, syntax, 0, false) }
 
-    state sweep(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping, changed: bool) {
+    machine sweep(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping, changed: bool) {
         transition index < checker.call_count {
             true -> edge(checker, syntax, index, changed)
             _ -> swept(checker, syntax, changed)
         }
     }
 
-    state edge(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping, changed: bool) {
+    machine edge(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping, changed: bool) {
         let call: u64 in Trapping = index;
         let caller: u64 in Trapping = Checker::caller_at(checker, call);
         let callee: u64 in Trapping = Checker::callee_at(checker, call);
@@ -1282,7 +1282,7 @@ crashes Trap
         }
     }
 
-    state gain(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping, caller: u64 in Trapping, into: CrashRoutes, trap: bool, abort: bool) {
+    machine gain(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping, caller: u64 in Trapping, into: CrashRoutes, trap: bool, abort: bool) {
         let routes: CrashRoutes = CrashRoutes {
             declares_trap: into.declares_trap,
             declares_abort: into.declares_abort,
@@ -1294,21 +1294,21 @@ crashes Trap
         transition { _ -> sweep(checker, syntax, index + 1, true) }
     }
 
-    state swept(checker: &mut Checker, syntax: &SyntaxTrees, changed: bool) {
+    machine swept(checker: &mut Checker, syntax: &SyntaxTrees, changed: bool) {
         transition changed {
             true -> sweep(checker, syntax, 0, false)
             _ -> fit(checker, syntax, 0)
         }
     }
 
-    state fit(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine fit(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.machine_count && checker.output.diagnostic_count < 64 {
             true -> machine(checker, syntax, index)
             _ -> done()
         }
     }
 
-    state machine(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine machine(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping) {
         Checks::open_machine(&mut checker.output);
         let routes: CrashRoutes = Checks::routes(&checker.output, index);
         let undeclared: bool = !routes.inferred
@@ -1319,13 +1319,13 @@ crashes Trap
         }
     }
 
-    state rejected(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine rejected(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping) {
         let item: MachineItem = SyntaxTrees::machine_item(syntax, index);
         Checks::reject(&mut checker.output, CheckDiagnosticCode::CrashNotDeclared, item.source_span);
         transition { _ -> fit(checker, syntax, index + 1) }
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // What a callee publishes for one cause.
@@ -1335,7 +1335,7 @@ public machine Checker::published(inferred: bool, derived: bool, declared: bool)
         _ -> chosen(declared)
     }
 
-    state chosen(cause: bool) -> bool {
+    machine chosen(cause: bool) -> bool {
         cause
     }
 }
@@ -1348,13 +1348,13 @@ crashes Trap
         _ -> invalid()
     }
 
-    state read(checker: &Checker, index: u64 in Trapping) -> u64 in Trapping
+    machine read(checker: &Checker, index: u64 in Trapping) -> u64 in Trapping
     requires index < 32768
     {
         checker.callers[index] as u64 in Trapping
     }
 
-    state invalid() -> u64 in Trapping {
+    machine invalid() -> u64 in Trapping {
         crash Trap;
     }
 }
@@ -1367,13 +1367,13 @@ crashes Trap
         _ -> invalid()
     }
 
-    state read(checker: &Checker, index: u64 in Trapping) -> u64 in Trapping
+    machine read(checker: &Checker, index: u64 in Trapping) -> u64 in Trapping
     requires index < 32768
     {
         checker.callees[index] as u64 in Trapping
     }
 
-    state invalid() -> u64 in Trapping {
+    machine invalid() -> u64 in Trapping {
         crash Trap;
     }
 }
@@ -1389,7 +1389,7 @@ crashes Trap
         _ -> forward()
     }
 
-    state compared(checker: &Checker, offset: u64 in Trapping, source: u64 in Trapping)
+    machine compared(checker: &Checker, offset: u64 in Trapping, source: u64 in Trapping) -> bool
     requires offset < 128, source < 128
     {
         let target_order: u64 = checker.discovery[offset];
@@ -1397,7 +1397,7 @@ crashes Trap
         target_order <= source_order
     }
 
-    state forward() -> bool {
+    machine forward() -> bool {
         false
     }
 }

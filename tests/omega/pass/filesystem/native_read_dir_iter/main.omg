@@ -50,17 +50,17 @@ machine Main::main(main: &mut Main) reaches DirectoryEnumeration + FilesystemCon
     main.discard = PosixFilesystemHost::close(main.fd);
     main.dfd = PosixFilesystemHost::open("/tmp/omega_rdi", main.rdonly);
     transition main.dfd >= 0 { true -> readit(main) _ -> fail(main) }
-    state readit(main: &mut Main) {
+    machine readit(main: &mut Main) {
         main.total = PosixFilesystemHost::read_dir(main.dfd, &mut main.buffer, main.cap, &mut main.position);
         main.totalu = narrow_i64_to_u64_wrapping(main.total) as u64 in Wrapping;
         transition main.total > 0 { true -> walk(main) _ -> fail(main) }
     }
-    state walk(main: &mut Main) {
+    machine walk(main: &mut Main) {
         // dominating guard: cursor within the buffer so the header reads are
         // provably in-bounds (discharges the static index-bounds obligation).
         transition main.off < 480 { true -> walkbody(main) _ -> fail(main) }
     }
-    state walkbody(main: &mut Main) {
+    machine walkbody(main: &mut Main) {
         // d_reclen: little-endian u16 at record offset + 16 (RUNTIME-indexed read)
         main.idx = main.off + 16;
         main.lo = main.buffer[main.idx];
@@ -73,7 +73,7 @@ machine Main::main(main: &mut Main) reaches DirectoryEnumeration + FilesystemCon
         main.off = main.off + main.reclen;
         transition main.off < main.totalu { true -> walk(main) _ -> done(main) }
     }
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         main.discard = PosixFilesystemHost::close(main.dfd);
         main.discard = PosixFilesystemHost::remove("/tmp/omega_rdi/alpha");
         main.discard = PosixFilesystemHost::remove("/tmp/omega_rdi/beta");
@@ -81,8 +81,8 @@ machine Main::main(main: &mut Main) reaches DirectoryEnumeration + FilesystemCon
         // entries: ".", "..", "alpha", "beta" => 4
         transition main.count == 4 { true -> good(main) _ -> fail(main) }
     }
-    state good(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "PASS: read_dir iteration walked 4 entries (., .., alpha, beta) natively\n"); }
-    state fail(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "FAIL: read_dir iteration\n"); }
+    machine good(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "PASS: read_dir iteration walked 4 entries (., .., alpha, beta) natively\n"); }
+    machine fail(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "FAIL: read_dir iteration\n"); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

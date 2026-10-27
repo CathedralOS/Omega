@@ -10,16 +10,16 @@ machine main() reaches Console {
     let mut acquisition: Acquisition;
     block read_acquisition(&mut acquisition);
     transition acquisition.error == 0 { true -> decode(&mut acquisition) false -> reject(&acquisition) }
-    state decode(acquisition: &mut Acquisition) {
+    machine decode(acquisition: &mut Acquisition) {
         reconstruct(acquisition);
         transition acquisition.error == 0 { true -> fitted(acquisition) false -> reject(acquisition) }
     }
-    state fitted(acquisition: &mut Acquisition) {
+    machine fitted(acquisition: &mut Acquisition) {
         fit_clock(acquisition);
         report(acquisition);
         Console::exit_process(0);
     }
-    state reject(acquisition: &Acquisition) {
+    machine reject(acquisition: &Acquisition) {
         Console::write("ERROR "); number(acquisition.error); Console::write_line("");
         Console::exit_process(2);
     }

@@ -7,6 +7,6 @@ machine read_const() -> u8 {
 }
 machine main() crashes Trap {
     transition read_const() == 8 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -11,14 +11,14 @@ machine CheckedSource::open() -> Package satisfies Source::open {
 machine forward() -> Package reaches Source { Source::open() }
 machine close(resource: Resource in Open) crashes Trap {
     transition resource.identity == 73 { true -> done() false -> wrong() }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }
 data Main { }
 machine Main::main(context: &mut Main) reaches Source crashes Trap {
     let package: Package = forward();
     transition { _ -> received(package.resource) }
-    state received(resource: Resource in Open) { close(resource); }
+    machine received(resource: Resource in Open) { close(resource); }
 }
 
 CheckedSourceSourceImplementation satisfies Source {

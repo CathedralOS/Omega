@@ -26,6 +26,6 @@ requires 0 <= index_u8 && index_u8 <= 3
 machine main() crashes Trap {
     let values: [u64; 4] = [1, 2, 4, 8];
     transition read_all(values, 0, 1, 2, 3, 0, 1, 2, 2) == 12 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

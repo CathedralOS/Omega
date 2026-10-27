@@ -3,12 +3,12 @@ machine walk(remaining: u32)
 terminates by remaining in 0..=5;
 -> u32 {
     transition { _ -> prepare(remaining, remaining) }
-    state prepare(left: u32, right: u32)
+    machine prepare(left: u32, right: u32) -> u32
         requires 0 <= left && left <= 5 && 0 <= right && right <= 5
     {
         transition { _ -> finish(left + (right - right)) }
     }
-    state finish(result: u32)
+    machine finish(result: u32) -> u32
         requires 0 <= result && result <= 5
     { result }
 }

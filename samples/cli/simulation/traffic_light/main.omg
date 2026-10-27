@@ -45,28 +45,28 @@ machine Main::main(main: &mut Main) reaches Console {
         false -> bad_count(main)
     }
 
-    state check_phase(main: &mut Main) {
+    machine check_phase(main: &mut Main) {
         transition main.light.phase {
             Phase::Green -> good(main)
             _ -> bad_phase(main)
         }
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::write_line("PASS: 4 advances landed on Green as expected (exit 70)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(70);
     }
 
-    state bad_count(main: &mut Main) {
+    machine bad_count(main: &mut Main) {
         Console::write_line("FAIL: the advance count was not 4 (exit 71)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(71);
     }
 
-    state bad_phase(main: &mut Main) {
+    machine bad_phase(main: &mut Main) {
         Console::write_line("FAIL: the final phase was not Green (exit 72)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
@@ -84,15 +84,15 @@ machine Main::advance(main: &mut Main) {
         _ -> go_red(main)
     }
 
-    state go_green(main: &mut Main) {
+    machine go_green(main: &mut Main) {
         main.light.phase = Phase::Green;
     }
 
-    state go_yellow(main: &mut Main) {
+    machine go_yellow(main: &mut Main) {
         main.light.phase = Phase::Yellow;
     }
 
-    state go_red(main: &mut Main) {
+    machine go_red(main: &mut Main) {
         main.light.phase = Phase::Red;
     }
 }

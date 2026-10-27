@@ -4,7 +4,7 @@ data Alternate { number: u64; }
 
 machine observe(marker: u64, value: &mut Value) -> u64 {
     transition { _ -> access(marker, value as &mut Alternate) }
-    state access(marker: u64, view: &mut Alternate) -> u64 {
+    machine access(marker: u64, view: &mut Alternate) -> u64 {
         view.number
     }
 }
@@ -19,7 +19,7 @@ machine main() crashes Trap {
         true -> inspect(value)
         _ -> wrong()
     }
-    state inspect(mut value: Value)
+    machine inspect(mut value: Value)
     requires value.number == 17
     {
         let observed: u64 = observe(7, &mut value);
@@ -29,6 +29,6 @@ machine main() crashes Trap {
             _ -> wrong()
         }
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

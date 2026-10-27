@@ -5,7 +5,7 @@ machine main() crashes Trap {
     let mut backing: [u8; 1] = [19];
     let windows: [&mut [u8]; 1] = [&mut backing[..]];
     transition { _ -> inspect(windows) }
-    state inspect(windows: [&mut [u8]; 1])
+    machine inspect(windows: [&mut [u8]; 1])
     requires windows[0].len == 1
     {
         let length: u64 = windows[0].len;
@@ -15,6 +15,6 @@ machine main() crashes Trap {
             false -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

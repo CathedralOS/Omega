@@ -32,7 +32,7 @@ machine Main::main(main: &mut Main) reaches Console + Gui {
     main.alive = Gui::is_window(main.win);
     main.killed = Gui::window_destroy(main.win);
     transition main.win != 0 { true -> ck_dc(main) _ -> bad(main) }
-    state ck_dc(main: &mut Main) { transition main.dc == main.win { true -> good(main) _ -> bad(main) } }
-    state good(main: &mut Main) { Console::exit_process(7); }
-    state bad(main: &mut Main)  { Console::exit_process(1); }
+    machine ck_dc(main: &mut Main) { transition main.dc == main.win { true -> good(main) _ -> bad(main) } }
+    machine good(main: &mut Main) { Console::exit_process(7); }
+    machine bad(main: &mut Main)  { Console::exit_process(1); }
 }

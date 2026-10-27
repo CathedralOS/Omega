@@ -8,13 +8,13 @@ machine number(value: i64 in Wrapping) reaches Console
 invokes Console;
 {
     transition { _ -> place(value, 1000000000000, false) }
-    state place(value: i64 in Wrapping, divisor: i64 in Wrapping, started: bool) {
+    machine place(value: i64 in Wrapping, divisor: i64 in Wrapping, started: bool) {
         transition divisor > 0 {
             true -> digit(value, divisor, started)
             false -> done()
         }
     }
-    state digit(value: i64 in Wrapping, divisor: i64 in Wrapping, started: bool)
+    machine digit(value: i64 in Wrapping, divisor: i64 in Wrapping, started: bool)
     requires divisor > 0 {
         let digit: i64 in Wrapping = value / divisor;
         transition started || digit > 0 || divisor == 1 {
@@ -22,13 +22,13 @@ invokes Console;
             false -> place(value, divisor / 10, false)
         }
     }
-    state emit(value: i64 in Wrapping, divisor: i64 in Wrapping, digit: i64 in Wrapping)
+    machine emit(value: i64 in Wrapping, divisor: i64 in Wrapping, digit: i64 in Wrapping)
     requires divisor > 0 {
         let byte: i32 = narrow_i64_to_i32_wrapping((digit + 48) as i64);
         Console::write_byte(byte);
         transition { _ -> place(value % divisor, divisor / 10, true) }
     }
-    state done() { }
+    machine done() { }
 }
 
 machine line_number(value: i64 in Wrapping) reaches Console

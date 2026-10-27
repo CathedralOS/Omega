@@ -13,7 +13,7 @@ machine Pair::code(pair: &Pair) -> u64 in Wrapping {
         Pair::Both { a, b } -> value(a + b)
     }
 
-    state value(code: u64 in Wrapping) -> u64 in Wrapping {
+    machine value(code: u64 in Wrapping) -> u64 in Wrapping {
         code
     }
 }
@@ -29,7 +29,7 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> done(main, 71)
     }
 
-    state done(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine done(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

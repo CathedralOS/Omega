@@ -44,17 +44,17 @@ machine Main::main(main: &mut Main) reaches Console {
     main.y = 0;
     transition { _ -> row_loop(main) }
 
-    state row_loop(main: &mut Main) {
+    machine row_loop(main: &mut Main) {
         transition main.y < 28 { true -> col_init(main) _ -> done(main) }
     }
-    state col_init(main: &mut Main) {
+    machine col_init(main: &mut Main) {
         main.x = 0;
         transition { _ -> col_loop(main) }
     }
-    state col_loop(main: &mut Main) {
+    machine col_loop(main: &mut Main) {
         transition main.x >= 0 && main.x < 64 { true -> pixel_init(main) _ -> emit_row(main) }
     }
-    state pixel_init(main: &mut Main) {
+    machine pixel_init(main: &mut Main) {
         main.cr = (F64::from_i32(main.x) / 64.0) * 3.5 - 2.5;
         main.ci = (F64::from_i32(main.y) / 28.0) * 2.6 - 1.3;
         main.zr = 0.0;
@@ -62,10 +62,10 @@ machine Main::main(main: &mut Main) reaches Console {
         main.k = 0;
         transition { _ -> iter_loop(main) }
     }
-    state iter_loop(main: &mut Main) {
+    machine iter_loop(main: &mut Main) {
         transition main.k < 28 { true -> iter_test(main) _ -> pixel_done(main) }
     }
-    state iter_test(main: &mut Main) {
+    machine iter_test(main: &mut Main) {
         main.zr2 = main.zr * main.zr;
         main.zi2 = main.zi * main.zi;
         main.mag = main.zr2 + main.zi2;
@@ -73,28 +73,28 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     // Re-guard so the increment's direct edge proves `k + 1` lands in
     // [1..=28] -- we only get here with k < 28, so always true.
-    state iter_step(main: &mut Main) {
+    machine iter_step(main: &mut Main) {
         main.zi = 2.0 * main.zr * main.zi + main.ci;
         main.zr = main.zr2 - main.zi2 + main.cr;
         transition main.k >= 0 && main.k < 28 { true -> iter_advance(main) _ -> pixel_done(main) }
     }
-    state iter_advance(main: &mut Main) {
+    machine iter_advance(main: &mut Main) {
         main.k = main.k + 1;
         transition { _ -> iter_loop(main) }
     }
     // Re-guard `0 <= k <= 28` so the shade arithmetic `k * 7 / 28` is exact --
     // k only counts up to the 28-step cap, so always true.
-    state pixel_done(main: &mut Main) {
+    machine pixel_done(main: &mut Main) {
         transition main.k >= 0 && main.k <= 28 { true -> pixel_shade(main) _ -> bad(main) }
     }
-    state pixel_shade(main: &mut Main) {
+    machine pixel_shade(main: &mut Main) {
         main.idx = main.k * 7 / 28;
         transition main.idx >= 0 && main.idx < 8 && main.x >= 0 && main.x < 64 {
             true -> write_pixel(main)
             _ -> bad(main)
         }
     }
-    state write_pixel(main: &mut Main) {
+    machine write_pixel(main: &mut Main) {
         main.ch = main.palette[main.idx] as u8 in Wrapping;
         main.row[main.x] = main.ch as u8;
         main.x = main.x + 1;
@@ -102,21 +102,21 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     // Re-guard so the increment's direct edge proves `y + 1` lands in
     // [1..=28] (the write_line call severs the row_loop guard anyway).
-    state emit_row(main: &mut Main) {
+    machine emit_row(main: &mut Main) {
         Console::write_line(main.row);
         transition main.y >= 0 && main.y < 28 { true -> row_advance(main) _ -> done(main) }
     }
-    state row_advance(main: &mut Main) {
+    machine row_advance(main: &mut Main) {
         main.y = main.y + 1;
         transition { _ -> row_loop(main) }
     }
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         Console::write_line("PASS: 28 rows rendered (exit 0)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(0);
     }
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::write_line("FAIL: internal bounds check failed (exit 1)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);

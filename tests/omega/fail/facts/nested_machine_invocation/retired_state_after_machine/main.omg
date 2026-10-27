@@ -1,0 +1,5 @@
+machine main() {
+    transition helper()
+    machine helper() {}
+    state old_helper() {}
+}

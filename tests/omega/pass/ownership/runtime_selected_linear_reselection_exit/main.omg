@@ -22,6 +22,6 @@ machine main() crashes Trap {
     let right: u64 = second.value;
     drop(second);
     transition left == 1 && right == 2 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

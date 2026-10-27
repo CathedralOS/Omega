@@ -23,8 +23,8 @@ invokes Console;
         true -> good()
         false -> bad()
     }
-    state good() { Console::exit_process(0); }
-    state bad() { Console::exit_process(1); }
+    machine good() { Console::exit_process(0); }
+    machine bad() { Console::exit_process(1); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -14,6 +14,6 @@ machine acquire() -> Token in Issued { forward(issue<Factory>(17)) }
 machine main() crashes Trap {
     let value: u64 = consume(forward(acquire()));
     transition value == 17 { true -> done() _ -> wrong() }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

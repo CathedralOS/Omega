@@ -10,7 +10,7 @@ machine select(items: &[Item], index: u64, output: &mut Output) {
         true -> write(items[index], output)
         false -> {}
     }
-    state write(item: Item, output: &mut Output) {
+    machine write(item: Item, output: &mut Output) {
         output.kind = item.kind;
         output.value = item.value;
     }
@@ -28,6 +28,6 @@ machine Main::main(main: &mut Main) {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() {}
+    machine done() {}
+    machine bad() {}
 }

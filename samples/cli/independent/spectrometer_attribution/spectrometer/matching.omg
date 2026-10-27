@@ -9,25 +9,25 @@ use omega::language::core::float_operations;
 // A many-candidate region is reported as ambiguous, never asserted unique.
 public machine match_regions(spectrum: &Spectrum, regions: &mut Regions) {
     transition { _ -> region(spectrum, regions, 0) }
-    state region(spectrum: &Spectrum, regions: &mut Regions, index: i32 in Wrapping) {
+    machine region(spectrum: &Spectrum, regions: &mut Regions, index: i32 in Wrapping) {
         transition index >= 0 && index < regions.count && index < 8 {
             true -> reset(spectrum, regions, index)
             false -> finished()
         }
     }
-    state reset(spectrum: &Spectrum, regions: &mut Regions, index: i32 in Wrapping) {
+    machine reset(spectrum: &Spectrum, regions: &mut Regions, index: i32 in Wrapping) {
         regions.candidates[index] = 0;
         regions.nearest[index] = 0;
         transition { _ -> line(spectrum, regions, index, 0, 10000000.0) }
     }
-    state line(spectrum: &Spectrum, regions: &mut Regions, index: i32 in Wrapping,
+    machine line(spectrum: &Spectrum, regions: &mut Regions, index: i32 in Wrapping,
                reference: i32 in Wrapping, best: f64) {
         transition reference >= 0 && reference < 4 {
             true -> distance(spectrum, regions, index, reference, best)
             false -> region(spectrum, regions, index + 1)
         }
     }
-    state distance(spectrum: &Spectrum, regions: &mut Regions, index: i32 in Wrapping,
+    machine distance(spectrum: &Spectrum, regions: &mut Regions, index: i32 in Wrapping,
                    reference: i32 in Wrapping, best: f64) {
         let difference: f64 = abs_f64(regions.centroids[index] - spectrum.lines[reference]);
         transition difference <= spectrum.tolerance {
@@ -35,7 +35,7 @@ public machine match_regions(spectrum: &Spectrum, regions: &mut Regions) {
             false -> line(spectrum, regions, index, reference + 1, best)
         }
     }
-    state candidate(spectrum: &Spectrum, regions: &mut Regions, index: i32 in Wrapping,
+    machine candidate(spectrum: &Spectrum, regions: &mut Regions, index: i32 in Wrapping,
                     reference: i32 in Wrapping, best: f64, difference: f64) {
         regions.candidates[index] = regions.candidates[index] + 1;
         transition difference < best {
@@ -43,10 +43,10 @@ public machine match_regions(spectrum: &Spectrum, regions: &mut Regions) {
             false -> line(spectrum, regions, index, reference + 1, best)
         }
     }
-    state nearer(spectrum: &Spectrum, regions: &mut Regions, index: i32 in Wrapping,
+    machine nearer(spectrum: &Spectrum, regions: &mut Regions, index: i32 in Wrapping,
                  reference: i32 in Wrapping, difference: f64) {
         regions.nearest[index] = reference + 1;
         transition { _ -> line(spectrum, regions, index, reference + 1, difference) }
     }
-    state finished() {}
+    machine finished() {}
 }

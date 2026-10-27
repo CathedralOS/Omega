@@ -8,7 +8,7 @@ public data CheckedPolicy {}
 machine CheckedPolicy::limit(value: u64) -> u64 {
     transition value < 9 { true -> bounded(value)
         false -> 0 }
-    state bounded(value: u64) -> u64 requires value <= 8 { value }
+    machine bounded(value: u64) -> u64 requires value <= 8 { value }
 }
 
 machine CheckedPolicy::plan(schema: Schema) -> PlacementPlan {

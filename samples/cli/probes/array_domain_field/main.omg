@@ -22,23 +22,23 @@ data Main {
 machine Main::main(main: &mut Main) {
     main.hits = 0;
     transition { _ -> fill(main) }
-    state fill(main: &mut Main) {
+    machine fill(main: &mut Main) {
         main.label = "abc";
         transition { _ -> stamp(main) }
     }
-    state stamp(main: &mut Main) {
+    machine stamp(main: &mut Main) {
         main.label[0] = 66;
         transition { _ -> read(main) }
     }
-    state read(main: &mut Main) {
+    machine read(main: &mut Main) {
         transition main.label.len == 3 && main.label[0] == 66
             && main.label[1] == 98 && main.label[2] == 99 {
             true -> pass(main)
             _ -> fail(main)
         }
     }
-    state pass(main: &mut Main) { main.hits = 1; }
-    state fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: &mut Main) { main.hits = 1; }
+    machine fail(main: &mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

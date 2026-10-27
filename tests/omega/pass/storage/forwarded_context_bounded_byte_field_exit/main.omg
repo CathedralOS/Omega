@@ -37,21 +37,21 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> step(main)
     }
 
-    state step(main: &mut Main) {
+    machine step(main: &mut Main) {
         transition main.i < 5 {
             true -> advance(main)
             _ -> done(main)
         }
     }
 
-    state advance(main: &mut Main) {
+    machine advance(main: &mut Main) {
         main.i = main.i + 1;
         transition {
             _ -> step(main)
         }
     }
 
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         Console::exit_process(0);
     }
 }

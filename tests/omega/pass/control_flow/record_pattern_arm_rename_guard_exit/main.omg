@@ -14,8 +14,8 @@ machine Main::judge(main: &mut Main, p: Point) reaches Console {
         Point { x, y as vertical } if x as i64 + vertical as i64 == 70 -> good(main)
         _ -> bad(main)
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main) { Console::exit_process(1); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(1); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

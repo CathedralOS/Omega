@@ -14,7 +14,7 @@ machine consume(slot: Slot) -> u64 {
         Slot::Second { ticket } -> finish(ticket)
         Slot::Third { ticket } -> finish(ticket)
     }
-    state finish(ticket: Ticket) -> u64 { ticket.value }
+    machine finish(ticket: Ticket) -> u64 { ticket.value }
 }
 machine make(which: u32, ticket: Ticket) -> Slot {
     transition which {
@@ -32,7 +32,7 @@ machine reconstruct(envelope: Envelope) -> u64 {
         Slot::Third { ticket } -> retain(Envelope { reservation: Reservation {
             before: envelope.reservation.before, slot: Slot::Third { ticket: ticket }, after: envelope.reservation.after } })
     }
-    state retain(envelope: Envelope) -> u64 { consume(envelope.reservation.slot) }
+    machine retain(envelope: Envelope) -> u64 { consume(envelope.reservation.slot) }
 }
 machine three_case(which: u32) -> bool {
     let mut drops: [u64; 1] = [0];
@@ -46,7 +46,7 @@ machine siblings(value: Siblings) -> u64 {
         Slot::Second { ticket } -> selected(ticket, value.right)
         Slot::Third { ticket } -> selected(ticket, value.right)
     }
-    state selected(ticket: Ticket, right: Slot) -> u64 { consume(right) }
+    machine selected(ticket: Ticket, right: Slot) -> u64 { consume(right) }
 }
 machine sibling_case() -> bool {
     let mut left_drops: [u64; 1] = [0];
@@ -77,7 +77,7 @@ machine join(select_first: bool, first: Ticket, second: Ticket) -> u64 {
         true -> selected(Slot::First { ticket: first })
         false -> selected(Slot::Third { ticket: second })
     }
-    state selected(slot: Slot) -> u64 { consume(slot) }
+    machine selected(slot: Slot) -> u64 { consume(slot) }
 }
 machine joined_case(select_first: bool) -> bool {
     let mut first_drops: [u64; 1] = [0];
@@ -98,6 +98,6 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

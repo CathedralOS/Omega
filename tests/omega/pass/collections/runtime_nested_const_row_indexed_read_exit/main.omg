@@ -21,7 +21,7 @@ machine Main::main(main: &mut Main) reaches Console
         true -> let_read(main)
         false -> no(main)
     }
-    state let_read(main: &mut Main)
+    machine let_read(main: &mut Main)
     {
         let picked: i32 = main.grid[1][main.j];
         transition picked == 42 {
@@ -29,7 +29,7 @@ machine Main::main(main: &mut Main) reaches Console
             false -> no(main)
         }
     }
-    state neighbor(main: &mut Main)
+    machine neighbor(main: &mut Main)
     {
         main.got = main.grid[2][main.j];
         transition main.got == 5 {
@@ -37,9 +37,9 @@ machine Main::main(main: &mut Main) reaches Console
             false -> no(main)
         }
     }
-    state yes(main: &mut Main)
+    machine yes(main: &mut Main)
     { Console::exit_process(1); }
-    state no(main: &mut Main)
+    machine no(main: &mut Main)
     { Console::exit_process(2); }
 }
 

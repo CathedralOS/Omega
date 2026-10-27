@@ -22,41 +22,41 @@
 machine main() {
     transition { _ -> outer_(1, 0) }
 
-    state outer_(start: u64 in Wrapping, best: u64 in Wrapping) {
+    machine outer_(start: u64 in Wrapping, best: u64 in Wrapping) {
         transition start <= 100000 { true -> begin_start(start, best) _ -> done() }
     }
-    state begin_start(start: u64 in Wrapping, best: u64 in Wrapping) {
+    machine begin_start(start: u64 in Wrapping, best: u64 in Wrapping) {
         transition { _ -> inner_(start, best, start, 0) }
     }
-    state inner_(start: u64 in Wrapping, best: u64 in Wrapping, n: u64 in Wrapping, steps: u64 in Wrapping) {
+    machine inner_(start: u64 in Wrapping, best: u64 in Wrapping, n: u64 in Wrapping, steps: u64 in Wrapping) {
         transition n != 1 && steps < 10000 {
             true -> even_or_odd(start, best, n, steps)
             _ -> settle(start, best, steps)
         }
     }
-    state even_or_odd(start: u64 in Wrapping, best: u64 in Wrapping, n: u64 in Wrapping, steps: u64 in Wrapping) {
+    machine even_or_odd(start: u64 in Wrapping, best: u64 in Wrapping, n: u64 in Wrapping, steps: u64 in Wrapping) {
         transition n & 1 == 0 {
             true -> even(start, best, n, steps)
             _ -> odd(start, best, n, steps)
         }
     }
-    state even(start: u64 in Wrapping, best: u64 in Wrapping, n: u64 in Wrapping, steps: u64 in Wrapping) {
+    machine even(start: u64 in Wrapping, best: u64 in Wrapping, n: u64 in Wrapping, steps: u64 in Wrapping) {
         transition { _ -> inner_step(start, best, n >> 1, steps) }
     }
-    state odd(start: u64 in Wrapping, best: u64 in Wrapping, n: u64 in Wrapping, steps: u64 in Wrapping) {
+    machine odd(start: u64 in Wrapping, best: u64 in Wrapping, n: u64 in Wrapping, steps: u64 in Wrapping) {
         transition { _ -> inner_step(start, best, n * 3 + 1, steps) }
     }
-    state inner_step(start: u64 in Wrapping, best: u64 in Wrapping, n: u64 in Wrapping, steps: u64 in Wrapping) {
+    machine inner_step(start: u64 in Wrapping, best: u64 in Wrapping, n: u64 in Wrapping, steps: u64 in Wrapping) {
         transition { _ -> inner_(start, best, n, steps + 1) }
     }
-    state settle(start: u64 in Wrapping, best: u64 in Wrapping, steps: u64 in Wrapping) {
+    machine settle(start: u64 in Wrapping, best: u64 in Wrapping, steps: u64 in Wrapping) {
         transition steps > best { true -> record(start, steps) _ -> advance(start, best) }
     }
-    state record(start: u64 in Wrapping, steps: u64 in Wrapping) {
+    machine record(start: u64 in Wrapping, steps: u64 in Wrapping) {
         transition { _ -> advance(start, steps) }
     }
-    state advance(start: u64 in Wrapping, best: u64 in Wrapping) {
+    machine advance(start: u64 in Wrapping, best: u64 in Wrapping) {
         transition { _ -> outer_(start + 1, best) }
     }
-    state done() {}
+    machine done() {}
 }

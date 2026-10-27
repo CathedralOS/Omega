@@ -14,20 +14,20 @@ machine Main::main(main: &mut Main) crashes Trap {
         true -> fraction(main)
         _ -> bad(main)
     }
-    state fraction(main: &mut Main) {
+    machine fraction(main: &mut Main) {
         transition main.fraction.values[2] == 38 {
             true -> exponent(main)
             _ -> bad(main)
         }
     }
-    state exponent(main: &mut Main) {
+    machine exponent(main: &mut Main) {
         transition main.exponent.values[2] == 39 {
             true -> good(main)
             _ -> bad(main)
         }
     }
-    state good(main: &mut Main) {}
-    state bad(main: &mut Main) { crash Trap; }
+    machine good(main: &mut Main) {}
+    machine bad(main: &mut Main) { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

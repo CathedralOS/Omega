@@ -20,10 +20,10 @@ machine probe(raw: u32) -> i32
         true -> check(xored)
         false -> bad()
     }
-    state check(res: u32) {
+    machine check(res: u32) -> i32 {
         verify_xored(res)
     }
-    state bad() -> i32 { 1i32 }
+    machine bad() -> i32 { 1i32 }
 }
 
 machine main() crashes Trap {
@@ -32,6 +32,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

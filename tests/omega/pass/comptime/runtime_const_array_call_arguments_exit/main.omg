@@ -14,5 +14,5 @@ machine main() crashes Trap {
     source.values[4] = 7.5;
     let copy: Matrix<3, 3> = preserve<3, 3>(source);
     transition copy.values.len == 9 && copy.values[4] == 7.5 { true -> done() _ -> bad() }
-    state done() { } state bad() { crash Trap; }
+    machine done() { } machine bad() { crash Trap; }
 }

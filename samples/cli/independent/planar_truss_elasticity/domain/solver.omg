@@ -8,23 +8,23 @@ public machine solve(truss: &Truss, result: &mut Solution) requires truss.nodes 
     result.valid = false;
     result.status = 64;
     transition { _ -> bar(truss, result, 0) }
-    state bar(truss: &Truss, result: &mut Solution, index: u64)  requires truss.nodes <= 8 requires truss.bars <= 16 requires index <= 16 {
+    machine bar(truss: &Truss, result: &mut Solution, index: u64)  requires truss.nodes <= 8 requires truss.bars <= 16 requires index <= 16 {
         transition index < truss.bars && index < 16 { true -> endpoints(truss, result, index) false -> reduce_row(truss, result, 0) }
     }
-    state endpoints(truss: &Truss, result: &mut Solution, index: u64) requires index < 16  requires truss.nodes <= 8 requires truss.bars <= 16 requires index < 16 {
+    machine endpoints(truss: &Truss, result: &mut Solution, index: u64) requires index < 16  requires truss.nodes <= 8 requires truss.bars <= 16 requires index < 16 {
         transition truss.first[index] < 8 && truss.second[index] < 8 { true -> geometry(truss, result, index, truss.first[index], truss.second[index]) false -> done() }
     }
-    state geometry(truss: &Truss, result: &mut Solution, index: u64, first: u64, second: u64) requires index < 16 requires first < 8 requires second < 8  requires truss.nodes <= 8 requires truss.bars <= 16 requires index < 16 {
+    machine geometry(truss: &Truss, result: &mut Solution, index: u64, first: u64, second: u64) requires index < 16 requires first < 8 requires second < 8  requires truss.nodes <= 8 requires truss.bars <= 16 requires index < 16 {
         let horizontal: f64 = truss.coordinates[2 * second] - truss.coordinates[2 * first];
         let vertical: f64 = truss.coordinates[2 * second + 1] - truss.coordinates[2 * first + 1];
         let squared_length: f64 = horizontal * horizontal + vertical * vertical;
         let length: f64 = F64::square_root(squared_length);
         transition length > 0.0 { true -> direction(truss, result, index, first, second, horizontal / length, vertical / length, truss.rigidity[index] / length, 0) false -> done() }
     }
-    state direction(truss: &Truss, result: &mut Solution, index: u64, first: u64, second: u64, horizontal: f64, vertical: f64, stiffness: f64, coordinate: u64)  requires truss.nodes <= 8 requires truss.bars <= 16 requires index < 16 requires first < 8 requires second < 8 {
+    machine direction(truss: &Truss, result: &mut Solution, index: u64, first: u64, second: u64, horizontal: f64, vertical: f64, stiffness: f64, coordinate: u64)  requires truss.nodes <= 8 requires truss.bars <= 16 requires index < 16 requires first < 8 requires second < 8 {
         transition coordinate < 16 { true -> set_direction(truss, result, index, first, second, horizontal, vertical, stiffness, coordinate) false -> assemble_row(truss, result, index, stiffness, 0) }
     }
-    state set_direction(truss: &Truss, result: &mut Solution, index: u64, first: u64, second: u64, horizontal: f64, vertical: f64, stiffness: f64, coordinate: u64) requires coordinate < 16  requires truss.nodes <= 8 requires truss.bars <= 16 requires index < 16 requires first < 8 requires second < 8 {
+    machine set_direction(truss: &Truss, result: &mut Solution, index: u64, first: u64, second: u64, horizontal: f64, vertical: f64, stiffness: f64, coordinate: u64) requires coordinate < 16  requires truss.nodes <= 8 requires truss.bars <= 16 requires index < 16 requires first < 8 requires second < 8 {
         result.direction[coordinate] = match coordinate {
             2 * first -> (-horizontal)
             2 * first + 1 -> (-vertical)
@@ -34,27 +34,27 @@ public machine solve(truss: &Truss, result: &mut Solution) requires truss.nodes 
         };
         transition { _ -> direction(truss, result, index, first, second, horizontal, vertical, stiffness, coordinate + 1) }
     }
-    state assemble_row(truss: &Truss, result: &mut Solution, index: u64, stiffness: f64, row: u64)  requires truss.nodes <= 8 requires truss.bars <= 16 requires index < 16 {
+    machine assemble_row(truss: &Truss, result: &mut Solution, index: u64, stiffness: f64, row: u64)  requires truss.nodes <= 8 requires truss.bars <= 16 requires index < 16 {
         transition row < 16 { true -> assemble_column(truss, result, index, stiffness, row, 0) false -> bar(truss, result, index + 1) }
     }
-    state assemble_column(truss: &Truss, result: &mut Solution, index: u64, stiffness: f64, row: u64, column: u64) requires row < 16  requires truss.nodes <= 8 requires truss.bars <= 16 requires index < 16 {
+    machine assemble_column(truss: &Truss, result: &mut Solution, index: u64, stiffness: f64, row: u64, column: u64) requires row < 16  requires truss.nodes <= 8 requires truss.bars <= 16 requires index < 16 {
         transition column < 16 { true -> add(truss, result, index, stiffness, row, column) false -> assemble_row(truss, result, index, stiffness, row + 1) }
     }
-    state add(truss: &Truss, result: &mut Solution, index: u64, stiffness: f64, row: u64, column: u64) requires row < 16 requires column < 16  requires truss.nodes <= 8 requires truss.bars <= 16 requires index < 16 {
+    machine add(truss: &Truss, result: &mut Solution, index: u64, stiffness: f64, row: u64, column: u64) requires row < 16 requires column < 16  requires truss.nodes <= 8 requires truss.bars <= 16 requires index < 16 {
         result.stiffness[row][column] = result.stiffness[row][column] + stiffness * result.direction[row] * result.direction[column];
         transition { _ -> assemble_column(truss, result, index, stiffness, row, column + 1) }
     }
-    state reduce_row(truss: &Truss, result: &mut Solution, row: u64)  requires truss.nodes <= 8 requires truss.bars <= 16 {
+    machine reduce_row(truss: &Truss, result: &mut Solution, row: u64)  requires truss.nodes <= 8 requires truss.bars <= 16 {
         transition row < 16 { true -> right(truss, result, row) false -> elimination(truss, result, 0) }
     }
-    state right(truss: &Truss, result: &mut Solution, row: u64) requires row < 16  requires truss.nodes <= 8 requires truss.bars <= 16 {
+    machine right(truss: &Truss, result: &mut Solution, row: u64) requires row < 16  requires truss.nodes <= 8 requires truss.bars <= 16 {
         result.right[row] = match row >= 2 * truss.nodes || truss.fixed[row] { true -> (0.0) false -> truss.loads[row] };
         transition { _ -> reduce_column(truss, result, row, 0) }
     }
-    state reduce_column(truss: &Truss, result: &mut Solution, row: u64, column: u64) requires row < 16  requires truss.nodes <= 8 requires truss.bars <= 16 {
+    machine reduce_column(truss: &Truss, result: &mut Solution, row: u64, column: u64) requires row < 16  requires truss.nodes <= 8 requires truss.bars <= 16 {
         transition column < 16 { true -> reduce(truss, result, row, column) false -> reduce_row(truss, result, row + 1) }
     }
-    state reduce(truss: &Truss, result: &mut Solution, row: u64, column: u64) requires row < 16 requires column < 16  requires truss.nodes <= 8 requires truss.bars <= 16 {
+    machine reduce(truss: &Truss, result: &mut Solution, row: u64, column: u64) requires row < 16 requires column < 16  requires truss.nodes <= 8 requires truss.bars <= 16 {
         result.reduced[row][column] = match row >= 2 * truss.nodes || column >= 2 * truss.nodes || truss.fixed[row] || truss.fixed[column] {
             true -> (match row == column { true -> (1.0) false -> (0.0) })
             false -> result.stiffness[row][column]
@@ -63,55 +63,55 @@ public machine solve(truss: &Truss, result: &mut Solution) requires truss.nodes 
         result.scale = match magnitude > result.scale { true -> magnitude false -> result.scale };
         transition { _ -> reduce_column(truss, result, row, column + 1) }
     }
-    state elimination(truss: &Truss, result: &mut Solution, pivot: u64)  requires truss.nodes <= 8 requires truss.bars <= 16 {
+    machine elimination(truss: &Truss, result: &mut Solution, pivot: u64)  requires truss.nodes <= 8 requires truss.bars <= 16 {
         result.status = 65;
         transition pivot < 16 { true -> pivot_test(truss, result, pivot) false -> backward(truss, result, 16) }
     }
-    state pivot_test(truss: &Truss, result: &mut Solution, pivot: u64) requires pivot < 16  requires truss.nodes <= 8 requires truss.bars <= 16 {
+    machine pivot_test(truss: &Truss, result: &mut Solution, pivot: u64) requires pivot < 16  requires truss.nodes <= 8 requires truss.bars <= 16 {
         transition result.reduced[pivot][pivot] > result.scale * 0.000000000001 {
             true -> eliminate_row(truss, result, pivot, pivot + 1)
             false -> done()
         }
     }
-    state eliminate_row(truss: &Truss, result: &mut Solution, pivot: u64, row: u64) requires pivot < 16  requires truss.nodes <= 8 requires truss.bars <= 16 {
+    machine eliminate_row(truss: &Truss, result: &mut Solution, pivot: u64, row: u64) requires pivot < 16  requires truss.nodes <= 8 requires truss.bars <= 16 {
         transition row < 16 { true -> factor(truss, result, pivot, row) false -> elimination(truss, result, pivot + 1) }
     }
-    state factor(truss: &Truss, result: &mut Solution, pivot: u64, row: u64) requires pivot < 16 requires row < 16  requires truss.nodes <= 8 requires truss.bars <= 16 {
+    machine factor(truss: &Truss, result: &mut Solution, pivot: u64, row: u64) requires pivot < 16 requires row < 16  requires truss.nodes <= 8 requires truss.bars <= 16 {
         let multiplier: f64 = result.reduced[row][pivot] / result.reduced[pivot][pivot];
         result.right[row] = result.right[row] - multiplier * result.right[pivot];
         result.reduced[row][pivot] = 0.0;
         transition { _ -> eliminate_column(truss, result, pivot, row, multiplier, pivot + 1) }
     }
-    state eliminate_column(truss: &Truss, result: &mut Solution, pivot: u64, row: u64, multiplier: f64, column: u64) requires pivot < 16 requires row < 16  requires truss.nodes <= 8 requires truss.bars <= 16 {
+    machine eliminate_column(truss: &Truss, result: &mut Solution, pivot: u64, row: u64, multiplier: f64, column: u64) requires pivot < 16 requires row < 16  requires truss.nodes <= 8 requires truss.bars <= 16 {
         transition column < 16 { true -> subtract(truss, result, pivot, row, multiplier, column) false -> eliminate_row(truss, result, pivot, row + 1) }
     }
-    state subtract(truss: &Truss, result: &mut Solution, pivot: u64, row: u64, multiplier: f64, column: u64) requires pivot < 16 requires row < 16 requires column < 16  requires truss.nodes <= 8 requires truss.bars <= 16 {
+    machine subtract(truss: &Truss, result: &mut Solution, pivot: u64, row: u64, multiplier: f64, column: u64) requires pivot < 16 requires row < 16 requires column < 16  requires truss.nodes <= 8 requires truss.bars <= 16 {
         result.reduced[row][column] = result.reduced[row][column] - multiplier * result.reduced[pivot][column];
         transition { _ -> eliminate_column(truss, result, pivot, row, multiplier, column + 1) }
     }
-    state backward(truss: &Truss, result: &mut Solution, remaining: u64) requires remaining <= 16  requires truss.nodes <= 8 requires truss.bars <= 16 {
+    machine backward(truss: &Truss, result: &mut Solution, remaining: u64) requires remaining <= 16  requires truss.nodes <= 8 requires truss.bars <= 16 {
         transition remaining > 0 { true -> backward_start(truss, result, remaining) false -> recover_bar(truss, result, 0) }
     }
-    state backward_start(truss: &Truss, result: &mut Solution, remaining: u64) requires remaining > 0 requires remaining <= 16  requires truss.nodes <= 8 requires truss.bars <= 16 {
+    machine backward_start(truss: &Truss, result: &mut Solution, remaining: u64) requires remaining > 0 requires remaining <= 16  requires truss.nodes <= 8 requires truss.bars <= 16 {
         transition { _ -> backward_sum(truss, result, remaining - 1, remaining, 0.0) }
     }
-    state backward_sum(truss: &Truss, result: &mut Solution, row: u64, column: u64, sum: f64) requires row < 16  requires truss.nodes <= 8 requires truss.bars <= 16 {
+    machine backward_sum(truss: &Truss, result: &mut Solution, row: u64, column: u64, sum: f64) requires row < 16  requires truss.nodes <= 8 requires truss.bars <= 16 {
         transition column < 16 { true -> backward_add(truss, result, row, column, sum) false -> displacement(truss, result, row, sum) }
     }
-    state backward_add(truss: &Truss, result: &mut Solution, row: u64, column: u64, sum: f64) requires row < 16 requires column < 16  requires truss.nodes <= 8 requires truss.bars <= 16 {
+    machine backward_add(truss: &Truss, result: &mut Solution, row: u64, column: u64, sum: f64) requires row < 16 requires column < 16  requires truss.nodes <= 8 requires truss.bars <= 16 {
         transition { _ -> backward_sum(truss, result, row, column + 1, sum + result.reduced[row][column] * result.displacement[column]) }
     }
-    state displacement(truss: &Truss, result: &mut Solution, row: u64, sum: f64) requires row < 16  requires truss.nodes <= 8 requires truss.bars <= 16 {
+    machine displacement(truss: &Truss, result: &mut Solution, row: u64, sum: f64) requires row < 16  requires truss.nodes <= 8 requires truss.bars <= 16 {
         result.displacement[row] = (result.right[row] - sum) / result.reduced[row][row];
         transition { _ -> backward(truss, result, row) }
     }
-    state recover_bar(truss: &Truss, result: &mut Solution, index: u64)  requires truss.nodes <= 8 requires truss.bars <= 16 requires index <= 16 {
+    machine recover_bar(truss: &Truss, result: &mut Solution, index: u64)  requires truss.nodes <= 8 requires truss.bars <= 16 requires index <= 16 {
         transition index < truss.bars && index < 16 { true -> recover_endpoints(truss, result, index) false -> recover_row(truss, result, 0) }
     }
-    state recover_endpoints(truss: &Truss, result: &mut Solution, index: u64) requires index < 16  requires truss.nodes <= 8 requires truss.bars <= 16 requires index < 16 {
+    machine recover_endpoints(truss: &Truss, result: &mut Solution, index: u64) requires index < 16  requires truss.nodes <= 8 requires truss.bars <= 16 requires index < 16 {
         transition truss.first[index] < 8 && truss.second[index] < 8 { true -> recovery(truss, result, index, truss.first[index], truss.second[index]) false -> done() }
     }
-    state recovery(truss: &Truss, result: &mut Solution, index: u64, first: u64, second: u64) requires index < 16 requires first < 8 requires second < 8  requires truss.nodes <= 8 requires truss.bars <= 16 requires index < 16 {
+    machine recovery(truss: &Truss, result: &mut Solution, index: u64, first: u64, second: u64) requires index < 16 requires first < 8 requires second < 8  requires truss.nodes <= 8 requires truss.bars <= 16 requires index < 16 {
         let horizontal: f64 = truss.coordinates[2 * second] - truss.coordinates[2 * first];
         let vertical: f64 = truss.coordinates[2 * second + 1] - truss.coordinates[2 * first + 1];
         let squared_length: f64 = horizontal * horizontal + vertical * vertical;
@@ -123,16 +123,16 @@ public machine solve(truss: &Truss, result: &mut Solution) requires truss.nodes 
         result.energy = result.energy + 0.5 * force * extension;
         transition { _ -> recover_bar(truss, result, index + 1) }
     }
-    state recover_row(truss: &Truss, result: &mut Solution, row: u64)  requires truss.nodes <= 8 requires truss.bars <= 16 {
+    machine recover_row(truss: &Truss, result: &mut Solution, row: u64)  requires truss.nodes <= 8 requires truss.bars <= 16 {
         transition row < 16 { true -> internal_column(truss, result, row, 0, 0.0) false -> finish(result) }
     }
-    state internal_column(truss: &Truss, result: &mut Solution, row: u64, column: u64, sum: f64) requires row < 16  requires truss.nodes <= 8 requires truss.bars <= 16 {
+    machine internal_column(truss: &Truss, result: &mut Solution, row: u64, column: u64, sum: f64) requires row < 16  requires truss.nodes <= 8 requires truss.bars <= 16 {
         transition column < 16 { true -> internal_add(truss, result, row, column, sum) false -> reaction(truss, result, row, sum) }
     }
-    state internal_add(truss: &Truss, result: &mut Solution, row: u64, column: u64, sum: f64) requires row < 16 requires column < 16  requires truss.nodes <= 8 requires truss.bars <= 16 {
+    machine internal_add(truss: &Truss, result: &mut Solution, row: u64, column: u64, sum: f64) requires row < 16 requires column < 16  requires truss.nodes <= 8 requires truss.bars <= 16 {
         transition { _ -> internal_column(truss, result, row, column + 1, sum + result.stiffness[row][column] * result.displacement[column]) }
     }
-    state reaction(truss: &Truss, result: &mut Solution, row: u64, sum: f64) requires row < 16  requires truss.nodes <= 8 requires truss.bars <= 16 {
+    machine reaction(truss: &Truss, result: &mut Solution, row: u64, sum: f64) requires row < 16  requires truss.nodes <= 8 requires truss.bars <= 16 {
         result.internal[row] = sum;
         result.reaction[row] = match truss.fixed[row] { true -> (sum - truss.loads[row]) false -> (0.0) };
         let residual: f64 = absolute(sum - truss.loads[row] - result.reaction[row]);
@@ -140,22 +140,22 @@ public machine solve(truss: &Truss, result: &mut Solution) requires truss.nodes 
         result.work = result.work + truss.loads[row] * result.displacement[row];
         transition row % 2 == 0 { true -> horizontal_balance(truss, result, row) false -> vertical_balance(truss, result, row) }
     }
-    state horizontal_balance(truss: &Truss, result: &mut Solution, row: u64) requires row < 16  requires truss.nodes <= 8 requires truss.bars <= 16 {
+    machine horizontal_balance(truss: &Truss, result: &mut Solution, row: u64) requires row < 16  requires truss.nodes <= 8 requires truss.bars <= 16 {
         result.balance_x = result.balance_x + truss.loads[row] + result.reaction[row];
         transition row + 1 < 16 { true -> horizontal_moment(truss, result, row) false -> recover_row(truss, result, row + 1) }
     }
-    state horizontal_moment(truss: &Truss, result: &mut Solution, row: u64) requires row < 15  requires truss.nodes <= 8 requires truss.bars <= 16 {
+    machine horizontal_moment(truss: &Truss, result: &mut Solution, row: u64) requires row < 15  requires truss.nodes <= 8 requires truss.bars <= 16 {
         result.moment = result.moment - truss.coordinates[row + 1] * (truss.loads[row] + result.reaction[row]);
         transition { _ -> recover_row(truss, result, row + 1) }
     }
-    state vertical_balance(truss: &Truss, result: &mut Solution, row: u64) requires row < 16  requires truss.nodes <= 8 requires truss.bars <= 16 {
+    machine vertical_balance(truss: &Truss, result: &mut Solution, row: u64) requires row < 16  requires truss.nodes <= 8 requires truss.bars <= 16 {
         result.balance_y = result.balance_y + truss.loads[row] + result.reaction[row];
         transition row > 0 { true -> vertical_moment(truss, result, row) false -> recover_row(truss, result, row + 1) }
     }
-    state vertical_moment(truss: &Truss, result: &mut Solution, row: u64) requires row > 0 requires row < 16  requires truss.nodes <= 8 requires truss.bars <= 16 {
+    machine vertical_moment(truss: &Truss, result: &mut Solution, row: u64) requires row > 0 requires row < 16  requires truss.nodes <= 8 requires truss.bars <= 16 {
         result.moment = result.moment + truss.coordinates[row - 1] * (truss.loads[row] + result.reaction[row]);
         transition { _ -> recover_row(truss, result, row + 1) }
     }
-    state finish(result: &mut Solution) { result.valid = true; result.status = 0; }
-    state done() {}
+    machine finish(result: &mut Solution) { result.valid = true; result.status = 0; }
+    machine done() {}
 }

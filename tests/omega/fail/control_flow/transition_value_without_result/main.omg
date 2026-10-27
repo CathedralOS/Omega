@@ -6,13 +6,13 @@ data Counter { count: u64 }
 
 machine Counter::wipe(this: &mut Counter) {
     transition { _ -> step(this, 0) }
-    state step(this: &mut Counter, position: u64) {
+    machine step(this: &mut Counter, position: u64) {
         transition position < 4 {
             true -> one(this, position)
             _ -> (this)
         }
     }
-    state one(this: &mut Counter, position: u64) requires position < 4 {
+    machine one(this: &mut Counter, position: u64) requires position < 4 {
         this.count = 7;
         transition { _ -> step(this, position + 1) }
     }

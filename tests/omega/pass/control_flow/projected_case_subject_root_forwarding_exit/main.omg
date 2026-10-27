@@ -24,8 +24,8 @@ crashes Trap
         true -> read(table, index)
         _ -> invalid()
     }
-    state read(table: &Table, index: u64 in Trapping) { table.items[index] }
-    state invalid() -> Item { crash Trap; }
+    machine read(table: &Table, index: u64 in Trapping) -> Item { table.items[index] }
+    machine invalid() -> Item { crash Trap; }
 }
 
 machine Tally::walk(tally: &mut Tally, table: &Table)
@@ -33,14 +33,14 @@ crashes Trap
 {
     transition { _ -> next(tally, table, 0) }
 
-    state next(tally: &mut Tally, table: &Table, index: u64 in Trapping) {
+    machine next(tally: &mut Tally, table: &Table, index: u64 in Trapping) {
         transition index < table.count && tally.accepted {
             true -> classify(tally, table, index)
             _ -> done()
         }
     }
 
-    state classify(tally: &mut Tally, table: &Table, index: u64 in Trapping) {
+    machine classify(tally: &mut Tally, table: &Table, index: u64 in Trapping) {
         let item: Item = Table::item(table, index);
         transition item.kind {
             ItemKind::Definition -> reject(tally, item.location)
@@ -50,12 +50,12 @@ crashes Trap
         }
     }
 
-    state data_item(tally: &mut Tally, table: &Table, index: u64 in Trapping, item: Item) {
+    machine data_item(tally: &mut Tally, table: &Table, index: u64 in Trapping, item: Item) {
         tally.total = tally.total + item.weight;
         transition { _ -> next(tally, table, index + 1) }
     }
 
-    state trait_item(tally: &mut Tally, table: &Table, index: u64 in Trapping, item: Item) {
+    machine trait_item(tally: &mut Tally, table: &Table, index: u64 in Trapping, item: Item) {
         tally.total = tally.total + item.location.source;
         transition item.weight > 9 {
             true -> reject(tally, item.location)
@@ -63,18 +63,18 @@ crashes Trap
         }
     }
 
-    state reject(tally: &mut Tally, location: Location) {
+    machine reject(tally: &mut Tally, location: Location) {
         tally.accepted = false;
         tally.total = tally.total + location.span.end;
     }
 
-    state done() {}
+    machine done() {}
 }
 
 machine weight_or(kind: ItemKind, weight: u64 in Trapping, fallback: u64 in Trapping) -> u64 in Trapping {
     transition { _ -> select(kind, weight, fallback) }
 
-    state select(kind: ItemKind, weight: u64 in Trapping, fallback: u64 in Trapping) -> u64 in Trapping {
+    machine select(kind: ItemKind, weight: u64 in Trapping, fallback: u64 in Trapping) -> u64 in Trapping {
         let here: Location = Location { source: 0, span: Span { start: 0, end: 0 } };
         let item: Item = Item { kind: kind, weight: weight, location: here };
         transition item.kind {
@@ -83,7 +83,7 @@ machine weight_or(kind: ItemKind, weight: u64 in Trapping, fallback: u64 in Trap
         }
     }
 
-    state weighed(item: Item) -> u64 in Trapping { item.weight }
+    machine weighed(item: Item) -> u64 in Trapping { item.weight }
 }
 
 data Main { }
@@ -107,8 +107,8 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
         true -> good()
         _ -> bad()
     }
-    state good() { Console::exit_process(70); }
-    state bad() { Console::exit_process(72); }
+    machine good() { Console::exit_process(70); }
+    machine bad() { Console::exit_process(72); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

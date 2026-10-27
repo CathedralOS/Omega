@@ -49,8 +49,8 @@ macos_arm64 machine Main::main() reaches Parent + Child crashes Trap {
     transition chosen == 1 && echoed == 17 {
         true -> done() _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 linux_x86_64 machine Main::main() reaches Parent + Child crashes Trap {
@@ -59,8 +59,8 @@ linux_x86_64 machine Main::main() reaches Parent + Child crashes Trap {
     transition chosen == 1 && echoed == 17 {
         true -> done() _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 windows_x86_64 machine Main::main() reaches Parent + Child crashes Trap {
     let chosen: i32 = Child::choose();
@@ -68,6 +68,6 @@ windows_x86_64 machine Main::main() reaches Parent + Child crashes Trap {
     transition chosen == 2 && echoed == 25 {
         true -> selected() _ -> bad()
     }
-    state selected() { crash Trap; }
-    state bad() {}
+    machine selected() { crash Trap; }
+    machine bad() {}
 }

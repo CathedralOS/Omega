@@ -85,6 +85,6 @@ machine fail_after_write(settings: &mut Settings) crashes Trap {
 
 machine main() crashes Trap {
     transition exercise() { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

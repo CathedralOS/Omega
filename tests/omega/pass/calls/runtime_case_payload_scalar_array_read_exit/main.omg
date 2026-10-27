@@ -19,7 +19,7 @@ machine inspect_rows(reply: &RowReply, position: u64) -> bool {
         true -> selected(reply, position)
         false -> (false)
     }
-    state selected(reply: &RowReply, position: u64) -> bool {
+    machine selected(reply: &RowReply, position: u64) -> bool {
         transition reply {
             RowReply::Values { rows } ->
                 (rows[position].value == 69 && rows[position].receipt.value == 13)
@@ -33,7 +33,7 @@ machine read_direct(reply: DirectReply, position: u64) -> u64 {
         true -> selected(reply, position)
         false -> 0
     }
-    state selected(reply: DirectReply, position: u64) -> u64 {
+    machine selected(reply: DirectReply, position: u64) -> u64 {
         transition reply {
             DirectReply::Values { items } -> (items[position])
             DirectReply::Empty -> 0
@@ -46,7 +46,7 @@ machine read(reply: Reply, position: u64) -> u64 {
         true -> selected(reply, position)
         false -> 0
     }
-    state selected(reply: Reply, position: u64) -> u64 {
+    machine selected(reply: Reply, position: u64) -> u64 {
         transition reply {
             Reply::Values { first, second } ->
                 (((first.values[position] as u64 in Wrapping) * 10)
@@ -83,6 +83,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

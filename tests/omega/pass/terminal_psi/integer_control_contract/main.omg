@@ -23,7 +23,7 @@ requires 7i32 == 7i32
 ensures 7i32 == 7i32
 {
     transition { _ -> pass(7i32) }
-    state pass(value: i32) -> i32 { 7i32 }
+    machine pass(value: i32) -> i32 { 7i32 }
 }
 
 machine terminal_direct_integer_constant() -> u8
@@ -49,7 +49,7 @@ ensures 0u8 == 0u8
         _ -> finish(0u8)
     }
 
-    state finish(value: u8) -> u8 { value }
+    machine finish(value: u8) -> u8 { value }
 }
 
 machine terminal_address_reflexive(value: addr) -> bool
@@ -64,10 +64,10 @@ requires 42u8 == 42u8
 ensures 42u8 == 42u8
 {
     transition { _ -> add(10u8) }
-    state add(value: u8 in Wrapping) -> u8 in Wrapping {
+    machine add(value: u8 in Wrapping) -> u8 in Wrapping {
         transition { _ -> finish(value + 20u8) }
     }
-    state finish(value: u8 in Wrapping) -> u8 in Wrapping { value + 12u8 }
+    machine finish(value: u8 in Wrapping) -> u8 in Wrapping { value + 12u8 }
 }
 
 // The legacy checked-tree prover accepts this unrelated reflexive contract;
@@ -77,10 +77,10 @@ requires 41u8 == 41u8
 ensures 41u8 == 41u8
 {
     transition { _ -> add(10u8) }
-    state add(value: u8 in Wrapping) -> u8 in Wrapping {
+    machine add(value: u8 in Wrapping) -> u8 in Wrapping {
         transition { _ -> finish(value + 20u8) }
     }
-    state finish(value: u8 in Wrapping) -> u8 in Wrapping { value + 12u8 }
+    machine finish(value: u8 in Wrapping) -> u8 in Wrapping { value + 12u8 }
 }
 
 machine terminal_known_integer_graph_wrong_contract() -> u8 in Wrapping
@@ -91,13 +91,13 @@ ensures 8u8 == 8u8
         true -> selected_known_integer(7u8)
         _ -> ignored_known_integer(9u8)
     }
-    state selected_known_integer(value: u8 in Wrapping) -> u8 in Wrapping {
+    machine selected_known_integer(value: u8 in Wrapping) -> u8 in Wrapping {
         transition { _ -> finish_known_integer(value) }
     }
-    state ignored_known_integer(value: u8 in Wrapping) -> u8 in Wrapping {
+    machine ignored_known_integer(value: u8 in Wrapping) -> u8 in Wrapping {
         transition { _ -> finish_known_integer(value) }
     }
-    state finish_known_integer(value: u8 in Wrapping) -> u8 in Wrapping { value }
+    machine finish_known_integer(value: u8 in Wrapping) -> u8 in Wrapping { value }
 }
 
 machine terminal_known_boolean_binding_wrong_contract() -> u8 in Wrapping
@@ -105,7 +105,7 @@ requires 8u8 == 8u8
 ensures 8u8 == 8u8
 {
     transition { _ -> select_known_boolean(true && false, 7u8, 9u8) }
-    state select_known_boolean(
+    machine select_known_boolean(
         condition: bool,
         high: u8 in Wrapping,
         low: u8 in Wrapping
@@ -115,7 +115,7 @@ ensures 8u8 == 8u8
             _ -> finish_known_boolean(low)
         }
     }
-    state finish_known_boolean(value: u8 in Wrapping) -> u8 in Wrapping { value }
+    machine finish_known_boolean(value: u8 in Wrapping) -> u8 in Wrapping { value }
 }
 
 machine terminal_wrapping_add() -> u8 in Wrapping
@@ -123,7 +123,7 @@ requires 44u8 == 44u8
 ensures 44u8 == 44u8
 {
     transition { _ -> calculate(200u8) }
-    state calculate(value: u8 in Wrapping) -> u8 in Wrapping { value + 100u8 }
+    machine calculate(value: u8 in Wrapping) -> u8 in Wrapping { value + 100u8 }
 }
 
 machine terminal_scalar_locals(value: u8 in Wrapping) -> u8 in Wrapping
@@ -184,11 +184,11 @@ crashes Trap
         _ -> succeed()
     }
 
-    state fail() -> bool {
+    machine fail() -> bool {
         crash Trap;
     }
 
-    state succeed() -> bool { false }
+    machine succeed() -> bool { false }
 }
 
 machine terminal_call_guarded_caller(flag: bool) -> bool
@@ -212,11 +212,11 @@ crashes Trap
         _ -> succeed()
     }
 
-    state fail() -> bool {
+    machine fail() -> bool {
         crash Trap;
     }
 
-    state succeed() -> bool { false }
+    machine succeed() -> bool { false }
 }
 
 machine terminal_call_short_guarded(first: bool, second: bool) -> bool
@@ -262,8 +262,8 @@ ensures true == true
         _ -> joined_false()
     }
 
-    state joined_true() -> bool { true }
-    state joined_false() -> bool { false }
+    machine joined_true() -> bool { true }
+    machine joined_false() -> bool { false }
 }
 
 machine terminal_two_short_circuit_boolean_locals(first: bool, second: bool) -> bool
@@ -290,7 +290,7 @@ ensures true == true
     let joined: bool = first && second;
     transition { _ -> finish_short_circuit_local_jump(joined) }
 
-    state finish_short_circuit_local_jump(value: bool) -> bool { value }
+    machine finish_short_circuit_local_jump(value: bool) -> bool { value }
 }
 
 machine terminal_short_circuit_local_nested_jump(first: bool, second: bool) -> bool
@@ -300,7 +300,7 @@ ensures true == true
     let joined: bool = first && second;
     transition { _ -> finish_short_circuit_local_nested_jump(joined || first) }
 
-    state finish_short_circuit_local_nested_jump(value: bool) -> bool { value }
+    machine finish_short_circuit_local_nested_jump(value: bool) -> bool { value }
 }
 
 machine terminal_short_circuit_local_nested_jump_tuple(first: bool, second: bool) -> bool
@@ -315,7 +315,7 @@ ensures true == true
         )
     }
 
-    state finish_short_circuit_local_nested_jump_tuple(left: bool, right: bool) -> bool {
+    machine finish_short_circuit_local_nested_jump_tuple(left: bool, right: bool) -> bool {
         left == right
     }
 }
@@ -330,7 +330,7 @@ ensures true == true
         _ -> finish_short_circuit_local_conditional_edge(joined && second)
     }
 
-    state finish_short_circuit_local_conditional_edge(value: bool) -> bool { value }
+    machine finish_short_circuit_local_conditional_edge(value: bool) -> bool { value }
 }
 
 machine terminal_short_circuit_local_guard(first: bool, second: bool) -> bool
@@ -343,7 +343,7 @@ ensures true == true
         _ -> finish_short_circuit_local_guard(false)
     }
 
-    state finish_short_circuit_local_guard(value: bool) -> bool { value }
+    machine finish_short_circuit_local_guard(value: bool) -> bool { value }
 }
 
 machine terminal_short_circuit_local_crash(first: bool, second: bool) -> bool
@@ -358,7 +358,7 @@ requires 255u8 == 255u8
 ensures 255u8 == 255u8
 {
     transition { _ -> calculate(200u8) }
-    state calculate(value: u8 in Saturating) -> u8 in Saturating { value + 100u8 }
+    machine calculate(value: u8 in Saturating) -> u8 in Saturating { value + 100u8 }
 }
 
 machine terminal_wrapping_subtract() -> u8 in Wrapping
@@ -366,7 +366,7 @@ requires 251u8 == 251u8
 ensures 251u8 == 251u8
 {
     transition { _ -> calculate(5u8) }
-    state calculate(value: u8 in Wrapping) -> u8 in Wrapping { value - 10u8 }
+    machine calculate(value: u8 in Wrapping) -> u8 in Wrapping { value - 10u8 }
 }
 
 machine terminal_saturating_subtract() -> u8 in Saturating
@@ -374,7 +374,7 @@ requires 0u8 == 0u8
 ensures 0u8 == 0u8
 {
     transition { _ -> calculate(5u8) }
-    state calculate(value: u8 in Saturating) -> u8 in Saturating { value - 10u8 }
+    machine calculate(value: u8 in Saturating) -> u8 in Saturating { value - 10u8 }
 }
 
 machine terminal_wrapping_multiply() -> u8 in Wrapping
@@ -382,7 +382,7 @@ requires 4u8 == 4u8
 ensures 4u8 == 4u8
 {
     transition { _ -> calculate(20u8) }
-    state calculate(value: u8 in Wrapping) -> u8 in Wrapping { value * 13u8 }
+    machine calculate(value: u8 in Wrapping) -> u8 in Wrapping { value * 13u8 }
 }
 
 machine terminal_saturating_multiply() -> u8 in Saturating
@@ -390,7 +390,7 @@ requires 255u8 == 255u8
 ensures 255u8 == 255u8
 {
     transition { _ -> calculate(20u8) }
-    state calculate(value: u8 in Saturating) -> u8 in Saturating { value * 13u8 }
+    machine calculate(value: u8 in Saturating) -> u8 in Saturating { value * 13u8 }
 }
 
 machine terminal_ninth_parameter(
@@ -459,7 +459,7 @@ requires 135u8 == 135u8
 ensures 135u8 == 135u8
 {
     transition { _ -> finish(ninth + first) }
-    state finish(value: u8 in Wrapping) -> u8 in Wrapping { value * 3u8 }
+    machine finish(value: u8 in Wrapping) -> u8 in Wrapping { value * 3u8 }
 }
 
 machine terminal_runtime_chain_wrapping(
@@ -477,10 +477,10 @@ requires 134u8 == 134u8
 ensures 134u8 == 134u8
 {
     transition { _ -> multiply(ninth + first) }
-    state multiply(value: u8 in Wrapping) -> u8 in Wrapping {
+    machine multiply(value: u8 in Wrapping) -> u8 in Wrapping {
         transition { _ -> finish(value * 3u8) }
     }
-    state finish(value: u8 in Wrapping) -> u8 in Wrapping { value - 1u8 }
+    machine finish(value: u8 in Wrapping) -> u8 in Wrapping { value - 1u8 }
 }
 
 machine terminal_runtime_multi_binding(
@@ -498,10 +498,10 @@ requires 137u8 == 137u8
 ensures 137u8 == 137u8
 {
     transition { _ -> combine(ninth + first, second + 1u8) }
-    state combine(left: u8 in Wrapping, right: u8 in Wrapping) -> u8 in Wrapping {
+    machine combine(left: u8 in Wrapping, right: u8 in Wrapping) -> u8 in Wrapping {
         transition { _ -> finish(left * right, right - 1u8) }
     }
-    state finish(product: u8 in Wrapping, adjustment: u8 in Wrapping) -> u8 in Wrapping {
+    machine finish(product: u8 in Wrapping, adjustment: u8 in Wrapping) -> u8 in Wrapping {
         product + adjustment
     }
 }
@@ -518,10 +518,10 @@ ensures 17u8 == 17u8
         true -> selected_true(when_true, when_false)
         _ -> selected_false(when_false, when_true)
     }
-    state selected_true(value: u8 in Wrapping, adjustment: u8 in Wrapping) -> u8 in Wrapping {
+    machine selected_true(value: u8 in Wrapping, adjustment: u8 in Wrapping) -> u8 in Wrapping {
         value + adjustment + 3u8
     }
-    state selected_false(value: u8 in Wrapping, factor: u8 in Wrapping) -> u8 in Wrapping {
+    machine selected_false(value: u8 in Wrapping, factor: u8 in Wrapping) -> u8 in Wrapping {
         value * factor + 2u8
     }
 }
@@ -540,7 +540,7 @@ ensures 0u8 == 0u8
         true -> first_selected(second, high, middle)
         _ -> low_selected(low)
     }
-    state first_selected(
+    machine first_selected(
         second: bool,
         high: u8 in Wrapping,
         middle: u8 in Wrapping
@@ -550,16 +550,16 @@ ensures 0u8 == 0u8
             _ -> middle_selected(middle)
         }
     }
-    state high_selected(value: u8 in Wrapping) -> u8 in Wrapping {
+    machine high_selected(value: u8 in Wrapping) -> u8 in Wrapping {
         transition { _ -> finish(value) }
     }
-    state middle_selected(value: u8 in Wrapping) -> u8 in Wrapping {
+    machine middle_selected(value: u8 in Wrapping) -> u8 in Wrapping {
         transition { _ -> finish(value) }
     }
-    state low_selected(value: u8 in Wrapping) -> u8 in Wrapping {
+    machine low_selected(value: u8 in Wrapping) -> u8 in Wrapping {
         transition { _ -> finish(value) }
     }
-    state finish(value: u8 in Wrapping) -> u8 in Wrapping { value + 1u8 }
+    machine finish(value: u8 in Wrapping) -> u8 in Wrapping { value + 1u8 }
 }
 
 machine terminal_integer_computed_boolean_binding(
@@ -572,7 +572,7 @@ requires 0u8 == 0u8
 ensures 0u8 == 0u8
 {
     transition { _ -> choose_computed_boolean(first != second, high, low) }
-    state choose_computed_boolean(
+    machine choose_computed_boolean(
         different: bool,
         high: u8 in Wrapping,
         low: u8 in Wrapping
@@ -582,7 +582,7 @@ ensures 0u8 == 0u8
             _ -> finish_computed_boolean(low)
         }
     }
-    state finish_computed_boolean(value: u8 in Wrapping) -> u8 in Wrapping { value }
+    machine finish_computed_boolean(value: u8 in Wrapping) -> u8 in Wrapping { value }
 }
 
 machine terminal_integer_short_circuit_boolean_binding(
@@ -595,7 +595,7 @@ requires 0u8 == 0u8
 ensures 0u8 == 0u8
 {
     transition { _ -> choose_short_circuit_boolean(first && second, high, low) }
-    state choose_short_circuit_boolean(
+    machine choose_short_circuit_boolean(
         both: bool,
         high: u8 in Wrapping,
         low: u8 in Wrapping
@@ -605,7 +605,7 @@ ensures 0u8 == 0u8
             _ -> finish_short_circuit_boolean(low)
         }
     }
-    state finish_short_circuit_boolean(value: u8 in Wrapping) -> u8 in Wrapping { value }
+    machine finish_short_circuit_boolean(value: u8 in Wrapping) -> u8 in Wrapping { value }
 }
 
 machine terminal_integer_conditional_short_circuit_boolean_binding(
@@ -622,7 +622,7 @@ ensures 0u8 == 0u8
         true -> choose_conditional_short_circuit_boolean(first && second, high, low)
         _ -> skip_conditional_short_circuit_boolean(low)
     }
-    state choose_conditional_short_circuit_boolean(
+    machine choose_conditional_short_circuit_boolean(
         both: bool,
         high: u8 in Wrapping,
         low: u8 in Wrapping
@@ -632,12 +632,12 @@ ensures 0u8 == 0u8
             _ -> finish_conditional_short_circuit_boolean(low)
         }
     }
-    state skip_conditional_short_circuit_boolean(
+    machine skip_conditional_short_circuit_boolean(
         value: u8 in Wrapping
     ) -> u8 in Wrapping {
         transition { _ -> finish_conditional_short_circuit_boolean(value) }
     }
-    state finish_conditional_short_circuit_boolean(
+    machine finish_conditional_short_circuit_boolean(
         value: u8 in Wrapping
     ) -> u8 in Wrapping {
         value
@@ -653,13 +653,13 @@ requires 0u8 == 0u8
 ensures 0u8 == 0u8
 {
     transition { _ -> carry_mixed_scalar(first && second, value) }
-    state carry_mixed_scalar(
+    machine carry_mixed_scalar(
         both: bool,
         value: u8 in Wrapping
     ) -> u8 in Wrapping {
         transition { _ -> finish_mixed_scalar(both, value + 1u8) }
     }
-    state finish_mixed_scalar(
+    machine finish_mixed_scalar(
         proof_side_value: bool,
         value: u8 in Wrapping
     ) -> u8 in Wrapping {
@@ -678,13 +678,13 @@ ensures 0u8 == 0u8
         true -> add_selected(value)
         _ -> multiply_selected(value)
     }
-    state add_selected(value: u8 in Wrapping) -> u8 in Wrapping {
+    machine add_selected(value: u8 in Wrapping) -> u8 in Wrapping {
         transition { _ -> finish_computed(value + 1u8) }
     }
-    state multiply_selected(value: u8 in Wrapping) -> u8 in Wrapping {
+    machine multiply_selected(value: u8 in Wrapping) -> u8 in Wrapping {
         transition { _ -> finish_computed(value * 2u8) }
     }
-    state finish_computed(value: u8 in Wrapping) -> u8 in Wrapping { value }
+    machine finish_computed(value: u8 in Wrapping) -> u8 in Wrapping { value }
 }
 
 machine terminal_conditional_edge_expression(
@@ -698,7 +698,7 @@ ensures 0u8 == 0u8
         true -> finish_selected(value + 1u8)
         _ -> finish_selected(value * 2u8)
     }
-    state finish_selected(value: u8 in Wrapping) -> u8 in Wrapping { value }
+    machine finish_selected(value: u8 in Wrapping) -> u8 in Wrapping { value }
 }
 
 machine terminal_short_circuit_edge_expression(
@@ -713,7 +713,7 @@ ensures 0u8 == 0u8
         true -> finish_short_selected(value + 1u8)
         _ -> finish_short_selected(value * 2u8)
     }
-    state finish_short_selected(value: u8 in Wrapping) -> u8 in Wrapping { value }
+    machine finish_short_selected(value: u8 in Wrapping) -> u8 in Wrapping { value }
 }
 
 machine terminal_literal_conditional(value: u8 in Wrapping) -> u8 in Wrapping
@@ -724,8 +724,8 @@ ensures 20u8 == 20u8
         true -> selected_true(value)
         _ -> selected_false(value)
     }
-    state selected_true(value: u8 in Wrapping) -> u8 in Wrapping { value + 3u8 }
-    state selected_false(value: u8 in Wrapping) -> u8 in Wrapping { value * 2u8 }
+    machine selected_true(value: u8 in Wrapping) -> u8 in Wrapping { value + 3u8 }
+    machine selected_false(value: u8 in Wrapping) -> u8 in Wrapping { value * 2u8 }
 }
 
 machine terminal_boolean_conditional(
@@ -740,8 +740,8 @@ ensures true == true
         true -> selected_true(when_true)
         _ -> selected_false(when_false)
     }
-    state selected_true(value: bool) -> bool { value }
-    state selected_false(value: bool) -> bool { value }
+    machine selected_true(value: bool) -> bool { value }
+    machine selected_false(value: bool) -> bool { value }
 }
 
 machine terminal_boolean_conditional_short_circuit_arms(
@@ -756,8 +756,8 @@ ensures true == true
         true -> selected_true(when_true)
         _ -> selected_false(when_false)
     }
-    state selected_true(value: bool) -> bool { value && !value }
-    state selected_false(value: bool) -> bool { value || !value }
+    machine selected_true(value: bool) -> bool { value && !value }
+    machine selected_false(value: bool) -> bool { value || !value }
 }
 
 machine terminal_boolean_conditional_short_circuit_guard(
@@ -772,8 +772,8 @@ ensures true == true
         true -> selected_true(first)
         _ -> selected_false(fallback)
     }
-    state selected_true(value: bool) -> bool { value }
-    state selected_false(value: bool) -> bool { value }
+    machine selected_true(value: bool) -> bool { value }
+    machine selected_false(value: bool) -> bool { value }
 }
 
 machine terminal_nested_boolean_control(
@@ -791,16 +791,16 @@ ensures true == true
         true -> inspect_second(second, high, middle)
         _ -> low_selected(low)
     }
-    state inspect_second(second: bool, high: bool, middle: bool) -> bool {
+    machine inspect_second(second: bool, high: bool, middle: bool) -> bool {
         transition second {
             true -> finish_boolean(high)
             _ -> finish_boolean(middle)
         }
     }
-    state low_selected(value: bool) -> bool {
+    machine low_selected(value: bool) -> bool {
         transition { _ -> finish_boolean(value || !value) }
     }
-    state finish_boolean(value: bool) -> bool { value || !value }
+    machine finish_boolean(value: bool) -> bool { value || !value }
 }
 
 machine terminal_boolean_computed_conditional_edges(
@@ -817,13 +817,13 @@ ensures true == true
         true -> staged_boolean_edge(first || third, third && fourth)
         _ -> direct_boolean_edge(!fallback, fallback)
     }
-    state staged_boolean_edge(any: bool, both: bool) -> bool {
+    machine staged_boolean_edge(any: bool, both: bool) -> bool {
         transition { _ -> finish_boolean_edge(any, both) }
     }
-    state direct_boolean_edge(inverted: bool, original: bool) -> bool {
+    machine direct_boolean_edge(inverted: bool, original: bool) -> bool {
         transition { _ -> finish_boolean_edge(inverted, original) }
     }
-    state finish_boolean_edge(left: bool, right: bool) -> bool { left == right }
+    machine finish_boolean_edge(left: bool, right: bool) -> bool { left == right }
 }
 
 machine terminal_mixed_scalar_boolean_graph(
@@ -835,7 +835,7 @@ requires true == true
 ensures true == true
 {
     transition { _ -> compare_mixed_scalar(choose_less, left + 1u8, right * 2u8) }
-    state compare_mixed_scalar(
+    machine compare_mixed_scalar(
         choose_less: bool,
         left: u8 in Wrapping,
         right: u8 in Wrapping
@@ -845,7 +845,7 @@ ensures true == true
             _ -> finish_mixed_boolean(left == right)
         }
     }
-    state finish_mixed_boolean(value: bool) -> bool { value }
+    machine finish_mixed_boolean(value: bool) -> bool { value }
 }
 
 machine terminal_mixed_scalar_boolean_short_circuit(
@@ -858,7 +858,7 @@ requires true == true
 ensures true == true
 {
     transition { _ -> finish_mixed_short_circuit(first && second, value + 1u8, limit) }
-    state finish_mixed_short_circuit(
+    machine finish_mixed_short_circuit(
         selected: bool,
         value: u8 in Wrapping,
         limit: u8 in Wrapping
@@ -878,11 +878,11 @@ crashes Trap
         _ -> succeed_boolean()
     }
 
-    state fail_boolean() -> bool {
+    machine fail_boolean() -> bool {
         crash Trap;
     }
 
-    state succeed_boolean() -> bool { true }
+    machine succeed_boolean() -> bool { true }
 }
 
 machine terminal_two_crash_leaves(trap: bool, abort: bool) -> i32
@@ -898,22 +898,22 @@ crashes Abort
         _ -> check_abort(abort)
     }
 
-    state check_abort(abort: bool) -> i32 {
+    machine check_abort(abort: bool) -> i32 {
         transition {
             abort -> fail_abort()
             _ -> succeed()
         }
     }
 
-    state fail_trap() -> i32 {
+    machine fail_trap() -> i32 {
         crash Trap;
     }
 
-    state fail_abort() -> i32 {
+    machine fail_abort() -> i32 {
         crash Abort;
     }
 
-    state succeed() -> i32 { 0i32 }
+    machine succeed() -> i32 { 0i32 }
 }
 
 machine terminal_runtime_saturating_add(value: u8 in Saturating) -> u8 in Saturating
@@ -1124,7 +1124,7 @@ ensures 0u64 == 0u64
         _ -> finish(0u64)
     }
 
-    state finish(value: u64) -> u64 {
+    machine finish(value: u64) -> u64 {
         value
     }
 }
@@ -1138,12 +1138,12 @@ ensures true == true
         _ -> finish_range(false)
     }
 
-    state prove_range(value: u64, count: u64) -> bool {
+    machine prove_range(value: u64, count: u64) -> bool {
         let shifted: u64 = value >> count;
         count < 64u64
     }
 
-    state finish_range(value: bool) -> bool {
+    machine finish_range(value: bool) -> bool {
         value
     }
 }
@@ -1157,12 +1157,12 @@ ensures true == true
         _ -> finish_false_range(false)
     }
 
-    state disprove_range(value: u64, count: u64) -> bool {
+    machine disprove_range(value: u64, count: u64) -> bool {
         let shifted: u64 = value >> count;
         count < 0u64
     }
 
-    state finish_false_range(value: bool) -> bool {
+    machine finish_false_range(value: bool) -> bool {
         value
     }
 }
@@ -1176,12 +1176,12 @@ ensures true == true
         _ -> finish_overlap_range(false)
     }
 
-    state retain_range_compare(value: u64, count: u64) -> bool {
+    machine retain_range_compare(value: u64, count: u64) -> bool {
         let shifted: u64 = value >> count;
         count < 32u64
     }
 
-    state finish_overlap_range(value: bool) -> bool {
+    machine finish_overlap_range(value: bool) -> bool {
         value
     }
 }
@@ -1195,12 +1195,12 @@ ensures true == true
         _ -> finish_nonzero_constant_less(false)
     }
 
-    state compare_nonzero_constant_less(value: u64, divisor: u64) -> bool {
+    machine compare_nonzero_constant_less(value: u64, divisor: u64) -> bool {
         let quotient: u64 = value / divisor;
         0u64 < divisor
     }
 
-    state finish_nonzero_constant_less(value: bool) -> bool {
+    machine finish_nonzero_constant_less(value: bool) -> bool {
         value
     }
 }
@@ -1214,12 +1214,12 @@ ensures true == true
         _ -> finish_constant_less_false(false)
     }
 
-    state compare_constant_less_false(value: u64, count: u64) -> bool {
+    machine compare_constant_less_false(value: u64, count: u64) -> bool {
         let shifted: u64 = value >> count;
         63u64 < count
     }
 
-    state finish_constant_less_false(value: bool) -> bool {
+    machine finish_constant_less_false(value: bool) -> bool {
         value
     }
 }
@@ -1233,12 +1233,12 @@ ensures true == true
         _ -> finish_constant_less_overlap(false)
     }
 
-    state compare_constant_less_overlap(value: u64, count: u64) -> bool {
+    machine compare_constant_less_overlap(value: u64, count: u64) -> bool {
         let shifted: u64 = value >> count;
         32u64 < count
     }
 
-    state finish_constant_less_overlap(value: bool) -> bool {
+    machine finish_constant_less_overlap(value: bool) -> bool {
         value
     }
 }
@@ -1252,12 +1252,12 @@ ensures true == true
         _ -> finish_range_less_equal_true(false)
     }
 
-    state compare_range_less_equal_true(value: u64, count: u64) -> bool {
+    machine compare_range_less_equal_true(value: u64, count: u64) -> bool {
         let shifted: u64 = value >> count;
         count <= 63u64
     }
 
-    state finish_range_less_equal_true(value: bool) -> bool {
+    machine finish_range_less_equal_true(value: bool) -> bool {
         value
     }
 }
@@ -1274,12 +1274,12 @@ ensures true == true
         _ -> finish_nonzero_range_less_equal(false)
     }
 
-    state compare_nonzero_range_less_equal(value: u64, divisor: u64) -> bool {
+    machine compare_nonzero_range_less_equal(value: u64, divisor: u64) -> bool {
         let quotient: u64 = value / divisor;
         divisor <= 0u64
     }
 
-    state finish_nonzero_range_less_equal(value: bool) -> bool {
+    machine finish_nonzero_range_less_equal(value: bool) -> bool {
         value
     }
 }
@@ -1293,12 +1293,12 @@ ensures true == true
         _ -> finish_range_less_equal_overlap(false)
     }
 
-    state compare_range_less_equal_overlap(value: u64, count: u64) -> bool {
+    machine compare_range_less_equal_overlap(value: u64, count: u64) -> bool {
         let shifted: u64 = value >> count;
         count <= 32u64
     }
 
-    state finish_range_less_equal_overlap(value: bool) -> bool {
+    machine finish_range_less_equal_overlap(value: bool) -> bool {
         value
     }
 }
@@ -1312,12 +1312,12 @@ ensures true == true
         _ -> finish_constant_less_equal_true(false)
     }
 
-    state compare_constant_less_equal_true(value: u64, count: u64) -> bool {
+    machine compare_constant_less_equal_true(value: u64, count: u64) -> bool {
         let shifted: u64 = value >> count;
         0u64 <= count
     }
 
-    state finish_constant_less_equal_true(value: bool) -> bool {
+    machine finish_constant_less_equal_true(value: bool) -> bool {
         value
     }
 }
@@ -1331,12 +1331,12 @@ ensures true == true
         _ -> finish_constant_less_equal_false(false)
     }
 
-    state compare_constant_less_equal_false(value: u64, count: u64) -> bool {
+    machine compare_constant_less_equal_false(value: u64, count: u64) -> bool {
         let shifted: u64 = value >> count;
         64u64 <= count
     }
 
-    state finish_constant_less_equal_false(value: bool) -> bool {
+    machine finish_constant_less_equal_false(value: bool) -> bool {
         value
     }
 }
@@ -1350,12 +1350,12 @@ ensures true == true
         _ -> finish_constant_less_equal_overlap(false)
     }
 
-    state compare_constant_less_equal_overlap(value: u64, count: u64) -> bool {
+    machine compare_constant_less_equal_overlap(value: u64, count: u64) -> bool {
         let shifted: u64 = value >> count;
         32u64 <= count
     }
 
-    state finish_constant_less_equal_overlap(value: bool) -> bool {
+    machine finish_constant_less_equal_overlap(value: bool) -> bool {
         value
     }
 }
@@ -1369,12 +1369,12 @@ ensures true == true
         _ -> finish_range_equal_false(false)
     }
 
-    state compare_range_equal_false(value: u64, count: u64) -> bool {
+    machine compare_range_equal_false(value: u64, count: u64) -> bool {
         let shifted: u64 = value >> count;
         count == 64u64
     }
 
-    state finish_range_equal_false(value: bool) -> bool { value }
+    machine finish_range_equal_false(value: bool) -> bool { value }
 }
 
 machine terminal_exact_shift_constant_equal_range_false(value: u64, count: u64) -> bool
@@ -1386,12 +1386,12 @@ ensures true == true
         _ -> finish_constant_equal_range_false(false)
     }
 
-    state compare_constant_equal_range_false(value: u64, count: u64) -> bool {
+    machine compare_constant_equal_range_false(value: u64, count: u64) -> bool {
         let shifted: u64 = value >> count;
         64u64 == count
     }
 
-    state finish_constant_equal_range_false(value: bool) -> bool { value }
+    machine finish_constant_equal_range_false(value: bool) -> bool { value }
 }
 
 machine terminal_exact_shift_range_equal_constant_overlap(value: u64, count: u64) -> bool
@@ -1403,12 +1403,12 @@ ensures true == true
         _ -> finish_range_equal_overlap(false)
     }
 
-    state compare_range_equal_overlap(value: u64, count: u64) -> bool {
+    machine compare_range_equal_overlap(value: u64, count: u64) -> bool {
         let shifted: u64 = value >> count;
         count == 63u64
     }
 
-    state finish_range_equal_overlap(value: bool) -> bool { value }
+    machine finish_range_equal_overlap(value: bool) -> bool { value }
 }
 
 machine terminal_exact_shift_constant_equal_range_overlap(value: u64, count: u64) -> bool
@@ -1420,12 +1420,12 @@ ensures true == true
         _ -> finish_constant_equal_range_overlap(false)
     }
 
-    state compare_constant_equal_range_overlap(value: u64, count: u64) -> bool {
+    machine compare_constant_equal_range_overlap(value: u64, count: u64) -> bool {
         let shifted: u64 = value >> count;
         63u64 == count
     }
 
-    state finish_constant_equal_range_overlap(value: bool) -> bool { value }
+    machine finish_constant_equal_range_overlap(value: bool) -> bool { value }
 }
 
 machine terminal_exact_shift_left_runtime(value: u32, count: u32) -> u32
@@ -1437,14 +1437,14 @@ ensures 0u32 == 0u32
         _ -> finish_exact_left(0u32)
     }
 
-    state prove_value(value: u32, count: u32) -> u32 {
+    machine prove_value(value: u32, count: u32) -> u32 {
         transition value <= 1u32 {
             true -> finish_exact_left(value << count)
             _ -> finish_exact_left(0u32)
         }
     }
 
-    state finish_exact_left(value: u32) -> u32 {
+    machine finish_exact_left(value: u32) -> u32 {
         value
     }
 }
@@ -1458,7 +1458,7 @@ ensures 0u32 == 0u32
         _ -> finish_exact_left_known_count(0u32)
     }
 
-    state finish_exact_left_known_count(value: u32) -> u32 {
+    machine finish_exact_left_known_count(value: u32) -> u32 {
         value
     }
 }
@@ -1472,14 +1472,14 @@ ensures 0u32 == 0u32
         _ -> finish_exact_left_bounded_count(0u32)
     }
 
-    state prove_bounded_count_value(value: u32, count: u32) -> u32 {
+    machine prove_bounded_count_value(value: u32, count: u32) -> u32 {
         transition value <= 536870911u32 {
             true -> finish_exact_left_bounded_count(value << count)
             _ -> finish_exact_left_bounded_count(0u32)
         }
     }
 
-    state finish_exact_left_bounded_count(value: u32) -> u32 {
+    machine finish_exact_left_bounded_count(value: u32) -> u32 {
         value
     }
 }
@@ -1493,14 +1493,14 @@ ensures 0u64 == 0u64
         _ -> finish_exact_left_u64_bounded_count(0u64)
     }
 
-    state prove_u64_bounded_count_value(value: u64, count: u64) -> u64 {
+    machine prove_u64_bounded_count_value(value: u64, count: u64) -> u64 {
         transition value <= 2305843009213693951u64 {
             true -> finish_exact_left_u64_bounded_count(value << count)
             _ -> finish_exact_left_u64_bounded_count(0u64)
         }
     }
 
-    state finish_exact_left_u64_bounded_count(value: u64) -> u64 {
+    machine finish_exact_left_u64_bounded_count(value: u64) -> u64 {
         value
     }
 }
@@ -1514,7 +1514,7 @@ ensures 0u32 == 0u32
         _ -> finish_exact_add(0u32)
     }
 
-    state finish_exact_add(value: u32) -> u32 {
+    machine finish_exact_add(value: u32) -> u32 {
         value
     }
 }
@@ -1535,7 +1535,7 @@ ensures 0u32 == 0u32
         _ -> finish_exact_add_runtime_bound(0u32)
     }
 
-    state finish_exact_add_runtime_bound(value: u32) -> u32 {
+    machine finish_exact_add_runtime_bound(value: u32) -> u32 {
         value
     }
 }
@@ -1549,14 +1549,14 @@ ensures 0u64 == 0u64
         _ -> finish_exact_add_u64_runtime_bound(0u64)
     }
 
-    state prove_exact_add_u64_runtime_bound(left: u64, right: u64, maximum: u64) -> u64 {
+    machine prove_exact_add_u64_runtime_bound(left: u64, right: u64, maximum: u64) -> u64 {
         transition left <= maximum - right {
             true -> finish_exact_add_u64_runtime_bound(left + right)
             _ -> finish_exact_add_u64_runtime_bound(0u64)
         }
     }
 
-    state finish_exact_add_u64_runtime_bound(value: u64) -> u64 {
+    machine finish_exact_add_u64_runtime_bound(value: u64) -> u64 {
         value
     }
 }
@@ -1570,14 +1570,14 @@ ensures 0i32 == 0i32
         _ -> finish_exact_add_signed_upper(0i32)
     }
 
-    state prove_exact_add_signed_upper(left: i32, right: i32) -> i32 {
+    machine prove_exact_add_signed_upper(left: i32, right: i32) -> i32 {
         transition left <= 2147483647i32 - right {
             true -> finish_exact_add_signed_upper(left + right)
             _ -> finish_exact_add_signed_upper(0i32)
         }
     }
 
-    state finish_exact_add_signed_upper(value: i32) -> i32 {
+    machine finish_exact_add_signed_upper(value: i32) -> i32 {
         value
     }
 }
@@ -1591,14 +1591,14 @@ ensures 0i32 == 0i32
         _ -> finish_exact_add_signed_lower(0i32)
     }
 
-    state prove_exact_add_signed_lower(left: i32, right: i32) -> i32 {
+    machine prove_exact_add_signed_lower(left: i32, right: i32) -> i32 {
         transition -2147483648i32 - right <= left {
             true -> finish_exact_add_signed_lower(left + right)
             _ -> finish_exact_add_signed_lower(0i32)
         }
     }
 
-    state finish_exact_add_signed_lower(value: i32) -> i32 {
+    machine finish_exact_add_signed_lower(value: i32) -> i32 {
         value
     }
 }
@@ -1612,28 +1612,28 @@ ensures 0i64 == 0i64
         _ -> classify_exact_add_signed_i64_lower(left, right)
     }
 
-    state prove_exact_add_signed_i64_upper(left: i64, right: i64) -> i64 {
+    machine prove_exact_add_signed_i64_upper(left: i64, right: i64) -> i64 {
         transition left <= 9223372036854775807i64 - right {
             true -> finish_exact_add_signed_i64(left + right)
             _ -> finish_exact_add_signed_i64(0i64)
         }
     }
 
-    state classify_exact_add_signed_i64_lower(left: i64, right: i64) -> i64 {
+    machine classify_exact_add_signed_i64_lower(left: i64, right: i64) -> i64 {
         transition right <= 0i64 {
             true -> prove_exact_add_signed_i64_lower(left, right)
             _ -> finish_exact_add_signed_i64(0i64)
         }
     }
 
-    state prove_exact_add_signed_i64_lower(left: i64, right: i64) -> i64 {
+    machine prove_exact_add_signed_i64_lower(left: i64, right: i64) -> i64 {
         transition -9223372036854775808i64 - right <= left {
             true -> finish_exact_add_signed_i64(left + right)
             _ -> finish_exact_add_signed_i64(0i64)
         }
     }
 
-    state finish_exact_add_signed_i64(value: i64) -> i64 {
+    machine finish_exact_add_signed_i64(value: i64) -> i64 {
         value
     }
 }
@@ -1647,7 +1647,7 @@ ensures 0u32 == 0u32
         _ -> finish_exact_subtract(0u32)
     }
 
-    state finish_exact_subtract(value: u32) -> u32 {
+    machine finish_exact_subtract(value: u32) -> u32 {
         value
     }
 }
@@ -2543,7 +2543,7 @@ ensures 0u32 == 0u32
         _ -> finish_exact_subtract_joint(0u32)
     }
 
-    state finish_exact_subtract_joint(value: u32) -> u32 {
+    machine finish_exact_subtract_joint(value: u32) -> u32 {
         value
     }
 }
@@ -2557,7 +2557,7 @@ ensures 0u64 == 0u64
         _ -> finish_exact_subtract_u64_joint(0u64)
     }
 
-    state finish_exact_subtract_u64_joint(value: u64) -> u64 {
+    machine finish_exact_subtract_u64_joint(value: u64) -> u64 {
         value
     }
 }
@@ -2571,14 +2571,14 @@ ensures 0i32 == 0i32
         _ -> finish_exact_subtract_signed_lower(0i32)
     }
 
-    state prove_exact_subtract_signed_lower(left: i32, right: i32) -> i32 {
+    machine prove_exact_subtract_signed_lower(left: i32, right: i32) -> i32 {
         transition -2147483648i32 + right <= left {
             true -> finish_exact_subtract_signed_lower(left - right)
             _ -> finish_exact_subtract_signed_lower(0i32)
         }
     }
 
-    state finish_exact_subtract_signed_lower(value: i32) -> i32 {
+    machine finish_exact_subtract_signed_lower(value: i32) -> i32 {
         value
     }
 }
@@ -2592,14 +2592,14 @@ ensures 0i32 == 0i32
         _ -> finish_exact_subtract_signed_upper(0i32)
     }
 
-    state prove_exact_subtract_signed_upper(left: i32, right: i32) -> i32 {
+    machine prove_exact_subtract_signed_upper(left: i32, right: i32) -> i32 {
         transition left <= 2147483647i32 + right {
             true -> finish_exact_subtract_signed_upper(left - right)
             _ -> finish_exact_subtract_signed_upper(0i32)
         }
     }
 
-    state finish_exact_subtract_signed_upper(value: i32) -> i32 {
+    machine finish_exact_subtract_signed_upper(value: i32) -> i32 {
         value
     }
 }
@@ -2613,28 +2613,28 @@ ensures 0i64 == 0i64
         _ -> classify_exact_subtract_signed_i64_upper(left, right)
     }
 
-    state prove_exact_subtract_signed_i64_lower(left: i64, right: i64) -> i64 {
+    machine prove_exact_subtract_signed_i64_lower(left: i64, right: i64) -> i64 {
         transition -9223372036854775808i64 + right <= left {
             true -> finish_exact_subtract_signed_i64(left - right)
             _ -> finish_exact_subtract_signed_i64(0i64)
         }
     }
 
-    state classify_exact_subtract_signed_i64_upper(left: i64, right: i64) -> i64 {
+    machine classify_exact_subtract_signed_i64_upper(left: i64, right: i64) -> i64 {
         transition right <= 0i64 {
             true -> prove_exact_subtract_signed_i64_upper(left, right)
             _ -> finish_exact_subtract_signed_i64(0i64)
         }
     }
 
-    state prove_exact_subtract_signed_i64_upper(left: i64, right: i64) -> i64 {
+    machine prove_exact_subtract_signed_i64_upper(left: i64, right: i64) -> i64 {
         transition left <= 9223372036854775807i64 + right {
             true -> finish_exact_subtract_signed_i64(left - right)
             _ -> finish_exact_subtract_signed_i64(0i64)
         }
     }
 
-    state finish_exact_subtract_signed_i64(value: i64) -> i64 {
+    machine finish_exact_subtract_signed_i64(value: i64) -> i64 {
         value
     }
 }
@@ -2648,7 +2648,7 @@ ensures 0u32 == 0u32
         _ -> finish_exact_multiply(0u32)
     }
 
-    state finish_exact_multiply(value: u32) -> u32 {
+    machine finish_exact_multiply(value: u32) -> u32 {
         value
     }
 }
@@ -2668,14 +2668,14 @@ ensures 0u32 == 0u32
         _ -> finish_exact_multiply_joint(0u32)
     }
 
-    state prove_exact_multiply_joint(left: u32, right: u32) -> u32 {
+    machine prove_exact_multiply_joint(left: u32, right: u32) -> u32 {
         transition left <= 4294967295u32 / right {
             true -> finish_exact_multiply_joint(left * right)
             _ -> finish_exact_multiply_joint(0u32)
         }
     }
 
-    state finish_exact_multiply_joint(value: u32) -> u32 {
+    machine finish_exact_multiply_joint(value: u32) -> u32 {
         value
     }
 }
@@ -2689,14 +2689,14 @@ ensures 0u64 == 0u64
         _ -> finish_exact_multiply_u64_joint(0u64)
     }
 
-    state prove_exact_multiply_u64_joint(left: u64, right: u64, maximum: u64) -> u64 {
+    machine prove_exact_multiply_u64_joint(left: u64, right: u64, maximum: u64) -> u64 {
         transition left <= maximum / right {
             true -> finish_exact_multiply_u64_joint(left * right)
             _ -> finish_exact_multiply_u64_joint(0u64)
         }
     }
 
-    state finish_exact_multiply_u64_joint(value: u64) -> u64 {
+    machine finish_exact_multiply_u64_joint(value: u64) -> u64 {
         value
     }
 }
@@ -2710,14 +2710,14 @@ ensures 0i32 == 0i32
         _ -> finish_exact_multiply_signed(0i32)
     }
 
-    state prove_exact_multiply_signed_bounds(left: i32, right: i32) -> i32 {
+    machine prove_exact_multiply_signed_bounds(left: i32, right: i32) -> i32 {
         transition -2147483648i32 / right <= left && left <= 2147483647i32 / right {
             true -> finish_exact_multiply_signed(left * right)
             _ -> finish_exact_multiply_signed(0i32)
         }
     }
 
-    state finish_exact_multiply_signed(value: i32) -> i32 {
+    machine finish_exact_multiply_signed(value: i32) -> i32 {
         value
     }
 }
@@ -2731,14 +2731,14 @@ ensures 0i32 == 0i32
         _ -> finish_exact_multiply_signed_negative(0i32)
     }
 
-    state prove_exact_multiply_signed_negative_bounds(left: i32, right: i32) -> i32 {
+    machine prove_exact_multiply_signed_negative_bounds(left: i32, right: i32) -> i32 {
         transition 2147483647i32 / right <= left && left <= -2147483648i32 / right {
             true -> finish_exact_multiply_signed_negative(left * right)
             _ -> finish_exact_multiply_signed_negative(0i32)
         }
     }
 
-    state finish_exact_multiply_signed_negative(value: i32) -> i32 {
+    machine finish_exact_multiply_signed_negative(value: i32) -> i32 {
         value
     }
 }
@@ -2752,14 +2752,14 @@ ensures 0i32 == 0i32
         _ -> finish_exact_multiply_signed_negation(0i32)
     }
 
-    state prove_exact_multiply_signed_negation_bound(left: i32, right: i32) -> i32 {
+    machine prove_exact_multiply_signed_negation_bound(left: i32, right: i32) -> i32 {
         transition -2147483647i32 <= left {
             true -> finish_exact_multiply_signed_negation(left * right)
             _ -> finish_exact_multiply_signed_negation(0i32)
         }
     }
 
-    state finish_exact_multiply_signed_negation(value: i32) -> i32 {
+    machine finish_exact_multiply_signed_negation(value: i32) -> i32 {
         value
     }
 }
@@ -2773,42 +2773,42 @@ ensures 0i64 == 0i64
         _ -> classify_exact_multiply_signed_i64_positive(left, right)
     }
 
-    state prove_exact_multiply_signed_i64_negation(left: i64, right: i64) -> i64 {
+    machine prove_exact_multiply_signed_i64_negation(left: i64, right: i64) -> i64 {
         transition -9223372036854775807i64 <= left {
             true -> finish_exact_multiply_signed_i64(left * right)
             _ -> finish_exact_multiply_signed_i64(0i64)
         }
     }
 
-    state classify_exact_multiply_signed_i64_positive(left: i64, right: i64) -> i64 {
+    machine classify_exact_multiply_signed_i64_positive(left: i64, right: i64) -> i64 {
         transition 1i64 <= right {
             true -> prove_exact_multiply_signed_i64_positive(left, right)
             _ -> classify_exact_multiply_signed_i64_negative(left, right)
         }
     }
 
-    state prove_exact_multiply_signed_i64_positive(left: i64, right: i64) -> i64 {
+    machine prove_exact_multiply_signed_i64_positive(left: i64, right: i64) -> i64 {
         transition -9223372036854775808i64 / right <= left && left <= 9223372036854775807i64 / right {
             true -> finish_exact_multiply_signed_i64(left * right)
             _ -> finish_exact_multiply_signed_i64(0i64)
         }
     }
 
-    state classify_exact_multiply_signed_i64_negative(left: i64, right: i64) -> i64 {
+    machine classify_exact_multiply_signed_i64_negative(left: i64, right: i64) -> i64 {
         transition right <= -2i64 {
             true -> prove_exact_multiply_signed_i64_negative(left, right)
             _ -> finish_exact_multiply_signed_i64(0i64)
         }
     }
 
-    state prove_exact_multiply_signed_i64_negative(left: i64, right: i64) -> i64 {
+    machine prove_exact_multiply_signed_i64_negative(left: i64, right: i64) -> i64 {
         transition 9223372036854775807i64 / right <= left && left <= -9223372036854775808i64 / right {
             true -> finish_exact_multiply_signed_i64(left * right)
             _ -> finish_exact_multiply_signed_i64(0i64)
         }
     }
 
-    state finish_exact_multiply_signed_i64(value: i64) -> i64 {
+    machine finish_exact_multiply_signed_i64(value: i64) -> i64 {
         value
     }
 }
@@ -2930,7 +2930,7 @@ ensures 0u32 == 0u32
         _ -> finish_exact_divide_guarded_right(0u32)
     }
 
-    state finish_exact_divide_guarded_right(value: u32) -> u32 {
+    machine finish_exact_divide_guarded_right(value: u32) -> u32 {
         value
     }
 }
@@ -2944,7 +2944,7 @@ ensures 0u32 == 0u32
         _ -> finish_exact_remainder_guarded_right(0u32)
     }
 
-    state finish_exact_remainder_guarded_right(value: u32) -> u32 {
+    machine finish_exact_remainder_guarded_right(value: u32) -> u32 {
         value
     }
 }
@@ -2961,7 +2961,7 @@ ensures 0u32 == 0u32
         _ -> finish_wrapping_divide_guarded_right(0u32)
     }
 
-    state finish_wrapping_divide_guarded_right(value: u32 in Wrapping) -> u32 in Wrapping {
+    machine finish_wrapping_divide_guarded_right(value: u32 in Wrapping) -> u32 in Wrapping {
         value
     }
 }
@@ -2978,7 +2978,7 @@ ensures 0u32 == 0u32
         _ -> finish_wrapping_remainder_guarded_right(0u32)
     }
 
-    state finish_wrapping_remainder_guarded_right(value: u32 in Wrapping) -> u32 in Wrapping {
+    machine finish_wrapping_remainder_guarded_right(value: u32 in Wrapping) -> u32 in Wrapping {
         value
     }
 }
@@ -2995,7 +2995,7 @@ ensures 0u32 == 0u32
         _ -> finish_saturating_divide_guarded_right(0u32)
     }
 
-    state finish_saturating_divide_guarded_right(value: u32 in Saturating) -> u32 in Saturating {
+    machine finish_saturating_divide_guarded_right(value: u32 in Saturating) -> u32 in Saturating {
         value
     }
 }
@@ -3012,7 +3012,7 @@ ensures 0u32 == 0u32
         _ -> finish_saturating_remainder_guarded_right(0u32)
     }
 
-    state finish_saturating_remainder_guarded_right(value: u32 in Saturating) -> u32 in Saturating {
+    machine finish_saturating_remainder_guarded_right(value: u32 in Saturating) -> u32 in Saturating {
         value
     }
 }
@@ -3026,7 +3026,7 @@ ensures 0i32 == 0i32
         _ -> finish_exact_divide_guarded_negative_right(0i32)
     }
 
-    state finish_exact_divide_guarded_negative_right(value: i32) -> i32 {
+    machine finish_exact_divide_guarded_negative_right(value: i32) -> i32 {
         value
     }
 }
@@ -3040,14 +3040,14 @@ ensures 0i32 == 0i32
         _ -> finish_exact_divide_negative_one_range(0i32)
     }
 
-    state prove_exact_divide_negative_one_dividend(value: i32, divisor: i32) -> i32 {
+    machine prove_exact_divide_negative_one_dividend(value: i32, divisor: i32) -> i32 {
         transition -2147483647i32 <= value {
             true -> finish_exact_divide_negative_one_range(value / divisor)
             _ -> finish_exact_divide_negative_one_range(0i32)
         }
     }
 
-    state finish_exact_divide_negative_one_range(value: i32) -> i32 {
+    machine finish_exact_divide_negative_one_range(value: i32) -> i32 {
         value
     }
 }
@@ -3064,7 +3064,7 @@ ensures 0i32 == 0i32
         _ -> finish_wrapping_divide_negative_one_range(0i32)
     }
 
-    state finish_wrapping_divide_negative_one_range(value: i32 in Wrapping) -> i32 in Wrapping {
+    machine finish_wrapping_divide_negative_one_range(value: i32 in Wrapping) -> i32 in Wrapping {
         value
     }
 }
@@ -3140,10 +3140,10 @@ requires true == true
 ensures true == true
 {
     transition { _ -> carry(ninth) }
-    state carry(value: bool) -> bool {
+    machine carry(value: bool) -> bool {
         transition { _ -> finish(value) }
     }
-    state finish(value: bool) -> bool { value }
+    machine finish(value: bool) -> bool { value }
 }
 
 machine terminal_boolean_chain_short_circuit_return(value: bool) -> bool
@@ -3151,7 +3151,7 @@ requires true == true
 ensures true == true
 {
     transition { _ -> finish(value) }
-    state finish(value: bool) -> bool { value || !value }
+    machine finish(value: bool) -> bool { value || !value }
 }
 
 machine terminal_boolean_chain_short_circuit_binding(first: bool, second: bool) -> bool
@@ -3159,10 +3159,10 @@ requires true == true
 ensures true == true
 {
     transition { _ -> carry(first && second) }
-    state carry(value: bool) -> bool {
+    machine carry(value: bool) -> bool {
         transition { _ -> finish(value) }
     }
-    state finish(value: bool) -> bool { value }
+    machine finish(value: bool) -> bool { value }
 }
 
 machine terminal_boolean_chain_short_circuit_tuple(
@@ -3175,10 +3175,10 @@ requires true == true
 ensures true == true
 {
     transition { _ -> bind_tuple(first, second, third, fourth) }
-    state bind_tuple(first: bool, second: bool, third: bool, fourth: bool) -> bool {
+    machine bind_tuple(first: bool, second: bool, third: bool, fourth: bool) -> bool {
         transition { _ -> finish_tuple(first || second, third && fourth) }
     }
-    state finish_tuple(any: bool, both: bool) -> bool { any == both }
+    machine finish_tuple(any: bool, both: bool) -> bool { any == both }
 }
 
 machine terminal_boolean_tuple_wrong_contract() -> bool
@@ -3186,10 +3186,10 @@ requires false == false
 ensures false == false
 {
     transition { _ -> carry_known_tuple(true, false) }
-    state carry_known_tuple(first: bool, second: bool) -> bool {
+    machine carry_known_tuple(first: bool, second: bool) -> bool {
         transition { _ -> finish_known_tuple(first || second, second) }
     }
-    state finish_known_tuple(any: bool, both: bool) -> bool { any }
+    machine finish_known_tuple(any: bool, both: bool) -> bool { any }
 }
 
 machine terminal_boolean_chain_wrong_contract() -> bool
@@ -3197,7 +3197,7 @@ requires false == false
 ensures false == false
 {
     transition { _ -> finish(true) }
-    state finish(value: bool) -> bool { value }
+    machine finish(value: bool) -> bool { value }
 }
 
 machine terminal_abort() -> i32
@@ -3230,11 +3230,11 @@ crashes Trap
         _ -> succeed()
     }
 
-    state fail() -> i32 {
+    machine fail() -> i32 {
         crash Trap;
     }
 
-    state succeed() -> i32 { 0i32 }
+    machine succeed() -> i32 { 0i32 }
 }
 
 machine terminal_integer_guarded_trap(
@@ -3251,11 +3251,11 @@ crashes Trap
         _ -> succeed()
     }
 
-    state fail() -> i32 {
+    machine fail() -> i32 {
         crash Trap;
     }
 
-    state succeed() -> i32 { 0i32 }
+    machine succeed() -> i32 { 0i32 }
 }
 
 machine terminal_transitive_guarded_trap(left: i32, middle: i32, right: i32) -> i32
@@ -3269,11 +3269,11 @@ crashes Trap
         _ -> succeed()
     }
 
-    state fail() -> i32 {
+    machine fail() -> i32 {
         crash Trap;
     }
 
-    state succeed() -> i32 { 0i32 }
+    machine succeed() -> i32 { 0i32 }
 }
 
 machine terminal_implied_guarded_trap(flag: bool) -> i32
@@ -3287,11 +3287,11 @@ crashes Trap
         _ -> succeed()
     }
 
-    state fail() -> i32 {
+    machine fail() -> i32 {
         crash Trap;
     }
 
-    state succeed() -> i32 { 0i32 }
+    machine succeed() -> i32 { 0i32 }
 }
 
 machine terminal_unpublished_abort() -> i32 {

@@ -17,6 +17,6 @@ machine main() crashes Trap {
     transition observe(&mut bytes[..], &mut other[..]) == 65u8 && other[0] == 255u8 {
         true -> done() false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

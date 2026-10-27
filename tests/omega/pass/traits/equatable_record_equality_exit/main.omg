@@ -52,7 +52,7 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> missed(main)
     }
 
-    state check_callable(main: &mut Main) {
+    machine check_callable(main: &mut Main) {
         let callable: bool = PointEquality::equals(&main.a, &main.b);
 
         transition callable {
@@ -61,7 +61,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state check_callable_unequal(main: &mut Main) {
+    machine check_callable_unequal(main: &mut Main) {
         let callable: bool = PointEquality::equals(&main.a, &main.c);
 
         transition callable {
@@ -70,7 +70,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state check_unequal(main: &mut Main) {
+    machine check_unequal(main: &mut Main) {
         let different: bool = main.a != main.c;
 
         transition different {
@@ -79,7 +79,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state check_written_override(main: &mut Main) {
+    machine check_written_override(main: &mut Main) {
         main.overridden_a.value = 1;
         main.overridden_b.value = 1;
         let written_result: bool = main.overridden_a == main.overridden_b;
@@ -90,11 +90,11 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state matched(main: &mut Main) {
+    machine matched(main: &mut Main) {
         Console::exit_process(70);
     }
 
-    state missed(main: &mut Main) {
+    machine missed(main: &mut Main) {
         Console::exit_process(71);
     }
 }

@@ -7,7 +7,7 @@ machine observe(prior: &[u64; 2], copied: &[u64; 2]) -> bool {
 machine scan(left: u64, right: u64, limit: u64, increment: u64) -> bool
 requires limit <= 3 requires increment == 1 {
     transition { _ -> body([left, right], 0, left, right, limit, increment) }
-    state body(prior: [u64; 2], index: u64, left: u64, right: u64, limit: u64, increment: u64) -> bool
+    machine body(prior: [u64; 2], index: u64, left: u64, right: u64, limit: u64, increment: u64) -> bool
     requires index <= limit requires limit <= 3 requires increment == 1 {
         let copied: [u64; 2] = [left, right];
         let observed: bool = observe(&prior, &copied);
@@ -20,5 +20,5 @@ requires limit <= 3 requires increment == 1 {
 machine main() crashes Trap {
     let valid: bool = scan(7, 11, 3, 1);
     transition valid { true -> done() false -> bad() }
-    state done() {} state bad() { crash Trap; }
+    machine done() {} machine bad() { crash Trap; }
 }

@@ -20,20 +20,20 @@ machine route(ticket: Ticket, selected: bool) -> i32 {
         _ -> take(Ticket { value: 71 })
     }
 
-    state take(ticket: Ticket) -> i32 { ticket.value }
+    machine take(ticket: Ticket) -> i32 { ticket.value }
 }
 
 machine loop_until(ticket: Ticket, n: u8) -> i32 {
     transition { _ -> spin(ticket, n) }
 
-    state spin(ticket: Ticket, n: u8) {
+    machine spin(ticket: Ticket, n: u8) -> i32 {
         transition n < 2 {
             true -> spin(ticket, n + 1)
             _ -> finish(ticket)
         }
     }
 
-    state finish(ticket: Ticket) -> i32 { ticket.value }
+    machine finish(ticket: Ticket) -> i32 { ticket.value }
 }
 
 machine affine_move_carry() {
@@ -45,5 +45,5 @@ machine affine_move_carry() {
         _ -> done(71)
     }
 
-    state done(code: i32) {}
+    machine done(code: i32) {}
 }

@@ -60,15 +60,15 @@ machine Main::main_linux(main: &mut Main) reaches FilesystemContentRead + Filesy
     main.discard = PosixFilesystemHost::remove("/tmp/omega_cd_a.txt");
     main.discard = PosixFilesystemHost::remove("/tmp/omega_cd_b.txt");
     transition main.ctime > 1000000000 { true -> checkdev(main) _ -> fail(main) }
-    state checkdev(main: &mut Main) {
+    machine checkdev(main: &mut Main) {
         // two files on the same filesystem share a device id
         transition main.dev_a == main.dev_b { true -> checkdevnz(main) _ -> fail(main) }
     }
-    state checkdevnz(main: &mut Main) {
+    machine checkdevnz(main: &mut Main) {
         transition main.dev_a == 0 { true -> fail(main) _ -> good(main) }
     }
-    state good(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "PASS: ctime recent; two files share a nonzero device\n"); }
-    state fail(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "FAIL: ctime/dev\n"); }
+    machine good(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "PASS: ctime recent; two files share a nonzero device\n"); }
+    machine fail(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "FAIL: ctime/dev\n"); }
 }
 
 machine Main::main_macos(main: &mut Main) reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
@@ -110,15 +110,15 @@ machine Main::main_macos(main: &mut Main) reaches FilesystemContentRead + Filesy
     main.discard = PosixFilesystemHost::remove("/tmp/omega_cd_a.txt");
     main.discard = PosixFilesystemHost::remove("/tmp/omega_cd_b.txt");
     transition main.ctime > 1000000000 { true -> checkdev(main) _ -> fail(main) }
-    state checkdev(main: &mut Main) {
+    machine checkdev(main: &mut Main) {
         // two files on the same filesystem share a device id
         transition main.dev_a == main.dev_b { true -> checkdevnz(main) _ -> fail(main) }
     }
-    state checkdevnz(main: &mut Main) {
+    machine checkdevnz(main: &mut Main) {
         transition main.dev_a == 0 { true -> fail(main) _ -> good(main) }
     }
-    state good(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "PASS: ctime recent; two files share a nonzero device\n"); }
-    state fail(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "FAIL: ctime/dev\n"); }
+    machine good(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "PASS: ctime recent; two files share a nonzero device\n"); }
+    machine fail(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "FAIL: ctime/dev\n"); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

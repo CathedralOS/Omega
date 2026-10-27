@@ -12,16 +12,16 @@ machine apply(m: Msg) -> i32 ensures result >= -100 && result <= 140 {
         Msg::Stop { code } -> stopped(code)
     }
 
-    state hit(step: i32 in Step) {
+    machine hit(step: i32 in Step) -> i32 {
         let code: i32 = step + 40;
         transition { _ -> code }
     }
 
-    state miss() {
+    machine miss() -> i32 {
         transition { _ -> -1 }
     }
 
-    state stopped(code: i32) requires code >= -100 && code <= 100 {
+    machine stopped(code: i32) -> i32 requires code >= -100 && code <= 100 {
         transition { _ -> code }
     }
 }

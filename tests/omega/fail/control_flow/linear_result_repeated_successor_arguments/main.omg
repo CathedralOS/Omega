@@ -5,5 +5,5 @@ machine make() -> Receipt { Receipt { value: 7 } }
 machine main() {
     let receipt: Receipt = make();
     transition { _ -> consume(receipt, receipt) }
-    state consume(first: Receipt, second: Receipt) { drop(first); drop(second); }
+    machine consume(first: Receipt, second: Receipt) { drop(first); drop(second); }
 }

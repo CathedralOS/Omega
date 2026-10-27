@@ -23,8 +23,8 @@ machine start(x: u64) -> bool {
         true -> narrow(x)
         _ -> no()
     }
-    state narrow(x: u64) -> bool requires x <= 254 { true }
-    state no() -> bool { false }
+    machine narrow(x: u64) -> bool requires x <= 254 { true }
+    machine no() -> bool { false }
 }
 
 // The statement-level effect check must also retain a local's range across
@@ -33,7 +33,7 @@ machine local_facts() -> bool {
     let value: u64 = 7;
     let other: u64 = 0;
     transition { _ -> narrow(value) }
-    state narrow(value: u64) -> bool requires value <= 254 { true }
+    machine narrow(value: u64) -> bool requires value <= 254 { true }
 }
 
 machine main() { }

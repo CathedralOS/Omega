@@ -13,6 +13,6 @@ machine received<Input, Output>(item: Input, other: Output, spare: Output, extra
         true -> (same<Output>(last))
         false -> finish(same<Output>(last))
     }
-    state finish(value: Output) -> Output { same<Output>(value) }
+    machine finish(value: Output) -> Output { same<Output>(value) }
 }
 machine main() {}

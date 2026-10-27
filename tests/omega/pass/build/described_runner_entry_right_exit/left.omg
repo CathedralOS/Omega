@@ -20,6 +20,6 @@ invokes Console;
 {
     let value: i32 = Reader::read();
     transition value == 11 { true -> deliver(left_runner, value) _ -> wrong(left_runner, value) }
-    state deliver(left_runner: &mut LeftRunner, observed: i32) { Console::exit_process(observed); }
-    state wrong(left_runner: &mut LeftRunner, observed: i32) { Console::exit_process(65); }
+    machine deliver(left_runner: &mut LeftRunner, observed: i32) { Console::exit_process(observed); }
+    machine wrong(left_runner: &mut LeftRunner, observed: i32) { Console::exit_process(65); }
 }

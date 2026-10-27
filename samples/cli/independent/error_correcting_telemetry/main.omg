@@ -11,13 +11,13 @@ data Main { input: [u8; 8]; }
 // lines stop with status 3 rather than interpreting their tail as a new frame.
 machine Main::main(main: &mut Main) reaches Console {
     transition { _ -> next(main, 0) }
-    state next(main: &mut Main, records: i32) {
+    machine next(main: &mut Main, records: i32) {
         transition records < 2000 {
             true -> read(main, records)
             false -> limit(main)
         }
     }
-    state read(main: &mut Main, records: i32)
+    machine read(main: &mut Main, records: i32)
     requires records >= 0 && records < 2000
     {
         let observed: LineReadResult = block Console::read_line(&mut main.input);
@@ -27,14 +27,14 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> limit(main)
         }
     }
-    state dispatch(main: &mut Main, records: i32, count: u64) {
+    machine dispatch(main: &mut Main, records: i32, count: u64) {
         transition {
             count == 4 && main.input[0] == 69 && main.input[3] == 10 -> encoding(main, records)
             count == 6 && main.input[0] == 68 && main.input[5] == 10 -> decoding(main, records)
             _ -> malformed(main, records)
         }
     }
-    state encoding(main: &mut Main, records: i32) {
+    machine encoding(main: &mut Main, records: i32) {
         let first: i32 in Wrapping = symbol(main.input[1]);
         let second: i32 in Wrapping = symbol(main.input[2]);
         transition first < 5 && second < 5 {
@@ -42,13 +42,13 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> malformed(main, records)
         }
     }
-    state encoded(main: &mut Main, records: i32, frame: Frame) {
+    machine encoded(main: &mut Main, records: i32, frame: Frame) {
         Console::write("C ");
         digit(main, frame.first); digit(main, frame.second); digit(main, frame.third); digit(main, frame.fourth);
         Console::write_line("");
         transition { _ -> next(main, records) }
     }
-    state decoding(main: &mut Main, records: i32) {
+    machine decoding(main: &mut Main, records: i32) {
         let frame: Frame = Frame { first: symbol(main.input[1]), second: symbol(main.input[2]),
             third: symbol(main.input[3]), fourth: symbol(main.input[4]) };
         transition frame.first <= 5 && frame.second <= 5 && frame.third <= 5 && frame.fourth <= 5 {
@@ -56,17 +56,17 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> malformed(main, records)
         }
     }
-    state recovering(main: &mut Main, records: i32, frame: Frame) {
+    machine recovering(main: &mut Main, records: i32, frame: Frame) {
         let result: Recovery = recover(&frame);
         transition { _ -> decoded(main, records, frame, result) }
     }
-    state decoded(main: &mut Main, records: i32, frame: Frame, result: Recovery) {
+    machine decoded(main: &mut Main, records: i32, frame: Frame, result: Recovery) {
         transition result.matches == 1 {
             true -> recovered(main, records, frame, result)
             false -> unrecoverable(main, records, frame)
         }
     }
-    state recovered(main: &mut Main, records: i32, frame: Frame, result: Recovery) {
+    machine recovered(main: &mut Main, records: i32, frame: Frame, result: Recovery) {
         let code: Frame = encode(result.intercept, result.slope);
         Console::write("R "); digit(main, result.intercept); digit(main, result.slope);
         Console::write(" L ");
@@ -75,20 +75,20 @@ machine Main::main(main: &mut Main) reaches Console {
         syndromes(main, &frame);
         transition { _ -> next(main, records) }
     }
-    state unrecoverable(main: &mut Main, records: i32, frame: Frame) {
+    machine unrecoverable(main: &mut Main, records: i32, frame: Frame) {
         Console::write("U"); syndromes(main, &frame);
         transition { _ -> next(main, records) }
     }
-    state malformed(main: &mut Main, records: i32) {
+    machine malformed(main: &mut Main, records: i32) {
         Console::write_line("M");
         transition { _ -> next(main, records) }
     }
-    state end(main: &mut Main, count: u64) {
+    machine end(main: &mut Main, count: u64) {
         transition count == 0 { true -> done(main) false -> truncated(main) }
     }
-    state truncated(main: &mut Main) { Console::write_line("M"); Console::exit_process(0); }
-    state done(main: &mut Main) { Console::exit_process(0); }
-    state limit(main: &mut Main) { Console::write_line("LIMIT"); Console::exit_process(3); }
+    machine truncated(main: &mut Main) { Console::write_line("M"); Console::exit_process(0); }
+    machine done(main: &mut Main) { Console::exit_process(0); }
+    machine limit(main: &mut Main) { Console::write_line("LIMIT"); Console::exit_process(3); }
 }
 machine symbol(byte: u8) -> i32 in Wrapping {
     transition { byte >= 48 && byte <= 52 -> ((widen_u8_to_i32(byte) as i32 in Wrapping) - 48)

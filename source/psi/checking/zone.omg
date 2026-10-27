@@ -34,7 +34,7 @@ public machine Bound::add(left: Bound, right: Bound) -> Bound {
         _ -> unbounded()
     }
 
-    state finite(left: ExactInteger, right: ExactInteger) -> Bound {
+    machine finite(left: ExactInteger, right: ExactInteger) -> Bound {
         let sum: ExactResult = ExactInteger::add(left, right);
         transition sum.valid {
             true -> exact(sum.value)
@@ -42,22 +42,22 @@ public machine Bound::add(left: Bound, right: Bound) -> Bound {
         }
     }
 
-    state exact(value: ExactInteger) -> Bound {
+    machine exact(value: ExactInteger) -> Bound {
         Bound { finite: true, value: value }
     }
 
-    state overflowed(negative: bool) -> Bound {
+    machine overflowed(negative: bool) -> Bound {
         transition negative {
             true -> least()
             _ -> unbounded()
         }
     }
 
-    state least() -> Bound {
+    machine least() -> Bound {
         Bound { finite: true, value: ExactInteger { negative: true, magnitude: 18446744073709551615 } }
     }
 
-    state unbounded() -> Bound {
+    machine unbounded() -> Bound {
         Bound { finite: false, value: ExactInteger { negative: false, magnitude: 0 } }
     }
 }
@@ -69,23 +69,23 @@ public machine Bound::at_most(left: Bound, right: Bound) -> bool {
         _ -> always()
     }
 
-    state finite(left: Bound, right: ExactInteger) -> bool {
+    machine finite(left: Bound, right: ExactInteger) -> bool {
         transition left.finite {
             true -> compared(left.value, right)
             _ -> never()
         }
     }
 
-    state compared(left: ExactInteger, right: ExactInteger) -> bool {
+    machine compared(left: ExactInteger, right: ExactInteger) -> bool {
         let ordered: bool = ExactInteger::at_most(left, right);
         ordered
     }
 
-    state always() -> bool {
+    machine always() -> bool {
         true
     }
 
-    state never() -> bool {
+    machine never() -> bool {
         false
     }
 }
@@ -110,20 +110,20 @@ crashes Trap
         _ -> invalid()
     }
 
-    state cleared(zone: &mut Zone, count: u64 in Trapping) {
+    machine cleared(zone: &mut Zone, count: u64 in Trapping) {
         zone.count = count as u64;
         zone.infeasible = false;
         transition { _ -> entry(zone, 0) }
     }
 
-    state entry(zone: &mut Zone, index: u64 in Trapping) {
+    machine entry(zone: &mut Zone, index: u64 in Trapping) {
         transition index < 4096 {
             true -> clear(zone, index)
             _ -> done()
         }
     }
 
-    state clear(zone: &mut Zone, index: u64 in Trapping)
+    machine clear(zone: &mut Zone, index: u64 in Trapping)
     requires index < 4096
     {
         let row: u64 in Trapping = index / 64;
@@ -134,23 +134,23 @@ crashes Trap
         }
     }
 
-    state diagonal(zone: &mut Zone, index: u64 in Trapping)
+    machine diagonal(zone: &mut Zone, index: u64 in Trapping)
     requires index < 4096
     {
         zone.bounds[index] = Bound { finite: true, value: ExactInteger { negative: false, magnitude: 0 } };
         transition { _ -> entry(zone, index + 1) }
     }
 
-    state unbounded(zone: &mut Zone, index: u64 in Trapping)
+    machine unbounded(zone: &mut Zone, index: u64 in Trapping)
     requires index < 4096
     {
         zone.bounds[index] = Bound { finite: false, value: ExactInteger { negative: false, magnitude: 0 } };
         transition { _ -> entry(zone, index + 1) }
     }
 
-    state done() {}
+    machine done() {}
 
-    state invalid() {
+    machine invalid() {
         crash Trap;
     }
 }
@@ -164,20 +164,20 @@ crashes Trap
         _ -> invalid()
     }
 
-    state located(zone: &Zone, index: u64 in Trapping) -> Bound {
+    machine located(zone: &Zone, index: u64 in Trapping) -> Bound {
         transition index < 4096 {
             true -> read(zone, index)
             _ -> invalid()
         }
     }
 
-    state read(zone: &Zone, index: u64 in Trapping) -> Bound
+    machine read(zone: &Zone, index: u64 in Trapping) -> Bound
     requires index < 4096
     {
         zone.bounds[index]
     }
 
-    state invalid() -> Bound {
+    machine invalid() -> Bound {
         crash Trap;
     }
 }
@@ -193,22 +193,22 @@ crashes Trap
         _ -> store(zone, from * 64 + to, bound)
     }
 
-    state store(zone: &mut Zone, index: u64 in Trapping, bound: Bound) {
+    machine store(zone: &mut Zone, index: u64 in Trapping, bound: Bound) {
         transition index < 4096 {
             true -> write(zone, index, bound)
             _ -> invalid()
         }
     }
 
-    state write(zone: &mut Zone, index: u64 in Trapping, bound: Bound)
+    machine write(zone: &mut Zone, index: u64 in Trapping, bound: Bound)
     requires index < 4096
     {
         zone.bounds[index] = bound;
     }
 
-    state done() {}
+    machine done() {}
 
-    state invalid() {
+    machine invalid() {
         crash Trap;
     }
 }
@@ -222,14 +222,14 @@ crashes Trap
         _ -> compared(zone, from, to, value)
     }
 
-    state compared(zone: &Zone, from: u64 in Trapping, to: u64 in Trapping, value: ExactInteger) -> bool {
+    machine compared(zone: &Zone, from: u64 in Trapping, to: u64 in Trapping, value: ExactInteger) -> bool {
         let known: Bound = Zone::bound(zone, from, to);
         let wanted: Bound = Bound::exactly(value);
         let implied: bool = Bound::at_most(known, wanted);
         implied
     }
 
-    state vacuous() -> bool {
+    machine vacuous() -> bool {
         true
     }
 }
@@ -250,31 +250,31 @@ crashes Trap
         _ -> done()
     }
 
-    state feasible(zone: &mut Zone, from: u64 in Trapping, to: u64 in Trapping, bound: Bound, contradictory: bool) {
+    machine feasible(zone: &mut Zone, from: u64 in Trapping, to: u64 in Trapping, bound: Bound, contradictory: bool) {
         transition contradictory {
             true -> infeasible(zone)
             _ -> row(zone, from, to, bound, 0)
         }
     }
 
-    state infeasible(zone: &mut Zone) {
+    machine infeasible(zone: &mut Zone) {
         zone.infeasible = true;
     }
 
-    state row(zone: &mut Zone, from: u64 in Trapping, to: u64 in Trapping, bound: Bound, first: u64 in Trapping) {
+    machine row(zone: &mut Zone, from: u64 in Trapping, to: u64 in Trapping, bound: Bound, first: u64 in Trapping) {
         transition first < zone.count {
             true -> through(zone, from, to, bound, first)
             _ -> done()
         }
     }
 
-    state through(zone: &mut Zone, from: u64 in Trapping, to: u64 in Trapping, bound: Bound, first: u64 in Trapping) {
+    machine through(zone: &mut Zone, from: u64 in Trapping, to: u64 in Trapping, bound: Bound, first: u64 in Trapping) {
         let into: Bound = Zone::bound(zone, first, from);
         let through: Bound = Bound::add(into, bound);
         transition { _ -> column(zone, from, to, bound, through, first, 0) }
     }
 
-    state column(
+    machine column(
         zone: &mut Zone,
         from: u64 in Trapping,
         to: u64 in Trapping,
@@ -289,7 +289,7 @@ crashes Trap
         }
     }
 
-    state relax(
+    machine relax(
         zone: &mut Zone,
         from: u64 in Trapping,
         to: u64 in Trapping,
@@ -304,11 +304,11 @@ crashes Trap
         transition { _ -> column(zone, from, to, bound, through, first, second + 1) }
     }
 
-    state next_row(zone: &mut Zone, from: u64 in Trapping, to: u64 in Trapping, bound: Bound, first: u64 in Trapping) {
+    machine next_row(zone: &mut Zone, from: u64 in Trapping, to: u64 in Trapping, bound: Bound, first: u64 in Trapping) {
         transition { _ -> row(zone, from, to, bound, first + 1) }
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // Forget everything known about `subject`, as when it is overwritten. The
@@ -318,28 +318,28 @@ crashes Trap
 {
     transition { _ -> other(zone, subject, 0) }
 
-    state other(zone: &mut Zone, subject: u64 in Trapping, index: u64 in Trapping) {
+    machine other(zone: &mut Zone, subject: u64 in Trapping, index: u64 in Trapping) {
         transition index < zone.count {
             true -> clear(zone, subject, index)
             _ -> done()
         }
     }
 
-    state clear(zone: &mut Zone, subject: u64 in Trapping, index: u64 in Trapping) {
+    machine clear(zone: &mut Zone, subject: u64 in Trapping, index: u64 in Trapping) {
         transition index == subject {
             true -> other(zone, subject, index + 1)
             _ -> unbound(zone, subject, index)
         }
     }
 
-    state unbound(zone: &mut Zone, subject: u64 in Trapping, index: u64 in Trapping) {
+    machine unbound(zone: &mut Zone, subject: u64 in Trapping, index: u64 in Trapping) {
         let none: Bound = Bound::none();
         Zone::set(zone, subject, index, none);
         Zone::set(zone, index, subject, none);
         transition { _ -> other(zone, subject, index + 1) }
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // Overwrite the bound on `to - from`.
@@ -351,20 +351,20 @@ crashes Trap
         _ -> invalid()
     }
 
-    state store(zone: &mut Zone, index: u64 in Trapping, bound: Bound) {
+    machine store(zone: &mut Zone, index: u64 in Trapping, bound: Bound) {
         transition index < 4096 {
             true -> write(zone, index, bound)
             _ -> invalid()
         }
     }
 
-    state write(zone: &mut Zone, index: u64 in Trapping, bound: Bound)
+    machine write(zone: &mut Zone, index: u64 in Trapping, bound: Bound)
     requires index < 4096
     {
         zone.bounds[index] = bound;
     }
 
-    state invalid() {
+    machine invalid() {
         crash Trap;
     }
 }
@@ -381,41 +381,41 @@ crashes Trap
         _ -> reachable(zone, other)
     }
 
-    state reachable(zone: &mut Zone, other: &Zone) -> bool {
+    machine reachable(zone: &mut Zone, other: &Zone) -> bool {
         transition zone.infeasible {
             true -> replaced(zone, other)
             _ -> entry(zone, other, 0, false)
         }
     }
 
-    state replaced(zone: &mut Zone, other: &Zone) -> bool {
+    machine replaced(zone: &mut Zone, other: &Zone) -> bool {
         zone.infeasible = false;
         zone.count = other.count;
         transition { _ -> copy(zone, other, 0) }
     }
 
-    state copy(zone: &mut Zone, other: &Zone, index: u64 in Trapping) -> bool {
+    machine copy(zone: &mut Zone, other: &Zone, index: u64 in Trapping) -> bool {
         transition index < 4096 {
             true -> copy_entry(zone, other, index)
             _ -> changed()
         }
     }
 
-    state copy_entry(zone: &mut Zone, other: &Zone, index: u64 in Trapping) -> bool
+    machine copy_entry(zone: &mut Zone, other: &Zone, index: u64 in Trapping) -> bool
     requires index < 4096
     {
         zone.bounds[index] = other.bounds[index];
         transition { _ -> copy(zone, other, index + 1) }
     }
 
-    state entry(zone: &mut Zone, other: &Zone, index: u64 in Trapping, loosened: bool) -> bool {
+    machine entry(zone: &mut Zone, other: &Zone, index: u64 in Trapping, loosened: bool) -> bool {
         transition index < 4096 {
             true -> compare(zone, other, index, loosened)
             _ -> finished(loosened)
         }
     }
 
-    state compare(zone: &mut Zone, other: &Zone, index: u64 in Trapping, loosened: bool) -> bool
+    machine compare(zone: &mut Zone, other: &Zone, index: u64 in Trapping, loosened: bool) -> bool
     requires index < 4096
     {
         let mine: Bound = zone.bounds[index];
@@ -427,22 +427,22 @@ crashes Trap
         }
     }
 
-    state loosen(zone: &mut Zone, other: &Zone, index: u64 in Trapping, theirs: Bound) -> bool
+    machine loosen(zone: &mut Zone, other: &Zone, index: u64 in Trapping, theirs: Bound) -> bool
     requires index < 4096
     {
         zone.bounds[index] = theirs;
         transition { _ -> entry(zone, other, index + 1, true) }
     }
 
-    state finished(loosened: bool) -> bool {
+    machine finished(loosened: bool) -> bool {
         loosened
     }
 
-    state unchanged() -> bool {
+    machine unchanged() -> bool {
         false
     }
 
-    state changed() -> bool {
+    machine changed() -> bool {
         true
     }
 }
@@ -460,14 +460,14 @@ crashes Trap
         _ -> entry(zone, before, 0)
     }
 
-    state entry(zone: &mut Zone, before: &Zone, index: u64 in Trapping) {
+    machine entry(zone: &mut Zone, before: &Zone, index: u64 in Trapping) {
         transition index < 4096 {
             true -> compare(zone, before, index)
             _ -> done()
         }
     }
 
-    state compare(zone: &mut Zone, before: &Zone, index: u64 in Trapping)
+    machine compare(zone: &mut Zone, before: &Zone, index: u64 in Trapping)
     requires index < 4096
     {
         let now: Bound = zone.bounds[index];
@@ -479,12 +479,12 @@ crashes Trap
         }
     }
 
-    state drop(zone: &mut Zone, before: &Zone, index: u64 in Trapping)
+    machine drop(zone: &mut Zone, before: &Zone, index: u64 in Trapping)
     requires index < 4096
     {
         zone.bounds[index] = Bound { finite: false, value: ExactInteger { negative: false, magnitude: 0 } };
         transition { _ -> entry(zone, before, index + 1) }
     }
 
-    state done() {}
+    machine done() {}
 }

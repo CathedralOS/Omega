@@ -2,7 +2,7 @@
 // Invalid: the shared query overlaps a live exclusive loan.
 machine probe(input: u64) -> bool requires input < 2 {
     transition { _ -> observe(input) }
-    state observe(index: u64) -> bool requires index < 2 {
+    machine observe(index: u64) -> bool requires index < 2 {
     let mut items: [u64; 2] = [7, 11];
     let held: &mut u64 = &mut items[index];
     let selected: addr = address_of(&items[index]);
@@ -20,6 +20,6 @@ machine main() crashes Trap {
     let zero: bool = probe(0);
     let one: bool = probe(1);
     transition zero && one { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

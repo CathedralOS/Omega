@@ -3,7 +3,7 @@ requires remaining <= 4;
 terminates by remaining in 0..=5;
 -> u32 {
     transition { _ -> step(remaining + 1) }
-    state step(current: u32) requires current >= 1 && current <= 5 {
+    machine step(current: u32) -> u32 requires current >= 1 && current <= 5 {
         transition { _ -> (reset(current - 1)) }
     }
 }

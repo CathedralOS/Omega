@@ -11,6 +11,6 @@ machine main() crashes Trap {
     let selected: &u32 in Controlled = &storage.value;
     let result: u32 = consume(selected);
     transition result == 73 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

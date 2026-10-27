@@ -11,7 +11,7 @@ public machine draw(model: &mut Model) -> f64 {
     let product: u64 in Wrapping = (model.seed as u64 in Wrapping) * 16807;
     model.seed = (product as u64) % 2147483647;
     transition { _ -> uniform(model.seed) }
-    state uniform(value: u64) -> f64 {
+    machine uniform(value: u64) -> f64 {
         let converted: f64 = F64::from_u64(value);
         transition { _ -> (converted / 2147483647.0) }
     }
@@ -22,25 +22,25 @@ public machine draw(model: &mut Model) -> f64 {
 // series remainder. 2*sum + exponent*ln(2) is enough for six-digit output.
 public machine natural_log(value: f64) -> f64 {
     transition { _ -> reduce(value, 0.0) }
-    state reduce(value: f64, offset: f64) -> f64 {
+    machine reduce(value: f64, offset: f64) -> f64 {
         transition value < 0.5 {
             true -> reduce(value * 2.0, offset - 0.6931471805599453)
             false -> series(value, offset)
         }
     }
-    state series(value: f64, offset: f64) -> f64 {
+    machine series(value: f64, offset: f64) -> f64 {
         let z: f64 = (value - 1.0) / (value + 1.0);
         let square: f64 = z * z;
         transition { _ -> terms(z, square, z, 1.0, 0.0, offset, 0) }
     }
-    state terms(z: f64, square: f64, power: f64, denominator: f64, sum: f64, offset: f64, index: u64) -> f64 {
+    machine terms(z: f64, square: f64, power: f64, denominator: f64, sum: f64, offset: f64, index: u64) -> f64 {
         let updated: f64 = sum + power / denominator;
         transition index < 15 {
             true -> terms(z, square, power * square, denominator + 2.0, updated, offset, index + 1)
             false -> result(updated, offset)
         }
     }
-    state result(sum: f64, offset: f64) -> f64 { offset + 2.0 * sum }
+    machine result(sum: f64, offset: f64) -> f64 { offset + 2.0 * sum }
 }
 // status: 0 running, 1 horizon reached, 2 budget exhausted, 3 population
 // overflow. A pending event is tested before consuming the budget.
@@ -53,7 +53,7 @@ public machine advance(model: &mut Model) {
     let y_death: f64 = model.decay_y * y_float;
     let total: f64 = transcription + translation + x_death + y_death;
     transition total > 0.0 { true -> wait(model, transcription, translation, x_death, total) _ -> finish(model) }
-    state wait(model: &mut Model, transcription: f64, translation: f64, x_death: f64, total: f64) {
+    machine wait(model: &mut Model, transcription: f64, translation: f64, x_death: f64, total: f64) {
         let uniform: f64 = draw(model);
         let delay: f64 = (0.0 - natural_log(uniform)) / total;
         transition model.time + delay <= 2.0 {
@@ -61,13 +61,13 @@ public machine advance(model: &mut Model) {
             false -> finish(model)
         }
     }
-    state budget(model: &mut Model, transcription: f64, translation: f64, x_death: f64, total: f64, delay: f64) {
+    machine budget(model: &mut Model, transcription: f64, translation: f64, x_death: f64, total: f64, delay: f64) {
         transition model.events < model.budget {
             true -> choose(model, transcription, translation, x_death, total, delay)
             false -> exhausted(model)
         }
     }
-    state choose(model: &mut Model, transcription: f64, translation: f64, x_death: f64, total: f64, delay: f64) {
+    machine choose(model: &mut Model, transcription: f64, translation: f64, x_death: f64, total: f64, delay: f64) {
         let uniform: f64 = draw(model);
         let threshold: f64 = uniform * total;
         transition threshold < transcription {
@@ -75,48 +75,48 @@ public machine advance(model: &mut Model) {
             false -> later(model, transcription, translation, x_death, threshold, delay)
         }
     }
-    state later(model: &mut Model, transcription: f64, translation: f64, x_death: f64, threshold: f64, delay: f64) {
+    machine later(model: &mut Model, transcription: f64, translation: f64, x_death: f64, threshold: f64, delay: f64) {
         transition threshold < transcription + translation {
             true -> born_y(model, delay)
             false -> deaths(model, transcription, translation, x_death, threshold, delay)
         }
     }
-    state deaths(model: &mut Model, transcription: f64, translation: f64, x_death: f64, threshold: f64, delay: f64) {
+    machine deaths(model: &mut Model, transcription: f64, translation: f64, x_death: f64, threshold: f64, delay: f64) {
         transition threshold < transcription + translation + x_death {
             true -> dead_x(model, delay)
             false -> dead_y(model, delay)
         }
     }
-    state born_x(model: &mut Model, delay: f64) {
+    machine born_x(model: &mut Model, delay: f64) {
         transition model.x < 100000 { true -> increase_x(model, delay) _ -> overflow(model) }
     }
-    state increase_x(model: &mut Model, delay: f64) {
+    machine increase_x(model: &mut Model, delay: f64) {
         model.x = model.x + 1; model.channel = 1; transition { _ -> accepted(model, delay) }
     }
-    state born_y(model: &mut Model, delay: f64) {
+    machine born_y(model: &mut Model, delay: f64) {
         transition model.y < 100000 { true -> increase_y(model, delay) _ -> overflow(model) }
     }
-    state increase_y(model: &mut Model, delay: f64) {
+    machine increase_y(model: &mut Model, delay: f64) {
         model.y = model.y + 1; model.channel = 2; transition { _ -> accepted(model, delay) }
     }
-    state dead_x(model: &mut Model, delay: f64) {
+    machine dead_x(model: &mut Model, delay: f64) {
         transition model.x > 0 { true -> decrease_x(model, delay) _ -> overflow(model) }
     }
-    state decrease_x(model: &mut Model, delay: f64) {
+    machine decrease_x(model: &mut Model, delay: f64) {
         model.x = model.x - 1; model.channel = 3; transition { _ -> accepted(model, delay) }
     }
-    state dead_y(model: &mut Model, delay: f64) {
+    machine dead_y(model: &mut Model, delay: f64) {
         transition model.y > 0 { true -> decrease_y(model, delay) _ -> overflow(model) }
     }
-    state decrease_y(model: &mut Model, delay: f64) {
+    machine decrease_y(model: &mut Model, delay: f64) {
         model.y = model.y - 1; model.channel = 4; transition { _ -> accepted(model, delay) }
     }
-    state accepted(model: &mut Model, delay: f64) {
+    machine accepted(model: &mut Model, delay: f64) {
         model.time = model.time + delay; model.events = model.events + 1;
     }
-    state finish(model: &mut Model) { model.time = 2.0; model.status = 1; }
-    state exhausted(model: &mut Model) { model.status = 2; }
-    state overflow(model: &mut Model) { model.status = 3; }
+    machine finish(model: &mut Model) { model.time = 2.0; model.status = 1; }
+    machine exhausted(model: &mut Model) { model.status = 2; }
+    machine overflow(model: &mut Model) { model.status = 3; }
 }
 
 // Validate the signed configuration before converting its population to u64.
@@ -128,6 +128,6 @@ public machine valid(model: &Model, initial_x: i64) -> bool {
         true -> accepted()
         _ -> refused()
     }
-    state accepted() -> bool { true }
-    state refused() -> bool { false }
+    machine accepted() -> bool { true }
+    machine refused() -> bool { false }
 }

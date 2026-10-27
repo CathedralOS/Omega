@@ -58,28 +58,28 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> bad_balance(main)
     }
 
-    state check_count(main: &mut Main) {
+    machine check_count(main: &mut Main) {
         transition main.ledger.count == 6 {
             true -> good(main)
             _ -> bad_count(main)
         }
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::write_line("PASS: final balance 70 from 6 transactions, count 6 (exit 70)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(70);
     }
 
-    state bad_balance(main: &mut Main) {
+    machine bad_balance(main: &mut Main) {
         Console::write_line("FAIL: balance != 70 -- transaction sum wrong (exit 71)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(71);
     }
 
-    state bad_count(main: &mut Main) {
+    machine bad_count(main: &mut Main) {
         Console::write_line("FAIL: transaction count != 6 (exit 72)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
@@ -96,49 +96,49 @@ machine Main::deposit(main: &mut Main, amount: i32 in Saturating) {
         _ -> check2(main, amount)
     }
 
-    state write0(main: &mut Main, amount: i32 in Saturating) { main.ledger.txns[0] = amount; }
+    machine write0(main: &mut Main, amount: i32 in Saturating) { main.ledger.txns[0] = amount; }
 
-    state check2(main: &mut Main, amount: i32 in Saturating) {
+    machine check2(main: &mut Main, amount: i32 in Saturating) {
         transition main.ledger.count == 2 {
             true -> write1(main, amount)
             _ -> check3(main, amount)
         }
     }
-    state write1(main: &mut Main, amount: i32 in Saturating) { main.ledger.txns[1] = amount; }
+    machine write1(main: &mut Main, amount: i32 in Saturating) { main.ledger.txns[1] = amount; }
 
-    state check3(main: &mut Main, amount: i32 in Saturating) {
+    machine check3(main: &mut Main, amount: i32 in Saturating) {
         transition main.ledger.count == 3 {
             true -> write2(main, amount)
             _ -> check4(main, amount)
         }
     }
-    state write2(main: &mut Main, amount: i32 in Saturating) { main.ledger.txns[2] = amount; }
+    machine write2(main: &mut Main, amount: i32 in Saturating) { main.ledger.txns[2] = amount; }
 
-    state check4(main: &mut Main, amount: i32 in Saturating) {
+    machine check4(main: &mut Main, amount: i32 in Saturating) {
         transition main.ledger.count == 4 {
             true -> write3(main, amount)
             _ -> check5(main, amount)
         }
     }
-    state write3(main: &mut Main, amount: i32 in Saturating) { main.ledger.txns[3] = amount; }
+    machine write3(main: &mut Main, amount: i32 in Saturating) { main.ledger.txns[3] = amount; }
 
-    state check5(main: &mut Main, amount: i32 in Saturating) {
+    machine check5(main: &mut Main, amount: i32 in Saturating) {
         transition main.ledger.count == 5 {
             true -> write4(main, amount)
             _ -> check6(main, amount)
         }
     }
-    state write4(main: &mut Main, amount: i32 in Saturating) { main.ledger.txns[4] = amount; }
+    machine write4(main: &mut Main, amount: i32 in Saturating) { main.ledger.txns[4] = amount; }
 
-    state check6(main: &mut Main, amount: i32 in Saturating) {
+    machine check6(main: &mut Main, amount: i32 in Saturating) {
         transition main.ledger.count == 6 {
             true -> write5(main, amount)
             _ -> done()
         }
     }
-    state write5(main: &mut Main, amount: i32 in Saturating) { main.ledger.txns[5] = amount; }
+    machine write5(main: &mut Main, amount: i32 in Saturating) { main.ledger.txns[5] = amount; }
 
-    state done() {}
+    machine done() {}
 }
 
 // Withdraw: store as negative amount.

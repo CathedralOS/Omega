@@ -2,7 +2,7 @@ machine count<T, machine Predicate>(values: &[T]) -> u64
 where machine Predicate(value: &T) -> bool;
 {
     transition { _ -> next(values, 0, 0) }
-    state next(values: &[T], position: u64, matched: u64) -> u64
+    machine next(values: &[T], position: u64, matched: u64) -> u64
     requires matched <= position && position <= values.len
     {
         transition position < values.len {
@@ -10,7 +10,7 @@ where machine Predicate(value: &T) -> bool;
             false -> (matched)
         }
     }
-    state inspect(values: &[T], position: u64, matched: u64) -> u64
+    machine inspect(values: &[T], position: u64, matched: u64) -> u64
     requires matched <= position && position < values.len
     {
         transition Predicate(&values[position]) {

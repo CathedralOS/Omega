@@ -83,7 +83,7 @@ machine state_forward(table: &Table, protocol: &Guid, output: &mut &Record) -> S
 requires protocol in Guid::Selected
 ensures result.code == 0; {
     transition { _ -> ready(protocol, output, table) }
-    state ready(selected: &Guid, destination: &mut &Record, firmware: &Table)
+    machine ready(selected: &Guid, destination: &mut &Record, firmware: &Table) -> Status
     requires selected in Guid::Selected
     {
         Table::read(firmware, selected, destination)

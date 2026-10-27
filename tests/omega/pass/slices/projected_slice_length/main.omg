@@ -9,7 +9,7 @@ requires bag.items.len <= capacity;
 terminates by bag.items -> Slice::Length in 0..=capacity;
 -> u64 {
     transition { _ -> step(bag, capacity) }
-    state step(current: Bag, bound: u64) {
+    machine step(current: Bag, bound: u64) -> u64 {
         transition current.items.len > 0 {
             true -> step(Bag { items: current.items[1..] }, bound)
             false -> 0

@@ -1,0 +1,1 @@
+helper-only cycle can avoid every ranked entry

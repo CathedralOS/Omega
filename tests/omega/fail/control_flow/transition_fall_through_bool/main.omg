@@ -10,5 +10,5 @@ machine Main::main(main: &mut Main) {
     transition x == 3 {
         true -> good(main)
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
 }

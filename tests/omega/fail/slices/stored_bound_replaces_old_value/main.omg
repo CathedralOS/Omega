@@ -4,7 +4,7 @@ machine read(cursor: &mut Cursor) -> u8 {
         true -> replace(cursor)
         false -> (0)
     }
-    state replace(cursor: &mut Cursor) -> u8 {
+    machine replace(cursor: &mut Cursor) -> u8 {
         cursor.offset = cursor.offset + 1;
         cursor.bytes[cursor.offset]
     }

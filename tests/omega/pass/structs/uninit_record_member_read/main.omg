@@ -26,10 +26,10 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> zero(main, observed)
         _ -> bad(main)
     }
-    state zero(main: &mut Main, value: i32) requires value >= 0 && value <= 0 {
+    machine zero(main: &mut Main, value: i32) requires value >= 0 && value <= 0 {
         Console::exit_process(70 + value);
     }
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::exit_process(71);
     }
 }

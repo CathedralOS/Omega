@@ -6,13 +6,13 @@ machine decimal(value: i32 in Wrapping, divisor: i32 in Wrapping) reaches Consol
         true -> digit(value, divisor, 0)
         _ -> done()
     }
-    state digit(value: i32 in Wrapping, divisor: i32 in Wrapping, count: i32 in Wrapping) {
+    machine digit(value: i32 in Wrapping, divisor: i32 in Wrapping, count: i32 in Wrapping) {
         transition value >= divisor {
             true -> digit(value - divisor, divisor, count + 1)
             _ -> emit(value, divisor, count)
         }
     }
-    state emit(remainder: i32 in Wrapping, divisor: i32 in Wrapping, count: i32 in Wrapping) {
+    machine emit(remainder: i32 in Wrapping, divisor: i32 in Wrapping, count: i32 in Wrapping) {
         Console::write_byte((count + 48) as i32);
         transition divisor {
             10000 -> decimal(remainder, 1000)
@@ -22,18 +22,18 @@ machine decimal(value: i32 in Wrapping, divisor: i32 in Wrapping) reaches Consol
             _ -> done()
         }
     }
-    state done() { }
+    machine done() { }
 }
 
 machine map(cavity: &Cavity, phase: bool) reaches Console {
     transition { _ -> cell(cavity, phase, 0, 1) }
-    state cell(cavity: &Cavity, phase: bool, index: i32 in Wrapping, bit: i32 in Wrapping) {
+    machine cell(cavity: &Cavity, phase: bool, index: i32 in Wrapping, bit: i32 in Wrapping) {
         transition index >= 0 && index < 16 {
             true -> symbol(cavity, phase, index, bit)
             _ -> done()
         }
     }
-    state symbol(cavity: &Cavity, phase: bool, index: i32 in Wrapping, bit: i32 in Wrapping) {
+    machine symbol(cavity: &Cavity, phase: bool, index: i32 in Wrapping, bit: i32 in Wrapping) {
         transition {
             ((cavity.walls & bit) != 0) -> character(cavity, phase, index, bit, 35)
             phase -> phase_cell(cavity, phase, index, bit)
@@ -41,14 +41,14 @@ machine map(cavity: &Cavity, phase: bool) reaches Console {
             _ -> character(cavity, phase, index, bit, 46)
         }
     }
-    state phase_cell(cavity: &Cavity, phase: bool, index: i32 in Wrapping, bit: i32 in Wrapping) {
+    machine phase_cell(cavity: &Cavity, phase: bool, index: i32 in Wrapping, bit: i32 in Wrapping) {
         transition {
             ((cavity.filled & bit) != 0) -> character(cavity, phase, index, bit, 82)
             ((cavity.trapped & bit) != 0) -> character(cavity, phase, index, bit, 84)
             _ -> character(cavity, phase, index, bit, 65)
         }
     }
-    state character(
+    machine character(
         cavity: &Cavity,
         phase: bool,
         index: i32 in Wrapping,
@@ -58,42 +58,42 @@ machine map(cavity: &Cavity, phase: bool) reaches Console {
         Console::write_byte(value);
         transition { _ -> separator(cavity, phase, index, bit) }
     }
-    state arrival(cavity: &Cavity, phase: bool, index: i32 in Wrapping, bit: i32 in Wrapping) {
+    machine arrival(cavity: &Cavity, phase: bool, index: i32 in Wrapping, bit: i32 in Wrapping) {
         decimal(cavity.arrival[index], 10);
         transition { _ -> separator(cavity, phase, index, bit) }
     }
-    state separator(cavity: &Cavity, phase: bool, index: i32 in Wrapping, bit: i32 in Wrapping) {
+    machine separator(cavity: &Cavity, phase: bool, index: i32 in Wrapping, bit: i32 in Wrapping) {
         transition (index & 3) == 3 {
             true -> newline(cavity, phase, index, bit)
             _ -> space(cavity, phase, index, bit)
         }
     }
-    state newline(cavity: &Cavity, phase: bool, index: i32 in Wrapping, bit: i32 in Wrapping) {
+    machine newline(cavity: &Cavity, phase: bool, index: i32 in Wrapping, bit: i32 in Wrapping) {
         Console::write_byte(10);
         transition { _ -> cell(cavity, phase, index + 1, bit << 1) }
     }
-    state space(cavity: &Cavity, phase: bool, index: i32 in Wrapping, bit: i32 in Wrapping) {
+    machine space(cavity: &Cavity, phase: bool, index: i32 in Wrapping, bit: i32 in Wrapping) {
         Console::write_byte(32);
         transition { _ -> cell(cavity, phase, index + 1, bit << 1) }
     }
-    state done() { }
+    machine done() { }
 }
 
 machine regions(trapped: i32 in Wrapping) reaches Console {
     transition { _ -> scan(trapped, 0, 1) }
-    state scan(rest: i32 in Wrapping, index: i32 in Wrapping, bit: i32 in Wrapping) {
+    machine scan(rest: i32 in Wrapping, index: i32 in Wrapping, bit: i32 in Wrapping) {
         transition index < 16 && rest != 0 {
             true -> test(rest, index, bit)
             _ -> done()
         }
     }
-    state test(rest: i32 in Wrapping, index: i32 in Wrapping, bit: i32 in Wrapping) {
+    machine test(rest: i32 in Wrapping, index: i32 in Wrapping, bit: i32 in Wrapping) {
         transition (rest & bit) != 0 {
             true -> region(rest, index, bit)
             _ -> scan(rest, index + 1, bit << 1)
         }
     }
-    state region(rest: i32 in Wrapping, index: i32 in Wrapping, bit: i32 in Wrapping) {
+    machine region(rest: i32 in Wrapping, index: i32 in Wrapping, bit: i32 in Wrapping) {
         let component: i32 in Wrapping = air_closure(rest, bit);
         decimal(component, 10000);
         Console::write_byte(32);
@@ -101,7 +101,7 @@ machine regions(trapped: i32 in Wrapping) reaches Console {
         Console::write_byte(10);
         transition { _ -> scan(rest & ~component, index + 1, bit << 1) }
     }
-    state done() { }
+    machine done() { }
 }
 
 public machine report(cavity: &Cavity) reaches Console

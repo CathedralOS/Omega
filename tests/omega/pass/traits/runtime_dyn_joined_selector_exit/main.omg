@@ -37,7 +37,7 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> run(main, Increment as dyn Step<Counter>)
     }
 
-    state run(main: &mut Main, step: dyn Step<Counter>) {
+    machine run(main: &mut Main, step: dyn Step<Counter>) {
         Step::apply(step, &mut main.counter);
         transition main.counter.value == 10 {
             true -> good(main)
@@ -45,11 +45,11 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::exit_process(70);
     }
 
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::exit_process(71);
     }
 }

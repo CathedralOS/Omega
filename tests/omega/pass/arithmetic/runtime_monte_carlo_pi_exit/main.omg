@@ -13,14 +13,14 @@ data Main {
 machine Main::main(context: &mut Main) reaches Console {
     transition { _ -> loop(context, 1, 0, 0) }
 
-    state loop(context: &mut Main, seed: u32 in Wrapping,
+    machine loop(context: &mut Main, seed: u32 in Wrapping,
                inside: i32 in Wrapping, sample_count: i32 in Wrapping) {
         transition sample_count < 64 {
             true -> draw(context, seed, inside, sample_count)
             _ -> verify(context, inside)
         }
     }
-    state draw(context: &mut Main, seed: u32 in Wrapping,
+    machine draw(context: &mut Main, seed: u32 in Wrapping,
                inside: i32 in Wrapping, sample_count: i32 in Wrapping) {
         // A fresh xorshift32 draw for each coordinate. Only the final seed
         // crosses the back-edge; intermediate draws belong to this state.
@@ -39,25 +39,25 @@ machine Main::main(context: &mut Main) reaches Console {
             _ -> miss(context, next_seed, inside, sample_count)
         }
     }
-    state hit(context: &mut Main, seed: u32 in Wrapping,
+    machine hit(context: &mut Main, seed: u32 in Wrapping,
               inside: i32 in Wrapping, sample_count: i32 in Wrapping) {
         transition { _ -> loop(context, seed, inside + 1, sample_count + 1) }
     }
-    state miss(context: &mut Main, seed: u32 in Wrapping,
+    machine miss(context: &mut Main, seed: u32 in Wrapping,
                inside: i32 in Wrapping, sample_count: i32 in Wrapping) {
         transition { _ -> loop(context, seed, inside, sample_count + 1) }
     }
-    state verify(context: &mut Main, inside: i32 in Wrapping) {
+    machine verify(context: &mut Main, inside: i32 in Wrapping) {
         let estimate: i32 in Wrapping = 400 * inside / 64;
         transition inside == 53 && estimate == 331 {
             true -> good(context)
             _ -> wrong(context, inside)
         }
     }
-    state good(context: &mut Main) {
+    machine good(context: &mut Main) {
         Console::exit_process(70);
     }
-    state wrong(context: &mut Main, inside: i32 in Wrapping) {
+    machine wrong(context: &mut Main, inside: i32 in Wrapping) {
         Console::exit_process(inside as i32); // surface the count on regression
     }
 }

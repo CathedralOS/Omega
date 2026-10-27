@@ -4,10 +4,10 @@ use omega::language::core::float_operations;
 data Context { residuals: [f64; 8]; offset: i32; count: i32; }
 machine shifted(values: &mut [f64], amount: f64) {
     transition { _ -> scan(values, amount, 0) }
-    state scan(values: &mut [f64], amount: f64, index: i32 in Wrapping) {
+    machine scan(values: &mut [f64], amount: f64, index: i32 in Wrapping) {
         transition index >= 0 && index < values.len { true -> update(values, amount, index) _ -> {} }
     }
-    state update(values: &mut [f64], amount: f64, index: i32 in Wrapping)
+    machine update(values: &mut [f64], amount: f64, index: i32 in Wrapping)
     requires index >= 0 && index < values.len {
         values[index] = values[index] - amount;
         transition { _ -> scan(values, amount, index + 1) }
@@ -17,11 +17,11 @@ machine main(context: &mut Context) crashes Trap {
     context.residuals = [40.0, 40.0, 37.0, 33.0, 40.0, 40.0, 40.0, 40.0];
     context.offset = 1;
     transition context.offset >= 0 && context.count >= context.offset { true -> run(context) _ -> bad() }
-    state run(context: &mut Context)
+    machine run(context: &mut Context)
     requires context.offset >= 0 && context.count >= context.offset {
         let view: &mut [f64] = &mut context.residuals[context.offset..context.count];
         shifted(view, 0.5);
         transition context.residuals[0] == 40.0 && context.residuals[1] == 39.5 && context.residuals[2] == 36.5 && context.residuals[3] == 32.5 && context.residuals[4] == 40.0 { true -> done() _ -> bad() }
     }
-    state done() {} state bad() { crash Trap; }
+    machine done() {} machine bad() { crash Trap; }
 }

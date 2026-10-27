@@ -39,7 +39,7 @@ machine Main::main(main: &mut Main) reaches Console {
 
     transition { _ -> emit(main) }
 
-    state emit(main: &mut Main) {
+    machine emit(main: &mut Main) {
         Console::write_line("result: the draw's low byte, 99 for this seed (the exit code)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);

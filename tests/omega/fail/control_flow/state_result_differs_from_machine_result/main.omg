@@ -6,6 +6,6 @@ machine Main::main(main: &mut Main) {
     transition (main.hits == 0) {
         _ -> checked(main)
     }
-    state checked(main: &mut Main) -> i32 { 42 }
+    machine checked(main: &mut Main) -> i32 { 42 }
 }
 data Main { hits: i32; }

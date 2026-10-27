@@ -69,157 +69,157 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
     main.gen = 0;
     transition { _ -> frame_loop(main) }
 
-    state frame_loop(main: &mut Main) {
+    machine frame_loop(main: &mut Main) {
         transition main.gen < 60 { true -> clear_init(main) _ -> finish(main) }
     }
 
     // --- clear the grid ---
-    state clear_init(main: &mut Main) {
+    machine clear_init(main: &mut Main) {
         main.k = 0;
         transition { _ -> clear_loop(main) }
     }
-    state clear_loop(main: &mut Main) {
+    machine clear_loop(main: &mut Main) {
         transition main.k >= 0 && main.k < 200 { true -> clear_cell(main) _ -> plot_init(main) }
     }
-    state clear_cell(main: &mut Main) {
+    machine clear_cell(main: &mut Main) {
         main.grid[main.k] = 0;
         main.k = main.k + 1;
         transition { _ -> clear_loop(main) }
     }
 
     // --- plot every particle ---
-    state plot_init(main: &mut Main) {
+    machine plot_init(main: &mut Main) {
         main.pi = 0;
         transition { _ -> plot_loop(main) }
     }
-    state plot_loop(main: &mut Main) {
+    machine plot_loop(main: &mut Main) {
         transition main.pi >= 0 && main.pi < 4 { true -> plot_cell(main) _ -> render_init(main) }
     }
-    state plot_cell(main: &mut Main) {
+    machine plot_cell(main: &mut Main) {
         main.a = main.ps[main.pi].x;
         main.b = main.ps[main.pi].y;
         transition main.b * 20 + main.a >= 0 && main.b * 20 + main.a < 200 { true -> plot_set(main) _ -> bad(main) }
     }
-    state plot_set(main: &mut Main) {
+    machine plot_set(main: &mut Main) {
         main.grid[main.b * 20 + main.a] = 1;
         main.pi = main.pi + 1;
         transition { _ -> plot_loop(main) }
     }
 
     // --- render the grid in place ---
-    state render_init(main: &mut Main) {
+    machine render_init(main: &mut Main) {
         Console::write(main.home);
         main.ry = 0;
         transition { _ -> render_row(main) }
     }
-    state render_row(main: &mut Main) {
+    machine render_row(main: &mut Main) {
         transition main.ry >= 0 && main.ry < 10 { true -> render_col_init(main) _ -> after_render(main) }
     }
-    state render_col_init(main: &mut Main) {
+    machine render_col_init(main: &mut Main) {
         main.cx = 0;
         transition { _ -> render_col(main) }
     }
-    state render_col(main: &mut Main) {
+    machine render_col(main: &mut Main) {
         transition main.cx >= 0 && main.cx < 20 { true -> render_cell(main) _ -> emit_row(main) }
     }
-    state render_cell(main: &mut Main) {
+    machine render_cell(main: &mut Main) {
         transition main.ry * 20 + main.cx >= 0 && main.ry * 20 + main.cx < 200 { true -> render_read(main) _ -> bad(main) }
     }
-    state render_read(main: &mut Main) {
+    machine render_read(main: &mut Main) {
         main.a = main.grid[main.ry * 20 + main.cx];
         transition main.a >= 0 && main.a < 2 { true -> render_put(main) _ -> bad(main) }
     }
-    state render_put(main: &mut Main) {
+    machine render_put(main: &mut Main) {
         main.glyph = main.chars[main.a];
         main.line[main.cx] = main.glyph;
         main.cx = main.cx + 1;
         transition { _ -> render_col(main) }
     }
-    state emit_row(main: &mut Main) {
+    machine emit_row(main: &mut Main) {
         Console::write_line(main.line);
         main.ry = main.ry + 1;
         transition { _ -> render_row(main) }
     }
-    state after_render(main: &mut Main) {
+    machine after_render(main: &mut Main) {
         Clock::sleep(70);
         transition { _ -> update_init(main) }
     }
 
     // --- integrate pos += vel for every particle, bouncing off the walls ---
-    state update_init(main: &mut Main) {
+    machine update_init(main: &mut Main) {
         main.pi = 0;
         transition { _ -> update_loop(main) }
     }
-    state update_loop(main: &mut Main) {
+    machine update_loop(main: &mut Main) {
         transition main.pi >= 0 && main.pi < 4 { true -> integ_x(main) _ -> frame_next(main) }
     }
-    state integ_x(main: &mut Main) {
+    machine integ_x(main: &mut Main) {
         main.a = main.ps[main.pi].x;
         main.b = main.ps[main.pi].vx;
         main.n = main.a + main.b;
         transition main.n < 0 { true -> x_lo(main) _ -> x_hi_check(main) }
     }
-    state x_lo(main: &mut Main) {
+    machine x_lo(main: &mut Main) {
         main.n = 0;
         main.b = 0 - main.b;
         transition { _ -> store_x(main) }
     }
-    state x_hi_check(main: &mut Main) {
+    machine x_hi_check(main: &mut Main) {
         transition main.n > 19 { true -> x_hi(main) _ -> store_x(main) }
     }
-    state x_hi(main: &mut Main) {
+    machine x_hi(main: &mut Main) {
         main.n = 19;
         main.b = 0 - main.b;
         transition { _ -> store_x(main) }
     }
-    state store_x(main: &mut Main) {
+    machine store_x(main: &mut Main) {
         transition main.pi >= 0 && main.pi < 4 { true -> do_store_x(main) _ -> bad(main) }
     }
-    state do_store_x(main: &mut Main) {
+    machine do_store_x(main: &mut Main) {
         main.ps[main.pi].x = main.n;
         main.ps[main.pi].vx = main.b;
         transition { _ -> integ_y(main) }
     }
-    state integ_y(main: &mut Main) {
+    machine integ_y(main: &mut Main) {
         main.a = main.ps[main.pi].y;
         main.b = main.ps[main.pi].vy;
         main.n = main.a + main.b;
         transition main.n < 0 { true -> y_lo(main) _ -> y_hi_check(main) }
     }
-    state y_lo(main: &mut Main) {
+    machine y_lo(main: &mut Main) {
         main.n = 0;
         main.b = 0 - main.b;
         transition { _ -> store_y(main) }
     }
-    state y_hi_check(main: &mut Main) {
+    machine y_hi_check(main: &mut Main) {
         transition main.n > 9 { true -> y_hi(main) _ -> store_y(main) }
     }
-    state y_hi(main: &mut Main) {
+    machine y_hi(main: &mut Main) {
         main.n = 9;
         main.b = 0 - main.b;
         transition { _ -> store_y(main) }
     }
-    state store_y(main: &mut Main) {
+    machine store_y(main: &mut Main) {
         transition main.pi >= 0 && main.pi < 4 { true -> do_store_y(main) _ -> bad(main) }
     }
-    state do_store_y(main: &mut Main) {
+    machine do_store_y(main: &mut Main) {
         main.ps[main.pi].y = main.n;
         main.ps[main.pi].vy = main.b;
         main.pi = main.pi + 1;
         transition { _ -> update_loop(main) }
     }
-    state frame_next(main: &mut Main) {
+    machine frame_next(main: &mut Main) {
         main.gen = main.gen + 1;
         transition { _ -> frame_loop(main) }
     }
 
-    state finish(main: &mut Main) {
+    machine finish(main: &mut Main) {
         Console::write_line("done: 60 frames of the 4-particle entity system animated (exit 0)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(0);
     }
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::write_line("FAIL: a grid index or particle index left its guarded range (exit 1)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);

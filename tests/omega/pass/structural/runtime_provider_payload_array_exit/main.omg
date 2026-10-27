@@ -11,7 +11,7 @@ data Main {
 machine Main::main(main: &mut Main) reaches Console {
     main.count = 42;
     transition { _ -> finish(main) }
-    state finish(main: &mut Main) { Console::exit_process(main.count); }
+    machine finish(main: &mut Main) { Console::exit_process(main.count); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

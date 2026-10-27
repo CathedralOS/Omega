@@ -14,7 +14,7 @@ requires dividend >= 200i32 && dividend <= 200i32 && divisor >= 5i32 && divisor 
     transition {
         _ -> step(dividend / divisor)
     }
-    state step(quotient: i32) -> i32
+    machine step(quotient: i32) -> i32
     requires quotient >= 40i32 && quotient <= 40i32
     {
         verify_quotient(quotient)
@@ -30,6 +30,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

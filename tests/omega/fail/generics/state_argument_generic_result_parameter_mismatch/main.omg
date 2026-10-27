@@ -3,6 +3,6 @@
 machine same<T>(item: T) -> T { item }
 machine wrong<Input, Output>(item: Input) -> u8 {
     transition { _ -> finish(same<Input>(item)) }
-    state finish(value: Output) -> u8 { 0u8 }
+    machine finish(value: Output) -> u8 { 0u8 }
 }
 machine main() {}

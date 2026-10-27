@@ -85,10 +85,10 @@ machine Main::main(main: &mut Main) reaches Console + WavOutput + AudioPlayback 
     main.note = 0;
     transition { _ -> notes(main) }
 
-    state notes(main: &mut Main) {
+    machine notes(main: &mut Main) {
         transition main.note >= 0 && main.note < 8 { true -> pick(main) _ -> write_file(main) }
     }
-    state pick(main: &mut Main) {
+    machine pick(main: &mut Main) {
         // Samples per cycle for C4..C5 at 8000 Hz.
         main.period = match main.note {
             0 -> 31
@@ -104,69 +104,69 @@ machine Main::main(main: &mut Main) reaches Console + WavOutput + AudioPlayback 
         main.i = main.note * 2000;
         transition { _ -> within(main) }
     }
-    state within(main: &mut Main) {
+    machine within(main: &mut Main) {
         // Note index 0..7 narrows i to 0..15999 one product step at a time.
         transition main.i >= 0 && main.i < 16000 { true -> position(main) _ -> next_note(main) }
     }
-    state position(main: &mut Main) {
+    machine position(main: &mut Main) {
         // End of the current 2000-sample block for this note.
         main.phase = main.i - main.note * 2000;
         transition main.phase < 2000 && main.period > 0 { true -> sample(main) _ -> next_note(main) }
     }
-    state sample(main: &mut Main) {
+    machine sample(main: &mut Main) {
         main.phase = main.phase % main.period;
         main.byte = match main.phase < main.half { true -> 192 _ -> 64 };
         main.buffer[main.i + 44] = main.byte;
         main.i = main.i + 1;
         transition { _ -> within(main) }
     }
-    state next_note(main: &mut Main) {
+    machine next_note(main: &mut Main) {
         main.note = main.note + 1;
         transition { _ -> notes(main) }
     }
 
-    state write_file(main: &mut Main) {
+    machine write_file(main: &mut Main) {
         main.n = block WavOutput::write_wav("scale_melody.wav", &main.buffer);
         transition main.n == 16044 { true -> play_it(main) _ -> bad(main) }
     }
-    state play_it(main: &mut Main) {
+    machine play_it(main: &mut Main) {
         main.rc = block AudioPlayback::play(&main.buffer[0], 16044, &main.buffer[44], 16000);
         transition main.rc == 0 { true -> good(main) _ -> play_failed(main) }
     }
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::write_line("scale_melody: wrote scale_melody.wav (16000 frames)");
         Console::write_line("scale_melody: played scale_melody.wav");
         ProcessExit::exit_process(0);
     }
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::write_line("scale_melody: write failed");
         ProcessExit::exit_process(1);
     }
-    state play_failed(main: &mut Main) {
+    machine play_failed(main: &mut Main) {
         Console::write("scale_melody: playback failed (-");
         main.magnitude = 0 - widen_i32_to_i64(main.rc);
         transition main.magnitude >= 100 { true -> hundreds(main) _ -> tens(main) }
     }
-    state hundreds(main: &mut Main) {
+    machine hundreds(main: &mut Main) {
         main.digit = narrow_i64_to_i32_wrapping(48 + main.magnitude / 100);
         Console::write_byte(main.digit);
         main.magnitude = main.magnitude % 100;
         transition { _ -> tens_after_hundreds(main) }
     }
-    state tens_after_hundreds(main: &mut Main) {
+    machine tens_after_hundreds(main: &mut Main) {
         main.digit = narrow_i64_to_i32_wrapping(48 + main.magnitude / 10);
         Console::write_byte(main.digit);
         transition { _ -> ones(main) }
     }
-    state tens(main: &mut Main) {
+    machine tens(main: &mut Main) {
         transition main.magnitude >= 10 { true -> tens_print(main) _ -> ones(main) }
     }
-    state tens_print(main: &mut Main) {
+    machine tens_print(main: &mut Main) {
         main.digit = narrow_i64_to_i32_wrapping(48 + main.magnitude / 10);
         Console::write_byte(main.digit);
         transition { _ -> ones(main) }
     }
-    state ones(main: &mut Main) {
+    machine ones(main: &mut Main) {
         main.digit = narrow_i64_to_i32_wrapping(48 + main.magnitude % 10);
         Console::write_byte(main.digit);
         Console::write_line(")");

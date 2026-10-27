@@ -15,24 +15,24 @@ machine Main::main(main: &mut Main) reaches Console {
         LineReadResult::EndOfInput { count } -> eof(main,count)
         _ -> bad_input(main)
     }
-    state input_count(main: &mut Main,count: u64) {
+    machine input_count(main: &mut Main,count: u64) {
         transition count == 2 && main.input[1] == 10 { true -> choose(main) false -> bad_input(main) }
     }
-    state eof(main: &mut Main,count: u64) {
+    machine eof(main: &mut Main,count: u64) {
         transition count == 1 { true -> choose(main) false -> bad_input(main) }
     }
-    state choose(main: &mut Main) {
+    machine choose(main: &mut Main) {
         let mode: u8 = main.input[0];
         transition mode >= 48 && mode <= 56 { true -> initialize(main,mode) false -> bad_input(main) }
     }
-    state initialize(main: &mut Main,mode: u8) {
+    machine initialize(main: &mut Main,mode: u8) {
         fixture(&mut main.model,mode);
         transition main.model.count > 0 && main.model.count <= 4 {
             true -> validate(main,mode,0,0.0)
             false -> bad_model(main)
         }
     }
-    state validate(main: &mut Main,mode: u8,layer_index: u64,total: f64)
+    machine validate(main: &mut Main,mode: u8,layer_index: u64,total: f64)
     requires layer_index <= 3 {
         let thickness: f64 = main.model.thickness[layer_index];
         let m2: f64 = main.model.m2[layer_index];
@@ -43,7 +43,7 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> bad_model(main)
         }
     }
-    state validated(main: &mut Main,mode: u8,layer_index: u64,total: f64)
+    machine validated(main: &mut Main,mode: u8,layer_index: u64,total: f64)
     requires layer_index <= 3 {
         let next: u64 = layer_index+1;
         transition next < main.model.count && next <= 3 {
@@ -51,18 +51,18 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> centered(main,mode,total)
         }
     }
-    state centered(main: &mut Main,mode: u8,total: f64) {
+    machine centered(main: &mut Main,mode: u8,total: f64) {
         main.model.z[0] = 0.0-total/2.0;
         transition mode == 53 { true -> layers(main,0,0.0) false -> layers(main,0,1.0) }
     }
-    state layers(main: &mut Main,layer_index: u64,scale: f64)
+    machine layers(main: &mut Main,layer_index: u64,scale: f64)
     requires layer_index <= 3 {
         main.model.z[layer_index+1] = main.model.z[layer_index]+main.model.thickness[layer_index];
         transform(&mut main.model.stiffness[layer_index],main.model.m2[layer_index],main.model.n2[layer_index],main.model.mn[layer_index],scale);
         let next: u64 = layer_index+1;
         transition next < main.model.count && next <= 3 { true -> layers(main,next,scale) false -> calculation(main) }
     }
-    state calculation(main: &mut Main) {
+    machine calculation(main: &mut Main) {
         assemble(&mut main.model);
         prepare_system(&mut main.model);
         solve(&mut main.model);
@@ -70,36 +70,36 @@ machine Main::main(main: &mut Main) reaches Console {
         let accepted: bool = matches(&main.model,main.input[0]);
         transition accepted { true -> accepted_report(main) false -> numeric_failure(main) }
     }
-    state numeric_failure(main: &mut Main) {
+    machine numeric_failure(main: &mut Main) {
         Console::write_line("NUMERIC CHECK FAILED"); Console::exit_process(4);
     }
-    state accepted_report(main: &mut Main) {
+    machine accepted_report(main: &mut Main) {
         Console::write_line("LAMINATE micro-units v1");
         transition { _ -> stiffness_report(main,0) }
     }
-    state stiffness_report(main: &mut Main,layer_index: u64)
+    machine stiffness_report(main: &mut Main,layer_index: u64)
     requires layer_index <= 3 {
         Console::write_line("Q");
         matrix(&mut main.reporter,&main.model.stiffness[layer_index]);
         let next: u64 = layer_index+1;
         transition next < main.model.count && next <= 3 { true -> stiffness_report(main,next) false -> assembled_report(main) }
     }
-    state assembled_report(main: &mut Main) {
+    machine assembled_report(main: &mut Main) {
         Console::write_line("A"); matrix(&mut main.reporter,&main.model.a);
         Console::write_line("B"); matrix(&mut main.reporter,&main.model.b);
         Console::write_line("D"); matrix(&mut main.reporter,&main.model.d);
         transition main.model.singular { true -> singular(main) false -> stresses(main) }
     }
-    state stresses(main: &mut Main) {
+    machine stresses(main: &mut Main) {
         Console::write_line("RESPONSE");
         transition { _ -> response_report(main,0) }
     }
-    state response_report(main: &mut Main,index: u64) requires index <= 5 {
+    machine response_report(main: &mut Main,index: u64) requires index <= 5 {
         number(&mut main.reporter,main.model.response[index]);
         let next: u64 = index+1;
         transition next <= 5 { true -> response_report(main,next) false -> stress_report(main,0) }
     }
-    state stress_report(main: &mut Main,layer_index: u64) requires layer_index <= 3 {
+    machine stress_report(main: &mut Main,layer_index: u64) requires layer_index <= 3 {
         Console::write_line("STRESS");
         number(&mut main.reporter,main.model.stress[layer_index][0]);
         number(&mut main.reporter,main.model.stress[layer_index][1]);
@@ -107,10 +107,10 @@ machine Main::main(main: &mut Main) reaches Console {
         let next: u64 = layer_index+1;
         transition next < main.model.count && next <= 3 { true -> stress_report(main,next) false -> done(main) }
     }
-    state singular(main: &mut Main) { Console::write_line("SINGULAR"); Console::exit_process(3); }
-    state bad_input(main: &mut Main) { Console::write_line("INVALID INPUT"); Console::exit_process(2); }
-    state bad_model(main: &mut Main) { Console::write_line("INVALID MODEL"); Console::exit_process(2); }
-    state done(main: &mut Main) { Console::write_line("OK"); Console::exit_process(0); }
+    machine singular(main: &mut Main) { Console::write_line("SINGULAR"); Console::exit_process(3); }
+    machine bad_input(main: &mut Main) { Console::write_line("INVALID INPUT"); Console::exit_process(2); }
+    machine bad_model(main: &mut Main) { Console::write_line("INVALID MODEL"); Console::exit_process(2); }
+    machine done(main: &mut Main) { Console::write_line("OK"); Console::exit_process(0); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

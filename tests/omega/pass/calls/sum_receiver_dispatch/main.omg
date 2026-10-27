@@ -15,13 +15,13 @@ machine Transition::equals(transition: &Transition, other: &Transition) -> bool 
         Transition::First -> first(other)
         Transition::Second -> second(other)
     }
-    state first(other: &Transition) -> bool {
+    machine first(other: &Transition) -> bool {
         transition other {
             Transition::First -> (true)
             Transition::Second -> (false)
         }
     }
-    state second(other: &Transition) -> bool {
+    machine second(other: &Transition) -> bool {
         transition other {
             Transition::Second -> (true)
             Transition::First -> (false)

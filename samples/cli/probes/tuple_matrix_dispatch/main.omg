@@ -46,8 +46,8 @@ machine Main::main(main: &mut Main) {
         (Direction::Up, Outcome::Miss, true) -> wrong(main)
         (Direction::Up, Outcome::Miss, false) -> wrong(main)
     }
-    state right(main: &mut Main) { main.hits = 1; }
-    state wrong(main: &mut Main) { main.hits = -1; }
+    machine right(main: &mut Main) { main.hits = 1; }
+    machine wrong(main: &mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

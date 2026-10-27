@@ -29,18 +29,18 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> refused(71)
     }
 
-    state check_open(open: bool, closed: bool) {
+    machine check_open(open: bool, closed: bool) {
         transition open && !closed {
             true -> done()
             _ -> refused(72)
         }
     }
 
-    state done() {
+    machine done() {
         Console::exit_process(70);
     }
 
-    state refused(code: i32) {
+    machine refused(code: i32) {
         Console::exit_process(code);
     }
 }

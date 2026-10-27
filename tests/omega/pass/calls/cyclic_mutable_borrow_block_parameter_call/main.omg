@@ -27,14 +27,14 @@ data Driver {
 machine Driver::drive(driver: &mut Driver, sink: &mut Sink, more: bool) {
     transition { _ -> go(driver, sink, more) }
 
-    state go(driver: &mut Driver, sink: &mut Sink, more: bool) {
+    machine go(driver: &mut Driver, sink: &mut Sink, more: bool) {
         transition more {
             true -> step(driver, sink)
             false -> done(driver)
         }
     }
 
-    state step(driver: &mut Driver, sink: &mut Sink) {
+    machine step(driver: &mut Driver, sink: &mut Sink) {
         Sink::bump(sink);
         driver.ticks = driver.ticks + 1 as u64 in Wrapping;
         transition driver.ticks > 4 {
@@ -43,7 +43,7 @@ machine Driver::drive(driver: &mut Driver, sink: &mut Sink, more: bool) {
         }
     }
 
-    state done(driver: &mut Driver) { }
+    machine done(driver: &mut Driver) { }
 }
 
 data Main {

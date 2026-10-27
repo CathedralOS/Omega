@@ -10,7 +10,7 @@ machine Cleanup::drop(cleanup: &mut Cleanup) {
 machine internal(counter: &mut Counter) -> u64 {
     let cleanup: Cleanup = Cleanup { counter: counter };
     transition { _ -> entered(cleanup, counter) }
-    state entered(cleanup: Cleanup, counter: &mut Counter) -> u64 {
+    machine entered(cleanup: Cleanup, counter: &mut Counter) -> u64 {
         counter.value = 29;
         counter.value
     }

@@ -28,7 +28,7 @@ machine parse_decimal(text: &[u8; 3] in Utf8) -> i32 in Wrapping {
     }
 
     // Loop over the digit bytes, bounded by the string's runtime length.
-    state step(text: &[u8; 3] in Utf8, index: i32, result: i32 in Wrapping) -> i32 in Wrapping
+    machine step(text: &[u8; 3] in Utf8, index: i32, result: i32 in Wrapping) -> i32 in Wrapping
     requires index >= 0
     {
         transition index < text.len {
@@ -38,7 +38,7 @@ machine parse_decimal(text: &[u8; 3] in Utf8) -> i32 in Wrapping {
     }
 
     // result = result * 10 + (byte - '0').
-    state digit(text: &[u8; 3] in Utf8, index: i32, result: i32 in Wrapping) -> i32 in Wrapping
+    machine digit(text: &[u8; 3] in Utf8, index: i32, result: i32 in Wrapping) -> i32 in Wrapping
     requires index >= 0
     {
         let byte: u8 = text[index];
@@ -52,7 +52,7 @@ machine parse_decimal(text: &[u8; 3] in Utf8) -> i32 in Wrapping {
         }
     }
 
-    state advance(text: &[u8; 3] in Utf8, index: i32, result: i32 in Wrapping) -> i32 in Wrapping
+    machine advance(text: &[u8; 3] in Utf8, index: i32, result: i32 in Wrapping) -> i32 in Wrapping
     requires index >= 0 && index < 8
     {
         let next_index: i32 = index + 1;

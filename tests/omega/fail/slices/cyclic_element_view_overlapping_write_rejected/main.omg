@@ -4,7 +4,7 @@ machine write(items: &mut [i32])
 requires items.len > 1
 {
     transition { _ -> carry(items, &mut items[0..2], 0) }
-    state carry(items: &mut [i32], overlap: &mut [i32], seen: u64)
+    machine carry(items: &mut [i32], overlap: &mut [i32], seen: u64)
     requires items.len > 1 && overlap.len > 0
     {
         transition seen == 0 {
@@ -12,7 +12,7 @@ requires items.len > 1
             false -> store(overlap)
         }
     }
-    state store(overlap: &mut [i32])
+    machine store(overlap: &mut [i32])
     requires overlap.len > 0
     {
         overlap[0] = 23;
@@ -26,6 +26,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

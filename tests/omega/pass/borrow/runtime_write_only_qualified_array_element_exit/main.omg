@@ -17,13 +17,13 @@ machine field(container: &mut Container) {
 }
 machine relay(entries: &write [[u8; 8] in Utf8; 2]) {
     transition { _ -> finish(&write entries) }
-    state finish(entries: &write [[u8; 8] in Utf8; 2]) {
+    machine finish(entries: &write [[u8; 8] in Utf8; 2]) {
         initialize(&write entries[1]);
     }
 }
 machine relay_owner(bytes: &write [u8; 8] in Utf8) {
     transition { _ -> finish(&write bytes) }
-    state finish(bytes: &write [u8; 8] in Utf8) {
+    machine finish(bytes: &write [u8; 8] in Utf8) {
         initialize(&write bytes);
     }
 }
@@ -59,6 +59,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

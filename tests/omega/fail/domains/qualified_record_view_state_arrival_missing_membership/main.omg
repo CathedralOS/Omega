@@ -6,5 +6,5 @@ machine copy(rooms: &[Room]) -> [u8; 8] in Ascii
 requires rooms.len == 2
 {
     transition { _ -> arrived(rooms[1]) }
-    state arrived(room: Room) { room.label.storage }
+    machine arrived(room: Room) -> [u8; 8] in Ascii { room.label.storage }
 }

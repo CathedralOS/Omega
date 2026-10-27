@@ -17,20 +17,20 @@ machine Report::write(audit: &mut Audit) reaches Console {
     audit.index = 0;
     audit.current = 0;
     transition { _ -> loop(audit) }
-    state loop(audit: &mut Audit) {
+    machine loop(audit: &mut Audit) {
         transition audit.index < audit.cycle_count && audit.index < 16 { true -> row(audit) false -> total(audit) }
     }
-    state row(audit: &mut Audit) {
+    machine row(audit: &mut Audit) {
         audit.range = audit.ranges[audit.index];
         audit.weight = audit.weights[audit.index];
         audit.middle = audit.range * audit.weight;
         transition audit.exponent == 2 { true -> square(audit) false -> emit(audit) }
     }
-    state square(audit: &mut Audit) {
+    machine square(audit: &mut Audit) {
         audit.middle = audit.middle * audit.range;
         transition { _ -> emit(audit) }
     }
-    state emit(audit: &mut Audit) {
+    machine emit(audit: &mut Audit) {
         audit.current = audit.current + audit.middle;
         Report::number(audit.range);
         Console::write_byte(44);
@@ -44,11 +44,11 @@ machine Report::write(audit: &mut Audit) reaches Console {
         Console::write_byte(10);
         transition audit.index < 16 { true -> next(audit) false -> total(audit) }
     }
-    state next(audit: &mut Audit) {
+    machine next(audit: &mut Audit) {
         audit.index = audit.index + 1;
         transition { _ -> loop(audit) }
     }
-    state total(audit: &mut Audit) {
+    machine total(audit: &mut Audit) {
         Console::write("total,");
         Report::number(audit.total);
         Console::write_byte(44);

@@ -18,50 +18,50 @@ reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMet
     let invalid_path: &[u8] in Path = "\xFF";
     let refused: i32 = block rename_names_only(invalid_path, "omega_rename_destination.txt");
     transition refused == -87 { true -> invalid_destination(main) _ -> bad(82) }
-    state invalid_destination(main: &mut Main) {
+    machine invalid_destination(main: &mut Main) {
         let invalid_path: &[u8] in Path = "\xFF";
         let refused: i32 = block rename_names_only("omega_rename_source.txt", invalid_path);
         transition refused == -87 { true -> create(main) _ -> bad(83) }
     }
-    state create(main: &mut Main) {
+    machine create(main: &mut Main) {
         main.handle = block WindowsFilesystemHost::create_file("omega_rename_source.txt", 1073741824, 7, 2, 128);
         transition main.handle != 0 { true -> source(main) _ -> bad(71) }
     }
-    state source(main: &mut Main) {
+    machine source(main: &mut Main) {
         let count: i64 = block WindowsFilesystemHost::write_file(main.handle, "renamed");
         let closed: i32 = block WindowsFilesystemHost::close_handle(main.handle);
         transition count == 7 && closed == 0 { true -> destination(main) _ -> bad(72) }
     }
-    state destination(main: &mut Main) {
+    machine destination(main: &mut Main) {
         main.handle = block WindowsFilesystemHost::create_file("omega_rename_destination.txt", 1073741824, 7, 2, 128);
         transition main.handle != 0 { true -> previous(main) _ -> bad(73) }
     }
-    state previous(main: &mut Main) {
+    machine previous(main: &mut Main) {
         let count: i64 = block WindowsFilesystemHost::write_file(main.handle, "old");
         let closed: i32 = block WindowsFilesystemHost::close_handle(main.handle);
         transition count == 3 && closed == 0 { true -> rename(main) _ -> bad(74) }
     }
-    state rename(main: &mut Main) {
+    machine rename(main: &mut Main) {
         let result: i32 = block rename_names_only("omega_rename_source.txt", "omega_rename_destination.txt");
         transition result == 0 { true -> missing(main) _ -> bad(75) }
     }
-    state missing(main: &mut Main) {
+    machine missing(main: &mut Main) {
         let result: i32 = block rename_names_only("omega_rename_source.txt", "omega_rename_destination.txt");
         transition result == -2 { true -> old_name(main) _ -> bad(76) }
     }
-    state old_name(main: &mut Main) {
+    machine old_name(main: &mut Main) {
         main.handle = block WindowsFilesystemHost::create_file("omega_rename_source.txt", 2147483648, 7, 3, 128);
         transition main.handle == 0 { true -> read(main) _ -> close_unexpected(main) }
     }
-    state close_unexpected(main: &mut Main) {
+    machine close_unexpected(main: &mut Main) {
         let closed: i32 = block WindowsFilesystemHost::close_handle(main.handle);
         transition closed == 0 { true -> bad(77) _ -> bad(78) }
     }
-    state read(main: &mut Main) {
+    machine read(main: &mut Main) {
         main.handle = block WindowsFilesystemHost::create_file("omega_rename_destination.txt", 2147483648, 7, 3, 128);
         transition main.handle != 0 { true -> bytes(main) _ -> bad(79) }
     }
-    state bytes(main: &mut Main) {
+    machine bytes(main: &mut Main) {
         let count: i64 = block WindowsFilesystemHost::read_file(main.handle, &mut main.buffer, 8);
         let closed: i32 = block WindowsFilesystemHost::close_handle(main.handle);
         transition count == 7 && closed == 0
@@ -70,11 +70,11 @@ reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMet
             true -> cleanup(main) _ -> bad(80)
         }
     }
-    state cleanup(main: &mut Main) {
+    machine cleanup(main: &mut Main) {
         let result: i32 = block WindowsFilesystemHost::delete_file("omega_rename_destination.txt");
         transition result == 0 { true -> bad(70) _ -> bad(81) }
     }
-    state bad(code: i32) { Console::exit_process(code); }
+    machine bad(code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

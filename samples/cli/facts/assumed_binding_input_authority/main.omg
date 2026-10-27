@@ -13,6 +13,6 @@ Actual satisfies Supplied {
 machine main() reaches Required crashes Trap {
     let observed: u32 = Required::get(Index { value: 1 });
     transition observed == 11 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

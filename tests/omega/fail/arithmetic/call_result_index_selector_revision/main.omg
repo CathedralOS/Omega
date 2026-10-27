@@ -9,6 +9,6 @@ machine main(items: &[u32; 2]) {
         true -> divide(value)
         _ -> done()
     }
-    state divide(value: u32) { let quotient: u32 = 1u32 / value; }
-    state done() {}
+    machine divide(value: u32) { let quotient: u32 = 1u32 / value; }
+    machine done() {}
 }

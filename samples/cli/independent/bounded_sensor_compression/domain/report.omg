@@ -9,32 +9,32 @@ public machine number(value: i32) reaches Console
 invokes Console;
 requires value >= 0 && value <= 99999 {
     transition { _ -> digit(value, 10000, false) }
-    state digit(value: i32, divisor: i32, started: bool) {
+    machine digit(value: i32, divisor: i32, started: bool) {
         transition divisor >= 1 && divisor <= 10000 && value >= 0 && value <= 99999 {
             true -> decide(value, divisor, started)
             _ -> done()
         }
     }
-    state decide(value: i32, divisor: i32, started: bool)
+    machine decide(value: i32, divisor: i32, started: bool)
     requires divisor >= 1 && divisor <= 10000 && value >= 0 && value <= 99999 {
         transition started || value >= divisor || divisor == 1 {
             true -> emit(value, divisor)
             _ -> next(value, divisor, started)
         }
     }
-    state emit(value: i32, divisor: i32)
+    machine emit(value: i32, divisor: i32)
     requires divisor >= 1 && divisor <= 10000 && value >= 0 && value <= 99999 {
         Console::write_byte(48 + value / divisor);
         transition { _ -> next(value % divisor, divisor, true) }
     }
-    state next(value: i32, divisor: i32, started: bool)
+    machine next(value: i32, divisor: i32, started: bool)
     requires divisor >= 1 && divisor <= 10000 {
         transition divisor > 1 {
             true -> digit(value, divisor / 10, started)
             _ -> done()
         }
     }
-    state done() { }
+    machine done() { }
 }
 
 public machine report(stream: &SensorStream, records: &SensorBlock, maximum: i32) reaches Console
@@ -42,30 +42,30 @@ invokes Console;
 {
     Console::write("bytes:");
     transition { _ -> bytes(stream, records, maximum, 0) }
-    state bytes(stream: &SensorStream, records: &SensorBlock, maximum: i32, index: i32) {
+    machine bytes(stream: &SensorStream, records: &SensorBlock, maximum: i32, index: i32) {
         transition index >= 0 && index < stream.length && index < 53 {
             true -> byte(stream, records, maximum, index)
             _ -> reconstructed(stream, records, maximum)
         }
     }
-    state byte(stream: &SensorStream, records: &SensorBlock, maximum: i32, index: i32)
+    machine byte(stream: &SensorStream, records: &SensorBlock, maximum: i32, index: i32)
     requires index >= 0 && index < 53 {
         Console::write_byte(32);
         number(stream.bytes[index] as i32);
         transition { _ -> bytes(stream, records, maximum, index + 1) }
     }
-    state reconstructed(stream: &SensorStream, records: &SensorBlock, maximum: i32) {
+    machine reconstructed(stream: &SensorStream, records: &SensorBlock, maximum: i32) {
         Console::write_byte(10);
         Console::write("reconstruction:");
         transition { _ -> values(stream, records, maximum, 0) }
     }
-    state values(stream: &SensorStream, records: &SensorBlock, maximum: i32, index: i32) {
+    machine values(stream: &SensorStream, records: &SensorBlock, maximum: i32, index: i32) {
         transition index >= 0 && index < records.count && index < 16 {
             true -> value(stream, records, maximum, index)
             _ -> sizes(stream, records, maximum)
         }
     }
-    state value(stream: &SensorStream, records: &SensorBlock, maximum: i32, index: i32)
+    machine value(stream: &SensorStream, records: &SensorBlock, maximum: i32, index: i32)
     requires index >= 0 && index < 16 {
         let value: i32 = records.values[index];
         transition value >= 0 && value <= 4095 {
@@ -73,20 +73,20 @@ invokes Console;
             _ -> failure()
         }
     }
-    state emit_value(stream: &SensorStream, records: &SensorBlock, maximum: i32, index: i32, value: i32)
+    machine emit_value(stream: &SensorStream, records: &SensorBlock, maximum: i32, index: i32, value: i32)
     requires index >= 0 && index < 16 && value >= 0 && value <= 4095 {
         Console::write_byte(32);
         number(value);
         transition { _ -> values(stream, records, maximum, index + 1) }
     }
-    state sizes(stream: &SensorStream, records: &SensorBlock, maximum: i32) {
+    machine sizes(stream: &SensorStream, records: &SensorBlock, maximum: i32) {
         Console::write_byte(10);
         transition records.count >= 1 && records.count <= 16 && stream.length >= 6 && stream.length <= 53 && records.tolerance >= 0 && records.tolerance <= 7 {
             true -> metrics(stream, records, maximum)
             _ -> failure()
         }
     }
-    state metrics(stream: &SensorStream, records: &SensorBlock, maximum: i32)
+    machine metrics(stream: &SensorStream, records: &SensorBlock, maximum: i32)
     requires records.count >= 1 && records.count <= 16 && stream.length >= 6 && stream.length <= 53 && records.tolerance >= 0 && records.tolerance <= 7 {
         Console::write("raw_bytes: "); number(records.count * 2); Console::write_byte(10);
         Console::write("encoded_bytes: "); number(stream.length); Console::write_byte(10);
@@ -97,16 +97,16 @@ invokes Console;
             _ -> unverified()
         }
     }
-    state certified(maximum: i32)
+    machine certified(maximum: i32)
     requires maximum >= 0 && maximum <= 99999 {
         Console::write("max_error_units: "); number(maximum); Console::write_byte(10);
         Console::write_line("certificate: verified against original records");
         Console::exit_process(0);
     }
-    state unverified() {
+    machine unverified() {
         Console::write_line("certificate: decode only; originals unavailable"); Console::exit_process(0);
     }
-    state failure() {
+    machine failure() {
         Console::write_line("error: internal report bounds"); Console::exit_process(13);
     }
 }

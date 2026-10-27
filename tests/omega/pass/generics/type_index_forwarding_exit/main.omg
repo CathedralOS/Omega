@@ -20,7 +20,7 @@ machine field<Value>(holder: Holder<Value>) -> u64 in Tagged<Value> {
 }
 machine later<Value>(value: u64 in Tagged<Value>) -> u64 in Tagged<Value> {
     transition { _ -> selected(value) }
-    state selected(value: u64 in Tagged<Value>) -> u64 in Tagged<Value> {
+    machine selected(value: u64 in Tagged<Value>) -> u64 in Tagged<Value> {
         forward<Value>(value)
     }
 }
@@ -89,5 +89,5 @@ machine main() crashes Trap {
         true -> {}
         false -> bad()
     }
-    state bad() { crash Trap; }
+    machine bad() { crash Trap; }
 }

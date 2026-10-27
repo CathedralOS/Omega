@@ -17,7 +17,7 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> promoted(main)
     }
 
-    state boundaries(main: &mut Main) {
+    machine boundaries(main: &mut Main) {
         transition main.signed < main.unsigned_maximum
             && main.signed <= main.unsigned_maximum
             && !(main.signed > main.unsigned_maximum)
@@ -37,8 +37,8 @@ machine Main::main(main: &mut Main) reaches Console {
 
     // 70 when the compiler keeps `-1` negative, 71 when it promotes the
     // signed value into the unsigned carrier instead.
-    state correct(main: &mut Main) { Console::exit_process(70); }
-    state promoted(main: &mut Main) { Console::exit_process(71); }
+    machine correct(main: &mut Main) { Console::exit_process(70); }
+    machine promoted(main: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

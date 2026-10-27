@@ -23,27 +23,27 @@ machine Main::main(main: &mut Main) reaches Console {
     // a && b == false -> takes the `_` arm
     transition main.a && main.b { true -> bad(main) _ -> check_or(main) }
 
-    state check_or(main: &mut Main) {
+    machine check_or(main: &mut Main) {
         // a || b == true
         transition main.a || main.b { true -> check_neg(main) _ -> bad(main) }
     }
-    state check_neg(main: &mut Main) {
+    machine check_neg(main: &mut Main) {
         // !b == true
         transition !main.b { true -> check_three(main) _ -> bad(main) }
     }
-    state check_three(main: &mut Main) {
+    machine check_three(main: &mut Main) {
         // a && c && !b == true
         transition main.a && main.c && !main.b { true -> check_value(main) _ -> bad(main) }
     }
-    state check_value(main: &mut Main) {
+    machine check_value(main: &mut Main) {
         let r: bool = main.a && !main.b; // true
         transition r { true -> good(main) _ -> bad(main) }
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::exit_process(70);
     }
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::exit_process(71);
     }
 }

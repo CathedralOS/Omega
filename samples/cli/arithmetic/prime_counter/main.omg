@@ -35,14 +35,14 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     // Outer: walk candidate numbers n = 2..20.
-    state outer(main: &mut Main) {
+    machine outer(main: &mut Main) {
         transition main.n < 21 {
             true -> check_init(main)
             _ -> done(main)
         }
     }
 
-    state check_init(main: &mut Main) {
+    machine check_init(main: &mut Main) {
         main.is_prime = true;
         main.d = 2;
         transition {
@@ -53,21 +53,21 @@ machine Main::main(main: &mut Main) reaches Console {
     // Inner: try divisors d = 2..n-1 (bound is relational to the outer counter).
     // The `d >= 1` conjunct is always true (d starts at 2 and only grows) and
     // hands the edge into test_divisor the nonzero-divisor fact for `n % d`.
-    state inner(main: &mut Main) {
+    machine inner(main: &mut Main) {
         transition main.d >= 1 && main.d < main.n {
             true -> test_divisor(main)
             _ -> tally(main)
         }
     }
 
-    state test_divisor(main: &mut Main) {
+    machine test_divisor(main: &mut Main) {
         transition main.n % main.d == 0 {
             true -> mark_composite(main)
             _ -> next_divisor(main)
         }
     }
 
-    state mark_composite(main: &mut Main) {
+    machine mark_composite(main: &mut Main) {
         main.is_prime = false;
         transition {
             _ -> next_divisor(main)
@@ -76,21 +76,21 @@ machine Main::main(main: &mut Main) reaches Console {
 
     // Re-guard so the increment's direct edge proves `d + 1` back into
     // [0..=21] -- d < n <= 20 here, so the guard is always true.
-    state next_divisor(main: &mut Main) {
+    machine next_divisor(main: &mut Main) {
         transition main.d >= 0 && main.d < 21 {
             true -> bump_divisor(main)
             _ -> tally(main)
         }
     }
 
-    state bump_divisor(main: &mut Main) {
+    machine bump_divisor(main: &mut Main) {
         main.d = main.d + 1;
         transition {
             _ -> inner(main)
         }
     }
 
-    state tally(main: &mut Main) {
+    machine tally(main: &mut Main) {
         transition main.is_prime {
             true -> increment(main)
             _ -> outer_next(main)
@@ -99,7 +99,7 @@ machine Main::main(main: &mut Main) reaches Console {
 
     // The modular-counter idiom: `% 22` lands the tally provably back inside
     // [0..=21] (there are at most 8 primes below 21, so the wrap never fires).
-    state increment(main: &mut Main) {
+    machine increment(main: &mut Main) {
         main.count = (main.count + 1) % 22;
         transition {
             _ -> outer_next(main)
@@ -108,21 +108,21 @@ machine Main::main(main: &mut Main) reaches Console {
 
     // Re-guard so the increment's direct edge proves `n + 1` back into
     // [0..=21] -- the outer loop only re-enters with n < 21, so always true.
-    state outer_next(main: &mut Main) {
+    machine outer_next(main: &mut Main) {
         transition main.n >= 0 && main.n < 21 {
             true -> bump_candidate(main)
             _ -> done(main)
         }
     }
 
-    state bump_candidate(main: &mut Main) {
+    machine bump_candidate(main: &mut Main) {
         main.n = main.n + 1;
         transition {
             _ -> outer(main)
         }
     }
 
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         Console::write_line("result: the prime count, 8 for the primes below 21 (the exit code)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);

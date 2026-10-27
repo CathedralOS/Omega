@@ -55,19 +55,19 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> check_sub(main)
     }
 
-    state check_sub(main: &mut Main) {
+    machine check_sub(main: &mut Main) {
         transition main.text[2] == 45 { true -> do_sub(main) _ -> unknown(main) }
     }
 
-    state do_add(main: &mut Main) { main.result = main.a + main.b; transition { _ -> emit(main) } }
-    state do_sub(main: &mut Main) { main.result = main.a - main.b; transition { _ -> emit(main) } }
-    state unknown(main: &mut Main) {
+    machine do_add(main: &mut Main) { main.result = main.a + main.b; transition { _ -> emit(main) } }
+    machine do_sub(main: &mut Main) { main.result = main.a - main.b; transition { _ -> emit(main) } }
+    machine unknown(main: &mut Main) {
         Console::write_line("FAIL: operator byte not '+' or '-' -- unknown operator (exit 0)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(0);
     }
-    state emit(main: &mut Main) {
+    machine emit(main: &mut Main) {
         Console::write_line("result: the evaluated expression, 12+34 = 46 (the exit code)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);

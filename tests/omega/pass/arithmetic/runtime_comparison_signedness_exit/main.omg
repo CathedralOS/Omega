@@ -17,36 +17,36 @@ data Main {
 machine Main::main(context: &mut Main) reaches Console {
     transition { _ -> check_u_lt(context, 2147483648, 1) }
 
-    state check_u_lt(context: &mut Main, left: u32 in Wrapping, right: u32 in Wrapping) {
+    machine check_u_lt(context: &mut Main, left: u32 in Wrapping, right: u32 in Wrapping) {
         // u32 0x80000000 < 1 is FALSE unsigned (TRUE if misread as -2147483648).
         transition left < right { true -> bad(context) _ -> check_u_gt(context, 4294967295, 0) }
     }
 
-    state check_u_gt(context: &mut Main, left: u32 in Wrapping, right: u32 in Wrapping) {
+    machine check_u_gt(context: &mut Main, left: u32 in Wrapping, right: u32 in Wrapping) {
         // u32 0xFFFFFFFF > 0 is TRUE unsigned (FALSE if misread as -1 < 0).
         transition left > right { true -> check_i32_neg(context, -5, 3) _ -> bad(context) }
     }
-    state check_i32_neg(context: &mut Main, left: i32 in Wrapping, right: i32 in Wrapping) {
+    machine check_i32_neg(context: &mut Main, left: i32 in Wrapping, right: i32 in Wrapping) {
         // i32 -5 < 3 is TRUE signed.
         transition left < right { true -> check_u8(context, 200, 5) _ -> bad(context) }
     }
-    state check_u8(context: &mut Main, left: u8 in Wrapping, right: u8 in Wrapping) {
+    machine check_u8(context: &mut Main, left: u8 in Wrapping, right: u8 in Wrapping) {
         // u8 200 > 5 is TRUE unsigned (200 would be -56 signed).
         transition left > right { true -> check_u16(context, 40000, 5) _ -> bad(context) }
     }
-    state check_u16(context: &mut Main, left: u16 in Wrapping, right: u16 in Wrapping) {
+    machine check_u16(context: &mut Main, left: u16 in Wrapping, right: u16 in Wrapping) {
         // u16 40000 > 5 is TRUE unsigned (40000 > i16::MAX).
         transition left > right { true -> check_i64(context, -5000000000, 3) _ -> bad(context) }
     }
-    state check_i64(context: &mut Main, left: i64 in Wrapping, right: i64 in Wrapping) {
+    machine check_i64(context: &mut Main, left: i64 in Wrapping, right: i64 in Wrapping) {
         // i64 -5_000_000_000 < 3 is TRUE signed (needs full 64-bit).
         transition left < right { true -> good(context) _ -> bad(context) }
     }
 
-    state good(context: &mut Main) {
+    machine good(context: &mut Main) {
         Console::exit_process(70);
     }
-    state bad(context: &mut Main) {
+    machine bad(context: &mut Main) {
         Console::exit_process(71);
     }
 }

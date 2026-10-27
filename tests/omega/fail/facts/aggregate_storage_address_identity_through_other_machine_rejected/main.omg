@@ -12,6 +12,6 @@ machine inspect(mut value: Pair) -> bool {
 machine probe() -> bool { inspect(Pair { left: 7, right: 11 }) }
 machine main() crashes Trap {
     transition probe() { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

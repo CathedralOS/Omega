@@ -8,7 +8,7 @@ requires lhs >= 300u16 && lhs <= 500u16 && rhs >= 50u16 && rhs <= 100u16
     transition {
         _ -> step(lhs - rhs)
     }
-    state step(diff: u16) -> i32
+    machine step(diff: u16) -> i32
     requires diff >= 200u16 && diff <= 450u16
     {
         let headroom: u16 = 450u16 - diff;
@@ -26,6 +26,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -23,7 +23,7 @@ machine Main::main(main: &mut Main) reaches Console {
     output.items[2] = Item { kind: Kind::Data, shape: Shape::Plane };
     transition { _ -> classify(main, &output, 2) }
 
-    state classify(main: &mut Main, output: &Output, index: u64) requires index <= 3 {
+    machine classify(main: &mut Main, output: &Output, index: u64) requires index <= 3 {
         let item: Item = output.items[index];
         transition item.kind {
             Kind::Use -> wrong(main)
@@ -31,7 +31,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state shape(main: &mut Main, output: &Output, index: u64) requires index <= 3 {
+    machine shape(main: &mut Main, output: &Output, index: u64) requires index <= 3 {
         transition output.items[index].shape {
             Shape::Point -> wrong(main)
             Shape::Line -> wrong(main)
@@ -39,8 +39,8 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state wrong(main: &mut Main) { Console::exit_process(1); }
-    state found(main: &mut Main) { Console::exit_process(70); }
+    machine wrong(main: &mut Main) { Console::exit_process(1); }
+    machine found(main: &mut Main) { Console::exit_process(70); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

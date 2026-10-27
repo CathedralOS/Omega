@@ -27,13 +27,13 @@ machine Main::main_linux(main: &mut Main) reaches FilesystemContentRead + Filesy
     // 1: /dev/null must stat as a character device
     main.rc = PosixFilesystemHost::read_metadata("/dev/null", &mut main.buffer);
     transition main.rc == 0 { true -> checkchar(main) _ -> fail(main) }
-    state checkchar(main: &mut Main) {
+    machine checkchar(main: &mut Main) {
         main.fmt =
             (widen_u8_to_i32(main.buffer[24]) | (widen_u8_to_i32(main.buffer[25]) << 8))
                 & 61440;
         transition main.fmt == 8192 { true -> regular(main) _ -> fail(main) }
     }
-    state regular(main: &mut Main) {
+    machine regular(main: &mut Main) {
         // 2: a fresh regular file must stat as S_IFREG (not a device)
         main.fd = PosixFilesystemHost::create("/tmp/omega_ftype.txt", main.mode);
         main.n = PosixFilesystemHost::write(main.fd, "hi");
@@ -42,14 +42,14 @@ machine Main::main_linux(main: &mut Main) reaches FilesystemContentRead + Filesy
         main.discard = PosixFilesystemHost::remove("/tmp/omega_ftype.txt");
         transition main.rc == 0 { true -> checkreg(main) _ -> fail(main) }
     }
-    state checkreg(main: &mut Main) {
+    machine checkreg(main: &mut Main) {
         main.fmt =
             (widen_u8_to_i32(main.buffer[24]) | (widen_u8_to_i32(main.buffer[25]) << 8))
                 & 61440;
         transition main.fmt == 32768 { true -> good(main) _ -> fail(main) }
     }
-    state good(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "PASS: /dev/null is S_IFCHR (char device); regular file is S_IFREG\n"); }
-    state fail(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "FAIL: native filetype\n"); }
+    machine good(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "PASS: /dev/null is S_IFCHR (char device); regular file is S_IFREG\n"); }
+    machine fail(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "FAIL: native filetype\n"); }
 }
 
 machine Main::main_macos(main: &mut Main) reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
@@ -57,13 +57,13 @@ machine Main::main_macos(main: &mut Main) reaches FilesystemContentRead + Filesy
     // 1: /dev/null must stat as a character device
     main.rc = PosixFilesystemHost::read_metadata("/dev/null", &mut main.buffer);
     transition main.rc == 0 { true -> checkchar(main) _ -> fail(main) }
-    state checkchar(main: &mut Main) {
+    machine checkchar(main: &mut Main) {
         main.fmt =
             (widen_u8_to_i32(main.buffer[4]) | (widen_u8_to_i32(main.buffer[5]) << 8))
                 & 61440;
         transition main.fmt == 8192 { true -> regular(main) _ -> fail(main) }
     }
-    state regular(main: &mut Main) {
+    machine regular(main: &mut Main) {
         // 2: a fresh regular file must stat as S_IFREG (not a device)
         main.fd = PosixFilesystemHost::create("/tmp/omega_ftype.txt", main.mode);
         main.n = PosixFilesystemHost::write(main.fd, "hi");
@@ -72,14 +72,14 @@ machine Main::main_macos(main: &mut Main) reaches FilesystemContentRead + Filesy
         main.discard = PosixFilesystemHost::remove("/tmp/omega_ftype.txt");
         transition main.rc == 0 { true -> checkreg(main) _ -> fail(main) }
     }
-    state checkreg(main: &mut Main) {
+    machine checkreg(main: &mut Main) {
         main.fmt =
             (widen_u8_to_i32(main.buffer[4]) | (widen_u8_to_i32(main.buffer[5]) << 8))
                 & 61440;
         transition main.fmt == 32768 { true -> good(main) _ -> fail(main) }
     }
-    state good(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "PASS: /dev/null is S_IFCHR (char device); regular file is S_IFREG\n"); }
-    state fail(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "FAIL: native filetype\n"); }
+    machine good(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "PASS: /dev/null is S_IFCHR (char device); regular file is S_IFREG\n"); }
+    machine fail(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "FAIL: native filetype\n"); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

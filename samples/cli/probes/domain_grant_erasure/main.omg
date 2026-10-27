@@ -63,8 +63,8 @@ machine Main::main(main: &mut Main) {
         true -> Main::ok(main)
         _ -> Main::bad(main)
     }
-    state ok(main: &mut Main) { main.hits = 1; }
-    state bad(main: &mut Main) { main.hits = -1; }
+    machine ok(main: &mut Main) { main.hits = 1; }
+    machine bad(main: &mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -10,13 +10,13 @@ requires
 
 machine lookup_symbol(alphabet: &[u8; 5], target: u8 in HuffmanSymbol) -> u64 {
     transition { _ -> check(alphabet, target, 0) }
-    state check(alphabet: &[u8; 5], target: u8 in HuffmanSymbol, idx: u64) -> u64 {
+    machine check(alphabet: &[u8; 5], target: u8 in HuffmanSymbol, idx: u64) -> u64 {
         transition idx < 5 {
             true -> compare(alphabet, target, idx)
             _ -> 5
         }
     }
-    state compare(alphabet: &[u8; 5], target: u8 in HuffmanSymbol, idx: u64) -> u64
+    machine compare(alphabet: &[u8; 5], target: u8 in HuffmanSymbol, idx: u64) -> u64
     requires idx < 5 {
         transition alphabet[idx] == (target as u8) {
             true -> idx

@@ -21,9 +21,9 @@ machine from_guard(amount: Amount) -> Amount in Amount::Nonnegative crashes Trap
         true -> accepted(amount)
         false -> refused()
     }
-    state accepted(amount: Amount) -> Amount in Amount::Nonnegative
+    machine accepted(amount: Amount) -> Amount in Amount::Nonnegative
     requires amount.number >= 0 { amount as Amount in Nonnegative }
-    state refused() { crash Trap; }
+    machine refused() -> Amount in Amount::Nonnegative { crash Trap; }
 }
 
 machine main() crashes Trap {
@@ -36,6 +36,6 @@ machine main() crashes Trap {
         true -> passed()
         false -> failed()
     }
-    state passed() {}
-    state failed() { crash Trap; }
+    machine passed() {}
+    machine failed() { crash Trap; }
 }

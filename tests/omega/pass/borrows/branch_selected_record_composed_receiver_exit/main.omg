@@ -52,7 +52,7 @@ machine Room::install(
 ) {
     transition { _ -> write(room, command, direction, destination) }
 
-    state write(
+    machine write(
         room: &mut Room,
         command: [u8; 4] in Utf8,
         direction: Direction,
@@ -99,7 +99,7 @@ machine Main::main(main: &mut Main) reaches Console {
         false -> finish(main, 1)
     }
 
-    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -25,8 +25,8 @@ machine verify(settled: bool) crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 machine ping(depth: u64) crashes Trap
@@ -40,7 +40,7 @@ terminates by depth;
         true -> done()
         _ -> pong(depth - 1)
     }
-    state done() {}
+    machine done() {}
 }
 
 machine pong(depth: u64) crashes Trap
@@ -54,7 +54,7 @@ terminates by depth;
         true -> done()
         _ -> ping(depth - 1)
     }
-    state done() {}
+    machine done() {}
 }
 
 machine main() crashes Trap { ping(2); }

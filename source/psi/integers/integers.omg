@@ -31,14 +31,14 @@ public machine ExactInteger::add(left: ExactInteger, right: ExactInteger) -> Exa
         _ -> opposite(left, right)
     }
 
-    state same_sign(left: ExactInteger, right: ExactInteger) -> ExactResult {
+    machine same_sign(left: ExactInteger, right: ExactInteger) -> ExactResult {
         transition left.magnitude <= 18446744073709551615 - right.magnitude {
             true -> sum(left, right)
             _ -> overflow()
         }
     }
 
-    state sum(left: ExactInteger, right: ExactInteger) -> ExactResult {
+    machine sum(left: ExactInteger, right: ExactInteger) -> ExactResult {
         ExactResult {
             valid: true,
             value: ExactInteger { negative: left.negative, magnitude: left.magnitude + right.magnitude }
@@ -46,18 +46,18 @@ public machine ExactInteger::add(left: ExactInteger, right: ExactInteger) -> Exa
     }
 
     // Opposite signs: the larger magnitude keeps its sign.
-    state opposite(left: ExactInteger, right: ExactInteger) -> ExactResult {
+    machine opposite(left: ExactInteger, right: ExactInteger) -> ExactResult {
         transition left.magnitude >= right.magnitude {
             true -> difference(left.negative, left.magnitude - right.magnitude)
             _ -> difference(right.negative, right.magnitude - left.magnitude)
         }
     }
 
-    state difference(negative: bool, magnitude: u64 in Wrapping) -> ExactResult {
+    machine difference(negative: bool, magnitude: u64 in Wrapping) -> ExactResult {
         ExactResult { valid: true, value: ExactInteger { negative: negative && magnitude > 0, magnitude: magnitude } }
     }
 
-    state overflow() -> ExactResult {
+    machine overflow() -> ExactResult {
         ExactResult { valid: false, value: ExactInteger { negative: false, magnitude: 0 } }
     }
 }
@@ -74,25 +74,25 @@ public machine ExactInteger::multiply(left: ExactInteger, right: ExactInteger) -
         _ -> bounded(left, right)
     }
 
-    state bounded(left: ExactInteger, right: ExactInteger) -> ExactResult {
+    machine bounded(left: ExactInteger, right: ExactInteger) -> ExactResult {
         transition left.magnitude <= 18446744073709551615 / right.magnitude {
             true -> product(left, right)
             _ -> overflow()
         }
     }
 
-    state product(left: ExactInteger, right: ExactInteger) -> ExactResult {
+    machine product(left: ExactInteger, right: ExactInteger) -> ExactResult {
         ExactResult {
             valid: true,
             value: ExactInteger { negative: left.negative != right.negative, magnitude: left.magnitude * right.magnitude }
         }
     }
 
-    state zero() -> ExactResult {
+    machine zero() -> ExactResult {
         ExactResult { valid: true, value: ExactInteger { negative: false, magnitude: 0 } }
     }
 
-    state overflow() -> ExactResult {
+    machine overflow() -> ExactResult {
         ExactResult { valid: false, value: ExactInteger { negative: false, magnitude: 0 } }
     }
 }
@@ -104,14 +104,14 @@ public machine ExactInteger::divide(left: ExactInteger, right: ExactInteger) -> 
         _ -> inexact()
     }
 
-    state divisible(left: ExactInteger, right: ExactInteger) -> ExactResult {
+    machine divisible(left: ExactInteger, right: ExactInteger) -> ExactResult {
         transition left.magnitude % right.magnitude == 0 {
             true -> quotient(left, right)
             _ -> inexact()
         }
     }
 
-    state quotient(left: ExactInteger, right: ExactInteger) -> ExactResult {
+    machine quotient(left: ExactInteger, right: ExactInteger) -> ExactResult {
         let magnitude: u64 in Wrapping = left.magnitude / right.magnitude;
         ExactResult {
             valid: true,
@@ -119,7 +119,7 @@ public machine ExactInteger::divide(left: ExactInteger, right: ExactInteger) -> 
         }
     }
 
-    state inexact() -> ExactResult {
+    machine inexact() -> ExactResult {
         ExactResult { valid: false, value: ExactInteger { negative: false, magnitude: 0 } }
     }
 }
@@ -131,18 +131,18 @@ public machine ExactInteger::at_most(left: ExactInteger, right: ExactInteger) ->
         _ -> opposite(left.negative)
     }
 
-    state same_sign(left: ExactInteger, right: ExactInteger) -> bool {
+    machine same_sign(left: ExactInteger, right: ExactInteger) -> bool {
         transition left.negative {
             true -> ordered(right.magnitude, left.magnitude)
             _ -> ordered(left.magnitude, right.magnitude)
         }
     }
 
-    state ordered(lower: u64 in Wrapping, upper: u64 in Wrapping) -> bool {
+    machine ordered(lower: u64 in Wrapping, upper: u64 in Wrapping) -> bool {
         lower <= upper
     }
 
-    state opposite(left_negative: bool) -> bool {
+    machine opposite(left_negative: bool) -> bool {
         left_negative
     }
 }
@@ -157,11 +157,11 @@ public machine ExactInteger::minimum(builtin: BuiltinType) -> ExactInteger {
         _ -> unsigned()
     }
 
-    state negative(magnitude: u64 in Wrapping) -> ExactInteger {
+    machine negative(magnitude: u64 in Wrapping) -> ExactInteger {
         ExactInteger { negative: true, magnitude: magnitude }
     }
 
-    state unsigned() -> ExactInteger {
+    machine unsigned() -> ExactInteger {
         ExactInteger { negative: false, magnitude: 0 }
     }
 }
@@ -182,7 +182,7 @@ public machine ExactInteger::maximum(builtin: BuiltinType) -> ExactInteger {
         _ -> positive(0)
     }
 
-    state positive(magnitude: u64 in Wrapping) -> ExactInteger {
+    machine positive(magnitude: u64 in Wrapping) -> ExactInteger {
         ExactInteger { negative: false, magnitude: magnitude }
     }
 }
@@ -201,11 +201,11 @@ public machine ExactInteger::is_carrier(builtin: BuiltinType) -> bool {
         _ -> no()
     }
 
-    state yes() -> bool {
+    machine yes() -> bool {
         true
     }
 
-    state no() -> bool {
+    machine no() -> bool {
         false
     }
 }
@@ -236,7 +236,7 @@ public machine ExactInteger::wrap(builtin: BuiltinType, value: ExactInteger) -> 
 
     // A signed residue above the greatest value stands for the residue less
     // 2^width.
-    state residue(least: ExactInteger, greatest: ExactInteger, mask: u64 in Wrapping, residue: u64 in Wrapping) -> ExactInteger {
+    machine residue(least: ExactInteger, greatest: ExactInteger, mask: u64 in Wrapping, residue: u64 in Wrapping) -> ExactInteger {
         let wraps: bool = least.negative && residue > greatest.magnitude;
         let magnitude: u64 in Wrapping = (mask - residue) + 1;
         transition wraps {
@@ -245,11 +245,11 @@ public machine ExactInteger::wrap(builtin: BuiltinType, value: ExactInteger) -> 
         }
     }
 
-    state negative(magnitude: u64 in Wrapping) -> ExactInteger {
+    machine negative(magnitude: u64 in Wrapping) -> ExactInteger {
         ExactInteger { negative: true, magnitude: magnitude }
     }
 
-    state positive(magnitude: u64 in Wrapping) -> ExactInteger {
+    machine positive(magnitude: u64 in Wrapping) -> ExactInteger {
         ExactInteger { negative: false, magnitude: magnitude }
     }
 }
@@ -266,14 +266,14 @@ public machine ExactInteger::saturate(builtin: BuiltinType, value: ExactInteger)
         _ -> answer(least)
     }
 
-    state upper(greatest: ExactInteger, value: ExactInteger, below_greatest: bool) -> ExactInteger {
+    machine upper(greatest: ExactInteger, value: ExactInteger, below_greatest: bool) -> ExactInteger {
         transition below_greatest {
             true -> answer(value)
             _ -> answer(greatest)
         }
     }
 
-    state answer(value: ExactInteger) -> ExactInteger {
+    machine answer(value: ExactInteger) -> ExactInteger {
         value
     }
 }
@@ -288,14 +288,14 @@ public machine ExactInteger::remainder(left: ExactInteger, right: ExactInteger) 
         _ -> undefined(left)
     }
 
-    state divided(left: ExactInteger, divisor: u64 in Wrapping) -> ExactResult
+    machine divided(left: ExactInteger, divisor: u64 in Wrapping) -> ExactResult
     requires divisor > 0
     {
         let magnitude: u64 in Wrapping = left.magnitude % divisor;
         ExactResult { valid: true, value: ExactInteger { negative: left.negative && magnitude > 0, magnitude: magnitude } }
     }
 
-    state undefined(left: ExactInteger) -> ExactResult {
+    machine undefined(left: ExactInteger) -> ExactResult {
         ExactResult { valid: false, value: left }
     }
 }
@@ -326,14 +326,14 @@ public machine Rational::common_divisor(left: u64 in Wrapping, right: u64 in Wra
         _ -> step(right, left % right)
     }
 
-    state step(left: u64 in Wrapping, right: u64 in Wrapping) -> u64 in Wrapping {
+    machine step(left: u64 in Wrapping, right: u64 in Wrapping) -> u64 in Wrapping {
         transition right == 0 {
             true -> found(left)
             _ -> step(right, left % right)
         }
     }
 
-    state found(divisor: u64 in Wrapping) -> u64 in Wrapping {
+    machine found(divisor: u64 in Wrapping) -> u64 in Wrapping {
         divisor
     }
 }
@@ -345,7 +345,7 @@ public machine Rational::reduced(numerator: ExactInteger, denominator: u64 in Wr
         _ -> nonzero(numerator, denominator)
     }
 
-    state nonzero(numerator: ExactInteger, denominator: u64 in Wrapping) -> RationalResult {
+    machine nonzero(numerator: ExactInteger, denominator: u64 in Wrapping) -> RationalResult {
         let divisor: u64 in Wrapping = Rational::common_divisor(numerator.magnitude, denominator);
         transition numerator.magnitude == 0 {
             true -> zero()
@@ -353,14 +353,14 @@ public machine Rational::reduced(numerator: ExactInteger, denominator: u64 in Wr
         }
     }
 
-    state divided(numerator: ExactInteger, denominator: u64 in Wrapping, divisor: u64 in Wrapping) -> RationalResult {
+    machine divided(numerator: ExactInteger, denominator: u64 in Wrapping, divisor: u64 in Wrapping) -> RationalResult {
         transition divisor > 0 {
             true -> lowest(numerator, denominator, divisor)
             _ -> invalid()
         }
     }
 
-    state lowest(numerator: ExactInteger, denominator: u64 in Wrapping, divisor: u64 in Wrapping) -> RationalResult {
+    machine lowest(numerator: ExactInteger, denominator: u64 in Wrapping, divisor: u64 in Wrapping) -> RationalResult {
         RationalResult {
             valid: true,
             value: Rational {
@@ -370,11 +370,11 @@ public machine Rational::reduced(numerator: ExactInteger, denominator: u64 in Wr
         }
     }
 
-    state zero() -> RationalResult {
+    machine zero() -> RationalResult {
         RationalResult { valid: true, value: Rational { numerator: ExactInteger { negative: false, magnitude: 0 }, denominator: 1 } }
     }
 
-    state invalid() -> RationalResult {
+    machine invalid() -> RationalResult {
         RationalResult { valid: false, value: Rational { numerator: ExactInteger { negative: false, magnitude: 0 }, denominator: 1 } }
     }
 }
@@ -390,12 +390,12 @@ public machine Rational::add(left: Rational, right: Rational) -> RationalResult 
         _ -> invalid()
     }
 
-    state reduced(numerator: ExactInteger, denominator: u64 in Wrapping) -> RationalResult {
+    machine reduced(numerator: ExactInteger, denominator: u64 in Wrapping) -> RationalResult {
         let result: RationalResult = Rational::reduced(numerator, denominator);
         result
     }
 
-    state invalid() -> RationalResult {
+    machine invalid() -> RationalResult {
         RationalResult { valid: false, value: Rational { numerator: ExactInteger { negative: false, magnitude: 0 }, denominator: 1 } }
     }
 }
@@ -415,12 +415,12 @@ public machine Rational::multiply(left: Rational, right: Rational) -> RationalRe
         _ -> invalid()
     }
 
-    state reduced(numerator: ExactInteger, denominator: u64 in Wrapping) -> RationalResult {
+    machine reduced(numerator: ExactInteger, denominator: u64 in Wrapping) -> RationalResult {
         let result: RationalResult = Rational::reduced(numerator, denominator);
         result
     }
 
-    state invalid() -> RationalResult {
+    machine invalid() -> RationalResult {
         RationalResult { valid: false, value: Rational { numerator: ExactInteger { negative: false, magnitude: 0 }, denominator: 1 } }
     }
 }
@@ -436,12 +436,12 @@ public machine Rational::divide(left: Rational, right: Rational) -> RationalResu
         _ -> invalid()
     }
 
-    state reduced(numerator: ExactInteger, denominator: u64 in Wrapping) -> RationalResult {
+    machine reduced(numerator: ExactInteger, denominator: u64 in Wrapping) -> RationalResult {
         let result: RationalResult = Rational::reduced(numerator, denominator);
         result
     }
 
-    state invalid() -> RationalResult {
+    machine invalid() -> RationalResult {
         RationalResult { valid: false, value: Rational { numerator: ExactInteger { negative: false, magnitude: 0 }, denominator: 1 } }
     }
 }

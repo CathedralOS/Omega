@@ -46,20 +46,20 @@ machine exercise() -> i32 crashes Trap {
         true -> local(&mut output)
         _ -> (71)
     }
-    state local(output: &mut Buffer16) -> i32 {
+    machine local(output: &mut Buffer16) -> i32 {
         through_local("local", output);
         transition Buffer16::equal(&output, "local") { true -> field(output) _ -> (72) }
     }
-    state field(output: &mut Buffer16) -> i32 {
+    machine field(output: &mut Buffer16) -> i32 {
         let view: View = View { text: "field" };
         through_field(&view, output);
         transition Buffer16::equal(&output, "field") { true -> called(output) _ -> (73) }
     }
-    state called(output: &mut Buffer16) -> i32 {
+    machine called(output: &mut Buffer16) -> i32 {
         through_call("call", output);
         transition Buffer16::equal(&output, "call") { true -> owned() _ -> (74) }
     }
-    state owned() -> i32 {
+    machine owned() -> i32 {
         transition through_owned_local("owned") { true -> (0) _ -> (75) }
     }
 }
@@ -78,8 +78,8 @@ machine Buffer16::view(buffer: &Buffer16) -> &[u8] in SnapshotUtf8 crashes Trap 
         true -> checked(bytes)
         false -> bad()
     }
-    state checked(bytes: &[u8] in SnapshotUtf8) -> &[u8] in SnapshotUtf8 { bytes }
-    state bad() { crash Trap; }
+    machine checked(bytes: &[u8] in SnapshotUtf8) -> &[u8] in SnapshotUtf8 { bytes }
+    machine bad() -> &[u8] in SnapshotUtf8 { crash Trap; }
 }
 machine Buffer16::equal(buffer: &Buffer16, expected: &[u8]) -> bool crashes Trap {
     let bytes: &[u8] in SnapshotUtf8 = Buffer16::view(buffer);
@@ -89,7 +89,7 @@ machine Buffer16::equal(buffer: &Buffer16, expected: &[u8]) -> bool crashes Trap
 machine Buffer16::copy(storage: &mut [u8; 16], bytes: &[u8], start: u64)
 requires start <= 16; bytes.len <= 16 - start {
     transition { _ -> copying(storage, bytes, start, 0) }
-    state copying(storage: &mut [u8; 16], bytes: &[u8], start: u64, index: u64)
+    machine copying(storage: &mut [u8; 16], bytes: &[u8], start: u64, index: u64)
     requires start <= 16; index <= 16 {
         transition index < bytes.len && start + index < 16 {
             true -> writing(storage, bytes, start, index)
@@ -101,14 +101,14 @@ requires start <= 16; bytes.len <= 16 - start {
         storage[start + index] = bytes[index];
         transition { _ -> copying(storage, bytes, start, index + 1) }
     }
-    state done() {}
+    machine done() {}
 }
 machine Buffer16::join(left: &[u8], right: &[u8]) -> Buffer16 crashes Trap {
     transition left.len <= 16 && right.len <= 16 - left.len {
         true -> joining(left, right)
         _ -> bad()
     }
-    state joining(left: &[u8], right: &[u8]) -> Buffer16
+    machine joining(left: &[u8], right: &[u8]) -> Buffer16
     requires left.len <= 16; right.len <= 16 - left.len {
     let mut result: Buffer16;
     Buffer16::copy(&mut result.storage, left, 0);
@@ -119,13 +119,13 @@ machine Buffer16::join(left: &[u8], right: &[u8]) -> Buffer16 crashes Trap {
         _ -> bad()
     }
     }
-    state checked(result: Buffer16, total: u64) -> Buffer16
+    machine checked(result: Buffer16, total: u64) -> Buffer16
     requires total <= 16 {
         let mut value: Buffer16 = result;
         value.used = total;
         value
     }
-    state bad() { crash Trap; }
+    machine bad() -> Buffer16 { crash Trap; }
 }
 
 machine Buffer16::snapshot(text: &[u8] in SnapshotUtf8) -> Buffer16

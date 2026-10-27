@@ -46,7 +46,7 @@ machine KernelState::drop(context: &mut KernelState) reaches CleanupAudit {
 machine selected_continuation(image: Extent in Granted, context: &mut KernelState, storage: Extent in Granted) {
     context.phase = 17;
     transition { _ -> retain(image, storage) }
-    state retain(image: Extent in Granted, storage: Extent in Granted) {
+    machine retain(image: Extent in Granted, storage: Extent in Granted) {
         transition { _ -> retain(image, storage) }
     }
 }

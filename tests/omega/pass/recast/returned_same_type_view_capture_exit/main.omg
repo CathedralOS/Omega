@@ -37,7 +37,7 @@ machine carry_replacement<'input>(first: &'input Header) -> &'input Header {
     let mut view: &Header = first as &Header;
     view = view as &Header;
     transition { _ -> retained(view) }
-    state retained(held: &'input Header) { held }
+    machine retained(held: &'input Header) -> &'input Header { held }
 }
 
 machine return_replacement_view<'input>(first: &'input Header) -> &'input Header {
@@ -74,8 +74,8 @@ machine Main::main(main: &mut Main) crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

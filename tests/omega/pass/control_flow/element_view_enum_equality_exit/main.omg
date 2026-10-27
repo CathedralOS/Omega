@@ -11,7 +11,7 @@ machine matches(slots: &[Slot], position: u64, expected: Tag) -> bool {
         true -> observe(slots, position, expected)
         false -> false
     }
-    state observe(slots: &[Slot], position: u64, expected: Tag) -> bool {
+    machine observe(slots: &[Slot], position: u64, expected: Tag) -> bool {
         let same: bool = slots[position].tag == expected;
         (same)
     }
@@ -32,7 +32,7 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, 70)
         false -> finish(main, 1)
     }
-    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

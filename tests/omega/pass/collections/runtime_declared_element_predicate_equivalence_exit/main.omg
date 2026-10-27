@@ -12,6 +12,6 @@ machine main() crashes Trap {
     let view: &[i32 in Declared] = &items[..];
     let result: i32 = observe(view[0]);
     transition result == 1 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

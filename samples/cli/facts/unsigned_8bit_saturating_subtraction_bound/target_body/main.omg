@@ -19,10 +19,10 @@ linux_x86_64 machine exercise(lhs: u8 in Saturating, rhs: u8 in Saturating) -> u
         true -> step(diff)
         _ -> bad()
     }
-    state step(d: u8) -> u8 {
+    machine step(d: u8) -> u8 {
         verify_diff(d)
     }
-    state bad() { crash Trap; }
+    machine bad() -> u8 { crash Trap; }
 }
 
 linux_arm64 machine exercise(lhs: u8 in Saturating, rhs: u8 in Saturating) -> u8 crashes Trap {
@@ -32,10 +32,10 @@ linux_arm64 machine exercise(lhs: u8 in Saturating, rhs: u8 in Saturating) -> u8
         true -> step(diff)
         _ -> bad()
     }
-    state step(d: u8) -> u8 {
+    machine step(d: u8) -> u8 {
         verify_diff(d)
     }
-    state bad() { crash Trap; }
+    machine bad() -> u8 { crash Trap; }
 }
 
 macos_arm64 machine exercise(lhs: u8 in Saturating, rhs: u8 in Saturating) -> u8 crashes Trap {
@@ -45,10 +45,10 @@ macos_arm64 machine exercise(lhs: u8 in Saturating, rhs: u8 in Saturating) -> u8
         true -> step(diff)
         _ -> bad()
     }
-    state step(d: u8) -> u8 {
+    machine step(d: u8) -> u8 {
         verify_diff(d)
     }
-    state bad() { crash Trap; }
+    machine bad() -> u8 { crash Trap; }
 }
 
 windows_x86_64 machine exercise(lhs: u8 in Saturating, rhs: u8 in Saturating) -> u8 crashes Trap {
@@ -58,10 +58,10 @@ windows_x86_64 machine exercise(lhs: u8 in Saturating, rhs: u8 in Saturating) ->
         true -> step(diff)
         _ -> bad()
     }
-    state step(d: u8) -> u8 {
+    machine step(d: u8) -> u8 {
         verify_diff(d)
     }
-    state bad() { crash Trap; }
+    machine bad() -> u8 { crash Trap; }
 }
 
 machine main() crashes Trap {
@@ -70,6 +70,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

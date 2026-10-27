@@ -6,5 +6,5 @@ machine acquire(identity: u64) -> Resource in Open requires identity != 0 {
 machine main() {
     let resource: Resource in Open = acquire(41);
     transition { _ -> received(resource, resource) }
-    state received(first: Resource in Open, second: Resource in Open) {}
+    machine received(first: Resource in Open, second: Resource in Open) {}
 }

@@ -5,14 +5,14 @@ requires value == 1 && remaining <= 9;
 terminates by remaining in 0..=9;
 {
     transition { _ -> later(2, remaining) }
-    state later(value: u32, fuel: u32) requires fuel <= 9 {
+    machine later(value: u32, fuel: u32) requires fuel <= 9 {
         accept(value);
         transition fuel > 0 {
             true -> later(value, fuel - 1)
             false -> done()
         }
     }
-    state done() {}
+    machine done() {}
 }
 
 machine main() { bad(1, 2); }

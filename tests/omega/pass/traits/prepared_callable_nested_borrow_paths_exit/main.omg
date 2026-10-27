@@ -38,7 +38,7 @@ machine check_byte_views() -> bool {
         Outcome::Present { value } -> inspect(value)
         Outcome::Empty -> false
     }
-    state inspect(value: Pair<&[u8], &[u8]>) -> bool {
+    machine inspect(value: Pair<&[u8], &[u8]>) -> bool {
         transition value.first.len == 3 && value.second.len == 2 {
             true -> (value.first[1] == 43 && value.second[0] == 17)
             false -> false
@@ -55,12 +55,12 @@ machine main() crashes Trap {
         Outcome::Present { value } -> inspect(value)
         Outcome::Empty -> bad()
     }
-    state inspect(value: Pair<&i32, &i32>) {
+    machine inspect(value: Pair<&i32, &i32>) {
         transition value.first == 37 && value.second == 19 && check_byte_views() {
             true -> done()
             false -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

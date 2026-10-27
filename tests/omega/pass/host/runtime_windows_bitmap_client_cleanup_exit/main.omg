@@ -38,7 +38,7 @@ machine Main::main(main: &mut Main) reaches
     ProcessInput + ProcessOutput + ProcessExit {
     main.window = WindowsGuiHost::window_create_client("STATIC\0", "bitmap control\0", 282001408, 10, 10, 173, 147);
     transition main.window != 0 { true -> inspect(main) _ -> bad(main) }
-    state inspect(main: &mut Main) {
+    machine inspect(main: &mut Main) {
         main.message.words[0] = main.window;
         // Poison MSG's padding without changing its UINT message coordinate.
         main.message.words[1] = 4294967312;
@@ -53,7 +53,7 @@ machine Main::main(main: &mut Main) reaches
             _ -> size_bad(main)
         }
     }
-    state render(main: &mut Main) {
+    machine render(main: &mut Main) {
         main.info[0] = 40;
         main.info[1] = 2;
         main.info[2] = 0 - 2;
@@ -71,23 +71,23 @@ machine Main::main(main: &mut Main) reaches
             _ -> drawing_bad(main)
         }
     }
-    state destroy(main: &mut Main) {
+    machine destroy(main: &mut Main) {
         let destroyed: bool = WindowsGuiHost::window_destroy(main.window);
         let alive: bool = WindowsGuiHost::is_window(main.window);
         let empty: u64 = WindowsGuiHost::window_create_client("", "\0", 0, 0, 0, 20, 20);
         let invalid: u64 = WindowsGuiHost::window_create_client("STATIC\0", "\0", 0, 0, 0, 0, 20);
         transition destroyed && !alive && empty == 0 && invalid == 0 { true -> good(main) _ -> bad(main) }
     }
-    state size_bad(main: &mut Main) {
+    machine size_bad(main: &mut Main) {
         let destroyed: bool = WindowsGuiHost::window_destroy(main.window);
         Console::exit_process(72);
     }
-    state drawing_bad(main: &mut Main) {
+    machine drawing_bad(main: &mut Main) {
         let destroyed: bool = WindowsGuiHost::window_destroy(main.window);
         Console::exit_process(73);
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main) { Console::exit_process(71); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

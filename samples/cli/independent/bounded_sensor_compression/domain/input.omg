@@ -12,26 +12,26 @@ crashes Trap
 {
     input.length = 0;
     transition { _ -> read(input, 0) }
-    state read(input: &mut InputBuffer, index: i32) -> bool {
+    machine read(input: &mut InputBuffer, index: i32) -> bool {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
             ByteRead::Eof -> done(input, index)
             ByteRead::Byte { value } -> capacity(input, index, value)
         }
     }
-    state capacity(input: &mut InputBuffer, index: i32, value: i32) -> bool {
+    machine capacity(input: &mut InputBuffer, index: i32, value: i32) -> bool {
         transition index >= 0 && index < 56 && value >= 0 && value <= 255 {
             true -> store(input, index, value)
             _ -> invalid()
         }
     }
-    state store(input: &mut InputBuffer, index: i32, value: i32) -> bool
+    machine store(input: &mut InputBuffer, index: i32, value: i32) -> bool
     requires index >= 0 && index < 56 && value >= 0 && value <= 255 {
         input.bytes[index] = value as u8;
         transition { _ -> read(input, index + 1) }
     }
-    state done(input: &mut InputBuffer, index: i32) -> bool { input.length = index; true }
-    state invalid() -> bool { false }
+    machine done(input: &mut InputBuffer, index: i32) -> bool { input.length = index; true }
+    machine invalid() -> bool { false }
 }
 
 public machine parse_records(input: &InputBuffer, records: &mut SensorBlock) -> bool {
@@ -39,7 +39,7 @@ public machine parse_records(input: &InputBuffer, records: &mut SensorBlock) -> 
         true -> header(input, records)
         _ -> invalid()
     }
-    state header(input: &InputBuffer, records: &mut SensorBlock) -> bool {
+    machine header(input: &InputBuffer, records: &mut SensorBlock) -> bool {
         let count: i32 = input.bytes[1] as i32;
         let tolerance: i32 = input.bytes[2] as i32;
         transition input.bytes[0] == 0 && count >= 1 && count <= 16 && tolerance <= 7 && input.length == 3 + 2 * count {
@@ -47,18 +47,18 @@ public machine parse_records(input: &InputBuffer, records: &mut SensorBlock) -> 
             _ -> invalid()
         }
     }
-    state begin(input: &InputBuffer, records: &mut SensorBlock, count: i32, tolerance: i32) -> bool {
+    machine begin(input: &InputBuffer, records: &mut SensorBlock, count: i32, tolerance: i32) -> bool {
         records.count = count;
         records.tolerance = tolerance;
         transition { _ -> scan(input, records, 0) }
     }
-    state scan(input: &InputBuffer, records: &mut SensorBlock, index: i32) -> bool {
+    machine scan(input: &InputBuffer, records: &mut SensorBlock, index: i32) -> bool {
         transition index >= 0 && index < records.count && index < 16 {
             true -> sample(input, records, index)
             _ -> done()
         }
     }
-    state sample(input: &InputBuffer, records: &mut SensorBlock, index: i32) -> bool
+    machine sample(input: &InputBuffer, records: &mut SensorBlock, index: i32) -> bool
     requires index >= 0 && index < 16 {
         let value: i32 = (input.bytes[3 + index * 2] as i32) + (input.bytes[4 + index * 2] as i32) * 256;
         transition value <= 4095 {
@@ -66,13 +66,13 @@ public machine parse_records(input: &InputBuffer, records: &mut SensorBlock) -> 
             _ -> invalid()
         }
     }
-    state store(input: &InputBuffer, records: &mut SensorBlock, index: i32, value: i32) -> bool
+    machine store(input: &InputBuffer, records: &mut SensorBlock, index: i32, value: i32) -> bool
     requires index >= 0 && index < 16 {
         records.values[index] = value;
         transition { _ -> scan(input, records, index + 1) }
     }
-    state done() -> bool { true }
-    state invalid() -> bool { false }
+    machine done() -> bool { true }
+    machine invalid() -> bool { false }
 }
 
 public machine parse_stream(input: &InputBuffer, stream: &mut SensorStream) -> bool {
@@ -80,22 +80,22 @@ public machine parse_stream(input: &InputBuffer, stream: &mut SensorStream) -> b
         true -> begin(input, stream)
         _ -> invalid()
     }
-    state begin(input: &InputBuffer, stream: &mut SensorStream) -> bool
+    machine begin(input: &InputBuffer, stream: &mut SensorStream) -> bool
     requires input.length >= 7 && input.length <= 54 {
         stream.length = input.length - 1;
         transition { _ -> scan(input, stream, 0) }
     }
-    state scan(input: &InputBuffer, stream: &mut SensorStream, index: i32) -> bool {
+    machine scan(input: &InputBuffer, stream: &mut SensorStream, index: i32) -> bool {
         transition index >= 0 && index < stream.length && index < 53 {
             true -> store(input, stream, index)
             _ -> done()
         }
     }
-    state store(input: &InputBuffer, stream: &mut SensorStream, index: i32) -> bool
+    machine store(input: &InputBuffer, stream: &mut SensorStream, index: i32) -> bool
     requires index >= 0 && index < 53 {
         stream.bytes[index] = input.bytes[index + 1];
         transition { _ -> scan(input, stream, index + 1) }
     }
-    state done() -> bool { true }
-    state invalid() -> bool { false }
+    machine done() -> bool { true }
+    machine invalid() -> bool { false }
 }

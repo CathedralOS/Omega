@@ -5,6 +5,6 @@ entry:
  mov output[ecx], 1
  }
  transition output[0] == 1 { true -> done() false -> bad() }
- state done() {}
- state bad() { crash Trap; }
+ machine done() {}
+ machine bad() { crash Trap; }
 }

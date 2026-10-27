@@ -20,9 +20,9 @@ machine settle(builder: &mut Build, settled: OutputCompletion) {
         OutputCompletion::Sealed { receipt } -> sealed(builder)
         OutputCompletion::Retry { obligation, file } -> unsealed(builder, obligation)
     }
-    state sealed(builder: &mut Build) {
+    machine sealed(builder: &mut Build) {
     }
-    state unsealed(builder: &mut Build, obligation: RequiredOutput) {
+    machine unsealed(builder: &mut Build, obligation: RequiredOutput) {
         BuildOutput::fail(&mut builder.output, obligation, "staged output never sealed");
     }
 }

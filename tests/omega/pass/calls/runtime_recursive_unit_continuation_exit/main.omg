@@ -6,12 +6,12 @@ machine descend(value: u64) reaches Console {
         true -> next(value)
         false -> done()
     }
-    state next(value: u64) {
+    machine next(value: u64) {
         Console::write_byte(narrow_u64_to_i32_trapping(value % 10 + 48));
         descend(value - 1);
         Console::write_byte(narrow_u64_to_i32_trapping(value % 10 + 48));
     }
-    state done() { }
+    machine done() { }
 }
 machine main() reaches Console {
     descend(3);

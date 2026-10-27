@@ -17,9 +17,9 @@ machine stale_guard(sample: &mut Sample) {
         true -> guarded(sample)
         false -> done()
     }
-    state guarded(sample: &mut Sample) {
+    machine guarded(sample: &mut Sample) {
         sample.value = 18014398509481985i64;
         sample.converted = sample.value as f64;
     }
-    state done() {}
+    machine done() {}
 }

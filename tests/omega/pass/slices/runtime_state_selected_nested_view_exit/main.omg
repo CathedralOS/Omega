@@ -9,7 +9,7 @@ requires window_position < windows.len
         true -> store(windows, window_position, position, replacement)
         false -> (&mut windows[window_position].values[..0])
     }
-    state store(windows: &'input mut [Window<'input>], window_position: u64, position: u64, replacement: Cell)
+    machine store(windows: &'input mut [Window<'input>], window_position: u64, position: u64, replacement: Cell)
         -> &'input mut [Cell]
     requires window_position < windows.len && position < windows[window_position].values.len {
         windows[window_position].values[position] = replacement;
@@ -22,7 +22,7 @@ machine observe(values: &[Cell]) -> bool {
         true -> inspect(values)
         false -> false
     }
-    state inspect(values: &[Cell]) -> bool requires values.len == 2 {
+    machine inspect(values: &[Cell]) -> bool requires values.len == 2 {
         values[0].value == 7 && values[0].tag == 17
             && values[1].value == 42 && values[1].tag == 9223372036854775808
     }
@@ -47,6 +47,6 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

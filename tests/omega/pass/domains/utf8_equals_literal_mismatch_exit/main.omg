@@ -17,8 +17,8 @@ machine Main::classify(main: &Main, text: &[u8] in Utf8) reaches Console {
         _ -> other(main)
     }
 
-    state finished(main: &Main) { Console::exit_process(70); }
-    state other(main: &Main) { Console::exit_process(71); }
+    machine finished(main: &Main) { Console::exit_process(70); }
+    machine other(main: &Main) { Console::exit_process(71); }
 }
 
 machine Main::main(main: &mut Main) {

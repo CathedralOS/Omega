@@ -29,7 +29,7 @@ requires index <= 10
     transition difference == 1 && answer.item.value == 41 && answer.left == 7 {
         true -> done() _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine main() crashes Trap { exercise(11); }

@@ -17,6 +17,6 @@ machine main() crashes Trap {
     let observed: u32 = join(cell.value.load(Receive), true);
     let remaining: u32 = 100 - observed;
     transition remaining == 59 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -30,14 +30,14 @@ crashes Trap
 {
     transition { _ -> next(checker, 0) }
 
-    state next(checker: &mut Checker, index: u64 in Trapping) {
+    machine next(checker: &mut Checker, index: u64 in Trapping) {
         transition index < 256 {
             true -> clear(checker, index)
             _ -> done()
         }
     }
 
-    state clear(checker: &mut Checker, index: u64 in Trapping)
+    machine clear(checker: &mut Checker, index: u64 in Trapping)
     requires index < 256
     {
         checker.reference_origins[index] = 0;
@@ -45,7 +45,7 @@ crashes Trap
         transition { _ -> next(checker, index + 1) }
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // The containing storage of an untracked element or range is still known
@@ -56,7 +56,7 @@ crashes Trap
 {
     transition { _ -> node(checker, syntax, typing, handle, 0) }
 
-    state node(checker: &Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, depth: u64 in Trapping) -> u64 in Trapping {
+    machine node(checker: &Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, depth: u64 in Trapping) -> u64 in Trapping {
         let value: Value = Checker::value_at(checker, handle);
         transition value.place > 0 {
             true -> found(value.place)
@@ -64,7 +64,7 @@ crashes Trap
         }
     }
 
-    state unplaced(checker: &Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, depth: u64 in Trapping) -> u64 in Trapping {
+    machine unplaced(checker: &Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, depth: u64 in Trapping) -> u64 in Trapping {
         let expression: Expression = SyntaxTrees::expression(syntax, handle);
         let type_handle: u64 in Trapping = Typing::expression_type(typing, handle);
         let row: TypeRow = TypeTable::row(&typing.types, type_handle);
@@ -79,11 +79,11 @@ crashes Trap
         }
     }
 
-    state found(place: u64 in Trapping) -> u64 in Trapping {
+    machine found(place: u64 in Trapping) -> u64 in Trapping {
         place
     }
 
-    state unknown() -> u64 in Trapping {
+    machine unknown() -> u64 in Trapping {
         0
     }
 }
@@ -98,7 +98,7 @@ crashes Trap
         _ -> done()
     }
 
-    state typed(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, value: Value) {
+    machine typed(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, value: Value) {
         let entry: Place = Checker::place_at(checker, place - 1);
         let row: TypeRow = TypeTable::row(&typing.types, entry.type_handle);
         transition row.kind == TypeKind::Reference {
@@ -107,18 +107,18 @@ crashes Trap
         }
     }
 
-    state capture(checker: &mut Checker, index: u64 in Trapping, origin: u64 in Trapping)
+    machine capture(checker: &mut Checker, index: u64 in Trapping, origin: u64 in Trapping)
     requires index < 256
     {
         checker.reference_origins[index] = origin as u64;
         checker.reference_footprints[index] = false;
     }
 
-    state owned(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, value: Value) {
+    machine owned(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, value: Value) {
         Checker::bind_place(checker, typing, place, value);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // Shared-reference local assignment replaces the binding (exclusive names
@@ -135,7 +135,7 @@ crashes Trap
         _ -> other()
     }
 
-    state binding(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement, value: Value, type_handle: u64 in Trapping) -> bool {
+    machine binding(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement, value: Value, type_handle: u64 in Trapping) -> bool {
         let binding: ValueBinding = NameResolution::value_binding(resolution, statement.target);
         transition binding {
             ValueBinding::Local { statement as declaration } -> local(checker, syntax, resolution, typing, statement, declaration, value, type_handle)
@@ -143,7 +143,7 @@ crashes Trap
         }
     }
 
-    state local(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement, declaration: u64 in Trapping, value: Value, type_handle: u64 in Trapping) -> bool {
+    machine local(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement, declaration: u64 in Trapping, value: Value, type_handle: u64 in Trapping) -> bool {
         let place: u64 in Trapping = Checker::place(checker, typing, PlaceKind::Local, declaration, 0, type_handle);
         // Replaying a condition through this binding would now read the
         // replacement referent. Existing captured references keep theirs.
@@ -153,12 +153,12 @@ crashes Trap
         true
     }
 
-    state unknown(checker: &mut Checker, statement: Statement) -> bool {
+    machine unknown(checker: &mut Checker, statement: Statement) -> bool {
         Checks::reject(&mut checker.output, CheckDiagnosticCode::UnsupportedCheck, statement.source_span);
         true
     }
 
-    state other() -> bool {
+    machine other() -> bool {
         false
     }
 }
@@ -186,7 +186,7 @@ crashes Trap
         _ -> done()
     }
 
-    state located(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, place: u64 in Trapping, initializer: u64 in Trapping) {
+    machine located(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, place: u64 in Trapping, initializer: u64 in Trapping) {
         let footprint: u64 in Trapping = Checker::written_origin(checker, syntax, resolution, typing, initializer);
         transition footprint > 0 {
             true -> captured(checker, place - 1, footprint)
@@ -194,14 +194,14 @@ crashes Trap
         }
     }
 
-    state captured(checker: &mut Checker, index: u64 in Trapping, footprint: u64 in Trapping)
+    machine captured(checker: &mut Checker, index: u64 in Trapping, footprint: u64 in Trapping)
     requires index < 256
     {
         checker.reference_origins[index] = footprint as u64;
         checker.reference_footprints[index] = true;
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // The footprint a reference local captured (one-based place), zero when
@@ -214,7 +214,7 @@ crashes Trap
         _ -> none()
     }
 
-    state read(checker: &Checker, index: u64 in Trapping) -> u64 in Trapping
+    machine read(checker: &Checker, index: u64 in Trapping) -> u64 in Trapping
     requires index < 256
     {
         transition checker.reference_footprints[index] {
@@ -223,11 +223,11 @@ crashes Trap
         }
     }
 
-    state found(origin: u64 in Trapping) -> u64 in Trapping {
+    machine found(origin: u64 in Trapping) -> u64 in Trapping {
         origin
     }
 
-    state none() -> u64 in Trapping {
+    machine none() -> u64 in Trapping {
         0
     }
 }
@@ -241,7 +241,7 @@ crashes Trap
 {
     transition { _ -> node(checker, syntax, resolution, typing, handle, 0) }
 
-    state node(checker: &Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, depth: u64 in Trapping) -> u64 in Trapping {
+    machine node(checker: &Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, depth: u64 in Trapping) -> u64 in Trapping {
         let value: Value = Checker::value_at(checker, handle);
         transition value.place > 0 {
             true -> found(value.place)
@@ -249,7 +249,7 @@ crashes Trap
         }
     }
 
-    state unplaced(checker: &Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, depth: u64 in Trapping) -> u64 in Trapping {
+    machine unplaced(checker: &Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, depth: u64 in Trapping) -> u64 in Trapping {
         let expression: Expression = SyntaxTrees::expression(syntax, handle);
         let type_handle: u64 in Trapping = Typing::expression_type(typing, handle);
         let row: TypeRow = TypeTable::row(&typing.types, type_handle);
@@ -264,14 +264,14 @@ crashes Trap
         }
     }
 
-    state named(checker: &Checker, resolution: &NameResolution, handle: u64 in Trapping, expression: Expression) -> u64 in Trapping {
+    machine named(checker: &Checker, resolution: &NameResolution, handle: u64 in Trapping, expression: Expression) -> u64 in Trapping {
         transition expression.kind == ExpressionKind::Name {
             true -> bound(checker, resolution, handle)
             _ -> unknown()
         }
     }
 
-    state bound(checker: &Checker, resolution: &NameResolution, handle: u64 in Trapping) -> u64 in Trapping {
+    machine bound(checker: &Checker, resolution: &NameResolution, handle: u64 in Trapping) -> u64 in Trapping {
         let binding: ValueBinding = NameResolution::value_binding(resolution, handle);
         transition binding {
             ValueBinding::Local { statement } -> local(checker, statement)
@@ -279,17 +279,17 @@ crashes Trap
         }
     }
 
-    state local(checker: &Checker, statement: u64 in Trapping) -> u64 in Trapping {
+    machine local(checker: &Checker, statement: u64 in Trapping) -> u64 in Trapping {
         let place: u64 in Trapping = Checker::find_place(checker, PlaceKind::Local, statement, 0);
         let footprint: u64 in Trapping = Checker::local_footprint(checker, place);
         footprint
     }
 
-    state found(place: u64 in Trapping) -> u64 in Trapping {
+    machine found(place: u64 in Trapping) -> u64 in Trapping {
         place
     }
 
-    state unknown() -> u64 in Trapping {
+    machine unknown() -> u64 in Trapping {
         0
     }
 }
@@ -309,19 +309,19 @@ crashes Trap
         _ -> unplaced(checker, syntax, resolution, typing, target, expression, slot)
     }
 
-    state unplaced(checker: &Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, target: u64 in Trapping, expression: Expression, slot: bool) -> u64 in Trapping {
+    machine unplaced(checker: &Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, target: u64 in Trapping, expression: Expression, slot: bool) -> u64 in Trapping {
         transition slot {
             true -> within(checker, syntax, resolution, typing, expression.left)
             _ -> within(checker, syntax, resolution, typing, target)
         }
     }
 
-    state within(checker: &Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping) -> u64 in Trapping {
+    machine within(checker: &Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping) -> u64 in Trapping {
         let origin: u64 in Trapping = Checker::written_origin(checker, syntax, resolution, typing, handle);
         origin
     }
 
-    state placed(place: u64 in Trapping) -> u64 in Trapping {
+    machine placed(place: u64 in Trapping) -> u64 in Trapping {
         place
     }
 }
@@ -337,7 +337,7 @@ crashes Trap
         _ -> unknown()
     }
 
-    state typed(checker: &mut Checker, typing: &Typing, place: u64 in Trapping) -> Value {
+    machine typed(checker: &mut Checker, typing: &Typing, place: u64 in Trapping) -> Value {
         let entry: Place = Checker::place_at(checker, place - 1);
         let row: TypeRow = TypeTable::row(&typing.types, entry.type_handle);
         transition row.kind == TypeKind::Reference {
@@ -351,7 +351,7 @@ crashes Trap
     // loans the holder carries (loans.omg) keep that storage from being
     // read or written another way while the reference is used
     // (wiki/spec/language/lifetimes.md#returned-views).
-    state reference(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, entry: Place) -> Value {
+    machine reference(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, entry: Place) -> Value {
         transition entry.kind {
             PlaceKind::Local -> local(checker, typing, place - 1, entry.type_handle)
             PlaceKind::Parameter -> parameter(checker, typing, place, entry.type_handle)
@@ -361,7 +361,7 @@ crashes Trap
         }
     }
 
-    state local(checker: &Checker, typing: &Typing, index: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
+    machine local(checker: &Checker, typing: &Typing, index: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
         transition index < 256 {
             true -> captured(checker, typing, index, type_handle)
             _ -> unknown()
@@ -370,7 +370,7 @@ crashes Trap
 
     // A footprint locates the reference's writes, not its referent: a
     // read through it is unknown.
-    state captured(checker: &Checker, typing: &Typing, index: u64 in Trapping, type_handle: u64 in Trapping) -> Value
+    machine captured(checker: &Checker, typing: &Typing, index: u64 in Trapping, type_handle: u64 in Trapping) -> Value
     requires index < 256
     {
         let origin: u64 in Trapping = checker.reference_origins[index] as u64 in Trapping;
@@ -384,7 +384,7 @@ crashes Trap
     // A recast view of another carrier (wiki/spec/layouts/recasts.md) sees
     // the storage's bits, not the facts held of its own carrier: it denotes
     // the storage without its subject.
-    state viewed(checker: &Checker, typing: &Typing, origin: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
+    machine viewed(checker: &Checker, typing: &Typing, origin: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
         let storage: Place = Checker::place_at(checker, origin - 1);
         let read: u64 in Trapping = Checker::read_type(typing, type_handle);
         let viewing: BuiltinType = Checker::carrier(typing, read);
@@ -395,7 +395,7 @@ crashes Trap
         }
     }
 
-    state foreign(origin: u64 in Trapping) -> Value {
+    machine foreign(origin: u64 in Trapping) -> Value {
         let value: Value = Value::at_place(origin);
         value
     }
@@ -403,7 +403,7 @@ crashes Trap
     // Scalar reference parameters need an ordinary subject for their
     // contents. Enter it lazily, after the state's by-value parameter
     // subjects, whose numbering the arrival projection owns.
-    state parameter(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
+    machine parameter(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
         let read: u64 in Trapping = Checker::read_type(typing, type_handle);
         let carrier: BuiltinType = Checker::carrier(typing, read);
         let scalar: bool = Checker::has_subject(carrier);
@@ -413,18 +413,18 @@ crashes Trap
         }
     }
 
-    state scalar_referent(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
+    machine scalar_referent(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
         let referent: u64 in Trapping = Checker::place(checker, typing, PlaceKind::Referent, 0, place, type_handle);
         let value: Value = Checker::place_value(checker, referent);
         value
     }
 
-    state owned(checker: &Checker, place: u64 in Trapping) -> Value {
+    machine owned(checker: &Checker, place: u64 in Trapping) -> Value {
         let value: Value = Checker::place_value(checker, place);
         value
     }
 
-    state unknown() -> Value {
+    machine unknown() -> Value {
         let value: Value = Value::unknown();
         value
     }

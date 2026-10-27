@@ -8,7 +8,7 @@ requires dividend >= 400 && dividend <= 400 && divisor >= 8 && divisor <= 8
     transition {
         _ -> step(dividend, divisor)
     }
-    state step(d: u16, s: u16) -> u16
+    machine step(d: u16, s: u16) -> u16
     requires d >= 400 && d <= 400 && s >= 8 && s <= 8
     {
         let quotient: u16 = d / s;
@@ -25,6 +25,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

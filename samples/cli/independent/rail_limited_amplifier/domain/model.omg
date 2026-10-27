@@ -41,14 +41,14 @@ public machine equilibria(circuit: Circuit, drive: f64) -> Equilibrium {
         true -> interior(circuit, drive, denominator, result)
         false -> classify(result)
     }
-    state interior(circuit: Circuit, drive: f64, denominator: f64, result: Equilibrium) -> Equilibrium {
+    machine interior(circuit: Circuit, drive: f64, denominator: f64, result: Equilibrium) -> Equilibrium {
         let mut found: Equilibrium = result;
         found.interior = circuit.gain * drive / denominator;
         // Strict interior excludes duplicate rail roots.
         found.interior_exists = found.interior > circuit.lower && found.interior < circuit.upper;
         transition { _ -> classify(found) }
     }
-    state classify(result: Equilibrium) -> Equilibrium {
+    machine classify(result: Equilibrium) -> Equilibrium {
         let mut found: Equilibrium = result;
         found.unique = !found.continuum && ((found.lower_exists && !found.interior_exists && !found.upper_exists)
             || (!found.lower_exists && found.interior_exists && !found.upper_exists)
@@ -58,12 +58,12 @@ public machine equilibria(circuit: Circuit, drive: f64) -> Equilibrium {
             false -> select_rail(found)
         }
     }
-    state select_interior(result: Equilibrium) -> Equilibrium {
+    machine select_interior(result: Equilibrium) -> Equilibrium {
         let mut found: Equilibrium = result;
         found.selected = found.interior;
         found
     }
-    state select_rail(result: Equilibrium) -> Equilibrium {
+    machine select_rail(result: Equilibrium) -> Equilibrium {
         let mut found: Equilibrium = result;
         // The original rail selection remains valid when no interior root exists.
         found
@@ -78,25 +78,25 @@ public machine advance(circuit: Circuit, drive: f64, previous: f64) -> Observati
         true -> low(circuit, observed)
         false -> check_high(circuit, observed)
     }
-    state low(circuit: Circuit, observed: Observation) -> Observation {
+    machine low(circuit: Circuit, observed: Observation) -> Observation {
         let mut result: Observation = observed;
         result.output = circuit.lower;
         result.overload = -1;
         result
     }
-    state check_high(circuit: Circuit, observed: Observation) -> Observation {
+    machine check_high(circuit: Circuit, observed: Observation) -> Observation {
         transition observed.raw > circuit.upper {
             true -> high(circuit, observed)
             false -> linear(observed)
         }
     }
-    state high(circuit: Circuit, observed: Observation) -> Observation {
+    machine high(circuit: Circuit, observed: Observation) -> Observation {
         let mut result: Observation = observed;
         result.output = circuit.upper;
         result.overload = 1;
         result
     }
-    state linear(observed: Observation) -> Observation {
+    machine linear(observed: Observation) -> Observation {
         let mut result: Observation = observed;
         result.output = result.raw;
         result.overload = 0;

@@ -4,7 +4,7 @@ terminates;
 terminates by remaining in 0..=4;
 {
     transition { _ -> inspect(remaining) }
-    state inspect(count: u64) -> u64
+    machine inspect(count: u64) -> u64
     requires count <= 4;
     {
         transition count > 0 {
@@ -12,7 +12,7 @@ terminates by remaining in 0..=4;
             false -> 0
         }
     }
-    state forward(count: u64) -> u64
+    machine forward(count: u64) -> u64
     requires count > 0 && count <= 4;
     {
         transition { _ -> inspect(count - 1) }

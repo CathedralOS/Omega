@@ -6,6 +6,6 @@ Identity satisfies Forward<u64> {
 machine relay<T>(value: T) -> T { Forward<T>::call(value) }
 machine main() reaches Forward crashes Trap {
     transition relay<u64>(41) == 41 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

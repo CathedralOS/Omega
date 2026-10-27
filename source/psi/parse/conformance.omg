@@ -31,7 +31,7 @@ crashes Trap
         _ -> reject(parser, input, ParseDiagnosticCode::ConformanceCapacityExceeded)
     }
 
-    state implementation_name(parser: &mut Parser, input: &TokenStream) {
+    machine implementation_name(parser: &mut Parser, input: &TokenStream) {
         parser.declaration_first_generic = parser.output.generic_parameter_count as u64 in Trapping;
         Parser::take_current(parser, input);
         parser.declaration_name_start = parser.token_start;
@@ -43,7 +43,7 @@ crashes Trap
         }
     }
 
-    state generics(parser: &mut Parser, input: &TokenStream) {
+    machine generics(parser: &mut Parser, input: &TokenStream) {
         Parser::parse_generic_parameters(parser, input);
         transition parser.output.accepted {
             true -> satisfies_word(parser, input)
@@ -51,7 +51,7 @@ crashes Trap
         }
     }
 
-    state satisfies_word(parser: &mut Parser, input: &TokenStream) {
+    machine satisfies_word(parser: &mut Parser, input: &TokenStream) {
         parser.declaration_generic_count = (parser.output.generic_parameter_count as u64 in Trapping) - parser.declaration_first_generic;
         let relation: bool = Parser::at_word(parser, input, "satisfies");
         transition relation {
@@ -60,7 +60,7 @@ crashes Trap
         }
     }
 
-    state trait_application(parser: &mut Parser, input: &TokenStream) {
+    machine trait_application(parser: &mut Parser, input: &TokenStream) {
         Parser::take_current(parser, input);
         Parser::parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedConformanceTrait);
         parser.declaration_type = parser.type_result;
@@ -70,7 +70,7 @@ crashes Trap
         }
     }
 
-    state body(parser: &mut Parser, input: &TokenStream) {
+    machine body(parser: &mut Parser, input: &TokenStream) {
         Parser::expect_punctuation(parser, input, PunctuationKind::LeftBrace, ParseDiagnosticCode::ExpectedConformanceBody);
         parser.declaration_first_machine = parser.output.machine_count as u64 in Trapping;
         parser.declaration_first_row = parser.output.conformance_row_count as u64 in Trapping;
@@ -80,7 +80,7 @@ crashes Trap
         }
     }
 
-    state member(parser: &mut Parser, input: &TokenStream) {
+    machine member(parser: &mut Parser, input: &TokenStream) {
         let closing: bool = Parser::at_punctuation(parser, input, PunctuationKind::RightBrace);
         transition closing {
             true -> close(parser, input)
@@ -88,7 +88,7 @@ crashes Trap
         }
     }
 
-    state machine_member(parser: &mut Parser, input: &TokenStream) {
+    machine machine_member(parser: &mut Parser, input: &TokenStream) {
         let checked: bool = Parser::at_keyword(parser, input, KeywordKind::Machine);
         transition checked {
             true -> checked_member(parser, input)
@@ -96,7 +96,7 @@ crashes Trap
         }
     }
 
-    state checked_member(parser: &mut Parser, input: &TokenStream) {
+    machine checked_member(parser: &mut Parser, input: &TokenStream) {
         let token: Token = input.tokens[parser.current_index];
         let head: MachineHead = Parser::member_machine_head(token.start, MachineContainer::Conformance);
         Parser::parse_machine(parser, input, head);
@@ -108,7 +108,7 @@ crashes Trap
 
     // A member supplies its requirement's implementation, so it has a
     // checked body; a bodyless one rejects at the `;` that ended it.
-    state checked_body(parser: &mut Parser, input: &TokenStream) {
+    machine checked_body(parser: &mut Parser, input: &TokenStream) {
         let handle: u64 in Trapping = (parser.output.machine_count as u64 in Trapping) - 1;
         let checked: MachineItem = SyntaxTrees::machine_item(&parser.output, handle);
         transition checked.has_body {
@@ -117,12 +117,12 @@ crashes Trap
         }
     }
 
-    state bodyless(parser: &mut Parser) {
+    machine bodyless(parser: &mut Parser) {
         SyntaxTrees::reject(&mut parser.output, ParseDiagnosticCode::ExpectedConformanceMachineBody,
             parser.source, parser.token_start, parser.token_end);
     }
 
-    state row_member(parser: &mut Parser, input: &TokenStream) {
+    machine row_member(parser: &mut Parser, input: &TokenStream) {
         let row: bool = Parser::at_name(parser, input);
         transition row {
             true -> row_requirement(parser, input)
@@ -130,7 +130,7 @@ crashes Trap
         }
     }
 
-    state row_requirement(parser: &mut Parser, input: &TokenStream) {
+    machine row_requirement(parser: &mut Parser, input: &TokenStream) {
         Parser::parse_name_path(parser, input, ParseDiagnosticCode::ExpectedConformanceMember);
         transition parser.output.accepted {
             true -> row_equals(parser, input, parser.name_path_result)
@@ -138,7 +138,7 @@ crashes Trap
         }
     }
 
-    state row_equals(parser: &mut Parser, input: &TokenStream, requirement: u64 in Trapping) {
+    machine row_equals(parser: &mut Parser, input: &TokenStream, requirement: u64 in Trapping) {
         Parser::expect_punctuation(parser, input, PunctuationKind::Equal, ParseDiagnosticCode::ExpectedConformanceRowEquals);
         transition parser.output.accepted {
             true -> row_target(parser, input, requirement)
@@ -146,7 +146,7 @@ crashes Trap
         }
     }
 
-    state row_target(parser: &mut Parser, input: &TokenStream, requirement: u64 in Trapping) {
+    machine row_target(parser: &mut Parser, input: &TokenStream, requirement: u64 in Trapping) {
         Parser::parse_name_path(parser, input, ParseDiagnosticCode::ExpectedConformanceRowTarget);
         transition parser.output.accepted {
             true -> row_end(parser, input, requirement, parser.name_path_result)
@@ -154,7 +154,7 @@ crashes Trap
         }
     }
 
-    state row_end(parser: &mut Parser, input: &TokenStream, requirement: u64 in Trapping, target: u64 in Trapping) {
+    machine row_end(parser: &mut Parser, input: &TokenStream, requirement: u64 in Trapping, target: u64 in Trapping) {
         let start: u64 in Trapping = Parser::name_path_start(parser, requirement);
         Parser::expect_punctuation(parser, input, PunctuationKind::Semicolon, ParseDiagnosticCode::ExpectedConformanceRowEnd);
         transition parser.output.accepted {
@@ -163,7 +163,7 @@ crashes Trap
         }
     }
 
-    state row_capacity(
+    machine row_capacity(
         parser: &mut Parser,
         input: &TokenStream,
         requirement: u64 in Trapping,
@@ -176,7 +176,7 @@ crashes Trap
         }
     }
 
-    state row_retained(
+    machine row_retained(
         parser: &mut Parser,
         input: &TokenStream,
         requirement: u64 in Trapping,
@@ -192,7 +192,7 @@ crashes Trap
         transition { _ -> member(parser, input) }
     }
 
-    state close(parser: &mut Parser, input: &TokenStream) {
+    machine close(parser: &mut Parser, input: &TokenStream) {
         Parser::take_current(parser, input);
         transition parser.output.conformance_count < 256 {
             true -> root_capacity(parser, input)
@@ -200,14 +200,14 @@ crashes Trap
         }
     }
 
-    state root_capacity(parser: &mut Parser, input: &TokenStream) {
+    machine root_capacity(parser: &mut Parser, input: &TokenStream) {
         transition parser.output.root_count < 4096 {
             true -> retain(parser)
             _ -> reject(parser, input, ParseDiagnosticCode::RootCapacityExceeded)
         }
     }
 
-    state retain(parser: &mut Parser) {
+    machine retain(parser: &mut Parser) {
         let conformance: u64 in Trapping = parser.output.conformance_count as u64 in Trapping;
         let span: SourceSpan = Parser::source_span(parser, parser.declaration_start, parser.token_end);
         parser.output.conformances[parser.output.conformance_count] = ConformanceItem {
@@ -231,9 +231,9 @@ crashes Trap
         parser.output.root_count = parser.output.root_count + 1;
     }
 
-    state reject(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
+    machine reject(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
         Parser::reject_current(parser, input, code);
     }
 
-    state done() {}
+    machine done() {}
 }

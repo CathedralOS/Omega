@@ -7,7 +7,7 @@ crashes Trap enabled && envelope.reading.value < limit {
         true -> invalid(false, 99.0f32)
         false -> envelope.reading.value
     }
-    state invalid(decoy: bool, unrelated: f32) -> f32 { crash Trap; }
+    machine invalid(decoy: bool, unrelated: f32) -> f32 { crash Trap; }
 }
 machine main() crashes Trap {
     let envelope: Envelope = Envelope { reading: Reading { value: 2.0f32 } };
@@ -17,6 +17,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -4,5 +4,5 @@ machine main() {
  let room: Room = Room { count: 10 };
  let loan: &mut Room = &mut room;
  transition { _ -> observe(loan) }
- state observe(room: &mut Room) { room.count = 11; }
+ machine observe(room: &mut Room) { room.count = 11; }
 }

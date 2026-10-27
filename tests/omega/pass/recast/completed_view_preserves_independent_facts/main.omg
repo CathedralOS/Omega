@@ -11,7 +11,7 @@ requires addr::Bound == 18446744073709551616 && offset <= 8 && retry <= 1
         true -> finish(word.value, retry)
         _ -> finish(0, retry)
     }
-    state finish(value: u64, retry: u64) -> u64
+    machine finish(value: u64, retry: u64) -> u64
     requires addr::Bound == 18446744073709551616 && retry <= 1
     { value }
 }
@@ -23,6 +23,6 @@ requires addr::Bound == 18446744073709551616
     let value: u64 = read(&bytes, 8, 0);
     let empty: u64 = read(&bytes, 0, 1);
     transition value == 42 && empty == 0 { true -> done() _ -> wrong() }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

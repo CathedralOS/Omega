@@ -38,7 +38,7 @@ terminates by remaining;
 {
     let value: i32 = firmware_only();
     transition remaining > 0 { true -> again(remaining) false -> value }
-    state again(remaining: u64) -> i32 requires remaining > 0
+    machine again(remaining: u64) -> i32 requires remaining > 0
     { transition { _ -> bridge(remaining - 1) } }
 }
 uefi_x86_64 machine firmware_only() -> i32 { 63 }
@@ -48,6 +48,6 @@ machine main() reaches Console {
         true -> done()
         false -> wrong()
     }
-    state done() { Console::exit_process(0); }
-    state wrong() { Console::exit_process(1); }
+    machine done() { Console::exit_process(0); }
+    machine wrong() { Console::exit_process(1); }
 }

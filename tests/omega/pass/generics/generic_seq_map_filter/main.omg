@@ -53,7 +53,7 @@ terminates by items;
         )
     }
 
-    state choose(keep: bool, head: T, tail: Seq<T>) -> Seq<T> {
+    machine choose(keep: bool, head: T, tail: Seq<T>) -> Seq<T> {
         transition keep {
             true -> Seq::Cons { head: head, tail: tail }
             false -> tail
@@ -84,5 +84,5 @@ machine Main::main(main: &mut Main) {
     };
     let kept: Seq<i32> = filtered(signed);
     transition { _ -> pass(main) }
-    state pass(main: &mut Main) { main.hits = 1; }
+    machine pass(main: &mut Main) { main.hits = 1; }
 }

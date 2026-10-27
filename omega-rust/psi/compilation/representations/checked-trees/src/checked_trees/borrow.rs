@@ -45,14 +45,10 @@ pub struct IncomingReferenceIdentity {
 pub enum IncomingReferenceOrigin {
     /// The invocation's root loan parameter. Writes through it affect the
     /// referent, not the descriptor supplied by the still-incomplete caller.
-    ParameterReferent {
-        symbol: SymbolHandle,
-    },
+    ParameterReferent { symbol: SymbolHandle },
     /// A descriptor stored in an input carrier. Replacement retires this
     /// occurrence independently of any root loan permitting the write.
-    Parameter {
-        symbol: SymbolHandle,
-    },
+    Parameter { symbol: SymbolHandle },
     Invocation {
         expression: ExpressionHandle,
         target: SymbolHandle,

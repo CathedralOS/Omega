@@ -65,7 +65,7 @@ machine selected_element() -> bool {
 }
 machine receive(value: &mut f32) -> i64 reaches ScalarIo blocks; {
     transition { _ -> read(value) }
-    state read(value: &mut f32) {
+    machine read(value: &mut f32) -> i64 {
         block ScalarIo::read(0, value, 4)
     }
 }
@@ -97,8 +97,8 @@ machine Main::main(main: &mut Main) reaches ScalarIo blocks; crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

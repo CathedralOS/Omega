@@ -36,8 +36,8 @@ machine Main::main(main: &mut Main) reaches Console {
         (Direction::Up, Outcome::Miss, false) -> wrong(main)
     }
 
-    state right(main: &mut Main) { Console::exit_process(70); }
-    state wrong(main: &mut Main) { Console::exit_process(71); }
+    machine right(main: &mut Main) { Console::exit_process(70); }
+    machine wrong(main: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

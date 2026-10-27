@@ -51,7 +51,7 @@ machine edit(reply: &mut DirectReply) -> bool crashes Trap {
 machine main() crashes Trap {
     let valid: bool = observe(make());
     transition valid { true -> direct(make_direct()) false -> bad() }
-    state direct(reply: DirectReply) {
+    machine direct(reply: DirectReply) {
         let copied: DirectReply = reply;
         let changed: DirectReply = make_direct();
         let before: DirectReply = changed;
@@ -63,8 +63,8 @@ machine main() crashes Trap {
             && observe_borrowed(&empty, 5, 0) && observe_borrowed(&blank, 0, 0);
         transition valid { true -> done() false -> bad() }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 
@@ -77,8 +77,8 @@ machine TextBuffer::view(buffer: &TextBuffer) -> &[u8] in Utf8 crashes Trap {
         true -> checked(bytes)
         false -> bad()
     }
-    state checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
-    state bad() { crash Trap; }
+    machine checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
+    machine bad() -> &[u8] in Utf8 { crash Trap; }
 }
 machine TextBuffer::equal(buffer: &TextBuffer, expected: &[u8]) -> bool crashes Trap {
     let bytes: &[u8] in Utf8 = TextBuffer::view(buffer);

@@ -33,14 +33,14 @@ machine Main::main(main: &mut Main) {
         (Cell::Empty, Cell::Value { n as right_n }) -> wrong(main)
         (Cell::Empty, Cell::Empty) -> wrong(main)
     }
-    state sum(main: &mut Main, left_n: i32, right_n: i32) {
+    machine sum(main: &mut Main, left_n: i32, right_n: i32) {
         transition left_n == 30 && right_n == 40 {
             true -> pass(main)
             _ -> wrong(main)
         }
     }
-    state pass(main: &mut Main) { main.hits = 1; }
-    state wrong(main: &mut Main) { main.hits = -1; }
+    machine pass(main: &mut Main) { main.hits = 1; }
+    machine wrong(main: &mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

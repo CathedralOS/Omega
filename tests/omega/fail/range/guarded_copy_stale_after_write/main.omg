@@ -17,15 +17,15 @@ machine Main::main(main: &mut Main, yv_in: i32) reaches Console {
         false -> bad(main)
     }
 
-    state stale(main: &mut Main) {
+    machine stale(main: &mut Main) {
         main.yv = 100;
         let w: i32 = main.yv;
         transition { _ -> store(main, w) }
     }
-    state store(main: &mut Main, v: i32) requires v >= 0 && v <= 9 {
+    machine store(main: &mut Main, v: i32) requires v >= 0 && v <= 9 {
         let mut y: i32 = v;
         transition y == 7 { true -> m(main) false -> m(main) }
     }
-    state m(main: &mut Main) { Console::exit_process(1); }
-    state bad(main: &mut Main) { Console::exit_process(8); }
+    machine m(main: &mut Main) { Console::exit_process(1); }
+    machine bad(main: &mut Main) { Console::exit_process(8); }
 }

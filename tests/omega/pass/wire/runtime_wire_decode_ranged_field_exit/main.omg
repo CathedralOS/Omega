@@ -58,10 +58,10 @@ machine Main::main(main: &mut Main) reaches Console {
         main.good_verdict == WireVerdict::Sound && good.v == 50 && good.delta == 0 - 5 -> proven(main)
         _ -> broken(main)
     }
-    state accepted_hostile(main: &mut Main)    { Console::exit_process(66); }
-    state corrupted_on_reject(main: &mut Main) { Console::exit_process(67); }
-    state proven(main: &mut Main)              { Console::exit_process(70); }
-    state broken(main: &mut Main)              { Console::exit_process(71); }
+    machine accepted_hostile(main: &mut Main)    { Console::exit_process(66); }
+    machine corrupted_on_reject(main: &mut Main) { Console::exit_process(67); }
+    machine proven(main: &mut Main)              { Console::exit_process(70); }
+    machine broken(main: &mut Main)              { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

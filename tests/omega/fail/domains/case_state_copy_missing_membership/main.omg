@@ -7,5 +7,5 @@ machine inspect(outcome: Outcome) -> u64 {
         Outcome::Ready { range } -> consume(range)
         Outcome::Rejected -> 0
     }
-    state consume(range: Range in Nonempty) -> u64 { range.length - 1 }
+    machine consume(range: Range in Nonempty) -> u64 { range.length - 1 }
 }

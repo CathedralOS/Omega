@@ -22,7 +22,7 @@ ensures result.right == Index
 machine main() crashes Trap {
     let incoming: u32 = 11;
     transition { _ -> exercise(incoming) }
-    state exercise(index: u32)
+    machine exercise(index: u32)
     requires index <= 10
     {
         let answer: Selection<Cell> = selected<index, Second<Cell>>(
@@ -33,6 +33,6 @@ machine main() crashes Trap {
             true -> done() _ -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -170,7 +170,7 @@ pub(crate) fn analyze_checked_progress(
     flow: &FlowFacts,
     semantic: &facts::FactPlan,
     cleanup_dependencies: &arena::Arena<flow_effects::CleanupDependency>,
-    proof_components: &[validation::ValidatedProofRecursiveComponent],
+    proof_components: &[validation::ValidatedProofCallComponent],
     self_call_descents: &[validation::ValidatedSelfCallDescent],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     rank_arrivals: &checked_trees::CheckedRankArrivalPlan,

@@ -10,7 +10,7 @@ machine replace(line: &mut TextBuffer) -> bool crashes Trap {
     line = TextBuffer { storage: [195u8, 169u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 2 };
     let first: bool = count(TextBuffer::view(&line)) == 2;
     transition { _ -> arrived(line, first) }
-    state arrived(line: &mut TextBuffer, first: bool) {
+    machine arrived(line: &mut TextBuffer, first: bool) -> bool {
         line = TextBuffer { storage: [97u8, 98u8, 99u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 3 };
         first && count(TextBuffer::view(&line)) == 3
     }
@@ -18,7 +18,7 @@ machine replace(line: &mut TextBuffer) -> bool crashes Trap {
 
 machine owned(line: TextBuffer) -> bool crashes Trap {
     transition { _ -> arrived(line) }
-    state arrived(line: TextBuffer) { count(TextBuffer::view(&line)) == 4 }
+    machine arrived(line: TextBuffer) -> bool { count(TextBuffer::view(&line)) == 4 }
 }
 
 machine Main::main(main: &mut Main) crashes Trap {
@@ -29,7 +29,7 @@ machine Main::main(main: &mut Main) crashes Trap {
     transition local && changed && carried && TextBuffer::equal(&line, "abc") {
         true -> done() false -> bad()
     }
-    state done() {} state bad() { crash Trap; }
+    machine done() {} machine bad() { crash Trap; }
 }
 
 
@@ -42,8 +42,8 @@ machine TextBuffer::view(buffer: &TextBuffer) -> &[u8] in Utf8 crashes Trap {
         true -> checked(bytes)
         false -> bad()
     }
-    state checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
-    state bad() { crash Trap; }
+    machine checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
+    machine bad() -> &[u8] in Utf8 { crash Trap; }
 }
 machine TextBuffer::equal(buffer: &TextBuffer, expected: &[u8]) -> bool crashes Trap {
     let bytes: &[u8] in Utf8 = TextBuffer::view(buffer);

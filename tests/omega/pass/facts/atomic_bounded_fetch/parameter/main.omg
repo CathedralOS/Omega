@@ -17,6 +17,6 @@ machine main() crashes Trap {
     let observed: u32 = consume(cell.value.load(NoOrdering));
     let remaining: u32 = 100 - observed;
     transition prior == 99 && observed == 35 && remaining == 65 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

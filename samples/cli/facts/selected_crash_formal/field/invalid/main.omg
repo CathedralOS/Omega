@@ -15,6 +15,6 @@ machine main() crashes Trap {
     let input: Input = (Input { value: 7 });
     let observed: i32 = safe<Provider<Zero>>(&input);
     transition observed == 7 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

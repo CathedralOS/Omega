@@ -12,7 +12,7 @@ data Main where 0 <= k, k <= 4 {
 
 machine use(main: &Main) -> i32 in Wrapping {
     transition { _ -> pick(main, main.k) }
-    state pick(main: &Main, index: u64) -> i32 in Wrapping
+    machine pick(main: &Main, index: u64) -> i32 in Wrapping
     requires 0 <= index && index <= 4
     {
         main.arr[index + 1]
@@ -23,7 +23,7 @@ machine Main::main(main: &mut Main) {
     main.k = 2;
     main.r = use(main);
     transition { _ -> successor(main) }
-    state successor(main: &mut Main) {
+    machine successor(main: &mut Main) {
         main.r = use(main);
         main.hits = main.r;
     }

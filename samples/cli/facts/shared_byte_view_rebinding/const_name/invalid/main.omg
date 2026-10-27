@@ -14,8 +14,8 @@ requires original.len == 1 && replacement.len == 1 {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 const FIRST: u8 = 5;
 machine main() crashes Trap {

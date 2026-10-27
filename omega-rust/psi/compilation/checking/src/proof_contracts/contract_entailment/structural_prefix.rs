@@ -115,6 +115,12 @@ pub(super) type PrefixObservation<'a, 'program> = (
 pub(super) trait StructuralPrefixVisitor {
     fn site(&self) -> StructuralPrefixSite;
 
+    /// A ranked entry starts a fresh induction interval. Observers checking
+    /// that interval stop at the next ranked invocation, before its body.
+    fn stops_at_machine(&self, _machine: SymbolHandle) -> bool {
+        false
+    }
+
     /// True once no further path observation can change the visitor's verdict.
     fn is_complete(&self) -> bool {
         false

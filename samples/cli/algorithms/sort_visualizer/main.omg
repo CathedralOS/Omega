@@ -54,54 +54,54 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
     transition { _ -> show(main) }
 
     // --- render the array as bars, in place ---
-    state show(main: &mut Main) {
+    machine show(main: &mut Main) {
         Console::write(main.home);
         main.ry = 0;
         transition { _ -> show_row(main) }
     }
-    state show_row(main: &mut Main) {
+    machine show_row(main: &mut Main) {
         transition main.ry >= 0 && main.ry < 8 { true -> show_col_init(main) _ -> show_done(main) }
     }
-    state show_col_init(main: &mut Main) {
+    machine show_col_init(main: &mut Main) {
         main.val = main.arr[main.ry];
         main.cx = 0;
         transition { _ -> show_col(main) }
     }
-    state show_col(main: &mut Main) {
+    machine show_col(main: &mut Main) {
         transition main.cx >= 0 && main.cx < 8 { true -> show_cell(main) _ -> emit_row(main) }
     }
-    state show_cell(main: &mut Main) {
+    machine show_cell(main: &mut Main) {
         transition main.cx < main.val { true -> cell_bar(main) _ -> cell_gap(main) }
     }
     // The two cell arms join in cell_next, whose single re-guarded edge proves the
     // increment (cx < 8 always holds here -- the show_col guard admitted it -- so
     // the else arm is unreachable).
-    state cell_bar(main: &mut Main) {
+    machine cell_bar(main: &mut Main) {
         main.line[main.cx] = 35; // '#'
         transition { _ -> cell_next(main) }
     }
-    state cell_gap(main: &mut Main) {
+    machine cell_gap(main: &mut Main) {
         main.line[main.cx] = 32; // ' '
         transition { _ -> cell_next(main) }
     }
-    state cell_next(main: &mut Main) {
+    machine cell_next(main: &mut Main) {
         transition main.cx < 8 { true -> cell_bump(main) _ -> emit_row(main) }
     }
-    state cell_bump(main: &mut Main) {
+    machine cell_bump(main: &mut Main) {
         main.cx = main.cx + 1;
         transition { _ -> show_col(main) }
     }
     // write_line is a CALL, so re-guard `ry < 8` afterwards to carry the bound on
     // the direct edge into the increment (ry < 8 always holds inside the row loop).
-    state emit_row(main: &mut Main) {
+    machine emit_row(main: &mut Main) {
         Console::write_line(main.line);
         transition main.ry < 8 { true -> row_bump(main) _ -> show_done(main) }
     }
-    state row_bump(main: &mut Main) {
+    machine row_bump(main: &mut Main) {
         main.ry = main.ry + 1;
         transition { _ -> show_row(main) }
     }
-    state show_done(main: &mut Main) {
+    machine show_done(main: &mut Main) {
         Clock::sleep(180);
         transition { _ -> step(main) }
     }
@@ -109,52 +109,52 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
     // --- one bubble-sort pass, then loop back to re-render ---
     // Both bounds of `i` sit on the edge into inner_init, so `7 - i` folds
     // into [1..=7] (i only grows from 0, so the lower conjunct always holds).
-    state step(main: &mut Main) {
+    machine step(main: &mut Main) {
         transition main.i >= 0 && main.i < 7 { true -> inner_init(main) _ -> finish(main) }
     }
-    state inner_init(main: &mut Main) {
+    machine inner_init(main: &mut Main) {
         main.lim = 7 - main.i;
         main.j = 0;
         transition { _ -> inner(main) }
     }
-    state inner(main: &mut Main) {
+    machine inner(main: &mut Main) {
         transition main.j >= 0 && main.j < main.lim { true -> compare(main) _ -> outer_next(main) }
     }
-    state compare(main: &mut Main) {
+    machine compare(main: &mut Main) {
         main.jp = main.j + 1;
         transition main.j >= 0 && main.j < 8 && main.jp >= 0 && main.jp < 8 {
             true -> read(main)
             _ -> finish(main)
         }
     }
-    state read(main: &mut Main) {
+    machine read(main: &mut Main) {
         main.vj = main.arr[main.j];
         main.vk = main.arr[main.jp];
         transition main.vj > main.vk { true -> swap(main) _ -> inner_next(main) }
     }
-    state swap(main: &mut Main) {
+    machine swap(main: &mut Main) {
         main.arr[main.j] = main.vk;
         main.arr[main.jp] = main.vj;
         transition { _ -> inner_next(main) }
     }
     // Re-guard hops: the increments' direct edges must carry the bound (j < lim
     // <= 7 and i < 7 always hold here, so the else arms are unreachable).
-    state inner_next(main: &mut Main) {
+    machine inner_next(main: &mut Main) {
         transition main.j < 7 { true -> inner_bump(main) _ -> finish(main) }
     }
-    state inner_bump(main: &mut Main) {
+    machine inner_bump(main: &mut Main) {
         main.j = main.j + 1;
         transition { _ -> inner(main) }
     }
-    state outer_next(main: &mut Main) {
+    machine outer_next(main: &mut Main) {
         transition main.i < 7 { true -> outer_bump(main) _ -> finish(main) }
     }
-    state outer_bump(main: &mut Main) {
+    machine outer_bump(main: &mut Main) {
         main.i = main.i + 1;
         transition { _ -> show(main) }
     }
 
-    state finish(main: &mut Main) {
+    machine finish(main: &mut Main) {
         Console::write_line("PASS: 7 bubble-sort passes rendered, array sorted (exit 0)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);

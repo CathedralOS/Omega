@@ -40,7 +40,7 @@ machine Main::main(main: &mut Main) {
         true -> use_loans(main)
         _ -> {}
     }
-    state use_loans(main: &mut Main)
+    machine use_loans(main: &mut Main)
     requires main.values.count >= 1 && main.values.count <= 4 && main.values.count < 4 {
         let stack: &ValueStack = &main.values;
         observe(&main.values);

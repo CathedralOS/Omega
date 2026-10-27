@@ -27,6 +27,6 @@ machine transform(input: u64) -> u64 {
 machine main() crashes Trap {
     let actual: u64 = transform(selected());
     transition actual == 17 { true -> good() _ -> bad() }
-    state good() {}
-    state bad() { crash Trap; }
+    machine good() {}
+    machine bad() { crash Trap; }
 }

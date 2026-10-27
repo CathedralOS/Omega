@@ -17,7 +17,7 @@ machine replaced(values: &[Cell]) -> bool {
         true -> inspect(values)
         false -> false
     }
-    state inspect(values: &[Cell]) -> bool requires values.len == 2 {
+    machine inspect(values: &[Cell]) -> bool requires values.len == 2 {
         values[0].value == 42 && values[0].tag == 9223372036854775808
             && values[1].value == 19 && values[1].tag == 29
     }
@@ -28,7 +28,7 @@ machine unchanged(values: &[Cell]) -> bool {
         true -> inspect(values)
         false -> false
     }
-    state inspect(values: &[Cell]) -> bool requires values.len == 1 {
+    machine inspect(values: &[Cell]) -> bool requires values.len == 1 {
         values[0].value == 31 && values[0].tag == 41
     }
 }
@@ -54,8 +54,8 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }
 
 machine mark(values: &mut [Cell]) {
@@ -63,10 +63,10 @@ machine mark(values: &mut [Cell]) {
         true -> write(values)
         false -> done()
     }
-    state write(values: &mut [Cell]) requires values.len > 0 {
+    machine write(values: &mut [Cell]) requires values.len > 0 {
         values[0].value = 9;
     }
-    state done() {}
+    machine done() {}
 }
 
 machine second_window(values: &[Cell]) -> bool {
@@ -74,7 +74,7 @@ machine second_window(values: &[Cell]) -> bool {
         true -> inspect(values)
         false -> false
     }
-    state inspect(values: &[Cell]) -> bool requires values.len == 1 {
+    machine inspect(values: &[Cell]) -> bool requires values.len == 1 {
         values[0].value == 55 && values[0].tag == 65
     }
 }
@@ -84,7 +84,7 @@ machine old_window(values: &[Cell]) -> bool {
         true -> inspect(values)
         false -> false
     }
-    state inspect(values: &[Cell]) -> bool requires values.len == 1 {
+    machine inspect(values: &[Cell]) -> bool requires values.len == 1 {
         values[0].value == 7 && values[0].tag == 17
     }
 }

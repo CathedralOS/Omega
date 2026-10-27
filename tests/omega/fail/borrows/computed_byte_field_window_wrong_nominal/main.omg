@@ -15,6 +15,6 @@ machine main() crashes Trap {
     let view: Other = Other { bytes: &mut items[..] };
     let count: u64 = observe(&view);
     transition count == 1801 && items[0] == 7 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

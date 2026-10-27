@@ -18,6 +18,6 @@ machine main() crashes Trap {
     let saved: u64 = view.kept;
     let held: u64 = expose(&mut view.kept);
     transition agree(saved, view.kept) == 7 { true -> done(held) _ -> bad() }
-    state done(held: u64) {}
-    state bad() { crash Trap; }
+    machine done(held: u64) {}
+    machine bad() { crash Trap; }
 }

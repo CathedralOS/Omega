@@ -12,10 +12,10 @@ machine Main::main(main: &mut Main) {
     main.wh = 1;
     main.wn = 3;
     transition main.wh + main.wn < 5 { true -> store(main) _ -> done(main) }
-    state store(main: &mut Main) {
+    machine store(main: &mut Main) {
         main.arr[main.wh + main.wn] = 11;
         transition main.arr[4] == 11 { true -> done(main) _ -> bad(main) }
     }
-    state done(main: &mut Main) {}
-    state bad(main: &mut Main) {}
+    machine done(main: &mut Main) {}
+    machine bad(main: &mut Main) {}
 }

@@ -7,7 +7,7 @@ data Main { counter: Counter; store: Store; }
 machine Counter::fill(counter: &mut Counter) { counter.value = 42; }
 machine update(counter: &mut Counter) -> i32 {
     transition { _ -> mutate(counter) }
-    state mutate(counter: &mut Counter) -> i32 {
+    machine mutate(counter: &mut Counter) -> i32 {
         Counter::fill(counter);
         counter.marker = 7;
         counter.value
@@ -15,7 +15,7 @@ machine update(counter: &mut Counter) -> i32 {
 }
 machine update_projected(store: &mut Store) -> i32 {
     transition { _ -> mutate(store) }
-    state mutate(store: &mut Store) -> i32 {
+    machine mutate(store: &mut Store) -> i32 {
         Counter::fill(&mut store.counters[0]);
         store.marker = 7;
         store.counters[0].value
@@ -28,7 +28,7 @@ machine Main::main(context: &mut Main) reaches Console {
         true -> finish(context, projected)
         false -> finish(context, 1)
     }
-    state finish(context: &mut Main, code: i32) {
+    machine finish(context: &mut Main, code: i32) {
         Console::exit_process(code);
     }
 }

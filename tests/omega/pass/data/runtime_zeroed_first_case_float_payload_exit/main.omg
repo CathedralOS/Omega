@@ -16,21 +16,21 @@ data Context { }
 machine main(context: &mut Context) reaches Console {
     transition { _ -> sample(context) }
 
-    state sample(context: &mut Context) {
+    machine sample(context: &mut Context) {
         let holder: Holder = Holder { ready: true };
         transition holder.sample {
             Sample::Reading { value } -> ready(context, holder.ready)
             _ -> bad(context, 71)
         }
     }
-    state ready(context: &mut Context, ready: bool) {
+    machine ready(context: &mut Context, ready: bool) {
         transition ready {
             true -> good(context)
             _ -> bad(context, 72)
         }
     }
-    state good(context: &mut Context) { Console::exit_process(70); }
-    state bad(context: &mut Context, code: i32) { Console::exit_process(code); }
+    machine good(context: &mut Context) { Console::exit_process(70); }
+    machine bad(context: &mut Context, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

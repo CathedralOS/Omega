@@ -29,30 +29,30 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> bad(main)
     }
 
-    state split(main: &mut Main) {
+    machine split(main: &mut Main) {
         transition main.flag {
             true -> left(main)
             _ -> right(main)
         }
     }
     // Neither arm rewrites `idx`, so `idx < 4` survives both paths to `merge`.
-    state left(main: &mut Main) {
+    machine left(main: &mut Main) {
         transition { _ -> merge(main) }
     }
-    state right(main: &mut Main) {
+    machine right(main: &mut Main) {
         transition { _ -> merge(main) }
     }
 
     // Multi-predecessor join: the meet carries `idx < 4` here without a re-guard.
-    state merge(main: &mut Main) {
+    machine merge(main: &mut Main) {
         main.r = main.arr[main.idx] as i32 in Trapping;
         transition main.r == 30 { true -> good(main) _ -> bad(main) }
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::exit_process(70);
     }
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::exit_process(71);
     }
 }

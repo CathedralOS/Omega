@@ -15,12 +15,12 @@ machine walk(n: i32) {
         true -> descend(n)
         _ -> done()
     }
-    state descend(n: i32) {
+    machine descend(n: i32) {
         transition {
             _ -> walk(n - 1)
         }
     }
-    state done() { }
+    machine done() { }
 }
 
 machine relay(n: i32) -> i32 in Logged {
@@ -34,7 +34,7 @@ machine forward(n: i32) -> i32 in Logged {
         true -> positive(n)
         _ -> walk(0)
     }
-    state positive(n: i32) -> i32 in Logged {
+    machine positive(n: i32) -> i32 in Logged {
         transition {
             _ -> walk(n)
         }
@@ -49,6 +49,6 @@ machine main() crashes Trap {
         true -> passed()
         _ -> failed()
     }
-    state passed() {}
-    state failed() { crash Trap; }
+    machine passed() {}
+    machine failed() { crash Trap; }
 }

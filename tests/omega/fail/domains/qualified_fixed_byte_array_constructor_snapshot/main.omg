@@ -10,11 +10,11 @@ machine main() {
         true -> checked(row)
         false -> done()
     }
-    state checked(mut row: Row)
+    machine checked(mut row: Row)
     requires row.bytes == "Gate" {
     let before: bool = observe_before(&row.bytes);
     row.bytes[0] = 76u8;
     let after: bool = observe_after(&row.bytes);
     }
-    state done() {}
+    machine done() {}
 }

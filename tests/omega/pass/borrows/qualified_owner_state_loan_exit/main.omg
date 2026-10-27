@@ -10,7 +10,7 @@ machine record_owner() -> bool {
         resource: Resource { identity: 41 }, marker: 19
     };
     transition { _ -> inspect(&mut envelope) }
-    state inspect(envelope: &mut Envelope) -> bool {
+    machine inspect(envelope: &mut Envelope) -> bool {
         envelope.resource.identity == 41 && envelope.marker == 19
     }
 }
@@ -20,7 +20,7 @@ machine array_owner() -> bool {
         Resource { identity: 53 }, Resource { identity: 73 }
     ];
     transition { _ -> inspect(&mut resources) }
-    state inspect(resources: &mut [Resource in Open; 2]) -> bool {
+    machine inspect(resources: &mut [Resource in Open; 2]) -> bool {
         resources[0].identity == 53 && resources[1].identity == 73
     }
 }
@@ -30,7 +30,7 @@ machine selected_owner() -> bool {
         Resource { identity: 53 }, Resource { identity: 73 }
     ];
     transition { _ -> inspect(&mut resources[1]) }
-    state inspect(resource: &mut Resource in Open) -> bool {
+    machine inspect(resource: &mut Resource in Open) -> bool {
         resource.identity == 73
     }
 }
@@ -39,10 +39,10 @@ machine descriptor_forwarding() -> bool {
     let mut resource: Resource in Open = Resource { identity: 83 };
     let view: &mut Resource in Open = &mut resource;
     transition { _ -> inspect(view) }
-    state inspect(view: &mut Resource in Open) -> bool {
+    machine inspect(view: &mut Resource in Open) -> bool {
         transition { _ -> finish(view) }
     }
-    state finish(view: &mut Resource in Open) -> bool {
+    machine finish(view: &mut Resource in Open) -> bool {
         view.identity == 83
     }
 }
@@ -51,10 +51,10 @@ machine shared_descriptor_forwarding() -> bool {
     let resource: Resource in Open = Resource { identity: 89 };
     let view: &Resource in Open = &resource;
     transition { _ -> inspect(view) }
-    state inspect(view: &Resource in Open) -> bool {
+    machine inspect(view: &Resource in Open) -> bool {
         transition { _ -> finish(view) }
     }
-    state finish(view: &Resource in Open) -> bool {
+    machine finish(view: &Resource in Open) -> bool {
         view.identity == 89
     }
 }
@@ -67,7 +67,7 @@ machine borrow_qualified<'storage>(resource: &'storage mut Resource in Open)
 machine completed_descriptor() -> bool {
     let mut resource: Resource in Open = Resource { identity: 97 };
     transition { _ -> inspect(borrow_qualified(&mut resource)) }
-    state inspect(view: &mut Resource in Open) -> bool {
+    machine inspect(view: &mut Resource in Open) -> bool {
         view.identity == 97
     }
 }
@@ -77,7 +77,7 @@ machine nested_owner() -> bool {
         [Resource { identity: 41 }], [Resource { identity: 73 }]
     ];
     transition { _ -> inspect(&mut resources) }
-    state inspect(resources: &mut [[Resource in Open; 1]; 2]) -> bool {
+    machine inspect(resources: &mut [[Resource in Open; 1]; 2]) -> bool {
         resources[0][0].identity == 41 && resources[1][0].identity == 73
     }
 }
@@ -165,6 +165,6 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

@@ -15,7 +15,7 @@ machine probe(base: i64, delta: i64) -> i64
         _ -> consume(sum)
     }
 
-    state consume(forwarded_sum: i64) -> i64
+    machine consume(forwarded_sum: i64) -> i64
     requires
         forwarded_sum >= 30i64 && forwarded_sum <= 70i64
     {
@@ -30,6 +30,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

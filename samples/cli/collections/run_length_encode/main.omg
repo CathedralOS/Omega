@@ -41,14 +41,14 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> step(main)
     }
 
-    state step(main: &mut Main) {
+    machine step(main: &mut Main) {
         transition main.i < 20 {
             true -> read(main)
             _ -> done(main)
         }
     }
 
-    state read(main: &mut Main) {
+    machine read(main: &mut Main) {
         main.b = main.data[main.i];
         transition main.b == main.prev {
             true -> bump(main)
@@ -56,7 +56,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state bump(main: &mut Main) {
+    machine bump(main: &mut Main) {
         main.count = main.count + 1;
         main.i = main.i + 1;
         transition {
@@ -64,7 +64,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state emit_mid(main: &mut Main) {
+    machine emit_mid(main: &mut Main) {
         Console::write("run: ");
         Console::write_byte(main.prev as i32);
         Console::write(" x");
@@ -80,7 +80,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         Console::write("run: ");
         Console::write_byte(main.prev as i32);
         Console::write(" x");
@@ -93,7 +93,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state finish(main: &mut Main) {
+    machine finish(main: &mut Main) {
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(main.runs as i32);

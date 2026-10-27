@@ -18,7 +18,7 @@ machine direct(mut value: i32) -> bool {
 
 machine deferred(value: i32) -> bool {
     transition { _ -> later(value) }
-    state later(mut held: i32) -> bool {
+    machine later(mut held: i32) -> bool {
         prepare(&mut held) == held
     }
 }
@@ -37,6 +37,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

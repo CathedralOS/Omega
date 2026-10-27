@@ -18,15 +18,15 @@ machine exercise(base: u16) -> u16 crashes Trap {
         true -> step(combined)
         _ -> bad()
     }
-    state step(c: u16) -> u16 requires c >= 40u16 && c <= 64u16 {
+    machine step(c: u16) -> u16 requires c >= 40u16 && c <= 64u16 {
         transition {
             _ -> next_step(c)
         }
     }
-    state next_step(c: u16) -> u16 requires c >= 40u16 && c <= 64u16 {
+    machine next_step(c: u16) -> u16 requires c >= 40u16 && c <= 64u16 {
         verify_combined(c)
     }
-    state bad() { crash Trap; }
+    machine bad() -> u16 { crash Trap; }
 }
 
 machine main() crashes Trap {
@@ -35,6 +35,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

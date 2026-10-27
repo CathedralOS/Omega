@@ -27,7 +27,7 @@ machine Main::main(main: &mut Main) {
         true -> stored(main)
         _ -> {}
     }
-    state stored(main: &mut Main) {
+    machine stored(main: &mut Main) {
         ValueStack::push(loan(main), 1);
     }
 }

@@ -18,6 +18,6 @@ requires requested < whole.length
 machine main() crashes Trap {
     let address: addr = cut(NAMED, 0);
     transition address == 0 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

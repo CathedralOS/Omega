@@ -14,7 +14,7 @@ machine consume(value: Holder) -> u32 {
         Slot::Empty -> 0
         Slot::Held { token } -> finish(token)
     }
-    state finish(token: Token) -> u32 {
+    machine finish(token: Token) -> u32 {
         let value: u32 = token.value;
         drop(token);
         value
@@ -91,6 +91,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

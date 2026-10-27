@@ -43,7 +43,7 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> fail(main)
     }
 
-    state check_large(main: &mut Main) {
+    machine check_large(main: &mut Main) {
         let large_witness: [u8; 4] = preserve<4>([0, 0, 0, 0]);
         let large_capacity: u64 = FixedBuffer::capacity(&main.large, &large_witness);
         transition large_capacity == 4 {
@@ -52,12 +52,12 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state finish(main: &mut Main) {
+    machine finish(main: &mut Main) {
         let result: i32 in Wrapping = FixedBuffer::first(&main.small) + FixedBuffer::first(&main.large);
         Console::exit_process(result as i32);
     }
 
-    state fail(main: &mut Main) {
+    machine fail(main: &mut Main) {
         Console::exit_process(71);
     }
 }

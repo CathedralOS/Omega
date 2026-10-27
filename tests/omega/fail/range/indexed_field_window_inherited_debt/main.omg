@@ -5,7 +5,7 @@ data Grid { cells: [Cell; 2]; selected: u64; }
 machine Grid::main(grid: &mut Grid) {
     grid.cells[grid.selected].left = 1;
     transition { _ -> finish(grid) }
-    state finish(grid: &mut Grid) {
+    machine finish(grid: &mut Grid) {
         grid.selected = 1;
         grid.cells[grid.selected].right = 1;
     }

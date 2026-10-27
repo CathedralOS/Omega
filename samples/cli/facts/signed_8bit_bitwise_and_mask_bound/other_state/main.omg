@@ -8,7 +8,7 @@ requires raw >= 116i8 && raw <= 116i8 && mask == 63i8
     transition {
         _ -> step(raw, mask)
     }
-    state step(r: i8, m: i8) -> i32
+    machine step(r: i8, m: i8) -> i32
     requires r >= 116i8 && r <= 116i8 && m == 63i8
     {
         let masked: i8 = r & m;
@@ -21,8 +21,8 @@ requires raw >= 116i8 && raw <= 116i8 && mask == 63i8
             _ -> fail()
         }
     }
-    state pass() -> i32 { 0 }
-    state fail() -> i32 { 1 }
+    machine pass() -> i32 { 0 }
+    machine fail() -> i32 { 1 }
 }
 
 machine probe() -> i32 {
@@ -34,6 +34,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

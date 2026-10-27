@@ -53,9 +53,9 @@ machine main() crashes Trap {
         true -> later(5)
         false -> wrong()
     }
-    state later(n: u64) {
+    machine later(n: u64) {
         transition measure(1, n) { true -> done() false -> wrong() }
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

@@ -21,8 +21,8 @@ ensures result >= 60u8 && result <= 160u8
         true -> pass(diff)
         _ -> bad()
     }
-    state pass(d: u8) -> u8 { d }
-    state bad() { crash Trap; }
+    machine pass(d: u8) -> u8 { d }
+    machine bad() -> u8 { crash Trap; }
 }
 
 machine exercise(lhs: u8 in Saturating, rhs: u8 in Saturating) -> u8 crashes Trap {
@@ -36,6 +36,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

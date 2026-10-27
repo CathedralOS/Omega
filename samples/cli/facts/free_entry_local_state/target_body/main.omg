@@ -10,26 +10,26 @@ machine settle(mark: &Mark) {}
 linux_x86_64 machine finish(tally: &mut Tally, code: u64) requires code == 7 crashes Trap {
     settle(&Mark { slot: tally, code: code });
     transition tally.total == 7 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 linux_arm64 machine finish(tally: &mut Tally, code: u64) requires code == 7 crashes Trap {
     settle(&Mark { slot: tally, code: code });
     transition tally.total == 7 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 macos_arm64 machine finish(tally: &mut Tally, code: u64) requires code == 7 crashes Trap {
     settle(&Mark { slot: tally, code: code });
     transition tally.total == 7 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 windows_x86_64 machine finish(tally: &mut Tally, code: u64) requires code == 7 crashes Trap {
     settle(&Mark { slot: tally, code: code });
     transition tally.total == 7 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine start() crashes Trap {
     let mut tally: Tally = Tally { total: 0 };

@@ -17,11 +17,11 @@ machine report(score: &Score) reaches Console {
         _ -> failed()
     }
 
-    state passed() {
+    machine passed() {
         Console::exit_process(70);
     }
 
-    state failed() {
+    machine failed() {
         Console::exit_process(72);
     }
 }
@@ -34,18 +34,18 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> refused(71)
     }
 
-    state prepare(start: u64) {
+    machine prepare(start: u64) {
         let mut score: Score;
         score.value = start as u64 in Wrapping;
         transition { _ -> finish(&mut score) }
     }
 
-    state finish(score: &mut Score) {
+    machine finish(score: &mut Score) {
         score.bonus = score.value + 67;
         report(score);
     }
 
-    state refused(code: i32) {
+    machine refused(code: i32) {
         Console::exit_process(code);
     }
 }

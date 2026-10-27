@@ -35,7 +35,7 @@ machine reject_image(workspace: &mut [u64; 20000], image_handle: EfiImageHandle)
 
 machine kernel_entry(image: Extent in Granted, storage: Extent in Granted) {
     transition { _ -> retain(image as Extent, storage as Extent) }
-    state retain(image: Extent, storage: Extent) {
+    machine retain(image: Extent, storage: Extent) {
         transition { _ -> retain(image, storage) }
     }
 }

@@ -16,7 +16,7 @@ machine compute_other_state(base: i64) -> i32
 {
     let combined: i64 = base | 32;
     transition { _ -> step(combined) }
-    state step(s: i64) -> i32 {
+    machine step(s: i64) -> i32 {
         verify_combined(s)
     }
 }
@@ -31,6 +31,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

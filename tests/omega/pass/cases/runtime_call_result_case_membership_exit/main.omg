@@ -56,12 +56,12 @@ machine main() crashes Trap {
         true -> later(count)
         _ -> bad()
     }
-    state later(count: u64) {
+    machine later(count: u64) {
         transition count == 2 && !(choose(false) in Choice::Some) {
             true -> done()
             _ -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

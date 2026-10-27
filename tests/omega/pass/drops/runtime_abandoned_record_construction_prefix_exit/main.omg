@@ -15,5 +15,5 @@ machine main() {
     // no valid Token and must not receive either replacement or exit cleanup.
     pair.right = Token { value: 42 };
     transition { _ -> done() }
-    state done() {}
+    machine done() {}
 }

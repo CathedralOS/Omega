@@ -2,7 +2,7 @@ use omega::language::core::option;
 machine select<'input>(bytes: &'input [u8], start: u64) -> Optional<&'input u32>
 requires start <= bytes.len && 4 <= bytes.len - start {
     transition { _ -> capture(bytes, start) }
-    state capture(bytes: &'input [u8], start: u64) -> Optional<&'input u32>
+    machine capture(bytes: &'input [u8], start: u64) -> Optional<&'input u32>
     requires start <= bytes.len && 4 <= bytes.len - start {
         let window: &[u8] = &bytes[start..start + 4];
         transition window.len >= 4 {
@@ -10,7 +10,7 @@ requires start <= bytes.len && 4 <= bytes.len - start {
             false -> Optional::None
         }
     }
-    state reinterpret(window: &'input [u8]) -> Optional<&'input u32>
+    machine reinterpret(window: &'input [u8]) -> Optional<&'input u32>
     requires window.len >= 4 {
         Optional::Some { value: &window[0] as &u32 }
     }

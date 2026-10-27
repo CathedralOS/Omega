@@ -24,6 +24,6 @@ machine Main::main(main: &mut Main) {
         Entity::Dangerous -> threat()
     }
 
-    state calm() { }
-    state threat() { }
+    machine calm() { }
+    machine threat() { }
 }

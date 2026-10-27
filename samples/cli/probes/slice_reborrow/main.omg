@@ -19,10 +19,10 @@ requires index < buf.len;
         true -> bump(buf, index)
         _ -> done()
     }
-    state bump(buf: &mut [u64], index: u64)
+    machine bump(buf: &mut [u64], index: u64)
     requires index < buf.len;
     { buf[index] = 99; }
-    state done() { }
+    machine done() { }
 }
 
 machine drain(buf: &mut [u64], filter: &Filter, index: u64)
@@ -46,8 +46,8 @@ machine Main::main(main: &mut Main) {
         true -> pass(main)
         _ -> fail(main)
     }
-    state pass(main: &mut Main) { main.hits = 1; }
-    state fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: &mut Main) { main.hits = 1; }
+    machine fail(main: &mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

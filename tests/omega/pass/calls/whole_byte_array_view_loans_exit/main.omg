@@ -18,12 +18,12 @@ machine stamp(bytes: &mut [u8]) {
         _ -> skip()
     }
 
-    state write(bytes: &mut [u8]) {
+    machine write(bytes: &mut [u8]) {
         bytes[0] = 70;
         bytes[3] = 5;
     }
 
-    state skip() { }
+    machine skip() { }
 }
 
 machine peek(bytes: &[u8], position: u64) -> u64 {
@@ -32,7 +32,7 @@ machine peek(bytes: &[u8], position: u64) -> u64 {
         _ -> (0)
     }
 
-    state read(bytes: &[u8], position: u64) -> u64 {
+    machine read(bytes: &[u8], position: u64) -> u64 {
         let value: u8 = bytes[position];
         transition { _ -> (value as u64) }
     }
@@ -51,18 +51,18 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> failed(main, 71)
     }
 
-    state check_local(main: &mut Main, first: u64, untouched: u64) {
+    machine check_local(main: &mut Main, first: u64, untouched: u64) {
         transition first == 70 && untouched == 0 {
             true -> done(main)
             _ -> failed(main, 72)
         }
     }
 
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         Console::exit_process(70);
     }
 
-    state failed(main: &mut Main, code: i32) {
+    machine failed(main: &mut Main, code: i32) {
         Console::exit_process(code);
     }
 }

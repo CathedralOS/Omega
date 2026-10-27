@@ -26,7 +26,7 @@ machine Main::main(main: &mut Main) {
         true -> second(main)
         _ -> fail(main)
     }
-    state second(main: &mut Main) {
+    machine second(main: &mut Main) {
         let prior: u32 in Wrapping =
             main.counter.compare_exchange(15, 99, ReceivePublish, Receive);
         transition prior == 15 && main.counter == 99 {
@@ -34,8 +34,8 @@ machine Main::main(main: &mut Main) {
             _ -> fail(main)
         }
     }
-    state pass(main: &mut Main) { main.hits = 1; }
-    state fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: &mut Main) { main.hits = 1; }
+    machine fail(main: &mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

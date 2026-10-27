@@ -16,15 +16,15 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> invalid(main)
     }
 
-    state finished(main: &mut Main) {
+    machine finished(main: &mut Main) {
         Console::exit_process(10);
     }
 
-    state look(main: &mut Main) {
+    machine look(main: &mut Main) {
         Console::exit_process(11);
     }
 
-    state invalid(main: &mut Main) {
+    machine invalid(main: &mut Main) {
         Console::exit_process(12);
     }
 }

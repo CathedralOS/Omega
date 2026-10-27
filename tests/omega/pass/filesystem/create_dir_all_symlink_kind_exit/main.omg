@@ -6,69 +6,69 @@ data Main { filesystem: Filesystem; }
 machine Main::main(main: &mut Main) reaches Console {
     let result: UnitResult = block Filesystem::write_all(&mut main.filesystem, "file_target", "keep");
     transition result { UnitResult::Ok -> link_file(main) _ -> bad(10) }
-    state link_file(main: &mut Main) {
+    machine link_file(main: &mut Main) {
         let result: UnitResult = block Filesystem::symlink(&mut main.filesystem, "file_target", "file_link");
         transition result { UnitResult::Ok -> reject_file(main) _ -> bad(11) }
     }
-    state reject_file(main: &mut Main) {
+    machine reject_file(main: &mut Main) {
         let result: UnitResult = block Filesystem::create_dir_all(&mut main.filesystem, "file_link");
         transition result { UnitResult::Error { kind } -> file_error(main, kind) _ -> bad(12) }
     }
-    state file_error(main: &mut Main, kind: ErrorKind) {
+    machine file_error(main: &mut Main, kind: ErrorKind) {
         transition kind { ErrorKind::AlreadyExists -> directory(main) _ -> bad(13) }
     }
-    state directory(main: &mut Main) {
+    machine directory(main: &mut Main) {
         let result: UnitResult = block Filesystem::create_dir(&mut main.filesystem, "directory_target");
         transition result { UnitResult::Ok -> link_directory(main) _ -> bad(14) }
     }
-    state link_directory(main: &mut Main) {
+    machine link_directory(main: &mut Main) {
         let result: UnitResult = block Filesystem::symlink(&mut main.filesystem, "directory_target", "directory_link");
         transition result { UnitResult::Ok -> accept_directory(main) _ -> bad(15) }
     }
-    state accept_directory(main: &mut Main) {
+    machine accept_directory(main: &mut Main) {
         let result: UnitResult = block Filesystem::create_dir_all(&mut main.filesystem, "directory_link");
         transition result { UnitResult::Ok -> dangling(main) _ -> bad(16) }
     }
-    state dangling(main: &mut Main) {
+    machine dangling(main: &mut Main) {
         let result: UnitResult = block Filesystem::symlink(&mut main.filesystem, "missing_target", "dangling_link");
         transition result { UnitResult::Ok -> reject_dangling(main) _ -> bad(23) }
     }
-    state reject_dangling(main: &mut Main) {
+    machine reject_dangling(main: &mut Main) {
         let result: UnitResult = block Filesystem::create_dir_all(&mut main.filesystem, "dangling_link");
         transition result { UnitResult::Error { kind } -> dangling_error(main, kind) _ -> bad(24) }
     }
-    state dangling_error(main: &mut Main, kind: ErrorKind) {
+    machine dangling_error(main: &mut Main, kind: ErrorKind) {
         // Followed metadata fails with NotFound; preserve mkdir's AlreadyExists.
         transition kind { ErrorKind::AlreadyExists -> unlink_dangling(main) _ -> bad(25) }
     }
-    state unlink_dangling(main: &mut Main) {
+    machine unlink_dangling(main: &mut Main) {
         let result: UnitResult = block Filesystem::remove(&mut main.filesystem, "dangling_link");
         transition result { UnitResult::Ok -> check_file(main) _ -> bad(26) }
     }
-    state check_file(main: &mut Main) {
+    machine check_file(main: &mut Main) {
         let result: MetadataResult = block Filesystem::metadata_path(&mut main.filesystem, "file_target");
         transition result { MetadataResult::Ok { meta } -> file_metadata(main, meta) _ -> bad(17) }
     }
-    state file_metadata(main: &mut Main, metadata: Metadata) {
+    machine file_metadata(main: &mut Main, metadata: Metadata) {
         transition metadata.kind { FileKind::File -> unlink_file(main) _ -> bad(18) }
     }
-    state unlink_file(main: &mut Main) {
+    machine unlink_file(main: &mut Main) {
         let result: UnitResult = block Filesystem::remove(&mut main.filesystem, "file_link");
         transition result { UnitResult::Ok -> unlink_directory(main) _ -> bad(19) }
     }
-    state unlink_directory(main: &mut Main) {
+    machine unlink_directory(main: &mut Main) {
         let result: UnitResult = block Filesystem::remove(&mut main.filesystem, "directory_link");
         transition result { UnitResult::Ok -> remove_file(main) _ -> bad(20) }
     }
-    state remove_file(main: &mut Main) {
+    machine remove_file(main: &mut Main) {
         let result: UnitResult = block Filesystem::remove(&mut main.filesystem, "file_target");
         transition result { UnitResult::Ok -> remove_directory(main) _ -> bad(21) }
     }
-    state remove_directory(main: &mut Main) {
+    machine remove_directory(main: &mut Main) {
         let result: UnitResult = block Filesystem::remove_dir(&mut main.filesystem, "directory_target");
         transition result { UnitResult::Ok -> bad(0) _ -> bad(22) }
     }
-    state bad(code: i32) { Console::exit_process(code); }
+    machine bad(code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

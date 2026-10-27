@@ -40,8 +40,8 @@ windows_x86_64 machine windows_raw_write(descriptor: i32, word: &u32, count: u32
     satisfies WindowsWords::write via windows_write();
 machine demand(result: bool) crashes Trap {
     transition result { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 macos_arm64 machine supplied() -> Cell { Cell { prefix: 1650614882, word: WORD, suffix: 1684300900 } }
 macos_arm64 machine main() crashes Trap {

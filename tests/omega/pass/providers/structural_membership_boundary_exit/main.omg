@@ -31,14 +31,14 @@ requires tag == 7 && first == 1 {
 machine looped(value: u8) -> bool reaches Reader
 requires value < 2 {
     transition { _ -> step(value) }
-    state step(current: u8) -> bool requires current < 2 {
+    machine step(current: u8) -> bool requires current < 2 {
         let next: u8 = current + 1;
         transition next == 2 {
             true -> chosen(next)
             _ -> step(next)
         }
     }
-    state chosen(second: u8) -> bool requires second == 2 {
+    machine chosen(second: u8) -> bool requires second == 2 {
         let protocol: Guid = Guid { tag: 7, bytes: [1, second] };
         let result: u64 = Reader::read(0, &protocol, 0);
         result == 42
@@ -58,8 +58,8 @@ machine Main::main(context: &mut Main) reaches Reader crashes Trap {
         true -> done()
         _ -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

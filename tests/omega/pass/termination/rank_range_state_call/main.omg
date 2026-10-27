@@ -20,7 +20,7 @@ requires remaining <= 9
         true -> hold(main, remaining)
         false -> remaining
     }
-    state hold(main: &mut Main, pending: u32)
+    machine hold(main: &mut Main, pending: u32) -> u32
     requires pending <= 9
     {
         transition pending > 0 {
@@ -50,10 +50,10 @@ machine RankExample::run(context: &mut RankExample) reaches Console {
         true -> finished(context)
         false -> wrong_result(context)
     }
-    state finished(context: &mut RankExample) {
+    machine finished(context: &mut RankExample) {
         Console::exit_process(0);
     }
-    state wrong_result(context: &mut RankExample) {
+    machine wrong_result(context: &mut RankExample) {
         Console::exit_process(1);
     }
 }

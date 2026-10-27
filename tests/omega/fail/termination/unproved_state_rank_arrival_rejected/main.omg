@@ -8,7 +8,7 @@ terminates by remaining in 0..=9;
 requires remaining <= 9
 {
     transition { _ -> hold(remaining) }
-    state hold(pending: u32)
+    machine hold(pending: u32) -> u32
     requires pending > 0 && pending <= 9
     {
         transition { _ -> Main::next(pending - 1) }

@@ -386,7 +386,12 @@ impl StructuralJudge<'_> {
         for (index, position) in unresolved.into_iter().enumerate() {
             // Shared false grants no negative fact. Preserve the original
             // goal-first sufficient proof when the goal registered operations.
-            proofs[position] = match shared.as_ref().and_then(|values| values.get(index)).copied().flatten() {
+            proofs[position] = match shared
+                .as_ref()
+                .and_then(|values| values.get(index))
+                .copied()
+                .flatten()
+            {
                 Some(proven) => proven,
                 None => self.proves_observed_integer_predicate(&predicates[position]),
             };
@@ -404,10 +409,8 @@ impl StructuralJudge<'_> {
         }
         let prepared = self.prepare_integer_premises()?;
         let prepared_queries = prepared.observations.engine.lower_bound_queries();
-        let engine_contradictory = prepared_queries.prove_at_least(
-            &Polynomial::constant(BigInt::from_i64(-1)),
-            &BigInt::zero(),
-        );
+        let engine_contradictory = prepared_queries
+            .prove_at_least(&Polynomial::constant(BigInt::from_i64(-1)), &BigInt::zero());
         let base_atoms = prepared.observations.atoms.len();
         let base_bounds = prepared.observations.carrier_bounds.len();
         let base_param_atoms = prepared.observations.engine.parameter_atoms.len();

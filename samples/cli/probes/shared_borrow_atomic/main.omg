@@ -16,8 +16,8 @@ machine Main::main(main: &mut Main) {
         true -> done(main)
         false -> bad(main)
     }
-    state done(main: &mut Main) { }
-    state bad(main: &mut Main) { }
+    machine done(main: &mut Main) { }
+    machine bad(main: &mut Main) { }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

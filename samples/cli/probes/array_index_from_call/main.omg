@@ -39,7 +39,7 @@ machine Picker::pick(picker: &mut Picker, key: i32) -> i32 {
         _ -> try1(key)
     }
 
-    state try1(key: i32) {
+    machine try1(key: i32) -> i32 {
         transition key == 1 {
             true -> (2)
             _ -> (4)
@@ -55,21 +55,21 @@ machine Main::read_at(main: &mut Main, idx: i32) -> i32 {
         _ -> try1(main, idx)
     }
 
-    state try1(main: &mut Main, idx: i32) {
+    machine try1(main: &mut Main, idx: i32) -> i32 {
         transition idx == 1 {
             true -> (main.table[1])
             _ -> try2(main, idx)
         }
     }
 
-    state try2(main: &mut Main, idx: i32) {
+    machine try2(main: &mut Main, idx: i32) -> i32 {
         transition idx == 2 {
             true -> (main.table[2])
             _ -> try3(main, idx)
         }
     }
 
-    state try3(main: &mut Main, idx: i32) {
+    machine try3(main: &mut Main, idx: i32) -> i32 {
         transition idx == 3 {
             true -> (main.table[3])
             _ -> (main.table[4])
@@ -103,42 +103,42 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> bad_idx0(main)
     }
 
-    state bad_idx0(main: &mut Main) {
+    machine bad_idx0(main: &mut Main) {
         Console::write_line("FAIL: pick(0) returned wrong index -- expected 0 (exit 71)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(71);
     }
 
-    state check_idx2(main: &mut Main, idx2: i32, v0: i32, v2: i32, v1: i32) {
+    machine check_idx2(main: &mut Main, idx2: i32, v0: i32, v2: i32, v1: i32) {
         transition idx2 == 4 {
             true -> check_v0(main, v0, v2, v1)
             _ -> bad_idx2(main)
         }
     }
 
-    state bad_idx2(main: &mut Main) {
+    machine bad_idx2(main: &mut Main) {
         Console::write_line("FAIL: pick(2) returned wrong index -- expected 4 (exit 72)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(72);
     }
 
-    state check_v0(main: &mut Main, v0: i32, v2: i32, v1: i32) {
+    machine check_v0(main: &mut Main, v0: i32, v2: i32, v1: i32) {
         transition v0 == 3 {
             true -> compute_result(main, v0, v2, v1)
             _ -> bad_v0(main)
         }
     }
 
-    state bad_v0(main: &mut Main) {
+    machine bad_v0(main: &mut Main) {
         Console::write_line("FAIL: read_at(idx0) returned wrong value -- expected table[0] == 3 (exit 73)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(73);
     }
 
-    state compute_result(main: &mut Main, v0: i32, v2: i32, v1: i32) {
+    machine compute_result(main: &mut Main, v0: i32, v2: i32, v1: i32) {
         // result = v2 + v1 - v0 - 1 = 60 + 14 - 3 - 1 = 70.
         // i64 operands: call results carry no range facts, so exact i32
         // arithmetic cannot be proven against overflow; widened operands
@@ -150,14 +150,14 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state bad_result(main: &mut Main) {
+    machine bad_result(main: &mut Main) {
         Console::write_line("FAIL: v2 + v1 - v0 - 1 != 70 -- lookup arithmetic wrong (exit 74)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(74);
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::write_line("PASS: 60 + 14 - 3 - 1 == 70 from call-driven lookups (exit 70)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);

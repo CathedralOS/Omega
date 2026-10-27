@@ -36,8 +36,8 @@ machine consume(first: Transform, copied: Transform) -> i32 reaches AffineTransf
         true -> passed()
         false -> failed()
     }
-    state passed() -> i32 { 0 }
-    state failed() -> i32 { 1 }
+    machine passed() -> i32 { 0 }
+    machine failed() -> i32 { 1 }
 }
 
 machine main() reaches AffineTransforms crashes Trap {
@@ -46,6 +46,6 @@ machine main() reaches AffineTransforms crashes Trap {
         true -> passed()
         false -> failed()
     }
-    state passed() {}
-    state failed() { crash Trap; }
+    machine passed() {}
+    machine failed() { crash Trap; }
 }

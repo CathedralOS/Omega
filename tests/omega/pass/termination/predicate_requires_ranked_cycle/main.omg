@@ -18,7 +18,7 @@ terminates by remaining in 0..=3;
         true -> inspect(values, remaining)
         false -> (true)
     }
-    state inspect(values: &[i32; 4], remaining: u64) -> bool
+    machine inspect(values: &[i32; 4], remaining: u64) -> bool
         requires remaining >= 1
         requires remaining <= 3
     {
@@ -39,7 +39,7 @@ terminates by remaining -> Nat::Descending in 0..=9;
         true -> (0)
         _ -> next(values, remaining)
     }
-    state next(values: &[i32; 4], remaining: u64) -> u64
+    machine next(values: &[i32; 4], remaining: u64) -> u64
         requires remaining >= 1
         requires sorted(values) == true
     {

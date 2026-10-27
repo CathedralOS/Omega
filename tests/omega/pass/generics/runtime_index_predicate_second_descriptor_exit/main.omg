@@ -9,6 +9,6 @@ machine main() crashes Trap {
  let first:u32=probe(100,9);
  let second:u32=probe(0,10);
  transition first==8 && second==8 { true->done() _->bad() }
- state done(){}
- state bad(){crash Trap;}
+ machine done(){}
+ machine bad(){crash Trap;}
 }

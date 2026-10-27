@@ -38,31 +38,31 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> bad(main)
     }
 
-    state push_three(main: &mut Main) {
+    machine push_three(main: &mut Main) {
         main.stack[main.sp] = 3;
         main.sp = main.sp + 1;
         transition main.sp >= 0 && main.sp < 8 { true -> push_four(main) _ -> bad(main) }
     }
 
-    state push_four(main: &mut Main) {
+    machine push_four(main: &mut Main) {
         main.stack[main.sp] = 4;
         main.sp = main.sp + 1;
         transition main.sp >= 2 && main.sp <= 8 { true -> add_pop_b(main) _ -> bad(main) }
     }
 
-    state add_pop_b(main: &mut Main) {
+    machine add_pop_b(main: &mut Main) {
         main.sp = main.sp - 1;
         transition main.sp >= 0 && main.sp < 8 { true -> add_read_b(main) _ -> bad(main) }
     }
-    state add_read_b(main: &mut Main) {
+    machine add_read_b(main: &mut Main) {
         main.b = main.stack[main.sp];
         transition main.sp >= 1 && main.sp <= 8 { true -> add_pop_a(main) _ -> bad(main) }
     }
-    state add_pop_a(main: &mut Main) {
+    machine add_pop_a(main: &mut Main) {
         main.sp = main.sp - 1;
         transition main.sp >= 0 && main.sp < 8 { true -> add_read_a(main) _ -> bad(main) }
     }
-    state add_read_a(main: &mut Main) {
+    machine add_read_a(main: &mut Main) {
         main.a = main.stack[main.sp];
         main.acc = main.a + main.b;              // compute into a temp (a binary value
         main.stack[main.sp] = main.acc;          // into an indexed target is unsupported)
@@ -70,38 +70,38 @@ machine Main::main(main: &mut Main) reaches Console {
         transition main.sp >= 0 && main.sp < 8 { true -> push_five(main) _ -> bad(main) }
     }
 
-    state push_five(main: &mut Main) {
+    machine push_five(main: &mut Main) {
         main.stack[main.sp] = 5;
         main.sp = main.sp + 1;
         transition main.sp >= 2 && main.sp <= 8 { true -> mul_pop_b(main) _ -> bad(main) }
     }
 
-    state mul_pop_b(main: &mut Main) {
+    machine mul_pop_b(main: &mut Main) {
         main.sp = main.sp - 1;
         transition main.sp >= 0 && main.sp < 8 { true -> mul_read_b(main) _ -> bad(main) }
     }
-    state mul_read_b(main: &mut Main) {
+    machine mul_read_b(main: &mut Main) {
         main.b = main.stack[main.sp];
         transition main.sp >= 1 && main.sp <= 8 { true -> mul_pop_a(main) _ -> bad(main) }
     }
-    state mul_pop_a(main: &mut Main) {
+    machine mul_pop_a(main: &mut Main) {
         main.sp = main.sp - 1;
         transition main.sp >= 0 && main.sp < 8 { true -> mul_read_a(main) _ -> bad(main) }
     }
-    state mul_read_a(main: &mut Main) {
+    machine mul_read_a(main: &mut Main) {
         main.a = main.stack[main.sp];
         main.acc = main.a * main.b;              // compute into a temp, then push
         main.stack[main.sp] = main.acc;
         transition main.sp >= 0 && main.sp < 8 { true -> done(main) _ -> bad(main) }
     }
 
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         Console::write_line("result: (3 + 4) * 5 = 35 at the bottom of the stack (the exit code)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(main.stack[0] as i32);
     }
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::write_line("FAIL: a stack-pointer bounds guard tripped (exit 71)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);

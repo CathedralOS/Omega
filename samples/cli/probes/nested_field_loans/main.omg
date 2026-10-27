@@ -34,7 +34,7 @@ machine probe(outer: &Outer) -> u64 {
         true -> finish(outer)
         _ -> finish(outer)
     }
-    state finish(forwarded: &Outer) -> u64 {
+    machine finish(forwarded: &Outer) -> u64 {
         (Inner::inspect(&forwarded.inner) + (forwarded.extra as u64 in Wrapping)) as u64
     }
 }
@@ -51,8 +51,8 @@ machine Main::main(main: &mut Main) {
         true -> pass(main)
         _ -> fail(main)
     }
-    state pass(main: &mut Main) { main.hits = 1; }
-    state fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: &mut Main) { main.hits = 1; }
+    machine fail(main: &mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

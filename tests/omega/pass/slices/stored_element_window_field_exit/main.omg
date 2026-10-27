@@ -34,7 +34,7 @@ machine main() crashes Trap {
         true -> observe(&mut held)
         false -> bad()
     }
-    state observe(held: &mut Held) requires held.cells.len == 2 {
+    machine observe(held: &mut Held) requires held.cells.len == 2 {
         let local: Cell = held.cells[0];
         let through_field: i32 = held.cells[0].real;
         let through_parameter: i32 = real_of(local);
@@ -49,6 +49,6 @@ machine main() crashes Trap {
             false -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

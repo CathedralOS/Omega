@@ -20,13 +20,13 @@ crashes Trap
         LineReadResult::EndOfInput { count } -> completed(&buffer, count)
         _ -> invalid()
     }
-    state completed(buffer: &[u8; 16], count: u64) -> LineBuffer {
+    machine completed(buffer: &[u8; 16], count: u64) -> LineBuffer {
         transition count > 0 && count <= 16 {
             true -> trim(buffer, count)
             _ -> LineBuffer::snapshot("quit")
         }
     }
-    state trim(buffer: &[u8; 16], count: u64) -> LineBuffer
+    machine trim(buffer: &[u8; 16], count: u64) -> LineBuffer
     requires count > 0 && count <= 16
     {
         transition buffer[count - 1] == 10 {
@@ -34,7 +34,7 @@ crashes Trap
             _ -> validate(buffer, count)
         }
     }
-    state validate(buffer: &[u8; 16], count: u64) -> LineBuffer
+    machine validate(buffer: &[u8; 16], count: u64) -> LineBuffer
     requires count <= 16
     {
         let prefix: &[u8] = &buffer[0..count];
@@ -43,12 +43,12 @@ crashes Trap
             _ -> invalid()
         }
     }
-    state snapshot(prefix: &[u8] in LineUtf8) -> LineBuffer
+    machine snapshot(prefix: &[u8] in LineUtf8) -> LineBuffer
     requires prefix.len <= 16
     {
         LineBuffer::snapshot(prefix)
     }
-    state invalid() -> LineBuffer { crash Trap; }
+    machine invalid() -> LineBuffer { crash Trap; }
 }
 
 
@@ -84,14 +84,14 @@ crashes Trap
     transition { _ -> prompt(game) }
 
 
-    state prompt(game: &mut Game) {
+    machine prompt(game: &mut Game) {
         transition game.health == 0 {
             true -> dead(game)
             false -> read_command(game)
         }
     }
 
-    state read_command(game: &mut Game) {
+    machine read_command(game: &mut Game) {
         game.line = block read_command_line();
         let line: &[u8] in LineUtf8 = LineBuffer::view(&game.line);
         game.command = resolve(line);
@@ -103,22 +103,22 @@ crashes Trap
         }
     }
 
-    state dead(game: &mut Game) {
+    machine dead(game: &mut Game) {
         Console::write_line("dead");
         Console::exit_process(2);
     }
 
-    state look(game: &mut Game) {
+    machine look(game: &mut Game) {
         Console::write_line("look");
         transition { _ -> prompt(game) }
     }
 
-    state invalid(game: &mut Game) {
+    machine invalid(game: &mut Game) {
         Console::write_line("invalid");
         transition { _ -> prompt(game) }
     }
 
-    state finished() {
+    machine finished() {
     }
 }
 
@@ -133,12 +133,12 @@ crashes Trap
     transition { _ -> running(main) }
 
 
-    state running(main: &mut Main) {
+    machine running(main: &mut Main) {
         block Game::run(&mut main.game);
         transition { _ -> shutdown() }
     }
 
-    state shutdown() {
+    machine shutdown() {
         Console::exit_process(0);
     }
 }
@@ -151,8 +151,8 @@ machine LineBuffer::view(buffer: &LineBuffer) -> &[u8] in LineUtf8 crashes Trap 
         true -> checked(bytes)
         false -> bad()
     }
-    state checked(bytes: &[u8] in LineUtf8) -> &[u8] in LineUtf8 { bytes }
-    state bad() { crash Trap; }
+    machine checked(bytes: &[u8] in LineUtf8) -> &[u8] in LineUtf8 { bytes }
+    machine bad() -> &[u8] in LineUtf8 { crash Trap; }
 }
 machine LineBuffer::equal(buffer: &LineBuffer, expected: &[u8]) -> bool crashes Trap {
     let bytes: &[u8] in LineUtf8 = LineBuffer::view(buffer);
@@ -162,7 +162,7 @@ machine LineBuffer::equal(buffer: &LineBuffer, expected: &[u8]) -> bool crashes 
 machine LineBuffer::copy(storage: &mut [u8; 16], bytes: &[u8], start: u64)
 requires start <= 16; bytes.len <= 16 - start {
     transition { _ -> copying(storage, bytes, start, 0) }
-    state copying(storage: &mut [u8; 16], bytes: &[u8], start: u64, index: u64)
+    machine copying(storage: &mut [u8; 16], bytes: &[u8], start: u64, index: u64)
     requires start <= 16; index <= 16 {
         transition index < bytes.len && start + index < 16 {
             true -> writing(storage, bytes, start, index)
@@ -174,14 +174,14 @@ requires start <= 16; bytes.len <= 16 - start {
         storage[start + index] = bytes[index];
         transition { _ -> copying(storage, bytes, start, index + 1) }
     }
-    state done() {}
+    machine done() {}
 }
 machine LineBuffer::join(left: &[u8], right: &[u8]) -> LineBuffer crashes Trap {
     transition left.len <= 16 && right.len <= 16 - left.len {
         true -> joining(left, right)
         _ -> bad()
     }
-    state joining(left: &[u8], right: &[u8]) -> LineBuffer
+    machine joining(left: &[u8], right: &[u8]) -> LineBuffer
     requires left.len <= 16; right.len <= 16 - left.len {
     let mut result: LineBuffer;
     LineBuffer::copy(&mut result.storage, left, 0);
@@ -192,13 +192,13 @@ machine LineBuffer::join(left: &[u8], right: &[u8]) -> LineBuffer crashes Trap {
         _ -> bad()
     }
     }
-    state checked(result: LineBuffer, total: u64) -> LineBuffer
+    machine checked(result: LineBuffer, total: u64) -> LineBuffer
     requires total <= 16 {
         let mut value: LineBuffer = result;
         value.used = total;
         value
     }
-    state bad() { crash Trap; }
+    machine bad() -> LineBuffer { crash Trap; }
 }
 
 machine LineBuffer::snapshot(text: &[u8] in LineUtf8) -> LineBuffer

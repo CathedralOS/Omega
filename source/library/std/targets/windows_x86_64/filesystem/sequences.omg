@@ -22,7 +22,7 @@ machine windows_filesystem_finish_read(outcome: IoResult, released: UnitResult) 
         IoResult::Error { kind } -> (IoResult::Error { kind: kind })
         IoResult::Ok { count } -> release(count, released)
     }
-    state release(count: u64, released: UnitResult) -> IoResult {
+    machine release(count: u64, released: UnitResult) -> IoResult {
         transition released {
             UnitResult::Error { kind } -> (IoResult::Error { kind: kind })
             UnitResult::Ok -> (IoResult::Ok { count: count })
@@ -35,18 +35,18 @@ reaches FilesystemContentWrite
 invokes WindowsFilesystemHost;
 {
     transition { _ -> remaining(file, bytes, 0) }
-    state remaining(file: File, bytes: &[u8], position: u64) -> UnitResult
+    machine remaining(file: File, bytes: &[u8], position: u64) -> UnitResult
     requires position <= bytes.len {
         transition position < bytes.len { true -> window(file, bytes, position) false -> UnitResult::Ok }
     }
-    state window(file: File, bytes: &[u8], position: u64) -> UnitResult
+    machine window(file: File, bytes: &[u8], position: u64) -> UnitResult
     requires position < bytes.len {
         transition bytes.len - position > 4294967295 {
             true -> write(file, bytes, position, position + 4294967295)
             false -> write(file, bytes, position, bytes.len)
         }
     }
-    state write(file: File, bytes: &[u8], position: u64, end: u64) -> UnitResult
+    machine write(file: File, bytes: &[u8], position: u64, end: u64) -> UnitResult
     requires position < end && end <= bytes.len {
         let count: i64 = block WindowsFilesystemHost::write_file(file.handle, bytes[position..end]);
         transition count > 0 {
@@ -54,7 +54,7 @@ invokes WindowsFilesystemHost;
             false -> stopped(count)
         }
     }
-    state progressed(file: File, bytes: &[u8], position: u64, end: u64, count: i64) -> UnitResult
+    machine progressed(file: File, bytes: &[u8], position: u64, end: u64, count: i64) -> UnitResult
     requires position < end && end <= bytes.len && count > 0 {
         let written: u64 = narrow_i64_to_u64_exact(count);
         transition written <= end - position {
@@ -62,7 +62,7 @@ invokes WindowsFilesystemHost;
             false -> (UnitResult::Error { kind: ErrorKind::Other })
         }
     }
-    state stopped(count: i64) -> UnitResult {
+    machine stopped(count: i64) -> UnitResult {
         transition count == 0 {
             true -> (UnitResult::Error { kind: ErrorKind::WriteZero })
             false -> (UnitResult::Error { kind: windows_filesystem_status_error(count) })
@@ -79,7 +79,7 @@ invokes WindowsFilesystemHost;
         OpenResult::Error { kind } -> (UnitResult::Error { kind: kind })
         OpenResult::Ok { file } -> write(file, bytes)
     }
-    state write(file: File, bytes: &[u8]) -> UnitResult {
+    machine write(file: File, bytes: &[u8]) -> UnitResult {
         let outcome: UnitResult = block windows_filesystem_write_complete(file, bytes);
         let released: UnitResult = block windows_filesystem_close(file);
         windows_filesystem_finish_unit(outcome, released)
@@ -96,14 +96,14 @@ invokes WindowsFilesystemHost;
         true -> acquire(path, buffer, count)
         false -> (IoResult::Error { kind: ErrorKind::InvalidInput })
     }
-    state acquire(path: &[u8] in Path, buffer: &mut [u8], count: u64) -> IoResult {
+    machine acquire(path: &[u8] in Path, buffer: &mut [u8], count: u64) -> IoResult {
         let acquired: OpenResult = block windows_filesystem_open(path);
         transition acquired {
             OpenResult::Error { kind } -> (IoResult::Error { kind: kind })
             OpenResult::Ok { file } -> read(file, buffer, count)
         }
     }
-    state read(file: File, buffer: &mut [u8], count: u64) -> IoResult {
+    machine read(file: File, buffer: &mut [u8], count: u64) -> IoResult {
         let outcome: IoResult = block windows_filesystem_read(file, buffer, count);
         let released: UnitResult = block windows_filesystem_close(file);
         windows_filesystem_finish_read(outcome, released)

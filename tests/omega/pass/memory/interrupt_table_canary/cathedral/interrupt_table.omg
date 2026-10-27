@@ -162,14 +162,14 @@ terminates by fuel;
     let entries: [FieldEntry; 64];
     transition { _ -> fill(schema, entries, fuel, 0) }
 
-    state fill(schema: Schema, entries: [FieldEntry; 64], fuel: u64, index: u64 in Wrapping) requires fuel >= 1 && fuel <= 128 {
+    machine fill(schema: Schema, entries: [FieldEntry; 64], fuel: u64, index: u64 in Wrapping) -> Plan requires fuel >= 1 && fuel <= 128 {
         transition fuel > 1 && index < 33 {
             true -> place(schema, entries, fuel - 1, index)
             _ -> done(schema, entries)
         }
     }
 
-    state place(schema: Schema, entries: [FieldEntry; 64], fuel: u64, index: u64 in Wrapping) requires fuel >= 1 && fuel <= 128 {
+    machine place(schema: Schema, entries: [FieldEntry; 64], fuel: u64, index: u64 in Wrapping) -> Plan requires fuel >= 1 && fuel <= 128 {
         let mut updated: [FieldEntry; 64] = entries;
         updated[index] = FieldEntry {
             key: schema.fields[0].key,
@@ -181,7 +181,7 @@ terminates by fuel;
         }
     }
 
-    state done(schema: Schema, entries: [FieldEntry; 64]) -> Plan {
+    machine done(schema: Schema, entries: [FieldEntry; 64]) -> Plan {
         Plan {
             entries: entries,
             entry_count: 33,

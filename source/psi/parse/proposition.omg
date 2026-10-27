@@ -28,7 +28,7 @@ crashes Trap
         _ -> reject(parser, input, ParseDiagnosticCode::PropositionCapacityExceeded)
     }
 
-    state keyword(parser: &mut Parser, input: &TokenStream) {
+    machine keyword(parser: &mut Parser, input: &TokenStream) {
         Parser::take_current(parser, input);
         parser.declaration_first_generic = parser.output.generic_parameter_count as u64 in Trapping;
         Parser::expect_name(parser, input, ParseDiagnosticCode::ExpectedPropositionName);
@@ -38,7 +38,7 @@ crashes Trap
         }
     }
 
-    state named(parser: &mut Parser, input: &TokenStream) {
+    machine named(parser: &mut Parser, input: &TokenStream) {
         parser.declaration_name_start = parser.name_start;
         parser.declaration_name_end = parser.name_end;
         let generic: bool = Parser::at_punctuation(parser, input, PunctuationKind::Less);
@@ -48,7 +48,7 @@ crashes Trap
         }
     }
 
-    state generics(parser: &mut Parser, input: &TokenStream) {
+    machine generics(parser: &mut Parser, input: &TokenStream) {
         Parser::parse_generic_parameters(parser, input);
         transition parser.output.accepted {
             true -> parameters(parser, input)
@@ -56,7 +56,7 @@ crashes Trap
         }
     }
 
-    state parameters(parser: &mut Parser, input: &TokenStream) {
+    machine parameters(parser: &mut Parser, input: &TokenStream) {
         Parser::parse_parameters(parser, input);
         parser.declaration_first_parameter = parser.signature_first_parameter;
         parser.declaration_parameter_count = parser.signature_parameter_count;
@@ -66,7 +66,7 @@ crashes Trap
         }
     }
 
-    state declared_body(parser: &mut Parser, input: &TokenStream) {
+    machine declared_body(parser: &mut Parser, input: &TokenStream) {
         let ends: bool = Parser::at_punctuation(parser, input, PunctuationKind::Semicolon);
         transition ends {
             true -> primitive_body(parser, input)
@@ -74,7 +74,7 @@ crashes Trap
         }
     }
 
-    state evidence_word(parser: &mut Parser, input: &TokenStream) {
+    machine evidence_word(parser: &mut Parser, input: &TokenStream) {
         let witnessed: bool = Parser::at_word(parser, input, "evidence");
         transition witnessed {
             true -> evidence_body(parser, input)
@@ -82,7 +82,7 @@ crashes Trap
         }
     }
 
-    state transparent_word(parser: &mut Parser, input: &TokenStream) {
+    machine transparent_word(parser: &mut Parser, input: &TokenStream) {
         let transparent: bool = Parser::at_punctuation(parser, input, PunctuationKind::Equal);
         transition transparent {
             true -> fact_body(parser, input)
@@ -90,12 +90,12 @@ crashes Trap
         }
     }
 
-    state primitive_body(parser: &mut Parser, input: &TokenStream) {
+    machine primitive_body(parser: &mut Parser, input: &TokenStream) {
         Parser::take_current(parser, input);
         transition { _ -> retain_capacity(parser, input, PropositionBody::Primitive, 0, 0) }
     }
 
-    state evidence_body(parser: &mut Parser, input: &TokenStream) {
+    machine evidence_body(parser: &mut Parser, input: &TokenStream) {
         Parser::take_current(parser, input);
         Parser::parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedPropositionEvidence);
         transition parser.output.accepted {
@@ -104,7 +104,7 @@ crashes Trap
         }
     }
 
-    state fact_body(parser: &mut Parser, input: &TokenStream) {
+    machine fact_body(parser: &mut Parser, input: &TokenStream) {
         Parser::take_current(parser, input);
         Parser::parse_expression(parser, input, ParseDiagnosticCode::ExpectedPropositionFact, false, true);
         transition parser.output.accepted {
@@ -113,7 +113,7 @@ crashes Trap
         }
     }
 
-    state end(
+    machine end(
         parser: &mut Parser,
         input: &TokenStream,
         body: PropositionBody,
@@ -127,7 +127,7 @@ crashes Trap
         }
     }
 
-    state retain_capacity(
+    machine retain_capacity(
         parser: &mut Parser,
         input: &TokenStream,
         body: PropositionBody,
@@ -140,7 +140,7 @@ crashes Trap
         }
     }
 
-    state root_capacity(
+    machine root_capacity(
         parser: &mut Parser,
         input: &TokenStream,
         body: PropositionBody,
@@ -153,7 +153,7 @@ crashes Trap
         }
     }
 
-    state retain(parser: &mut Parser, body: PropositionBody, evidence: u64 in Trapping, fact: u64 in Trapping) {
+    machine retain(parser: &mut Parser, body: PropositionBody, evidence: u64 in Trapping, fact: u64 in Trapping) {
         let proposition: u64 in Trapping = parser.output.proposition_count as u64 in Trapping;
         let span: SourceSpan = Parser::source_span(parser, parser.declaration_start, parser.token_end);
         parser.output.propositions[parser.output.proposition_count] = PropositionItem {
@@ -177,9 +177,9 @@ crashes Trap
         parser.output.root_count = parser.output.root_count + 1;
     }
 
-    state reject(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
+    machine reject(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
         Parser::reject_current(parser, input, code);
     }
 
-    state done() {}
+    machine done() {}
 }

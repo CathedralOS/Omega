@@ -6,12 +6,12 @@ machine empty<const Count: u64>() -> [u8; Count] {
 
 machine main() crashes Trap {
     transition { _ -> receive(empty<2>()) }
-    state receive(bytes: [u8; 3]) {
+    machine receive(bytes: [u8; 3]) {
         transition bytes[0] == 0 && bytes[1] == 0 && bytes[2] == 0 {
             true -> done()
             _ -> wrong()
         }
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

@@ -9,6 +9,6 @@ machine main() -> u64 {
         true -> later(t as Token in Issued)
         false -> done()
     }
-    state later(c: Token in Issued) -> u64 { c.value }
-    state done() -> u64 { 0 }
+    machine later(c: Token in Issued) -> u64 { c.value }
+    machine done() -> u64 { 0 }
 }

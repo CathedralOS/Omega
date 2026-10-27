@@ -35,19 +35,19 @@ machine Main::main(main: &mut Main)
 reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {
     main.handle = block WindowsFilesystemHost::create_file("omega_async.txt", 3221225472, 7, 2, 128);
     transition main.handle != 0 { true -> seed(main) _ -> bad(main, 71) }
-    state seed(main: &mut Main) {
+    machine seed(main: &mut Main) {
         let written: i64 = block WindowsFilesystemHost::write_file(main.handle, "ab");
         let position: i64 = block WindowsFilesystemHost::set_file_pointer(main.handle, 0, 0);
         transition written == 2 && position == 0 { true -> external(main) _ -> bad(main, 72) }
     }
-    state external(main: &mut Main) {
+    machine external(main: &mut Main) {
         // Deliberately bypass the raw family's open-time async-flag rejection.
         let wide: [u16; 16] = [111u16, 109u16, 101u16, 103u16, 97u16, 95u16,
             97u16, 115u16, 121u16, 110u16, 99u16, 46u16, 116u16, 120u16, 116u16, 0u16];
         let handle: i64 = block external_file_open(&wide, 3221225472, 7, 0, 3, 1073741952, 0);
         transition handle != 0 && handle != -1 { true -> reject(main, handle) _ -> bad(main, 73) }
     }
-    state reject(main: &mut Main, handle: i64) {
+    machine reject(main: &mut Main, handle: i64) {
         main.asynchronous = narrow_i64_to_u64_wrapping(handle);
         main.buffer[0] = 119;
         let read: i64 = block WindowsFilesystemHost::read_file(main.asynchronous, &mut main.buffer, 1);
@@ -59,35 +59,35 @@ reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMet
             _ -> bad(main, 74)
         }
     }
-    state reject_blocking_exclusive(main: &mut Main) {
+    machine reject_blocking_exclusive(main: &mut Main) {
         let status: i32 = block WindowsFilesystemHost::lock_file(main.asynchronous, true, false);
         transition status == -87 { true -> reject_blocking_shared(main) false -> bad(main, 79) }
     }
-    state reject_blocking_shared(main: &mut Main) {
+    machine reject_blocking_shared(main: &mut Main) {
         let status: i32 = block WindowsFilesystemHost::lock_file(main.asynchronous, false, false);
         transition status == -87 { true -> reject_try_exclusive(main) false -> bad(main, 80) }
     }
-    state reject_try_exclusive(main: &mut Main) {
+    machine reject_try_exclusive(main: &mut Main) {
         let status: i32 = block WindowsFilesystemHost::lock_file(main.asynchronous, true, true);
         transition status == -87 { true -> reject_try_shared(main) false -> bad(main, 81) }
     }
-    state reject_try_shared(main: &mut Main) {
+    machine reject_try_shared(main: &mut Main) {
         let status: i32 = block WindowsFilesystemHost::lock_file(main.asynchronous, false, true);
         transition status == -87 { true -> reject_unlock(main) false -> bad(main, 82) }
     }
-    state reject_unlock(main: &mut Main) {
+    machine reject_unlock(main: &mut Main) {
         let status: i32 = block WindowsFilesystemHost::unlock_file(main.asynchronous);
         transition status == -87 { true -> no_leaked_lock(main) false -> bad(main, 83) }
     }
-    state no_leaked_lock(main: &mut Main) {
+    machine no_leaked_lock(main: &mut Main) {
         let acquired: i32 = block WindowsFilesystemHost::lock_file(main.handle, true, true);
         transition acquired == 0 { true -> unlock_synchronous(main) false -> bad(main, 84) }
     }
-    state unlock_synchronous(main: &mut Main) {
+    machine unlock_synchronous(main: &mut Main) {
         let released: i32 = block WindowsFilesystemHost::unlock_file(main.handle);
         transition released == 0 { true -> first(main) false -> bad(main, 85) }
     }
-    state first(main: &mut Main) {
+    machine first(main: &mut Main) {
         main.duplicate = WindowsFilesystemHost::duplicate_handle(main.handle);
         let read: i64 = block WindowsFilesystemHost::read_file(main.handle, &mut main.buffer, 1);
         transition main.duplicate != 0 && read == 1 && main.buffer[0] == 97 {
@@ -95,16 +95,16 @@ reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMet
             _ -> bad(main, 75)
         }
     }
-    state second(main: &mut Main) {
+    machine second(main: &mut Main) {
         let read: i64 = block WindowsFilesystemHost::read_file(main.duplicate, &mut main.buffer, 1);
         let closed: i32 = block WindowsFilesystemHost::close_handle(main.handle);
         transition read == 1 && main.buffer[0] == 98 && closed == 0 { true -> surviving(main) _ -> bad(main, 76) }
     }
-    state surviving(main: &mut Main) {
+    machine surviving(main: &mut Main) {
         let read: i64 = block WindowsFilesystemHost::read_file(main.duplicate, &mut main.buffer, 1);
         transition read == 0 { true -> cleanup(main) _ -> bad(main, 77) }
     }
-    state cleanup(main: &mut Main) {
+    machine cleanup(main: &mut Main) {
         let duplicate_closed: i32 = block WindowsFilesystemHost::close_handle(main.duplicate);
         let async_closed: i32 = block WindowsFilesystemHost::close_handle(main.asynchronous);
         let removed: i32 = block WindowsFilesystemHost::delete_file("omega_async.txt");
@@ -113,8 +113,8 @@ reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMet
             _ -> bad(main, 78)
         }
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

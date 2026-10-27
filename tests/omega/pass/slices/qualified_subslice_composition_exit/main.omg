@@ -15,7 +15,7 @@ machine Main::relay(main: &Main, bytes: &[u8] in Ascii) reaches Console {
         true -> Main::cut(main, bytes[0..main.end])
         false -> bad(main)
     }
-    state bad(main: &Main) { Console::exit_process(71); }
+    machine bad(main: &Main) { Console::exit_process(71); }
 }
 
 machine Main::cut(main: &Main, prefix: &[u8] in Ascii) reaches Console {
@@ -28,8 +28,8 @@ machine Main::inspect(main: &Main, empty: &[u8] in Ascii, prefix: &[u8] in Ascii
         true -> good(main)
         false -> bad(main)
     }
-    state good(main: &Main) { Console::exit_process(70); }
-    state bad(main: &Main) { Console::exit_process(71); }
+    machine good(main: &Main) { Console::exit_process(70); }
+    machine bad(main: &Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

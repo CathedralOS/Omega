@@ -6,8 +6,8 @@ machine Pair::drop(pair: &mut Pair) {}
 machine retain(receipt: &Receipt) -> &Receipt { receipt }
 machine observe(receipt: &Receipt, expected: u64) crashes Trap {
     transition receipt.code == expected { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine main() crashes Trap {
     let mut code: u64 = 17;

@@ -12,6 +12,6 @@ machine Main::main(main: &mut Main) {
         _ -> set(main)
     }
 
-    state clear(main: &mut Main) { main.answer = 70; }
-    state set(main: &mut Main) { main.answer = 71; }
+    machine clear(main: &mut Main) { main.answer = 70; }
+    machine set(main: &mut Main) { main.answer = 71; }
 }

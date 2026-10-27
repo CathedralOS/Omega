@@ -10,7 +10,7 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
         ByteRead::Eof -> done(main, 70)
         ByteRead::Byte { .. } -> done(main, 71)
     }
-    state done(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine done(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

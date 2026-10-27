@@ -4,7 +4,7 @@ machine maybe_zero(value: f32) -> f32
 crashes Trap value == 0.0
 {
     transition value == 0.0 { true -> bad() false -> (value) }
-    state bad() { crash Trap; }
+    machine bad() -> f32 { crash Trap; }
 }
 public const ONE_BITS: i32 = 1065353216;
 public machine read_bits(value: i32) -> f32
@@ -17,5 +17,5 @@ requires value == ONE_BITS
 machine main() crashes Trap {
     let observed: f32 = read_bits(ONE_BITS);
     transition observed == 1.0 { true -> done() _ -> bad() }
-    state done() {} state bad() { crash Trap; }
+    machine done() {} machine bad() { crash Trap; }
 }

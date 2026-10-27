@@ -8,10 +8,10 @@ machine maybe_replace<'a>(holder: &mut Inner<'a>, replacement: &'a mut u64, choo
         false -> done()
         true -> replace(holder, replacement)
     }
-    state replace(holder: &mut Inner<'a>, replacement: &'a mut u64) {
+    machine replace(holder: &mut Inner<'a>, replacement: &'a mut u64) {
         holder.value = replacement;
     }
-    state done() {}
+    machine done() {}
 }
 
 machine change(value: &mut Outer) { value.inner.value = 3u64; }

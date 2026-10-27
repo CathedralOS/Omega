@@ -7,7 +7,7 @@ machine replace<'carrier, 'input>(windows: &'carrier mut [Window<'input>], posit
 requires position < windows.len {
     let selected: u64 = position;
     transition { _ -> forward(windows, selected, replacement) }
-    state forward(windows: &'carrier mut [Window<'input>], selected: u64, replacement: &'input mut [Cell])
+    machine forward(windows: &'carrier mut [Window<'input>], selected: u64, replacement: &'input mut [Cell])
     requires selected < windows.len {
         store(windows, selected, replacement);
     }
@@ -23,7 +23,7 @@ machine first(values: &[Cell]) -> u32 {
         true -> read(values)
         false -> 0
     }
-    state read(values: &[Cell]) -> u32 requires values.len > 0 { values[0].value }
+    machine read(values: &[Cell]) -> u32 requires values.len > 0 { values[0].value }
 }
 
 machine exercise(position: u64) -> bool requires position < 2 {
@@ -49,6 +49,6 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

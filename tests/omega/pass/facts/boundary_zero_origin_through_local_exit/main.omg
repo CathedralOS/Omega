@@ -9,6 +9,6 @@ machine main() crashes Trap {
 
     let status: i32 = Io::acquire(&mut request);
     transition status == 7 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

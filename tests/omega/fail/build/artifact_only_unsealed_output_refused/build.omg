@@ -26,11 +26,11 @@ machine settle(builder: &mut Build, settled: OutputCompletion) {
         OutputCompletion::Sealed { receipt } -> sealed(builder)
         OutputCompletion::Retry { obligation, file } -> unsealed(builder, obligation)
     }
-    state sealed(builder: &mut Build) {
+    machine sealed(builder: &mut Build) {
     }
     // The obligation is linear: the retry arm has to dispose of it, and a
     // sticky failure is the only disposition this build can offer.
-    state unsealed(builder: &mut Build, obligation: RequiredOutput) {
+    machine unsealed(builder: &mut Build, obligation: RequiredOutput) {
         BuildOutput::fail(&mut builder.output, obligation, "staged output never sealed");
     }
 }

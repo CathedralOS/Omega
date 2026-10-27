@@ -16,15 +16,15 @@ machine Main::main(main: &mut Main) reaches Console {
     main.large.items[63] = 40;
     transition { _ -> check(main) }
 
-    state check(main: &Main) {
+    machine check(main: &Main) {
         transition main.small.items[0] == 0 && main.small.items[1] == 30
             && main.large.items[62] == 0 && main.large.items[63] == 40 {
             true -> good(main)
             _ -> bad(main)
         }
     }
-    state good(main: &Main) { Console::exit_process(70); }
-    state bad(main: &Main) { Console::exit_process(71); }
+    machine good(main: &Main) { Console::exit_process(70); }
+    machine bad(main: &Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -16,5 +16,5 @@ machine Main::main(main: &mut Main) {
     transition {
         _ -> take_call(main, make(&mut main.counter, 5))
     }
-    state take_call(main: &mut Main, pair: Pair) {}
+    machine take_call(main: &mut Main, pair: Pair) {}
 }

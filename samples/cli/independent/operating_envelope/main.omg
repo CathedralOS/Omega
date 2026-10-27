@@ -19,22 +19,22 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> calculate(main, &mut envelope)
         _ -> invalid(main)
     }
-    state calculate(main: &mut Main, envelope: &mut geometry::Envelope) {
+    machine calculate(main: &mut Main, envelope: &mut geometry::Envelope) {
         geometry::solve(envelope);
         transition envelope.valid {
             true -> emit(main, envelope)
             _ -> failure(main)
         }
     }
-    state emit(main: &mut Main, envelope: &geometry::Envelope) {
+    machine emit(main: &mut Main, envelope: &geometry::Envelope) {
         output::report(envelope);
         Console::exit_process(0);
     }
-    state invalid(main: &mut Main) {
+    machine invalid(main: &mut Main) {
         Console::write_line("invalid input");
         Console::exit_process(2);
     }
-    state failure(main: &mut Main) {
+    machine failure(main: &mut Main) {
         Console::write_line("internal capacity failure");
         Console::exit_process(3);
     }

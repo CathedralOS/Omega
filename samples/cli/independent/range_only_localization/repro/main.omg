@@ -12,11 +12,11 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> emit(&bytes)
         false -> failed()
     }
-    state emit(bytes: &[u8]) {
+    machine emit(bytes: &[u8]) {
         Console::write_line(bytes);
         Console::exit_process(0);
     }
-    state failed() { Console::exit_process(1); }
+    machine failed() { Console::exit_process(1); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

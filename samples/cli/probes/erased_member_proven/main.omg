@@ -13,10 +13,10 @@ machine Main::main(main: &mut Main) {
         Certified::Proven { value, proof as _ } -> seen(main, value)
         Certified::Void -> bad(main)
     }
-    state seen(main: &mut Main, value: i32) {
+    machine seen(main: &mut Main, value: i32) {
         main.hits = main.hits + (value as i32 in Wrapping);
     }
-    state bad(main: &mut Main) { }
+    machine bad(main: &mut Main) { }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

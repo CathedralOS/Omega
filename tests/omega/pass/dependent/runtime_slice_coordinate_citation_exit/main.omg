@@ -8,8 +8,8 @@ ensures cells[index] >= 0 && cells[index] <= 255
         true -> bad(cells, index)
         false -> done(cells, index)
     }
-    state bad(cells: &[i32], index: u64) { crash Trap; }
-    state done(cells: &[i32], index: u64)
+    machine bad(cells: &[i32], index: u64) { crash Trap; }
+    machine done(cells: &[i32], index: u64)
     requires index < cells.len
     requires cells[index] >= 0 && cells[index] <= 255
     {}
@@ -28,6 +28,6 @@ machine main() crashes Trap {
     cells.values[3] = 7;
     let observed: i32 = compute(&cells);
     transition observed == 8 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

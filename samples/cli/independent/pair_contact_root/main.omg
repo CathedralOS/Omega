@@ -26,11 +26,11 @@ machine contact(a: Disk, b: Disk) -> Contact {
         true -> root(a, b, speed, radial, discriminant, vx)
         _ -> absent()
     }
-    state root(a: Disk, b: Disk, speed: f64, radial: f64, discriminant: f64, vx: f64) -> Contact {
+    machine root(a: Disk, b: Disk, speed: f64, radial: f64, discriminant: f64, vx: f64) -> Contact {
         let time: f64 = (0.0 - radial - F64::square_root(discriminant)) / speed;
         transition time >= -0.000000001 { true -> impulse(a, b, time, vx) _ -> absent() }
     }
-    state impulse(a: Disk, b: Disk, time: f64, vx: f64) -> Contact {
+    machine impulse(a: Disk, b: Disk, time: f64, vx: f64) -> Contact {
         // Relative velocity along the fixed head-on normal is constant.
         // `radial` is the position-weighted product used by the quadratic;
         // the unit-normal rate is `vx` itself while the disks stay colinear.
@@ -38,7 +38,7 @@ machine contact(a: Disk, b: Disk) -> Contact {
         let magnitude: f64 = (0.0 - (1.0 + 1.0) * vx) / inverse;
         Contact { time: max_f64(0.0, time), impulse: magnitude }
     }
-    state absent() -> Contact { Contact { time: 100.0, impulse: 0.0 } }
+    machine absent() -> Contact { Contact { time: 100.0, impulse: 0.0 } }
 }
 
 data Main { hit: Contact; }
@@ -52,11 +52,11 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> report(main)
         _ -> failed(main)
     }
-    state report(main: &mut Main) {
+    machine report(main: &mut Main) {
         Console::write_line("pair contact root 2 impulse 1.5");
         Console::exit_process(0);
     }
-    state failed(main: &mut Main) {
+    machine failed(main: &mut Main) {
         Console::write_line("pair contact root mismatch");
         Console::exit_process(4);
     }

@@ -72,5 +72,5 @@ reaches ExtentRootProvider + ResourceProfileSupply + ProcessExit
         true -> finish(storage, 0)
         _ -> finish(storage, 1)
     }
-    state finish(storage: Extent in Granted, status: i32) { ProcessExit::exit_process(status); }
+    machine finish(storage: Extent in Granted, status: i32) { ProcessExit::exit_process(status); }
 }

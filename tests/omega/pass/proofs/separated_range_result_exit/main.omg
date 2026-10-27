@@ -18,7 +18,7 @@ machine check(value: RangePair) -> Checked {
         true -> separate(value)
         _ -> Checked::Rejected
     }
-    state separate(value: RangePair) -> Checked
+    machine separate(value: RangePair) -> Checked
     requires value.first_length > 0 && value.second_length > 0 &&
         value.first_base <= 18446744073709551615 - value.first_length &&
         value.second_base <= 18446744073709551615 - value.second_length
@@ -52,8 +52,8 @@ machine main() crashes Trap {
         true -> done()
         _ -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }
 
 // Revisit the same read sites after a mutation. The first iteration establishes
@@ -64,7 +64,7 @@ requires embed(value.base) + embed(value.length) <= 18446744073709551615;
 data RangeChecked { value: Range in Bounded; }
 machine mutation_cycle(value: Range) -> bool {
     transition { _ -> inspect(value, false) }
-    state inspect(mut value: Range, repeated: bool) -> bool {
+    machine inspect(mut value: Range, repeated: bool) -> bool {
         let base: u64 = value.base;
         let length: u64 = value.length;
         transition base <= 18446744073709551615 - length {
@@ -72,7 +72,7 @@ machine mutation_cycle(value: Range) -> bool {
             _ -> (repeated)
         }
     }
-    state admitted(value: Range, repeated: bool) -> bool
+    machine admitted(value: Range, repeated: bool) -> bool
     requires value.base <= 18446744073709551615 - value.length
     {
         let result: RangeChecked = RangeChecked { value: value };
@@ -81,7 +81,7 @@ machine mutation_cycle(value: Range) -> bool {
             _ -> replace(result.value as Range)
         }
     }
-    state replace(mut value: Range) -> bool {
+    machine replace(mut value: Range) -> bool {
         value.base = 18446744073709551615;
         value.length = 1;
         transition { _ -> inspect(value, true) }

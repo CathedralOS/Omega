@@ -5,5 +5,5 @@ machine Token::drop(token: &mut Token) requires token.ready {}
 machine main() {
     let token: Token = Token { ready: false };
     transition { _ -> done() }
-    state done() {}
+    machine done() {}
 }

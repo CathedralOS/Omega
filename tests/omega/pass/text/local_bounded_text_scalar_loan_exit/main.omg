@@ -14,7 +14,7 @@ machine digit_sum(text: &[u8; 3] in Utf8) -> i32 in Wrapping {
         _ -> step(text, 0, 0)
     }
 
-    state step(text: &[u8; 3] in Utf8, index: i32, sum: i32 in Wrapping) -> i32 in Wrapping
+    machine step(text: &[u8; 3] in Utf8, index: i32, sum: i32 in Wrapping) -> i32 in Wrapping
     requires index >= 0
     {
         transition index < text.len {
@@ -23,7 +23,7 @@ machine digit_sum(text: &[u8; 3] in Utf8) -> i32 in Wrapping {
         }
     }
 
-    state digit(text: &[u8; 3] in Utf8, index: i32, sum: i32 in Wrapping) -> i32 in Wrapping
+    machine digit(text: &[u8; 3] in Utf8, index: i32, sum: i32 in Wrapping) -> i32 in Wrapping
     requires index >= 0
     {
         let byte: u8 = text[index];
@@ -35,7 +35,7 @@ machine digit_sum(text: &[u8; 3] in Utf8) -> i32 in Wrapping {
         }
     }
 
-    state advance(text: &[u8; 3] in Utf8, index: i32, sum: i32 in Wrapping) -> i32 in Wrapping
+    machine advance(text: &[u8; 3] in Utf8, index: i32, sum: i32 in Wrapping) -> i32 in Wrapping
     requires index >= 0 && index < 8
     {
         let next_index: i32 = index + 1;
@@ -56,7 +56,7 @@ machine forwarded_length(text: &[u8; 3] in Utf8) -> u64 {
         _ -> measure(text)
     }
 
-    state measure(text: &[u8; 3] in Utf8) -> u64 {
+    machine measure(text: &[u8; 3] in Utf8) -> u64 {
         transition {
             _ -> (text.len)
         }
@@ -74,7 +74,7 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> finish(71)
     }
 
-    state finish(code: i32) {
+    machine finish(code: i32) {
         Console::exit_process(code);
     }
 }

@@ -12,7 +12,7 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
     main.count = 0;
     transition { _ -> write(main) }
 
-    state write(main: &mut Main) {
+    machine write(main: &mut Main) {
         main.text = TextBuffer { storage: [97u8, 98u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 2 };
         let prefix: &[u8] in Utf8 = TextBuffer::view(&main.text);
         let joined: TextBuffer = TextBuffer::join(prefix, "c");
@@ -24,15 +24,15 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
         }
     }
 
-    state check(main: &mut Main) {
+    machine check(main: &mut Main) {
         transition TextBuffer::equal(&main.text, "abc") && main.count == 3 {
             true -> good(main)
             false -> bad(main)
         }
     }
 
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main) { Console::exit_process(1); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(1); }
 }
 
 
@@ -45,8 +45,8 @@ machine TextBuffer::view(buffer: &TextBuffer) -> &[u8] in Utf8 crashes Trap {
         true -> checked(bytes)
         false -> bad()
     }
-    state checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
-    state bad() { crash Trap; }
+    machine checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
+    machine bad() -> &[u8] in Utf8 { crash Trap; }
 }
 machine TextBuffer::equal(buffer: &TextBuffer, expected: &[u8]) -> bool crashes Trap {
     let bytes: &[u8] in Utf8 = TextBuffer::view(buffer);
@@ -56,7 +56,7 @@ machine TextBuffer::equal(buffer: &TextBuffer, expected: &[u8]) -> bool crashes 
 machine TextBuffer::copy(storage: &mut [u8; 16], bytes: &[u8], start: u64)
 requires start <= 16; bytes.len <= 16 - start {
     transition { _ -> copying(storage, bytes, start, 0) }
-    state copying(storage: &mut [u8; 16], bytes: &[u8], start: u64, index: u64)
+    machine copying(storage: &mut [u8; 16], bytes: &[u8], start: u64, index: u64)
     requires start <= 16; index <= 16 {
         transition index < bytes.len && start + index < 16 {
             true -> writing(storage, bytes, start, index)
@@ -68,14 +68,14 @@ requires start <= 16; bytes.len <= 16 - start {
         storage[start + index] = bytes[index];
         transition { _ -> copying(storage, bytes, start, index + 1) }
     }
-    state done() {}
+    machine done() {}
 }
 machine TextBuffer::join(left: &[u8], right: &[u8]) -> TextBuffer crashes Trap {
     transition left.len <= 16 && right.len <= 16 - left.len {
         true -> joining(left, right)
         _ -> bad()
     }
-    state joining(left: &[u8], right: &[u8]) -> TextBuffer
+    machine joining(left: &[u8], right: &[u8]) -> TextBuffer
     requires left.len <= 16; right.len <= 16 - left.len {
     let mut result: TextBuffer;
     TextBuffer::copy(&mut result.storage, left, 0);
@@ -86,13 +86,13 @@ machine TextBuffer::join(left: &[u8], right: &[u8]) -> TextBuffer crashes Trap {
         _ -> bad()
     }
     }
-    state checked(result: TextBuffer, total: u64) -> TextBuffer
+    machine checked(result: TextBuffer, total: u64) -> TextBuffer
     requires total <= 16 {
         let mut value: TextBuffer = result;
         value.used = total;
         value
     }
-    state bad() { crash Trap; }
+    machine bad() -> TextBuffer { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

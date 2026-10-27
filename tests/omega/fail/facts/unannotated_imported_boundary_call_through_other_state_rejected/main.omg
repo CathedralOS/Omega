@@ -5,9 +5,9 @@ MarkerMark satisfies Mark { machine read() -> u64 { 7 } }
 machine main() reaches crashes Trap {
     let value: u64 = fetch_mark();
     transition { _ -> check(value) }
-    state check(value: u64) {
+    machine check(value: u64) {
         transition value == 7 { true -> done() _ -> bad() }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

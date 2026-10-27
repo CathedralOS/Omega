@@ -10,7 +10,7 @@ machine main() crashes Trap {
         true -> inspect(whole)
         false -> bad()
     }
-    state inspect(bytes: &[u8])
+    machine inspect(bytes: &[u8])
     requires bytes.len == 2;
     {
         let suffix: &[u8] = &bytes[1..2];
@@ -19,6 +19,6 @@ machine main() crashes Trap {
             false -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

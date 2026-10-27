@@ -20,7 +20,7 @@ machine store(destination: &mut i64, value: i64) { destination = value; }
 machine main(memory: &mut Memory) crashes Trap {
     memory.bytes[1] = 85;
     transition { _ -> apply(memory, 200) }
-    state apply(memory: &mut Memory, value: i64) {
+    machine apply(memory: &mut Memory, value: i64) {
         let packed: &mut SignedByte<PortableByte> = &mut memory.bytes[0] as &mut SignedByte<PortableByte>;
         store(&mut packed.value, value);
     transition memory.bytes[0] == 70 && memory.bytes[1] == 85 {
@@ -28,8 +28,8 @@ machine main(memory: &mut Memory) crashes Trap {
         false -> bad()
     }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

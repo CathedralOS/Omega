@@ -12,7 +12,7 @@ public ByteWriter satisfies Writer {
             true -> write_first(bytes)
             _ -> 1
         }
-        state write_first(bytes: &mut [u8]) requires bytes.len > 0; {
+        machine write_first(bytes: &mut [u8]) -> i32 requires bytes.len > 0; {
             bytes[0] = 17;
             0
         }
@@ -57,8 +57,8 @@ invokes Writer; invokes GenericWriter; invokes NestedWriter;
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

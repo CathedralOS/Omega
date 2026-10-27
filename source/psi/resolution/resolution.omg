@@ -342,11 +342,11 @@ crashes Trap
         _ -> invalid()
     }
 
-    state read(resolution: &NameResolution, index: u64 in Trapping) -> ValueBinding {
+    machine read(resolution: &NameResolution, index: u64 in Trapping) -> ValueBinding {
         resolution.value_bindings[index]
     }
 
-    state invalid() -> ValueBinding {
+    machine invalid() -> ValueBinding {
         crash Trap;
     }
 }
@@ -372,7 +372,7 @@ crashes Trap
         _ -> chosen(MachineArgument::Absent)
     }
 
-    state generic(syntax: &SyntaxTrees, parameter: u64 in Trapping) -> MachineArgument {
+    machine generic(syntax: &SyntaxTrees, parameter: u64 in Trapping) -> MachineArgument {
         let declared: GenericParameter = SyntaxTrees::generic_parameter(syntax, parameter);
         transition declared.kind == GenericParameterKind::Machine {
             true -> chosen(MachineArgument::Forwarded { parameter: parameter })
@@ -380,7 +380,7 @@ crashes Trap
         }
     }
 
-    state chosen(argument: MachineArgument) -> MachineArgument {
+    machine chosen(argument: MachineArgument) -> MachineArgument {
         argument
     }
 }
@@ -393,13 +393,13 @@ public machine NameResolution::binder_contract(resolution: &NameResolution, para
         _ -> none()
     }
 
-    state read(resolution: &NameResolution, parameter: u64 in Trapping) -> BinderContract
+    machine read(resolution: &NameResolution, parameter: u64 in Trapping) -> BinderContract
     requires parameter < 256
     {
         resolution.binder_contracts[parameter]
     }
 
-    state none() -> BinderContract {
+    machine none() -> BinderContract {
         BinderContract { present: false, contract: 0 }
     }
 }
@@ -412,13 +412,13 @@ crashes Trap
         _ -> invalid()
     }
 
-    state write(resolution: &mut NameResolution, parameter: u64 in Trapping, contract: BinderContract)
+    machine write(resolution: &mut NameResolution, parameter: u64 in Trapping, contract: BinderContract)
     requires parameter < 256
     {
         resolution.binder_contracts[parameter] = contract;
     }
 
-    state invalid() {
+    machine invalid() {
         crash Trap;
     }
 }
@@ -432,11 +432,11 @@ crashes Trap
         _ -> invalid()
     }
 
-    state read(resolution: &NameResolution, index: u64 in Trapping) -> ValueBinding {
+    machine read(resolution: &NameResolution, index: u64 in Trapping) -> ValueBinding {
         resolution.requirements[index]
     }
 
-    state invalid() -> ValueBinding {
+    machine invalid() -> ValueBinding {
         crash Trap;
     }
 }
@@ -451,11 +451,11 @@ crashes Trap
         _ -> invalid()
     }
 
-    state read(resolution: &NameResolution, handle: u64 in Trapping) -> TypeBinding {
+    machine read(resolution: &NameResolution, handle: u64 in Trapping) -> TypeBinding {
         resolution.operator_homes[handle]
     }
 
-    state invalid() -> TypeBinding {
+    machine invalid() -> TypeBinding {
         crash Trap;
     }
 }
@@ -469,11 +469,11 @@ crashes Trap
         _ -> invalid()
     }
 
-    state read(resolution: &NameResolution, handle: u64 in Trapping) -> MachineOwner {
+    machine read(resolution: &NameResolution, handle: u64 in Trapping) -> MachineOwner {
         resolution.machine_owners[handle]
     }
 
-    state invalid() -> MachineOwner {
+    machine invalid() -> MachineOwner {
         crash Trap;
     }
 }
@@ -487,11 +487,11 @@ crashes Trap
         _ -> invalid()
     }
 
-    state read(resolution: &NameResolution, row: u64 in Trapping) -> DomainBinding {
+    machine read(resolution: &NameResolution, row: u64 in Trapping) -> DomainBinding {
         resolution.domain_bindings[row]
     }
 
-    state invalid() -> DomainBinding {
+    machine invalid() -> DomainBinding {
         crash Trap;
     }
 }
@@ -506,11 +506,11 @@ crashes Trap
         _ -> invalid()
     }
 
-    state read(resolution: &NameResolution, row: u64 in Trapping) -> u64 in Trapping {
+    machine read(resolution: &NameResolution, row: u64 in Trapping) -> u64 in Trapping {
         resolution.domain_items[row] as u64 in Trapping
     }
 
-    state invalid() -> u64 in Trapping {
+    machine invalid() -> u64 in Trapping {
         crash Trap;
     }
 }
@@ -524,11 +524,11 @@ crashes Trap
         _ -> invalid()
     }
 
-    state read(resolution: &NameResolution, handle: u64 in Trapping) -> PathBinding {
+    machine read(resolution: &NameResolution, handle: u64 in Trapping) -> PathBinding {
         resolution.path_bindings[handle]
     }
 
-    state invalid() -> PathBinding {
+    machine invalid() -> PathBinding {
         crash Trap;
     }
 }
@@ -543,11 +543,11 @@ crashes Trap
         _ -> invalid()
     }
 
-    state read(resolution: &NameResolution, row: u64 in Trapping) -> TypeBinding {
+    machine read(resolution: &NameResolution, row: u64 in Trapping) -> TypeBinding {
         resolution.type_bindings[row]
     }
 
-    state invalid() -> TypeBinding {
+    machine invalid() -> TypeBinding {
         crash Trap;
     }
 }
@@ -561,11 +561,11 @@ crashes Trap
         _ -> invalid()
     }
 
-    state read(resolution: &NameResolution, handle: u64 in Trapping) -> PathBinding {
+    machine read(resolution: &NameResolution, handle: u64 in Trapping) -> PathBinding {
         resolution.path_bindings[handle]
     }
 
-    state invalid() -> PathBinding {
+    machine invalid() -> PathBinding {
         crash Trap;
     }
 }
@@ -580,11 +580,11 @@ crashes Trap
         _ -> invalid()
     }
 
-    state read(resolution: &NameResolution, handle: u64 in Trapping) -> ValueBinding {
+    machine read(resolution: &NameResolution, handle: u64 in Trapping) -> ValueBinding {
         resolution.value_bindings[handle]
     }
 
-    state invalid() -> ValueBinding {
+    machine invalid() -> ValueBinding {
         crash Trap;
     }
 }
@@ -616,13 +616,13 @@ public machine NameResolution::ranking_view(resolution: &NameResolution, clause:
         _ -> none()
     }
 
-    state read(resolution: &NameResolution, clause: u64 in Trapping) -> RankingView
+    machine read(resolution: &NameResolution, clause: u64 in Trapping) -> RankingView
     requires clause < 2048
     {
         resolution.ranking_views[clause]
     }
 
-    state none() -> RankingView {
+    machine none() -> RankingView {
         RankingView::Default
     }
 }
@@ -635,13 +635,13 @@ crashes Trap
         _ -> invalid()
     }
 
-    state write(resolution: &mut NameResolution, clause: u64 in Trapping, view: RankingView)
+    machine write(resolution: &mut NameResolution, clause: u64 in Trapping, view: RankingView)
     requires clause < 2048
     {
         resolution.ranking_views[clause] = view;
     }
 
-    state invalid() {
+    machine invalid() {
         crash Trap;
     }
 }
@@ -654,13 +654,13 @@ public machine NameResolution::ranking_measure(resolution: &NameResolution, clau
         _ -> none()
     }
 
-    state read(resolution: &NameResolution, clause: u64 in Trapping) -> u64 in Trapping
+    machine read(resolution: &NameResolution, clause: u64 in Trapping) -> u64 in Trapping
     requires clause < 2048
     {
         resolution.ranking_measures[clause] as u64 in Trapping
     }
 
-    state none() -> u64 in Trapping {
+    machine none() -> u64 in Trapping {
         0
     }
 }
@@ -673,13 +673,13 @@ crashes Trap
         _ -> invalid()
     }
 
-    state write(resolution: &mut NameResolution, clause: u64 in Trapping, measure: u64 in Trapping)
+    machine write(resolution: &mut NameResolution, clause: u64 in Trapping, measure: u64 in Trapping)
     requires clause < 2048
     {
         resolution.ranking_measures[clause] = measure as u64;
     }
 
-    state invalid() {
+    machine invalid() {
         crash Trap;
     }
 }
@@ -690,13 +690,13 @@ public machine NameResolution::component_field(resolution: &NameResolution, memb
         _ -> none()
     }
 
-    state read(resolution: &NameResolution, member: u64 in Trapping) -> u64 in Trapping
+    machine read(resolution: &NameResolution, member: u64 in Trapping) -> u64 in Trapping
     requires member < 32000
     {
         resolution.component_fields[member] as u64 in Trapping
     }
 
-    state none() -> u64 in Trapping {
+    machine none() -> u64 in Trapping {
         0
     }
 }
@@ -709,13 +709,13 @@ crashes Trap
         _ -> invalid()
     }
 
-    state write(resolution: &mut NameResolution, member: u64 in Trapping, bound: u64 in Trapping)
+    machine write(resolution: &mut NameResolution, member: u64 in Trapping, bound: u64 in Trapping)
     requires member < 32000
     {
         resolution.component_fields[member] = bound as u64;
     }
 
-    state invalid() {
+    machine invalid() {
         crash Trap;
     }
 }
@@ -726,13 +726,13 @@ public machine NameResolution::rank_carrier(resolution: &NameResolution, paramet
         _ -> none()
     }
 
-    state read(resolution: &NameResolution, parameter: u64 in Trapping) -> u64 in Trapping
+    machine read(resolution: &NameResolution, parameter: u64 in Trapping) -> u64 in Trapping
     requires parameter < 32768
     {
         resolution.rank_carriers[parameter] as u64 in Trapping
     }
 
-    state none() -> u64 in Trapping {
+    machine none() -> u64 in Trapping {
         0
     }
 }
@@ -745,13 +745,13 @@ crashes Trap
         _ -> invalid()
     }
 
-    state write(resolution: &mut NameResolution, parameter: u64 in Trapping, carried: u64 in Trapping)
+    machine write(resolution: &mut NameResolution, parameter: u64 in Trapping, carried: u64 in Trapping)
     requires parameter < 32768
     {
         resolution.rank_carriers[parameter] = carried as u64;
     }
 
-    state invalid() {
+    machine invalid() {
         crash Trap;
     }
 }

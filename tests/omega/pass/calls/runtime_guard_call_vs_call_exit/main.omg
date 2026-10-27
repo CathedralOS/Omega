@@ -19,12 +19,12 @@ machine dbl(x: i32 in Wrapping) -> i32 in Wrapping {
 machine Main::main(main: &mut Main) reaches Console {
     transition dbl(5) == dbl(6) { true -> bad(main, 71) _ -> equal_pair(main) }
 
-    state equal_pair(main: &mut Main) {
+    machine equal_pair(main: &mut Main) {
         transition dbl(3) == dbl(3) { true -> good(main) _ -> bad(main, 72) }
     }
 
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
