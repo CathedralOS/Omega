@@ -130,12 +130,22 @@ fn producer_alias<'facts>(
         return None;
     };
     if prefixes.iter().any(|prefix| {
-        !crate::flow::operand_entry_binding_origin_is_stable(
-            program,
-            &facts.flow,
-            captured.operand.row(),
-            prefix,
-        )
+        if let Some(read) = captured.producer_epoch {
+            !crate::flow::operand_bindings_agree(
+                program,
+                &facts.flow,
+                captured.operand.row(),
+                read.row(),
+                prefix,
+            )
+        } else {
+            !crate::flow::operand_entry_binding_origin_is_stable(
+                program,
+                &facts.flow,
+                captured.operand.row(),
+                prefix,
+            )
+        }
     }) {
         return None;
     }
