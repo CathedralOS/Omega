@@ -683,7 +683,9 @@ pub struct CheckingMemos {
         symbols::SymbolKeyMap<
             (symbols::SymbolHandle, symbols::SymbolHandle),
             Result<
-                Vec<crate::proof_contracts::contract_entailment::structural_prefix::Arrival>,
+                std::sync::Arc<
+                    crate::proof_contracts::contract_entailment::structural_prefix::ClosedArrivals,
+                >,
                 &'static str,
             >,
         >,
