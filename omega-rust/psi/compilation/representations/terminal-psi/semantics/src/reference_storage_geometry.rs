@@ -212,6 +212,12 @@ pub(crate) fn physical_geometry<'types>(
                 reference_projection_supported: false,
             })
         }
+        StructuralTypeShape::Sum { cases } => {
+            physical_sum_geometry(types.clone(), &[], cases, physical, active)
+        }
+        StructuralTypeShape::Mixed { fields, cases } => {
+            physical_sum_geometry(types.clone(), fields, cases, physical, active)
+        }
         StructuralTypeShape::Record {
             storage: StructuralRecordStorage::TargetLayout(_),
             ..
@@ -221,12 +227,61 @@ pub(crate) fn physical_geometry<'types>(
             storage:
                 StructuralRecordStorage::PlacedView(_) | StructuralRecordStorage::PlacedAccessor(_),
             ..
-        }
-        | StructuralTypeShape::Sum { .. }
-        | StructuralTypeShape::Mixed { .. } => Err(Error::UnsupportedCarrier(root)),
+        } => Err(Error::UnsupportedCarrier(root)),
     })();
     active.pop();
     result
+}
+
+/// Conventional sums have a four-byte tag, common fields, then one shared
+/// payload overlay. Observing their geometry establishes no active-case or
+/// reference-projection permission.
+fn physical_sum_geometry<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    common: &[StructuralFieldDeclaration],
+    cases: &[terminal_psi::StructuralCaseDeclaration],
+    physical: Option<semantic_vocabulary::PhysicalDataLayout>,
+    active: &mut Vec<StructuralTypeId>,
+) -> Result<StorageGeometry, crate::LayoutObservationError> {
+    use crate::LayoutObservationError as Error;
+    let mut common_end = 4;
+    let mut common_alignment = 1;
+    for field in common.iter().filter(|field| !field.relevance.is_erased()) {
+        let child = physical_field_geometry(types.clone(), field, physical, active)?;
+        common_end = align(common_end, child.alignment)
+            .and_then(|offset| offset.checked_add(child.size))
+            .ok_or(Error::ExtentOverflow)?;
+        common_alignment = common_alignment.max(child.alignment);
+    }
+    common_end = align(common_end, common_alignment).ok_or(Error::ExtentOverflow)?;
+    let mut payload_size = 0;
+    let mut payload_alignment = 1;
+    for case in cases {
+        let mut size = 0;
+        let mut alignment = 1;
+        for field in case
+            .fields
+            .iter()
+            .filter(|field| !field.relevance.is_erased())
+        {
+            let child = physical_field_geometry(types.clone(), field, physical, active)?;
+            size = align(size, child.alignment)
+                .and_then(|offset| offset.checked_add(child.size))
+                .ok_or(Error::ExtentOverflow)?;
+            alignment = alignment.max(child.alignment);
+        }
+        payload_size = payload_size.max(align(size, alignment).ok_or(Error::ExtentOverflow)?);
+        payload_alignment = payload_alignment.max(alignment);
+    }
+    let alignment = 4.max(common_alignment).max(payload_alignment);
+    let end = align(common_end, payload_alignment)
+        .and_then(|offset| offset.checked_add(payload_size))
+        .ok_or(Error::ExtentOverflow)?;
+    Ok(StorageGeometry {
+        size: align(end, alignment).ok_or(Error::ExtentOverflow)?,
+        alignment,
+        reference_projection_supported: false,
+    })
 }
 
 pub fn reference_storage_size<'types>(

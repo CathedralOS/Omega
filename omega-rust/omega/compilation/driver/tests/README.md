@@ -156,6 +156,13 @@ Do not add per-feature Rust test files to this directory. The crate sets
 target would link the whole compiler again. `support/` holds the package-input
 helpers the runner uses.
 
+The existing `package_review` target also checks compiler SDK boundaries that
+source programs cannot exercise directly. Its
+`historical_constant_closure_requires_exact_target_and_provider` test produces
+ordinary source artifacts, then checks exact target/provider-plan custody and
+same-value substitutions. Run that test by name; it does not need a separate
+example executable or command-line wrapper.
+
 An optional `expected_terminal_inspections.txt` lists qualified machine names,
 one per line, optionally followed by `debug` to require a debug companion.
 After checking succeeds, the corpus selects each through the public inspection

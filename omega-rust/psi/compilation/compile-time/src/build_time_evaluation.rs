@@ -48,6 +48,8 @@ pub trait LayoutQueryPreparation {
     ) -> Result<LayoutContextInputs, Vec<diagnostics::Diagnostic>>;
 }
 
+pub use typed_trees_to_typed_trees::{BuildTimeLayoutQueries, PreparedLayoutQueries};
+
 /// Work ownership is narrower than executable lookup. Product work excludes
 /// completed Build jobs but still needs shared toolchain declarations. Build
 /// execution instead keeps exactly its admitted roster: a Product descriptor
@@ -56,7 +58,11 @@ pub trait LayoutQueryPreparation {
 pub(crate) struct EvaluationDomain {
     work: DeclarationSelection,
     execution: DeclarationSelection,
+    /// Explicit constant positions demanded by already-formed observations.
+    /// These jobs do not activate a declaration's other types or old initializers.
+    constant_requests: Vec<typed_trees::constant_recipes::RetainedConstantPosition>,
     product_frontier: Option<Arc<typed_trees::TypedTrees>>,
+    layout_queries: Option<PreparedLayoutQueries>,
     pub(crate) accounting: crate::evaluation_accounting::EvaluationAccounting,
 }
 
@@ -67,7 +73,9 @@ impl PartialEq for EvaluationDomain {
     fn eq(&self, other: &Self) -> bool {
         self.work == other.work
             && self.execution == other.execution
+            && self.constant_requests == other.constant_requests
             && self.product_frontier == other.product_frontier
+            && self.layout_queries == other.layout_queries
     }
 }
 impl Eq for EvaluationDomain {}
@@ -93,7 +101,9 @@ impl EvaluationDomain {
         Self {
             work,
             execution,
+            constant_requests: Vec::new(),
             product_frontier: None,
+            layout_queries: None,
             accounting: Default::default(),
         }
     }
@@ -102,7 +112,9 @@ impl EvaluationDomain {
         Self {
             work: DeclarationSelection::all(),
             execution: DeclarationSelection::all(),
+            constant_requests: Vec::new(),
             product_frontier: None,
+            layout_queries: None,
             accounting: Default::default(),
         }
     }
@@ -152,6 +164,7 @@ impl EvaluationDomain {
         domain.execution = domain.execution.intersect(&self.execution);
         domain.product_frontier = self.product_frontier.clone();
         domain.accounting = self.accounting.clone();
+        domain.layout_queries = self.layout_queries.clone();
         domain
     }
 
@@ -171,7 +184,49 @@ impl EvaluationDomain {
         &self,
         program: &typed_trees::TypedTrees,
     ) -> typed_trees::references::ProgramReferences {
-        typed_trees::references::collect_selected_program_references(program, &self.work)
+        let mut references =
+            typed_trees::references::collect_selected_program_references(program, &self.work);
+        // Select the exact position only. Recursing over its type spelling
+        // would promote reference backing and provenance into evaluation work.
+        for request in &self.constant_requests {
+            use typed_trees::constant_recipes::RetainedConstantPosition;
+            match request {
+                RetainedConstantPosition::ArrayLength(site) => {
+                    references.type_references.push(*site);
+                }
+                RetainedConstantPosition::ConstApplication { site, .. } => {
+                    references.type_references.push(*site);
+                }
+                RetainedConstantPosition::RangeEndpoint(root) => {
+                    references.expressions.insert(*root);
+                }
+                RetainedConstantPosition::None => {}
+            }
+        }
+        references
+            .type_references
+            .sort_unstable_by_key(|site| (site.arena_index(), site.generation()));
+        references.type_references.dedup();
+        references
+    }
+
+    pub(crate) fn prepare_layout_queries(
+        &self,
+        program: &mut typed_trees::TypedTrees,
+    ) -> Result<(), Vec<diagnostics::Diagnostic>> {
+        if let Some(queries) = &self.layout_queries {
+            queries.prepare(program, &self.work)?;
+        }
+        Ok(())
+    }
+
+    pub(crate) fn preparation_request<'a>(
+        &'a self,
+        request: typed_trees_to_typed_trees::PreparationRequest<'a>,
+    ) -> typed_trees_to_typed_trees::PreparationRequest<'a> {
+        self.layout_queries.as_ref().map_or(request, |queries| {
+            request.with_layout_queries(queries, &self.work)
+        })
     }
 
     pub(crate) fn include(&mut self, symbol: symbols::SymbolHandle) {
@@ -451,7 +506,9 @@ impl PreCheckEvaluation {
             EvaluationDomain {
                 work: self.domain.work.intersect(&selected),
                 execution: self.domain.execution.intersect(&selected),
+                constant_requests: self.domain.constant_requests.clone(),
                 product_frontier: projection.product_declaration_frontier.clone(),
+                layout_queries: self.domain.layout_queries.clone(),
                 accounting: self.domain.accounting.clone(),
             },
         )
@@ -491,10 +548,33 @@ impl PreCheckEvaluation {
                     .work
                     .excluding(&DeclarationSelection::from_program(completed_projection)),
                 execution: self.domain.execution.clone(),
+                constant_requests: self.domain.constant_requests.clone(),
                 product_frontier: self.domain.product_frontier.clone(),
+                layout_queries: self.domain.layout_queries.clone(),
                 accounting: self.domain.accounting.clone(),
             },
         )
+    }
+
+    /// Bind physical answers only for this selected invocation. Deferred source
+    /// continuations remain independent of deployment and host geometry.
+    pub fn with_layout_queries(mut self, queries: PreparedLayoutQueries) -> Self {
+        self.domain.layout_queries = Some(queries);
+        self
+    }
+
+    /// Demand exact retained constant positions without widening declaration work
+    /// or the execution catalogue. Requests participate in continuation identity.
+    pub fn with_constant_requests(
+        mut self,
+        requests: &[typed_trees::constant_recipes::RetainedConstantPosition],
+    ) -> Self {
+        for request in requests {
+            if !self.domain.constant_requests.contains(request) {
+                self.domain.constant_requests.push(request.clone());
+            }
+        }
+        self
     }
 
     /// A private receiving capsule owns only these declaration jobs. Its
@@ -510,7 +590,9 @@ impl PreCheckEvaluation {
             EvaluationDomain {
                 work: self.domain.work.intersect(selection),
                 execution: self.domain.execution.clone(),
+                constant_requests: self.domain.constant_requests.clone(),
                 product_frontier: self.domain.product_frontier.clone(),
+                layout_queries: self.domain.layout_queries.clone(),
                 accounting: self.domain.accounting.clone(),
             },
         )

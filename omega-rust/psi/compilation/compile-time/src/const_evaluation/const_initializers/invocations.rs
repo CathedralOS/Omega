@@ -53,7 +53,7 @@ impl CheckedInitializers {
         prepared: &crate::PreparedBuildMachineProgram,
         authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
         probe_symbols: &[symbols::SymbolHandle],
-        accounting: &crate::evaluation_accounting::EvaluationAccounting,
+        domain: &crate::build_time_evaluation::EvaluationDomain,
     ) -> Result<Self, Vec<Diagnostic>> {
         let mut bodies = prepared.typed().clone();
         let (probes, machines): (Vec<_>, Vec<_>) = bodies
@@ -75,7 +75,8 @@ impl CheckedInitializers {
         for machine in machines {
             bodies.push_machine(machine);
         }
-        let preparation_request = typed_trees_to_typed_trees::PreparationRequest::settled();
+        let preparation_request =
+            domain.preparation_request(typed_trees_to_typed_trees::PreparationRequest::settled());
         let checking = typed_trees_to_checked_trees::CheckingRequest::new();
         let (bodies, preparation) =
             typed_trees_to_typed_trees::prepare_typed_trees(bodies, &preparation_request)?;
@@ -90,7 +91,7 @@ impl CheckedInitializers {
             typed.push_machine(probe);
         }
         let admission = BuildTimeAdmissionPlan::infer(&typed, authority.clone())
-            .with_accounting(accounting.clone());
+            .with_accounting(domain.accounting.clone());
         Ok(Self {
             typed,
             admission,
@@ -261,9 +262,14 @@ impl Invocation<'_> {
             || call.static_machine_parameter.is_valid()
             || !call.selects_only_nominal_route()
         {
-            return Err(
-                "constant invocation needs its complete specialized application context".into(),
-            );
+            return Err(format!(
+                "constant invocation needs its complete specialized application context for `{}` (static arguments: {}, evidence arguments: {}, static binder: {}, nominal route: {})",
+                call.target,
+                call.machine_arguments.len(),
+                call.evidence_arguments.len(),
+                call.static_machine_parameter.is_valid(),
+                call.selects_only_nominal_route(),
+            ));
         }
         let mut selected = typed.machines().iter().filter(|machine| {
             machine.type_parameters.is_empty()

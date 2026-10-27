@@ -129,17 +129,22 @@ pub fn layout_type_reference(
 /// An exact input the ordinary layout traversal still needs. A descriptor
 /// does not depend on its pointee's geometry; only actual by-value traversal
 /// can produce these prerequisites.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum LayoutQueryPrerequisite {
-    ArrayExtent(TypeReferenceHandle),
+    ArrayExtent {
+        reference: TypeReferenceHandle,
+        recipe: typed_trees::constant_recipes::ConstantRecipeHandle,
+    },
+    /// An unbound source telescope operand; an application supplies geometry.
+    Binding(symbols::SymbolHandle),
     PlanGeometry(symbols::SymbolHandle),
     TargetGeometry,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypeLayoutQuery {
     Ready(TypeLayout),
-    Pending(LayoutQueryPrerequisite),
+    Pending(Vec<LayoutQueryPrerequisite>),
 }
 
 /// Query one carrier through the ordinary layout producer. Pending inputs
@@ -162,9 +167,12 @@ pub fn query_type_reference_layout(
     );
     builder.geometry_query = true;
     let layout = builder.layout_type_reference_handle(type_reference, &[])?;
-    Ok(match builder.pending_geometry {
-        Some(prerequisite) => TypeLayoutQuery::Pending(prerequisite),
-        None => TypeLayoutQuery::Ready(layout),
+    let mut seen = std::collections::HashSet::new();
+    builder.pending_geometry.retain(|input| seen.insert(*input));
+    Ok(if builder.pending_geometry.is_empty() {
+        TypeLayoutQuery::Ready(layout)
+    } else {
+        TypeLayoutQuery::Pending(builder.pending_geometry)
     })
 }
 
@@ -183,7 +191,7 @@ struct LayoutBuilder<'program> {
     data_visiting: LayoutVisitStack,
     /// Query-only suspension is separate from strict native layout production.
     geometry_query: bool,
-    pending_geometry: Option<LayoutQueryPrerequisite>,
+    pending_geometry: Vec<LayoutQueryPrerequisite>,
     fields: Arena<FieldLayout>,
     bit_fields: Vec<BitFieldLayout>,
     stored_integers: Vec<StoredIntegerLayout>,
@@ -290,7 +298,7 @@ impl<'program> LayoutBuilder<'program> {
             data_layouts: Arena::with_capacity(data_definitions.len()),
             data_visiting: LayoutVisitStack::with_capacity(data_definitions.len()),
             geometry_query: false,
-            pending_geometry: None,
+            pending_geometry: Vec::new(),
             fields: Arena::with_capacity(field_capacity),
             bit_fields: Vec::new(),
             stored_integers: Vec::new(),
@@ -403,7 +411,7 @@ impl<'program> LayoutBuilder<'program> {
 
     fn await_target_geometry(&mut self) -> TypeLayout {
         self.pending_geometry
-            .get_or_insert(LayoutQueryPrerequisite::TargetGeometry);
+            .push(LayoutQueryPrerequisite::TargetGeometry);
         TypeLayout::default()
     }
 

@@ -134,6 +134,21 @@ fn lower_layout_requirements(
     let mut requirements = Vec::new();
     for requirement in &checked.facts.constant_layout_requirements {
         let owner = match requirement.owner {
+            checked_trees::CheckedLayoutOwner::Constant(symbol) => {
+                if !checked
+                    .typed
+                    .const_declaration_by_symbol(symbol)
+                    .is_some_and(|declaration| declaration.evaluated_value.is_some())
+                {
+                    return Err(LoweringError::Unsupported(
+                        "folded layout declaration consumer has no canonical value",
+                    ));
+                }
+                // This job completed during formation. Every executable use
+                // has its own assignment; no native body is invented for the
+                // declaration or its private evaluator.
+                continue;
+            }
             checked_trees::CheckedLayoutOwner::Machine(machine) => {
                 if !machines.iter().any(|(source, _)| *source == machine)
                     && requirement.alternatives.iter().all(|alternative| {
@@ -153,8 +168,9 @@ fn lower_layout_requirements(
                             })
                     })
                 {
-                    // Static policy execution is erased. Its materialized
-                    // result below retains the same judgment's condition.
+                    // Static execution is erased only after its complete
+                    // assignment transfers to a real consumer: a surviving
+                    // body/carrier or a completed declaration-formation job.
                     continue;
                 }
                 FoldedLayoutOwner::Machine(lookup_machine_id(machines, machine)?)

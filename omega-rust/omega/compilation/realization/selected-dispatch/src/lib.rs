@@ -19,7 +19,7 @@ mod provider_binding;
 mod selected_dispatch;
 mod service_custody;
 
-pub use constant_evaluation::SelectedConstantEvaluation;
+pub use constant_evaluation::{ConstantEvaluationInputs, SelectedConstantEvaluation};
 
 pub use compiler_intrinsic::derive_selected_compiler_intrinsic_execution_identity_for_row;
 pub use execution_settlement::{

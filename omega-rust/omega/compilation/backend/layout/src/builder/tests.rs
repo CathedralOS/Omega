@@ -62,9 +62,9 @@ fn query_distinguishes_zero_pending_and_borrowed_storage() {
     );
     assert_eq!(
         super::query_type_reference_layout(&typed, None, &[], owned).expect("pending layout"),
-        super::TypeLayoutQuery::Pending(super::LayoutQueryPrerequisite::PlanGeometry(
+        super::TypeLayoutQuery::Pending(vec![super::LayoutQueryPrerequisite::PlanGeometry(
             payload_symbol
-        )),
+        )]),
     );
     assert_eq!(
         super::query_type_reference_layout(&typed, Some(target), &[], borrowed)
@@ -76,7 +76,7 @@ fn query_distinguishes_zero_pending_and_borrowed_storage() {
     );
     assert_eq!(
         super::query_type_reference_layout(&typed, None, &[], borrowed).expect("target input"),
-        super::TypeLayoutQuery::Pending(super::LayoutQueryPrerequisite::TargetGeometry),
+        super::TypeLayoutQuery::Pending(vec![super::LayoutQueryPrerequisite::TargetGeometry]),
     );
     assert!(
         build_layout_plan(&typed, target, &[]).is_err(),
@@ -93,9 +93,9 @@ fn query_distinguishes_zero_pending_and_borrowed_storage() {
     typed.plan_laid_layouts[0].realizations = materialized.realizations;
     assert_eq!(
         super::query_type_reference_layout(&typed, None, &[], owned).expect("retained custody"),
-        super::TypeLayoutQuery::Pending(super::LayoutQueryPrerequisite::PlanGeometry(
+        super::TypeLayoutQuery::Pending(vec![super::LayoutQueryPrerequisite::PlanGeometry(
             payload_symbol
-        )),
+        )]),
     );
 }
 

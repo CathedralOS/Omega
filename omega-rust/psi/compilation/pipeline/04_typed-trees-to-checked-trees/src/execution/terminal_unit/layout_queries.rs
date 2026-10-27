@@ -162,12 +162,25 @@ pub(super) fn retain(
                     _ => None,
                 }),
         );
+    let declaration_jobs = program
+        .const_declarations()
+        .iter()
+        .filter(|declaration| declaration.evaluated_value.is_none())
+        .flat_map(|declaration| {
+            [
+                declaration.authored_initializer,
+                declaration.materialized_initializer,
+            ]
+            .into_iter()
+            .filter(|root| root.is_valid())
+            .map(|root| (root, declaration.symbol))
+        });
     let mut visited = HashSet::new();
     let mut references = ObservationReferences {
         program,
         owner: SymbolHandle::invalid(),
         visited: &mut visited,
-        pending: dependencies.collect(),
+        pending: dependencies.chain(declaration_jobs).collect(),
         queries: Vec::new(),
     };
     // The catalog covers proof declarations as well as callable contracts.
@@ -348,6 +361,11 @@ impl TypedReferences for ObservationReferences<'_, '_> {
         match self.program.expression_table.expression(expression) {
             ExpressionNode::Call(call) if call.layout_query.is_some() => {
                 self.queries.push((expression, self.owner));
+                typed_trees::references::visit_pending_constant_inputs(
+                    self.program,
+                    self,
+                    expression,
+                );
                 false
             }
             _ => true,

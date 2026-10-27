@@ -1,0 +1,13 @@
+// Expected exit: 0.
+machine reference_extent<T>() -> u64 { size_of<&T>() }
+machine scalar_extent() -> u64 { reference_extent<u64>() }
+machine slice_extent() -> u64 { reference_extent<[u8]>() }
+const THIN: u64 = scalar_extent();
+const VIEW: u64 = slice_extent();
+machine good() {}
+machine bad() crashes Trap { crash Trap; }
+machine main() crashes Trap {
+    let thin: u64 = THIN;
+    let view: u64 = VIEW;
+    transition thin == 8u64 && view == 16u64 { true -> good() false -> bad() }
+}

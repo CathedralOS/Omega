@@ -43,10 +43,44 @@ impl<'program> LayoutBuilder<'program> {
                 // call-result/return path (which unwraps Constrained) sizes it
                 // as the fat 16-byte descriptor, and the byte-count mismatch
                 // silently drops the descriptor copy.
-                let mut referee_node = self.program.type_reference_table.type_reference(*referee);
-                while let TypeReferenceNode::Constrained { base_type, .. } = referee_node {
-                    referee_node = self.program.type_reference_table.type_reference(*base_type);
-                }
+                let mut referee = *referee;
+                let mut visited = Vec::new();
+                let referee_node = loop {
+                    if visited.contains(&referee) {
+                        return Err(Diagnostic::error(
+                            "reference representation has a cyclic carrier binding",
+                        ));
+                    }
+                    visited.push(referee);
+                    let node = self.program.type_reference_table.type_reference(referee);
+                    match node {
+                        TypeReferenceNode::Constrained { base_type, .. } => {
+                            referee = *base_type;
+                        }
+                        TypeReferenceNode::Named { symbol, name } => {
+                            if let Some(binding) = binding_for_type(*symbol, name, bindings) {
+                                referee = binding.argument;
+                                continue;
+                            }
+                            if symbol.is_valid()
+                                && self.program.symbols.get(*symbol).kind
+                                    == symbols::SymbolKind::TypeParameter
+                            {
+                                if self.geometry_query {
+                                    self.pending_geometry.push(
+                                        crate::builder::LayoutQueryPrerequisite::Binding(*symbol),
+                                    );
+                                    return Ok(TypeLayout::default());
+                                }
+                                return Err(Diagnostic::error(
+                                    "reference representation requires its exact carrier binding",
+                                ));
+                            }
+                            break node;
+                        }
+                        _ => break node,
+                    }
+                };
                 match referee_node {
                     TypeReferenceNode::Slice { .. } => Ok(self.descriptor_type_layout()),
                     TypeReferenceNode::Named { name, .. } if name.as_str() == "string" => {
@@ -68,8 +102,13 @@ impl<'program> LayoutBuilder<'program> {
                 let Some(length) =
                     fixed_array_length(self.program, type_reference, length, bindings)
                 else {
-                    self.pending_geometry.get_or_insert(
-                        crate::builder::LayoutQueryPrerequisite::ArrayExtent(type_reference),
+                    self.pending_geometry.push(
+                        crate::builder::generic_bindings::array_extent_input(
+                            self.program,
+                            type_reference,
+                            length,
+                            bindings,
+                        ),
                     );
                     return Ok(TypeLayout::default());
                 };
@@ -148,6 +187,14 @@ impl<'program> LayoutBuilder<'program> {
                     return self.layout_type_reference_handle(binding.argument, bindings);
                 }
 
+                if self.geometry_query
+                    && symbol.is_valid()
+                    && self.program.symbols.get(*symbol).kind == symbols::SymbolKind::TypeParameter
+                {
+                    self.pending_geometry
+                        .push(crate::builder::LayoutQueryPrerequisite::Binding(*symbol));
+                    return Ok(TypeLayout::default());
+                }
                 self.layout_named_type(*symbol, name)
             }
             TypeReferenceNode::ConstExpression(expression) => Err(Diagnostic::error(format!(

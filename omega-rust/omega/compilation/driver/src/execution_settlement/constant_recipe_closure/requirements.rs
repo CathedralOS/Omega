@@ -98,10 +98,11 @@ pub(super) fn retain(
             target: typed_trees::name::Identifier::from(target.target_name()),
             observations,
         };
-        append(
+        append_machine(
+            shared,
             requirements,
             *proof_owner,
-            CheckedLayoutOwner::Machine(*proof_owner),
+            *proof_owner,
             &alternative,
         );
         // A type-position recipe produces geometry even when its evaluator
@@ -122,12 +123,7 @@ pub(super) fn retain(
             }
             for (owner, consumed) in &inputs.recipe_consumers {
                 if *consumed == *recipe {
-                    append(
-                        requirements,
-                        *proof_owner,
-                        CheckedLayoutOwner::Machine(*owner),
-                        &alternative,
-                    );
+                    append_machine(shared, requirements, *proof_owner, *owner, &alternative);
                 }
             }
             for formation in &inputs.array_extent_uses {
@@ -180,6 +176,24 @@ pub(super) fn retain(
         }
     }
     Ok(())
+}
+
+/// Formation owns a canonical value rather than an executable body. Retain its
+/// assignment as well as every runtime consumer's assignment, including when a
+/// type-position recipe transfers the judgment to that declaration value.
+fn append_machine(
+    shared: &CheckedTrees,
+    requirements: &mut Vec<CheckedLayoutRequirement>,
+    proof_owner: SymbolHandle,
+    receiver: SymbolHandle,
+    alternative: &CheckedLayoutAlternative,
+) {
+    let owner = if shared.typed.const_declaration_by_symbol(receiver).is_some() {
+        CheckedLayoutOwner::Constant(receiver)
+    } else {
+        CheckedLayoutOwner::Machine(receiver)
+    };
+    append(requirements, proof_owner, owner, alternative);
 }
 
 fn append(

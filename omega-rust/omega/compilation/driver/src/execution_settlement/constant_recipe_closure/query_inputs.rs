@@ -30,6 +30,72 @@ pub(super) struct Inputs {
     pub owners: Vec<(SymbolHandle, HashSet<ExpressionHandle>)>,
 }
 
+impl Inputs {
+    /// The retained evaluator owns source jobs, not checked expression slots.
+    /// Ask the same dependency operation for those jobs' source observations;
+    /// completed constant histories and ordinary runtime queries stay inert.
+    pub(super) fn authored_queries(
+        &self,
+        checked: &CheckedTrees,
+        authored: &typed_trees::TypedTrees,
+        target: target::TargetProfile,
+        providers: &[provider_planning::SelectedProviderReviewProvenance],
+        work: &DeclarationSelection,
+    ) -> HashSet<ExpressionHandle> {
+        let mut roots = Vec::new();
+        for declaration in authored.const_declarations() {
+            if work.contains(declaration.symbol) && declaration.evaluated_value.is_none() {
+                append_roots(
+                    &mut roots,
+                    declaration.symbol,
+                    [
+                        declaration.authored_initializer,
+                        declaration.materialized_initializer,
+                    ]
+                    .into_iter()
+                    .filter(|root| root.is_valid()),
+                    [],
+                );
+            }
+        }
+        for recipe in &self.recipes {
+            let recipe = authored.constant_recipes.get(*recipe);
+            let expression = match recipe.position {
+                typed_trees::constant_recipes::RetainedConstantPosition::RangeEndpoint(root)
+                | typed_trees::constant_recipes::RetainedConstantPosition::ConstApplication {
+                    root,
+                    ..
+                } => Some(root),
+                _ => None,
+            };
+            append_roots(&mut roots, recipe.machine, expression, [recipe.machine]);
+        }
+        for layout in &authored.plan_laid_layouts {
+            let entries = layout
+                .target_layouts(authored)
+                .iter()
+                .filter(|row| row.target.as_str() == target.target_name())
+                .map(|row| row.machine)
+                .chain(
+                    matches!(
+                        layout.realizations,
+                        typed_trees::PlanLaidRealizations::Invariant(_)
+                    )
+                    .then_some(layout.policy_plan_machine_symbol),
+                );
+            for entry in entries {
+                if self.applications.contains(&entry) {
+                    append_roots(&mut roots, entry, [], [entry]);
+                }
+            }
+        }
+        roots
+            .iter()
+            .flat_map(|root| dependencies(checked, authored, target, providers, root).queries)
+            .collect()
+    }
+}
+
 #[derive(Clone)]
 pub(super) struct Roots {
     pub owner: SymbolHandle,
@@ -117,10 +183,17 @@ impl<'source> PreparedInputs<'source> {
         &self,
         target: target::TargetProfile,
         providers: &[provider_planning::SelectedProviderReviewProvenance],
+        opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
         mut applications: Vec<SymbolHandle>,
+        declaration_roots: &[SymbolHandle],
     ) -> Result<Inputs, Vec<Diagnostic>> {
         let checked = self.checked;
         let storage_roots = &self.storage_roots;
+        for declaration in declaration_roots {
+            if !applications.contains(declaration) {
+                applications.push(*declaration);
+            }
+        }
 
         let materialized = materialized_entry_inputs(checked, Some(target.target_name()));
         for root in &materialized {
@@ -128,6 +201,7 @@ impl<'source> PreparedInputs<'source> {
                 applications.push(root.owner);
             }
         }
+        let mut query_consumers = Vec::new();
         loop {
             let mut selected_proofs = Vec::new();
             for row in &checked.facts.constant_predicate_obligations {
@@ -148,7 +222,11 @@ impl<'source> PreparedInputs<'source> {
                     ));
                 }
             }
-            let work = work(checked, &applications);
+            let work = declaration_work(
+                &checked.typed,
+                &applications,
+                DeclarationSelection::from_symbols(applications.iter().copied()),
+            );
             let mut references = References::new(&checked.typed, Some(&work));
             references.visit_selected_declarations();
             let mut recipes: Vec<_> = checked
@@ -173,7 +251,12 @@ impl<'source> PreparedInputs<'source> {
                     selected.then_some(handle)
                 })
                 .collect();
-            let mut recipe_consumers = Vec::new();
+            let mut recipe_consumers = query_consumers.clone();
+            for (_, recipe) in &query_consumers {
+                if !recipes.contains(recipe) {
+                    recipes.push(*recipe);
+                }
+            }
             // Captured proof tapes retain exact selected occurrences. Storage
             // shapes instead name canonical array applications: join those to
             // every actual selected source position, never another body's site
@@ -248,6 +331,21 @@ impl<'source> PreparedInputs<'source> {
                 formed.insert((formation.owner, formation.identity, formation.recipe))
             });
             let mut roots = materialized.clone();
+            for declaration in checked.typed.const_declarations() {
+                if work.contains(declaration.symbol) && declaration.evaluated_value.is_none() {
+                    append_roots(
+                        &mut roots,
+                        declaration.symbol,
+                        [
+                            declaration.authored_initializer,
+                            declaration.materialized_initializer,
+                        ]
+                        .into_iter()
+                        .filter(|root| root.is_valid()),
+                        [],
+                    );
+                }
+            }
             for (owner, dependencies) in &selected_proofs {
                 append_roots(
                     &mut roots,
@@ -296,7 +394,7 @@ impl<'source> PreparedInputs<'source> {
             let mut queries = HashSet::new();
             let mut added_application = false;
             for root in roots {
-                let dependencies = dependencies(checked, target, providers, &root);
+                let dependencies = dependencies(checked, &checked.typed, target, providers, &root);
                 for machine in dependencies.machines {
                     if !applications.contains(&machine) {
                         applications.push(machine);
@@ -323,6 +421,44 @@ impl<'source> PreparedInputs<'source> {
                 queries.extend(dependencies.queries.iter().copied());
                 if !dependencies.queries.is_empty() {
                     owners.push((root.owner, dependencies.queries));
+                }
+            }
+            // The layout producer reports exactly the by-value prerequisites
+            // of each observation. Do not reactivate its source type graph:
+            // references and descriptors have no pointee-storage demand.
+            let mut geometry_requests = queries.clone();
+            geometry_requests.extend(references.expressions.iter().copied().filter(|expression| matches!(
+                checked.typed.expression_table.expression(*expression), ExpressionNode::Call(call) if call.layout_query.is_some()
+            )));
+            for (expression, recipe) in
+                provider_planning::data_layout_queries::query_constant_inputs(
+                    &checked.typed,
+                    target,
+                    opaque_representation_selections,
+                    &work,
+                    &geometry_requests,
+                )?
+            {
+                let consumers = owners
+                    .iter()
+                    .filter(|(_, queries)| queries.contains(&expression))
+                    .map(|(owner, _)| *owner)
+                    .chain(
+                        checked
+                            .facts
+                            .layout_query_subjects
+                            .iter()
+                            .filter(|query| {
+                                query.expression == expression
+                                    && applications.contains(&query.owner)
+                            })
+                            .map(|query| query.owner),
+                    );
+                for owner in consumers {
+                    if !query_consumers.contains(&(owner, recipe)) {
+                        query_consumers.push((owner, recipe));
+                        added_application = true;
+                    }
                 }
             }
             if added_application {
@@ -481,6 +617,17 @@ impl<'program> References<'program> {
                 self,
                 declaration.materialized_initializer,
             );
+            // A pending declaration still owes its authored expression's
+            // observation and call custody. Only completed values make that
+            // earlier initializer historical rather than evaluation work.
+            if declaration.evaluated_value.is_none() && declaration.authored_initializer.is_valid()
+            {
+                typed_trees::references::visit_expression(
+                    program,
+                    self,
+                    declaration.authored_initializer,
+                );
+            }
         }
     }
 }
@@ -488,10 +635,12 @@ impl<'program> References<'program> {
 /// The same semantic dependencies own evaluation work and proof inputs.
 /// Historic declaration references remain available in the lookup catalog,
 /// but cannot independently schedule an expanded constant's old initializer.
-fn work(checked: &CheckedTrees, applications: &[SymbolHandle]) -> DeclarationSelection {
-    let program = &checked.typed;
+pub(super) fn declaration_work(
+    program: &typed_trees::TypedTrees,
+    applications: &[SymbolHandle],
+    mut selected: DeclarationSelection,
+) -> DeclarationSelection {
     let declarations = DeclarationSelection::from_program(program);
-    let mut selected = DeclarationSelection::from_symbols(applications.iter().copied());
     loop {
         let before = selected.clone();
         let mut references = References::new(program, Some(&before));
@@ -535,8 +684,13 @@ impl TypedReferences for References<'_> {
         // A formed query is one semantic observation. Its authored selection
         // ledger can still describe a constant that normalization expanded;
         // that history does not evaluate the old initializer a second time.
-        !matches!(self.program.expression_table.expression(expression),
+        if matches!(self.program.expression_table.expression(expression),
             ExpressionNode::Call(call) if call.layout_query.is_some())
+        {
+            typed_trees::references::visit_pending_constant_inputs(self.program, self, expression);
+            return false;
+        }
+        true
     }
     fn type_reference(&mut self, reference: typed_trees::types::TypeReferenceHandle) -> bool {
         self.types.insert(reference)
@@ -556,11 +710,11 @@ impl TypedReferences for References<'_> {
 
 fn dependencies(
     checked: &CheckedTrees,
+    program: &typed_trees::TypedTrees,
     target: target::TargetProfile,
     providers: &[provider_planning::SelectedProviderReviewProvenance],
     roots: &Roots,
 ) -> Dependencies {
-    let program = &checked.typed;
     let mut references = References::new(program, None);
     for root in &roots.expressions {
         typed_trees::references::visit_expression(program, &mut references, *root);

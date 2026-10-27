@@ -1,0 +1,26 @@
+// Expected exit: 0
+// Common fields and case payloads share the conventional tag/overlay geometry.
+data SumStep {
+    case Count(count: u64);
+    case Pair(first: u32, second: u32);
+    case Idle;
+}
+data MixedStep {
+    common: u32;
+    case Count(count: u64);
+    case Pair(first: u32, second: u32);
+    case Idle;
+}
+machine good() {}
+machine bad() crashes Trap { crash Trap; }
+machine program() crashes Trap {
+    let sum_size: u64 = size_of<SumStep>();
+    let sum_alignment: u64 = align_of<SumStep>();
+    let mixed_size: u64 = size_of<MixedStep>();
+    let mixed_alignment: u64 = align_of<MixedStep>();
+    transition sum_size == 16u64 && sum_alignment == 8u64
+        && mixed_size == 16u64 && mixed_alignment == 8u64 {
+        true -> good()
+        false -> bad()
+    }
+}

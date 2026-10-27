@@ -25,7 +25,6 @@
 use build_time_evaluation::LayoutContextInputs;
 use checked_trees::typed_trees::TypedTrees;
 use checked_trees::typed_trees::expression::ExpressionNode;
-use checked_trees::typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 use diagnostics::Diagnostic;
 use language_core::data_layout_queries::DataLayoutQueryKind;
 use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType};
@@ -158,7 +157,10 @@ pub fn fold_data_layout_queries(
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
     defer_uninstalled_plans: bool,
     selection: &checked_trees::typed_trees::references::DeclarationSelection,
-    requests: &std::collections::HashSet<typed_trees::expression::ExpressionHandle>,
+    requests: &std::collections::HashSet<
+        typed_trees::expression::ExpressionHandle,
+        impl std::hash::BuildHasher,
+    >,
 ) -> Result<(), Vec<Diagnostic>> {
     fold_queries(
         program,
@@ -181,13 +183,20 @@ pub fn fold_data_layout_queries(
     })
 }
 
-fn fold_queries(
-    program: &mut TypedTrees,
+struct MeasuredQuery {
+    expression: typed_trees::expression::ExpressionHandle,
+    query: typed_trees::expression::DataLayoutQueryRequest,
+    source_span: source::SourceSpan,
+    measured: layout::TypeLayoutQuery,
+}
+
+fn measure_queries(
+    program: &TypedTrees,
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
-    selection: &checked_trees::typed_trees::references::DeclarationSelection,
+    selection: &typed_trees::references::DeclarationSelection,
     scope: QueryScope,
     requested: impl Fn(typed_trees::expression::ExpressionHandle) -> bool,
-) -> Result<LayoutContextInputs, Vec<Diagnostic>> {
+) -> Result<Vec<MeasuredQuery>, Vec<Diagnostic>> {
     // The proof-only classification is computed over the typed program;
     // a `size_of<Nat>` over recursive data must name the
     // classification instead of reporting the layout builder's zero default.
@@ -228,10 +237,9 @@ fn fold_queries(
         )
         .map_err(|reason| vec![reason])?;
     }
-    // An open callable is checked as a template, not evaluated as an
-    // executable application. Its exact query operands become physical work
-    // on the ordinary specialized copy. Keep the full declaration catalog
-    // available for lookup; only this evaluation's work roots are narrowed.
+    // An open callable can contain both concrete observations and queries
+    // whose own geometry requires a telescope binding. The layout producer
+    // distinguishes them; enclosing genericity alone does not defer a query.
     let templates = program
         .machines()
         .iter()
@@ -282,23 +290,9 @@ fn fold_queries(
             }
             closed
         });
-    let mut inputs = LayoutContextInputs::Ready;
+    let mut measured_queries = Vec::new();
     for (handle, query, reference) in queries {
-        if !physical_expressions.contains(&handle) {
-            continue;
-        }
         let operand = query.carrier;
-        let spelling = query.kind.target_name();
-        if matches!(
-            scope,
-            QueryScope::Selected {
-                allow_pending: false,
-                ..
-            }
-        ) {
-            reject_unresolved_layout_operands(program, operand)
-                .map_err(|reason| vec![Diagnostic::error(reason).with_source_span(reference)])?;
-        }
         let measured = layout::query_type_reference_layout(
             layout_program.as_ref().unwrap_or(program),
             match scope {
@@ -309,27 +303,72 @@ fn fold_queries(
             operand,
         )
         .map_err(|error| vec![error])?;
+        if !physical_expressions.contains(&handle)
+            && matches!(&measured, layout::TypeLayoutQuery::Pending(inputs) if inputs.iter().any(|input| matches!(input, layout::LayoutQueryPrerequisite::Binding(_))))
+        {
+            continue;
+        }
+        measured_queries.push(MeasuredQuery {
+            expression: handle,
+            query,
+            source_span: reference,
+            measured,
+        });
+    }
+    Ok(measured_queries)
+}
+
+fn fold_queries(
+    program: &mut TypedTrees,
+    opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
+    selection: &checked_trees::typed_trees::references::DeclarationSelection,
+    scope: QueryScope,
+    requested: impl Fn(typed_trees::expression::ExpressionHandle) -> bool,
+) -> Result<LayoutContextInputs, Vec<Diagnostic>> {
+    let selected_target = match scope {
+        QueryScope::Selected { target, .. } => Some(target),
+        QueryScope::Invariant => None,
+    };
+    let queries = measure_queries(
+        program,
+        opaque_representation_selections,
+        selection,
+        scope,
+        requested,
+    )?;
+    let mut inputs = LayoutContextInputs::Ready;
+    for MeasuredQuery {
+        expression: handle,
+        query,
+        source_span: reference,
+        measured,
+    } in queries
+    {
+        let spelling = query.kind.target_name();
         let geometry = match measured {
             layout::TypeLayoutQuery::Ready(geometry) => geometry,
-            layout::TypeLayoutQuery::Pending(prerequisite) => {
+            layout::TypeLayoutQuery::Pending(prerequisites) => {
                 // Availability is an input roster fact, not an evaluation
                 // failure: a completed guarded dependency has no such member.
                 // Unfinished plans/extents remain pending and cannot disappear
                 // from the library domain merely because they are not ready.
-                let unavailable = match (selected_target, prerequisite) {
-                    (Some(target), layout::LayoutQueryPrerequisite::PlanGeometry(application)) => {
-                        program
-                            .plan_laid_layout(application)
+                let unavailable = prerequisites.iter().find_map(|prerequisite| {
+                    match (selected_target, prerequisite) {
+                        (
+                            Some(target),
+                            layout::LayoutQueryPrerequisite::PlanGeometry(application),
+                        ) => program
+                            .plan_laid_layout(*application)
                             .filter(|plan| {
                                 plan.is_materialized()
                                     && plan
                                         .geometry_for_target(program, Some(target.target_name()))
                                         .is_none()
                             })
-                            .map(|_| application)
+                            .map(|_| *application),
+                        _ => None,
                     }
-                    _ => None,
-                };
+                });
                 if let Some(application) = unavailable {
                     inputs = LayoutContextInputs::Unavailable { application };
                     continue;
@@ -346,13 +385,23 @@ fn fold_queries(
                 ) {
                     continue;
                 }
+                let prerequisite = prerequisites.first().ok_or_else(|| {
+                    vec![
+                        Diagnostic::error("pending layout query lost its prerequisite roster")
+                            .with_source_span(reference),
+                    ]
+                })?;
                 let reason = match prerequisite {
-                    layout::LayoutQueryPrerequisite::ArrayExtent(_) => format!(
+                    layout::LayoutQueryPrerequisite::ArrayExtent { .. } => format!(
                         "`{spelling}` cannot measure a carrier with an unresolved array extent"
                     ),
                     layout::LayoutQueryPrerequisite::PlanGeometry(application) => format!(
                         "`{spelling}` awaits validated layout geometry for `{}`",
-                        program.symbols.name(application),
+                        program.symbols.name(*application),
+                    ),
+                    layout::LayoutQueryPrerequisite::Binding(parameter) => format!(
+                        "`{spelling}` awaits the exact layout binding for `{}`",
+                        program.symbols.name(*parameter),
                     ),
                     layout::LayoutQueryPrerequisite::TargetGeometry => {
                         format!("`{spelling}` requires exact target layout geometry")
@@ -384,73 +433,51 @@ fn fold_queries(
     Ok(inputs)
 }
 
-/// A `layout_type_reference` of an unresolved fixed array returns the
-/// builder's `(0, 1)` default — bit-identical to a valid zero-sized layout.
-/// Walk the operand's type-reference tree first so `size_of<[u8; N]>()` with
-/// an unbound `N` rejects as "no fixed size" instead of silently answering
-/// `size_of` on a phantom zero-extent carrier.
-fn reject_unresolved_layout_operands(
-    typed: &checked_trees::typed_trees::TypedTrees,
-    root: TypeReferenceHandle,
-) -> Result<(), String> {
-    let mut pending = vec![root];
-    let mut visited = Vec::new();
-    while let Some(reference) = pending.pop() {
-        if !reference.is_valid() || visited.contains(&reference) {
-            continue;
-        }
-        visited.push(reference);
-        match typed.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::FixedArray {
-                element_type,
-                length,
-            } => {
-                match length {
-                    FixedArrayLength::Literal(_) => {}
-                    FixedArrayLength::Expression(_) => return Err("`size_of`/`align_of` cannot measure an array with an unresolved extent expression".into()),
-                    // `ConstCall` lengths must already have folded to
-                    // `Literal` before settlement; a surviving non-literal
-                    // length means the layout was never resolved.
-                    FixedArrayLength::ConstParameter { name, .. } => {
-                        return Err(format!(
-                            "`size_of`/`align_of` cannot measure a fixed array: \
-                             the length `{name}` is not resolved to a constant"
-                        ));
+/// Exact pending constant inputs reported by the same physical producer used
+/// to fold queries. References and descriptors never request pointee geometry.
+pub fn query_constant_inputs(
+    program: &TypedTrees,
+    target: target::TargetProfile,
+    opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
+    selection: &typed_trees::references::DeclarationSelection,
+    requests: &std::collections::HashSet<typed_trees::expression::ExpressionHandle>,
+) -> Result<
+    Vec<(
+        typed_trees::expression::ExpressionHandle,
+        typed_trees::constant_recipes::ConstantRecipeHandle,
+    )>,
+    Vec<Diagnostic>,
+> {
+    let queries = measure_queries(
+        program,
+        opaque_representation_selections,
+        selection,
+        QueryScope::Selected {
+            target,
+            native: target.native_target(),
+            allow_pending: true,
+        },
+        |expression| requests.contains(&expression),
+    )?;
+    let mut constants = Vec::new();
+    for query in queries {
+        if let layout::TypeLayoutQuery::Pending(prerequisites) = query.measured {
+            for prerequisite in prerequisites {
+                if let layout::LayoutQueryPrerequisite::ArrayExtent { recipe, .. } = prerequisite {
+                    if !program.constant_recipes.is_valid(recipe) {
+                        return Err(vec![
+                            Diagnostic::error(
+                                "layout query array extent has no retained constant application",
+                            )
+                            .with_source_span(query.source_span),
+                        ]);
                     }
-                    FixedArrayLength::ConstCall { .. }
-                        if typed.closed_fixed_array_length(reference).is_some() => {}
-                    FixedArrayLength::ConstCall { name, .. } => {
-                        return Err(format!(
-                            "`size_of`/`align_of` cannot measure a fixed array whose \
-                             length `{name}` never evaluated to a constant"
-                        ));
+                    if !constants.contains(&(query.expression, recipe)) {
+                        constants.push((query.expression, recipe));
                     }
                 }
-                pending.push(*element_type);
             }
-            TypeReferenceNode::Reference { referee, .. } => pending.push(*referee),
-            TypeReferenceNode::Constrained { base_type, .. } => pending.push(*base_type),
-            TypeReferenceNode::Slice { element_type } => pending.push(*element_type),
-            TypeReferenceNode::Generic { arguments, .. } => {
-                pending.extend(
-                    typed
-                        .type_reference_table
-                        .type_reference_handles(*arguments)
-                        .iter()
-                        .copied(),
-                );
-            }
-            TypeReferenceNode::ConstExpression(_) => {
-                return Err(
-                    "`size_of`/`align_of` takes a data carrier, not a proof-static \
-                     const expression"
-                        .to_owned(),
-                );
-            }
-            TypeReferenceNode::Named { .. }
-            | TypeReferenceNode::DynamicTrait { .. }
-            | TypeReferenceNode::Unit => {}
         }
     }
-    Ok(())
+    Ok(constants)
 }

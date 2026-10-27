@@ -37,6 +37,14 @@ pub(super) fn close_constant_recipes(
     let shared = &source.program;
     let typed = &shared.typed;
     let materialized_entries = query_inputs::materialized_entry_inputs(shared, None);
+    // A const declaration requests a canonical value independently of runtime
+    // use. Pending declarations are formation jobs, not executable storage.
+    let pending_constants: Vec<_> = typed
+        .const_declarations()
+        .iter()
+        .filter(|declaration| declaration.evaluated_value.is_none())
+        .map(|declaration| declaration.symbol)
+        .collect();
     let retained_constant_owners: Vec<_> = shared
         .facts
         .values
@@ -56,6 +64,7 @@ pub(super) fn close_constant_recipes(
         && shared.facts.constant_predicate_obligations.is_empty()
         && shared.facts.integer_range_obligations.is_empty()
         && retained_constant_owners.is_empty()
+        && pending_constants.is_empty()
         && materialized_entries.is_empty()
     {
         return Ok(Arc::clone(shared));
@@ -76,6 +85,7 @@ pub(super) fn close_constant_recipes(
         || !shared.facts.constant_recipe_obligations.is_empty()
         || !materialized_entries.is_empty()
         || !formation_owners.is_empty()
+        || !pending_constants.is_empty()
     {
         for machine in typed.machines() {
             if let Some(name) = typed.machine_authored_target(machine) {
@@ -112,6 +122,7 @@ pub(super) fn close_constant_recipes(
         .chain(range_rows.iter().map(|row| row.owner()))
         .chain(recipe_rows.iter().map(|row| row.owner))
         .chain(retained_constant_owners)
+        .chain(pending_constants.iter().copied())
         .chain(formation_owners)
         .chain(materialized_entries.iter().map(|root| root.owner))
         .collect();
@@ -166,13 +177,16 @@ pub(super) fn close_constant_recipes(
     let selected_inputs = constant_inputs.prepare(
         selected_target_profile,
         selected_provider_provenance,
+        opaque_representation_selections,
         selected_applications,
+        &pending_constants,
     )?;
     let mut closed_typed = close_constant_values(
         source,
         selected_target_profile,
         opaque_representation_selections,
         selected_provider_plan_facts,
+        selected_provider_provenance,
         &selected_inputs,
     )?;
     for (target, supplemental) in capsules {
@@ -192,7 +206,13 @@ pub(super) fn close_constant_recipes(
         let inputs = if target == selected_target_profile {
             &selected_inputs
         } else {
-            supplemental_inputs = constant_inputs.prepare(target, provenance, applications)?;
+            supplemental_inputs = constant_inputs.prepare(
+                target,
+                provenance,
+                opaque_representation_selections,
+                applications,
+                &[],
+            )?;
             &supplemental_inputs
         };
         let declaration_applications =
@@ -249,6 +269,7 @@ pub(super) fn close_constant_recipes(
                 target,
                 opaque_representation_selections,
                 &selected.selected_provider_plan_facts,
+                provenance,
                 inputs,
             )?),
         };
@@ -430,6 +451,7 @@ fn close_constant_values(
     selected_target_profile: target::TargetProfile,
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
     selected_provider_plan_facts: &effects::SelectedProviderPlanFacts,
+    selected_provider_provenance: &[provider_planning::SelectedProviderReviewProvenance],
     inputs: &query_inputs::Inputs,
 ) -> Result<typed_trees::TypedTrees, Vec<Diagnostic>> {
     let typed = &source.program.typed;
@@ -441,22 +463,61 @@ fn close_constant_values(
         // Captured model-fit judgments require only their recorded value and
         // the selected address model, not a fabricated source continuation.
         // Any demanded recipe/query still requires its producing evaluator.
-        if inputs.recipes.is_empty() && inputs.queries.is_empty() {
+        if inputs.recipes.is_empty()
+            && inputs.queries.is_empty()
+            && !typed.const_declarations().iter().any(|declaration| {
+                declaration.evaluated_value.is_none() && inputs.work.contains(declaration.symbol)
+            })
+        {
             return Ok((**typed).clone());
         }
         return Err(vec![Diagnostic::error(
-            "constant recipes are retained without their authored evaluation source",
+            "constant evaluation work is retained without its authored evaluation source",
         )]);
     };
     let authored = pending.authored();
+    let constant_requests: Vec<_> = inputs
+        .recipes
+        .iter()
+        .map(|handle| typed.constant_recipes.get(*handle).position.clone())
+        .collect();
+    // Retained source positions are stable only when the authored row agrees.
+    // Refuse a checked-only coordinate instead of reading unrelated arena data.
+    for handle in &inputs.recipes {
+        if !authored.constant_recipes.is_valid(*handle)
+            || authored.constant_recipes.get(*handle) != typed.constant_recipes.get(*handle)
+        {
+            return Err(vec![
+                Diagnostic::error(
+                    "retained constant input lost its authored recipe correspondence",
+                )
+                .with_source_span(typed.constant_recipes.get(*handle).source_span),
+            ]);
+        }
+    }
+    // Executable preparation can inline an alias in the checked forest while
+    // its retained source job still consumes that declaration's canonical value.
+    // Close each forest's work from the same admitted roots using its own edges.
+    let authored_work =
+        query_inputs::declaration_work(authored, &inputs.applications, inputs.work.clone());
+    let authored_queries = inputs.authored_queries(
+        &source.program,
+        authored,
+        selected_target_profile,
+        selected_provider_provenance,
+        &authored_work,
+    );
     let evaluation = selected_dispatch::SelectedConstantEvaluation::prepare(
         provider_planning::ProviderPlanningContext::new(authored, source::DependencyScope::Product),
         selected_target_profile,
         opaque_representation_selections,
         &validation::derive_pre_flow_operator_selections(authored),
         selected_provider_plan_facts,
-        &inputs.work,
-        &inputs.queries,
+        selected_dispatch::ConstantEvaluationInputs {
+            declarations: &authored_work,
+            queries: &authored_queries,
+            constants: &constant_requests,
+        },
     )?;
     let (operators, provider_bodies) = evaluation.pending_fold_providers();
     let mut receipts: Vec<ConstantRecipeDependencyReceipt> = operators
@@ -495,6 +556,23 @@ fn close_constant_values(
     // storage keeps its symbolic positions for every other target.
     let mut evaluated = pending
         .resume(|program, continuations| evaluation.evaluate_pending(program, continuations))?;
+    for declaration in typed.const_declarations() {
+        if declaration.evaluated_value.is_none()
+            && inputs.work.contains(declaration.symbol)
+            && evaluated
+                .const_declaration_by_symbol(declaration.symbol)
+                .is_none_or(|completed| completed.evaluated_value.is_none())
+        {
+            return Err(vec![
+                Diagnostic::error(format!(
+                    "constant declaration `{}` did not publish a canonical value under `{}`",
+                    typed.symbols.name(declaration.symbol),
+                    selected_target_profile.target_name()
+                ))
+                .with_source_span(declaration.initializer_source_span),
+            ]);
+        }
+    }
     let closure = typed.read_constant_recipe_closure(&evaluated, &inputs.recipes, receipts)?;
     let mut closed_typed = (**typed).clone().with_constant_recipe_closure(closure);
     closed_typed.plan_laid_layouts = std::mem::take(&mut evaluated.plan_laid_layouts);

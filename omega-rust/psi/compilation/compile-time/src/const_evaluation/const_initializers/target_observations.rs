@@ -24,16 +24,19 @@ pub(crate) fn settle(
         .filter(|declaration| {
             domain.contains(declaration.symbol) && declaration.evaluated_value.is_none()
         })
-        .filter_map(|declaration| {
+        .map(|declaration| {
             scalar_probe_destination(typed, declaration.declared_type)
                 .map(|destination| (declaration.clone(), destination))
+                .ok_or_else(|| super::failure(declaration.initializer_source_span,
+                    "target-dependent constant evaluation requires an unqualified builtin scalar destination"))
         })
-        .collect::<Vec<_>>();
+        .collect::<Result<Vec<_>, _>>()?;
     if declarations.is_empty() {
         return Ok(());
     }
     while !declarations.is_empty() {
         let mut ready = None;
+        let mut blocked = Vec::new();
         for (ordinal, (declaration, _)) in declarations.iter().enumerate() {
             let mut probes = typed.clone();
             let owner = append_probe(
@@ -50,24 +53,44 @@ pub(crate) fn settle(
             // order aliases before consumers. A provisional value is never a
             // canonical dependency, regardless of declaration order in source.
             let references = work.references(&probes);
-            let pending_dependency =
-                references
-                    .authored_selection_occurrences
-                    .iter()
-                    .any(|occurrence| {
-                        probes
-                            .authored_declaration_selections()
-                            .get(*occurrence)
-                            .and_then(|selection| {
-                                selection
-                                    .target()
-                                    .as_resolved()
-                                    .map(|selected| selected.selected_symbol())
-                            })
-                            .and_then(|symbol| probes.const_declaration_by_symbol(symbol))
-                            .is_some_and(|dependency| dependency.evaluated_value.is_none())
-                    });
-            if !pending_dependency {
+            let mut pending_dependencies = Vec::new();
+            for occurrence in &references.authored_selection_occurrences {
+                if let Some(dependency) = probes
+                    .authored_declaration_selections()
+                    .get(*occurrence)
+                    .and_then(|selection| {
+                        selection
+                            .target()
+                            .as_resolved()
+                            .map(|selected| selected.selected_symbol())
+                    })
+                    .and_then(|symbol| probes.const_declaration_by_symbol(symbol))
+                    && dependency.evaluated_value.is_none()
+                    && !pending_dependencies.contains(&dependency.symbol)
+                {
+                    pending_dependencies.push(dependency.symbol);
+                }
+            }
+            if !pending_dependencies.is_empty() {
+                blocked.push(format!(
+                    "{} requires {}",
+                    probes.symbols.name(declaration.symbol),
+                    pending_dependencies
+                        .iter()
+                        .map(|symbol| format!(
+                            "{}{}",
+                            probes.symbols.name(*symbol),
+                            if domain.contains(*symbol) {
+                                ""
+                            } else {
+                                " (outside evaluator work)"
+                            }
+                        ))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ));
+            }
+            if pending_dependencies.is_empty() {
                 ready = Some((ordinal, probes, owner, work));
                 break;
             }
@@ -75,7 +98,10 @@ pub(crate) fn settle(
         let Some((ordinal, mut probes, owner, work)) = ready else {
             return Err(super::failure(
                 declarations[0].0.initializer_source_span,
-                "target constant dependency cycle or unavailable canonical input",
+                format!(
+                    "target constant dependency cycle or unavailable canonical input: {}",
+                    blocked.join("; ")
+                ),
             ));
         };
         let (declaration, destination) = declarations.remove(ordinal);
@@ -93,8 +119,7 @@ pub(crate) fn settle(
         // Extending work with a private probe preserves the original execution
         // selection: a Product description in a Build forest grants no body demand.
         let prepared = crate::PreparedBuildMachineProgram::prepare_in(&probes, &work)?;
-        let checked =
-            CheckedInitializers::prepare(&prepared, authority.clone(), &[owner], &work.accounting)?;
+        let checked = CheckedInitializers::prepare(&prepared, authority.clone(), &[owner], &work)?;
         let execution = checked.typed();
         let machine = execution
             .machine(owner)

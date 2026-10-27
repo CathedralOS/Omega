@@ -262,6 +262,46 @@ pub fn collect_expression_symbol_dependencies(
     symbols
 }
 
+/// Exact references below one retained value expression. This does not visit
+/// callee bodies or turn the expression's descriptions into execution grants.
+pub fn collect_expression_references(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> ProgramReferences {
+    let mut roots = ReferenceCollector::default();
+    visit_expression(program, &mut roots, expression);
+    finish_references(roots)
+}
+
+/// A materialized observation can still consume an unfinished named constant's
+/// canonical value for source custody. Retain that job without traversing a
+/// completed initializer's historical source or the query's descriptor graph.
+pub fn visit_pending_constant_inputs(
+    program: &TypedTrees,
+    retained: &mut impl TypedReferences,
+    expression: ExpressionHandle,
+) {
+    for occurrence in program
+        .expression_table
+        .authored_selection_occurrences(expression)
+    {
+        if let Some(declaration) = program
+            .authored_declaration_selections()
+            .get(occurrence)
+            .and_then(|selection| {
+                selection
+                    .target()
+                    .as_resolved()
+                    .map(|target| target.selected_symbol())
+            })
+            .and_then(|symbol| program.const_declaration_by_symbol(symbol))
+            && declaration.evaluated_value.is_none()
+        {
+            retained.extend([declaration.symbol]);
+        }
+    }
+}
+
 /// Exact symbols reached by one source type graph, including dependent value
 /// expressions. This is source dependency projection, not type substitution.
 pub fn collect_type_symbol_dependencies(

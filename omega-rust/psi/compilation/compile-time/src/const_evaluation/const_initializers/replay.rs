@@ -221,9 +221,9 @@ pub(crate) fn validate(
             leaf.original,
             leaf.destination,
         );
-        // Structured leaves interpret each root as a whole value: the scalar
-        // probe only reaches leaves whose declared carrier is scalar.
-        let materialized = leaf.structured.then(|| {
+        // Both scalar and structured replay evaluate both roots. Each distinct
+        // tree needs its own preparation and invocation owner.
+        let materialized = (leaf.materialized != leaf.original).then(|| {
             super::invocations::append_probe(
                 &mut probe,
                 leaf.owner,
@@ -279,12 +279,17 @@ pub(crate) fn validate(
         validate_authored_custody(&probe, owner, declaration)
             .map_err(|reason| super::failure(declaration.initializer_source_span, reason))?;
     }
-    let prepared = crate::PreparedBuildMachineProgram::prepare(&probe)?;
+    let mut execution = domain.clone();
+    for symbol in &probe_symbols {
+        execution.include(*symbol);
+    }
+    let execution = execution.demanded_roots(&probe, &probe_symbols);
+    let prepared = crate::PreparedBuildMachineProgram::prepare_in(&probe, &execution)?;
     let checked = super::invocations::CheckedInitializers::prepare(
         &prepared,
         authority.clone(),
         &probe_symbols,
-        &domain.accounting,
+        &execution,
     )?;
     let program = checked.typed();
     // A dependency capsule names a separate declaration job. Validate every
@@ -371,6 +376,8 @@ pub(crate) fn validate(
     for (leaf, (original_owner, materialized_owner)) in leaves.iter().zip(owners) {
         let result = (|| {
             let calls = checked.calls_for_symbol(original_owner)?;
+            let materialized_calls =
+                checked.calls_for_symbol(materialized_owner.unwrap_or(original_owner))?;
             if let Some(destination) =
                 crate::const_evaluation::const_generic_expressions::scalar_probe_destination(
                     program,
@@ -378,8 +385,11 @@ pub(crate) fn validate(
                 )
             {
                 let original = decode_scalar(calls.evaluate_scalar(leaf.original, destination)?.0)?;
-                let materialized =
-                    decode_scalar(calls.evaluate_scalar(leaf.materialized, destination)?.0)?;
+                let materialized = decode_scalar(
+                    materialized_calls
+                        .evaluate_scalar(leaf.materialized, destination)?
+                        .0,
+                )?;
                 if original != leaf.expected || materialized != leaf.expected {
                     return Err(
                         "retained constant invocation, materialized value, or canonical result drifted"
@@ -391,10 +401,6 @@ pub(crate) fn validate(
             // Structured leaf: both roots interpret as whole values against
             // the declared carrier and re-encode independently.
             let (original, _) = calls.evaluate_value()?;
-            let materialized_calls = checked.calls_for_symbol(
-                materialized_owner
-                    .ok_or("structured initializer leaf lost its materialized probe")?,
-            )?;
             let (materialized, _) = materialized_calls.evaluate_value()?;
             let original =
                 super::materialize::canonical_value(program, leaf.destination, &original)?;

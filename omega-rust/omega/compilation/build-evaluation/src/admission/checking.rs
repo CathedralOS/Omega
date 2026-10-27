@@ -106,11 +106,14 @@ pub(crate) fn prepare_checked_build(
             &[],
             &operator_selections,
             &selected_provider_plan_facts,
-            &typed_trees::references::DeclarationSelection::from_program(typed),
-            &typed_trees::references::collect_program_references(typed)
-                .expressions
-                .into_iter()
-                .collect(),
+            selected_dispatch::ConstantEvaluationInputs {
+                declarations: &typed_trees::references::DeclarationSelection::from_program(typed),
+                queries: &typed_trees::references::collect_program_references(typed)
+                    .expressions
+                    .into_iter()
+                    .collect(),
+                constants: &[],
+            },
         )?
         .evaluate_pending(typed, pending)?;
     }

@@ -5,6 +5,8 @@
 //! second program representation or permission to skip checking.
 
 mod data_applications;
+mod layout_queries;
+pub use layout_queries::{BuildTimeLayoutQueries, PreparedLayoutQueries};
 mod default_domain_zero;
 mod deferred_constants;
 mod opaque_property_receipts;
@@ -26,6 +28,10 @@ pub struct PreparationRequest<'request> {
     opaque_property_receipts: &'request [validation::OpaqueDataPropertyReceipt],
     opaque_representation_selections: &'request [OpaqueRepresentationSelection],
     wire_compatibility_demands: &'request [language_semantics::wire::WireCompatibilityDemand],
+    layout_queries: Option<(
+        &'request PreparedLayoutQueries,
+        &'request typed_trees::references::DeclarationSelection,
+    )>,
 }
 
 impl<'request> PreparationRequest<'request> {
@@ -37,6 +43,7 @@ impl<'request> PreparationRequest<'request> {
             opaque_property_receipts: &[],
             opaque_representation_selections: &[],
             wire_compatibility_demands: &[],
+            layout_queries: None,
         }
     }
 
@@ -76,6 +83,17 @@ impl<'request> PreparationRequest<'request> {
         self
     }
 
+    /// Complete selected physical observations before freezing preparation
+    /// judgments, including instances produced by this specialization pass.
+    pub fn with_layout_queries(
+        mut self,
+        queries: &'request PreparedLayoutQueries,
+        selection: &'request typed_trees::references::DeclarationSelection,
+    ) -> Self {
+        self.layout_queries = Some((queries, selection));
+        self
+    }
+
     /// Check authored wire demands independently on every invocation.
     pub const fn with_wire_compatibility_demands(
         mut self,
@@ -97,6 +115,10 @@ pub struct PreparationAdmission {
     opaque_property_receipts: Vec<validation::OpaqueDataPropertyReceipt>,
     opaque_representation_selections: Vec<OpaqueRepresentationSelection>,
     wire_compatibility_demands: Vec<language_semantics::wire::WireCompatibilityDemand>,
+    layout_queries: Option<(
+        PreparedLayoutQueries,
+        typed_trees::references::DeclarationSelection,
+    )>,
 }
 
 impl PreparationRequest<'_> {
@@ -110,6 +132,9 @@ impl PreparationRequest<'_> {
             opaque_property_receipts: self.opaque_property_receipts.to_vec(),
             opaque_representation_selections: self.opaque_representation_selections.to_vec(),
             wire_compatibility_demands: self.wire_compatibility_demands.to_vec(),
+            layout_queries: self
+                .layout_queries
+                .map(|(queries, selection)| (queries.clone(), selection.clone())),
         }
     }
 }
@@ -320,6 +345,9 @@ pub fn prepare_typed_trees(
     phase_profile::scope("05.c.3.k.assignment_destinations", || {
         crate::assignment_destinations::prepare(&mut program)
     });
+    if let Some((queries, selection)) = request.layout_queries {
+        queries.prepare(&mut program, selection)?;
+    }
     phase_profile::scope("05.c.3.m.assembly_admit", || {
         crate::assembly_control::admit(&program)
     })?;

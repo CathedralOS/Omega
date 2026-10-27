@@ -33,9 +33,10 @@ impl<'program> LayoutBuilder<'program> {
                     self.target.is_none() || plan.invariant_geometry().is_none()
                 })
         {
-            self.pending_geometry.get_or_insert(
-                crate::builder::LayoutQueryPrerequisite::PlanGeometry(definition.symbol),
-            );
+            self.pending_geometry
+                .push(crate::builder::LayoutQueryPrerequisite::PlanGeometry(
+                    definition.symbol,
+                ));
             return Ok(DataLayout {
                 symbol: definition.symbol,
                 name: definition.name.clone(),

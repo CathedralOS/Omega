@@ -268,9 +268,7 @@ impl<'selection> LengthJobs<'selection> {
         machine: symbols::SymbolHandle,
         source: source::SourceSpan,
     ) -> Result<Option<usize>, Vec<Diagnostic>> {
-        let domain = EvaluationDomain::all()
-            .with_accounting(self.domain.accounting.clone())
-            .demanded_roots(typed, &[machine]);
+        let domain = self.domain.demanded_roots(typed, &[machine]);
         let mut execution = domain.execution_program(typed);
         let admission = domain.admission(&execution, self.authority.clone());
         if matches!(self.providers, LengthProviderSelection::Pending) {
@@ -300,9 +298,7 @@ impl<'selection> LengthJobs<'selection> {
         // tuple. Resume the same specialization owner in the same arena; it
         // appends real instances and cannot replay an evaluated leaf.
         typed_trees_to_typed_trees::specialize_static_machine_calls(typed)?;
-        let domain = EvaluationDomain::all()
-            .with_accounting(self.domain.accounting.clone())
-            .demanded_roots(typed, &[machine]);
+        let domain = self.domain.demanded_roots(typed, &[machine]);
         execution = domain.execution_program(typed);
 
         let references = typed_trees::references::collect_program_references(&execution);
@@ -314,7 +310,7 @@ impl<'selection> LengthJobs<'selection> {
                 .collect::<Vec<_>>(),
             _ => Vec::new(),
         };
-        let all_endpoints = EvaluationDomain::all().with_accounting(self.domain.accounting.clone());
+        let all_endpoints = domain.clone();
         if matches!(self.providers, LengthProviderSelection::Pending)
             && crate::const_evaluation::range_endpoints::pending_endpoint_calls_need_operator_selection(
                 &execution, self.authority.clone(), &all_endpoints,
@@ -331,7 +327,8 @@ impl<'selection> LengthJobs<'selection> {
             },
             &all_endpoints,
         )?;
-        let preparation_request = typed_trees_to_typed_trees::PreparationRequest::settled();
+        let preparation_request =
+            domain.preparation_request(typed_trees_to_typed_trees::PreparationRequest::settled());
         let checking = typed_trees_to_checked_trees::CheckingRequest::new();
         let (execution, preparation) =
             typed_trees_to_typed_trees::prepare_typed_trees(execution, &preparation_request)?;

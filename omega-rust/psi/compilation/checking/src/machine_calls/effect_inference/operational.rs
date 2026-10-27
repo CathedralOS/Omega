@@ -227,12 +227,14 @@ impl CallSiteVisitor for OperationalCallSites<'_> {
         statement_index: usize,
         ordinal: usize,
     ) {
-        if crate::proof_contracts::proof_embeddings::is_exact_embed_call(self.program, call) {
-            // The proof-embedding owner validates this exact builtin's carrier
-            // and proof-only occurrence. It forms a value term, not an
-            // unresolved operational edge. The walk reserved its lexical
-            // coordinate and still traverses every operand, so an effectful
-            // operand cannot disappear with the term.
+        if call.layout_query.is_some()
+            || crate::proof_contracts::proof_embeddings::is_exact_embed_call(self.program, call)
+        {
+            // Formed geometry observations and proof embeddings are values,
+            // not unresolved invocations. Their owning checks retain subject
+            // formation and selection authority. The common walk reserves the
+            // lexical coordinate and visits every operand, preserving any
+            // ordinary calls and their effects.
             return;
         }
         let named_operator =

@@ -12,6 +12,39 @@ use diagnostics::Diagnostic;
 use effects::SelectedProviderPlanFacts;
 use typed_trees::TypedTrees;
 
+/// Exact work and retained positions owned by one receiving capsule.
+pub struct ConstantEvaluationInputs<'source> {
+    pub declarations: &'source typed_trees::references::DeclarationSelection,
+    pub queries: &'source std::collections::HashSet<typed_trees::expression::ExpressionHandle>,
+    pub constants: &'source [typed_trees::constant_recipes::RetainedConstantPosition],
+}
+
+/// Physical query inputs shared by one invocation's private source jobs.
+struct SelectedLayoutQueries {
+    target: target::TargetProfile,
+    opaque: Vec<representation_planning::OpaqueRepresentationSelection>,
+}
+
+impl build_time_evaluation::BuildTimeLayoutQueries for SelectedLayoutQueries {
+    fn prepare(
+        &self,
+        program: &mut TypedTrees,
+        selection: &typed_trees::references::DeclarationSelection,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let requests =
+            typed_trees::references::collect_selected_program_references(program, selection)
+                .expressions;
+        provider_planning::data_layout_queries::fold_data_layout_queries(
+            program,
+            self.target,
+            &self.opaque,
+            true,
+            selection,
+            &requests,
+        )
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedConstantEvaluation {
     operators: Vec<SelectedBuildTimeBinaryOperator>,
@@ -28,6 +61,7 @@ pub struct SelectedConstantEvaluation {
     /// Product descriptions during Build admission.
     selection: typed_trees::references::DeclarationSelection,
     query_requests: std::collections::HashSet<typed_trees::expression::ExpressionHandle>,
+    constant_requests: Vec<typed_trees::constant_recipes::RetainedConstantPosition>,
     /// The opaque representation selections the layout authority consults for
     /// the same fold; Build admission has none and supplies an empty set.
     opaque_representation_selections: Vec<representation_planning::OpaqueRepresentationSelection>,
@@ -57,11 +91,17 @@ impl SelectedConstantEvaluation {
             &self.selection,
             &self.query_requests,
         )?;
+        let layouts = build_time_evaluation::PreparedLayoutQueries::new(SelectedLayoutQueries {
+            target: self.target_profile,
+            opaque: self.opaque_representation_selections.clone(),
+        });
         let mut evaluated = Vec::with_capacity(pending.len());
         for continuation in pending {
             evaluated.push(
                 continuation
                     .select_work(typed, &self.selection)?
+                    .with_constant_requests(&self.constant_requests)
+                    .with_layout_queries(layouts.clone())
                     .evaluate_selected_operators(
                         typed,
                         SelectedBuildTimeOperators {
@@ -115,22 +155,36 @@ impl SelectedConstantEvaluation {
         opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
         facts: &checked_trees::CheckedOperatorFacts,
         plans: &SelectedProviderPlanFacts,
-        selection: &typed_trees::references::DeclarationSelection,
-        query_requests: &std::collections::HashSet<typed_trees::expression::ExpressionHandle>,
+        inputs: ConstantEvaluationInputs<'_>,
     ) -> Result<Self, Vec<Diagnostic>> {
         let typed = context.typed;
+        let selection = inputs.declarations;
         let uses = facts.resolved_expression_selections();
         let mut selected = Self {
             operators: Vec::new(),
             provider_bodies: Vec::new(),
             target_profile,
             selection: selection.clone(),
-            query_requests: query_requests.clone(),
+            query_requests: inputs.queries.clone(),
+            constant_requests: inputs.constants.to_vec(),
             opaque_representation_selections: opaque_representation_selections.to_vec(),
         };
-        let expressions =
+        let mut expressions =
             typed_trees::references::collect_selected_program_references(typed, selection)
                 .expressions;
+        for constant in inputs.constants {
+            use typed_trees::constant_recipes::RetainedConstantPosition;
+            match constant {
+                RetainedConstantPosition::RangeEndpoint(root)
+                | RetainedConstantPosition::ConstApplication { root, .. } => {
+                    expressions.extend(
+                        typed_trees::references::collect_expression_references(typed, *root)
+                            .expressions,
+                    );
+                }
+                RetainedConstantPosition::ArrayLength(_) | RetainedConstantPosition::None => {}
+            }
+        }
         for (expression, origin, requirement, policy) in uses {
             if !expressions.contains(&expression) {
                 continue;

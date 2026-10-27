@@ -23,6 +23,10 @@ pub struct CheckedLayoutQuery {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CheckedLayoutOwner {
     Machine(SymbolHandle),
+    /// A canonical declaration value. Formation consumes the assignment even
+    /// when the value has no executable use; runtime uses retain their own
+    /// machine or storage assignments before this checked-only owner erases.
+    Constant(SymbolHandle),
     Carrier(SymbolHandle),
     /// A materialized structural carrier, including a recipe-sized array.
     Structural {
@@ -35,7 +39,7 @@ pub enum CheckedLayoutOwner {
 pub struct CheckedLayoutRequirement {
     /// The source judgment whose complete observation assignment is retained.
     pub proof_owner: SymbolHandle,
-    /// The executable or materialized carrier that consumes that judgment.
+    /// The executable, declaration value or carrier consuming that judgment.
     pub owner: CheckedLayoutOwner,
     pub alternatives: Vec<CheckedLayoutAlternative>,
 }

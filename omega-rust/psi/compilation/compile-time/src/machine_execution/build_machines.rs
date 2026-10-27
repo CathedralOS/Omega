@@ -162,7 +162,8 @@ impl PreparedBuildMachineProgram {
         // pending type bounds unreplaced, so it cannot execute before a later
         // preparation validates its fully evaluated arguments.
         crate::const_evaluation::range_endpoints::defer_pending_endpoint_calls(&mut typed)?;
-        let typed = typed_trees_to_typed_trees::prepare_constant_execution(typed)?;
+        let mut typed = typed_trees_to_typed_trees::prepare_constant_execution(typed)?;
+        domain.prepare_layout_queries(&mut typed)?;
         Ok(Self {
             program: PreparedBuildMachineBody::Typed(Box::new(typed)),
             identity: Arc::new(PreparedBuildMachineProgramIdentity { _private: 0 }),

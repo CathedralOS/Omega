@@ -15,6 +15,7 @@ mod operators;
 mod preparation;
 
 pub use preparation::{
-    PreparationAdmission, PreparationRequest, TypedPreparation, prepare_constant_execution,
-    prepare_typed_trees, specialize_static_machine_calls,
+    BuildTimeLayoutQueries, PreparationAdmission, PreparationRequest, PreparedLayoutQueries,
+    TypedPreparation, prepare_constant_execution, prepare_typed_trees,
+    specialize_static_machine_calls,
 };

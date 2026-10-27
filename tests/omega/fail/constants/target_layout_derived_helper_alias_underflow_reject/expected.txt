@@ -1,1 +1,3 @@
-local `slack` may overflow `u64`: the operands are not provably in range
+local `slack`
+exact arithmetic may overflow
+bounds [-1, -1] lie outside [0, 18446744073709551615]

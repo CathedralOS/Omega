@@ -5,14 +5,14 @@ layout query contributes to a derived constant whose result discharges exact
 subtraction and agrees with execution.
 
 The primary program is frozen at SHA256
-`4bb0e87fb321432dde92fbc1447989ccf9dad8d4b0b6c55cc99b872253dd5f36`.
+`d5105d7f9f49adb831f7e2eaa3656e7d84d4714d2beec01b8617874e209cd94f`.
 It computes `const OBSERVED_SIZE: u64 = size_of<Main>() + 1u64`, transports that
 value, and performs `observed - 5u64` before any equality guard. The runtime
 branch traps unless both the exact value and subtraction result agree with the
 target's authored expectation. Linux selects extent 4 and therefore value 5;
 Windows/macOS select extent 8 and therefore value 9.
 
-Fresh baseline main: `d6cf554fd1cbf20551983d29bae26f5cf3b81664`. Its optimized
+Original failing baseline: `d6cf554fd1cbf20551983d29bae26f5cf3b81664`. Its optimized
 CLI (opt-level 1, SHA256
 `7eb4e799f088a9940752614a8f6b53a6dc43349f5e12d3030233cac0f520617e`)
 runs the existing direct-query control with native and Terminal exits 0, but
@@ -24,12 +24,13 @@ this advance uses it.
 
 Acceptance: `omega run --both main.omg`, and the same command for each place.
 All positive projects bind all four hosted `ProgramEntry` targets and promise
-exit 0. Execution evidence is Linux x86-64 native plus Terminal. Explicit target
-compilation alone is not execution. The source-backed
-`mbx run -p compiler --example target_constant_closure` additionally runs the
-unchanged Windows-target program in Terminal on Linux, whose authored branch
-requires value 9. It emits a Windows native product but does not execute it.
-Windows/macOS/ARM64 native execution is not claimed.
+exit 0. Historical qualification used Linux x86-64 native plus Terminal;
+macOS arm64 replays retain their own producer and host identities. Explicit
+target compilation alone is not execution. The source-backed
+`mbx nextest run -p compiler --test package_review historical_constant_closure_requires_exact_target_and_provider`
+also executes the unchanged Windows-target program in Terminal, whose authored
+branch requires value 9. It emits a Windows native product without executing it.
+Windows and Linux ARM64 native execution remain unverified.
 
 | Place | Carrier of the same value | Pinned fixture suffix |
 | --- | --- | --- |
@@ -61,6 +62,34 @@ are never read as identities in the separate authored forest. The previous
 query-only leaf exemption and Omega's direct-query declaration stamping are
 removed.
 
+Query geometry retains its own constant inputs, independently of actual stored
+values. The ordinary layout producer reports every pending by-value extent;
+the selected evaluator receives those exact source positions and closes the
+pending initializer's authored and materialized observations. Source jobs and
+checked subjects keep their own expression identities. Reference descriptors
+retain only their own geometry. The former duplicate source-type prewalk is
+removed. `controls/composed_extents/` preserves the same total geometry and
+oracle using two independent extent sites; its reject twin changes only the
+provider results. Both are pinned beside the nine-place fixtures.
+
+Every pending constant declaration is a formation job, including unused private
+constants. A demanded crashing initializer and a selected crashing match arm
+reject; an unselected arm remains unevaluated. Those controls use the existing
+`tests/omega/{pass,fail}/constants/target_layout_derived_*` fixtures. Inlined aliases retain unfinished named canonical inputs;
+completed initializer history stays outside new work. Declaration-only jobs do
+not acquire native machine owners or storage authority.
+Their full query assignment remains on the canonical declaration value, so an
+erased private evaluator does not become a missing native call target.
+
+Private specialization asks the same layout owner for newly bound query inputs
+before checking freezes its judgments. The invocation owns its target inputs;
+preparation reuse includes both those inputs and their exact work selection.
+The generic thin-reference/slice-reference and unused-recipe regressions are
+pinned under `tests/omega/pass/layouts/runtime_{generic_reference_layout_queries,unused_layout_recipe}_exit`.
+The portable receiving operation also retains conventional sum/mixed geometry;
+`runtime_case_layout_queries_exit` checks both without granting case access.
+
+
 The specification and consuming layers are covered as follows:
 
 - **Establishment:** selected validated geometry and admitted initializer
@@ -73,7 +102,7 @@ The specification and consuming layers are covered as follows:
 - **Composition:** `controls/` covers alignment composition, ordinary/generic
   helpers, a forward helper alias, public aliases and an authored `size_of`
   declaration. The helper underflow twins reject at `main`'s `slack` operation;
-  their earlier range diagnostic is pinned explicitly.
+  their exact negative bound is pinned explicitly.
 - **Soundness boundaries:** an overflowing intermediate rejects even when later
   subtraction would cancel it. An unused carrier mismatch rejects. A skipped
   pure crashing call remains unexecuted; its demanded twin rejects for the
@@ -82,7 +111,7 @@ The specification and consuming layers are covered as follows:
   values. Same-product native `code_layout` remains forbidden. Existing
   declared-operator and unselected-provider controls remain rejecting.
 - **Psi 05–07:** the same authored programs reach canonical Terminal Psi and
-  execute their result/trap branch. The API example independently roundtrips
+  execute their result/trap branch. The SDK test independently roundtrips
   canonical bytes and checks historical closure admission.
 - **Omega 00–02:** historical plans retain exact provider and target provenance;
   actual checked query subjects use the selected layout authority. Ordinary

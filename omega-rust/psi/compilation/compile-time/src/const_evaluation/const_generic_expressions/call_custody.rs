@@ -1041,8 +1041,11 @@ impl<'program> Collector<'program> {
             }
         }
         let children = expression_children(program, expression)?;
+        // A formed layout observation is not an invocation. Open template
+        // observations retain their static operands until binding; their actual
+        // instances still require a layout answer before value evaluation.
         match table.expression(expression) {
-            ExpressionNode::Call(call) => {
+            ExpressionNode::Call(call) if call.layout_query.is_none() => {
                 let site = validation::CallSite::Expression { expression, call };
                 let mut selections = Vec::new();
                 for occurrence in table.authored_selection_occurrences(expression) {

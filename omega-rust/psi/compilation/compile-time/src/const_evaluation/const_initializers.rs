@@ -565,7 +565,7 @@ pub(crate) fn evaluate(
                     &prepared,
                     authority.clone(),
                     &symbols,
-                    &domain.accounting,
+                    &domain,
                 )
             })
             .transpose()?;
