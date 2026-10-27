@@ -242,6 +242,26 @@ fn lower_machine_contents(
     // enters only with the implementation.
     typed_machine.termination_plan.implementation_witness = None;
     typed_machine.type_parameters = lower_type_parameters(lowerer, machine.type_parameters)?;
+    let inherited =
+        crate::signatures::lexical_context::enclosing_parameters(lowerer.source_trees, machine);
+    if !inherited.is_empty() {
+        let mut parameters = inherited
+            .into_iter()
+            .map(|parameter| {
+                crate::signatures::type_parameters::lower_type_parameter(lowerer, parameter)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        parameters.extend_from_slice(
+            lowerer
+                .typed_trees
+                .data_type_parameters
+                .span_or_empty(typed_machine.type_parameters),
+        );
+        typed_machine.type_parameters = lowerer
+            .typed_trees
+            .data_type_parameters
+            .insert_many(parameters);
+    }
     let mut equations = Vec::with_capacity(machine.declared_type_equations.len());
     for equation in lowerer
         .source_trees

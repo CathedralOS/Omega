@@ -115,13 +115,6 @@ fn lower_lexical_machine_parts(
             "a nested machine is a private independent lexical declaration",
         ));
     }
-    if !machine.nested_machines.is_empty()
-        && (!machine.type_parameters.is_empty() || !machine.lifetime_parameters.is_empty())
-    {
-        return Err(Diagnostic::error(
-            "nested machines retaining an enclosing static telescope are not yet supported",
-        ));
-    }
     // OPERATOR-MACHINE-SUPPLY: `machine.spelling` (the optional fixed token
     // after `machine`) is copied onto the symbol-resolved declaration below
     // and flows through the typed machine record, where the typed lowering
