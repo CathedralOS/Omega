@@ -88,14 +88,10 @@ pub(crate) fn emit_scalar_binding(
                 value_id,
                 "address result identity overflow",
             )?;
-            let operation = operations.allocate();
-            operations.push(Operation {
-                static_reach_binding: None,
-                suspension_crossing: None,
-                id: operation,
-                result: buffer::scalar_result_declaration(id, *scalar_type),
-                kind: OperationKind::StorageAddress { source },
-            });
+            operations.push_leaf(
+                buffer::scalar_result_declaration(id, *scalar_type),
+                OperationKind::StorageAddress { source },
+            );
             Ok(id)
         }
 
@@ -189,14 +185,10 @@ pub(crate) fn emit_scalar_binding(
                 value_id,
                 "comparison negation value identity overflow",
             )?;
-            let negation = operations.allocate();
-            operations.push(Operation {
-                static_reach_binding: None,
-                suspension_crossing: None,
-                id: negation,
-                result: scalar_result_declaration(negated_id, ScalarType::Boolean),
-                kind: OperationKind::BooleanNot { operand: id },
-            });
+            operations.push_leaf(
+                scalar_result_declaration(negated_id, ScalarType::Boolean),
+                OperationKind::BooleanNot { operand: id },
+            );
             Ok(negated_id)
         }
         LoweredScalarBinding::Expression(expression) => Ok(emit_direct_expression(

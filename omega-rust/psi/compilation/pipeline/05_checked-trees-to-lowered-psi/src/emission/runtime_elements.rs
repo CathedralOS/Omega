@@ -346,19 +346,15 @@ pub(crate) fn observe_element_extent(
         let length = crate::terminal_identities::value_id(
             crate::terminal_identities::allocate_dense(next_value)?,
         );
-        let observation = operations.allocate();
-        operations.push(terminal_psi::Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
-            id: observation,
-            result: crate::emission::operation_emission::buffer::scalar_result_declaration(
+        operations.push_leaf(
+            crate::emission::operation_emission::buffer::scalar_result_declaration(
                 length,
                 crate::emission::scalar_types::terminal_scalar_type(
                     checked_trees::types::PrimitiveType::U64,
                 )?,
             ),
             kind,
-        });
+        );
     }
     Ok(())
 }
