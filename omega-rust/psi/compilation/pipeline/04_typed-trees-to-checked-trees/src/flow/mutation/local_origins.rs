@@ -485,6 +485,13 @@ fn rebase_write_regions(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     descriptor_slot: bool,
 ) -> Option<Vec<StorageRegion>> {
+    let trace = std::env::var_os("OMEGA_TRACE_STORAGE_CEILING").is_some();
+    if trace {
+        eprintln!(
+            "storage-rebase statement={} place={:?}",
+            statement_index, place
+        );
+    }
     // Evaluation identity is not backing identity. In particular, an inline
     // reference-producing call may return a descriptor for caller storage.
     // If its captured referent could not be projected, keeping the expression
@@ -507,9 +514,18 @@ fn rebase_write_regions(
     let statements = program.statement_table.statements(state.statement_nodes);
     let mut owned_frames = None;
     let resolver = crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames)?;
-    let Some(origins) =
-        resolver.local_write_origins_before_statement(machine, statements.get(statement_index)?)
-    else {
+    let origins =
+        resolver.local_write_origins_before_statement(machine, statements.get(statement_index)?);
+    if trace {
+        eprintln!(
+            "storage-rebase origins={:?}",
+            origins.as_ref().map(|rows| rows
+                .iter()
+                .map(|row| (row.local_symbol, &row.local_segments, &row.source))
+                .collect::<Vec<_>>())
+        );
+    }
+    let Some(origins) = origins else {
         return reference_result_candidate_places(
             program,
             state_symbol,
@@ -574,7 +590,15 @@ fn rebase_write_regions(
                 statement_index,
                 origin.source.as_ref()?,
                 relative,
-            )?;
+            );
+            if trace {
+                eprintln!(
+                    "storage-rebase source={:?} projected={:?}",
+                    origin.source,
+                    region.as_ref().map(|region| region.anchor())
+                );
+            }
+            let region = region?;
             let canonical = match region {
                 StorageRegion::Declared(place) => place,
                 region @ (StorageRegion::ResidentContent { .. }

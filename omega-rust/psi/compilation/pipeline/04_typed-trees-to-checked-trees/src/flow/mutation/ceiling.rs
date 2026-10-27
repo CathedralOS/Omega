@@ -199,7 +199,11 @@ pub(crate) fn signature_ceiling_regions(
                 state.symbol,
                 borrow_call.statement_index,
                 actual,
-            )?;
+            );
+            if trace {
+                eprintln!("storage-ceiling fallback actual={:?}", actual);
+            }
+            let actual = actual?;
             super::local_origins::rebase_local_write_regions(
                 program,
                 state.symbol,

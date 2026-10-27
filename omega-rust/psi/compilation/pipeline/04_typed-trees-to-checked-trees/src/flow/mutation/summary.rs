@@ -362,18 +362,17 @@ fn propagate_state_mutation_summaries(
                                 call.call_ordinal,
                             )
                         });
-                        let has_builtin_coordinates =
-                            match (*owner, call_site.as_ref()) {
-                                (Some((_, machine_symbol)), Some(site)) => {
-                                    super::operand_coordinates::call_operands_have_builtin_coordinates(
-                                        program,
-                                        machine_symbol,
-                                        state.state_symbol,
-                                        site,
-                                    )
-                                }
-                                _ => false,
-                            };
+                        let has_builtin_coordinates = match (*owner, call_site.as_ref()) {
+                            (Some((_, machine_symbol)), Some(site)) => {
+                                super::operand_coordinates::call_operands_have_builtin_coordinates(
+                                    program,
+                                    machine_symbol,
+                                    state.state_symbol,
+                                    site,
+                                )
+                            }
+                            _ => false,
+                        };
                         (
                             call,
                             body_summary,
@@ -424,46 +423,48 @@ fn propagate_state_mutation_summaries(
                 let mut held_additions = vec![Vec::new(); caller.held_writes.len()];
                 let mut expose =
                     |writes: Vec<MutationWrite>, held_writes: Vec<Vec<MutationWrite>>| {
-                        let retain = |existing: &[MutationWrite],
-                                      pending: &mut Vec<MutationWrite>,
-                                      writes: Vec<MutationWrite>| {
-                            for write in writes {
-                                let exposed = {
-                                    let declared =
-                                        matches!(write.region, StorageRegion::Declared(_));
-                                    match write.region.anchor().root.as_symbol() {
-                                        None => {
-                                            if !declared {
-                                                return None;
-                                            }
-                                            false
-                                        }
-                                        Some(root) if root == caller_machine => true,
-                                        Some(root) => {
-                                            if program
-                                                .state_parameters(caller_state)
-                                                .iter()
-                                                .any(|parameter| parameter.symbol == root)
-                                            {
-                                                !declared || caller_exposed_params.contains(&root)
-                                            } else {
+                        let retain =
+                            |existing: &[MutationWrite],
+                             pending: &mut Vec<MutationWrite>,
+                             writes: Vec<MutationWrite>| {
+                                for write in writes {
+                                    let exposed = {
+                                        let declared =
+                                            matches!(write.region, StorageRegion::Declared(_));
+                                        match write.region.anchor().root.as_symbol() {
+                                            None => {
                                                 if !declared {
                                                     return None;
                                                 }
                                                 false
                                             }
+                                            Some(root) if root == caller_machine => true,
+                                            Some(root) => {
+                                                if program
+                                                    .state_parameters(caller_state)
+                                                    .iter()
+                                                    .any(|parameter| parameter.symbol == root)
+                                                {
+                                                    !declared
+                                                        || caller_exposed_params.contains(&root)
+                                                } else {
+                                                    if !declared {
+                                                        return None;
+                                                    }
+                                                    false
+                                                }
+                                            }
                                         }
+                                    };
+                                    if exposed
+                                        && !existing.contains(&write)
+                                        && !pending.contains(&write)
+                                    {
+                                        pending.push(write);
                                     }
-                                };
-                                if exposed
-                                    && !existing.contains(&write)
-                                    && !pending.contains(&write)
-                                {
-                                    pending.push(write);
                                 }
-                            }
-                            Some(())
-                        };
+                                Some(())
+                            };
                         retain(&caller.writes, &mut additions, writes)?;
                         for ((held, pending), writes) in caller
                             .held_writes
@@ -554,86 +555,84 @@ fn propagate_state_mutation_summaries(
                     }
                     let has_builtin_coords = *has_builtin_coordinates;
                     let call_ref = *call;
-                    let mut instantiate =
-                        |writes: &[MutationWrite], use_cache: bool| -> Option<Vec<MutationWrite>> {
-                            if !writes.is_empty() && !has_builtin_coords {
-                                return None;
-                            }
-                            let mut instantiated = Vec::new();
-                            for write in writes {
-                                if !use_cache {
-                                    let contributions =
-                                        instantiate_call_relative_writes_pre_resolved(
-                                            program,
-                                            caller_machine,
-                                            caller_symbol,
-                                            call_ref,
-                                            call_site,
-                                            has_builtin_coords,
-                                            target_state,
-                                            &write.region,
-                                            write.destination,
-                                            WritePlaceNamespace::Storage,
-                                            call_frames,
-                                        )?;
-                                    for contribution in contributions {
-                                        instantiated.push(MutationWrite {
-                                            region: contribution.region,
-                                            requires_exclusive_access: write
-                                                .requires_exclusive_access,
-                                            destination: write.destination,
-                                        });
-                                    }
-                                    continue;
-                                }
-                                let cached_index = inst_cache.iter().position(|((r, d), _)| {
-                                    r == &write.region && *d == write.destination
-                                });
-                                let contributions = match cached_index {
-                                    Some(idx) => inst_cache[idx].1.as_ref()?,
-                                    None => {
-                                        let computed =
-                                            instantiate_call_relative_writes_pre_resolved(
-                                                program,
-                                                caller_machine,
-                                                caller_symbol,
-                                                call_ref,
-                                                call_site,
-                                                has_builtin_coords,
-                                                target_state,
-                                                &write.region,
-                                                write.destination,
-                                                WritePlaceNamespace::Storage,
-                                                call_frames,
-                                            )
-                                            .map(|contributions| {
-                                                contributions
-                                                    .into_iter()
-                                                    .map(|contribution| MutationWrite {
-                                                        region: contribution.region,
-                                                        requires_exclusive_access: write
-                                                            .requires_exclusive_access,
-                                                        destination: write.destination,
-                                                    })
-                                                    .collect::<Vec<_>>()
-                                            });
-                                        inst_cache.push((
-                                            (write.region.clone(), write.destination),
-                                            computed,
-                                        ));
-                                        inst_cache.last().unwrap().1.as_ref()?
-                                    }
-                                };
-                                for item in contributions {
+                    let mut instantiate = |writes: &[MutationWrite],
+                                           use_cache: bool|
+                     -> Option<Vec<MutationWrite>> {
+                        if !writes.is_empty() && !has_builtin_coords {
+                            return None;
+                        }
+                        let mut instantiated = Vec::new();
+                        for write in writes {
+                            if !use_cache {
+                                let contributions = instantiate_call_relative_writes_pre_resolved(
+                                    program,
+                                    caller_machine,
+                                    caller_symbol,
+                                    call_ref,
+                                    call_site,
+                                    has_builtin_coords,
+                                    target_state,
+                                    &write.region,
+                                    write.destination,
+                                    WritePlaceNamespace::Storage,
+                                    call_frames,
+                                )?;
+                                for contribution in contributions {
                                     instantiated.push(MutationWrite {
-                                        region: item.region.clone(),
+                                        region: contribution.region,
                                         requires_exclusive_access: write.requires_exclusive_access,
                                         destination: write.destination,
                                     });
                                 }
+                                continue;
                             }
-                            Some(instantiated)
-                        };
+                            let cached_index = inst_cache.iter().position(|((r, d), _)| {
+                                r == &write.region && *d == write.destination
+                            });
+                            let contributions = match cached_index {
+                                Some(idx) => inst_cache[idx].1.as_ref()?,
+                                None => {
+                                    let computed = instantiate_call_relative_writes_pre_resolved(
+                                        program,
+                                        caller_machine,
+                                        caller_symbol,
+                                        call_ref,
+                                        call_site,
+                                        has_builtin_coords,
+                                        target_state,
+                                        &write.region,
+                                        write.destination,
+                                        WritePlaceNamespace::Storage,
+                                        call_frames,
+                                    )
+                                    .map(|contributions| {
+                                        contributions
+                                            .into_iter()
+                                            .map(|contribution| MutationWrite {
+                                                region: contribution.region,
+                                                requires_exclusive_access: write
+                                                    .requires_exclusive_access,
+                                                destination: write.destination,
+                                            })
+                                            .collect::<Vec<_>>()
+                                    });
+                                    inst_cache.push((
+                                        (write.region.clone(), write.destination),
+                                        computed,
+                                    ));
+                                    inst_cache.last().unwrap().1.as_ref()?
+                                }
+                            };
+                            for item in contributions {
+                                instantiated.push(MutationWrite {
+                                    region: item.region.clone(),
+                                    requires_exclusive_access: write.requires_exclusive_access,
+                                    destination: write.destination,
+                                });
+                            }
+                        }
+                        Some(instantiated)
+                    };
                     let Some(whole) = instantiate(new_writes, !is_whole_run) else {
                         complete = false;
                         break;
@@ -1076,6 +1075,7 @@ pub(super) fn captured_argument_write_regions(
     destination: WriteDestination,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<StorageRegion>> {
+    let trace = std::env::var_os("OMEGA_TRACE_STORAGE_CEILING").is_some();
     let machine = program.machine_by_symbol(machine_symbol)?;
     let state = program.state_by_symbol(state_symbol)?;
     let resolver = call_frames?;
@@ -1155,7 +1155,16 @@ pub(super) fn captured_argument_write_regions(
                 call_ordinal,
             )?,
         ),
-    }?;
+    };
+    if trace {
+        eprintln!(
+            "storage-capture statement={} parameter={} origins={:?}",
+            statement_index,
+            position,
+            origins.as_ref().map(|origins| &origins.arguments)
+        );
+    }
+    let origins = origins?;
     let mut places = Vec::new();
     for source in origins.arguments.get(position)?.as_ref()? {
         let projected = super::local_origins::write_source_region(
@@ -1164,7 +1173,14 @@ pub(super) fn captured_argument_write_regions(
             statement_index,
             source,
             relative,
-        )?;
+        );
+        if trace {
+            eprintln!(
+                "storage-capture projected={:?}",
+                projected.as_ref().map(|region| region.anchor())
+            );
+        }
+        let projected = projected?;
         if !storage_place_has_declared_identity(projected.anchor()) {
             return None;
         }
@@ -1177,7 +1193,14 @@ pub(super) fn captured_argument_write_regions(
             relative,
             destination,
             call_frames,
-        )?;
+        );
+        if trace {
+            eprintln!(
+                "storage-capture rebased={:?}",
+                rebased.as_ref().map(Vec::len)
+            );
+        }
+        let rebased = rebased?;
         for place in rebased {
             crate::collections::push_unique(&mut places, place);
         }
