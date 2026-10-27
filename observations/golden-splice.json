@@ -1,0 +1,12 @@
+[
+  {
+    "path": "tests/omega/corpus_outcomes.txt",
+    "added": 38,
+    "removed": 0
+  },
+  {
+    "path": "tests/omega/corpus_both_macos_arm64.txt",
+    "added": 9,
+    "removed": 0
+  }
+]

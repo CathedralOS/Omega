@@ -1,0 +1,7 @@
+{
+  "revision": "23d25c6af75c59087e10676836a4682cc7dd600a",
+  "presentation_override": "diagnostic-only-override.patch",
+  "override_sha256": "8eee0d0978d716e4a841991434c13471b16237d424fc9f31b160e77c16349a89",
+  "classification": "Temporary verified optimized producer for complete diagnostic enumeration only. No native or qualification acceptance claimed from its output.",
+  "inputs": "Library input hashes are retained per observation before source edits; subsequent diagnostic runs consume the exact current sources."
+}

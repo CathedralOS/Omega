@@ -1,0 +1,18 @@
+package candidate checking failed: checked compilation failed for package `omega_language_std` with 198 diagnostic(s)
+  error: call to `query` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+  error: call to `checked` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+  error: call to `query_failed` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+  error: call to `refused` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+  error: call to `refused` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+  error: call to `refused` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+  error: call to `pin` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+  error: call to `transfer` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+  error: call to `pin` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+  error: call to `transfer` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+  error: call to `sized` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+  error: call to `bounded` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+  error: call to `query` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+  error: call to `select` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+  error: call to `open` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+  error: call to `open` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+  [truncated; 182 additional diagnostics omitted]

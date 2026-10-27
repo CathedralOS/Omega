@@ -1,0 +1,44 @@
+[
+  {
+    "name": "recursive_terminal_block_missing_acknowledgement",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/producer/omega",
+      "update",
+      "--project",
+      "build/private-bounds/diagnostic-projects/app_0",
+      "--target",
+      "macos_arm64"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "package candidate checking failed: checked compilation failed for package `ack_location_0` with 1 diagnostic(s)\n  error: call to `scan` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly\n    in package `ack_location_0`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/diagnostic-projects/library_0/main.omg:4:40\n"
+  },
+  {
+    "name": "recursive_terminal_block_redundant_acknowledgement",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/producer/omega",
+      "update",
+      "--project",
+      "build/private-bounds/diagnostic-projects/app_1",
+      "--target",
+      "macos_arm64"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "package candidate checking failed: checked compilation failed for package `ack_location_1` with 1 diagnostic(s)\n  error: call to `scan` has operational envelope neither suspension nor blocking but acknowledges `block`; call acknowledgements must match exactly\n    in package `ack_location_1`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/diagnostic-projects/library_1/main.omg:2:46\n"
+  },
+  {
+    "name": "recursive_terminal_parenthesized_missing_acknowledgement",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/producer/omega",
+      "update",
+      "--project",
+      "build/private-bounds/diagnostic-projects/app_2",
+      "--target",
+      "macos_arm64"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "package candidate checking failed: checked compilation failed for package `ack_location_2` with 1 diagnostic(s)\n  error: call to `scan` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly\n    in package `ack_location_2`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/diagnostic-projects/library_2/main.omg:4:41\n"
+  }
+]

@@ -1,0 +1,10 @@
+recursive_terminal_block_missing_acknowledgement 1 error: call to `scan` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+
+recursive_terminal_block_redundant_acknowledgement 1 error: call to `scan` has operational envelope neither suspension nor blocking but acknowledges `block`; call acknowledgements must match exactly
+
+recursive_terminal_parenthesized_missing_acknowledgement 1 error: call to `scan` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+
+Traceback (most recent call last):
+  File "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/check-diagnostic-locations.py", line 7, in <module>
+    assert len(rows)==3 and all(x['exit']==1 and 'call acknowledgements must match exactly' in x['stderr'] and 'main.omg:' in x['stderr'] for x in rows)
+AssertionError

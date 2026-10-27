@@ -1,0 +1,397 @@
+package candidate checking failed: checked compilation failed for package `omega_language_std` with 198 diagnostic(s)
+  error: call to `query` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_transfer.omg:35:17
+  error: call to `checked` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_transfer.omg:44:21
+  error: call to `query_failed` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_transfer.omg:45:18
+  error: call to `refused` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_transfer.omg:54:18
+  error: call to `refused` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_transfer.omg:59:40
+  error: call to `refused` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_transfer.omg:59:70
+  error: call to `pin` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_transfer.omg:71:50
+  error: call to `transfer` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_transfer.omg:75:21
+  error: call to `pin` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_transfer.omg:91:17
+  error: call to `transfer` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_transfer.omg:97:21
+  error: call to `sized` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_transfer.omg:123:17
+  error: call to `bounded` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_transfer.omg:147:17
+  error: call to `query` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_metadata.omg:29:17
+  error: call to `select` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_metadata.omg:44:17
+  error: call to `open` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_metadata.omg:49:21
+  error: call to `open` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_metadata.omg:50:22
+  error: call to `query` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_metadata.omg:58:21
+  error: call to `classify` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_metadata.omg:104:17
+  error: call to `basic` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_metadata.omg:138:17
+  error: call to `standard` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_metadata.omg:145:21
+  error: call to `attributes` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_metadata.omg:153:21
+  error: call to `pin` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_file_control.omg:25:17
+  error: call to `update` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_file_control.omg:30:45
+  error: call to `update` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_file_control.omg:47:41
+  error: call to `acquire` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_file_control.omg:60:36
+  error: call to `update` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_file_control.omg:64:42
+  error: call to `query` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_file_control.omg:80:42
+  error: call to `select` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_file_control.omg:87:45
+  error: call to `update` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_file_control.omg:91:21
+  error: call to `writable` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_file_control.omg:92:22
+  error: call to `update` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_file_control.omg:96:46
+  error: call to `update` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_file_control.omg:96:75
+  error: call to `pin` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_position.omg:18:17
+  error: call to `access` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_position.omg:25:68
+  error: call to `reopen` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_position.omg:30:21
+  error: call to `denied` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_position.omg:31:22
+  error: call to `position` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_position.omg:43:56
+  error: call to `transfer` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_position.omg:49:21
+  error: call to `pin` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_position.omg:64:17
+  error: call to `access` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_position.omg:71:68
+  error: call to `reopen` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_position.omg:76:21
+  error: call to `denied` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_position.omg:77:22
+  error: call to `position` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_position.omg:89:56
+  error: call to `transfer` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_position.omg:95:21
+  error: call to `mode` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_directory.omg:37:38
+  error: call to `checked` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_directory.omg:44:21
+  error: call to `failed_query` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_directory.omg:45:22
+  error: call to `refuse` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_directory.omg:52:22
+  error: call to `refuse` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_directory.omg:57:27
+  error: call to `start` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_directory.omg:123:38
+  error: call to `next` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_directory.omg:126:27
+  error: call to `finish` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_directory.omg:132:53
+  error: call to `finish` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_directory.omg:133:42
+  error: call to `entry` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_directory.omg:134:54
+  error: call to `next` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_directory.omg:140:21
+  error: call to `increment` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_directory.omg:141:22
+  error: call to `next` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_directory.omg:147:21
+  error: call to `finish` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_directory.omg:148:22
+  error: call to `query` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_directory_entry.omg:19:38
+  error: call to `next` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_directory_entry.omg:46:23
+  error: call to `name` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_directory_entry.omg:54:54
+  error: call to `next` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_directory_entry.omg:61:21
+  error: call to `selected` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_directory_entry.omg:62:22
+  error: call to `next` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_directory_entry.omg:69:21
+  error: call to `open` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_path_query.omg:21:36
+  error: call to `query` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_path_query.omg:25:21
+  error: call to `flags` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_lock.omg:20:17
+  error: call to `exclusive_mode` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_lock.omg:26:21
+  error: call to `shared_mode` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_lock.omg:27:22
+  error: call to `acquire` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_lock.omg:32:42
+  error: call to `acquire` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_lock.omg:32:73
+  error: call to `acquire` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_lock.omg:36:42
+  error: call to `acquire` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_lock.omg:36:73
+  error: call to `release` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_lock.omg:51:17
+  error: call to `path` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_reparse.omg:34:59
+  error: call to `open` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_reparse.omg:39:40
+  error: call to `query` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_reparse.omg:44:21
+  error: call to `inspect` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem_removal/removal.omg:18:36
+  error: call to `refuse` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem_removal/removal.omg:26:57
+  error: call to `kind` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem_removal/removal.omg:27:63
+  error: call to `walk` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem_removal/removal.omg:33:21
+  error: call to `refuse` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem_removal/removal.omg:34:22
+  error: call to `in_parts` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/macos_arm64/time_host_impl.omg:86:17
+  error: call to `at_once` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/macos_arm64/time_host_impl.omg:87:14
+  error: call to `wait` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/macos_arm64/time_host_impl.omg:110:23
+  error: call to `wait` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/macos_arm64/time_host_impl.omg:116:18
+  error: call to `in_parts` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/macos_x86_64/time_host_impl.omg:110:17
+  error: call to `at_once` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/macos_x86_64/time_host_impl.omg:111:14
+  error: call to `wait` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/macos_x86_64/time_host_impl.omg:134:23
+  error: call to `wait` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/macos_x86_64/time_host_impl.omg:140:18
+  error: call to `in_parts` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/linux_x86_64/time_host_impl.omg:143:17
+  error: call to `at_once` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/linux_x86_64/time_host_impl.omg:144:14
+  error: call to `wait` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/linux_x86_64/time_host_impl.omg:167:23
+  error: call to `wait` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/linux_x86_64/time_host_impl.omg:173:18
+  error: call to `wait` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/linux_arm64/time_host_impl.omg:137:23
+  error: call to `wait` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/linux_arm64/time_host_impl.omg:147:18
+  error: call to `access` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/handles.omg:35:18
+  error: call to `writable` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/handles.omg:39:21
+  error: call to `writable` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/handles.omg:40:22
+  error: call to `disposition` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/handles.omg:45:21
+  error: call to `ordinary_write` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/handles.omg:46:22
+  error: call to `disposition` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/handles.omg:51:21
+  error: call to `disposition` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/handles.omg:52:22
+  error: call to `acquire` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/handles.omg:57:21
+  error: call to `creating` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/handles.omg:58:22
+  error: call to `create_mode` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/handles.omg:63:21
+  error: call to `existing_mode` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/handles.omg:64:22
+  error: call to `acquire` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/handles.omg:68:39
+  error: call to `acquire` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/handles.omg:68:74
+  error: call to `acquire` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/handles.omg:71:39
+  error: call to `acquire` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/handles.omg:71:74
+  error: call to `transfer` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/handles.omg:119:17
+  error: call to `transfer` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/handles.omg:139:17
+  error: call to `validate` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/handles.omg:156:17
+  error: call to `transfer` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/handles.omg:161:21
+  error: call to `validate` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/handles.omg:176:17
+  error: call to `transfer` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/handles.omg:181:21
+  error: call to `release` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/handles.omg:195:17
+  error: call to `flush` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/handles.omg:208:17
+  error: call to `validate` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/handles.omg:235:17
+  error: call to `update` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/handles.omg:240:21
+  error: call to `query` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/metadata.omg:63:17
+  error: call to `access_time` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/metadata.omg:138:17
+  error: call to `write_time` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/metadata.omg:145:58
+  error: call to `update` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/metadata.omg:152:58
+  error: call to `update` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/metadata.omg:168:33
+  error: call to `update` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/metadata.omg:169:44
+  error: call to `select` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/metadata.omg:183:17
+  error: call to `update` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/metadata.omg:188:37
+  error: call to `update` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/metadata.omg:189:48
+  error: call to `remaining` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/sequences.omg:37:23
+  error: call to `window` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/sequences.omg:40:51
+  error: call to `write` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/sequences.omg:45:21
+  error: call to `write` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/sequences.omg:46:22
+  error: call to `progressed` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/sequences.omg:53:21
+  error: call to `remaining` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/sequences.omg:61:21
+  error: call to `write` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/sequences.omg:80:36
+  error: call to `acquire` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/sequences.omg:96:17
+  error: call to `read` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/sequences.omg:103:40
+  error: call to `acquire` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/copy.omg:20:17
+  error: call to `metadata` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/copy.omg:27:40
+  error: call to `failed` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/copy.omg:33:47
+  error: call to `read` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/copy.omg:34:44
+  error: call to `bounded` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/copy.omg:47:39
+  error: call to `destination` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/copy.omg:52:21
+  error: call to `write` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/copy.omg:66:40
+  error: call to `failed` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/copy.omg:73:43
+  error: call to `restore` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/copy.omg:74:31
+  error: call to `failed` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/paths.omg:190:39
+  error: call to `walk` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/paths.omg:206:17
+  error: call to `root` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/paths.omg:207:18
+  error: call to `walk` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/paths.omg:235:23
+  error: call to `inspect` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/paths.omg:238:21
+  error: call to `complete` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/paths.omg:239:22
+  error: call to `create` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/paths.omg:248:21
+  error: call to `walk` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/paths.omg:249:22
+  error: call to `walk` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/paths.omg:257:31
+  error: call to `query` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_position_pins.omg:24:41
+  error: call to `complete` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_position_pins.omg:34:21
+  error: call to `query_failed` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_position_pins.omg:35:22
+  error: call to `refuse` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_position_pins.omg:41:22
+  error: call to `refuse` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_position_pins.omg:46:27
+  error: call to `release_pin` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_position_pins.omg:56:38
+  error: call to `failed_open` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_position_pins.omg:56:72
+  error: call to `release_failed` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_position_pins.omg:66:22
+  error: call to `open` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem_removal/acquisition.omg:28:36
+  error: call to `access` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem_removal/acquisition.omg:82:17
+  error: call to `open` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem_removal/acquisition.omg:90:21
+  error: call to `open` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem_removal/acquisition.omg:91:22
+  error: call to `query` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem_removal/attributes.omg:22:36
+  error: call to `failed` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem_removal/completion.omg:49:18
+  error: call to `next` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg:28:23
+  error: call to `directory` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg:34:58
+  error: call to `query` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg:42:21
+  error: call to `pop` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg:52:42
+  error: call to `name` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg:53:54
+  error: call to `next` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg:60:21
+  error: call to `extent` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg:61:22
+  error: call to `open` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg:68:21
+  error: call to `attributes` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg:77:21
+  error: call to `failed_open` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg:78:22
+  error: call to `failed_child` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg:91:57
+  error: call to `kind` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg:92:63
+  error: call to `capacity` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg:105:21
+  error: call to `leaf` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg:106:22
+  error: call to `push` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg:113:21
+  error: call to `failed_child` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg:114:22
+  error: call to `next` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg:121:27
+  error: call to `next` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg:128:21
+  error: call to `parent` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg:138:21
+  error: call to `next` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg:145:40
+  error: call to `next` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg:153:23
+  error: call to `pop` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg:156:40
+  error: call to `next` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg:163:43
+  error: call to `close` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg:164:58
+  error: call to `release` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg:171:21
+  error: call to `next` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg:172:22
+  error: call to `next` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg:179:27

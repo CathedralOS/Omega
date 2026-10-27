@@ -1,0 +1,4 @@
+Traceback (most recent call last):
+  File "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/validate.py", line 32, in <module>
+    for x in load('diagnostic-locations.json'):assert x['exit']==1 and 'call acknowledgements must match exactly' in x['stderr'] and 'main.omg:' in x['stderr'],x
+AssertionError: {'name': 'recursive_terminal_block_missing_acknowledgement', 'command': ['/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/producer/omega', '--check', 'tests/omega/fail/calls/recursive_terminal_block_missing_acknowledgement/main.omg'], 'exit': 1, 'stdout': '', 'stderr': 'error: call to `scan` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly\n'}

@@ -1,0 +1,12 @@
+{
+  "command": [
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/producer/omega",
+    "run",
+    "--both",
+    "build/private-bounds/counterfactual/main.omg"
+  ],
+  "sha256": "b074f8167453954db14b62bc4e6cef39545beb5a737f30156360494c6b49e620",
+  "exit": 255,
+  "stdout": "",
+  "stderr": "native signal 5\ninterp crash: Trap (host presentation agrees)\n"
+}

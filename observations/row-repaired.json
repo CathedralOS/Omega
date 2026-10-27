@@ -1,0 +1,245 @@
+[
+  {
+    "place": "local",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/producer/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/private_bounds/local/main.omg"
+    ],
+    "source_sha256": "93f97f46fb47b013967f5cbaaec431ce680329b5b875e0dc0fe56c05ece37e7f",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "local",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_bounds/local/invalid/main.omg"
+    ],
+    "source_sha256": "b8b8b19aa6cbe48598b70ae25cb791822d5d95a78f3fb960c1b418b42e3a5c9a",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `private_bounds_local_invalid` with 1 diagnostic(s)\n  error: cannot prove index `index` is within unknown slice length of `items` in get::entry\n"
+  },
+  {
+    "place": "field",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/producer/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/private_bounds/field/main.omg"
+    ],
+    "source_sha256": "b05c0e1eef3b6fbd0eb7134720e0737e665002221e4aed8b078dc00b6b7e2493",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "field",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_bounds/field/invalid/main.omg"
+    ],
+    "source_sha256": "86fd58315413ada43f596586a4b968267f17db4503b0cafcc37c0eeaaa4163ca",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `private_bounds_field_invalid` with 1 diagnostic(s)\n  error: cannot prove index `index` is within unknown slice length of `items` in get::entry\n"
+  },
+  {
+    "place": "parameter",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/producer/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/private_bounds/parameter/main.omg"
+    ],
+    "source_sha256": "dfb1b6dc6dd777397f19acbb8f8ef133cbf24ed2e0a7f7090fd9ace7acd0a828",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "parameter",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_bounds/parameter/invalid/main.omg"
+    ],
+    "source_sha256": "799bf7905608871fee2922aaeccae2f995a07073bfe7d13ce8ca50e6877e8061",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `private_bounds_parameter_invalid` with 1 diagnostic(s)\n  error: cannot prove index `index` is within unknown slice length of `items` in get::entry\n"
+  },
+  {
+    "place": "call_result",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/producer/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/private_bounds/call_result/main.omg"
+    ],
+    "source_sha256": "696b087e569490596c9f0e74975464087c4f2a3cef7feca5649b87a625e4c6f0",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "call_result",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_bounds/call_result/invalid/main.omg"
+    ],
+    "source_sha256": "87b91cf867e4c0ec0aff7adf07b75f04faec519bcd97940ff1ff1c4e54b0c6e2",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `private_bounds_call_result_invalid` with 1 diagnostic(s)\n  error: cannot prove index `index` is within unknown slice length of `items` in get::entry\n"
+  },
+  {
+    "place": "match_join",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/producer/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/private_bounds/match_join/main.omg"
+    ],
+    "source_sha256": "f40f81b3d654ac1b51f86bfac4e5b000fd6c06b3977c55f51edc8641a975515e",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "match_join",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_bounds/match_join/invalid/main.omg"
+    ],
+    "source_sha256": "fb51f4344a0cdf270db99592a60431edbec37551c1eb0e3aacdf9c9e57a39f64",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `private_bounds_match_join_invalid` with 1 diagnostic(s)\n  error: cannot prove index `index` is within unknown slice length of `items` in get::entry\n"
+  },
+  {
+    "place": "const_name",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/producer/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/private_bounds/const_name/main.omg"
+    ],
+    "source_sha256": "39069afb75e205abaa7831f331956e3ee8f094a9ca453046b071cc3014e34823",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "const_name",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_bounds/const_name/invalid/main.omg"
+    ],
+    "source_sha256": "770c623b1fff1ce28d81cd54f218036a0d7a99a0fb3b91d3dbdc4c7df5d99a6a",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `private_bounds_const_name_invalid` with 1 diagnostic(s)\n  error: cannot prove index `index` is within unknown slice length of `items` in get::entry\n"
+  },
+  {
+    "place": "other_state",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/producer/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/private_bounds/other_state/main.omg"
+    ],
+    "source_sha256": "6b2dc9813cb57ccaf291a4a813f135c6c66f7433453ab3e620a23187516896ba",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "other_state",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_bounds/other_state/invalid/main.omg"
+    ],
+    "source_sha256": "84e2e48b6e953f6d4a9c4ed9e5647ebf79029718119f6e19ee02b20409fadec8",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `private_bounds_other_state_invalid` with 1 diagnostic(s)\n  error: cannot prove index `index` is within unknown slice length of `items` in get::entry\n"
+  },
+  {
+    "place": "other_machine",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/producer/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/private_bounds/other_machine/main.omg"
+    ],
+    "source_sha256": "d200fdf8f6335114e37dedb4ebc52177b257a370f09f764a638a7d476b4ad86e",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "other_machine",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_bounds/other_machine/invalid/main.omg"
+    ],
+    "source_sha256": "54da46eeb508f77473a38dfa4afea1a1a91aa2a1b86086404e8df2c61a578842",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `private_bounds_other_machine_invalid` with 1 diagnostic(s)\n  error: cannot prove index `index` is within unknown slice length of `items` in get::entry\n"
+  },
+  {
+    "place": "target_body",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/producer/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/private_bounds/target_body/main.omg"
+    ],
+    "source_sha256": "f5afbd7978bb26d8b66e6d148af035eb5f4c0ab898b9f57e93a8c955bab9476c",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "target_body",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_bounds/target_body/invalid/main.omg"
+    ],
+    "source_sha256": "5fd624cde2170fd530188c272a05fe45326fa7b036fc562e8daba9ab8d01dca9",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `private_bounds_target_body_invalid` with 4 diagnostic(s)\n  error: cannot prove index `index` is within unknown slice length of `items` in get::entry\n  error: cannot prove index `index` is within unknown slice length of `items` in get::entry\n  error: cannot prove index `index` is within unknown slice length of `items` in get::entry\n  error: cannot prove index `index` is within unknown slice length of `items` in get::entry\n"
+  }
+]

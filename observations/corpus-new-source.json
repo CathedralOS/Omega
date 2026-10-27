@@ -1,0 +1,329 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "cdcff74025ecd5f71c0fad327e5a5d88aaaf96d5",
+  "dirty": true,
+  "leg": "checked",
+  "target": null,
+  "golden": "tests/omega/corpus_outcomes.txt",
+  "golden_reason_gaps": {
+    "rows": 1,
+    "of": 19119
+  },
+  "subset": true,
+  "filter": "facts/nested_machine_private_bounds_",
+  "shard": null,
+  "verdict": "recorded",
+  "exit_code": 0,
+  "counts": {
+    "fixtures": 22,
+    "by_status": {
+      "checked": 9,
+      "rejected": 13
+    },
+    "wrong_reason": 0,
+    "wrong_reason_fixtures": [],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 0,
+    "lost_success_fixtures": [],
+    "pinned_off_target": 0,
+    "pinned_off_target_fixtures": [],
+    "by_verdict": {}
+  },
+  "oracle_failures": [],
+  "infrastructure_error": null,
+  "golden_provenance": null,
+  "perf_context": null,
+  "observations": [
+    {
+      "fixture": "pass/facts/nested_machine_private_bounds_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5110,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "cdcff74025ec"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_bounds_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5182,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "cdcff74025ec"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_bounds_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4609,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "cdcff74025ec"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_bounds_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4647,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "cdcff74025ec"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_bounds_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4500,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "cdcff74025ec"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_bounds_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4742,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "cdcff74025ec"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_bounds_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5043,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "cdcff74025ec"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_bounds_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5240,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "cdcff74025ec"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_bounds_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4748,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "cdcff74025ec"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_bounds_alternate_arrival_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2487,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove index `index` is within unknown slice length of `items` in get::entry"
+      ],
+      "regressed_from": null,
+      "recorded_at": "cdcff74025ec"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_bounds_call_result_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2109,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove index `index` is within unknown slice length of `items` in get::entry"
+      ],
+      "regressed_from": null,
+      "recorded_at": "cdcff74025ec"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_bounds_changed_index_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1956,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove index `index` is within unknown slice length of `items` in get::entry"
+      ],
+      "regressed_from": null,
+      "recorded_at": "cdcff74025ec"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_bounds_const_name_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2155,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove index `index` is within unknown slice length of `items` in get::entry"
+      ],
+      "regressed_from": null,
+      "recorded_at": "cdcff74025ec"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_bounds_field_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2119,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove index `index` is within unknown slice length of `items` in get::entry"
+      ],
+      "regressed_from": null,
+      "recorded_at": "cdcff74025ec"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_bounds_local_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2118,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove index `index` is within unknown slice length of `items` in get::entry"
+      ],
+      "regressed_from": null,
+      "recorded_at": "cdcff74025ec"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_bounds_match_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1825,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove index `index` is within unknown slice length of `items` in get::entry"
+      ],
+      "regressed_from": null,
+      "recorded_at": "cdcff74025ec"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_bounds_minimum_extent_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1990,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove index `1` is within unknown slice length of `items` in get::entry"
+      ],
+      "regressed_from": null,
+      "recorded_at": "cdcff74025ec"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_bounds_other_collection_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1912,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove index `index` is within unknown slice length of `items` in get::entry"
+      ],
+      "regressed_from": null,
+      "recorded_at": "cdcff74025ec"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_bounds_other_machine_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1802,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove index `index` is within unknown slice length of `items` in get::entry"
+      ],
+      "regressed_from": null,
+      "recorded_at": "cdcff74025ec"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_bounds_other_state_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2057,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove index `index` is within unknown slice length of `items` in get::entry"
+      ],
+      "regressed_from": null,
+      "recorded_at": "cdcff74025ec"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_bounds_parameter_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1686,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove index `index` is within unknown slice length of `items` in get::entry"
+      ],
+      "regressed_from": null,
+      "recorded_at": "cdcff74025ec"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_bounds_target_body_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1114,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove index `index` is within unknown slice length of `items` in get::entry",
+        "cannot prove index `index` is within unknown slice length of `items` in get::entry",
+        "cannot prove index `index` is within unknown slice length of `items` in get::entry",
+        "cannot prove index `index` is within unknown slice length of `items` in get::entry"
+      ],
+      "regressed_from": null,
+      "recorded_at": "cdcff74025ec"
+    }
+  ],
+  "fixtures": []
+}

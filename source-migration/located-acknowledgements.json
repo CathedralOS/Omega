@@ -1,0 +1,1586 @@
+[
+  {
+    "target": "query",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_transfer.omg",
+    "line": 35,
+    "column": 17,
+    "prefix": "        true -> ",
+    "following": "query(duplicate)"
+  },
+  {
+    "target": "checked",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_transfer.omg",
+    "line": 44,
+    "column": 21,
+    "prefix": "            true -> ",
+    "following": "checked(duplicate, mode)"
+  },
+  {
+    "target": "query_failed",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_transfer.omg",
+    "line": 45,
+    "column": 18,
+    "prefix": "            _ -> ",
+    "following": "query_failed(duplicate, result)"
+  },
+  {
+    "target": "refused",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_transfer.omg",
+    "line": 54,
+    "column": 18,
+    "prefix": "            _ -> ",
+    "following": "refused(duplicate, 87)"
+  },
+  {
+    "target": "refused",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_transfer.omg",
+    "line": 59,
+    "column": 40,
+    "prefix": "        transition code != 0 { true -> ",
+    "following": "refused(duplicate, code) _ -> refused(duplicate, 87) }"
+  },
+  {
+    "target": "refused",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_transfer.omg",
+    "line": 59,
+    "column": 70,
+    "prefix": "        transition code != 0 { true -> refused(duplicate, code) _ -> ",
+    "following": "refused(duplicate, 87) }"
+  },
+  {
+    "target": "pin",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_transfer.omg",
+    "line": 71,
+    "column": 50,
+    "prefix": "    transition bytes.len <= 4294967295 { true -> ",
+    "following": "pin(handle, bytes) _ -> (-87) }"
+  },
+  {
+    "target": "transfer",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_transfer.omg",
+    "line": 75,
+    "column": 21,
+    "prefix": "            true -> ",
+    "following": "transfer(duplicate, bytes)"
+  },
+  {
+    "target": "pin",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_transfer.omg",
+    "line": 91,
+    "column": 17,
+    "prefix": "        true -> ",
+    "following": "pin(handle, buffer, count)"
+  },
+  {
+    "target": "transfer",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_transfer.omg",
+    "line": 97,
+    "column": 21,
+    "prefix": "            true -> ",
+    "following": "transfer(duplicate, buffer, count)"
+  },
+  {
+    "target": "sized",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_transfer.omg",
+    "line": 123,
+    "column": 17,
+    "prefix": "        true -> ",
+    "following": "sized(handle, bytes)"
+  },
+  {
+    "target": "bounded",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_transfer.omg",
+    "line": 147,
+    "column": 17,
+    "prefix": "        true -> ",
+    "following": "bounded(handle, buffer, count)"
+  },
+  {
+    "target": "query",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_metadata.omg",
+    "line": 29,
+    "column": 17,
+    "prefix": "        true -> ",
+    "following": "query(duplicate)"
+  },
+  {
+    "target": "select",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_metadata.omg",
+    "line": 44,
+    "column": 17,
+    "prefix": "        true -> ",
+    "following": "select(wide, no_follow)"
+  },
+  {
+    "target": "open",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_metadata.omg",
+    "line": 49,
+    "column": 21,
+    "prefix": "            true -> ",
+    "following": "open(wide, 36700160)"
+  },
+  {
+    "target": "open",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_metadata.omg",
+    "line": 50,
+    "column": 22,
+    "prefix": "            false -> ",
+    "following": "open(wide, 34603008)"
+  },
+  {
+    "target": "query",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_metadata.omg",
+    "line": 58,
+    "column": 21,
+    "prefix": "            true -> ",
+    "following": "query(handle)"
+  },
+  {
+    "target": "classify",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_metadata.omg",
+    "line": 104,
+    "column": 17,
+    "prefix": "        true -> ",
+    "following": "classify(raw)"
+  },
+  {
+    "target": "basic",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_metadata.omg",
+    "line": 138,
+    "column": 17,
+    "prefix": "        true -> ",
+    "following": "basic(classified)"
+  },
+  {
+    "target": "standard",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_metadata.omg",
+    "line": 145,
+    "column": 21,
+    "prefix": "            true -> ",
+    "following": "standard(handle, basic)"
+  },
+  {
+    "target": "attributes",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_metadata.omg",
+    "line": 153,
+    "column": 21,
+    "prefix": "            true -> ",
+    "following": "attributes(handle, basic, standard)"
+  },
+  {
+    "target": "pin",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_file_control.omg",
+    "line": 25,
+    "column": 17,
+    "prefix": "        true -> ",
+    "following": "pin(handle, length)"
+  },
+  {
+    "target": "update",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_file_control.omg",
+    "line": 30,
+    "column": 45,
+    "prefix": "        transition duplicate != 0 { true -> ",
+    "following": "update(duplicate, length) false -> failed() }"
+  },
+  {
+    "target": "update",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_file_control.omg",
+    "line": 47,
+    "column": 41,
+    "prefix": "    transition duplicate != 0 { true -> ",
+    "following": "update(duplicate, readonly) false -> failed() }"
+  },
+  {
+    "target": "acquire",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_file_control.omg",
+    "line": 60,
+    "column": 36,
+    "prefix": "    transition count > 0 { true -> ",
+    "following": "acquire(wide, readonly) false -> (-87) }"
+  },
+  {
+    "target": "update",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_file_control.omg",
+    "line": 64,
+    "column": 42,
+    "prefix": "        transition handle != 0 { true -> ",
+    "following": "update(handle, readonly) false -> failed() }"
+  },
+  {
+    "target": "query",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_file_control.omg",
+    "line": 80,
+    "column": 42,
+    "prefix": "    transition classified != 0 { true -> ",
+    "following": "query(classified, readonly) false -> failed() }"
+  },
+  {
+    "target": "select",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_file_control.omg",
+    "line": 87,
+    "column": 45,
+    "prefix": "        transition succeeded != 0 { true -> ",
+    "following": "select(handle as i64, current.attributes, readonly) false -> failed() }"
+  },
+  {
+    "target": "update",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_file_control.omg",
+    "line": 91,
+    "column": 21,
+    "prefix": "            true -> ",
+    "following": "update(handle, (attributes & 4294967167) | 1)"
+  },
+  {
+    "target": "writable",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_file_control.omg",
+    "line": 92,
+    "column": 22,
+    "prefix": "            false -> ",
+    "following": "writable(handle, attributes & 4294967294)"
+  },
+  {
+    "target": "update",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_file_control.omg",
+    "line": 96,
+    "column": 46,
+    "prefix": "        transition attributes == 0 { true -> ",
+    "following": "update(handle, 128) false -> update(handle, attributes) }"
+  },
+  {
+    "target": "update",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_file_control.omg",
+    "line": 96,
+    "column": 75,
+    "prefix": "        transition attributes == 0 { true -> update(handle, 128) false -> ",
+    "following": "update(handle, attributes) }"
+  },
+  {
+    "target": "pin",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_position.omg",
+    "line": 18,
+    "column": 17,
+    "prefix": "        true -> ",
+    "following": "pin(handle, buffer, count, offset)"
+  },
+  {
+    "target": "access",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_position.omg",
+    "line": 25,
+    "column": 68,
+    "prefix": "            WindowsPinnedAccessResult::Value { handle, access } -> ",
+    "following": "access(handle, access, buffer, count, offset)"
+  },
+  {
+    "target": "reopen",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_position.omg",
+    "line": 30,
+    "column": 21,
+    "prefix": "            true -> ",
+    "following": "reopen(handle, buffer, count, offset)"
+  },
+  {
+    "target": "denied",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_position.omg",
+    "line": 31,
+    "column": 22,
+    "prefix": "            false -> ",
+    "following": "denied(handle)"
+  },
+  {
+    "target": "position",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_position.omg",
+    "line": 43,
+    "column": 56,
+    "prefix": "            WindowsPositionedFile::Handle { value } -> ",
+    "following": "position(value, buffer, count, offset)"
+  },
+  {
+    "target": "transfer",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_position.omg",
+    "line": 49,
+    "column": 21,
+    "prefix": "            true -> ",
+    "following": "transfer(handle, buffer, count)"
+  },
+  {
+    "target": "pin",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_position.omg",
+    "line": 64,
+    "column": 17,
+    "prefix": "        true -> ",
+    "following": "pin(handle, bytes, offset)"
+  },
+  {
+    "target": "access",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_position.omg",
+    "line": 71,
+    "column": 68,
+    "prefix": "            WindowsPinnedAccessResult::Value { handle, access } -> ",
+    "following": "access(handle, access, bytes, offset)"
+  },
+  {
+    "target": "reopen",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_position.omg",
+    "line": 76,
+    "column": 21,
+    "prefix": "            true -> ",
+    "following": "reopen(handle, bytes, offset)"
+  },
+  {
+    "target": "denied",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_position.omg",
+    "line": 77,
+    "column": 22,
+    "prefix": "            false -> ",
+    "following": "denied(handle)"
+  },
+  {
+    "target": "position",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_position.omg",
+    "line": 89,
+    "column": 56,
+    "prefix": "            WindowsPositionedFile::Handle { value } -> ",
+    "following": "position(value, bytes, offset)"
+  },
+  {
+    "target": "transfer",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_position.omg",
+    "line": 95,
+    "column": 21,
+    "prefix": "            true -> ",
+    "following": "transfer(handle, bytes)"
+  },
+  {
+    "target": "mode",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_directory.omg",
+    "line": 37,
+    "column": 38,
+    "prefix": "    transition handle != 0 { true -> ",
+    "following": "mode(handle) false -> 0 }"
+  },
+  {
+    "target": "checked",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_directory.omg",
+    "line": 44,
+    "column": 21,
+    "prefix": "            true -> ",
+    "following": "checked(handle, mode, completion.information)"
+  },
+  {
+    "target": "failed_query",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_directory.omg",
+    "line": 45,
+    "column": 22,
+    "prefix": "            false -> ",
+    "following": "failed_query(handle, status)"
+  },
+  {
+    "target": "refuse",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_directory.omg",
+    "line": 52,
+    "column": 22,
+    "prefix": "            false -> ",
+    "following": "refuse(handle, 87)"
+  },
+  {
+    "target": "refuse",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_directory.omg",
+    "line": 57,
+    "column": 27,
+    "prefix": "        transition { _ -> ",
+    "following": "refuse(handle, code) }"
+  },
+  {
+    "target": "start",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_directory.omg",
+    "line": 123,
+    "column": 38,
+    "prefix": "    transition handle != 0 { true -> ",
+    "following": "start(handle) false -> (WindowsFilesystemNativeProvider::failure_i64()) }"
+  },
+  {
+    "target": "next",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_directory.omg",
+    "line": 126,
+    "column": 27,
+    "prefix": "        transition { _ -> ",
+    "following": "next(handle, &mut output, 0) }"
+  },
+  {
+    "target": "finish",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_directory.omg",
+    "line": 132,
+    "column": 53,
+    "prefix": "            WindowsDirectoryStep::Error { code } -> ",
+    "following": "finish(handle, windows_directory_error(code))"
+  },
+  {
+    "target": "finish",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_directory.omg",
+    "line": 133,
+    "column": 42,
+    "prefix": "            WindowsDirectoryStep::End -> ",
+    "following": "finish(handle, narrow_u64_to_i64_exact(count))"
+  },
+  {
+    "target": "entry",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_directory.omg",
+    "line": 134,
+    "column": 54,
+    "prefix": "            WindowsDirectoryStep::Name { length } -> ",
+    "following": "entry(handle, output, count, length)"
+  },
+  {
+    "target": "next",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_directory.omg",
+    "line": 140,
+    "column": 21,
+    "prefix": "            true -> ",
+    "following": "next(handle, output, count)"
+  },
+  {
+    "target": "increment",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_directory.omg",
+    "line": 141,
+    "column": 22,
+    "prefix": "            false -> ",
+    "following": "increment(handle, output, count)"
+  },
+  {
+    "target": "next",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_directory.omg",
+    "line": 147,
+    "column": 21,
+    "prefix": "            true -> ",
+    "following": "next(handle, output, count + 1)"
+  },
+  {
+    "target": "finish",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_directory.omg",
+    "line": 148,
+    "column": 22,
+    "prefix": "            false -> ",
+    "following": "finish(handle, -534)"
+  },
+  {
+    "target": "query",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_directory_entry.omg",
+    "line": 19,
+    "column": 38,
+    "prefix": "    transition handle != 0 { true -> ",
+    "following": "query(handle, ordinal) false -> (windows_directory_entry_error()) }"
+  },
+  {
+    "target": "next",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_directory_entry.omg",
+    "line": 46,
+    "column": 23,
+    "prefix": "    transition { _ -> ",
+    "following": "next(handle, ordinal, &mut output, 0) }"
+  },
+  {
+    "target": "name",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_directory_entry.omg",
+    "line": 54,
+    "column": 54,
+    "prefix": "            WindowsDirectoryStep::Name { length } -> ",
+    "following": "name(handle, ordinal, output, position, length)"
+  },
+  {
+    "target": "next",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_directory_entry.omg",
+    "line": 61,
+    "column": 21,
+    "prefix": "            true -> ",
+    "following": "next(handle, ordinal, output, position)"
+  },
+  {
+    "target": "selected",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_directory_entry.omg",
+    "line": 62,
+    "column": 22,
+    "prefix": "            false -> ",
+    "following": "selected(handle, ordinal, output, position, length)"
+  },
+  {
+    "target": "next",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_directory_entry.omg",
+    "line": 69,
+    "column": 21,
+    "prefix": "            true -> ",
+    "following": "next(handle, ordinal, output, position + 1)"
+  },
+  {
+    "target": "open",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_path_query.omg",
+    "line": 21,
+    "column": 36,
+    "prefix": "    transition count > 0 { true -> ",
+    "following": "open(wide, output) false -> (-87) }"
+  },
+  {
+    "target": "query",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_path_query.omg",
+    "line": 25,
+    "column": 21,
+    "prefix": "            true -> ",
+    "following": "query(handle, output)"
+  },
+  {
+    "target": "flags",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_lock.omg",
+    "line": 20,
+    "column": 17,
+    "prefix": "        true -> ",
+    "following": "flags(duplicate, exclusive, nonblocking)"
+  },
+  {
+    "target": "exclusive_mode",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_lock.omg",
+    "line": 26,
+    "column": 21,
+    "prefix": "            true -> ",
+    "following": "exclusive_mode(duplicate, nonblocking)"
+  },
+  {
+    "target": "shared_mode",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_lock.omg",
+    "line": 27,
+    "column": 22,
+    "prefix": "            false -> ",
+    "following": "shared_mode(duplicate, nonblocking)"
+  },
+  {
+    "target": "acquire",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_lock.omg",
+    "line": 32,
+    "column": 42,
+    "prefix": "        transition nonblocking { true -> ",
+    "following": "acquire(duplicate, 3) false -> acquire(duplicate, 2) }"
+  },
+  {
+    "target": "acquire",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_lock.omg",
+    "line": 32,
+    "column": 73,
+    "prefix": "        transition nonblocking { true -> acquire(duplicate, 3) false -> ",
+    "following": "acquire(duplicate, 2) }"
+  },
+  {
+    "target": "acquire",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_lock.omg",
+    "line": 36,
+    "column": 42,
+    "prefix": "        transition nonblocking { true -> ",
+    "following": "acquire(duplicate, 1) false -> acquire(duplicate, 0) }"
+  },
+  {
+    "target": "acquire",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_lock.omg",
+    "line": 36,
+    "column": 73,
+    "prefix": "        transition nonblocking { true -> acquire(duplicate, 1) false -> ",
+    "following": "acquire(duplicate, 0) }"
+  },
+  {
+    "target": "release",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_lock.omg",
+    "line": 51,
+    "column": 17,
+    "prefix": "        true -> ",
+    "following": "release(duplicate)"
+  },
+  {
+    "target": "path",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_reparse.omg",
+    "line": 34,
+    "column": 59,
+    "prefix": "    transition count > 0 && count <= output.len { true -> ",
+    "following": "path(path, output, count) false -> (-87) }"
+  },
+  {
+    "target": "open",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_reparse.omg",
+    "line": 39,
+    "column": 40,
+    "prefix": "        transition units > 0 { true -> ",
+    "following": "open(wide, output, count) false -> (-87) }"
+  },
+  {
+    "target": "query",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_reparse.omg",
+    "line": 44,
+    "column": 21,
+    "prefix": "            true -> ",
+    "following": "query(handle, output, count)"
+  },
+  {
+    "target": "inspect",
+    "path": "source/library/std/targets/windows_x86_64/filesystem_removal/removal.omg",
+    "line": 18,
+    "column": 36,
+    "prefix": "    transition root != 0 { true -> ",
+    "following": "inspect(root) false -> failed() }"
+  },
+  {
+    "target": "refuse",
+    "path": "source/library/std/targets/windows_x86_64/filesystem_removal/removal.omg",
+    "line": 26,
+    "column": 57,
+    "prefix": "            WindowsRemovalAttributes::Error { code } -> ",
+    "following": "refuse(root, code)"
+  },
+  {
+    "target": "kind",
+    "path": "source/library/std/targets/windows_x86_64/filesystem_removal/removal.omg",
+    "line": 27,
+    "column": 63,
+    "prefix": "            WindowsRemovalAttributes::Value { attributes } -> ",
+    "following": "kind(root, attributes)"
+  },
+  {
+    "target": "walk",
+    "path": "source/library/std/targets/windows_x86_64/filesystem_removal/removal.omg",
+    "line": 33,
+    "column": 21,
+    "prefix": "            true -> ",
+    "following": "walk(root)"
+  },
+  {
+    "target": "refuse",
+    "path": "source/library/std/targets/windows_x86_64/filesystem_removal/removal.omg",
+    "line": 34,
+    "column": 22,
+    "prefix": "            false -> ",
+    "following": "refuse(root, 267)"
+  },
+  {
+    "target": "in_parts",
+    "path": "source/library/std/targets/macos_arm64/time_host_impl.omg",
+    "line": 86,
+    "column": 17,
+    "prefix": "        true -> ",
+    "following": "in_parts(milliseconds)"
+  },
+  {
+    "target": "at_once",
+    "path": "source/library/std/targets/macos_arm64/time_host_impl.omg",
+    "line": 87,
+    "column": 14,
+    "prefix": "        _ -> ",
+    "following": "at_once(milliseconds)"
+  },
+  {
+    "target": "wait",
+    "path": "source/library/std/targets/macos_arm64/time_host_impl.omg",
+    "line": 110,
+    "column": 23,
+    "prefix": "    transition { _ -> ",
+    "following": "wait(timeout_milliseconds) }"
+  },
+  {
+    "target": "wait",
+    "path": "source/library/std/targets/macos_arm64/time_host_impl.omg",
+    "line": 116,
+    "column": 18,
+    "prefix": "            _ -> ",
+    "following": "wait(timeout_milliseconds)"
+  },
+  {
+    "target": "in_parts",
+    "path": "source/library/std/targets/macos_x86_64/time_host_impl.omg",
+    "line": 110,
+    "column": 17,
+    "prefix": "        true -> ",
+    "following": "in_parts(milliseconds)"
+  },
+  {
+    "target": "at_once",
+    "path": "source/library/std/targets/macos_x86_64/time_host_impl.omg",
+    "line": 111,
+    "column": 14,
+    "prefix": "        _ -> ",
+    "following": "at_once(milliseconds)"
+  },
+  {
+    "target": "wait",
+    "path": "source/library/std/targets/macos_x86_64/time_host_impl.omg",
+    "line": 134,
+    "column": 23,
+    "prefix": "    transition { _ -> ",
+    "following": "wait(timeout_milliseconds) }"
+  },
+  {
+    "target": "wait",
+    "path": "source/library/std/targets/macos_x86_64/time_host_impl.omg",
+    "line": 140,
+    "column": 18,
+    "prefix": "            _ -> ",
+    "following": "wait(timeout_milliseconds)"
+  },
+  {
+    "target": "in_parts",
+    "path": "source/library/std/targets/linux_x86_64/time_host_impl.omg",
+    "line": 143,
+    "column": 17,
+    "prefix": "        true -> ",
+    "following": "in_parts(milliseconds)"
+  },
+  {
+    "target": "at_once",
+    "path": "source/library/std/targets/linux_x86_64/time_host_impl.omg",
+    "line": 144,
+    "column": 14,
+    "prefix": "        _ -> ",
+    "following": "at_once(milliseconds)"
+  },
+  {
+    "target": "wait",
+    "path": "source/library/std/targets/linux_x86_64/time_host_impl.omg",
+    "line": 167,
+    "column": 23,
+    "prefix": "    transition { _ -> ",
+    "following": "wait(timeout_milliseconds) }"
+  },
+  {
+    "target": "wait",
+    "path": "source/library/std/targets/linux_x86_64/time_host_impl.omg",
+    "line": 173,
+    "column": 18,
+    "prefix": "            _ -> ",
+    "following": "wait(timeout_milliseconds)"
+  },
+  {
+    "target": "wait",
+    "path": "source/library/std/targets/linux_arm64/time_host_impl.omg",
+    "line": 137,
+    "column": 23,
+    "prefix": "    transition { _ -> ",
+    "following": "wait(milliseconds) }"
+  },
+  {
+    "target": "wait",
+    "path": "source/library/std/targets/linux_arm64/time_host_impl.omg",
+    "line": 147,
+    "column": 18,
+    "prefix": "            _ -> ",
+    "following": "wait(milliseconds)"
+  },
+  {
+    "target": "access",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/handles.omg",
+    "line": 35,
+    "column": 18,
+    "prefix": "        false -> ",
+    "following": "access(path, options)"
+  },
+  {
+    "target": "writable",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/handles.omg",
+    "line": 39,
+    "column": 21,
+    "prefix": "            true -> ",
+    "following": "writable(path, options, 2147483648)"
+  },
+  {
+    "target": "writable",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/handles.omg",
+    "line": 40,
+    "column": 22,
+    "prefix": "            false -> ",
+    "following": "writable(path, options, 0)"
+  },
+  {
+    "target": "disposition",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/handles.omg",
+    "line": 45,
+    "column": 21,
+    "prefix": "            true -> ",
+    "following": "disposition(path, options, desired | 1179924)"
+  },
+  {
+    "target": "ordinary_write",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/handles.omg",
+    "line": 46,
+    "column": 22,
+    "prefix": "            false -> ",
+    "following": "ordinary_write(path, options, desired)"
+  },
+  {
+    "target": "disposition",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/handles.omg",
+    "line": 51,
+    "column": 21,
+    "prefix": "            true -> ",
+    "following": "disposition(path, options, desired | 1073741824)"
+  },
+  {
+    "target": "disposition",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/handles.omg",
+    "line": 52,
+    "column": 22,
+    "prefix": "            false -> ",
+    "following": "disposition(path, options, desired)"
+  },
+  {
+    "target": "acquire",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/handles.omg",
+    "line": 57,
+    "column": 21,
+    "prefix": "            true -> ",
+    "following": "acquire(path, desired, 1)"
+  },
+  {
+    "target": "creating",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/handles.omg",
+    "line": 58,
+    "column": 22,
+    "prefix": "            false -> ",
+    "following": "creating(path, options, desired)"
+  },
+  {
+    "target": "create_mode",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/handles.omg",
+    "line": 63,
+    "column": 21,
+    "prefix": "            true -> ",
+    "following": "create_mode(path, options.truncate, desired)"
+  },
+  {
+    "target": "existing_mode",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/handles.omg",
+    "line": 64,
+    "column": 22,
+    "prefix": "            false -> ",
+    "following": "existing_mode(path, options.truncate, desired)"
+  },
+  {
+    "target": "acquire",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/handles.omg",
+    "line": 68,
+    "column": 39,
+    "prefix": "        transition truncate { true -> ",
+    "following": "acquire(path, desired, 2) false -> acquire(path, desired, 4) }"
+  },
+  {
+    "target": "acquire",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/handles.omg",
+    "line": 68,
+    "column": 74,
+    "prefix": "        transition truncate { true -> acquire(path, desired, 2) false -> ",
+    "following": "acquire(path, desired, 4) }"
+  },
+  {
+    "target": "acquire",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/handles.omg",
+    "line": 71,
+    "column": 39,
+    "prefix": "        transition truncate { true -> ",
+    "following": "acquire(path, desired, 5) false -> acquire(path, desired, 3) }"
+  },
+  {
+    "target": "acquire",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/handles.omg",
+    "line": 71,
+    "column": 74,
+    "prefix": "        transition truncate { true -> acquire(path, desired, 5) false -> ",
+    "following": "acquire(path, desired, 3) }"
+  },
+  {
+    "target": "transfer",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/handles.omg",
+    "line": 119,
+    "column": 17,
+    "prefix": "        true -> ",
+    "following": "transfer(file, buffer, count)"
+  },
+  {
+    "target": "transfer",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/handles.omg",
+    "line": 139,
+    "column": 17,
+    "prefix": "        true -> ",
+    "following": "transfer(file, bytes)"
+  },
+  {
+    "target": "validate",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/handles.omg",
+    "line": 156,
+    "column": 17,
+    "prefix": "        true -> ",
+    "following": "validate(file, buffer, count, offset)"
+  },
+  {
+    "target": "transfer",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/handles.omg",
+    "line": 161,
+    "column": 21,
+    "prefix": "            true -> ",
+    "following": "transfer(file, buffer, count, offset)"
+  },
+  {
+    "target": "validate",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/handles.omg",
+    "line": 176,
+    "column": 17,
+    "prefix": "        true -> ",
+    "following": "validate(file, bytes, offset)"
+  },
+  {
+    "target": "transfer",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/handles.omg",
+    "line": 181,
+    "column": 21,
+    "prefix": "            true -> ",
+    "following": "transfer(file, bytes, offset)"
+  },
+  {
+    "target": "release",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/handles.omg",
+    "line": 195,
+    "column": 17,
+    "prefix": "        true -> ",
+    "following": "release(file)"
+  },
+  {
+    "target": "flush",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/handles.omg",
+    "line": 208,
+    "column": 17,
+    "prefix": "        true -> ",
+    "following": "flush(file)"
+  },
+  {
+    "target": "validate",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/handles.omg",
+    "line": 235,
+    "column": 17,
+    "prefix": "        true -> ",
+    "following": "validate(file, length)"
+  },
+  {
+    "target": "update",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/handles.omg",
+    "line": 240,
+    "column": 21,
+    "prefix": "            true -> ",
+    "following": "update(file, length)"
+  },
+  {
+    "target": "query",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/metadata.omg",
+    "line": 63,
+    "column": 17,
+    "prefix": "        true -> ",
+    "following": "query(file)"
+  },
+  {
+    "target": "access_time",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/metadata.omg",
+    "line": 138,
+    "column": 17,
+    "prefix": "        true -> ",
+    "following": "access_time(file, accessed, modified)"
+  },
+  {
+    "target": "write_time",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/metadata.omg",
+    "line": 145,
+    "column": 58,
+    "prefix": "            WindowsTimestampEncoding::Ticks { value } -> ",
+    "following": "write_time(file, value, modified)"
+  },
+  {
+    "target": "update",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/metadata.omg",
+    "line": 152,
+    "column": 58,
+    "prefix": "            WindowsTimestampEncoding::Ticks { value } -> ",
+    "following": "update(file, accessed, value)"
+  },
+  {
+    "target": "update",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/metadata.omg",
+    "line": 168,
+    "column": 33,
+    "prefix": "        Permissions::Default -> ",
+    "following": "update(path, false)"
+  },
+  {
+    "target": "update",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/metadata.omg",
+    "line": 169,
+    "column": 44,
+    "prefix": "        Permissions::Readonly { value } -> ",
+    "following": "update(path, value)"
+  },
+  {
+    "target": "select",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/metadata.omg",
+    "line": 183,
+    "column": 17,
+    "prefix": "        true -> ",
+    "following": "select(file, permissions)"
+  },
+  {
+    "target": "update",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/metadata.omg",
+    "line": 188,
+    "column": 37,
+    "prefix": "            Permissions::Default -> ",
+    "following": "update(file, false)"
+  },
+  {
+    "target": "update",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/metadata.omg",
+    "line": 189,
+    "column": 48,
+    "prefix": "            Permissions::Readonly { value } -> ",
+    "following": "update(file, value)"
+  },
+  {
+    "target": "remaining",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/sequences.omg",
+    "line": 37,
+    "column": 23,
+    "prefix": "    transition { _ -> ",
+    "following": "remaining(file, bytes, 0) }"
+  },
+  {
+    "target": "window",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/sequences.omg",
+    "line": 40,
+    "column": 51,
+    "prefix": "        transition position < bytes.len { true -> ",
+    "following": "window(file, bytes, position) false -> UnitResult::Ok }"
+  },
+  {
+    "target": "write",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/sequences.omg",
+    "line": 45,
+    "column": 21,
+    "prefix": "            true -> ",
+    "following": "write(file, bytes, position, position + 4294967295)"
+  },
+  {
+    "target": "write",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/sequences.omg",
+    "line": 46,
+    "column": 22,
+    "prefix": "            false -> ",
+    "following": "write(file, bytes, position, bytes.len)"
+  },
+  {
+    "target": "progressed",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/sequences.omg",
+    "line": 53,
+    "column": 21,
+    "prefix": "            true -> ",
+    "following": "progressed(file, bytes, position, end, count)"
+  },
+  {
+    "target": "remaining",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/sequences.omg",
+    "line": 61,
+    "column": 21,
+    "prefix": "            true -> ",
+    "following": "remaining(file, bytes, position + written)"
+  },
+  {
+    "target": "write",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/sequences.omg",
+    "line": 80,
+    "column": 36,
+    "prefix": "        OpenResult::Ok { file } -> ",
+    "following": "write(file, bytes)"
+  },
+  {
+    "target": "acquire",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/sequences.omg",
+    "line": 96,
+    "column": 17,
+    "prefix": "        true -> ",
+    "following": "acquire(path, buffer, count)"
+  },
+  {
+    "target": "read",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/sequences.omg",
+    "line": 103,
+    "column": 40,
+    "prefix": "            OpenResult::Ok { file } -> ",
+    "following": "read(file, buffer, count)"
+  },
+  {
+    "target": "acquire",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/copy.omg",
+    "line": 20,
+    "column": 17,
+    "prefix": "        true -> ",
+    "following": "acquire(from, to, buffer, cap)"
+  },
+  {
+    "target": "metadata",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/copy.omg",
+    "line": 27,
+    "column": 40,
+    "prefix": "            OpenResult::Ok { file } -> ",
+    "following": "metadata(file, to, buffer, cap)"
+  },
+  {
+    "target": "failed",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/copy.omg",
+    "line": 33,
+    "column": 47,
+    "prefix": "            MetadataResult::Error { kind } -> ",
+    "following": "failed(source, kind)"
+  },
+  {
+    "target": "read",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/copy.omg",
+    "line": 34,
+    "column": 44,
+    "prefix": "            MetadataResult::Ok { meta } -> ",
+    "following": "read(source, to, buffer, cap, meta.permissions)"
+  },
+  {
+    "target": "bounded",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/copy.omg",
+    "line": 47,
+    "column": 39,
+    "prefix": "            IoResult::Ok { count } -> ",
+    "following": "bounded(to, buffer, count, permissions)"
+  },
+  {
+    "target": "destination",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/copy.omg",
+    "line": 52,
+    "column": 21,
+    "prefix": "            true -> ",
+    "following": "destination(to, buffer, count, permissions)"
+  },
+  {
+    "target": "write",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/copy.omg",
+    "line": 66,
+    "column": 40,
+    "prefix": "            OpenResult::Ok { file } -> ",
+    "following": "write(file, buffer, count, permissions)"
+  },
+  {
+    "target": "failed",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/copy.omg",
+    "line": 73,
+    "column": 43,
+    "prefix": "            UnitResult::Error { kind } -> ",
+    "following": "failed(destination, kind)"
+  },
+  {
+    "target": "restore",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/copy.omg",
+    "line": 74,
+    "column": 31,
+    "prefix": "            UnitResult::Ok -> ",
+    "following": "restore(destination, count, permissions)"
+  },
+  {
+    "target": "failed",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/paths.omg",
+    "line": 190,
+    "column": 39,
+    "prefix": "        UnitResult::Error { kind } -> ",
+    "following": "failed(path, kind)"
+  },
+  {
+    "target": "walk",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/paths.omg",
+    "line": 206,
+    "column": 17,
+    "prefix": "        true -> ",
+    "following": "walk(path, root)"
+  },
+  {
+    "target": "root",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/paths.omg",
+    "line": 207,
+    "column": 18,
+    "prefix": "        false -> ",
+    "following": "root(path)"
+  },
+  {
+    "target": "walk",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/paths.omg",
+    "line": 235,
+    "column": 23,
+    "prefix": "    transition { _ -> ",
+    "following": "walk(path, start) }"
+  },
+  {
+    "target": "inspect",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/paths.omg",
+    "line": 238,
+    "column": 21,
+    "prefix": "            true -> ",
+    "following": "inspect(path, position)"
+  },
+  {
+    "target": "complete",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/paths.omg",
+    "line": 239,
+    "column": 22,
+    "prefix": "            false -> ",
+    "following": "complete(path)"
+  },
+  {
+    "target": "create",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/paths.omg",
+    "line": 248,
+    "column": 21,
+    "prefix": "            true -> ",
+    "following": "create(path, position)"
+  },
+  {
+    "target": "walk",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/paths.omg",
+    "line": 249,
+    "column": 22,
+    "prefix": "            false -> ",
+    "following": "walk(path, position + 1)"
+  },
+  {
+    "target": "walk",
+    "path": "source/library/std/targets/windows_x86_64/filesystem/paths.omg",
+    "line": 257,
+    "column": 31,
+    "prefix": "            UnitResult::Ok -> ",
+    "following": "walk(path, position + 1)"
+  },
+  {
+    "target": "query",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_position_pins.omg",
+    "line": 24,
+    "column": 41,
+    "prefix": "    transition duplicate != 0 { true -> ",
+    "following": "query(duplicate) false -> failed() }"
+  },
+  {
+    "target": "complete",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_position_pins.omg",
+    "line": 34,
+    "column": 21,
+    "prefix": "            true -> ",
+    "following": "complete(duplicate, information.granted_access, returned)"
+  },
+  {
+    "target": "query_failed",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_position_pins.omg",
+    "line": 35,
+    "column": 22,
+    "prefix": "            false -> ",
+    "following": "query_failed(duplicate, status)"
+  },
+  {
+    "target": "refuse",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_position_pins.omg",
+    "line": 41,
+    "column": 22,
+    "prefix": "            false -> ",
+    "following": "refuse(duplicate, 31)"
+  },
+  {
+    "target": "refuse",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_position_pins.omg",
+    "line": 46,
+    "column": 27,
+    "prefix": "        transition { _ -> ",
+    "following": "refuse(duplicate, code) }"
+  },
+  {
+    "target": "release_pin",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_position_pins.omg",
+    "line": 56,
+    "column": 38,
+    "prefix": "    transition handle != 0 { true -> ",
+    "following": "release_pin(pin, handle) false -> failed_open(pin) }"
+  },
+  {
+    "target": "failed_open",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_position_pins.omg",
+    "line": 56,
+    "column": 72,
+    "prefix": "    transition handle != 0 { true -> release_pin(pin, handle) false -> ",
+    "following": "failed_open(pin) }"
+  },
+  {
+    "target": "release_failed",
+    "path": "source/library/std/targets/windows_x86_64/windows_filesystem_position_pins.omg",
+    "line": 66,
+    "column": 22,
+    "prefix": "            false -> ",
+    "following": "release_failed(handle)"
+  },
+  {
+    "target": "open",
+    "path": "source/library/std/targets/windows_x86_64/filesystem_removal/acquisition.omg",
+    "line": 28,
+    "column": 36,
+    "prefix": "    transition units > 0 { true -> ",
+    "following": "open(wide) false -> invalid() }"
+  },
+  {
+    "target": "access",
+    "path": "source/library/std/targets/windows_x86_64/filesystem_removal/acquisition.omg",
+    "line": 82,
+    "column": 17,
+    "prefix": "        true -> ",
+    "following": "access(parent, entry, length)"
+  },
+  {
+    "target": "open",
+    "path": "source/library/std/targets/windows_x86_64/filesystem_removal/acquisition.omg",
+    "line": 90,
+    "column": 21,
+    "prefix": "            true -> ",
+    "following": "open(parent, entry, length, 1114241)"
+  },
+  {
+    "target": "open",
+    "path": "source/library/std/targets/windows_x86_64/filesystem_removal/acquisition.omg",
+    "line": 91,
+    "column": 22,
+    "prefix": "            false -> ",
+    "following": "open(parent, entry, length, 1114240)"
+  },
+  {
+    "target": "query",
+    "path": "source/library/std/targets/windows_x86_64/filesystem_removal/attributes.omg",
+    "line": 22,
+    "column": 36,
+    "prefix": "    transition file != 0 { true -> ",
+    "following": "query(file) false -> failed() }"
+  },
+  {
+    "target": "failed",
+    "path": "source/library/std/targets/windows_x86_64/filesystem_removal/completion.omg",
+    "line": 49,
+    "column": 18,
+    "prefix": "        false -> ",
+    "following": "failed(handle)"
+  },
+  {
+    "target": "next",
+    "path": "source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg",
+    "line": 28,
+    "column": 23,
+    "prefix": "    transition { _ -> ",
+    "following": "next(&mut frames, &mut entry, 1, 1) }"
+  },
+  {
+    "target": "directory",
+    "path": "source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg",
+    "line": 34,
+    "column": 58,
+    "prefix": "            WindowsRemovalFrame::Directory { handle } -> ",
+    "following": "directory(frames, entry, depth, restart, handle)"
+  },
+  {
+    "target": "query",
+    "path": "source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg",
+    "line": 42,
+    "column": 21,
+    "prefix": "            true -> ",
+    "following": "query(frames, entry, depth, restart, handle)"
+  },
+  {
+    "target": "pop",
+    "path": "source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg",
+    "line": 52,
+    "column": 42,
+    "prefix": "            WindowsDirectoryStep::End -> ",
+    "following": "pop(frames, entry, depth, handle)"
+  },
+  {
+    "target": "name",
+    "path": "source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg",
+    "line": 53,
+    "column": 54,
+    "prefix": "            WindowsDirectoryStep::Name { length } -> ",
+    "following": "name(frames, entry, depth, handle, length)"
+  },
+  {
+    "target": "next",
+    "path": "source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg",
+    "line": 60,
+    "column": 21,
+    "prefix": "            true -> ",
+    "following": "next(frames, entry, depth, 0)"
+  },
+  {
+    "target": "extent",
+    "path": "source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg",
+    "line": 61,
+    "column": 22,
+    "prefix": "            false -> ",
+    "following": "extent(frames, entry, depth, parent, length)"
+  },
+  {
+    "target": "open",
+    "path": "source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg",
+    "line": 68,
+    "column": 21,
+    "prefix": "            true -> ",
+    "following": "open(frames, entry, depth, parent, length)"
+  },
+  {
+    "target": "attributes",
+    "path": "source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg",
+    "line": 77,
+    "column": 21,
+    "prefix": "            true -> ",
+    "following": "attributes(frames, entry, depth, child)"
+  },
+  {
+    "target": "failed_open",
+    "path": "source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg",
+    "line": 78,
+    "column": 22,
+    "prefix": "            false -> ",
+    "following": "failed_open(frames, depth)"
+  },
+  {
+    "target": "failed_child",
+    "path": "source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg",
+    "line": 91,
+    "column": 57,
+    "prefix": "            WindowsRemovalAttributes::Error { code } -> ",
+    "following": "failed_child(frames, depth, child, code)"
+  },
+  {
+    "target": "kind",
+    "path": "source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg",
+    "line": 92,
+    "column": 63,
+    "prefix": "            WindowsRemovalAttributes::Value { attributes } -> ",
+    "following": "kind(frames, entry, depth, child, attributes)"
+  },
+  {
+    "target": "capacity",
+    "path": "source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg",
+    "line": 105,
+    "column": 21,
+    "prefix": "            true -> ",
+    "following": "capacity(frames, entry, depth, child)"
+  },
+  {
+    "target": "leaf",
+    "path": "source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg",
+    "line": 106,
+    "column": 22,
+    "prefix": "            false -> ",
+    "following": "leaf(frames, entry, depth, child)"
+  },
+  {
+    "target": "push",
+    "path": "source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg",
+    "line": 113,
+    "column": 21,
+    "prefix": "            true -> ",
+    "following": "push(frames, entry, depth, child)"
+  },
+  {
+    "target": "failed_child",
+    "path": "source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg",
+    "line": 114,
+    "column": 22,
+    "prefix": "            false -> ",
+    "following": "failed_child(frames, depth, child, 8)"
+  },
+  {
+    "target": "next",
+    "path": "source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg",
+    "line": 121,
+    "column": 27,
+    "prefix": "        transition { _ -> ",
+    "following": "next(frames, entry, depth + 1, 1) }"
+  },
+  {
+    "target": "next",
+    "path": "source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg",
+    "line": 128,
+    "column": 21,
+    "prefix": "            true -> ",
+    "following": "next(frames, entry, depth, 1)"
+  },
+  {
+    "target": "parent",
+    "path": "source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg",
+    "line": 138,
+    "column": 21,
+    "prefix": "            true -> ",
+    "following": "parent(frames, entry, depth - 1)"
+  },
+  {
+    "target": "next",
+    "path": "source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg",
+    "line": 145,
+    "column": 40,
+    "prefix": "        transition depth > 0 { true -> ",
+    "following": "next(frames, entry, depth, 1) false -> 0 }"
+  },
+  {
+    "target": "next",
+    "path": "source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg",
+    "line": 153,
+    "column": 23,
+    "prefix": "    transition { _ -> ",
+    "following": "next(frames, count, original) }"
+  },
+  {
+    "target": "pop",
+    "path": "source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg",
+    "line": 156,
+    "column": 40,
+    "prefix": "        transition count > 0 { true -> ",
+    "following": "pop(frames, count, original) false -> (original) }"
+  },
+  {
+    "target": "next",
+    "path": "source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg",
+    "line": 163,
+    "column": 43,
+    "prefix": "            WindowsRemovalFrame::Empty -> ",
+    "following": "next(frames, count - 1, original)"
+  },
+  {
+    "target": "close",
+    "path": "source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg",
+    "line": 164,
+    "column": 58,
+    "prefix": "            WindowsRemovalFrame::Directory { handle } -> ",
+    "following": "close(frames, count - 1, original, handle)"
+  },
+  {
+    "target": "release",
+    "path": "source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg",
+    "line": 171,
+    "column": 21,
+    "prefix": "            true -> ",
+    "following": "release(frames, count, original, handle)"
+  },
+  {
+    "target": "next",
+    "path": "source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg",
+    "line": 172,
+    "column": 22,
+    "prefix": "            false -> ",
+    "following": "next(frames, count, windows_removal_error(original))"
+  },
+  {
+    "target": "next",
+    "path": "source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg",
+    "line": 179,
+    "column": 27,
+    "prefix": "        transition { _ -> ",
+    "following": "next(frames, count, code) }"
+  }
+]

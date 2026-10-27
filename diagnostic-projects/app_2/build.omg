@@ -1,0 +1,1 @@
+machine build(builder: &mut Build) { Build::application(builder, "ack_location_driver_2"); Build::depend(builder, Source::Path { location: "../library_2" }); Build::bind(builder, macos_arm64::ProgramEntry, main); }

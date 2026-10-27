@@ -1,0 +1,24 @@
+{
+  "authorization": "User explicitly authorized disposal of build artifacts and abandoned work across owned projects.",
+  "paths": [
+    "/Users/zcanann/Documents/Projects/Omega/target/reference-carriers-macos/debug",
+    "/Users/zcanann/Documents/Projects/Omega/target/runtime-case-stores/debug",
+    "/Users/zcanann/Documents/Projects/Omega/target/runtime-case-payload/debug"
+  ],
+  "latest_builds": [
+    "2026-10-09",
+    "2026-10-07",
+    "2026-10-07"
+  ],
+  "open_file_evidence": "Read-only agent lsof -nP scan found no references; no source or worktree/evidence paths selected.",
+  "before_free_bytes": 390492160,
+  "started_utc": "2026-10-27T14:52:19.491511+00:00",
+  "completed": [
+    "/Users/zcanann/Documents/Projects/Omega/target/reference-carriers-macos/debug",
+    "/Users/zcanann/Documents/Projects/Omega/target/runtime-case-stores/debug",
+    "/Users/zcanann/Documents/Projects/Omega/target/runtime-case-payload/debug"
+  ],
+  "after_free_bytes": 14008127488,
+  "reclaimed_bytes": 13617635328,
+  "anchor_clean": true
+}

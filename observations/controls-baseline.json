@@ -1,0 +1,50 @@
+[
+  {
+    "name": "alternate_arrival",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/posix-static/baseline-producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_bounds/controls/alternate_arrival/main.omg"
+    ],
+    "sha256": "655ce66fa86c2789500fc20c8992194095cda740819b3d38fabd2fba6b421c97",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `private_bounds_alternate_arrival` with 1 diagnostic(s)\n  error: cannot prove index `index` is within unknown slice length of `items` in get::entry\n"
+  },
+  {
+    "name": "changed_index",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/posix-static/baseline-producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_bounds/controls/changed_index/main.omg"
+    ],
+    "sha256": "77ed691d0a13b7c08642c498f1a759c9512e367b5e9ec8a1475ef47ceff08177",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `private_bounds_changed_index` with 1 diagnostic(s)\n  error: cannot prove index `index` is within unknown slice length of `items` in get::entry\n"
+  },
+  {
+    "name": "minimum_extent",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/posix-static/baseline-producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_bounds/controls/minimum_extent/main.omg"
+    ],
+    "sha256": "c58ef1c6936bc699b817e141b2e986ad0cfa705cfc1eb0905d26012ce1a7ed71",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `private_bounds_minimum_extent` with 1 diagnostic(s)\n  error: cannot prove index `1` is within unknown slice length of `items` in get::entry\n"
+  },
+  {
+    "name": "other_collection",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/posix-static/baseline-producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_bounds/controls/other_collection/main.omg"
+    ],
+    "sha256": "1269b8a12fb90c0aa9160ed8bb5b64627ea4d1bbb2bab65dc600937cc1968b36",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `private_bounds_other_collection` with 1 diagnostic(s)\n  error: cannot prove index `index` is within unknown slice length of `items` in get::entry\n"
+  }
+]

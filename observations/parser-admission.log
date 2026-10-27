@@ -1,0 +1,18 @@
+package candidate checking failed: checked compilation failed for package `omega_language_std` with 22 diagnostic(s)
+  error: cannot prove ensures contract for exit from windows_query_synchronous_duplicate at statement 2: result != -1
+  error: cannot prove ensures contract for exit from windows_metadata_disk_file at statement 2: result != -1
+  error: cannot prove ensures contract for exit from windows_directory_acquire at statement 2: result != -1
+  error: cannot prove ensures contract for exit from windows_removal_acquire_root at statement 4: result != -1
+  error: cannot prove ensures contract for exit from windows_removal_acquire_child at statement 1: result != -1
+  error: cannot prove index `filesystem.rd_idx` is within length 512 in rd_body::entry
+  error: cannot prove index `filesystem.rd_idx` is within length 512 in rd_body::entry
+  error: cannot prove index `filesystem.rd_idx` is within length 512 in rdef_advance::entry
+  error: cannot prove index `filesystem.rd_idx` is within length 512 in rdef_advance::entry
+  error: cannot prove index `filesystem.rd_idx` is within length 512 in rdef_dot::entry
+  error: cannot prove index `filesystem.rd_idx + 1` is within length 512 in rdef_dot::entry
+  error: cannot prove index `filesystem.rd_idx + 1` is within length 512 in rdef_dot::entry
+  error: cannot prove index `filesystem.rd_idx + 2` is within length 512 in rdef_dot::entry
+  error: cannot prove index `filesystem.rd_idx` is within length 512 in rdef_type::entry
+  error: cannot prove index `filesystem.rd_j` is within length 256 in rdef_nul_go::entry
+  error: cannot prove index `filesystem.rd_ridx` is within length 512 in rdef_cdo::entry
+  [truncated; 6 additional diagnostics omitted]

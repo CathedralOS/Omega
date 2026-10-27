@@ -1,0 +1,174 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "cdcff74025ecd5f71c0fad327e5a5d88aaaf96d5",
+  "dirty": true,
+  "leg": "both",
+  "target": "macos_arm64",
+  "golden": "tests/omega/corpus_both_macos_arm64.txt",
+  "golden_reason_gaps": {
+    "rows": 0,
+    "of": 4928
+  },
+  "subset": true,
+  "filter": "facts/nested_machine_private_bounds_",
+  "shard": null,
+  "verdict": "recorded",
+  "exit_code": 0,
+  "counts": {
+    "fixtures": 9,
+    "by_status": {
+      "built": 9
+    },
+    "wrong_reason": 0,
+    "wrong_reason_fixtures": [],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 0,
+    "lost_success_fixtures": [],
+    "pinned_off_target": 0,
+    "pinned_off_target_fixtures": [],
+    "by_verdict": {}
+  },
+  "oracle_failures": [],
+  "infrastructure_error": null,
+  "golden_provenance": null,
+  "perf_context": null,
+  "observations": [
+    {
+      "fixture": "pass/facts/nested_machine_private_bounds_call_result_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4854,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "cdcff74025ec"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_bounds_const_name_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4686,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "cdcff74025ec"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_bounds_field_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5127,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "cdcff74025ec"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_bounds_local_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5025,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "cdcff74025ec"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_bounds_match_join_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5211,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "cdcff74025ec"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_bounds_other_machine_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4768,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "cdcff74025ec"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_bounds_other_state_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4953,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "cdcff74025ec"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_bounds_parameter_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4504,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "cdcff74025ec"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_bounds_target_body_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4589,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "cdcff74025ec"
+    }
+  ],
+  "fixtures": []
+}

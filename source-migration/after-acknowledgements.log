@@ -1,0 +1,40 @@
+package candidate checking failed: checked compilation failed for package `omega_language_std` with 39 diagnostic(s)
+  error: cannot prove ensures contract for exit from windows_query_synchronous_duplicate at statement 2: result != -1
+  error: cannot prove ensures contract for exit from windows_metadata_disk_file at statement 2: result != -1
+  error: cannot prove ensures contract for exit from windows_directory_acquire at statement 2: result != -1
+  error: cannot prove ensures contract for exit from windows_removal_acquire_root at statement 4: result != -1
+  error: cannot prove ensures contract for exit from windows_removal_acquire_child at statement 1: result != -1
+  error: cannot prove index `index` is within unknown slice length of `out` in write_byte::entry
+  error: cannot prove index `index` is within unknown slice length of `path` in write_byte::entry
+  error: cannot prove index `index` is within unknown slice length of `out` in write_terminator::entry
+  error: cannot prove index `i` is within unknown slice length of `path` in mkall_at::entry
+  error: cannot prove index `j` is within unknown slice length of `path` in put_byte_write::entry
+  error: cannot prove index `j` is within length 256 in put_byte_write::entry
+  error: cannot prove index `j` is within length 256 in put_nul_write::entry
+  error: cannot prove subslice range end bound `0..i` is within slice length 256
+  error: cannot prove index `filesystem.rd_idx` is within length 512 in rd_body::entry
+  error: cannot prove index `filesystem.rd_idx` is within length 512 in rd_body::entry
+  error: cannot prove index `filesystem.rd_idx` is within length 512 in rdef_advance::entry
+  error: cannot prove index `filesystem.rd_idx` is within length 512 in rdef_advance::entry
+  error: cannot prove index `filesystem.rd_idx` is within length 512 in rdef_dot::entry
+  error: cannot prove index `filesystem.rd_idx + 1` is within length 512 in rdef_dot::entry
+  error: cannot prove index `filesystem.rd_idx + 1` is within length 512 in rdef_dot::entry
+  error: cannot prove index `filesystem.rd_idx + 2` is within length 512 in rdef_dot::entry
+  error: cannot prove index `filesystem.rd_idx` is within length 512 in rdef_type::entry
+  error: cannot prove index `filesystem.rd_j` is within length 256 in rdef_nul_go::entry
+  error: cannot prove index `filesystem.rd_ridx` is within length 512 in rdef_cdo::entry
+  error: cannot prove index `filesystem.rd_j` is within length 256 in rdef_store::entry
+  error: cannot prove index `filesystem.rda_depth` is within length 16 in rds_push_go::entry
+  error: cannot prove index `output_offset` is within length 4096 in single::entry
+  error: cannot prove index `output_offset` is within length 4096 in emit_pair::entry
+  error: cannot prove index `next_output` is within length 4096 in emit_pair::entry
+  error: cannot prove index `output_offset` is within length 4096 in terminate::entry
+  error: cannot prove index `offset` is within unknown slice length of `path` in lead::entry
+  error: cannot prove index `offset` is within unknown slice length of `path` in second::entry
+  error: cannot prove index `offset` is within unknown slice length of `path` in third::entry
+  error: cannot prove index `offset` is within unknown slice length of `path` in fourth::entry
+  error: machine call cycle: `next`, `pop`, `close`, `release` -- an internal call occurrence lacks a classified tail edge; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+  error: machine call cycle: `next`, `directory`, `query`, `name`, `extent`, `open`, `attributes`, `kind`, `capacity`, `push`, `leaf`, `pop`, `parent` -- an internal call occurrence lacks a classified tail edge; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+  error: machine call cycle: `windows_filesystem_root_components`, `inspect`, `separator` -- a member lacks a supported exact ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+  error: machine call cycle: `posix_filesystem_rda_drain`, `rdd_step` -- a member lacks a supported exact ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+  error: machine call cycle: `posix_filesystem_release_directory_stack`, `entry`, `present`, `close`, `next` -- a member lacks a supported exact ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle

@@ -1,0 +1,40 @@
+{
+  "context": {
+    "host": "macOS ARM64",
+    "target": "macos_arm64",
+    "toolchain": "nightly-2026-09-04",
+    "parent": "NESTED-MACHINE-UNIFICATION"
+  },
+  "semantic_contracts": [
+    {
+      "contract": "wiki/spec/language/state_contracts.md",
+      "implementation": [
+        "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/collection_bounds.rs"
+      ],
+      "classification": "missing_implementation",
+      "reason": "The collection-coordinate consumer must read the same independently checked closed private-arrival frames as operand formation. Preserve exact descriptor, bound and index identities; every feasible or unresolved arrival participates. Do not infer exact extent from a minimum length, revive replaced bindings or import lexical runtime facts.",
+      "passages": [
+        "Arrival substitution is simultaneous and identity-based. Scalar arguments retain\ntheir evaluation snapshots; facts about referenced storage must survive writes\nfrom later arguments. A same-named formal cannot alias an unrelated caller value.\nEvery reachable predecessor participates in a join. Unknown input cannot be\nomitted to preserve a convenient invariant. A minimum collection length is not\nan exact extent, and declaration initializers are not recurring loop invariants."
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "context",
+      "kind": "tests",
+      "command": [
+        "python3",
+        "-c",
+        "pass"
+      ],
+      "inputs": [
+        "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/collection_bounds.rs"
+      ],
+      "artifacts": [],
+      "closure_reason": "Route collection bounds through existing ordered captured-operand and closed-private-arrival owners.",
+      "final": false,
+      "expected_exit": 0,
+      "timeout_seconds": 30
+    }
+  ]
+}

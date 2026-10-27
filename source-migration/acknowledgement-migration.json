@@ -1,0 +1,278 @@
+{
+  "diagnostics": 198,
+  "unique_source_occurrences": 198,
+  "files_before": {
+    "source/library/std/targets/windows_x86_64/windows_filesystem_transfer.omg": "432b01fa768959cb4cc90ffc98cb294e955610fc9246b86ac72573cd2c7079e1",
+    "source/library/std/targets/windows_x86_64/windows_filesystem_metadata.omg": "47c1d6376e8d5af4887345d27f4926c7087a2c43d95513aa6caa1b0ef62d0ea1",
+    "source/library/std/targets/windows_x86_64/windows_filesystem_file_control.omg": "7fea89f3271f5730e4fde297f4d13f0546a08d74801307e9151cc5ba35331daf",
+    "source/library/std/targets/windows_x86_64/windows_filesystem_position.omg": "b5807b4fc15e2ade50dba2a5148e6da8e76e6c38db9a656853f64fc8c6d46481",
+    "source/library/std/targets/windows_x86_64/windows_filesystem_directory.omg": "e8baaee1e85d313d228208faf4c2d9b7b9e3f34088b42f2849a51607ec72a197",
+    "source/library/std/targets/windows_x86_64/windows_filesystem_directory_entry.omg": "7ed09d0fdc3b768ded96e26d1535824c8795e19504c40b8a1928364eeb85bf73",
+    "source/library/std/targets/windows_x86_64/windows_filesystem_path_query.omg": "a82f405f496e626163a3fa6eff9003ff2071064bbbc4faa1ff1f119798869351",
+    "source/library/std/targets/windows_x86_64/windows_filesystem_lock.omg": "b832a5b5c20e7e191feb01cec24a2b1da51faae1bdbc83443e8f8ef616b6bf86",
+    "source/library/std/targets/windows_x86_64/windows_filesystem_reparse.omg": "f169703e087a5daaa3ed03443de0024904d34e5ce0b250d721eb6049d6a55a3b",
+    "source/library/std/targets/windows_x86_64/filesystem_removal/removal.omg": "66ee6358b0029d9c51bfb25cd3b8432becbce37e77a9bfd609fca5c1c5b55a35",
+    "source/library/std/targets/macos_arm64/time_host_impl.omg": "7327f6e7569cdec846e8e0d5e7b16e216fd523526da700cf25dd5dbca617a8c2",
+    "source/library/std/targets/macos_x86_64/time_host_impl.omg": "ee8ec886f821a67934cd6e22d903245ae9fd930a235c2297be823c1888304d6d",
+    "source/library/std/targets/linux_x86_64/time_host_impl.omg": "1053e36a0307662c4e607a40f6026ac88b95459a5613489797f3b7ce2f53960a",
+    "source/library/std/targets/linux_arm64/time_host_impl.omg": "a1f2e4a52d3d2ac623939089f6d4296b15dedb9749883b638d9a3b55198f6540",
+    "source/library/std/targets/windows_x86_64/filesystem/handles.omg": "a53c46996408e1c70ed00aaa8515238e6d95637f0c640dfc545eb786d465a97c",
+    "source/library/std/targets/windows_x86_64/filesystem/metadata.omg": "a91978c52c376fcd68abe8076b1b31fe0dd54879b60be06408cf078e06281440",
+    "source/library/std/targets/windows_x86_64/filesystem/sequences.omg": "c7f4c3cc4e74f1b4640b3700ba61eb82cdfd1c696a4eb3ffed289a1f293b84a1",
+    "source/library/std/targets/windows_x86_64/filesystem/copy.omg": "b3d26ff1ec1e0970bf6fde4ab0630a75946822b953eabfde8a20c90b770ae4a0",
+    "source/library/std/targets/windows_x86_64/filesystem/paths.omg": "f4580ae24627b4808e7a6702901207c449bce7ff6084d9de3317c9b39f32a0e4",
+    "source/library/std/targets/windows_x86_64/windows_filesystem_position_pins.omg": "1983b1a581c38d14584ab0bed1873fefc0e971fbd06a551a53c7a47ff7f82d8c",
+    "source/library/std/targets/windows_x86_64/filesystem_removal/acquisition.omg": "bc822e5f1ed0307cbe39e1ec048e063959ad6267123accd7fc428535f45f0d30",
+    "source/library/std/targets/windows_x86_64/filesystem_removal/attributes.omg": "4b99823bffde00bc8656d2943b0016c8e210e0982b82287461896e2831b9cc9d",
+    "source/library/std/targets/windows_x86_64/filesystem_removal/completion.omg": "011810768c0b82cc03546314fcf96803b7c05dc10b0f91cd6bf42e09d300433c",
+    "source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg": "be2cbcbed300e5dcd090d641268c103283e142a071f0e21d1632e3bcdc10fc40"
+  },
+  "edits": {
+    "source/library/std/targets/windows_x86_64/windows_filesystem_transfer.omg": [
+      2043,
+      2439,
+      2481,
+      2925,
+      3138,
+      3168,
+      3644,
+      3892,
+      4649,
+      4934,
+      6126,
+      7029
+    ],
+    "source/library/std/targets/windows_x86_64/windows_filesystem_metadata.omg": [
+      1442,
+      1999,
+      2244,
+      2286,
+      2712,
+      4900,
+      6006,
+      6385,
+      6834
+    ],
+    "source/library/std/targets/windows_x86_64/windows_filesystem_file_control.omg": [
+      1292,
+      1524,
+      2576,
+      3209,
+      3570,
+      4466,
+      5051,
+      5253,
+      5320,
+      5483,
+      5512
+    ],
+    "source/library/std/targets/windows_x86_64/windows_filesystem_position.omg": [
+      1036,
+      1453,
+      1686,
+      1745,
+      2391,
+      2701,
+      3413,
+      3805,
+      4013,
+      4064,
+      4694,
+      4979
+    ],
+    "source/library/std/targets/windows_x86_64/windows_filesystem_directory.omg": [
+      1848,
+      2217,
+      2284,
+      2583,
+      2776,
+      6146,
+      6401,
+      6794,
+      6881,
+      6981,
+      7318,
+      7367,
+      7681,
+      7734
+    ],
+    "source/library/std/targets/windows_x86_64/windows_filesystem_directory_entry.omg": [
+      1232,
+      2660,
+      3285,
+      3679,
+      3740,
+      4117
+    ],
+    "source/library/std/targets/windows_x86_64/windows_filesystem_path_query.omg": [
+      1094,
+      1396
+    ],
+    "source/library/std/targets/windows_x86_64/windows_filesystem_lock.omg": [
+      1224,
+      1529,
+      1589,
+      1815,
+      1846,
+      2047,
+      2078,
+      2862
+    ],
+    "source/library/std/targets/windows_x86_64/windows_filesystem_reparse.omg": [
+      1852,
+      2132,
+      2430
+    ],
+    "source/library/std/targets/windows_x86_64/filesystem_removal/removal.omg": [
+      1194,
+      1641,
+      1722,
+      1968,
+      2000
+    ],
+    "source/library/std/targets/macos_arm64/time_host_impl.omg": [
+      2859,
+      2895,
+      3810,
+      4055
+    ],
+    "source/library/std/targets/macos_x86_64/time_host_impl.omg": [
+      4126,
+      4162,
+      5156,
+      5396
+    ],
+    "source/library/std/targets/linux_x86_64/time_host_impl.omg": [
+      6241,
+      6277,
+      7271,
+      7510
+    ],
+    "source/library/std/targets/linux_arm64/time_host_impl.omg": [
+      5947,
+      6383
+    ],
+    "source/library/std/targets/windows_x86_64/filesystem/handles.omg": [
+      1713,
+      1912,
+      1969,
+      2162,
+      2229,
+      2439,
+      2509,
+      2718,
+      2765,
+      2964,
+      3030,
+      3222,
+      3257,
+      3422,
+      3457,
+      5490,
+      6238,
+      7015,
+      7319,
+      7916,
+      8176,
+      8686,
+      9113,
+      10053,
+      10269
+    ],
+    "source/library/std/targets/windows_x86_64/filesystem/metadata.omg": [
+      2765,
+      5773,
+      6243,
+      6646,
+      7348,
+      7411,
+      7999,
+      8245,
+      8312
+    ],
+    "source/library/std/targets/windows_x86_64/filesystem/sequences.omg": [
+      1479,
+      1671,
+      1918,
+      1991,
+      2332,
+      2719,
+      3558,
+      4333,
+      4739
+    ],
+    "source/library/std/targets/windows_x86_64/filesystem/copy.omg": [
+      1063,
+      1488,
+      1787,
+      1851,
+      2596,
+      2823,
+      3720,
+      4092,
+      4148
+    ],
+    "source/library/std/targets/windows_x86_64/filesystem/paths.omg": [
+      8281,
+      8895,
+      8929,
+      10185,
+      10335,
+      10380,
+      10747,
+      10791,
+      11169
+    ],
+    "source/library/std/targets/windows_x86_64/windows_filesystem_position_pins.omg": [
+      997,
+      1578,
+      1657,
+      1951,
+      2172,
+      2651,
+      2685,
+      3260
+    ],
+    "source/library/std/targets/windows_x86_64/filesystem_removal/acquisition.omg": [
+      1536,
+      4555,
+      4967,
+      5025
+    ],
+    "source/library/std/targets/windows_x86_64/filesystem_removal/attributes.omg": [
+      1091
+    ],
+    "source/library/std/targets/windows_x86_64/filesystem_removal/completion.omg": [
+      2022
+    ],
+    "source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg": [
+      1547,
+      1884,
+      2350,
+      3042,
+      3129,
+      3524,
+      3575,
+      3959,
+      4543,
+      4604,
+      5338,
+      5441,
+      6206,
+      6265,
+      6610,
+      6665,
+      7055,
+      7447,
+      7972,
+      8296,
+      8557,
+      8750,
+      9126,
+      9217,
+      9510,
+      9572,
+      9936
+    ]
+  }
+}

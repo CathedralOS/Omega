@@ -1,0 +1,11 @@
+{
+  "source_revision": "45ece93c10b70e945b479a24122c5390df5aa94a",
+  "producer": "494b66e5807946c1bcca3d20654a2b9025f4e7ad",
+  "baseline": "build/private-feasible/parser-admission.log",
+  "files": {
+    "source/library/std/posix_filesystem_adapter.omg": "5df3b126b56adfc7e18cb8af622b02ecdd7476be418c28a9abe964150a56f26a",
+    "source/library/std/targets/macos_arm64/filesystem_impl.omg": "f946207e1d05f443c2f1bfddc700eb6f82c77197ca3d72c9958a209b3cf4a6e0",
+    "source/library/std/targets/linux_x86_64/filesystem_impl.omg": "7caded667708fbb030acbee9cfa964073e7816f8b61e30910199570f08ec3d3c",
+    "source/library/std/targets/linux_arm64/filesystem_impl.omg": "062d30030d1f1bfabcc3bfd5b76328a70bd3d2d19e0f7939f5c3bc91a1aa7ff9"
+  }
+}

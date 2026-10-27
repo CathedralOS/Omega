@@ -1,0 +1,13 @@
+diff --git a/omega-rust/psi/foundation/diagnostics/src/bounded.rs b/omega-rust/psi/foundation/diagnostics/src/bounded.rs
+index c33ebedbd09..e559591b0b3 100644
+--- a/omega-rust/psi/foundation/diagnostics/src/bounded.rs
++++ b/omega-rust/psi/foundation/diagnostics/src/bounded.rs
+@@ -3,7 +3,7 @@
+ use crate::{Diagnostic, DiagnosticSeverity};
+ use std::fmt;
+ 
+-const MAXIMUM_DIAGNOSTICS: usize = 16;
++const MAXIMUM_DIAGNOSTICS: usize = 256;
+ const MAXIMUM_MESSAGE_BYTES: usize = 4_096;
+ 
+ /// One indented, bounded and escaped line per diagnostic, with its resolved
