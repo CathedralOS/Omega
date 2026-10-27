@@ -359,11 +359,7 @@ pub fn validate_reserved_cleanup_selections(
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     collect_reserved_cleanup_selection_diagnostics(program, &mut diagnostics);
-    if diagnostics.is_empty() {
-        Ok(())
-    } else {
-        Err(diagnostics)
-    }
+    crate::program_validation::finish_strict_diagnostics(diagnostics)
 }
 
 /// A `drop` machine attached to known data: the compiler selects it and

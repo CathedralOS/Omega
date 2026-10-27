@@ -337,11 +337,7 @@ pub fn validate_closed_const_argument(
             parameter.name,
         )));
     }
-    if diagnostics.is_empty() {
-        Ok(())
-    } else {
-        Err(diagnostics)
-    }
+    crate::program_validation::finish_strict_diagnostics(diagnostics)
 }
 
 /// Deriving an ordinary call substitution does not admit a const by shape.

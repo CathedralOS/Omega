@@ -33,18 +33,7 @@ pub(super) fn expression_reborrows_transparent_alias_binding(
         |child| expression_reborrows_transparent_alias_binding(program, child, parameters, aliases);
     match program.expression_table.expression(expression) {
         ExpressionNode::Match(dispatch) => {
-            visit(dispatch.subject)
-                || program
-                    .expression_table
-                    .match_arms(dispatch.arms)
-                    .iter()
-                    .any(|arm| {
-                        program
-                            .expression_table
-                            .match_pattern_operands(arm.pattern)
-                            .any(visit)
-                            || visit(arm.value)
-                    })
+            crate::expression_traversal::match_children(program, *dispatch).any(visit)
         }
         ExpressionNode::Borrow(inner) => {
             let reborrows_binding = inner.access.is_exclusive()

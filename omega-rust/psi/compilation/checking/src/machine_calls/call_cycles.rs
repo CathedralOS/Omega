@@ -404,12 +404,8 @@ fn collect_expression_dependency_symbols(
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Match(dispatch) => {
-            collect_expression_dependency_symbols(program, dispatch.subject, symbols);
-            for arm in program.expression_table.match_arms(dispatch.arms) {
-                for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
-                    collect_expression_dependency_symbols(program, pattern, symbols);
-                }
-                collect_expression_dependency_symbols(program, arm.value, symbols);
+            for child in crate::expression_traversal::match_children(program, *dispatch) {
+                collect_expression_dependency_symbols(program, child, symbols);
             }
         }
         ExpressionNode::Atomic(atomic) => {

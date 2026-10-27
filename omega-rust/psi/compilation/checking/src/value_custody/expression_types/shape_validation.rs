@@ -197,12 +197,9 @@ fn argument_collection_element(
 /// shells. A type parameter, generic slot, or dynamic trait stays open for
 /// inference, so the call keeps its existing acceptance shape.
 fn element_is_concrete(program: &dyn crate::CheckingInput, element: TypeReferenceHandle) -> bool {
-    let mut handle = element;
-    while let TypeReferenceNode::Constrained { base_type, .. } =
-        program.type_reference_table.type_reference(handle)
-    {
-        handle = *base_type;
-    }
+    let handle = program
+        .type_reference_table
+        .unconstrained_type_reference(element);
     !matches!(
         program.type_reference_table.type_reference(handle),
         TypeReferenceNode::Named { symbol, .. }

@@ -554,12 +554,10 @@ pub(crate) fn validate_constant_projection_destination(
 ) -> bool {
     let mut pending = vec![(value, destination)];
     let mut conflict = false;
-    while let Some((value, mut destination)) = pending.pop() {
-        while let TypeReferenceNode::Constrained { base_type, .. } =
-            program.type_reference_table.type_reference(destination)
-        {
-            destination = *base_type;
-        }
+    while let Some((value, destination)) = pending.pop() {
+        let destination = program
+            .type_reference_table
+            .unconstrained_type_reference(destination);
         let shared_lending = matches!(
             program.type_reference_table.type_reference(destination),
             TypeReferenceNode::Reference {

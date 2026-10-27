@@ -155,11 +155,7 @@ pub fn validate_declaration_visibility(
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     collect_declaration_visibility_diagnostics(program, &mut diagnostics);
-    if diagnostics.is_empty() {
-        Ok(())
-    } else {
-        Err(diagnostics)
-    }
+    crate::program_validation::finish_strict_diagnostics(diagnostics)
 }
 
 fn validate_public_const_declared_types(

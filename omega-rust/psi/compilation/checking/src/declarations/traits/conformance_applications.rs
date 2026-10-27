@@ -58,11 +58,7 @@ pub fn validate_conformance_applications(
             }
         }
     }
-    if diagnostics.is_empty() {
-        Ok(())
-    } else {
-        Err(diagnostics)
-    }
+    crate::program_validation::finish_strict_diagnostics(diagnostics)
 }
 
 fn validate_conformance_call_arguments(

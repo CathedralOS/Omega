@@ -72,11 +72,7 @@ pub fn validate_source_const_recipes(
             }
         }
     }
-    if diagnostics.is_empty() {
-        Ok(())
-    } else {
-        Err(diagnostics)
-    }
+    crate::program_validation::finish_strict_diagnostics(diagnostics)
 }
 
 pub fn validate_authored_static_arguments(
@@ -169,11 +165,7 @@ pub fn validate_authored_static_arguments(
             &mut diagnostics,
         );
     }
-    if diagnostics.iter().any(Diagnostic::is_error) {
-        Err(diagnostics)
-    } else {
-        Ok(())
-    }
+    crate::program_validation::finish_diagnostics(diagnostics)
 }
 
 /// A static application names the authored callable telescope, whether its

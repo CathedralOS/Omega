@@ -721,24 +721,21 @@ fn owned_array_satisfies_constrained_referee(
 /// callee's claim, so an unqualified view still cannot satisfy `&[u8] in D`.
 fn constrained_referee_forgets_qualification(
     program: &dyn crate::CheckingInput,
-    mut actual: TypeReferenceHandle,
+    actual: TypeReferenceHandle,
     required: TypeReferenceHandle,
     substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
     required_substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
     let (required, required_substitutions) =
         substituted_required_reference(program, required, required_substitutions);
-    let mut constrained = false;
-    while let TypeReferenceNode::Constrained { base_type, .. } =
-        program.type_reference_table.type_reference(actual)
-    {
-        constrained = true;
-        actual = *base_type;
-    }
+    let peeled = program
+        .type_reference_table
+        .unconstrained_type_reference(actual);
+    let constrained = peeled != actual;
     constrained
         && program.type_identity(TypeIdentityRequest {
             substitutions,
-            ..TypeIdentityRequest::ordinary(actual)
+            ..TypeIdentityRequest::ordinary(peeled)
         }) == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
             substitutions: required_substitutions,
             ..TypeIdentityRequest::ordinary(required)

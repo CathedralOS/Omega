@@ -74,11 +74,7 @@ pub fn validate_value_construction(
         0,
         formation_obligations,
     );
-    if diagnostics.is_empty() {
-        Ok(())
-    } else {
-        Err(diagnostics)
-    }
+    crate::program_validation::finish_strict_diagnostics(diagnostics)
 }
 
 pub(crate) fn validate_struct_literal_fields(

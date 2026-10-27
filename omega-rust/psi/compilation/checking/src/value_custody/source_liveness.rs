@@ -73,30 +73,8 @@ fn expression_uses_symbol_except(
             })
         }
         typed_trees::expression::ExpressionNode::Match(dispatch) => {
-            expression_uses_symbol_except(program, dispatch.subject, symbol, completed_value)
-                || program
-                    .expression_table
-                    .match_arms(dispatch.arms)
-                    .iter()
-                    .any(|arm| {
-                        program
-                            .expression_table
-                            .match_pattern_operands(arm.pattern)
-                            .any(|pattern| {
-                                expression_uses_symbol_except(
-                                    program,
-                                    pattern,
-                                    symbol,
-                                    completed_value,
-                                )
-                            })
-                            || expression_uses_symbol_except(
-                                program,
-                                arm.value,
-                                symbol,
-                                completed_value,
-                            )
-                    })
+            crate::expression_traversal::match_children(program, *dispatch)
+                .any(|child| expression_uses_symbol_except(program, child, symbol, completed_value))
         }
         typed_trees::expression::ExpressionNode::Atomic(atomic) => {
             expression_uses_symbol_except(program, atomic.value, symbol, completed_value)

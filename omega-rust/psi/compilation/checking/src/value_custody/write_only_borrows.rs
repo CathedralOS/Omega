@@ -2048,18 +2048,8 @@ fn expression_mentions_root(
             .saved_value_source(saved)
             .is_some_and(|subject| expression_mentions_root(program, subject, root)),
         ExpressionNode::Match(dispatch) => {
-            expression_mentions_root(program, dispatch.subject, root)
-                || program
-                    .expression_table
-                    .match_arms(dispatch.arms)
-                    .iter()
-                    .any(|arm| {
-                        program
-                            .expression_table
-                            .match_pattern_operands(arm.pattern)
-                            .any(|pattern| expression_mentions_root(program, pattern, root))
-                            || expression_mentions_root(program, arm.value, root)
-                    })
+            crate::expression_traversal::match_children(program, *dispatch)
+                .any(|child| expression_mentions_root(program, child, root))
         }
         ExpressionNode::Name(path) => receiver::mentions_name(program, root, path),
         ExpressionNode::Borrow(value) => expression_mentions_root(program, value.target, root),

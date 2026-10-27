@@ -1123,6 +1123,22 @@ pub(crate) fn finish_diagnostics(diagnostics: Vec<Diagnostic>) -> Result<(), Vec
     Ok(())
 }
 
+/// Refusal on any diagnostic: the batch tail for a validator whose every
+/// emitted diagnostic refuses the program. `finish_diagnostics` is the
+/// policy that lets a warning-only batch pass and echo; a path that can
+/// produce both keeps its refusal and warning batches separate (`check_flow`
+/// collects `anonymous_integer_landing_warnings` only after the formation
+/// batch has already finished).
+pub(crate) fn finish_strict_diagnostics(
+    diagnostics: Vec<Diagnostic>,
+) -> Result<(), Vec<Diagnostic>> {
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
 /// Complete effect-sensitive source admission against the dependency graph
 /// retained by the caller's prepared-effect scope. Formation and source flow
 /// have already run; no source is reparsed or revalidated wholesale here.

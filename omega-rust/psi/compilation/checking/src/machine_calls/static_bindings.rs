@@ -633,11 +633,7 @@ pub fn validate_static_machine_bindings(
             );
         }
     }
-    if diagnostics.iter().any(Diagnostic::is_error) {
-        Err(diagnostics)
-    } else {
-        Ok(())
-    }
+    crate::program_validation::finish_diagnostics(diagnostics)
 }
 
 fn validate_const_binding(

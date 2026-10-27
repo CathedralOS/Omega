@@ -453,11 +453,7 @@ pub fn revalidate_top_level_requirement_realization(
             &mut diagnostics,
         );
     }
-    if diagnostics.is_empty() {
-        Ok(())
-    } else {
-        Err(diagnostics)
-    }
+    crate::program_validation::finish_strict_diagnostics(diagnostics)
 }
 
 /// Reuse the ordinary machine conformance judgment at selected-execution
@@ -479,11 +475,7 @@ pub fn revalidate_machine_trait_conformances(
         &mut diagnostics,
         &mut formation_obligations,
     );
-    if diagnostics.is_empty() {
-        Ok(())
-    } else {
-        Err(diagnostics)
-    }
+    crate::program_validation::finish_strict_diagnostics(diagnostics)
 }
 
 fn validate_top_level_requirement_effect_ceiling(
