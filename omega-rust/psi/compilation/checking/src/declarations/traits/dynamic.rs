@@ -690,12 +690,8 @@ fn collect_dynamic_expression_call_updates(
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Match(dispatch) => {
-            visit!(dispatch.subject);
-            for arm in program.expression_table.match_arms(dispatch.arms) {
-                for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
-                    visit!(pattern);
-                }
-                visit!(arm.value);
+            for child in crate::expression_traversal::match_children(program, *dispatch) {
+                visit!(child);
             }
         }
         ExpressionNode::ArrayLiteral(elements) => {

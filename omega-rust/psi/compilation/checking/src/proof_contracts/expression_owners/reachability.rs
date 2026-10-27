@@ -67,18 +67,8 @@ fn reaches(
     }
     match program.expression_table.expression(root) {
         ExpressionNode::Match(dispatch) => {
-            reaches(program, dispatch.subject, target, visited)
-                || program
-                    .expression_table
-                    .match_arms(dispatch.arms)
-                    .iter()
-                    .any(|arm| {
-                        program
-                            .expression_table
-                            .match_pattern_operands(arm.pattern)
-                            .any(|pattern| reaches(program, pattern, target, visited))
-                            || reaches(program, arm.value, target, visited)
-                    })
+            crate::expression_traversal::match_children(program, *dispatch)
+                .any(|child| reaches(program, child, target, visited))
         }
         ExpressionNode::Atomic(atomic) => reaches(program, atomic.value, target, visited),
         ExpressionNode::ArrayLiteral(values) => program

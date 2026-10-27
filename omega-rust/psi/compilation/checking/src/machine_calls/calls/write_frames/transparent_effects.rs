@@ -17,20 +17,8 @@ pub(super) fn expression_is_effectful_for_transparent_result(
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Match(dispatch) => {
-            expression_is_effectful_for_transparent_result(program, dispatch.subject)
-                || program
-                    .expression_table
-                    .match_arms(dispatch.arms)
-                    .iter()
-                    .any(|arm| {
-                        program
-                            .expression_table
-                            .match_pattern_operands(arm.pattern)
-                            .any(|pattern| {
-                                expression_is_effectful_for_transparent_result(program, pattern)
-                            })
-                            || expression_is_effectful_for_transparent_result(program, arm.value)
-                    })
+            crate::expression_traversal::match_children(program, *dispatch)
+                .any(|child| expression_is_effectful_for_transparent_result(program, child))
         }
         ExpressionNode::Atomic(_) | ExpressionNode::Call(_) => true,
         ExpressionNode::Binary(binary) => {
