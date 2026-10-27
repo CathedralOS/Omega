@@ -475,23 +475,7 @@ impl ValuePlacement {
     /// The byte width carried by the placement when it is exactly one
     /// register or stack word starting at value offset zero.
     pub fn single_word_byte_size(&self) -> Option<u32> {
-        match self.locations.as_slice() {
-            [
-                ValueLocation::Register {
-                    value_byte_offset: 0,
-                    byte_size,
-                    ..
-                },
-            ]
-            | [
-                ValueLocation::Stack {
-                    value_byte_offset: 0,
-                    byte_size,
-                    ..
-                },
-            ] => Some(*byte_size),
-            _ => None,
-        }
+        byte_size_at_offset_zero(&self.locations)
     }
 }
 
