@@ -9,6 +9,8 @@ use crate::legalized_operations::{
 };
 use crate::{SaturatingCarrier, SaturatingOperation};
 use optimization_unit::encode_value_definition_site_identity;
+use semantic_vocabulary::{ObligationId, ValueId};
+
 pub(super) fn encode(
     bytes: &mut Vec<u8>,
     function: &LegalizedScalarFunction,
@@ -1049,10 +1051,7 @@ pub(super) fn encode(
                     accepted_fact,
                 } => {
                     bytes.push(saturating_tag(SaturatingOperation::Divide, *carrier));
-                    crate::codec_bytes::push_encoded(bytes, left.get().to_le_bytes());
-                    crate::codec_bytes::push_encoded(bytes, right.get().to_le_bytes());
-                    crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
-                    bytes.extend_from_slice(&accepted_fact.bytes());
+                    encode_obligated_pair(bytes, *left, *right, *obligation, accepted_fact);
                 }
                 LegalizedScalarInstructionKind::SaturatingMultiply {
                     carrier,
@@ -1085,10 +1084,7 @@ pub(super) fn encode(
                     accepted_fact,
                 } => {
                     bytes.push(saturating_tag(SaturatingOperation::Remainder, *carrier));
-                    crate::codec_bytes::push_encoded(bytes, left.get().to_le_bytes());
-                    crate::codec_bytes::push_encoded(bytes, right.get().to_le_bytes());
-                    crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
-                    bytes.extend_from_slice(&accepted_fact.bytes());
+                    encode_obligated_pair(bytes, *left, *right, *obligation, accepted_fact);
                 }
                 LegalizedScalarInstructionKind::WrappingRemainder {
                     left,
@@ -1097,10 +1093,7 @@ pub(super) fn encode(
                     accepted_fact,
                 } => {
                     bytes.push(37);
-                    crate::codec_bytes::push_encoded(bytes, left.get().to_le_bytes());
-                    crate::codec_bytes::push_encoded(bytes, right.get().to_le_bytes());
-                    crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
-                    bytes.extend_from_slice(&accepted_fact.bytes());
+                    encode_obligated_pair(bytes, *left, *right, *obligation, accepted_fact);
                 }
                 LegalizedScalarInstructionKind::WrappingDivide {
                     left,
@@ -1109,10 +1102,7 @@ pub(super) fn encode(
                     accepted_fact,
                 } => {
                     bytes.push(70);
-                    crate::codec_bytes::push_encoded(bytes, left.get().to_le_bytes());
-                    crate::codec_bytes::push_encoded(bytes, right.get().to_le_bytes());
-                    crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
-                    bytes.extend_from_slice(&accepted_fact.bytes());
+                    encode_obligated_pair(bytes, *left, *right, *obligation, accepted_fact);
                 }
                 LegalizedScalarInstructionKind::WrappingAdd { left, right } => {
                     bytes.push(38);
@@ -1146,10 +1136,7 @@ pub(super) fn encode(
                     accepted_fact,
                 } => {
                     bytes.push(83);
-                    crate::codec_bytes::push_encoded(bytes, value.get().to_le_bytes());
-                    crate::codec_bytes::push_encoded(bytes, count.get().to_le_bytes());
-                    crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
-                    bytes.extend_from_slice(&accepted_fact.bytes());
+                    encode_obligated_pair(bytes, *value, *count, *obligation, accepted_fact);
                 }
                 LegalizedScalarInstructionKind::ExactShiftRight {
                     value,
@@ -1158,10 +1145,7 @@ pub(super) fn encode(
                     accepted_fact,
                 } => {
                     bytes.push(84);
-                    crate::codec_bytes::push_encoded(bytes, value.get().to_le_bytes());
-                    crate::codec_bytes::push_encoded(bytes, count.get().to_le_bytes());
-                    crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
-                    bytes.extend_from_slice(&accepted_fact.bytes());
+                    encode_obligated_pair(bytes, *value, *count, *obligation, accepted_fact);
                 }
                 LegalizedScalarInstructionKind::ExactBinary {
                     operator,
@@ -1178,10 +1162,7 @@ pub(super) fn encode(
                         LegalizedExactIntegerOperator::Multiply => 3,
                         LegalizedExactIntegerOperator::Remainder => 4,
                     });
-                    crate::codec_bytes::push_encoded(bytes, left.get().to_le_bytes());
-                    crate::codec_bytes::push_encoded(bytes, right.get().to_le_bytes());
-                    crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
-                    bytes.extend_from_slice(&accepted_fact.bytes());
+                    encode_obligated_pair(bytes, *left, *right, *obligation, accepted_fact);
                 }
                 LegalizedScalarInstructionKind::BitwiseAnd { left, right } => {
                     bytes.push(24);
@@ -1652,6 +1633,22 @@ fn encode_store_destination(
             super::structural_types::encode_structural_parameter(bytes, parameter);
         }
     }
+}
+
+/// One obligated operand row: both operand identities, the obligation the
+/// operation retains and the accepted fact that discharges it. Every exact,
+/// saturating and wrapping form that keeps a proof writes this same tail.
+fn encode_obligated_pair(
+    bytes: &mut Vec<u8>,
+    left: ValueId,
+    right: ValueId,
+    obligation: ObligationId,
+    accepted_fact: &optimization_core::AcceptedObligationFactIdentity,
+) {
+    crate::codec_bytes::push_encoded(bytes, left.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, right.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
+    bytes.extend_from_slice(&accepted_fact.bytes());
 }
 
 pub(super) fn encode_runtime_indices(
