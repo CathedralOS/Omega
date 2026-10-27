@@ -17,8 +17,8 @@ machine probe(select: bool, output: &mut Storage) -> Note {
 }
 machine main() crashes Trap {
     let mut output: Storage = Storage { touched: 0, canary: 33 };
-    let first: Note = probe(true);
-    let second: Note = probe(false);
+    let first: Note = probe(true, &mut output);
+    let second: Note = probe(false, &mut output);
     transition output.touched == 5 && output.canary == 33 && first.value == 6 && first.tag == 11 && second.value == 8 && second.tag == 13 {
         true -> done() false -> bad()
     }
