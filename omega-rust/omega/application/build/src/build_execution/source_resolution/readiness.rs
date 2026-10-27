@@ -1,0 +1,479 @@
+//! Execute each immutable Build once, preparing dependencies at readiness pauses.
+//!
+//! Acquisitions own transport and graph validity. This scheduler owns only live
+//! continuations and returned/settled compiler work. A helper's completed graph
+//! can settle early; the enclosing graph must later agree with that same source
+//! custody before any Product is published.
+
+use super::{
+    CatalogMemberBuild, ProjectSourceResolutionError, ResolvedBuild, ResolvedPackageBuild,
+    normal_return,
+};
+use crate::BuildSession;
+use crate::build_execution::ReturnedPackageBuild;
+use build_declarations::{BuildRequest, DependencyPurpose};
+use compiler::{CheckedCompileRequest, PackageBuild};
+use package_manager::resolution::source::{
+    AcquiredBuildSource, AcquiredSourceSelection, BuildSourceAcquisition, BuildSourceAcquisitions,
+    DeclaredBuildSource, ExecutedSourceResolution, ResolvedBuildSources,
+};
+use std::path::Path;
+use target::TargetProfile;
+
+use ProjectSourceResolutionError::{Compilation, Resources, Source};
+
+struct SourceBuild {
+    acquired: AcquiredBuildSource,
+    declared: DeclaredBuildSource,
+    // Taken only during settlement or final transfer; a failed transition
+    // aborts this invocation instead of replaying the original Build.
+    build: Option<ResolvedBuild>,
+}
+
+pub(super) struct ReadinessScheduler<'session, 'operation> {
+    session: &'session mut BuildSession,
+    acquisitions: &'session mut BuildSourceAcquisitions<'operation>,
+    profile: TargetProfile,
+    timings: bool,
+    active: Vec<AcquiredBuildSource>,
+    sources: Vec<SourceBuild>,
+    products: Vec<(usize, DependencyPurpose, PackageBuild)>,
+    catalog_builds: Vec<CatalogMemberBuild>,
+}
+
+impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
+    pub(super) fn new(
+        session: &'session mut BuildSession,
+        acquisitions: &'session mut BuildSourceAcquisitions<'operation>,
+        profile: TargetProfile,
+        timings: bool,
+    ) -> Self {
+        Self {
+            session,
+            acquisitions,
+            profile,
+            timings,
+            active: Vec::new(),
+            sources: Vec::new(),
+            products: Vec::new(),
+            catalog_builds: Vec::new(),
+        }
+    }
+
+    pub(super) fn join_sources(
+        self,
+        resolved: &ResolvedBuildSources,
+    ) -> Result<Vec<ResolvedPackageBuild>, ProjectSourceResolutionError> {
+        let mut builds = Vec::with_capacity(self.sources.len());
+        for mut source in self.sources {
+            let identity = source.declared.identity();
+            if !resolved.contains(identity) {
+                return Err(Source(
+                    "executed helper is absent from the final source graph".into(),
+                ));
+            }
+            let mut build = source
+                .build
+                .take()
+                .ok_or_else(|| Source("Build work was already consumed".into()))?;
+            let inputs = join_source(resolved, identity, &mut build)?;
+            builds.push(ResolvedPackageBuild { build, inputs });
+        }
+        Ok(builds)
+    }
+
+    pub(super) fn execute_source(
+        &mut self,
+        acquired: AcquiredBuildSource,
+        entry: &Path,
+        snapshot: Option<build_evaluation::BuildSnapshotRequest>,
+    ) -> Result<usize, ProjectSourceResolutionError> {
+        if let Some(position) = self
+            .sources
+            .iter()
+            .position(|work| work.acquired.same_source(&acquired))
+        {
+            if self.sources[position].acquired.source_capture() != acquired.source_capture() {
+                return Err(Source(
+                    "reused Build source changed its immutable capture".into(),
+                ));
+            }
+            return Ok(position);
+        }
+        self.acquisitions
+            .admit_build_descent(&self.active, &acquired)
+            .map_err(Source)?;
+        self.active.push(acquired.clone());
+        let result = (|| {
+            let build = if let Some(position) = self
+                .catalog_builds
+                .iter()
+                .position(|work| &work.capture == acquired.source_capture())
+            {
+                self.catalog_builds.swap_remove(position).build
+            } else {
+                let mut request = self
+                    .session
+                    .packages
+                    .source_build_request(acquired.source_capture(), entry, self.profile)
+                    .map_err(Resources)?;
+                if snapshot.is_some() {
+                    request.build.snapshot = snapshot;
+                }
+                request.collect_timings = self.timings;
+                self.execute_build(&acquired, request)?
+            };
+            let declared = acquired
+                .declare_build(normal_return(&build)?)
+                .map_err(Source)?;
+            let position = self.sources.len();
+            self.sources.push(SourceBuild {
+                acquired,
+                declared,
+                build: Some(ResolvedBuild::Returned(build)),
+            });
+            Ok(position)
+        })();
+        self.active.pop();
+        result
+    }
+
+    fn execute_build(
+        &mut self,
+        acquired: &AcquiredBuildSource,
+        request: CheckedCompileRequest,
+    ) -> Result<ReturnedPackageBuild, ProjectSourceResolutionError> {
+        let mut invocation = self
+            .session
+            .compiler
+            .begin_package_build(request)
+            .map_err(Compilation)?;
+        let returned = if let Some(execution) = invocation.execution() {
+            let mut host = execution
+                .host()
+                .map_err(|diagnostics| Compilation(diagnostics.into()))?;
+            let mut activation = host.start().map_err(Source)?;
+            loop {
+                let step = activation.advance(1024).map_err(Source)?;
+                if step.returned {
+                    break;
+                }
+                if let Some(request) = step.awaiting_provider {
+                    let (alias, declaration) =
+                        request.backing.path.split_once("::").ok_or_else(|| {
+                            Source(
+                                "Build backing must name its dependency and implementation".into(),
+                            )
+                        })?;
+                    let (ordinal, dependency) =
+                        self.prepare_dependency(acquired, activation.requests(), alias)?;
+                    let resolved = self.resolve_graph(dependency)?;
+                    self.settle_graph(&resolved)?;
+                    let build = self.prepare_product(dependency, DependencyPurpose::Build)?;
+                    let provider = self
+                        .session
+                        .compiler
+                        .produce_package_build_provider(build, declaration)
+                        .map_err(Compilation)?;
+                    activation
+                        .install_provider(
+                            build_evaluation::BuildDependencySelection {
+                                purpose: DependencyPurpose::Build,
+                                request_ordinal: ordinal,
+                                package: self.sources[dependency].declared.identity(),
+                            },
+                            &provider,
+                        )
+                        .map_err(Source)?;
+                }
+            }
+            Some(activation.complete().map_err(Source)?)
+        } else {
+            None
+        };
+        Ok(ReturnedPackageBuild {
+            invocation,
+            returned,
+        })
+    }
+
+    fn prepare_dependency(
+        &mut self,
+        requester: &AcquiredBuildSource,
+        requests: &[build_evaluation::terminal_requests::IssuedBuildRequest],
+        alias: &str,
+    ) -> Result<(usize, usize), ProjectSourceResolutionError> {
+        let mut selected = None;
+        let dependencies = requests.iter().filter_map(|issued| match issued.request() {
+            BuildRequest::Dependency {
+                purpose: DependencyPurpose::Build,
+                alias,
+                ..
+            } => Some(alias),
+            _ => None,
+        });
+        for (ordinal, explicit_alias) in dependencies.enumerate() {
+            if explicit_alias
+                .as_ref()
+                .is_some_and(|name| name.as_str() != alias)
+            {
+                continue;
+            }
+            let selection = self
+                .acquisitions
+                .acquire_issued(requester, requests, DependencyPurpose::Build, ordinal)
+                .map_err(Source)?;
+            let acquired = self.finish_acquisition(selection)?;
+            let entry = acquired.entry_path();
+            let dependency = self.execute_source(acquired, &entry, None)?;
+            let declared = &self.sources[dependency].declared;
+            declared.require_dependency().map_err(Source)?;
+            let name = explicit_alias
+                .as_ref()
+                .map_or(declared.package_name(), |name| name.as_str());
+            if name == alias && selected.replace((ordinal, dependency)).is_some() {
+                return Err(Source(format!(
+                    "Build dependency qualifier `{alias}` is ambiguous"
+                )));
+            }
+        }
+        selected.ok_or_else(|| {
+            Source(format!(
+                "Build provider qualifier `{alias}` has no issued Build dependency"
+            ))
+        })
+    }
+
+    fn finish_acquisition(
+        &mut self,
+        selection: AcquiredSourceSelection,
+    ) -> Result<AcquiredBuildSource, ProjectSourceResolutionError> {
+        match selection {
+            AcquiredSourceSelection::Source(source) => Ok(source),
+            AcquiredSourceSelection::Workspace(workspace) => {
+                self.execute_workspace_catalog(workspace)
+            }
+        }
+    }
+
+    fn execute_workspace_catalog(
+        &mut self,
+        workspace: package_manager::resolution::source::AcquiredWorkspaceBuild,
+    ) -> Result<AcquiredBuildSource, ProjectSourceResolutionError> {
+        let acquired = workspace.acquired_source().clone();
+        self.acquisitions
+            .admit_build_descent(&self.active, &acquired)
+            .map_err(Source)?;
+        self.active.push(acquired.clone());
+        let result = (|| {
+            let mut request = self
+                .session
+                .packages
+                .source_build_request(
+                    acquired.source_capture(),
+                    &workspace.entry_path(),
+                    self.profile,
+                )
+                .map_err(Resources)?;
+            request.collect_timings = self.timings;
+            let build = self.execute_build(&acquired, request)?;
+            let returned = build
+                .returned
+                .ok_or_else(|| Source("workspace catalog has no executed declaration".into()))?;
+            let root = self
+                .session
+                .compiler
+                .settle_source_catalog(build.invocation, returned)
+                .map_err(Compilation)?;
+            let members = self
+                .acquisitions
+                .workspace_members(workspace, root)
+                .map_err(Source)?;
+            let mut declarations = Vec::new();
+            for acquired in members.sources() {
+                let mut request = self
+                    .session
+                    .packages
+                    .source_build_request(
+                        acquired.source_capture(),
+                        &acquired.entry_path(),
+                        self.profile,
+                    )
+                    .map_err(Resources)?;
+                request.collect_timings = self.timings;
+                self.acquisitions
+                    .admit_build_descent(&self.active, acquired)
+                    .map_err(Source)?;
+                self.active.push(acquired.clone());
+                let executed = self.execute_build(acquired, request);
+                self.active.pop();
+                let build = executed?;
+                declarations.push(
+                    build
+                        .invocation
+                        .observe_declaration(normal_return(&build)?)
+                        .map_err(Compilation)?,
+                );
+                self.catalog_builds.push(CatalogMemberBuild {
+                    capture: acquired.source_capture().clone(),
+                    build,
+                });
+            }
+            self.acquisitions
+                .complete_workspace(members, declarations)
+                .map_err(Source)
+        })();
+        self.active.pop();
+        result
+    }
+
+    pub(super) fn resolve_graph(
+        &mut self,
+        root: usize,
+    ) -> Result<ResolvedBuildSources, ProjectSourceResolutionError> {
+        let mut resolution = self.sources[root]
+            .declared
+            .clone()
+            .resolve()
+            .map_err(Source)?;
+        loop {
+            let request = match resolution {
+                ExecutedSourceResolution::Complete(resolved) => return Ok(resolved),
+                ExecutedSourceResolution::Request(request) => request,
+            };
+            let mut acquisition = self.acquisitions.acquire(request).map_err(Source)?;
+            loop {
+                match acquisition {
+                    BuildSourceAcquisition::Execute(dependency) => {
+                        let acquired = dependency.acquired_source().clone();
+                        let entry = acquired.entry_path();
+                        let position = self.execute_source(acquired, &entry, None)?;
+                        let (_, next) = dependency
+                            .complete_declared(&self.sources[position].declared)
+                            .map_err(Source)?;
+                        resolution = next;
+                        break;
+                    }
+                    BuildSourceAcquisition::Reused(next) => {
+                        resolution = next;
+                        break;
+                    }
+                    BuildSourceAcquisition::Workspace { pending, workspace } => {
+                        let acquired =
+                            self.finish_acquisition(AcquiredSourceSelection::Workspace(workspace))?;
+                        acquisition = pending.select(acquired).map_err(Source)?;
+                    }
+                }
+            }
+        }
+    }
+
+    fn settle_graph(
+        &mut self,
+        resolved: &ResolvedBuildSources,
+    ) -> Result<(), ProjectSourceResolutionError> {
+        for source in &mut self.sources {
+            let identity = source.declared.identity();
+            if !resolved.contains(identity) {
+                continue;
+            }
+            let mut build = source
+                .build
+                .take()
+                .ok_or_else(|| Source("Build work was already consumed".into()))?;
+            let inputs = join_source(resolved, identity, &mut build)?;
+            if let ResolvedBuild::Returned(mut returned) = build {
+                returned
+                    .invocation
+                    .join_product_context(self.profile, inputs)
+                    .map_err(Compilation)?;
+                build = ResolvedBuild::Settled(
+                    self.session
+                        .compiler
+                        .settle_package_build(returned.invocation, returned.returned)
+                        .map_err(Compilation)?,
+                );
+            }
+            source.build = Some(build);
+        }
+        Ok(())
+    }
+
+    fn prepare_product(
+        &mut self,
+        position: usize,
+        purpose: DependencyPurpose,
+    ) -> Result<PackageBuild, ProjectSourceResolutionError> {
+        if let Some((_, _, prepared)) = self
+            .products
+            .iter()
+            .find(|(source, scope, _)| *source == position && *scope == purpose)
+        {
+            return prepared
+                .select_target(self.profile, prepared.package_inputs().clone())
+                .map_err(Compilation);
+        }
+        let Some(ResolvedBuild::Settled(completed)) = &self.sources[position].build else {
+            return Err(Source(
+                "helper preparation requires its settled dependency graph".into(),
+            ));
+        };
+        let mut inputs = completed
+            .package_inputs()
+            .clone()
+            .with_compilation_purpose(purpose)
+            .map_err(|errors| Source(format!("helper purpose admission: {errors:?}")))?;
+        let mut generated = Vec::new();
+        for (package, dependency_purpose) in inputs.required_dependency_source_instances() {
+            let dependency = self
+                .sources
+                .iter()
+                .position(|source| source.declared.identity() == package)
+                .ok_or_else(|| Source("helper dependency has no retained Build".into()))?;
+            let build = self.prepare_product(dependency, dependency_purpose)?;
+            generated.push(build.generated_source_bundle().clone());
+        }
+        inputs = inputs
+            .with_complete_dependency_generated_sources(generated)
+            .map_err(|errors| Source(format!("helper generated source join: {errors:?}")))?;
+        let Some(ResolvedBuild::Settled(completed)) = &mut self.sources[position].build else {
+            return Err(Source(
+                "helper preparation consumed its settled Build".into(),
+            ));
+        };
+        let prepared = self
+            .session
+            .compiler
+            .prepare_package_product(completed, self.profile, inputs, Default::default())
+            .map_err(Compilation)?;
+        let retained = prepared
+            .select_target(self.profile, prepared.package_inputs().clone())
+            .map_err(Compilation)?;
+        self.products.push((position, purpose, retained));
+        Ok(prepared)
+    }
+}
+
+fn join_source(
+    resolved: &ResolvedBuildSources,
+    identity: semantic_vocabulary::PackageKeyIdentity,
+    build: &mut ResolvedBuild,
+) -> Result<package_compilation::PackageCompilationInputs, ProjectSourceResolutionError> {
+    match build {
+        ResolvedBuild::Returned(build) => {
+            let returned = build.returned.as_mut().ok_or_else(|| {
+                Source("acquired source has no executed Build declaration".into())
+            })?;
+            resolved.join_build(identity, returned).map_err(Source)
+        }
+        ResolvedBuild::Settled(build) => {
+            let inputs = resolved.compilation_inputs(identity).map_err(Source)?;
+            if inputs.source_inputs() != build.package_inputs().source_inputs() {
+                return Err(Source(
+                    "settled helper Build differs from the final source graph".into(),
+                ));
+            }
+            Ok(inputs)
+        }
+    }
+}

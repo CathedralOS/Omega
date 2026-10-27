@@ -1,8 +1,6 @@
 //! Acquire immutable sources, then bind the declarations their Builds execute.
 
-use super::build_resolution::{
-    AcquiredBuildDependency, BuildSourceAcquisition, ExecutedSourceResolution, PendingBuildSource,
-};
+use super::build_resolution::{BuildSourceAcquisition, PendingBuildSource};
 use crate::declarations::dependencies::read::{DependencySourceRequest, PackageSelection};
 use crate::resolution::graph::{
     CanonicalSourceClosureSubject, GitResolutionOptions, admit_locked_source_request,
@@ -27,10 +25,32 @@ pub struct BuildSourceAcquisitions<'operation> {
     root_request: PackageRootSourceRequest,
     locked_source: Option<&'operation CanonicalSourceClosureSubject>,
     git_sources: Vec<(GitSourceRequest, ResolvedGitSource)>,
+    sources: Vec<AcquiredBuildSource>,
     pub(super) workspaces: Vec<super::workspace_acquisition::ExecutedWorkspace>,
 }
 
 impl<'operation> BuildSourceAcquisitions<'operation> {
+    /// Apply resolver work limits before recursive Build work. Final graph
+    /// reconciliation still rejects cycles that do not involve readiness waits.
+    pub fn admit_build_descent(
+        &self,
+        active: &[AcquiredBuildSource],
+        acquired: &AcquiredBuildSource,
+    ) -> Result<(), String> {
+        if active.iter().any(|source| source.same_source(acquired)) {
+            return Err(format!(
+                "cyclic Build readiness dependency at {}",
+                acquired.entry_path().display()
+            ));
+        }
+        if active.len()
+            > crate::resolution::graph::reconcile::PackageSourceClosureLimits::default().max_depth
+        {
+            return Err("Build dependency depth exceeds the package resolution limit".into());
+        }
+        Ok(())
+    }
+
     pub(crate) fn new(
         storage: &'operation SourceResolver,
         options: GitResolutionOptions<'operation>,
@@ -42,6 +62,7 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
             root_request,
             locked_source: None,
             git_sources: Vec::new(),
+            sources: Vec::new(),
             workspaces: Vec::new(),
         }
     }
@@ -55,13 +76,28 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
         self.locked_source = Some(source);
     }
 
-    /// Acquire only the source requested by the executed ledger. This owns no
-    /// compiler and never projects package declarations from source syntax.
+    /// Retain the operation's original root, including staged source custody.
+    /// Relative requests use its original lineage, never its materialized path.
+    pub fn retain_root(&mut self, acquired: &AcquiredBuildSource) -> Result<(), String> {
+        if acquired.root_request != self.root_request {
+            return Err("source acquisition policy belongs to another project request".into());
+        }
+        self.retain_source(acquired.clone())?;
+        Ok(())
+    }
+
+    /// Acquire a post-return graph occurrence through the same transport used
+    /// while Build is suspended. Graph continuation stays outside transport.
     pub fn acquire(
         &mut self,
         pending: PendingBuildSource,
     ) -> Result<BuildSourceAcquisition, String> {
-        if pending.request.root_request() != &self.root_request {
+        if pending.request.root_request() != &self.root_request
+            && !self
+                .sources
+                .iter()
+                .any(|source| &source.root_request == pending.request.root_request())
+        {
             return Err(pending
                 .request
                 .fail("source acquisition policy belongs to another project request")
@@ -72,80 +108,171 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
         {
             return Err(pending.request.fail(error).to_string());
         }
-        let (selected, selection) = match pending.request.source() {
+        let requester = pending.request.requester();
+        let origin = SourceAcquisitionOrigin {
+            lineage: requester.key().source_lineage(),
+            resolution: requester.resolution(),
+            navigation: requester.navigation(),
+            limits: requester.source_limits(),
+        };
+        let selection = match self.acquire_source(origin, pending.request.source()) {
+            Ok(selection) => selection,
+            Err(error) => return Err(pending.request.fail(error).to_string()),
+        };
+        match selection {
+            AcquiredSourceSelection::Source(source) => pending.select(source),
+            AcquiredSourceSelection::Workspace(workspace) => {
+                Ok(BuildSourceAcquisition::Workspace { pending, workspace })
+            }
+        }
+    }
+
+    /// Resolve an actually issued occurrence before the requester has returned.
+    /// This establishes source custody only. Its name, complete ledger, aliases
+    /// and graph still require the ordinary normal-return join.
+    pub fn acquire_issued(
+        &mut self,
+        requester: &AcquiredBuildSource,
+        requests: &[build_evaluation::terminal_requests::IssuedBuildRequest],
+        purpose: build_declarations::DependencyPurpose,
+        ordinal: usize,
+    ) -> Result<AcquiredSourceSelection, String> {
+        if !self.sources.iter().any(|source| {
+            source.lineage == requester.lineage
+                && source.navigation == requester.navigation
+                && source.resolution == requester.resolution
+                && source.capture == requester.capture
+        }) {
+            return Err(
+                "requesting Build has no source custody in this acquisition operation".into(),
+            );
+        }
+        let projected =
+            crate::declarations::dependencies::read::DependencyProjections::from_executed_requests(
+                requests.iter().map(|issued| issued.request()),
+            )?;
+        if projected.authored_request_count()
+            > crate::resolution::graph::reconcile::PackageSourceClosureLimits::default()
+                .max_dependency_requests
+        {
+            return Err("issued Build requests exceed the package resolution limit".into());
+        }
+        let request = projected
+            .requests(purpose)
+            .get(ordinal)
+            .ok_or("Build dependency occurrence has not been issued")?;
+        let origin = requester.acquisition_origin();
+        if let Some(subject) = self.locked_source {
+            crate::resolution::graph::admit_locked_issued_source_request(
+                subject, origin, purpose, ordinal, request,
+            )?;
+        }
+        self.acquire_source(origin, request)
+    }
+
+    /// One source-selection operation, independent of whether its caller has a
+    /// package declaration yet. The first immutable capture is reused throughout
+    /// discovery, helper preparation and final graph reconciliation.
+    fn acquire_source(
+        &mut self,
+        requester: SourceAcquisitionOrigin<'_>,
+        request: &DependencySourceRequest,
+    ) -> Result<AcquiredSourceSelection, String> {
+        let acquired = match request {
             DependencySourceRequest::Path { location, .. } => {
-                let location = location.clone();
-                return if matches!(
-                    pending.request.requester().key().source_lineage(),
-                    SourceLineage::ExternalLocal(_)
-                ) {
-                    pending.acquire_local_source(&location)
+                if let SourceLineage::ExternalLocal(lineage) = requester.lineage {
+                    let root = super::external_local_dependency_root(
+                        lineage.canonical_absolute_path(),
+                        location,
+                    )?;
+                    let selected_lineage = SourceLineage::ExternalLocal(
+                        ExternalLocalLineage::canonicalize(&root, lineage.source_context().clone())
+                            .map_err(|error| error.to_string())?,
+                    );
+                    if let Some(source) = self.sources.iter().find(|source| {
+                        source.lineage == selected_lineage
+                            && source.navigation == super::PackageSourceNavigation::Root
+                    }) {
+                        return Ok(AcquiredSourceSelection::Source(source.clone()));
+                    }
+                    AcquiredBuildSource::capture_local(
+                        &root,
+                        requester.limits,
+                        lineage.source_context().clone(),
+                    )
+                    .map_err(|error| error.to_string())?
                 } else {
-                    self.acquire_workspace_path(pending, &location)
-                };
+                    self.acquire_workspace_path(requester, location)?
+                }
             }
             DependencySourceRequest::Git {
                 repository,
                 revision,
                 selection,
                 ..
-            } => (
-                GitSourceRequest::new(repository.clone(), Some(revision.clone())),
-                selection.clone(),
-            ),
-        };
-        let selected = match selected {
-            Ok(selected) => selected,
-            Err(error) => return Err(pending.request.fail(error).to_string()),
-        };
-        let source = match self.acquire_git(&selected, pending.request.requester().source_limits())
-        {
-            Ok(source) => source,
-            Err(error) => return Err(pending.request.fail(error).to_string()),
-        };
-        if let PackageSelection::Named(package) = selection {
-            let request =
-                GitPackageSourceRequest::new(selected, PackageSelection::Named(package.clone()));
-            return self.acquire_workspace_member(pending, source, request, &package);
-        }
-        if let Some(custody) = pending
-            .request
-            .acquired_source(source.lineage(), &super::PackageSourceNavigation::Root)
-            .cloned()
-        {
-            let resolution = ImmutableSourceResolution::git(
-                package_source::GitCommitId::parse_hex(source.commit())
-                    .map_err(|error| error.to_string())?,
-                package_source::GitTreeId::parse_hex(source.tree())
-                    .map_err(|error| error.to_string())?,
-            )
-            .map_err(|error| error.to_string())?;
-            if custody.resolution() != &resolution
-                || custody.materialization()
-                    != &super::PackageSourceMaterialization::from_local(source.local())
-            {
-                return Err(pending
-                    .request
-                    .fail("Git requests for one source lineage select different immutable content")
-                    .to_string());
+            } => {
+                let selected = GitSourceRequest::new(repository.clone(), Some(revision.clone()))
+                    .map_err(|error| error.to_string())?;
+                let source = self.acquire_git(&selected, requester.limits)?;
+                let request = GitPackageSourceRequest::new(selected, selection.clone());
+                if let PackageSelection::Named(package) = selection {
+                    match self.acquire_workspace_member(source, request, package)? {
+                        AcquiredSourceSelection::Workspace(workspace) => {
+                            return Ok(AcquiredSourceSelection::Workspace(workspace));
+                        }
+                        AcquiredSourceSelection::Source(acquired) => acquired,
+                    }
+                } else if let Some(existing) = self.sources.iter().find(|acquired| {
+                    &acquired.lineage == source.lineage()
+                        && acquired.navigation == super::PackageSourceNavigation::Root
+                }) {
+                    let resolution = ImmutableSourceResolution::git(
+                        GitCommitId::parse_hex(source.commit())
+                            .map_err(|error| error.to_string())?,
+                        GitTreeId::parse_hex(source.tree()).map_err(|error| error.to_string())?,
+                    )
+                    .map_err(|error| error.to_string())?;
+                    if existing.resolution != resolution
+                        || super::PackageSourceMaterialization::from_local(
+                            existing.capture.normalized(),
+                        ) != super::PackageSourceMaterialization::from_local(source.local())
+                    {
+                        return Err("Git requests for one source lineage select different immutable content".into());
+                    }
+                    let mut acquired = existing.clone();
+                    acquired.root_request = PackageRootSourceRequest::Git(request);
+                    acquired
+                } else {
+                    AcquiredBuildSource::capture_git(&source, request)?
+                }
             }
-            let step = pending
-                .request
-                .complete::<String>(custody)
-                .map_err(|error| error.to_string())?;
-            return Ok(BuildSourceAcquisition::Reused(
-                ExecutedSourceResolution::from_step(step),
-            ));
-        }
-        let request = GitPackageSourceRequest::new(selected, PackageSelection::Root);
-        let acquired = match AcquiredBuildSource::capture_git(&source, request) {
-            Ok(acquired) => acquired,
-            Err(error) => return Err(pending.request.fail(error).to_string()),
         };
-        Ok(BuildSourceAcquisition::Execute(AcquiredBuildDependency {
-            pending: pending.request,
-            acquired,
-        }))
+        self.retain_source(acquired)
+            .map(AcquiredSourceSelection::Source)
+    }
+
+    pub(super) fn retain_source(
+        &mut self,
+        acquired: AcquiredBuildSource,
+    ) -> Result<AcquiredBuildSource, String> {
+        if let Some(existing) = self.sources.iter().find(|source| {
+            source.lineage == acquired.lineage && source.navigation == acquired.navigation
+        }) {
+            if existing.resolution != acquired.resolution || existing.capture != acquired.capture {
+                return Err("source requests select conflicting immutable content".into());
+            }
+            // Workspace selection belongs to this request; capture and lineage
+            // belong to the operation's first acquisition.
+            return Ok(acquired);
+        }
+        if self.sources.len()
+            >= crate::resolution::graph::reconcile::PackageSourceClosureLimits::default()
+                .max_packages
+        {
+            return Err("acquired Build sources exceed the package resolution limit".into());
+        }
+        self.sources.push(acquired.clone());
+        Ok(acquired)
     }
 
     fn acquire_git(
@@ -207,60 +334,19 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
     }
 }
 
-impl PendingBuildSource {
-    /// The local transport adapter preserves the original requester's base and
-    /// context. A Git-relative Path needs registered repository/workspace
-    /// navigation; it is never treated as an ambient local path.
-    fn acquire_local_source(self, location: &str) -> Result<BuildSourceAcquisition, String> {
-        let requester = self.request.requester();
-        let package_source::SourceLineage::ExternalLocal(lineage) =
-            requester.key().source_lineage()
-        else {
-            return Err(self
-                .request
-                .fail("workspace requests require their registered source acquisition")
-                .to_string());
-        };
-        let root = match super::external_local_dependency_root(
-            lineage.canonical_absolute_path(),
-            location,
-        ) {
-            Ok(root) => root,
-            Err(error) => return Err(self.request.fail(error).to_string()),
-        };
-        let selected_lineage = match package_source::ExternalLocalLineage::canonicalize(
-            &root,
-            lineage.source_context().clone(),
-        ) {
-            Ok(lineage) => package_source::SourceLineage::ExternalLocal(lineage),
-            Err(error) => return Err(self.request.fail(error).to_string()),
-        };
-        if let Some(custody) = self
-            .request
-            .acquired_source(&selected_lineage, &super::PackageSourceNavigation::Root)
-            .cloned()
-        {
-            let step = self
-                .request
-                .complete::<String>(custody)
-                .map_err(|error| error.to_string())?;
-            return Ok(BuildSourceAcquisition::Reused(
-                ExecutedSourceResolution::from_step(step),
-            ));
-        }
-        let acquired = match AcquiredBuildSource::capture_local(
-            &root,
-            requester.source_limits(),
-            lineage.source_context().clone(),
-        ) {
-            Ok(acquired) => acquired,
-            Err(error) => return Err(self.request.fail(error).to_string()),
-        };
-        Ok(BuildSourceAcquisition::Execute(AcquiredBuildDependency {
-            pending: self.request,
-            acquired,
-        }))
-    }
+/// Source selection may require executing an authenticated workspace catalog.
+/// Neither result contains a graph continuation or provisional package name.
+pub enum AcquiredSourceSelection {
+    Source(AcquiredBuildSource),
+    Workspace(super::AcquiredWorkspaceBuild),
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct SourceAcquisitionOrigin<'source> {
+    pub lineage: &'source SourceLineage,
+    pub resolution: &'source ImmutableSourceResolution,
+    pub navigation: &'source super::PackageSourceNavigation,
+    pub limits: LocalSourceLimits,
 }
 
 /// Acquired bytes and authenticated lineage, without a parsed declaration or
@@ -294,6 +380,21 @@ impl std::fmt::Display for BuildSourceAcquisitionError {
 impl std::error::Error for BuildSourceAcquisitionError {}
 
 impl AcquiredBuildSource {
+    /// Acquisition identity exists before a Build declares its package name.
+    /// An operation retains one immutable capture at this identity.
+    pub fn same_source(&self, other: &Self) -> bool {
+        self.lineage == other.lineage && self.navigation == other.navigation
+    }
+
+    pub(crate) fn acquisition_origin(&self) -> SourceAcquisitionOrigin<'_> {
+        SourceAcquisitionOrigin {
+            lineage: &self.lineage,
+            resolution: &self.resolution,
+            navigation: &self.navigation,
+            limits: self.limits,
+        }
+    }
+
     /// Capture proposed bytes without changing the original package lineage or
     /// the base used by relative dependency requests. The staging owner retains
     /// the live-source comparison required before publication.

@@ -15,8 +15,9 @@
 //! across those operations; package policy borrows execution, not a compiler.
 //! Ordinary CLI products consume executed discovery through package-owned
 //! Product admission. Install/update also execute their staged candidates once
-//! and retain Builds across review passes. Audit uses that same lifecycle;
-//! provider/helper suspension remains migration work.
+//! and retain Builds across review passes. Audit uses that same lifecycle.
+//! Readiness pauses acquire an explicitly requested dependency, produce its
+//! named checked Terminal implementation, and resume the original activation.
 
 mod build;
 mod build_directory;

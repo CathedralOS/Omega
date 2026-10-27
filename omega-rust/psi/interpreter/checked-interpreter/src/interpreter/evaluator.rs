@@ -259,7 +259,7 @@ pub(crate) struct Evaluator<'program> {
     pub(super) executed_source_selections:
         Vec<language_semantics::declaration_selection::ExecutedBuildSelection>,
     pub(super) pending_build_selections:
-        Vec<arena::Handle<language_semantics::declaration_selection::BuildSelectionRequest>>,
+        Vec<arena::Handle<typed_trees::expression::BuildSelectionRequest>>,
     /// Executed `exclude_crash`/`exclude_service` selections on the root
     /// Build, in evaluation order.
     pub(super) executed_behavior_exclusions: Vec<crate::ExecutedBehaviorExclusion>,

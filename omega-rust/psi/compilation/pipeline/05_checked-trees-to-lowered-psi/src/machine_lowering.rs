@@ -15,6 +15,7 @@
 //! Unsupported source constructs fail closed.
 
 mod boundary_applications;
+mod build_providers;
 mod callback_applications;
 pub(crate) mod debug_map;
 pub(crate) mod declarations;
@@ -431,6 +432,13 @@ fn lower_terminal_selection(
         &mut lowered.semantic_module,
     )?;
     retain_float_meanings(identities, checked, &source_machine_ids, &mut lowered)?;
+    lowered.build_provider_requirements = build_providers::retain(
+        identities,
+        checked,
+        exact_toolchain_sources,
+        &source_boundary_ids,
+        &lowered.source_call_occurrences,
+    )?;
 
     // Copies emitted while composing values can allocate after frame reservation.
     // Retain their ordinary place declarations before publishing the module;

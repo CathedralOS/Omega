@@ -12,6 +12,8 @@ pub(super) fn lower_call_statement(
 ) -> Result<typed::statement::StatementNode, Diagnostic> {
     if let Some(request) = crate::expressions::product_selections::request(
         lowerer.source_trees,
+        &mut lowerer.typed_trees,
+        lowerer.type_reference_exposure,
         call.receiver_symbol,
         call.target_symbol,
         call.target.as_str(),
@@ -21,9 +23,6 @@ pub(super) fn lower_call_statement(
         call.target.source_span(),
     )? {
         let mut occurrences = call.authored_call_selection.into_iter().collect::<Vec<_>>();
-        if let language_semantics::declaration_selection::BuildSelectionRequest::Declaration(
-            binding,
-        ) = &request
         {
             occurrences.extend(
                 lowerer
@@ -31,7 +30,7 @@ pub(super) fn lower_call_statement(
                     .authored_declaration_selections()
                     .iter()
                     .filter(|selection| {
-                        binding.operands.iter().any(|operand| {
+                        request.designated_operands().iter().any(|operand| {
                             let span = selection.source_span();
                             span.source_id == operand.source_span.source_id
                                 && span.span.start >= operand.source_span.span.start

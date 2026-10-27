@@ -90,6 +90,9 @@ impl<'program> Evaluator<'program> {
             })?
             .clone();
         let operation = match &binding {
+            BuildSelectionRequest::ProviderReadiness(_) => {
+                return trap("provider readiness requires a retained Terminal Build activation");
+            }
             BuildSelectionRequest::Exclusion(_) => "exclude",
             BuildSelectionRequest::Entry(binding) => match binding.implementation {
                 RootBindingOperand::AuthoredPath(_) => "bind",
@@ -159,6 +162,9 @@ impl<'program> Evaluator<'program> {
             );
         }
         let selection = match binding {
+            BuildSelectionRequest::ProviderReadiness(_) => {
+                return trap("provider readiness requires a retained Terminal Build activation");
+            }
             BuildSelectionRequest::Exclusion(request) => {
                 let [_, value] = arguments else {
                     return trap("behavior exclusion requires its evaluated code");

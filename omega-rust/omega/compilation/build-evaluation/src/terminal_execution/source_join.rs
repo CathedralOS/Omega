@@ -166,6 +166,17 @@ impl ReturnedBuild {
         {
             return Err("joined source graph contains unrequested dependency selections".into());
         }
+        for provider in &self.provider_sources {
+            if !selections.iter().any(|selected| {
+                selected.purpose == provider.purpose
+                    && selected.request_ordinal == provider.request_ordinal
+                    && selected.package == provider.package
+            }) {
+                return Err(
+                    "joined source graph differs from a provider executed during Build".into(),
+                );
+            }
+        }
         self.source_join = Some(inputs.source_inputs());
         Ok(())
     }

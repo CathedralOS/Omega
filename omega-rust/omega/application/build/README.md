@@ -40,6 +40,23 @@ SDK callers use the same `build(BuildRequest)` entrance, including the
 `package_batch` counter probe and CLI `qualify_inputs` replay example. There is
 no separate prepared-project check/native/inspection API or static graph resolver.
 
+[source_resolution.rs](src/build_execution/source_resolution.rs) owns executed
+discovery for those consumers and package commands. Its
+[readiness scheduler](src/build_execution/source_resolution/readiness.rs) keeps
+the suspended activation alive while acquiring the exact issued Build
+dependency, settling that dependency's own graph, and asking Psi for the named
+checked Terminal implementation. Installation checks the exact requirement and
+component closure before resuming. Normal return still joins every source
+request; early helper completion neither replaces that join nor replays Build.
+Source acquisition, pins, aliases and workspace selection remain package-owned.
+
+The runnable [provider-readiness projects](../../../../samples/cli/compilation/provider_readiness)
+exercise this route through ordinary CLI review and native/Terminal execution.
+The legacy source-only corpus route below cannot acquire a missing helper;
+its migration to executed project discovery remains open. Helpers needed while
+observing unselected workspace members also still require retained catalog
+closure support, rather than bypassing final graph membership.
+
 [source_compilation.rs](src/source_compilation.rs) owns embedded one-shot source
 requests used by standalone products and compiler diagnostics. Its
 `compile_sources`, `check_source` and `produce_source` stops all show the same

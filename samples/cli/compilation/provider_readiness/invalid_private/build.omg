@@ -1,0 +1,7 @@
+use omega::language::core::program_image;
+
+machine build(builder: &mut Build) suspends; {
+    Build::application(builder, "provider_readiness_private");
+    Build::build_depend_as(builder, "backing", Source::Path { location: "../backing" });
+    suspend Build::await_provider<ProgramImage, backing::PrivateImage>(builder);
+}

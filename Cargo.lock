@@ -201,6 +201,7 @@ dependencies = [
  "target",
  "terminal-codec",
  "terminal-fuel",
+ "terminal-installation",
  "terminal-interpreter",
  "terminal-psi",
  "trust-model",
