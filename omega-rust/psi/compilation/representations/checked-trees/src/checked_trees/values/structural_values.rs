@@ -557,6 +557,10 @@ impl CheckedStructuralValuePlans {
         Some(self.calls.get_mut(call))
     }
 
+    pub fn seal(&mut self) {
+        self.roots_by_state.seal(&self.roots, |root| root.state);
+    }
+
     fn with_state_roots<R>(
         &self,
         state: SymbolHandle,

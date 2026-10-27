@@ -270,13 +270,17 @@ impl super::FlowOwnershipFacts {
         arena::Handle<FlowOwnedSelectionReceipt>,
         &FlowOwnedSelectionReceipt,
     )> {
-        let mut matching = self.owned_selections.iter().filter(|(_, receipt)| {
-            receipt.state == state
-                && receipt.statement_ordinal == statement_ordinal
-                && receipt.expression == expression
-        });
-        let receipt = matching.next()?;
-        matching.next().is_none().then_some(receipt)
+        self.with_state_owned_selections(state, |handles| {
+            let mut matching = handles.iter().copied().filter_map(|handle| {
+                let receipt = self.owned_selections.get(handle);
+                (receipt.state == state
+                    && receipt.statement_ordinal == statement_ordinal
+                    && receipt.expression == expression)
+                    .then_some((handle, receipt))
+            });
+            let receipt = matching.next()?;
+            matching.next().is_none().then_some(receipt)
+        })
     }
 
     pub fn owned_selection_at(
@@ -303,13 +307,17 @@ impl super::FlowOwnershipFacts {
         arena::Handle<FlowOwnedSelectionReceipt>,
         &FlowOwnedSelectionReceipt,
     )> {
-        let mut matches = self.owned_selections.iter().filter(|(_, receipt)| {
-            receipt.state == state
-                && receipt.statement_ordinal == statement_ordinal
-                && receipt.evaluation == evaluation
-        });
-        let receipt = matches.next()?;
-        matches.next().is_none().then_some(receipt)
+        self.with_state_owned_selections(state, |handles| {
+            let mut matches = handles.iter().copied().filter_map(|handle| {
+                let receipt = self.owned_selections.get(handle);
+                (receipt.state == state
+                    && receipt.statement_ordinal == statement_ordinal
+                    && receipt.evaluation == evaluation)
+                    .then_some((handle, receipt))
+            });
+            let receipt = matches.next()?;
+            matches.next().is_none().then_some(receipt)
+        })
     }
 }
 

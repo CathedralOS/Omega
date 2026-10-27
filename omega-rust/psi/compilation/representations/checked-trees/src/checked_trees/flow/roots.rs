@@ -84,6 +84,7 @@ pub struct FlowOwnershipFacts {
     pub selection_transfer_claims: Arena<super::FlowOwnedSelectionClaim>,
     pub selection_place_bindings: Arena<super::FlowSelectionPlaceBinding>,
     pub permissions_by_state: KeyedRows<SymbolHandle, FlowPermissionEventFact>,
+    pub owned_selections_by_state: KeyedRows<SymbolHandle, super::FlowOwnedSelectionReceipt>,
 }
 
 impl FlowOwnershipFacts {
@@ -114,6 +115,7 @@ impl FlowOwnershipFacts {
             selection_transfer_claims: Arena::default(),
             selection_place_bindings: Arena::default(),
             permissions_by_state: KeyedRows::default(),
+            owned_selections_by_state: KeyedRows::default(),
         }
     }
 
@@ -128,6 +130,26 @@ impl FlowOwnershipFacts {
             &state,
             run,
         )
+    }
+
+    pub fn with_state_owned_selections<R>(
+        &self,
+        state: SymbolHandle,
+        run: impl FnOnce(&[arena::Handle<super::FlowOwnedSelectionReceipt>]) -> R,
+    ) -> R {
+        self.owned_selections_by_state.with_rows(
+            &self.owned_selections,
+            |receipt| receipt.state,
+            &state,
+            run,
+        )
+    }
+
+    pub fn seal_indexes(&mut self) {
+        self.permissions_by_state
+            .seal(&self.permissions, |event| event.state_symbol);
+        self.owned_selections_by_state
+            .seal(&self.owned_selections, |receipt| receipt.state);
     }
 }
 
@@ -202,6 +224,11 @@ impl FlowControlFacts {
             &expression,
             run,
         )
+    }
+
+    pub fn seal_indexes(&mut self) {
+        self.operands_by_expression
+            .seal(&self.operands, |operand| operand.expression);
     }
 
     /// Complete captured lifetime dependencies, never exact address evidence.
@@ -494,7 +521,7 @@ paged_flow_roots!(FlowOwnershipFacts {
         selection_transfer_claims,
         selection_place_bindings,
     ],
-    indexes: [permissions_by_state],
+    indexes: [permissions_by_state, owned_selections_by_state],
     lists: [],
 });
 paged_flow_roots!(FlowBoundaryFacts {

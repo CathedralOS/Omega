@@ -299,43 +299,44 @@ pub(super) fn account<'calls>(
             facts
                 .flow
                 .ownership
-                .owned_selections
-                .iter()
-                .any(|(_, receipt)| {
-                    receipt.machine == machine.symbol
-                        && receipt.state == state.symbol
-                        && facts
-                            .flow
-                            .ownership
-                            .selection_sources
-                            .span_or_empty(receipt.sources)
-                            .iter()
-                            .any(|source| {
-                                if source.retains_storage
-                                    && (result.multiplicity != Multiplicity::Affine
-                                        || receipt.death != PermissionEventSource::StateExit)
-                                {
-                                    return false;
-                                }
-                                let boundary = operations
-                                    .iter()
-                                    .position(|operation| {
-                                        operation.source_statement_index().is_some_and(
-                                            |statement| statement >= receipt.statement_ordinal,
-                                        )
-                                    })
-                                    .unwrap_or(operations.len());
-                                super::super::local_storage::source(
-                                    program,
-                                    state,
-                                    &operations[..boundary],
-                                    source.symbol,
-                                ) == Some(
-                                    CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                                        binding_ordinal: result.binding_ordinal,
-                                    },
-                                )
-                            })
+                .with_state_owned_selections(state.symbol, |handles| {
+                    handles.iter().copied().any(|handle| {
+                        let receipt = facts.flow.ownership.owned_selections.get(handle);
+                        receipt.machine == machine.symbol
+                            && receipt.state == state.symbol
+                            && facts
+                                .flow
+                                .ownership
+                                .selection_sources
+                                .span_or_empty(receipt.sources)
+                                .iter()
+                                .any(|source| {
+                                    if source.retains_storage
+                                        && (result.multiplicity != Multiplicity::Affine
+                                            || receipt.death != PermissionEventSource::StateExit)
+                                    {
+                                        return false;
+                                    }
+                                    let boundary = operations
+                                        .iter()
+                                        .position(|operation| {
+                                            operation.source_statement_index().is_some_and(
+                                                |statement| statement >= receipt.statement_ordinal,
+                                            )
+                                        })
+                                        .unwrap_or(operations.len());
+                                    super::super::local_storage::source(
+                                        program,
+                                        state,
+                                        &operations[..boundary],
+                                        source.symbol,
+                                    ) == Some(
+                                        CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                                            binding_ordinal: result.binding_ordinal,
+                                        },
+                                    )
+                                })
+                    })
                 });
         // A mutable view's result owner is its one checked loan release. A
         // selected edge may additionally transfer that view or return a

@@ -437,6 +437,50 @@ impl<T: Default> PagedArenaSet<T> {
             .fold(self.page_count() as u64, u64::wrapping_add)
     }
 
+    /// Append-only epoch `(rewrite_epoch, active_count)` when every page has
+    /// dense append-only storage (`free_indices` empty).
+    pub fn append_epoch(&self) -> Option<(u64, usize)> {
+        if self.additional_pages.is_empty() {
+            return self.first_page.append_epoch();
+        }
+        let current = self.current();
+        let (current_rewrite, _) = current.append_epoch()?;
+        let mut epoch = current_rewrite
+            .wrapping_mul(0x9E37_79B9_7F4A_7C15)
+            .wrapping_add(u64::from(self.current_generation))
+            .wrapping_mul(0x9E37_79B9_7F4A_7C15)
+            .wrapping_add(self.page_count() as u64);
+        for page in self.pages() {
+            if !std::ptr::eq(page, current) {
+                if page.append_epoch().is_none() {
+                    return None;
+                }
+                epoch = epoch
+                    .wrapping_mul(0x9E37_79B9_7F4A_7C15)
+                    .wrapping_add(page.revision());
+            }
+        }
+        Some((epoch, self.active_count))
+    }
+
+    /// Visit rows appended to the current page starting at the 0-based set
+    /// offset `start`. Valid when `append_epoch` shares its `rewrite_epoch`
+    /// with the prior observation at `start`.
+    pub fn for_each_from(&self, start: usize, mut visit: impl FnMut(Handle<T>, &T)) {
+        if self.additional_pages.is_empty() {
+            for (handle, item) in self.first_page.iter_from(start) {
+                visit(handle, item);
+            }
+            return;
+        }
+        let current = self.current();
+        let prefix_len = self.active_count.saturating_sub(current.len());
+        let local_start = start.saturating_sub(prefix_len);
+        for (handle, item) in current.iter_from(local_start) {
+            visit(handle, item);
+        }
+    }
+
     /// Handle of a row borrowed from this set, by locating its page.
     pub fn handle_of(&self, item: &T) -> Option<Handle<T>> {
         self.pages().find_map(|page| page.handle_of(item))

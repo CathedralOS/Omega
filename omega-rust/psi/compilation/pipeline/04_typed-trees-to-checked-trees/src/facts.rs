@@ -202,6 +202,7 @@ pub(crate) fn build_check_facts(
         &validation_facts.exact_integer_casts,
         &mut values.proof_terms.terms,
     );
+    values.scalar_expressions.seal_expressions();
     // Form source flow and custody first. Their selected cleanup dispositions
     // complete the implicit execution graph; only then may effects and the
     // stronger capability, termination and callable-contract judgments publish.
@@ -300,6 +301,8 @@ pub(crate) fn build_check_facts(
         }
     }
     drop(flow_loop_guard);
+    prepared.flow.ownership.seal_indexes();
+    prepared.flow.control.seal_indexes();
     let _post_flow_guard = phase_profile::guard("05.d.3.c.post_flow_facts");
     crate::borrow::accesses::retain_completed_dispatch_extractions(program, &mut prepared);
     phase_profile::scope("05.d.3.c.1.scalar_and_index_plans", || {
