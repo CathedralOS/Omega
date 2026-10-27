@@ -61,6 +61,7 @@ impl BoundaryStorageInputs {
                 &binding.referent,
                 binding.argument_index,
                 binding.access,
+                &binding.normal_qualifications,
                 Vec::new(),
                 &mut Vec::new(),
                 &mut captures,
@@ -292,6 +293,7 @@ fn capture_graph(
     referent: &TerminalStructuralValue,
     argument_index: usize,
     access: StructuralAccess,
+    normal_qualifications: &[semantic_vocabulary::StructuralDomainId],
     argument_path: Vec<Path>,
     active: &mut Vec<semantic_vocabulary::StructuralTypeId>,
     captures: &mut Vec<CapturedOriginal>,
@@ -311,7 +313,15 @@ fn capture_graph(
         return Err(malformed());
     }
     let leaves = contents::describe(execution, referent, access, None)?;
-    let (_, scalars) = contents::capture(execution, source, referent, None, access, &leaves, &[])?;
+    let (_, scalars) = contents::capture(
+        execution,
+        source,
+        referent,
+        None,
+        access,
+        &leaves,
+        normal_qualifications,
+    )?;
     let values = scalars
         .iter()
         .map(|scalar| execution.original_scalar(&original, &scalar.storage))
@@ -371,6 +381,7 @@ fn capture_graph(
             &child,
             argument_index,
             child_access,
+            &[],
             child_path,
             active,
             captures,
