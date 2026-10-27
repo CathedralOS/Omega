@@ -515,11 +515,11 @@ fn append_call_result_field_domain_facts<'plans>(
     // because its body owes it. A promise about an input, another projection,
     // or another domain application cannot stand in for this result row.
     let realization = checked_realization_result_identities(program, build, call);
-    let mut refs = HandleSpan::empty();
-    for row @ (path, domain_symbol, semantic_domain) in paths.iter() {
+    let rows = paths.iter().filter(|row| {
+        let (_, domain_symbol, _) = *row;
         if realization
             .as_ref()
-            .is_some_and(|guaranteed| !guaranteed.contains(row))
+            .is_some_and(|guaranteed| !guaranteed.contains(*row))
             && program
                 .domain_definition(*domain_symbol)
                 .is_some_and(|domain| {
@@ -531,28 +531,13 @@ fn append_call_result_field_domain_facts<'plans>(
                     })
                 })
         {
-            continue;
+            return false;
         }
-        let place = crate::semantic::places::append_place(
-            semantic,
-            facts::PlaceRoot::Expression(expression),
-            path,
-        );
-        let fact = semantic.append_fact(Fact {
-            place: FactPlace::Place(place),
-            point,
-            origin: FactOrigin::CallEnsures,
-            evidence,
-            payload: FactPayload::DomainMembership {
-                value: ExpressionHandle::invalid(),
-                domain: HandleSpan::empty(),
-                domain_symbol: *domain_symbol,
-                semantic_domain: *semantic_domain,
-            },
-        });
-        semantic.append_ref(&mut refs, fact);
-    }
-    reference_spans::append_semantic_context(semantic, build, exit, point, refs);
+        true
+    });
+    super::call_results::append_memberships(
+        semantic, build, exit, expression, point, evidence, rows,
+    );
 }
 
 /// The checked adapter's exact result obligations, when this is a direct call.
@@ -840,13 +825,15 @@ fn call_result_qualification_identities_indexed<'plans>(
                 .collect()
         })
         .unwrap_or_else(|| collect_callable_contracts_indexed(program, build, target));
-    if !result_type_carries_identity_rows(program, return_type) {
+    if !super::call_results::carries_identity_rows(program, return_type) {
         return Vec::new();
     }
     let domain_rows = build
         .result_identity_domain_rows
         .entry(return_type)
-        .or_insert_with(|| std::rc::Rc::new(result_type_domain_rows(program, return_type)))
+        .or_insert_with(|| {
+            std::rc::Rc::new(super::call_results::type_domain_rows(program, return_type))
+        })
         .clone();
     let mut domains = (*domain_rows).clone();
     let qualification_contract =
@@ -857,44 +844,6 @@ fn call_result_qualification_identities_indexed<'plans>(
         &contracts,
         &qualification_contract,
         &mut domains,
-    );
-    domains
-}
-
-/// Whether a return type can produce identity rows at all: types whose
-/// peeled carrier is a reference yield none, so every caller can skip the
-/// row build without consulting the (return_type-keyed) domain rows.
-fn result_type_carries_identity_rows(
-    program: &dyn ::validation::CheckingInput,
-    return_type: typed_trees::types::TypeReferenceHandle,
-) -> bool {
-    let carrier = program
-        .type_reference_table
-        .unconstrained_type_reference(return_type);
-    !matches!(
-        program.type_reference_table.type_reference(carrier),
-        typed_trees::types::TypeReferenceNode::Reference { .. }
-    )
-}
-
-/// The return-type-driven identity rows: the complete checked child duties
-/// plus type-level constraint domains. Independent of the callable's explicit
-/// contracts, so callers may memoize them per return type. Routed referent
-/// duties are proved independently at the callee's exits, not inferred here.
-fn result_type_domain_rows(
-    program: &dyn ::validation::CheckingInput,
-    return_type: typed_trees::types::TypeReferenceHandle,
-) -> Vec<(
-    Vec<facts::PlaceSegment>,
-    SymbolHandle,
-    language_semantics::SemanticDomainId,
-)> {
-    let mut domains =
-        validation::field_domains::declared_result_field_domain_identities(program, return_type);
-    domains.extend(
-        validation::field_domains::domain_constraint_identities(program, return_type)
-            .into_iter()
-            .map(|(symbol, identity)| (Vec::new(), symbol, identity)),
     );
     domains
 }
@@ -910,10 +859,10 @@ fn result_identity_rows(
     SymbolHandle,
     language_semantics::SemanticDomainId,
 )> {
-    if !result_type_carries_identity_rows(program, return_type) {
+    if !super::call_results::carries_identity_rows(program, return_type) {
         return Vec::new();
     }
-    let mut domains = result_type_domain_rows(program, return_type);
+    let mut domains = super::call_results::type_domain_rows(program, return_type);
     append_ensures_result_rows(
         program,
         parameters,

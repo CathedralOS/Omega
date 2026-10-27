@@ -115,6 +115,7 @@ pub(super) fn check_call_result_qualifications(
                 call_ordinal,
             } = fact.point
             else {
+                failure_reason = Some("the normal-return membership has no authenticated completed invocation and custody receipt; a selected named signature alone cannot supply routed authority");
                 return None;
             };
             let site = validation::find_call_site(
