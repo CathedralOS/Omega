@@ -17,14 +17,9 @@ psi_rule_contract!(
     ),
 );
 
-impl PsiOptimizationRule for LiveProofCertifiedIntegerRemainderByOneEliminationRule {
-    psi_rule_contract!(@adapter);
-
-    fn propose(
-        &self,
-        unit: &PsiOptimizationUnit,
-        analyses: RuleAnalysisView<'_>,
-    ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
+psi_rule_impl!(
+    LiveProofCertifiedIntegerRemainderByOneEliminationRule,
+    |unit, analyses| {
         super::propose_proof_certified_remainder_by_constant(
             unit,
             analyses,
@@ -33,4 +28,4 @@ impl PsiOptimizationRule for LiveProofCertifiedIntegerRemainderByOneEliminationR
             |scalar_type, constant| constant == scalar_type.one(),
         )
     }
-}
+);

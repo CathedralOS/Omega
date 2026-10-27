@@ -31,11 +31,15 @@ pub(super) fn build_functions(
                 .ok_or(PostAllocationMachineError::FunctionMismatch {
                     function: function_index,
                 })?;
-            let home_function = homes.plan().function(function.machine).ok_or(
-                PostAllocationMachineError::FunctionMismatch {
+            let home_function = homes
+                .plan()
+                .functions
+                .get(function_index)
+                .filter(|home| home.machine == function.machine)
+                .or_else(|| homes.plan().function(function.machine))
+                .ok_or(PostAllocationMachineError::FunctionMismatch {
                     function: function_index,
-                },
-            )?;
+                })?;
             if effect_function.blocks.len() != function.blocks.len() {
                 return Err(PostAllocationMachineError::FunctionMismatch {
                     function: function_index,

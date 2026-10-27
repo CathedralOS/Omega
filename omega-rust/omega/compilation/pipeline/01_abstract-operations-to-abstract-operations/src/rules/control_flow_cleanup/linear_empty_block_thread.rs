@@ -31,137 +31,129 @@ psi_rule_contract!(
     ),
 );
 
-impl PsiOptimizationRule for LinearEmptyBlockThreadRule {
-    psi_rule_contract!(@adapter);
+psi_rule_impl!(LinearEmptyBlockThreadRule, |unit, analyses| {
+    required_analysis!(analyses, AnalysisKind::ControlFlowGraph => Some(_));
+    required_analysis!(analyses, AnalysisKind::UseDefinition => Some(AnalysisProduct::UseDefinition(use_definitions)));
+    required_analysis!(analyses, AnalysisKind::OwnershipFrontiers => Some(AnalysisProduct::OwnershipFrontiers(frontiers)));
 
-    fn propose(
-        &self,
-        unit: &PsiOptimizationUnit,
-        analyses: RuleAnalysisView<'_>,
-    ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
-        required_analysis!(analyses, AnalysisKind::ControlFlowGraph => Some(_));
-        required_analysis!(analyses, AnalysisKind::UseDefinition => Some(AnalysisProduct::UseDefinition(use_definitions)));
-        required_analysis!(analyses, AnalysisKind::OwnershipFrontiers => Some(AnalysisProduct::OwnershipFrontiers(frontiers)));
-
-        let mut candidates = Vec::new();
-        for function in &unit.functions {
-            // Descriptor telescopes require structural substitution, outside this scalar rewrite.
-            if !descriptor_telescope_free(function) {
+    let mut candidates = Vec::new();
+    for function in &unit.functions {
+        // Descriptor telescopes require structural substitution, outside this scalar rewrite.
+        if !descriptor_telescope_free(function) {
+            continue;
+        }
+        for empty in &function.blocks {
+            if empty.id == function.entry || empty.nodes.len() != 1 {
                 continue;
             }
-            for empty in &function.blocks {
-                if empty.id == function.entry || empty.nodes.len() != 1 {
-                    continue;
-                }
-                let O::Jump {
-                    structural_bindings: _,
-                    psi_edge: outgoing_edge,
-                    target,
-                    bindings: outgoing_bindings,
-                    cleanup_actions: outgoing_cleanup_actions,
-                } = &empty.nodes[0].operation
-                else {
-                    continue;
-                };
-                let incoming = function
-                    .blocks
-                    .iter()
-                    .flat_map(|block| {
-                        block
-                            .nodes
-                            .iter()
-                            .enumerate()
-                            .filter_map(move |(node, candidate)| {
-                                candidate
-                                    .successors
-                                    .iter()
-                                    .any(|edge| edge.target == empty.id)
-                                    .then_some((block, node, candidate))
-                            })
-                    })
-                    .collect::<Vec<_>>();
-                let [(predecessor_block, predecessor_node_index, predecessor_node)] =
-                    incoming.as_slice()
-                else {
-                    continue;
-                };
-                let O::Jump {
-                    structural_bindings: _,
-                    psi_edge: incoming_edge,
-                    target: predecessor_target,
-                    bindings: incoming_bindings,
-                    cleanup_actions: incoming_cleanup_actions,
-                } = &predecessor_node.operation
-                else {
-                    continue;
-                };
-                if !incoming_cleanup_actions.is_empty()
-                    || !outgoing_cleanup_actions.is_empty()
-                    || *predecessor_target != empty.id
-                    || empty.parameters.iter().any(|parameter| {
-                        use_definitions.uses.iter().any(|(machine, use_site)| {
-                            *machine == function.machine
-                                && use_site.value == parameter.value
-                                && (use_site.block != empty.id || use_site.node != 0)
+            let O::Jump {
+                structural_bindings: _,
+                psi_edge: outgoing_edge,
+                target,
+                bindings: outgoing_bindings,
+                cleanup_actions: outgoing_cleanup_actions,
+            } = &empty.nodes[0].operation
+            else {
+                continue;
+            };
+            let incoming = function
+                .blocks
+                .iter()
+                .flat_map(|block| {
+                    block
+                        .nodes
+                        .iter()
+                        .enumerate()
+                        .filter_map(move |(node, candidate)| {
+                            candidate
+                                .successors
+                                .iter()
+                                .any(|edge| edge.target == empty.id)
+                                .then_some((block, node, candidate))
                         })
+                })
+                .collect::<Vec<_>>();
+            let [(predecessor_block, predecessor_node_index, predecessor_node)] =
+                incoming.as_slice()
+            else {
+                continue;
+            };
+            let O::Jump {
+                structural_bindings: _,
+                psi_edge: incoming_edge,
+                target: predecessor_target,
+                bindings: incoming_bindings,
+                cleanup_actions: incoming_cleanup_actions,
+            } = &predecessor_node.operation
+            else {
+                continue;
+            };
+            if !incoming_cleanup_actions.is_empty()
+                || !outgoing_cleanup_actions.is_empty()
+                || *predecessor_target != empty.id
+                || empty.parameters.iter().any(|parameter| {
+                    use_definitions.uses.iter().any(|(machine, use_site)| {
+                        *machine == function.machine
+                            && use_site.value == parameter.value
+                            && (use_site.block != empty.id || use_site.node != 0)
                     })
-                    || !linear_thread_ownership_is_identity(
-                        unit,
-                        function,
-                        frontiers,
-                        *incoming_edge,
-                        empty.id,
-                        *outgoing_edge,
-                        *target,
-                    )
-                {
-                    continue;
-                }
-                let Some(_) = compose_linear_thread_bindings(
-                    &empty.parameters,
-                    incoming_bindings,
-                    outgoing_bindings,
-                ) else {
-                    continue;
-                };
-                let predecessor = NodeLocation {
-                    machine: function.machine,
-                    block: predecessor_block.id,
-                    node: u32::try_from(*predecessor_node_index)
-                        .expect("optimization node indices are u32"),
-                };
-                let empty_location = NodeLocation {
-                    machine: function.machine,
-                    block: empty.id,
-                    node: 0,
-                };
-                let Some((affected_blocks, provenance)) =
-                    linear_thread_accounting(function, predecessor, empty_location)
-                else {
-                    continue;
-                };
-                candidates.push(
-                    PsiRewriteCandidate::new_linear_empty_block(
-                        unit.identity,
-                        Self::contract(),
-                        affected_blocks,
-                        provenance,
-                        -3,
-                        LinearEmptyBlockRewrite {
-                            predecessor,
-                            incoming_edge: *incoming_edge,
-                            empty: empty_location,
-                            outgoing_edge: *outgoing_edge,
-                            target: *target,
-                        },
-                    )
-                    .map_err(RuleProposalError::InvalidCandidate)?,
-                );
+                })
+                || !linear_thread_ownership_is_identity(
+                    unit,
+                    function,
+                    frontiers,
+                    *incoming_edge,
+                    empty.id,
+                    *outgoing_edge,
+                    *target,
+                )
+            {
+                continue;
             }
+            let Some(_) = compose_linear_thread_bindings(
+                &empty.parameters,
+                incoming_bindings,
+                outgoing_bindings,
+            ) else {
+                continue;
+            };
+            let predecessor = NodeLocation {
+                machine: function.machine,
+                block: predecessor_block.id,
+                node: u32::try_from(*predecessor_node_index)
+                    .expect("optimization node indices are u32"),
+            };
+            let empty_location = NodeLocation {
+                machine: function.machine,
+                block: empty.id,
+                node: 0,
+            };
+            let Some((affected_blocks, provenance)) =
+                linear_thread_accounting(function, predecessor, empty_location)
+            else {
+                continue;
+            };
+            candidates.push(
+                PsiRewriteCandidate::new_linear_empty_block(
+                    unit.identity,
+                    Self::contract(),
+                    affected_blocks,
+                    provenance,
+                    -3,
+                    LinearEmptyBlockRewrite {
+                        predecessor,
+                        incoming_edge: *incoming_edge,
+                        empty: empty_location,
+                        outgoing_edge: *outgoing_edge,
+                        target: *target,
+                    },
+                )
+                .map_err(RuleProposalError::InvalidCandidate)?,
+            );
         }
-        Ok(candidates)
     }
-}
+    Ok(candidates)
+});
 
 pub(super) fn linear_thread_accounting(
     function: &PsiOptimizationFunction,

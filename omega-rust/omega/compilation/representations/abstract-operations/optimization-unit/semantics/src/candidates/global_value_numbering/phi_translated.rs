@@ -1,6 +1,7 @@
 //! Phi-translated join validation and rewrite application.
 use crate::candidates::accept_region_rewrite;
 use crate::candidates::global_value_numbering::ScalarCseProofClass;
+use crate::candidates::retire_node_custody;
 use crate::candidates::rewrite_accounting::common_subexpression::reconstruct_phi_translated_cse_accounting;
 use crate::candidates::rewrite_accounting::preserve_edge_custody;
 use crate::candidates::rewrite_accounting::substitutions::{
@@ -335,13 +336,7 @@ pub(super) fn validate_phi_translated_scalar_common_subexpression_candidate(
                     position: patch.parameter_position,
                 },
             });
-            let removed = output_join.nodes.remove(redundant_index);
-            let receiver = output_join
-                .nodes
-                .get_mut(redundant_index)
-                .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-            receiver.provenance.extend_from_slice(&removed.provenance);
-            receiver.fuel.extend_from_slice(&removed.fuel);
+            retire_node_custody(output_join, redundant_index)?;
             for incoming in &patch.incoming {
                 let source = output_function
                     .blocks

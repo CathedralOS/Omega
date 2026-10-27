@@ -39,7 +39,7 @@ pub(super) struct PreparedConflicts {
     max_any_physical_conflicts: usize,
     uniform_physical_conflicts: bool,
     physical_matrix: Vec<u8>,
-    conflict_masks: Vec<[u64; 8]>,
+    conflict_masks: Vec<[u128; 8]>,
 }
 
 const MASK_INTERFERES: u8 = 1;
@@ -276,7 +276,9 @@ impl PreparedConflicts {
         let model = physical.model();
         let view_count = model.views.len();
         let mut used_views = vec![false; view_count];
-        let dense_view_ids = view_count <= 64
+        let all_domains_under_128 = view_count <= 128
+            || domains.iter().all(|d| d.candidates.is_empty());
+        let dense_view_ids = all_domains_under_128
             && model
                 .views
                 .iter()
@@ -289,11 +291,11 @@ impl PreparedConflicts {
                 .map(|v| usize::from(v.class.0))
                 .max()
                 .unwrap_or(0);
-            let mut class_masks = vec![0u64; max_class + 1];
-            for (idx, view) in model.views.iter().enumerate() {
-                class_masks[usize::from(view.class.0)] |= 1u64 << idx;
+            let mut class_masks = vec![0u128; max_class + 1];
+            for (idx, view) in model.views.iter().enumerate().take(128) {
+                class_masks[usize::from(view.class.0)] |= 1u128 << idx;
             }
-            let mut used_views_mask = 0u64;
+            let mut used_views_mask = 0u128;
             for domain in domains {
                 let class_idx = usize::from(domain.leader_member.class.0);
                 let valid_mask = class_masks.get(class_idx).copied().unwrap_or(0);
@@ -310,19 +312,19 @@ impl PreparedConflicts {
                 } else {
                     for candidate in &domain.candidates {
                         let bit = usize::from(candidate.0);
-                        if bit >= 64 || (valid_mask & (1u64 << bit)) == 0 {
+                        if bit >= 128 || (valid_mask & (1u128 << bit)) == 0 {
                             return Err(RegisterHomeError::UnknownOrIncompatibleView {
                                 function,
                                 register: domain.leader_member.virtual_register.0,
                                 view: candidate.0,
                             });
                         }
-                        used_views_mask |= 1u64 << bit;
+                        used_views_mask |= 1u128 << bit;
                     }
                 }
             }
-            for (idx, slot) in used_views.iter_mut().enumerate() {
-                *slot = (used_views_mask & (1u64 << idx)) != 0;
+            for (idx, slot) in used_views.iter_mut().enumerate().take(128) {
+                *slot = (used_views_mask & (1u128 << idx)) != 0;
             }
         } else {
             for domain in domains {
@@ -362,32 +364,36 @@ impl PreparedConflicts {
         // a compact view_count x view_count byte matrix for O(1) conflict tests.
         let mut physical_counts = vec![0u16; view_count];
         let mut physical_matrix = vec![0u8; view_count * view_count];
-        let mut conflict_masks = if view_count <= 64 {
-            vec![[0u64; 8]; view_count]
+        let use_conflict_masks = all_domains_under_128
+            && used_views.iter().enumerate().all(|(idx, &used)| !used || idx < 128);
+        let mut conflict_masks = if use_conflict_masks {
+            vec![[0u128; 8]; view_count.min(128)]
         } else {
             Vec::new()
         };
         let can_use_unit_masks = model.views.iter().all(|v| {
-            v.units
-                .iter()
-                .chain(&v.write_units)
-                .all(|u| usize::from(u.0) < 64)
+            let idx = usize::from(v.id.0);
+            !used_views.get(idx).copied().unwrap_or(false)
+                || v.units
+                    .iter()
+                    .chain(&v.write_units)
+                    .all(|u| usize::from(u.0) < 128)
         });
         if can_use_unit_masks {
-            let mut view_masks = vec![(0u64, 0u64, 0u64); view_count];
+            let mut view_masks = vec![(0u128, 0u128, 0u128); view_count];
             let mut active_indices = Vec::with_capacity(view_count);
             for view in &model.views {
                 let idx = usize::from(view.id.0);
                 if !used_views[idx] {
                     continue;
                 }
-                let mut u_mask = 0u64;
+                let mut u_mask = 0u128;
                 for &u in &view.units {
-                    u_mask |= 1u64 << u.0;
+                    u_mask |= 1u128 << u.0;
                 }
-                let mut w_mask = 0u64;
+                let mut w_mask = 0u128;
                 for &u in &view.write_units {
-                    w_mask |= 1u64 << u.0;
+                    w_mask |= 1u128 << u.0;
                 }
                 view_masks[idx] = (u_mask, w_mask, u_mask | w_mask);
                 active_indices.push(idx);
@@ -407,8 +413,8 @@ impl PreparedConflicts {
                     if mask != 0 {
                         physical_matrix[row_base + right_idx] = mask;
                         count += 1;
-                        if view_count <= 64 {
-                            let bit = 1u64 << left_idx;
+                        if use_conflict_masks {
+                            let bit = 1u128 << left_idx;
                             let right_masks = &mut conflict_masks[right_idx];
                             for pm in 1..8u8 {
                                 if (mask & pm) != 0 {
@@ -442,8 +448,8 @@ impl PreparedConflicts {
                     if mask != 0 {
                         physical_matrix[row_base + right_idx] = mask;
                         count += 1;
-                        if view_count <= 64 {
-                            let bit = 1u64 << left_idx;
+                        if use_conflict_masks {
+                            let bit = 1u128 << left_idx;
                             let right_masks = &mut conflict_masks[right_idx];
                             for pm in 1..8u8 {
                                 if (mask & pm) != 0 {
@@ -544,7 +550,7 @@ impl PreparedConflicts {
     }
 
     #[inline]
-    pub(super) fn conflict_mask(&self, pair: DomainPair, other_view: RegisterViewId) -> u64 {
+    pub(super) fn conflict_mask(&self, pair: DomainPair, other_view: RegisterViewId) -> u128 {
         self.conflict_masks[usize::from(other_view.0)][pair.to_mask() as usize]
     }
 

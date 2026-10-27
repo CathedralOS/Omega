@@ -32,20 +32,29 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
             .iter()
             .map(|domain| domain.carrier),
     );
+    let candidate_machines = module
+        .machines
+        .iter()
+        .map(|machine| {
+            machine
+                .blocks
+                .iter()
+                .flat_map(|block| block.operations.iter())
+                .any(|operation| {
+                    operation
+                        .result
+                        .structural()
+                        .is_some_and(|result| memberships.may_contain(result.structural_type))
+                })
+        })
+        .collect::<Vec<_>>();
+    if !candidate_machines.iter().any(|&has| has) {
+        return Ok(());
+    }
     let types = module.structural_types.clone();
     let graph = descriptors::terminal_graph(module);
     let mut analysis = descriptors::DescriptorAnalysis::new(&types, &graph);
-    for machine_index in 0..module.machines.len() {
-        let has_candidate = module.machines[machine_index]
-            .blocks
-            .iter()
-            .flat_map(|block| block.operations.iter())
-            .any(|operation| {
-                operation
-                    .result
-                    .structural()
-                    .is_some_and(|result| memberships.may_contain(result.structural_type))
-            });
+    for (machine_index, has_candidate) in candidate_machines.into_iter().enumerate() {
         if !has_candidate {
             continue;
         }

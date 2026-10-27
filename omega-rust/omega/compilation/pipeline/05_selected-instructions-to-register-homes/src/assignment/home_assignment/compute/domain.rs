@@ -13,7 +13,7 @@ pub(super) struct AllocationDomain<'a> {
     pub(super) leader_member: &'a VirtualRegisterAllocationLegality,
     pub(super) extra_members: Vec<&'a VirtualRegisterAllocationLegality>,
     pub(super) first_point: LiveRangePoint,
-    pub(super) candidates_mask: u64,
+    pub(super) candidates_mask: u128,
     pub(super) candidates: Vec<RegisterViewId>,
 }
 
@@ -49,7 +49,7 @@ impl<'a> AllocationDomain<'a> {
 }
 
 struct DomainCandidates {
-    mask: u64,
+    mask: u128,
     overflow: Vec<RegisterViewId>,
 }
 
@@ -328,7 +328,7 @@ fn build_domain<'a>(
         *leader = extra.remove(0);
     }
     let mut first_point = None;
-    let mut shared_mask = u64::MAX;
+    let mut shared_mask = u128::MAX;
     let mut shared_vec = None::<Vec<RegisterViewId>>;
     for member in std::iter::once(*leader).chain(extra.iter().copied()) {
         if !member.entry_transitions.is_empty() {
@@ -351,7 +351,7 @@ fn build_domain<'a>(
             };
             if let Some(shared) = &mut shared_vec {
                 shared.retain(|candidate| member_vec.binary_search(candidate).is_ok());
-            } else if shared_mask == u64::MAX {
+            } else if shared_mask == u128::MAX {
                 shared_vec = Some(member_vec);
             } else {
                 let mut vec = mask_to_vec(shared_mask);
@@ -361,10 +361,10 @@ fn build_domain<'a>(
         }
     }
     let cands = if let Some(vec) = shared_vec {
-        if vec.iter().all(|v| (v.0 as usize) < 64) {
-            let mut mask = 0u64;
+        if vec.iter().all(|v| (v.0 as usize) < 128) {
+            let mut mask = 0u128;
             for &v in &vec {
-                mask |= 1u64 << v.0;
+                mask |= 1u128 << v.0;
             }
             DomainCandidates {
                 mask,
@@ -401,7 +401,7 @@ fn build_domain<'a>(
     ))
 }
 
-fn mask_to_vec(mut mask: u64) -> Vec<RegisterViewId> {
+fn mask_to_vec(mut mask: u128) -> Vec<RegisterViewId> {
     let mut out = Vec::with_capacity(mask.count_ones() as usize);
     while mask != 0 {
         let bit = mask.trailing_zeros() as u16;
@@ -444,17 +444,17 @@ fn common_candidates_repr(
                 register: register.virtual_register.0,
             });
         }
-        let mut mask = 0u64;
-        let mut all_under_64 = true;
+        let mut mask = 0u128;
+        let mut all_under_128 = true;
         for &v in &first.candidates {
-            if (v.0 as usize) < 64 {
-                mask |= 1u64 << v.0;
+            if (v.0 as usize) < 128 {
+                mask |= 1u128 << v.0;
             } else {
-                all_under_64 = false;
+                all_under_128 = false;
                 break;
             }
         }
-        if all_under_64 {
+        if all_under_128 {
             return Ok(DomainCandidates {
                 mask,
                 overflow: Vec::new(),
@@ -506,10 +506,10 @@ fn intersect_candidates_repr<'a>(
     first: &[RegisterViewId],
     rest: impl Iterator<Item = &'a [RegisterViewId]>,
 ) -> DomainCandidates {
-    if first.iter().all(|v| (v.0 as usize) < 64) {
-        let mut mask = 0u64;
+    if first.iter().all(|v| (v.0 as usize) < 128) {
+        let mut mask = 0u128;
         for &v in first {
-            mask |= 1u64 << v.0;
+            mask |= 1u128 << v.0;
         }
         let mut fallback = false;
         let mut rest_iter = rest.peekable();
@@ -520,14 +520,14 @@ fn intersect_candidates_repr<'a>(
                     overflow: Vec::new(),
                 };
             }
-            if !candidates.iter().all(|v| (v.0 as usize) < 64) {
+            if !candidates.iter().all(|v| (v.0 as usize) < 128) {
                 fallback = true;
                 break;
             }
             rest_iter.next();
-            let mut cm = 0u64;
+            let mut cm = 0u128;
             for &v in candidates {
-                cm |= 1u64 << v.0;
+                cm |= 1u128 << v.0;
             }
             mask &= cm;
         }

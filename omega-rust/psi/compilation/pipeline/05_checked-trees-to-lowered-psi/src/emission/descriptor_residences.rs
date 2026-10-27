@@ -40,18 +40,35 @@ pub(crate) fn complete(module: &mut TerminalModule) -> Result<(), LoweringError>
     if copyable_types.is_empty() {
         return Ok(());
     }
+    let machine_residences = module
+        .machines
+        .iter()
+        .map(|machine| residences(machine, &copyable_types))
+        .collect::<Result<Vec<_>, _>>()?;
+    if machine_residences.iter().all(Vec::is_empty) {
+        return Ok(());
+    }
     let graph = terminal_semantics::descriptor_results::terminal_borrowed_storage_graph(module);
     let rules = module
         .machines
         .iter()
-        .map(|machine| {
-            terminal_semantics::descriptor_results::terminal_residence_rules(module, machine)
+        .zip(&machine_residences)
+        .map(|(machine, residences)| {
+            if residences.is_empty() {
+                None
+            } else {
+                terminal_semantics::descriptor_results::terminal_residence_rules(module, machine)
+            }
         })
         .collect::<Vec<_>>();
     let mut analysis =
         DescriptorAnalysis::with_borrowed_storage_slots(&module.structural_types, &graph);
-    for (machine, rules) in module.machines.iter_mut().zip(rules) {
-        let residences = residences(machine, &copyable_types)?;
+    for ((machine, residences), rules) in module
+        .machines
+        .iter_mut()
+        .zip(machine_residences)
+        .zip(rules)
+    {
         if residences.is_empty() {
             continue;
         }
@@ -107,6 +124,21 @@ fn residences(
     machine: &TerminalMachine,
     copyable_types: &[semantic_vocabulary::StructuralTypeId],
 ) -> Result<Vec<Residence>, LoweringError> {
+    let mut retire_only_places = BTreeMap::<PlaceId, bool>::new();
+    for block in &machine.blocks {
+        for (_, actions) in block.terminator.cleanup_rosters() {
+            for action in actions {
+                let is_retire = matches!(action, TerminalAffineCleanupAction::RetireHome(_));
+                retire_only_places
+                    .entry(action.place())
+                    .and_modify(|all_retire| *all_retire &= is_retire)
+                    .or_insert(is_retire);
+            }
+        }
+    }
+    if !retire_only_places.values().any(|&all_retire| all_retire) {
+        return Ok(Vec::new());
+    }
     let mut residences = Vec::new();
     for block in &machine.blocks {
         for (ordinal, operation) in block.operations.iter().enumerate() {
@@ -119,20 +151,9 @@ fn residences(
             {
                 continue;
             }
-            let actions = machine
-                .blocks
-                .iter()
-                .flat_map(|block| block.terminator.cleanup_rosters())
-                .flat_map(|(_, actions)| actions)
-                .filter(|action| action.place() == result.place)
-                .collect::<Vec<_>>();
             // Keep independently selected regional/nominal dispositions with
             // their original owner. Geometry cannot replace those obligations.
-            if actions.is_empty()
-                || actions
-                    .iter()
-                    .any(|action| !matches!(action, TerminalAffineCleanupAction::RetireHome(_)))
-            {
+            if retire_only_places.get(&result.place) != Some(&true) {
                 continue;
             }
             if residences

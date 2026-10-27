@@ -105,34 +105,7 @@ impl TerminalExecution<'_> {
         );
         let root = StructuralRuntimePlace::from(&value);
         let mut storage = ConstructorStorage::new(self.account.as_ref());
-        if let Some(selected) = aggregate.result_case {
-            storage.stage_case(root.clone(), aggregate.structural_type, selected)?;
-        }
-        for (path, scalar) in aggregate.fields {
-            let Some((semantic_vocabulary::CanonicalStructuralPathSegment::Field(field), parents)) =
-                path.split_last()
-            else {
-                return Err(malformed());
-            };
-            let mut parent = root.clone();
-            parent.path.extend(
-                terminal_semantics::canonical_structural_storage_path(
-                    self.program.structural_types().values(),
-                    result.structural_type,
-                    parents,
-                )
-                .ok_or_else(malformed)?,
-            );
-            let endpoint = if aggregate.result_case.is_some() {
-                StructuralScalarRuntimeField::case_payload(parent, *field)
-            } else {
-                StructuralScalarRuntimeField::member(parent, *field)
-            };
-            storage.stage_scalar_endpoint(
-                &crate::primitive_storage::PrimitiveStorageEndpoint::ScalarField(endpoint),
-                scalar,
-            )?;
-        }
+        storage.stage_scalar_aggregate(self, &aggregate, &root)?;
         storage.publish(self)?;
         self.structural_values.insert(result.place, value)?;
         self.track_affine_result(result);

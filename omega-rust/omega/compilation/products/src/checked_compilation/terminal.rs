@@ -69,6 +69,7 @@ impl CheckedCompilation {
                 selected_provider_provenance: execution.selected_provider_provenance.iter().map(|retained| {
                     terminal_psi_to_abstract_operations::provider_admission::CompilerIntrinsicPlanProvenance {
                         plan: &retained.plan, row_executions: &retained.row_compiler_intrinsic_executions,
+                        semantic_schema: &retained.plan.schema,
                     }
                 }).collect(),
                 calling_applications: providers.calling_applications()

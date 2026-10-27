@@ -29,7 +29,7 @@ FACTS = (
     ("foreign_nested_record_backing", "foreign_nested_record_backing",
      "foreign_nested_record_backing", ("repeated_child_type",), ("repeated_child_type_live",)),
     ("foreign_nested_record_backing/arrays", "foreign_nested_array_backing",
-     "foreign_nested_record_backing", (), ()),
+     "foreign_nested_record_backing", ("computed_completions",), ("invalid_const",)),
 )
 
 

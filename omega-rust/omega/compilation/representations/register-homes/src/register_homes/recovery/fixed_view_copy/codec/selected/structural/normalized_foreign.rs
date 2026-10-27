@@ -215,22 +215,18 @@ fn decode_native_callback_argument(
         call: decode_call_plan(cursor)?,
         state: decode_state_plan(cursor)?,
     };
-    let binder_count = cursor.length()?;
-    let mut binders = Vec::with_capacity(binder_count.min(cursor.remaining()));
-    for _ in 0..binder_count {
-        binders.push(CallbackBinderRequirement {
+    let binders = decode_list::<_, FixedViewCopyDecodeError>(cursor, |cursor| {
+        Ok(CallbackBinderRequirement {
             binder: decode_id(cursor, StaticMachineBinderId::new)?,
             requirement: decode_id(cursor, CallbackRequirementId::new)?,
-        });
-    }
-    let demand_count = cursor.length()?;
-    let mut demands = Vec::with_capacity(demand_count.min(cursor.remaining()));
-    for _ in 0..demand_count {
-        demands.push(NativeCallbackDemand {
+        })
+    })?;
+    let demands = decode_list::<_, FixedViewCopyDecodeError>(cursor, |cursor| {
+        Ok(NativeCallbackDemand {
             destination: decode_native_place(cursor)?,
             requirement: decode_id(cursor, CallbackRequirementId::new)?,
-        });
-    }
+        })
+    })?;
     let registrar_application_commitment = cursor.array()?;
     let registrar_invokes_callback = decode_bool(cursor)?;
     Ok(TargetNativeCallbackArgument {

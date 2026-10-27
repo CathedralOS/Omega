@@ -174,12 +174,14 @@ impl TerminalExecution<'_> {
                         })
                     };
                     match &declaration.shape {
-                        StructuralTypeShape::Record { .. } => crate::values::record_scalar_fields(
-                            declaration,
-                            |identity| self.program.structural_types().get(&identity),
-                            |_, _| Ok(()),
-                        )
-                        .is_ok(),
+                        StructuralTypeShape::Record { .. }
+                        | StructuralTypeShape::FixedArray { .. }
+                        | StructuralTypeShape::PrimitiveScalar(_) => {
+                            crate::values::ScalarAggregatePlan::new(declaration, |identity| {
+                                self.program.structural_types().get(&identity)
+                            })
+                            .is_ok()
+                        }
                         StructuralTypeShape::Sum { cases } => {
                             cases.iter().all(|case| scalar_fields(&case.fields))
                         }

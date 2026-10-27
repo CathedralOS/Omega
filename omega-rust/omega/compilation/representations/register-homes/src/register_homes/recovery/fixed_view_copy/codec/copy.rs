@@ -46,7 +46,7 @@ pub(super) fn decode_copy(
     let to_view = RegisterViewId(cursor.u16()?);
     let insertion_block = SelectedBlockId(cursor.u32()?);
     let before_instruction = SelectedInstructionId(cursor.u32()?);
-    let destinations = decode_list(cursor, |cursor| {
+    let destinations = decode_list::<_, FixedViewCopyDecodeError>(cursor, |cursor| {
         Ok(FixedViewCopyDestination {
             site: decode_fixed_site(cursor)?,
             block: SelectedBlockId(cursor.u32()?),

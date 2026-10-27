@@ -58,7 +58,7 @@ pub(super) fn decode_result(
     let multiplicity = decode_multiplicity(cursor)?;
     let qualifications = decode_ids(cursor, StructuralDomainId::new)?;
     let projected_qualifications = decode_projected(cursor, true)?;
-    let claims = decode_list(cursor, |cursor| {
+    let claims = decode_list::<_, FixedViewCopyDecodeError>(cursor, |cursor| {
         Ok(StructuralResultClaimBinding {
             claim: decode_id(cursor, ClaimId::new)?,
             path: decode_path(cursor)?,
@@ -90,7 +90,7 @@ pub(super) fn decode_layout(
     let tag_shape = decode_shape(cursor)?;
     let common_fields = decode_fields(cursor)?;
     let payload_byte_offset = cursor.u32()?;
-    let cases = decode_list(cursor, |cursor| {
+    let cases = decode_list::<_, FixedViewCopyDecodeError>(cursor, |cursor| {
         Ok(ConventionalSumCaseLayout {
             fields: decode_fields(cursor)?,
         })

@@ -27,6 +27,7 @@ use symbols::SymbolHandle;
 /// call hands back, on the referent's exact storage place.
 pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
     program: &'plans dyn ::validation::CheckingInput,
+    borrow: &checked_trees::BorrowFacts,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext<'plans>,
     machine: &typed_trees::machine::Machine,
@@ -219,6 +220,31 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
                     *domain_symbol,
                     *semantic_domain,
                 ));
+            }
+        }
+    }
+    // Owned lifetime carriers can return a suspended original referent even
+    // though this invocation has no direct &mut formal for that storage.
+    // Reintroduce declared value predicates, never extra root constraints or
+    // routed authority. Normal borrow/resource checking still validates the
+    // exact carrier consumption and full cohort before publication.
+    for returned in crate::flow::retained_borrows::handbacks(
+        program,
+        borrow,
+        &build.control,
+        machine,
+        state,
+        borrow_call,
+        argument_sources,
+    ) {
+        for (path, domain, identity) in
+            validation::field_domains::declared_result_field_domain_paths(
+                program,
+                returned.reference,
+            )
+        {
+            if crate::checks::contracts::value_provable_domain(program, domain) {
+                rows.push((returned.place.clone(), path, domain, identity));
             }
         }
     }

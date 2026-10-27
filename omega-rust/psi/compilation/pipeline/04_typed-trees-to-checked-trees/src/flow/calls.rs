@@ -152,6 +152,7 @@ pub(super) fn build_call_flow_fact<'plans>(
     phase_profile::scope("05.d.3.b.flow.call.5_referent_domains", || {
         append_call_referent_field_domain_facts(
             program,
+            borrow,
             semantic,
             build,
             machine,

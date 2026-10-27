@@ -14,6 +14,45 @@ use terminal_psi::{
     StructuralTypeDeclaration, StructuralTypeShape,
 };
 
+/// A declared scalar invariant already owes every complete predicate it
+/// entails. Naming that predicate on a view introduces no additional mutable
+/// preservation duty. This proves only value membership: routes, Content,
+/// unrepresented policies and unknown prerequisites cannot follow from bounds.
+pub fn scalar_projection_entails_membership<'types, 'domain>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    domains: impl Iterator<Item = &'domain StructuralDomainDeclaration> + Clone,
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    membership: StructuralDomainId,
+) -> bool {
+    let Some(carrier) = crate::qualification_path_carrier(types.clone(), root, path) else {
+        return false;
+    };
+    let Some(domain) = exact_domain(domains, carrier, membership) else {
+        return false;
+    };
+    if !domain.complete_predicate_theory
+        || !domain.has_no_required_memberships()
+        || !domain.establishment_routes.is_empty()
+        || domain.content_projection.is_some()
+        || domain.byte_predicate.is_some()
+    {
+        return false;
+    }
+    let Some(restriction) = crate::primitive_projection_restriction(types.clone(), root, path)
+        .or_else(|| {
+            crate::primitive_read_field(types.clone(), root, path).map(|field| &field.field_type)
+        })
+        .filter(|field| crate::scalar_field_requires_evidence(field))
+    else {
+        return false;
+    };
+    let Some(required) = scalar::refinement(types, domain) else {
+        return false;
+    };
+    crate::scalar_field_entails(restriction, &StructuralFieldType::RefinedScalar(required))
+}
+
 /// Reconstruct the complete receiving restriction, refusing unsupported
 /// overlapping qualifications instead of silently discarding their authority.
 /// The outer Option is admission; the inner Option is the optional scalar goal.

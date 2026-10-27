@@ -3,11 +3,14 @@
 //! Its ordinary path owner substitutes completed actuals and retains guards and
 //! prior citations. Every admissible private arrival must be observed; an opaque
 //! call, escaping selection or private cycle cannot donate a convenient premise.
+//! Coverage and proof are separate: this coordinator observes every arrival;
+//! the consumer owns its predicate, all-path judgment, and theorem eligibility.
 
 use super::super::structural_judgment::StructuralJudge;
-use super::super::structural_prefix::{PrefixObservation, StructuralPrefixVisitor};
-use super::{CallRequirement, Machine, SymbolHandle};
+use super::{PrefixObservation, StructuralPrefixVisitor};
+use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
+use typed_trees::machine::Machine;
 
 mod scope;
 
@@ -18,10 +21,10 @@ struct Arrival {
     expression: Option<ExpressionHandle>,
 }
 
-pub(super) fn prove(
+pub(in crate::proof_contracts::contract_entailment) fn observe_private_arrivals(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
-    requirement: &mut CallRequirement<'_>,
+    requirement: &mut dyn StructuralPrefixVisitor,
     case_facts_only: bool,
 ) -> Option<bool> {
     let root = scope::lexical_root(program, machine)?;
@@ -36,8 +39,6 @@ pub(super) fn prove(
     };
     let entry = program.machine_states(machine).first()?;
     let classification = crate::proof_only_classification(program);
-    requirement.seen = false;
-    requirement.proven = true;
     let mut observer = ArrivalRequirement {
         requirement,
         entry: entry.symbol,
@@ -84,12 +85,10 @@ pub(super) fn prove(
     }
     if super::super::struct_trace() {
         eprintln!(
-            "PRIVATE arrivals machine={} root={} recognized={} seen={} proven={} observed={} expected={} diagnostics={}",
+            "PRIVATE arrivals machine={} root={} recognized={} observed={} expected={} diagnostics={}",
             machine.name,
             root.name,
             recognized,
-            observer.requirement.seen,
-            observer.requirement.proven,
             observer.observed.len(),
             expected.len(),
             diagnostics.len()
@@ -98,8 +97,6 @@ pub(super) fn prove(
     Some(
         recognized
             && diagnostics.is_empty()
-            && observer.requirement.seen
-            && observer.requirement.proven
             && !expected.is_empty()
             && expected
                 .iter()
@@ -107,14 +104,14 @@ pub(super) fn prove(
     )
 }
 
-struct ArrivalRequirement<'query, 'program> {
-    requirement: &'query mut CallRequirement<'program>,
+struct ArrivalRequirement<'query> {
+    requirement: &'query mut dyn StructuralPrefixVisitor,
     entry: SymbolHandle,
     root: SymbolHandle,
     observed: Vec<Arrival>,
 }
 
-impl StructuralPrefixVisitor for ArrivalRequirement<'_, '_> {
+impl StructuralPrefixVisitor for ArrivalRequirement<'_> {
     fn site(&self) -> super::super::structural_prefix::StructuralPrefixSite {
         self.requirement.site()
     }
@@ -127,22 +124,16 @@ impl StructuralPrefixVisitor for ArrivalRequirement<'_, '_> {
     fn unresolved(&mut self, machine: &Machine) {
         self.requirement.unresolved(machine);
     }
+    fn stops_at_machine(&self, machine: SymbolHandle) -> bool {
+        self.requirement.stops_at_machine(machine)
+    }
     fn observe<'program>(&mut self, observation: PrefixObservation<'_, 'program>) {
-        let (program, machine, state, mut judge, environment) = observation;
-        if !judge.has_runtime_body_values()
-            && let Some(root) = program.machine_by_symbol(self.root)
-        {
-            super::intake_state_induction(
-                program,
-                root,
-                state,
-                self.requirement.statement_index,
-                environment,
-                &mut judge,
-            );
+        let program = observation.0;
+        if let Some(root) = program.machine_by_symbol(self.root) {
+            self.requirement.observe_private_arrival(root, observation);
+        } else {
+            self.requirement.unresolved(observation.1);
         }
-        self.requirement
-            .observe((program, machine, state, judge, environment));
     }
     fn entered_body(
         &mut self,
@@ -151,6 +142,8 @@ impl StructuralPrefixVisitor for ArrivalRequirement<'_, '_> {
         expression: Option<ExpressionHandle>,
         entry: SymbolHandle,
     ) {
+        self.requirement
+            .entered_body(caller, statement, expression, entry);
         if entry == self.entry {
             let arrival = Arrival {
                 caller,

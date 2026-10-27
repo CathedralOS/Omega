@@ -178,6 +178,7 @@ impl Execution<'_, '_, '_> {
         Option<bool>,
         Handle<BooleanCompletions>,
         HandleSpan<checked_trees::FlowOperandFact>,
+        Option<usize>,
     ) {
         let evaluate_when = binary.operator == BinaryOperator::And;
         let left = self.boolean_paths(
@@ -187,6 +188,7 @@ impl Execution<'_, '_, '_> {
             *constraints,
         );
         let skipped = left.selected(!evaluate_when);
+        let conditional_inputs_from = skipped.is_some().then_some(1);
         let Some(selected) = left.selected(evaluate_when) else {
             let inputs = self
                 .context
@@ -197,6 +199,7 @@ impl Execution<'_, '_, '_> {
                 left.known_value(),
                 self.boolean_completions.insert(left),
                 inputs,
+                None,
             );
         };
         self.select_boolean_path(selected, contexts, constraints);
@@ -253,6 +256,7 @@ impl Execution<'_, '_, '_> {
                 .control
                 .operands
                 .insert_many([evaluated_left.capture, evaluated_right.capture]),
+            conditional_inputs_from,
         )
     }
 }

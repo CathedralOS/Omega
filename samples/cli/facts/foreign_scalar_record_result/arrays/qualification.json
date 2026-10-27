@@ -1,0 +1,235 @@
+{
+  "schema": "omega-owned-array-foreign-record-qualification-v1",
+  "parent": "NORMALIZED-ABI-LOWERING",
+  "actual_producer": "7b904dca0385e7b8bad014f6bcdbb0e65b1ac647",
+  "baseline": "eab58bf427c48063e3fcf597e4550ca53ac7cb8c",
+  "target": "macos_arm64",
+  "compiler_executables": [
+    {
+      "name": "candidate-omega",
+      "sha256": "0342ea5dd49e8620e8629d8ea1db90f9e187403e36023c1735670046e8ba21f5",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    },
+    {
+      "name": "candidate-corpus_runner",
+      "sha256": "0f08e44158fb41e2a3a9c2d82a92e5121a0a30b5c30c220c77d7df32e51631cc",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    }
+  ],
+  "c_provider": {
+    "host": "macOS-15.7.7-arm64-arm-64bit",
+    "library": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/content/build/owned-array-evidence/provider/libomega_arraydiv_fixture.dylib",
+    "library_sha256": "0605100c6e10df1cdffe12c36fae41937f5a35a9b4bce3c0c9b8bdccad33a757",
+    "provider_sha256": "a63df858aebb6e1e78a27bb31bb2025c9b188f60f1cab04d15a5902d49ab1cf8",
+    "map_sha256": "d2131d86c3cd0887b8087cfd868eb68e1e0790103187a59e43270ce0e6c96259",
+    "selftest_sha256": "85f5e719800f10a811a780a16f6c13c0d9e89d0b75a3532f0d5781d2956c11fd",
+    "selftest_exit": 0,
+    "commands": [
+      [
+        "cc",
+        "-std=c11",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-O2",
+        "-DARRAY_DIVISION_FIXTURE_TEST",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/content/samples/cli/facts/foreign_scalar_record_result/arrays/fixture/provider.c",
+        "-o",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/content/build/owned-array-evidence/provider/provider-test"
+      ],
+      [
+        "cc",
+        "-std=c11",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-O2",
+        "-dynamiclib",
+        "-Wl,-install_name,libomega_arraydiv_fixture.dylib",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/content/samples/cli/facts/foreign_scalar_record_result/arrays/fixture/provider.c",
+        "-o",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/content/build/owned-array-evidence/provider/libomega_arraydiv_fixture.dylib"
+      ],
+      [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/content/build/owned-array-evidence/provider/provider-test"
+      ]
+    ]
+  },
+  "positives": 10,
+  "reject_twins": 9,
+  "canonical_artifacts": 10,
+  "source_comparison_records": 51,
+  "native_terminal_agreements": 52,
+  "lost_outcomes": 0,
+  "rust": {
+    "passed": 83,
+    "preexisting_ignored": 1
+  },
+  "unverified_targets": [
+    "windows_x86_64",
+    "linux_x86_64",
+    "linux_arm64"
+  ],
+  "unverified_empty_array_materialization": "Schema checks include empty descendants; legacy codec and nested byte storage expansion may scale with outer dimensions.",
+  "evidence_directory": "build/owned-array-evidence",
+  "rows": [
+    {
+      "name": "root",
+      "exit": 0,
+      "accepted": true,
+      "canonical_exit": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "48349ed2ba3b3e6294d2edf23333b0a30c49618546f11e260beee8f118161c49"
+    },
+    {
+      "name": "local",
+      "exit": 0,
+      "accepted": true,
+      "canonical_exit": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "20adf696929e27818d19ef5f87ca93232131a6286b968c2ed671815b291ae3d4"
+    },
+    {
+      "name": "field",
+      "exit": 0,
+      "accepted": true,
+      "canonical_exit": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "43cb5c06a09dff48da2e422597dc66b7216901fc532db914317a299bbf94fdc3"
+    },
+    {
+      "name": "parameter",
+      "exit": 0,
+      "accepted": true,
+      "canonical_exit": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "0224d65f13da5e18af9304b127f8ba715db14d6e172a1f99bdec76460fbc2893"
+    },
+    {
+      "name": "call_result",
+      "exit": 0,
+      "accepted": true,
+      "canonical_exit": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "bf60b53c166a48484224d6b55f371effae9392bbc1f878dc0df664a959077a5a"
+    },
+    {
+      "name": "match_join",
+      "exit": 0,
+      "accepted": true,
+      "canonical_exit": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "680ec20d81f5f9b6d4dbfc39501ee12b77b98683c79ed698aaa4d8c1ec32a014"
+    },
+    {
+      "name": "const_name",
+      "exit": 0,
+      "accepted": true,
+      "canonical_exit": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "129bc38749d6d556d50256d0ee12981ef2adbab326124e8f9a7ffa31efebf4fc"
+    },
+    {
+      "name": "other_state",
+      "exit": 0,
+      "accepted": true,
+      "canonical_exit": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "42468a994c4b290f17645781959533312cad9c89f448ac0644f2e484e5e72c27"
+    },
+    {
+      "name": "other_machine",
+      "exit": 0,
+      "accepted": true,
+      "canonical_exit": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "1777b344e165ff574b4e740736d9d9cadd870db6a87aaa4c9dd3b375e8f6d163"
+    },
+    {
+      "name": "target_body",
+      "exit": 0,
+      "accepted": true,
+      "canonical_exit": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "076329603076fc8b6dc4738f47b7e3bfd3a96e3cf3a9edc7c5f914338d70844a"
+    },
+    {
+      "name": "local-invalid",
+      "exit": 1,
+      "accepted": true,
+      "canonical_exit": null,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "4c06a6bf91291ea9036efca901bc52adfe5309bb953a9906d7a3297937eeb8c2"
+    },
+    {
+      "name": "field-invalid",
+      "exit": 1,
+      "accepted": true,
+      "canonical_exit": null,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "4c06a6bf91291ea9036efca901bc52adfe5309bb953a9906d7a3297937eeb8c2"
+    },
+    {
+      "name": "parameter-invalid",
+      "exit": 1,
+      "accepted": true,
+      "canonical_exit": null,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "4c06a6bf91291ea9036efca901bc52adfe5309bb953a9906d7a3297937eeb8c2"
+    },
+    {
+      "name": "call_result-invalid",
+      "exit": 1,
+      "accepted": true,
+      "canonical_exit": null,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "4c06a6bf91291ea9036efca901bc52adfe5309bb953a9906d7a3297937eeb8c2"
+    },
+    {
+      "name": "match_join-invalid",
+      "exit": 1,
+      "accepted": true,
+      "canonical_exit": null,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "4c06a6bf91291ea9036efca901bc52adfe5309bb953a9906d7a3297937eeb8c2"
+    },
+    {
+      "name": "const_name-invalid",
+      "exit": 1,
+      "accepted": true,
+      "canonical_exit": null,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "4c06a6bf91291ea9036efca901bc52adfe5309bb953a9906d7a3297937eeb8c2"
+    },
+    {
+      "name": "other_state-invalid",
+      "exit": 1,
+      "accepted": true,
+      "canonical_exit": null,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "4c06a6bf91291ea9036efca901bc52adfe5309bb953a9906d7a3297937eeb8c2"
+    },
+    {
+      "name": "other_machine-invalid",
+      "exit": 1,
+      "accepted": true,
+      "canonical_exit": null,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "4c06a6bf91291ea9036efca901bc52adfe5309bb953a9906d7a3297937eeb8c2"
+    },
+    {
+      "name": "target_body-invalid",
+      "exit": 1,
+      "accepted": true,
+      "canonical_exit": null,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "4c06a6bf91291ea9036efca901bc52adfe5309bb953a9906d7a3297937eeb8c2"
+    }
+  ]
+}

@@ -15,33 +15,25 @@ psi_rule_contract!(
     ),
 );
 
-impl PsiOptimizationRule for SameBlockTotalScalarCseRule {
-    psi_rule_contract!(@adapter);
-
-    fn propose(
-        &self,
-        unit: &PsiOptimizationUnit,
-        analyses: RuleAnalysisView<'_>,
-    ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
-        super::propose_same_block_scalar_cse(
-            unit,
-            analyses,
-            super::function_value_types,
-            |value_types, _, _, operation| total_scalar_expression(operation, value_types),
-            |value_types, _, _, operation| {
-                total_scalar_expression(operation, value_types).map(|row| (row, ()))
-            },
-            |same| {
-                PsiRewriteCandidate::new_local_scalar_common_subexpression(
-                    unit.identity,
-                    Self::contract(),
-                    same.affected_blocks,
-                    same.provenance,
-                    -1,
-                    same.patch,
-                )
-                .map_err(RuleProposalError::InvalidCandidate)
-            },
-        )
-    }
-}
+psi_rule_impl!(SameBlockTotalScalarCseRule, |unit, analyses| {
+    super::propose_same_block_scalar_cse(
+        unit,
+        analyses,
+        super::function_value_types,
+        |value_types, _, _, operation| total_scalar_expression(operation, value_types),
+        |value_types, _, _, operation| {
+            total_scalar_expression(operation, value_types).map(|row| (row, ()))
+        },
+        |same| {
+            PsiRewriteCandidate::new_local_scalar_common_subexpression(
+                unit.identity,
+                Self::contract(),
+                same.affected_blocks,
+                same.provenance,
+                -1,
+                same.patch,
+            )
+            .map_err(RuleProposalError::InvalidCandidate)
+        },
+    )
+});
