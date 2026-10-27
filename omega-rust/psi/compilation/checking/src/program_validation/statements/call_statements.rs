@@ -16,15 +16,7 @@ pub(super) fn validate(
     let Some(call) = statement.as_call() else {
         unreachable!("dispatched call_statements")
     };
-    let StatementScope {
-        program,
-        machine,
-        state_name,
-        current_state,
-        symbols,
-        writable_roots,
-        ..
-    } = *scope;
+    let (program, machine, state_name, current_state, symbols, writable_roots) = scope.reads();
     let value_environment = &mut *outputs.value_environment;
     let arithmetic_decisions = &mut *outputs.arithmetic_decisions;
     let boundary_operator_applications = &mut *outputs.boundary_operator_applications;

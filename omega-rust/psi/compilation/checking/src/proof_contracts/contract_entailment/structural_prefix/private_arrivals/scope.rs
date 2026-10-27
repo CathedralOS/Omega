@@ -84,13 +84,36 @@ fn belongs_to(
     false
 }
 
-pub(super) struct ClosedArrivals {
+pub(crate) struct ClosedArrivals {
     pub(super) expected: Vec<Arrival>,
     pub(super) cycle_entries: Vec<SymbolHandle>,
     pub(super) bodies: Vec<SymbolHandle>,
 }
 
 pub(super) fn closed_arrivals(
+    program: &dyn crate::CheckingInput,
+    root: &Machine,
+    callee: &Machine,
+) -> Result<std::sync::Arc<ClosedArrivals>, &'static str> {
+    if let Some(memos) = crate::frozen_program::frozen_program_memos(program) {
+        if let Ok(guard) = memos.private_closed_arrivals.lock()
+            && let Some(cached) = guard.get(&(root.symbol, callee.symbol))
+        {
+            return cached.clone();
+        }
+    }
+    // This summary depends only on the frozen call/use graph. It contains
+    // neither a runtime observation nor a predicate's proof judgment.
+    let result = compute_closed_arrivals(program, root, callee).map(std::sync::Arc::new);
+    if let Some(memos) = crate::frozen_program::frozen_program_memos(program)
+        && let Ok(mut guard) = memos.private_closed_arrivals.lock()
+    {
+        guard.insert((root.symbol, callee.symbol), result.clone());
+    }
+    result
+}
+
+fn compute_closed_arrivals(
     program: &dyn crate::CheckingInput,
     root: &Machine,
     callee: &Machine,

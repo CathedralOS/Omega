@@ -96,9 +96,6 @@ impl CompilationSession {
             )
             .map_err(PackageReviewFailure::Projection)?;
             let facts = PackageReviewSourceFacts {
-                tolerated_unsettled_service_fields: checked
-                    .execution()
-                    .tolerated_unsettled_service_fields(),
                 consumed_units: checked
                     .sources()
                     .package_subject()

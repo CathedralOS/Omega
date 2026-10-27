@@ -13,13 +13,8 @@ use diagnostics::Diagnostic;
 use target::TargetProfile;
 
 mod direct_body_absences;
-mod proof_applications;
 mod provider_publication;
 pub(crate) use direct_body_absences::DirectTargetBodyAbsences;
-pub use proof_applications::{
-    declaration_formation_owners, proof_application_declaration_owners, proof_application_machines,
-    target_has_proof_demand,
-};
 pub use provider_publication::{TargetProviderPublicationRequest, provider_selection_roots};
 
 /// Project retained declarations onto one realization using their exact handles.
@@ -106,7 +101,7 @@ pub fn reject_reached_inert_sibling_calls(
     let mut reached = vec![false; machines.len()];
     let mut frontier: Vec<usize> = entry
         .and_then(|entry| called_machine(typed, entry))
-        .and_then(|entry| realized_machine(typed, entry, target))
+        .and_then(|entry| typed.machine_for_target(entry, target.target_name()))
         .and_then(|entry| typed.machine_position_by_symbol(entry.symbol))
         .into_iter()
         .collect();
@@ -133,7 +128,8 @@ pub fn reject_reached_inert_sibling_calls(
                     })
                     .filter_map(|(_, realization)| called_machine(typed, *realization));
                 for callee in direct.into_iter().chain(realizations) {
-                    let Some(callee) = realized_machine(typed, callee, target) else {
+                    let Some(callee) = typed.machine_for_target(callee, target.target_name())
+                    else {
                         refusals.push((
                             position,
                             Diagnostic::error(unrealized_call_message(
@@ -174,27 +170,6 @@ fn called_machine(
         .or_else(|| typed.machine_holding_state(called_symbol))
 }
 
-/// Resolve an explicit execution edge against the complete retained family.
-/// A head has no authored target or states; visiting it would hide both a
-/// missing member and calls inside the selected member. Exact member references
-/// instead keep their own target and never redirect into another sibling.
-pub(crate) fn realized_machine<'program>(
-    typed: &'program TypedTrees,
-    machine: &'program checked_trees::typed_trees::machine::Machine,
-    target: TargetProfile,
-) -> Option<&'program checked_trees::typed_trees::machine::Machine> {
-    if machine.target_family_interface {
-        return family_member_for_target(typed, machine.symbol, target.target_name());
-    }
-    typed
-        .machine_authored_target(machine)
-        .is_none_or(|declared| {
-            TargetProfile::from_canonical_target_name(declared)
-                .is_ok_and(|resolved| resolved == target)
-        })
-        .then_some(machine)
-}
-
 /// The same exact family selection supplies closed source evaluation. These
 /// rows name checked bodies; they supply no invocation or access permission.
 pub fn selected_constant_target_bodies(
@@ -209,8 +184,9 @@ pub fn selected_constant_target_bodies(
         if !context.contains(family.canonical) {
             continue;
         }
-        let Some(member) =
-            family_member_for_target(context.typed, family.canonical, target.target_name())
+        let Some(member) = context
+            .typed
+            .target_family_member(family.canonical, target.target_name())
         else {
             continue;
         };
@@ -235,25 +211,6 @@ pub fn selected_constant_target_bodies(
     Ok(selected)
 }
 
-/// The retained member body a family head stands for on one target, from
-/// Psi's explicit family catalog. `None` when the family has no body for
-/// that target: the head itself is never a realization.
-pub(crate) fn family_member_for_target<'program>(
-    typed: &'program TypedTrees,
-    head: symbols::SymbolHandle,
-    target: &str,
-) -> Option<&'program checked_trees::typed_trees::machine::Machine> {
-    let family = typed
-        .target_machine_families
-        .iter()
-        .find(|family| family.canonical == head)?;
-    let member = family
-        .members
-        .iter()
-        .find(|member| member.target.as_str() == target)?;
-    typed.machine_by_symbol(member.machine)
-}
-
 /// The machine a provider row realizes on the selected target. A row names
 /// the machine resolution bound its authored path to: a portable body, an
 /// exact target member, or a target family's head when the authored name is
@@ -274,7 +231,7 @@ pub(crate) fn realized_row_machine<'program>(
         let target = selected_target
             .filter(|target| !target.is_empty())
             .unwrap_or_else(|| TargetProfile::host().target_name());
-        family_member_for_target(typed, named, target)?
+        typed.target_family_member(named, target)?
     } else {
         machine
     };

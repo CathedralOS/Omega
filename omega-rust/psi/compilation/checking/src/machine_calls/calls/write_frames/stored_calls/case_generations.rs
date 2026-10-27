@@ -108,26 +108,15 @@ pub(super) fn completed_effects(
         }
         for route in routes {
             let relative = FrameSourcePlace {
-                root: parameter.symbol,
                 segments: route.clone(),
-                builtin_coordinates: true,
-                ..Default::default()
+                ..FrameSourcePlace::parameter_root(parameter)
             };
             let Some(sources) = aggregate_argument_sources(
                 program,
                 machine,
                 parameter,
                 capture,
-                &SlotSource {
-                    carrier_backing: None,
-                    origin: FramePlaceOrigin {
-                        path: super::path(program, &relative),
-                        precision: FramePathPrecision::Exact,
-                        source: relative.clone(),
-                    },
-                    carrier: relative,
-                    lifetime_access: None,
-                },
+                &SlotSource::from_place(program, relative, FramePathPrecision::Exact, None),
                 context,
                 symbols,
             ) else {

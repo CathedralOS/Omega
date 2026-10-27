@@ -15,12 +15,13 @@ use typed_trees::machine::Machine;
 
 mod cycles;
 mod scope;
+pub(crate) use scope::ClosedArrivals;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-struct Arrival {
-    caller: SymbolHandle,
-    statement: usize,
-    expression: Option<ExpressionHandle>,
+pub(crate) struct Arrival {
+    pub(crate) caller: SymbolHandle,
+    pub(crate) statement: usize,
+    pub(crate) expression: Option<ExpressionHandle>,
 }
 
 pub(in crate::proof_contracts::contract_entailment) fn observe_private_arrivals(
@@ -59,15 +60,14 @@ pub(in crate::proof_contracts::contract_entailment) fn observe_private_arrivals(
         })
         .collect::<Vec<_>>();
     let boundaries = roots.iter().map(|root| root.symbol).collect::<Vec<_>>();
-    let mut bodies = arrivals.bodies;
-    bodies.extend(boundaries.iter().copied());
+
     let mut observer = ArrivalRequirement {
         requirement,
         entry: entry.symbol,
         root: root.symbol,
         observed: Vec::new(),
         boundaries,
-        bodies,
+        closed: std::sync::Arc::clone(&arrivals),
     };
     let mut diagnostics = Vec::new();
     let mut recognized = true;
@@ -131,7 +131,7 @@ struct ArrivalRequirement<'query> {
     root: SymbolHandle,
     observed: Vec<Arrival>,
     boundaries: Vec<SymbolHandle>,
-    bodies: Vec<SymbolHandle>,
+    closed: std::sync::Arc<ClosedArrivals>,
 }
 
 impl StructuralPrefixVisitor for ArrivalRequirement<'_> {
@@ -152,8 +152,9 @@ impl StructuralPrefixVisitor for ArrivalRequirement<'_> {
         // unrelated bodies cannot name this private occurrence; re-entry into
         // an enclosing root is covered by that root's independent invocation.
         // Ordinary completion still observes their actual writes and values.
-        !self.bodies.contains(&machine)
-            || (machine != self.root && self.boundaries.contains(&machine))
+        let boundary = self.boundaries.contains(&machine);
+        (!boundary && !self.closed.bodies.contains(&machine))
+            || (machine != self.root && boundary)
             || self.requirement.stops_at_machine(machine)
     }
     fn observe<'program>(&mut self, observation: PrefixObservation<'_, 'program>) {

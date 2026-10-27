@@ -6,7 +6,7 @@ use crate::candidates::rewrite_accounting::threading::{
     reconstruct_linear_thread_bindings, reconstruct_linear_thread_ownership_is_identity,
     reconstruct_path_thread_accounting,
 };
-use crate::candidates::set_node_effect_link;
+use crate::candidates::sweep_output_nodes;
 use crate::unit_validation::derived_metadata::{
     expected_definitions, expected_ownership, expected_uses,
 };
@@ -111,11 +111,6 @@ pub(super) fn validate(
     let (expected_blocks, accepted_provenance) =
         reconstruct_path_thread_accounting(function, patch.empty, &incoming_edges)
             .ok_or(OptimizationUnitValidationError::CandidateProvenanceMismatch)?;
-    if candidate.affected_blocks() != expected_blocks
-        || candidate.provenance() != accepted_provenance
-    {
-        return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
-    }
 
     let outgoing_edge = empty_node
         .edge(patch.outgoing_edge)
@@ -161,12 +156,7 @@ pub(super) fn validate(
             output_function
                 .blocks
                 .retain(|block| block.id != patch.empty.block);
-            let mut effect = 0u64;
-            for block in &mut output_function.blocks {
-                for node in &mut block.nodes {
-                    effect = set_node_effect_link(node, effect)?;
-                }
-            }
+            sweep_output_nodes(output_function, |_| Ok(()))?;
             Ok(())
         },
     )

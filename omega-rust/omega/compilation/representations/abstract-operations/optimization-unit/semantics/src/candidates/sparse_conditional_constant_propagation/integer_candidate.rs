@@ -10,13 +10,13 @@ use optimization_core::{
     OptimizationValidatorIdentity,
 };
 use optimization_unit::{
-    IntegerConstantRewrite, IntegerEvaluationWitness, OptimizationFact, ProvenanceDisposition,
-    PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch,
+    IntegerConstantRewrite, IntegerEvaluationWitness, OptimizationFact, PsiOptimizationUnit,
+    PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch,
 };
 use semantic_vocabulary::ScalarType;
 
 use super::integer_evaluation::evaluate_integer_operation;
-use crate::candidates::{candidate_block, candidate_function};
+use crate::candidates::{candidate_block, candidate_function, require_realized_rows};
 
 pub(crate) fn validate_integer_evaluation_candidate(
     input: &PsiOptimizationUnit,
@@ -49,25 +49,14 @@ pub(crate) fn validate_integer_evaluation_candidate(
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     let input_live = reconstruct_closed_scalar_node_boundary(input, patch.location)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-    let [provenance] = candidate.provenance() else {
-        return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
-    };
     let site = PsiRealizationSite::Node(patch.location);
-    if provenance.input != site
-        || provenance.disposition != ProvenanceDisposition::RealizedAt(site)
-        || provenance.sources != node.provenance
-    {
-        return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
-    }
-    if provenance.fuel != node.fuel {
-        return Err(OptimizationUnitValidationError::CandidateFuelMismatch);
-    }
     let accepted_provenance = vec![provenance_realized_at(
         site,
         site,
         &node.provenance,
         &node.fuel,
     )];
+    require_realized_rows(candidate, &accepted_provenance)?;
 
     let (source_operation, result, scalar_type, evaluated, safety_class) =
         evaluate_integer_operation(function, node, candidate)?;

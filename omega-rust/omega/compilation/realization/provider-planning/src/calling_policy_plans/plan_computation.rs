@@ -291,15 +291,12 @@ pub fn compute_boundary_calling_plans(
         .target_machine_families
         .iter()
         .filter_map(|family| {
-            crate::target_machines::family_member_for_target(
-                typed,
-                family.canonical,
-                target_profile.target_name(),
-            )
-            .map(|body| build_time_evaluation::SelectedBuildTimeMachineBody {
-                family: family.canonical,
-                body: body.symbol,
-            })
+            typed
+                .target_family_member(family.canonical, target_profile.target_name())
+                .map(|body| build_time_evaluation::SelectedBuildTimeMachineBody {
+                    family: family.canonical,
+                    body: body.symbol,
+                })
         })
         .collect::<Vec<_>>();
     let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(

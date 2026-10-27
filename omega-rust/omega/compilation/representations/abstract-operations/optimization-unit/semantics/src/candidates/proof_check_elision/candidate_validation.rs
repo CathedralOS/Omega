@@ -17,8 +17,8 @@ use semantic_vocabulary::ScalarType;
 
 use super::identity_classification::independent_proof_certified_scalar_identity;
 use crate::candidates::{
-    accept_region_rewrite, candidate_block, candidate_function, rebuild_node_metadata,
-    receiver_custody_distinct, retirable_scalar_node, retire_node_custody, set_node_effect_link,
+    accept_region_rewrite, candidate_block, candidate_function, receiver_custody_distinct,
+    retirable_scalar_node, retire_node_custody, sweep_output_nodes,
 };
 
 /// Independently remove one live proof-certified integer identity.
@@ -257,11 +257,6 @@ pub(crate) fn validate_proof_certified_scalar_identity_candidate(
     let (expected_blocks, accepted_provenance) =
         reconstruct_proof_certified_scalar_identity_accounting(function, patch)
             .ok_or(OptimizationUnitValidationError::CandidateProvenanceMismatch)?;
-    if candidate.affected_blocks() != expected_blocks
-        || candidate.provenance() != accepted_provenance
-    {
-        return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
-    }
 
     accept_region_rewrite(
         input,
@@ -278,14 +273,10 @@ pub(crate) fn validate_proof_certified_scalar_identity_candidate(
                 .block_mut(patch.location.block)
                 .expect("candidate block exists");
             retire_node_custody(output_block, node_index)?;
-            let mut effect = 0u64;
-            for block in &mut output_function.blocks {
-                for (node_index, node) in block.nodes.iter_mut().enumerate() {
-                    rewrite_scalar_value_uses(&mut node.operation, patch.result, patch.replacement);
-                    rebuild_node_metadata(node, block.id, node_index)?;
-                    effect = set_node_effect_link(node, effect)?;
-                }
-            }
+            sweep_output_nodes(output_function, |node| {
+                rewrite_scalar_value_uses(&mut node.operation, patch.result, patch.replacement);
+                Ok(())
+            })?;
             // The rewrite deletes one node and moves no accepted obligation
             // fact, so any catalog drift is the candidate's claim alone.
             if output.accepted_obligation_facts != input.accepted_obligation_facts {

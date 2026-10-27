@@ -49,24 +49,15 @@ impl SelectedExecution {
             .map(target::TargetProfile::native_target)
     }
 
-    /// Boundaries demanded by the selected ProgramEntry: its receiver's
-    /// `Binding<R>` fields, including those nested in record fields, then the
-    /// boundaries its own service reach names. A ProgramEntry is root-bound
-    /// rather than a package callable, so package review never reads its
-    /// reach as a callable's: this is the consumer's own nomination surface.
-    /// Establishment reads the same field traversal, so every field nominated
-    /// here is a field establishment later requires a selected Fused provider
-    /// for.
+    /// Boundaries in the selected entry's checked service reach. Entry selection
+    /// nominates exact provider requirements; it constructs no receiver or fields.
+    /// A ProgramEntry is root-bound rather than a package callable, so this is
+    /// the consumer's own nomination surface, not a package callable projection.
     pub fn program_entry_service_requirements(&self) -> Vec<symbols::SymbolHandle> {
         let Some(entry) = self.selected_program_entry.as_ref() else {
             return Vec::new();
         };
         crate::program_entry_service_requirements(&self.program, entry.machine_symbol())
-    }
-
-    /// Root selection cannot tolerate an unestablished runtime argument.
-    pub fn tolerated_unsettled_service_fields(&self) -> bool {
-        false
     }
 
     pub fn resolved_semantic_binding(
@@ -179,7 +170,6 @@ pub struct SelectedExecutionRequest<'a> {
     pub selected_target_profile: Option<target::TargetProfile>,
     pub package_inputs: Option<&'a package_compilation::PackageCompilationInputs>,
     pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
-    pub permit_unsettled_fused_service_fields: bool,
     pub selected_provider_provenance: Vec<provider_planning::SelectedProviderReviewProvenance>,
     pub opaque_representation_selections:
         &'a [representation_planning::OpaqueRepresentationSelection],

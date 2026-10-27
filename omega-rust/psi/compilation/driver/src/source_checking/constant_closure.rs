@@ -1,7 +1,7 @@
 //! Discharge retained constant obligations against their exact value applications.
 //!
-//! Provider and layout owners supply completed values and application membership.
-//! Psi owns proof discharge, coverage of every retained obligation and the final
+//! Provider and layout owners supply completed values and exact provider edges.
+//! Psi owns application discovery, proof discharge, complete coverage and the final
 //! checked facts. A selected application borrows this closure exclusively: its
 //! row positions cannot be applied to another program or an unrelated accumulator.
 
@@ -11,10 +11,14 @@ use std::sync::Arc;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 
+mod applications;
+use applications::ProofApplications;
+
 /// Invocation-local proof closure over a private, evaluated copy of a checked program.
 /// Provider selection stays with the caller; only complete coverage can publish.
 pub struct ConstantProofClosure<'source> {
     source: &'source CheckedTrees,
+    applications: ProofApplications<'source>,
     program: TypedTrees,
     facts: CheckFacts,
     value_scope: String,
@@ -42,6 +46,7 @@ impl<'source> ConstantProofClosure<'source> {
         facts.constant_recipe_obligations.clear();
         Self {
             source,
+            applications: ProofApplications::new(source),
             program,
             facts,
             value_scope: value_scope.to_owned(),
@@ -51,16 +56,31 @@ impl<'source> ConstantProofClosure<'source> {
         }
     }
 
+    /// Selected scope first, then every distinct authored proof scope. Target
+    /// identity validation stays with the caller before it requests providers.
+    pub fn target_scopes(&self) -> Vec<&str> {
+        self.applications.scopes(&self.value_scope)
+    }
+
+    /// Conservative source demand discovery does not select or authorize a
+    /// provider. A false result avoids unrelated supplemental provider work.
+    pub fn needs_application(&self, target_scope: &str) -> bool {
+        self.applications
+            .needs_scope(target_scope, &self.value_scope)
+    }
+
     /// Select obligations by their recorded caller or declaration owner. Ground
     /// declaration models also close in the primary value capsule, whose retained
     /// metadata describes those declarations even without an executing caller.
     pub fn application<'closure>(
         &'closure mut self,
         target_scope: &'closure str,
-        machines: &[SymbolHandle],
-        declarations: &[SymbolHandle],
-        all_declarations: &[SymbolHandle],
+        providers: &[(SymbolHandle, SymbolHandle)],
     ) -> Option<ConstantProofApplication<'closure, 'source>> {
+        let (machines, declarations) =
+            self.applications
+                .membership(target_scope, target_scope == self.value_scope, providers);
+        let all_declarations = self.applications.declarations();
         let predicates: Vec<_> = self
             .source
             .facts

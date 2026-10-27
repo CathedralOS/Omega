@@ -283,10 +283,16 @@ provider selection from product coordination or stage vocabulary from shared
 product representations.
 
 Retained constant proof closure belongs to Psi source checking. The product
-coordinator supplies selected value views, application membership and address
+coordinator supplies selected value views, provider edges and address
 model inputs; Psi selects the recorded obligations, discharges them in their
 existing order, requires complete coverage and publishes the closed checked
-facts. It also settles pending boundary clauses before returning that program.
+facts. Psi also discovers authored proof scopes, conservatively determines which
+need providers, and follows recorded calls, static machine bindings, cleanup and
+dynamic selections to determine exact proof applications and declaration owners.
+The coordinator validates target identities and supplies selected provider edges;
+it does not reconstruct source membership. Supplemental values are evaluated only
+when the selected application has obligations. Psi settles pending boundary
+clauses before returning that program.
 The coordinator no longer rebuilds proof facts or chooses that final checking
 step. Psi also owns selected constant evaluation: available query closure,
 continuation evaluation and layout-plan installation, final query closure, then
@@ -390,8 +396,12 @@ member navigation at the frozen repository resolution. Install/update/resume
 execute their staged candidates through the same discovery loop and retain the
 settled Builds across review passes and targets. Proposal identity, original
 local dependency bases, execution inventories, review decisions and accepted-pair
-publication remain package-owned. Discovery tolerance is part of Product
-judgment reuse, never copied into a bound admission. Observational audit uses
+publication remain package-owned. Semantic-role discovery and accepted bindings
+remain part of Product judgment reuse, never copied into a bound admission.
+The retired entry-field tolerance mode is absent from compiler requests,
+continuations and review facts; ordinary entry contracts establish actual
+arguments, never provisional fields. Older review-cache formats miss rather
+than importing a provisional verdict. Observational audit uses
 the same executed source roster and retained Product review. Its accepted graph
 admits dependency requests before acquisition, preserves exact Git pins, and
 permits only root-content changes; per-target findings never recover proposals
@@ -618,12 +628,13 @@ selected provider and establishes runtime custody; a logical Binding marker
 never grants zero-sized storage or authority. Native entry storage currently
 supports Fused establishment and rejects other modes.
 
-Physical data-layout queries must not rewrite typed source before checking.
-The former target-selected `size_of`/`align_of` literal fold is removed. These
-queries currently report an explicit implementation gap during source lowering;
-restoration must retain a portable query and consume the exact selected layout
-after the Psi boundary, including explicit target custody for constant evaluation.
-Ordinary authored machines with those names remain ordinary calls.
+Physical data-layout queries remain symbolic during shared Product checking.
+Selected constant evaluation currently closes retained `size_of`/`align_of`
+queries under explicit target custody before Terminal production; Build admission
+uses its separately selected execution context. The remaining migration is to
+carry portable queries across the Terminal boundary and consume exact selected
+layout there, not to restore an early Product-target fold. Ordinary authored
+machines with those names remain ordinary calls.
 
 Calling-policy evaluation retains its validated ABI application as backend-owned
 output. Native entry and registrar settlement consume that application, not the

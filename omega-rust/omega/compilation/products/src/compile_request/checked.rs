@@ -25,9 +25,6 @@ pub struct CheckedCompileRequest {
     pub optimization_rollback: OptimizationRollback,
     /// A reused preparation keeps the timing policy under which it was created.
     pub collect_timings: bool,
-    /// Discovery leaves unsettled fields unestablished; the bound recompile must
-    /// derive or diagnose them under its own inputs.
-    pub permit_unsettled_fused_service_fields: bool,
 }
 
 /// Compiler-owned prior language judgments. Psi matches complete inputs before
@@ -48,7 +45,6 @@ impl CheckedCompileRequest {
             build: BuildExecutionInputs::default(),
             optimization_rollback: OptimizationRollback::default(),
             collect_timings: false,
-            permit_unsettled_fused_service_fields: false,
         }
     }
 }
@@ -61,9 +57,6 @@ pub struct CheckedExecutionRequest<'request> {
     pub package_inputs: Option<&'request PackageCompilationInputs>,
     pub build: BuildExecutionInputs,
     pub optimization_rollback: OptimizationRollback,
-    /// Discovery leaves unsettled Service fields unestablished. The bound
-    /// recompile must derive or diagnose every field under its own inputs.
-    pub permit_unsettled_fused_service_fields: bool,
     pub settled_check_reuse: SettledCheckReuse,
 }
 
@@ -87,7 +80,6 @@ impl ValidatedTargetCompilation {
             }
             .resolve_compilation_defaults(package_inputs),
             optimization_rollback: self.optimization_rollback().clone(),
-            permit_unsettled_fused_service_fields: false,
             settled_check_reuse: SettledCheckReuse::default(),
         }
     }

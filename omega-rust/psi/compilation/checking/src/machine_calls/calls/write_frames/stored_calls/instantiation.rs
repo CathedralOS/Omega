@@ -200,26 +200,13 @@ pub(super) fn destination_source(
         if !shell.access.is_exclusive() {
             return None;
         }
-        let relative = FrameSourcePlace {
-            root: parameter.symbol,
-            builtin_coordinates: true,
-            ..Default::default()
-        };
+        let relative = FrameSourcePlace::parameter_root(parameter);
         let mut sources = aggregate_argument_sources(
             program,
             machine,
             parameter,
             captured,
-            &SlotSource {
-                carrier_backing: None,
-                origin: FramePlaceOrigin {
-                    path: parameter.name.to_string(),
-                    precision: FramePathPrecision::Exact,
-                    source: relative.clone(),
-                },
-                carrier: relative,
-                lifetime_access: None,
-            },
+            &SlotSource::from_place(program, relative, FramePathPrecision::Exact, None),
             entry,
             symbols,
         )?
@@ -279,26 +266,15 @@ pub(super) fn destination_source(
             .collect::<Option<Vec<_>>>()?
         } else {
             let relative = FrameSourcePlace {
-                root: parameter.symbol,
                 segments: boundary.local_segments.clone(),
-                builtin_coordinates: true,
-                ..Default::default()
+                ..FrameSourcePlace::parameter_root(parameter)
             };
             aggregate_argument_sources(
                 program,
                 machine,
                 parameter,
                 captured,
-                &SlotSource {
-                    carrier_backing: None,
-                    lifetime_access: None,
-                    origin: FramePlaceOrigin {
-                        path: path(program, &relative),
-                        precision: FramePathPrecision::Exact,
-                        source: relative.clone(),
-                    },
-                    carrier: relative,
-                },
+                &SlotSource::from_place(program, relative, FramePathPrecision::Exact, None),
                 entry,
                 symbols,
             )?

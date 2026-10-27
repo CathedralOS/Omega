@@ -381,15 +381,38 @@ impl StructuralJudge<'_> {
             depth + 1,
         ) {
             StructuralJudgment::Unknown => {
-                let direct = self
-                    .observed_float_predicate_judgment(&predicate, depth)
-                    .unwrap_or_else(|| self.observed_integer_predicate_judgment(&predicate));
-                if matches!(direct, StructuralJudgment::Unknown)
-                    && self.proves_observed_integer_boolean(&resolved, depth) == Some(true)
+                if let Some(judgment) = self.observed_float_predicate_judgment(&predicate, depth) {
+                    return if matches!(judgment, StructuralJudgment::Unknown)
+                        && self.proves_observed_integer_boolean(&resolved, depth) == Some(true)
+                    {
+                        StructuralJudgment::Proven
+                    } else {
+                        judgment
+                    };
+                }
+                if let Some((observations, comparison, admitted)) =
+                    self.integer_predicate_observations(&predicate)
                 {
+                    let queries = observations.engine.lower_bound_queries();
+                    let direct =
+                        IntegerObservations::judge_comparison(&queries, comparison.clone());
+                    if !matches!(direct, StructuralJudgment::Unknown) {
+                        return direct;
+                    }
+                    if let Some(complement) = comparison.0.complement() {
+                        let mut comparisons = admitted;
+                        comparisons.push((complement, comparison.1, comparison.2));
+                        let mut engine = observations.engine.clone();
+                        if engine.integer_comparisons_unsatisfiable(comparisons) {
+                            return StructuralJudgment::Proven;
+                        }
+                    }
+                    return StructuralJudgment::Unknown;
+                }
+                if self.proves_observed_integer_boolean(&resolved, depth) == Some(true) {
                     StructuralJudgment::Proven
                 } else {
-                    direct
+                    StructuralJudgment::Unknown
                 }
             }
             judgment => judgment,
@@ -429,7 +452,10 @@ impl StructuralJudge<'_> {
         }
         let admitted = retained
             .into_iter()
-            .filter(|(_, operations)| observations.admitted(operations.clone()))
+            .filter(|(comparison, operations)| {
+                matches!(comparison.0, BinaryOperator::Equal | BinaryOperator::NotEqual)
+                    && observations.admitted(operations.clone())
+            })
             .map(|(comparison, _)| comparison)
             .collect::<Vec<_>>();
         for alternative in alternatives {
@@ -553,37 +579,63 @@ impl StructuralJudge<'_> {
             }),
         };
         let greater = comparison(BinaryOperator::Greater);
-        let resolved_greater = self.resolve_at(greater.clone(), 1);
-        let greater_eq_judgment = self.judge_equation(
-            resolved_greater.clone(),
-            super::value_predicates::boolean_term(true),
-            1,
-        );
+        let has_math_rewrite = self
+            .rewrites
+            .iter()
+            .any(|(pattern, _)| matches!(pattern, StructuralTerm::MathematicalBinary { .. }));
+        let (resolved_greater, greater_eq_judgment) = if has_math_rewrite {
+            let resolved = self.resolve_at(greater.clone(), 1);
+            let judgment = self.judge_equation(
+                resolved.clone(),
+                super::value_predicates::boolean_term(true),
+                1,
+            );
+            (Some(resolved), judgment)
+        } else {
+            (None, StructuralJudgment::Unknown)
+        };
         if matches!(greater_eq_judgment, StructuralJudgment::Proven) {
             return Some(1);
         }
         let greater_or_equal = comparison(BinaryOperator::GreaterOrEqual);
-        let resolved_ge = self.resolve_at(greater_or_equal, 1);
-        let ge_eq_judgment = self.judge_equation(
-            resolved_ge.clone(),
-            super::value_predicates::boolean_term(true),
-            1,
-        );
-        let Some((observations, (_, left_poly, right_poly))) =
+        let (resolved_ge, ge_eq_judgment) = if has_math_rewrite {
+            let resolved = self.resolve_at(greater_or_equal.clone(), 1);
+            let judgment = self.judge_equation(
+                resolved.clone(),
+                super::value_predicates::boolean_term(true),
+                1,
+            );
+            (Some(resolved), judgment)
+        } else {
+            (None, StructuralJudgment::Unknown)
+        };
+        let Some((observations, (_, left_poly, right_poly), admitted_premises)) =
             self.integer_predicate_observations(&greater)
         else {
-            if matches!(greater_eq_judgment, StructuralJudgment::Unknown)
-                && self.proves_observed_integer_boolean(&resolved_greater, 1) == Some(true)
-            {
-                return Some(1);
+            if matches!(greater_eq_judgment, StructuralJudgment::Unknown) {
+                let resolved =
+                    resolved_greater.unwrap_or_else(|| self.resolve_at(greater.clone(), 1));
+                if self.proves_observed_integer_boolean(&resolved, 1) == Some(true) {
+                    return Some(1);
+                }
             }
-            if matches!(ge_eq_judgment, StructuralJudgment::Proven)
-                || (matches!(ge_eq_judgment, StructuralJudgment::Unknown)
-                    && self.proves_observed_integer_boolean(&resolved_ge, 1) == Some(true))
-            {
+            if matches!(ge_eq_judgment, StructuralJudgment::Proven) {
                 return Some(0);
             }
+            if matches!(ge_eq_judgment, StructuralJudgment::Unknown) {
+                let resolved =
+                    resolved_ge.unwrap_or_else(|| self.resolve_at(greater_or_equal, 1));
+                if self.proves_observed_integer_boolean(&resolved, 1) == Some(true) {
+                    return Some(0);
+                }
+            }
             return None;
+        };
+        let denial_holds = |complement: BinaryOperator| {
+            let mut comparisons = admitted_premises.clone();
+            comparisons.push((complement, left_poly.clone(), right_poly.clone()));
+            let mut engine = observations.engine.clone();
+            engine.integer_comparisons_unsatisfiable(comparisons)
         };
         let queries = observations.engine.lower_bound_queries();
         if IntegerObservations::comparison_holds(
@@ -598,7 +650,7 @@ impl StructuralJudge<'_> {
                 &left_poly,
                 &right_poly,
             )
-            && self.proves_observed_integer_boolean(&resolved_greater, 1) == Some(true))
+            && denial_holds(BinaryOperator::LessOrEqual))
         {
             Some(1)
         } else if matches!(ge_eq_judgment, StructuralJudgment::Proven)
@@ -615,12 +667,32 @@ impl StructuralJudge<'_> {
                     &left_poly,
                     &right_poly,
                 )
-                && self.proves_observed_integer_boolean(&resolved_ge, 1) == Some(true))
+                && denial_holds(BinaryOperator::Less))
         {
             Some(0)
         } else {
             None
         }
+    }
+
+    pub(in crate::proof_contracts::contract_entailment) fn has_no_rewrites(&self) -> bool {
+        self.rewrites.iter().next().is_none()
+    }
+
+    pub(in crate::proof_contracts::contract_entailment) fn has_no_rewrites_or_substitutions(
+        &self,
+    ) -> bool {
+        self.rewrites.iter().next().is_none()
+            && self.substitutions.is_empty()
+            && self.captured_result_equations.is_empty()
+    }
+
+    pub(in crate::proof_contracts::contract_entailment) fn resolved_completed_semantic_value(
+        &self,
+        value: &StructuralTerm,
+    ) -> StructuralTerm {
+        self.resolve(self.completed_value_identity(value.clone()))
+            .into_semantic_value()
     }
 
     /// Prepare independently formed premises once, then fork their exact
@@ -636,7 +708,18 @@ impl StructuralJudge<'_> {
     ) -> Vec<bool> {
         let mut proofs = Vec::with_capacity(predicates.len());
         let mut unresolved = Vec::new();
+        let has_mathematical_binary_rewrite = self
+            .rewrites
+            .iter()
+            .any(|(pattern, _)| matches!(pattern, StructuralTerm::MathematicalBinary { .. }));
         for (position, predicate) in predicates.iter().enumerate() {
+            if !has_mathematical_binary_rewrite
+                && matches!(predicate, StructuralTerm::MathematicalBinary { .. })
+            {
+                unresolved.push(position);
+                proofs.push(false);
+                continue;
+            }
             let judgment = self.judge_equation(
                 self.resolve_at(predicate.clone(), depth + 1),
                 super::value_predicates::boolean_term(true),
@@ -740,6 +823,16 @@ impl StructuralJudge<'_> {
                             return Some(true);
                         }
                         if operator == BinaryOperator::Equal
+                            && work.operations.is_empty()
+                            && left
+                                .sub(&right)
+                                .constant_value()
+                                .is_some_and(|constant| !constant.is_zero())
+                            && !(has_premises && queries_and_contradictory().1)
+                        {
+                            return Some(false);
+                        }
+                        if operator == BinaryOperator::Equal
                             && work.atoms.len() > base_atoms
                             && goal_only_linear_ops
                         {
@@ -823,7 +916,7 @@ impl StructuralJudge<'_> {
     }
 
     fn proves_observed_integer_predicate(&self, predicate: &StructuralTerm) -> bool {
-        let Some((observations, (operator, left, right))) =
+        let Some((observations, (operator, left, right), _)) =
             self.integer_predicate_observations(predicate)
         else {
             return false;
@@ -832,26 +925,12 @@ impl StructuralJudge<'_> {
         IntegerObservations::comparison_holds(&queries, operator, &left, &right)
     }
 
-    /// Refutation owes the same admitted operations and captured premises as
-    /// proof. An unknown relation is never converted to its opposite.
-    fn observed_integer_predicate_judgment(
-        &self,
-        predicate: &StructuralTerm,
-    ) -> StructuralJudgment {
-        let Some((observations, comparison)) = self.integer_predicate_observations(predicate)
-        else {
-            return StructuralJudgment::Unknown;
-        };
-        let queries = observations.engine.lower_bound_queries();
-        IntegerObservations::judge_comparison(&queries, comparison)
-    }
-
     /// Keep one goal-first projection and admission route for positive evidence
     /// and tri-valued consumers. Neither wrapper can skip child formation.
     fn integer_predicate_observations(
         &self,
         predicate: &StructuralTerm,
-    ) -> Option<(IntegerObservations<'_>, Comparison)> {
+    ) -> Option<(IntegerObservations<'_>, Comparison, Vec<Comparison>)> {
         if !self.runtime_body_values || self.case_facts_only {
             return None;
         }
@@ -865,12 +944,21 @@ impl StructuralJudge<'_> {
         let comparison = self.integer_comparison(predicate, &mut observations)?;
         let goal_operations = 0..observations.operations.len();
         let mut comparisons = self.observed_integer_premises(&mut observations);
+        let retained = comparisons.clone();
         if !observations.install_premises(&mut comparisons)
             || !observations.admitted(goal_operations)
         {
             return None;
         }
-        Some((observations, comparison))
+        let admitted = retained
+            .into_iter()
+            .filter(|(comparison, operations)| {
+                matches!(comparison.0, BinaryOperator::Equal | BinaryOperator::NotEqual)
+                    && observations.admitted(operations.clone())
+            })
+            .map(|(comparison, _)| comparison)
+            .collect();
+        Some((observations, comparison, admitted))
     }
 
     fn observed_integer_premises(

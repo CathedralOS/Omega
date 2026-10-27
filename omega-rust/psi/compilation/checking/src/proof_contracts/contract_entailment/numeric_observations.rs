@@ -646,6 +646,37 @@ impl Observations {
             }
             return;
         }
+        let has_no_rewrites = judge.has_no_rewrites();
+        let has_no_rewrites_or_subs = judge.has_no_rewrites_or_substitutions();
+        let is_simple_leaf = |term: &StructuralTerm| {
+            !matches!(
+                term,
+                StructuralTerm::MathematicalBinary { .. } | StructuralTerm::ScalarBinary { .. }
+            )
+        };
+        let is_trivial_identity_leaf = |term: &StructuralTerm| {
+            matches!(
+                term,
+                StructuralTerm::Integer(_)
+                    | StructuralTerm::Variable(_)
+                    | StructuralTerm::BoundValue(_)
+                    | StructuralTerm::CapturedValue { .. }
+                    | StructuralTerm::Opaque(_)
+            )
+        };
+        let resolve_sem = |value: &StructuralTerm| -> StructuralTerm {
+            let inner = value.semantic_value();
+            if has_no_rewrites_or_subs && is_trivial_identity_leaf(inner) {
+                inner.clone()
+            } else {
+                judge.resolved_completed_semantic_value(value)
+            }
+        };
+        let mut read_semantics: Vec<Option<StructuralTerm>> = if has_no_rewrites {
+            vec![None; current_reads.len()]
+        } else {
+            Vec::new()
+        };
         let mut current = vec![Vec::new(); expressions.len()];
         let mut predicates = Vec::new();
         let mut destinations = Vec::new();
@@ -673,9 +704,19 @@ impl Observations {
             else {
                 continue;
             };
+            let result_sem = has_no_rewrites.then(|| resolve_sem(result));
             for (read_index, (place, value, reference)) in current_reads.iter().enumerate() {
                 if prior.is_some_and(|previous| !previous.contains(place)) {
                     continue;
+                }
+                if let Some(ref result_sem) = result_sem
+                    && is_simple_leaf(result_sem)
+                {
+                    let read_sem =
+                        read_semantics[read_index].get_or_insert_with(|| resolve_sem(value));
+                    if is_simple_leaf(read_sem) && result_sem != read_sem {
+                        continue;
+                    }
                 }
                 predicates.push(StructuralTerm::MathematicalBinary {
                     operator: BinaryOperator::Equal,

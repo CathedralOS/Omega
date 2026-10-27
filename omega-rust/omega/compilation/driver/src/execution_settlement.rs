@@ -54,7 +54,6 @@ pub(crate) struct SelectedProductTarget {
     pub(crate) custody: SelectedProviderCustody,
     pub(crate) retained_checks: RetainedCompilationChecks,
     package_inputs: Option<PackageCompilationInputs>,
-    permit_unsettled_fused_service_fields: bool,
     pub(crate) independent_component_products:
         Vec<Arc<compilation_products::IndependentComponentProduct>>,
 }
@@ -64,7 +63,6 @@ impl SelectedProductTarget {
         source: &CheckedProductSource,
         target: Option<target::TargetProfile>,
         package_inputs: Option<&PackageCompilationInputs>,
-        permit_unsettled_fused_service_fields: bool,
     ) -> Result<Self, Vec<Diagnostic>> {
         let mut package_inputs = package_inputs.cloned();
         if let Some(inputs) = package_inputs.as_ref()
@@ -100,7 +98,6 @@ impl SelectedProductTarget {
             custody: select_product_providers(source, target, package_inputs.as_ref())?,
             retained_checks: source.retained_checks.clone(),
             package_inputs,
-            permit_unsettled_fused_service_fields,
             independent_component_products: Vec::new(),
         })
     }
@@ -183,7 +180,6 @@ impl SelectedProductTarget {
             self.retained_checks,
             self.independent_component_products,
             self.package_inputs.as_ref(),
-            self.permit_unsettled_fused_service_fields,
         )
     }
 }
@@ -389,7 +385,6 @@ pub(crate) fn install_selected_target(
     retained_checks: RetainedCompilationChecks,
     independent_components: Vec<Arc<compilation_products::IndependentComponentProduct>>,
     package_inputs: Option<&PackageCompilationInputs>,
-    permit_unsettled_fused_service_fields: bool,
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
     let source_map = selection.checked.program.typed.symbols.source_map();
     let SelectedProviderCustody {
@@ -417,7 +412,6 @@ pub(crate) fn install_selected_target(
                 selected_target_profile,
                 package_inputs,
                 x86_scalar_fma_provider,
-                permit_unsettled_fused_service_fields,
                 selected_provider_provenance,
                 direct_boundary_candidates: &mut settlement.direct_boundary_leaves,
                 opaque_representation_selections: &build.config.opaque_representation_selections,
@@ -456,16 +450,10 @@ pub(crate) fn select_product_target(
     source: &CheckedProductSource,
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
-    permit_unsettled_fused_service_fields: bool,
 ) -> SelectedCompileOutcome {
     SelectedCompileOutcome {
-        result: SelectedProductTarget::select(
-            source,
-            selected_target_profile,
-            package_inputs,
-            permit_unsettled_fused_service_fields,
-        )
-        .map_err(CompileFailure::from),
+        result: SelectedProductTarget::select(source, selected_target_profile, package_inputs)
+            .map_err(CompileFailure::from),
         independent_components: source.computed_build_config.independent_components(),
     }
 }

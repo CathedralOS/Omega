@@ -21,7 +21,7 @@ use std::collections::BTreeMap;
 use numerics::bignum::BigInt;
 use semantic_vocabulary::{IntegerType, IntegerValue};
 
-use super::{BoundedDenotationError, Denotation, ScalarTerm, Term, TermHandle};
+use super::{BoundedDenotationError, Denotation, ScalarTerm, Term, TermHandle, unbounded_integer};
 
 /// One fixed-integer operation's identity: constructor and machine types,
 /// so `u16` and `u32` multiplications remain distinct opaque functions.
@@ -281,11 +281,8 @@ impl Denotation {
         terms: fn(&mut Self, TermHandle, TermHandle) -> Result<TermHandle, BoundedDenotationError>,
         cache: impl Fn(&mut Self) -> &mut BTreeMap<(IntegerValue, IntegerValue, IntegerValue), u32>,
     ) -> Result<Option<TermHandle>, BoundedDenotationError> {
-        let as_integer = |value: IntegerValue| match value {
-            IntegerValue::Signed(value) => BigInt::from_i128(value),
-            IntegerValue::Unsigned(value) => BigInt::from_u128(value),
-        };
-        if compute(&as_integer(left), &as_integer(right)) != as_integer(result) {
+        if compute(&unbounded_integer(left), &unbounded_integer(right)) != unbounded_integer(result)
+        {
             return Ok(None);
         }
         let position = self.interned_keyed_assumption(cache, (left, right, result), |this| {

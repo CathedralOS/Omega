@@ -1696,6 +1696,7 @@ dependencies = [
  "build-time-evaluation",
  "checked-trees",
  "diagnostics",
+ "flow-effects",
  "language-semantics",
  "optimization",
  "phase-profile",

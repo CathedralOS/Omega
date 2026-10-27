@@ -14,15 +14,7 @@ pub(super) fn validate(
     let Some(fact) = statement.as_assembly_fact() else {
         unreachable!("dispatched assembly_fact_statements")
     };
-    let StatementScope {
-        program,
-        machine,
-        state_name,
-        current_state: state,
-        symbols,
-        writable_roots,
-        ..
-    } = *scope;
+    let (program, machine, state_name, state, symbols, writable_roots) = scope.reads();
     let diagnostics = &mut *outputs.diagnostics;
     if let Some(state) = state {
         for expression in program.tables.proof_fact_expression_roots(fact.fact) {

@@ -146,6 +146,11 @@ fn constant_proof_closure_belongs_to_psi() {
         "settle_closed_constant_execution(",
         "closed_facts",
         "decided_formations",
+        "machine_authored_target(",
+        "declaration_formation_owners(",
+        "proof_application_machines(",
+        "proof_application_declaration_owners(",
+        "target_has_proof_demand(",
     ] {
         assert!(
             !coordinator.contains(forbidden),
@@ -156,6 +161,9 @@ fn constant_proof_closure_belongs_to_psi() {
     assert!(!facade.contains("settle_closed_constant_execution"));
     let proof =
         include_str!("../../../../psi/compilation/driver/src/source_checking/constant_closure.rs");
+    let applications = include_str!(
+        "../../../../psi/compilation/driver/src/source_checking/constant_closure/applications.rs"
+    );
     for forbidden in [
         "provider_planning::",
         "selected_dispatch::",
@@ -163,7 +171,7 @@ fn constant_proof_closure_belongs_to_psi() {
         "native_production::",
     ] {
         assert!(
-            !proof.contains(forbidden),
+            !proof.contains(forbidden) && !applications.contains(forbidden),
             "Psi proof closure depends on {forbidden}"
         );
     }
@@ -195,6 +203,24 @@ fn package_review_retains_products_not_checked_compiler_state() {
     let review = include_str!("checked/package_review.rs");
     assert!(!review.contains("pub fn checked("));
     assert!(!review.contains("Deref"));
+}
+
+#[test]
+fn entry_storage_has_no_provisional_field_mode() {
+    for source in [
+        include_str!("../../products/src/compile_request/checked.rs"),
+        include_str!("../../products/src/package_build.rs"),
+        include_str!("checked/package_compilation.rs"),
+        include_str!("execution_settlement.rs"),
+        include_str!("../../realization/selected-dispatch/src/execution_settlement.rs"),
+        include_str!(
+            "../../../packages/package-manager/src/review/candidate/passes/occurrences.rs"
+        ),
+        include_str!("../../../packages/package-manager/src/review/candidate/review_cache.rs"),
+    ] {
+        assert!(!source.contains("unsettled_fused_service_fields"));
+        assert!(!source.contains("tolerated_unsettled_service_fields"));
+    }
 }
 
 #[test]

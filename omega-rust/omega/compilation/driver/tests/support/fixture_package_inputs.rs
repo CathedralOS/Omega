@@ -573,7 +573,6 @@ pub fn review_fixture(
             )]);
         };
         root.inputs = inputs.clone().with_semantic_role_discovery(true);
-        root.options.permit_unsettled_fused_service_fields = true;
         let build = omega_build::prepare_package(session.compiler(), discovery, &mut completed)
             .map_err(|error| error.failure.into_diagnostics())?;
         let preliminary = session

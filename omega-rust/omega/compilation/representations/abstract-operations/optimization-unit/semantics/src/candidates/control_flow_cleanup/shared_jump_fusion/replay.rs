@@ -90,11 +90,6 @@ pub(super) fn validate(
     let (expected_blocks, accepted_provenance) =
         reconstruct_shared_terminal_fusion_accounting(function, patch)
             .ok_or(OptimizationUnitValidationError::CandidateProvenanceMismatch)?;
-    if candidate.affected_blocks() != expected_blocks
-        || candidate.provenance() != accepted_provenance
-    {
-        return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
-    }
 
     let incoming_edge = predecessor_node
         .edge(patch.incoming_edge)

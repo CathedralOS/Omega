@@ -28,7 +28,6 @@
 
 use std::collections::BTreeMap;
 
-use numerics::bignum::BigInt;
 use semantic_vocabulary::{
     IntegerCarrier, IntegerMathTerm, IntegerType, IntegerValue, Proposition, ScalarTerm,
 };
@@ -37,8 +36,8 @@ use super::super::scheme_dsl::{self, apps, id, pi, pis, scheme_at, v};
 use super::denotation::math_less_or_equal_sides;
 use super::integer_operations::IntegerOperation;
 use super::{
-    BoundedDenotationError, Denotation, IntegerLaw, Term, TermHandle, affine_equality_for,
-    affine_witness_root_expression,
+    BoundedDenotationError, Denotation, IntegerLaw, Term, TermHandle,
+    affine_witness_root_expression, unbounded_integer,
 };
 
 #[cfg(test)]
@@ -254,11 +253,7 @@ impl Denotation {
                 )
                 .map(Some);
         }
-        let as_integer = |value: IntegerValue| match value {
-            IntegerValue::Signed(value) => BigInt::from_i128(value),
-            IntegerValue::Unsigned(value) => BigInt::from_u128(value),
-        };
-        if as_integer(lower) >= as_integer(upper) {
+        if unbounded_integer(lower) >= unbounded_integer(upper) {
             return Ok(None);
         }
         let strict = self.literal_order(lower, upper)?;
@@ -316,14 +311,11 @@ impl Denotation {
         divisor_term: TermHandle,
         quotient_term: TermHandle,
     ) -> Result<Option<TermHandle>, BoundedDenotationError> {
-        let as_integer = |value: IntegerValue| match value {
-            IntegerValue::Signed(value) => BigInt::from_i128(value),
-            IntegerValue::Unsigned(value) => BigInt::from_u128(value),
-        };
-        let Some((exact, _)) = as_integer(dividend).div_rem(&as_integer(divisor)) else {
+        let Some((exact, _)) = unbounded_integer(dividend).div_rem(&unbounded_integer(divisor))
+        else {
             return Ok(None);
         };
-        if exact != as_integer(quotient) {
+        if exact != unbounded_integer(quotient) {
             return Ok(None);
         }
         let key = (integer_type, dividend, divisor, quotient);
@@ -397,12 +389,8 @@ impl Denotation {
         };
         // Math literals canonicalize non-negative values to `Unsigned`,
         // so the endpoint comparison is numeric, not by variant.
-        let as_integer = |value: IntegerValue| match value {
-            IntegerValue::Signed(value) => BigInt::from_i128(value),
-            IntegerValue::Unsigned(value) => BigInt::from_u128(value),
-        };
-        if super::math_literal_value(*bound_literal).map(as_integer)
-            != Some(as_integer(endpoint_value))
+        if super::math_literal_value(*bound_literal).map(unbounded_integer)
+            != Some(unbounded_integer(endpoint_value))
         {
             return Ok(None);
         }
@@ -445,20 +433,10 @@ impl Denotation {
         if divide_type != scalar_type || divisor.as_ref() != right.as_ref() {
             return Ok(None);
         }
-        let endpoint_literal = ScalarTerm::integer(*scalar_type, endpoint_value)
-            .expect("carrier endpoint is representable");
-        let endpoint_equality = if endpoint.integer_value() == Some((*scalar_type, endpoint_value))
-        {
-            None
-        } else {
-            let Some((literal, proof, proposition)) = affine_equality_for(definitions, endpoint)
-            else {
-                return Ok(None);
-            };
-            if literal.integer_value() != Some((*scalar_type, endpoint_value)) {
-                return Ok(None);
-            }
-            Some((literal, proof, proposition))
+        let Some((endpoint_equality, endpoint_literal)) =
+            super::affine_carrier_endpoint_equality(*scalar_type, lower, endpoint, definitions)
+        else {
+            return Ok(None);
         };
         let left_term = self.fixed_scalar_term(left)?;
         let right_term = self.fixed_scalar_term(right)?;
@@ -534,8 +512,8 @@ impl Denotation {
         else {
             return Ok(None);
         };
-        let endpoint_side = if let Some((literal, equality, proposition)) = endpoint_equality {
-            let literal_term = self.fixed_scalar_term(literal)?;
+        let endpoint_side = if let Some((equality, proposition)) = endpoint_equality {
+            let literal_term = self.fixed_scalar_term(&endpoint_literal)?;
             let denoted = self.denote(proposition)?;
             let Some((_, from, to)) = self.identity_parts(denoted) else {
                 return Ok(None);
@@ -612,8 +590,8 @@ impl Denotation {
         };
         // A landed endpoint value substitutes to its literal on the
         // conclusion's bound endpoint; a literal endpoint already agrees.
-        if let Some((literal, equality, proposition)) = endpoint_equality {
-            let literal_term = self.fixed_scalar_term(literal)?;
+        if let Some((equality, proposition)) = endpoint_equality {
+            let literal_term = self.fixed_scalar_term(&endpoint_literal)?;
             let denoted = self.denote(proposition)?;
             let Some((_, from, to)) = self.identity_parts(denoted) else {
                 return Ok(None);
