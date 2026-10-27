@@ -115,6 +115,18 @@ pub(super) type PrefixObservation<'a, 'program> = (
 pub(super) trait StructuralPrefixVisitor {
     fn site(&self) -> StructuralPrefixSite;
 
+    /// One authenticated body arrival after its actuals completed. Coverage
+    /// consumers distinguish these occurrences from lexical ancestry and from
+    /// an unexecuted callable selection.
+    fn entered_body(
+        &mut self,
+        _caller: SymbolHandle,
+        _statement: usize,
+        _expression: Option<typed_trees::expression::ExpressionHandle>,
+        _entry: SymbolHandle,
+    ) {
+    }
+
     /// A ranked entry starts a fresh induction interval. Observers checking
     /// that interval stop at the next ranked invocation, before its body.
     fn stops_at_machine(&self, _machine: SymbolHandle) -> bool {

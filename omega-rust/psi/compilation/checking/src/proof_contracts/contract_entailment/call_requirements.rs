@@ -39,6 +39,7 @@ use typed_trees::statement::{TransitionGuardNode, TransitionTargetNode};
 
 mod inherited_predicates;
 use inherited_predicates::{InheritedPredicate, inherited_predicate};
+mod private_arrivals;
 
 /// Check one exact substituted requirement on every recognized path to a call.
 /// Unsupported paths and unknown judgments do not establish the requirement.
@@ -426,6 +427,11 @@ fn structural_requirement_at_prefix(
     }
     if recognized.is_some() && diagnostics.is_empty() && requirement.seen && requirement.proven {
         return true;
+    }
+    if let Some(proven) =
+        private_arrivals::prove(program, machine, &mut requirement, case_facts_only)
+    {
+        return proven;
     }
     // The callee prefix only has the formal. A borrowed match records the
     // selected referent, and a later projection reads that record. Every

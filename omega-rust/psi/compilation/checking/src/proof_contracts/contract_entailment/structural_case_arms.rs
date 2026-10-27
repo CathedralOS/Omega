@@ -1797,6 +1797,14 @@ fn recognize_structural_state_leaves_from<'a>(
                         frames
                     };
                     for (target_environment, captured) in target_frames {
+                        if let Some(observer) = requirement.as_deref_mut() {
+                            observer.entered_body(
+                                state.symbol,
+                                statement_index,
+                                call_expression,
+                                target_state.symbol,
+                            );
+                        }
                         leaves.extend(recognize_structural_state_leaves(
                             program,
                             machine,
