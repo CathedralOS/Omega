@@ -16,7 +16,7 @@ machine Main::main(context: &mut Main) reaches Console + TimeHost {
         false -> bad(context)
     }
 
-    state frequency(context: &mut Main) {
+    machine frequency(context: &mut Main) {
         let frequency: u64 = TimeHost::monotonic_ticks_per_second();
         transition frequency > 0 {
             true -> units(context)
@@ -24,7 +24,7 @@ machine Main::main(context: &mut Main) reaches Console + TimeHost {
         }
     }
 
-    state units(context: &mut Main) {
+    machine units(context: &mut Main) {
         let units: u64 = TimeHost::wall_clock_units_per_second();
         transition units == 10000000 {
             true -> epoch(context)
@@ -32,7 +32,7 @@ machine Main::main(context: &mut Main) reaches Console + TimeHost {
         }
     }
 
-    state epoch(context: &mut Main) {
+    machine epoch(context: &mut Main) {
         let offset: u64 = TimeHost::wall_clock_epoch_offset_seconds();
         transition offset == 11644473600 {
             true -> wall(context)
@@ -40,7 +40,7 @@ machine Main::main(context: &mut Main) reaches Console + TimeHost {
         }
     }
 
-    state wall(context: &mut Main) {
+    machine wall(context: &mut Main) {
         let raw: u64 = TimeHost::wall_clock_raw();
         let seconds: u64 = raw / 10000000;
         transition seconds > 13411699200 {
@@ -49,15 +49,15 @@ machine Main::main(context: &mut Main) reaches Console + TimeHost {
         }
     }
 
-    state upper(context: &mut Main, seconds: u64) {
+    machine upper(context: &mut Main, seconds: u64) {
         transition seconds < 14994473600 {
             true -> good(context)
             false -> bad(context)
         }
     }
 
-    state good(context: &mut Main) { Console::exit_process(70); }
-    state bad(context: &mut Main) { Console::exit_process(1); }
+    machine good(context: &mut Main) { Console::exit_process(70); }
+    machine bad(context: &mut Main) { Console::exit_process(1); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
