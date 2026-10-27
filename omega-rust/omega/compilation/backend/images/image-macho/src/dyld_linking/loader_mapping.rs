@@ -97,16 +97,21 @@ impl<'bytes> Segment<'bytes> {
     }
 }
 
-/// Validate the AArch64 image's closed segment roster and exact pre-fixup
-/// text/data/BSS mapping. Borrows final bytes and layout; returns no
-/// installation or execution authority. Dynamic bind/rebase destinations and
-/// provider admission remain separate checks.
-pub fn validate_macho_aarch64_loader_mapping(
+/// Validate the image's closed segment roster and exact pre-fixup
+/// text/data/BSS mapping for `target`'s Mach-O ABI.
+///
+/// Borrows final bytes and layout; returns no installation or execution
+/// authority. Dynamic bind/rebase destinations and provider admission remain
+/// separate checks. The ABI is derived from `target`, and the container's own
+/// header must agree with it - there is no entry point that takes a chosen ISA
+/// beside a target.
+pub fn validate_macho_loader_mapping(
     bytes: &[u8],
     layout: FinalImageLayout,
     final_text: &[u8],
     final_data: &[u8],
     bss_bytes: usize,
+    target: target::NativeTarget,
 ) -> Result<(), Diagnostic> {
     validate_macho_container_mapping(
         bytes,
@@ -114,27 +119,7 @@ pub fn validate_macho_aarch64_loader_mapping(
         final_text,
         final_data,
         bss_bytes,
-        MachoIsa::Aarch64,
-        None,
-    )
-}
-
-/// Validate the x86-64 image's closed segment roster and exact pre-fixup
-/// text/data/BSS mapping under the same contract as the AArch64 check.
-pub fn validate_macho_x86_64_loader_mapping(
-    bytes: &[u8],
-    layout: FinalImageLayout,
-    final_text: &[u8],
-    final_data: &[u8],
-    bss_bytes: usize,
-) -> Result<(), Diagnostic> {
-    validate_macho_container_mapping(
-        bytes,
-        layout,
-        final_text,
-        final_data,
-        bss_bytes,
-        MachoIsa::X86_64,
+        crate::isa::macho_isa_for(target)?,
         None,
     )
 }

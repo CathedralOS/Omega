@@ -5,9 +5,10 @@
 //! keeping its own original image/export custody; it grants no installation.
 //! The static process emitter and staged dynamic-process pipeline follow.
 //!
-//! `emit_elf_aarch64_executable` and `emit_elf_x86_64_executable` are the whole
-//! static lane, and they are deliberately small. The output has a 64-byte ELF
-//! header, exactly two program headers, and NO section headers at all:
+//! `emit_elf_executable` is the whole static lane, and it is deliberately
+//! small, refusing any image whose target is not a hosted ELF diagonal. The
+//! output has a 64-byte ELF header, exactly two program headers, and NO
+//! section headers at all:
 //!
 //! ```text
 //!   0x000000  ELF header (64) + 2 program headers (56 each) = 176 bytes
@@ -17,8 +18,8 @@
 //! ```
 //!
 //! The container is architecture-agnostic apart from `e_machine` (62 for
-//! x86-64, 183 for AArch64) and which relocation applier is passed in, which is
-//! why one private `emit_elf_executable` serves both.
+//! x86-64, 183 for AArch64), which is read off the image's own target the same
+//! way `apply_relocations` reads its instruction set.
 //!
 //! That lane FAILS CLOSED the moment it sees a referenced import: any surviving
 //! entry from `canonical_referenced_imports` is an immediate error before the
@@ -113,7 +114,7 @@ mod imports;
 mod static_executable;
 
 pub use dynamic_executable::{ElfDynamicExecutableEmissionError, emit_elf_dynamic_executable};
-pub use static_executable::{emit_elf_aarch64_executable, emit_elf_x86_64_executable};
+pub use static_executable::emit_elf_executable;
 
 pub use dynamic_executable::file_assembly::assembled_dynamic_file::ValidatedElfDynamicExecutable;
 

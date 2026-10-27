@@ -1,7 +1,8 @@
 //! Dyld import tests.
 
 use super::{
-    install_import_thunks, macho_bind_info, patch_import_thunks, validate_import_thunk_footprints,
+    install_import_thunks, macho_bind_info_for_segment, patch_import_thunks,
+    validate_import_thunk_footprints,
 };
 use crate::dyld_linking::load_commands::write_macho_load_dylib_command;
 use crate::isa::MachoIsa;
@@ -246,7 +247,9 @@ fn normalized_macho_locator_emits_exact_raw_load_and_bind_bytes() {
         &load_command[24..24 + install_name.len()],
         install_name.as_slice()
     );
-    let bind_info = macho_bind_info(&imports.thunks);
+    // PAGEZERO (0) and TEXT (1) precede DATA in an executable container.
+    let bind_info =
+        macho_bind_info_for_segment(&imports.thunks, 2).expect("executable DATA segment fits");
     let mut expected_prefix = vec![0x12, 0x40];
     expected_prefix.extend(&bind_symbol);
     expected_prefix.push(0);

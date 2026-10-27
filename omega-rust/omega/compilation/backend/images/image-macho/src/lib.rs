@@ -10,8 +10,8 @@
 //! every build, and lives in `image`'s relocation patcher. Distinct page
 //! sizes, adjacent in the same emitter, meaning different things.
 //!
-//! `emit_macho_aarch64_executable` / `emit_macho_x86_64_executable` run in an
-//! order most of which is forced:
+//! `emit_macho_executable` / `emit_macho_executable_signed` run in an order
+//! most of which is forced:
 //!
 //! ```text
 //!   install_import_thunks     preflights the dylib roster, THEN mutates .text
@@ -23,7 +23,7 @@
 //!   validate_import_thunk_footprints      thunk opcodes survived relocation
 //!   ... write header, load commands, segments, linkedit ...
 //!   macho_ad_hoc_code_signature_for_container   hashes the finished file, so LAST
-//!   validate_macho_aarch64_loader_mapping / loader_fixups
+//!   validate_macho_loader_mapping / loader_fixups
 //!       read-only checks of the actual container and exact loader writes
 //! ```
 //!
@@ -98,11 +98,9 @@ mod isa;
 #[cfg(test)]
 mod tests;
 
+pub use dyld_linking::imports::validate_macho_import_binding_pairing;
 use dyld_linking::imports::{
     install_import_thunks, patch_import_thunks, validate_import_thunk_footprints,
-};
-pub use dyld_linking::imports::{
-    validate_macho_aarch64_import_binding_pairing, validate_macho_x86_64_import_binding_pairing,
 };
 use dyld_linking::load_commands::{
     write_empty_macho_dysymtab_command, write_empty_macho_symtab_command,
@@ -114,12 +112,9 @@ use dyld_linking::load_commands::{
     write_macho_uuid_command,
 };
 pub use dyld_linking::loader_fixups::{
-    MachoImportPointer, MachoRebasePointer, validate_macho_aarch64_loader_fixups,
-    validate_macho_aarch64_object_fixups, validate_macho_x86_64_object_fixups,
+    MachoImportPointer, MachoRebasePointer, validate_macho_object_fixups,
 };
-pub use dyld_linking::loader_mapping::{
-    validate_macho_aarch64_loader_mapping, validate_macho_x86_64_loader_mapping,
-};
+pub use dyld_linking::loader_mapping::validate_macho_loader_mapping;
 use entry_symbol::macho_entry_text_offset;
 use isa::MachoIsa;
 
@@ -127,23 +122,13 @@ use isa::MachoIsa;
 /// label when the build authored no application identifier
 /// (wiki/spec/build/macos_application.md). The universal leaf is replaced when
 /// the validated application name reaches image emission; an authored
-/// identifier is bound through [`emit_macho_aarch64_executable_signed`]
-/// instead.
+/// identifier is bound through [`emit_macho_executable_signed`] instead.
 const OMEGA_EXECUTABLE_LEAF: &str = "omega-program";
 
 /// Emit with the console fallback: the executable leaf is the ad-hoc
 /// CodeDirectory label because no authored application identifier was bound.
-pub fn emit_macho_aarch64_executable(
-    image: FinalImage,
-) -> Result<ExecutableImageOutput, Diagnostic> {
-    emit_macho_aarch64_executable_signed(image, OMEGA_EXECUTABLE_LEAF)
-}
-
-/// Emit the x86-64 executable with the same fallback signing label.
-pub fn emit_macho_x86_64_executable(
-    image: FinalImage,
-) -> Result<ExecutableImageOutput, Diagnostic> {
-    emit_macho_x86_64_executable_signed(image, OMEGA_EXECUTABLE_LEAF)
+pub fn emit_macho_executable(image: FinalImage) -> Result<ExecutableImageOutput, Diagnostic> {
+    emit_macho_executable_signed(image, OMEGA_EXECUTABLE_LEAF)
 }
 
 /// Emit one signed executable binding `code_signature_identifier` as the
@@ -154,27 +139,11 @@ pub fn emit_macho_x86_64_executable(
 /// load command is written and is embedded verbatim in the CodeDirectory
 /// after the finished bytes are hashed. Publication cannot substitute or
 /// re-sign with a different identity.
-pub fn emit_macho_aarch64_executable_signed(
+pub fn emit_macho_executable_signed(
     image: FinalImage,
     code_signature_identifier: &str,
 ) -> Result<ExecutableImageOutput, Diagnostic> {
-    emit_macho_executable_signed(image, code_signature_identifier, MachoIsa::Aarch64)
-}
-
-/// Emit one signed x86-64 executable binding `code_signature_identifier` as
-/// the CodeDirectory identity, under the same contract as the AArch64 emit.
-pub fn emit_macho_x86_64_executable_signed(
-    image: FinalImage,
-    code_signature_identifier: &str,
-) -> Result<ExecutableImageOutput, Diagnostic> {
-    emit_macho_executable_signed(image, code_signature_identifier, MachoIsa::X86_64)
-}
-
-fn emit_macho_executable_signed(
-    image: FinalImage,
-    code_signature_identifier: &str,
-    isa: MachoIsa,
-) -> Result<ExecutableImageOutput, Diagnostic> {
+    let isa = isa::macho_isa_for(image.target)?;
     let MachoContainerContents {
         image,
         bytes,

@@ -356,7 +356,7 @@ mod tests {
             [3, 15]
         );
 
-        let diagnostic = crate::emit_elf_x86_64_executable(image)
+        let diagnostic = crate::emit_elf_executable(image)
             .expect_err("versioned emission must stop before selecting a dynamic loader");
         assert!(diagnostic.message.contains("PT_INTERP"));
         assert!(diagnostic.message.contains("0x6c6962726177ff2e736f2e36"));
