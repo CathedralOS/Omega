@@ -442,11 +442,7 @@ impl SelectedProviderPlanFacts {
 
         encoder.len(self.installation_reach_resolutions.len());
         for resolution in &self.installation_reach_resolutions {
-            encoder.string(
-                self.identities
-                    .text(resolution.requirement_identity)
-                    .unwrap_or_default(),
-            );
+            encoder.string(self.identity_text(resolution.requirement_identity));
             encoder.u64(resolution.provider_plan_report_identity);
             encoder.strings(&resolution.upper_bound);
             encoder.strings(&resolution.resolved_row);
@@ -454,41 +450,17 @@ impl SelectedProviderPlanFacts {
         encoder.len(self.specialized_requirement_rows.len());
         for row in &self.specialized_requirement_rows {
             encoder.u64(row.provider_plan_report_identity);
-            encoder.string(
-                self.identities
-                    .text(row.selected_requirement_identity)
-                    .unwrap_or_default(),
-            );
-            encoder.string(
-                self.identities
-                    .text(row.selected_machine_identity)
-                    .unwrap_or_default(),
-            );
-            encoder.string(
-                self.identities
-                    .text(row.requirement_identity)
-                    .unwrap_or_default(),
-            );
-            encoder.string(
-                self.identities
-                    .text(row.machine_identity)
-                    .unwrap_or_default(),
-            );
+            encoder.string(self.identity_text(row.selected_requirement_identity));
+            encoder.string(self.identity_text(row.selected_machine_identity));
+            encoder.string(self.identity_text(row.requirement_identity));
+            encoder.string(self.identity_text(row.machine_identity));
         }
         encoder.len(self.external_requirement_applications.len());
         for row in &self.external_requirement_applications {
             encoder.u64(row.provider_plan_report_identity);
             encoder.bytes(row.provider_plan_digest.as_bytes());
-            encoder.string(
-                self.identities
-                    .text(row.selected_requirement_identity)
-                    .unwrap_or_default(),
-            );
-            encoder.string(
-                self.identities
-                    .text(row.requirement_identity)
-                    .unwrap_or_default(),
-            );
+            encoder.string(self.identity_text(row.selected_requirement_identity));
+            encoder.string(self.identity_text(row.requirement_identity));
         }
         encoder.len(self.family_realization_rows.len());
         for row in &self.family_realization_rows {
@@ -497,17 +469,9 @@ impl SelectedProviderPlanFacts {
             encoder.string(&row.target);
             encoder.u64(row.head.get());
             encoder.u64(row.member.get());
-            encoder.string(self.identities.text(row.head_identity).unwrap_or_default());
-            encoder.string(
-                self.identities
-                    .text(row.member_identity)
-                    .unwrap_or_default(),
-            );
-            encoder.string(
-                self.identities
-                    .text(row.selected_requirement_identity)
-                    .unwrap_or_default(),
-            );
+            encoder.string(self.identity_text(row.head_identity));
+            encoder.string(self.identity_text(row.member_identity));
+            encoder.string(self.identity_text(row.selected_requirement_identity));
             encoder.u64(row.provider_plan_report_identity);
             encoder.bytes(row.provider_plan_digest.as_bytes());
         }
@@ -522,6 +486,13 @@ impl SelectedProviderPlanFacts {
     /// field resolves against.
     pub const fn identities(&self) -> &terminal_psi::TerminalIdentityTable {
         &self.identities
+    }
+
+    /// The rendered text one of this closure's retained interned coordinates
+    /// names; the zero coordinate renders as the empty field the encoders
+    /// wrote before interning.
+    pub fn identity_text(&self, identity: terminal_psi::TerminalIdentityIndex) -> &str {
+        identity_text(&self.identities, identity)
     }
 
     pub fn is_empty(&self) -> bool {
@@ -542,18 +513,15 @@ impl SelectedProviderPlanFacts {
     ) -> Result<Self, String> {
         let mut identities = self.identities.clone().into_builder();
         for resolution in &mut resolutions {
-            resolution.requirement_identity = identities.intern(
-                resolution_identities
-                    .text(resolution.requirement_identity)
-                    .unwrap_or_default(),
-            );
+            resolution.requirement_identity = identities.intern(identity_text(
+                resolution_identities,
+                resolution.requirement_identity,
+            ));
         }
         self.identities = identities.build();
         resolutions.sort_by_cached_key(|resolution| {
             (
-                self.identities
-                    .text(resolution.requirement_identity)
-                    .unwrap_or_default()
+                self.identity_text(resolution.requirement_identity)
                     .to_owned(),
                 resolution.provider_plan_report_identity,
             )
@@ -564,9 +532,7 @@ impl SelectedProviderPlanFacts {
             {
                 return Err(format!(
                     "installation reach requirement `{}` has more than one selected resolution under provider plan {:#018x}",
-                    self.identities
-                        .text(pair[0].requirement_identity)
-                        .unwrap_or_default(),
+                    self.identity_text(pair[0].requirement_identity),
                     pair[0].provider_plan_report_identity
                 ));
             }
@@ -588,9 +554,7 @@ impl SelectedProviderPlanFacts {
             {
                 return Err(format!(
                     "installation reach resolution for `{}` exceeds its published upper bound",
-                    self.identities
-                        .text(resolution.requirement_identity)
-                        .unwrap_or_default()
+                    self.identity_text(resolution.requirement_identity)
                 ));
             }
             let Some(plan) =
@@ -598,9 +562,7 @@ impl SelectedProviderPlanFacts {
             else {
                 return Err(format!(
                     "installation reach resolution for `{}` names unselected provider plan {:#018x}",
-                    self.identities
-                        .text(resolution.requirement_identity)
-                        .unwrap_or_default(),
+                    self.identity_text(resolution.requirement_identity),
                     resolution.provider_plan_report_identity
                 ));
             };
@@ -610,9 +572,7 @@ impl SelectedProviderPlanFacts {
             }) {
                 return Err(format!(
                     "installation reach resolution for `{}` is absent from selected provider plan `{}`",
-                    self.identities
-                        .text(resolution.requirement_identity)
-                        .unwrap_or_default(),
+                    self.identity_text(resolution.requirement_identity),
                     plan.name
                 ));
             }
@@ -650,58 +610,36 @@ impl SelectedProviderPlanFacts {
     ) -> Result<Self, String> {
         let mut identities = self.identities.clone().into_builder();
         for row in &mut rows {
-            row.selected_requirement_identity = identities.intern(
-                row_identities
-                    .text(row.selected_requirement_identity)
-                    .unwrap_or_default(),
-            );
-            row.selected_machine_identity = identities.intern(
-                row_identities
-                    .text(row.selected_machine_identity)
-                    .unwrap_or_default(),
-            );
-            row.requirement_identity = identities.intern(
-                row_identities
-                    .text(row.requirement_identity)
-                    .unwrap_or_default(),
-            );
-            row.machine_identity = identities.intern(
-                row_identities
-                    .text(row.machine_identity)
-                    .unwrap_or_default(),
-            );
+            row.selected_requirement_identity = identities.intern(identity_text(
+                row_identities,
+                row.selected_requirement_identity,
+            ));
+            row.selected_machine_identity =
+                identities.intern(identity_text(row_identities, row.selected_machine_identity));
+            row.requirement_identity =
+                identities.intern(identity_text(row_identities, row.requirement_identity));
+            row.machine_identity =
+                identities.intern(identity_text(row_identities, row.machine_identity));
         }
         self.identities = identities.build();
         rows.sort_by_cached_key(|row| {
             (
-                self.identities
-                    .text(row.requirement_identity)
-                    .unwrap_or_default()
-                    .to_owned(),
+                self.identity_text(row.requirement_identity).to_owned(),
                 row.provider_plan_report_identity,
-                self.identities
-                    .text(row.machine_identity)
-                    .unwrap_or_default()
-                    .to_owned(),
+                self.identity_text(row.machine_identity).to_owned(),
             )
         });
         for pair in rows.windows(2) {
             if pair[0].requirement_identity == pair[1].requirement_identity {
                 return Err(format!(
                     "closed requirement `{}` has more than one selected specialization row",
-                    self.identities
-                        .text(pair[0].requirement_identity)
-                        .unwrap_or_default()
+                    self.identity_text(pair[0].requirement_identity)
                 ));
             }
         }
         for row in &rows {
             if self
-                .external_requirement_application(
-                    self.identities
-                        .text(row.requirement_identity)
-                        .unwrap_or_default(),
-                )
+                .external_requirement_application(self.identity_text(row.requirement_identity))
                 .is_some()
             {
                 return Err("checked specialization shadows a closed external requirement".into());
@@ -717,9 +655,7 @@ impl SelectedProviderPlanFacts {
             else {
                 return Err(format!(
                     "selected requirement specialization for `{}` names unselected provider plan {:#018x}",
-                    self.identities
-                        .text(row.requirement_identity)
-                        .unwrap_or_default(),
+                    self.identity_text(row.requirement_identity),
                     row.provider_plan_report_identity
                 ));
             };
@@ -748,9 +684,7 @@ impl SelectedProviderPlanFacts {
             if !bound {
                 return Err(format!(
                     "selected requirement specialization for `{}` is absent from selected provider plan `{}`",
-                    self.identities
-                        .text(row.requirement_identity)
-                        .unwrap_or_default(),
+                    self.identity_text(row.requirement_identity),
                     plan.name
                 ));
             }
@@ -817,11 +751,7 @@ impl SelectedProviderPlanFacts {
                 provider_plan_report_identity,
                 row_requirement_identity,
             )
-            .map(|row| {
-                self.identities
-                    .text(row.requirement_identity)
-                    .unwrap_or_default()
-            })
+            .map(|row| self.identity_text(row.requirement_identity))
             .collect::<Vec<_>>();
         identities.extend(
             self.external_requirement_applications
@@ -840,10 +770,8 @@ impl SelectedProviderPlanFacts {
                 && Some(row.selected_requirement_identity) == row_index
             {
                 identities.extend([
-                    self.identities.text(row.head_identity).unwrap_or_default(),
-                    self.identities
-                        .text(row.member_identity)
-                        .unwrap_or_default(),
+                    self.identity_text(row.head_identity),
+                    self.identity_text(row.member_identity),
                 ]);
             }
         }
@@ -856,22 +784,14 @@ impl SelectedProviderPlanFacts {
     /// original call's contract. Family and specialization custody stay distinct.
     pub fn selected_requirement_identity<'a>(&'a self, requirement: &'a str) -> &'a str {
         if let Some(row) = self.family_realization_row(requirement) {
-            return self
-                .identities
-                .text(row.selected_requirement_identity)
-                .unwrap_or_default();
+            return self.identity_text(row.selected_requirement_identity);
         }
         if let Some(row) = self.external_requirement_application(requirement) {
-            return self
-                .identities
-                .text(row.selected_requirement_identity)
-                .unwrap_or_default();
+            return self.identity_text(row.selected_requirement_identity);
         }
         self.specialized_requirement_row(requirement)
             .map_or(requirement, |row| {
-                self.identities
-                    .text(row.selected_requirement_identity)
-                    .unwrap_or_default()
+                self.identity_text(row.selected_requirement_identity)
             })
     }
 
@@ -955,23 +875,16 @@ impl SelectedProviderPlanFacts {
     ) -> Result<Self, String> {
         let mut identities = self.identities.clone().into_builder();
         for row in &mut rows {
-            row.head_identity =
-                identities.intern(row_identities.text(row.head_identity).unwrap_or_default());
+            row.head_identity = identities.intern(identity_text(row_identities, row.head_identity));
             row.member_identity =
-                identities.intern(row_identities.text(row.member_identity).unwrap_or_default());
-            row.selected_requirement_identity = identities.intern(
-                row_identities
-                    .text(row.selected_requirement_identity)
-                    .unwrap_or_default(),
-            );
+                identities.intern(identity_text(row_identities, row.member_identity));
+            row.selected_requirement_identity = identities.intern(identity_text(
+                row_identities,
+                row.selected_requirement_identity,
+            ));
         }
         self.identities = identities.build();
-        rows.sort_by_cached_key(|row| {
-            self.identities
-                .text(row.head_identity)
-                .unwrap_or_default()
-                .to_owned()
-        });
+        rows.sort_by_cached_key(|row| self.identity_text(row.head_identity).to_owned());
         self.validate_family_realization_rows(&rows)?;
         self.family_realization_rows = rows;
         self.report_fingerprint = selected_closure_report_fingerprint(
@@ -1010,18 +923,8 @@ impl SelectedProviderPlanFacts {
                 || row.head_identity.is_absent()
                 || row.member_identity.is_absent()
                 || row.selected_requirement_identity.is_absent()
-                || !identities.insert(
-                    self.identities
-                        .text(row.head_identity)
-                        .unwrap_or_default()
-                        .to_owned(),
-                )
-                || !identities.insert(
-                    self.identities
-                        .text(row.member_identity)
-                        .unwrap_or_default()
-                        .to_owned(),
-                )
+                || !identities.insert(self.identity_text(row.head_identity).to_owned())
+                || !identities.insert(self.identity_text(row.member_identity).to_owned())
                 || !boundaries.insert(row.head)
                 || !boundaries.insert(row.member)
             {
@@ -1267,6 +1170,17 @@ pub struct SelectedTargetFamilyRealization {
     pub provider_plan_digest: crate::provider_plan::ProviderPlanDigest,
 }
 
+/// The rendered text `index` names in `identities`; the zero coordinate
+/// renders as the empty field the encoders wrote before interning. Every
+/// identity fold, sort key and diagnostic in this module resolves text here,
+/// so the projection is stated once rather than re-derived per site.
+pub(crate) fn identity_text(
+    identities: &terminal_psi::TerminalIdentityTable,
+    index: terminal_psi::TerminalIdentityIndex,
+) -> &str {
+    identities.text(index).unwrap_or_default()
+}
+
 fn selected_plans_report_fingerprint(plans: &[ProviderPlan]) -> u64 {
     let mut hash = crate::fnv1a::Fnv1a::new();
     hash.u64(plans.len() as u64);
@@ -1286,12 +1200,7 @@ fn selected_closure_report_fingerprint(
 ) -> u64 {
     let mut hash = crate::fnv1a::Fnv1a::resume(selected_plans_report_fingerprint(plans));
     for resolution in resolutions {
-        hash.bytes(
-            identities
-                .text(resolution.requirement_identity)
-                .unwrap_or_default()
-                .as_bytes(),
-        );
+        hash.bytes(identity_text(identities, resolution.requirement_identity).as_bytes());
         hash.u64(resolution.provider_plan_report_identity);
         hash.u64(resolution.upper_bound.len() as u64);
         for service in &resolution.upper_bound {
@@ -1305,31 +1214,19 @@ fn selected_closure_report_fingerprint(
     for row in specialization_rows {
         hash.u64(row.provider_plan_report_identity);
         hash.bytes_terminated(
-            identities
-                .text(row.selected_requirement_identity)
-                .unwrap_or_default()
-                .as_bytes(),
+            identity_text(identities, row.selected_requirement_identity).as_bytes(),
             0,
         );
         hash.bytes_terminated(
-            identities
-                .text(row.selected_machine_identity)
-                .unwrap_or_default()
-                .as_bytes(),
+            identity_text(identities, row.selected_machine_identity).as_bytes(),
             0,
         );
         hash.bytes_terminated(
-            identities
-                .text(row.requirement_identity)
-                .unwrap_or_default()
-                .as_bytes(),
+            identity_text(identities, row.requirement_identity).as_bytes(),
             0,
         );
         hash.bytes_terminated(
-            identities
-                .text(row.machine_identity)
-                .unwrap_or_default()
-                .as_bytes(),
+            identity_text(identities, row.machine_identity).as_bytes(),
             0,
         );
     }
@@ -1337,17 +1234,11 @@ fn selected_closure_report_fingerprint(
         hash.u64(row.provider_plan_report_identity);
         hash.bytes(row.provider_plan_digest.as_bytes());
         hash.bytes_terminated(
-            identities
-                .text(row.selected_requirement_identity)
-                .unwrap_or_default()
-                .as_bytes(),
+            identity_text(identities, row.selected_requirement_identity).as_bytes(),
             0,
         );
         hash.bytes_terminated(
-            identities
-                .text(row.requirement_identity)
-                .unwrap_or_default()
-                .as_bytes(),
+            identity_text(identities, row.requirement_identity).as_bytes(),
             0,
         );
     }
@@ -1357,25 +1248,10 @@ fn selected_closure_report_fingerprint(
         hash.bytes_terminated(row.target.as_bytes(), 0);
         hash.u64(row.head.get());
         hash.u64(row.member.get());
+        hash.bytes_terminated(identity_text(identities, row.head_identity).as_bytes(), 0);
+        hash.bytes_terminated(identity_text(identities, row.member_identity).as_bytes(), 0);
         hash.bytes_terminated(
-            identities
-                .text(row.head_identity)
-                .unwrap_or_default()
-                .as_bytes(),
-            0,
-        );
-        hash.bytes_terminated(
-            identities
-                .text(row.member_identity)
-                .unwrap_or_default()
-                .as_bytes(),
-            0,
-        );
-        hash.bytes_terminated(
-            identities
-                .text(row.selected_requirement_identity)
-                .unwrap_or_default()
-                .as_bytes(),
+            identity_text(identities, row.selected_requirement_identity).as_bytes(),
             0,
         );
         hash.u64(row.provider_plan_report_identity);
