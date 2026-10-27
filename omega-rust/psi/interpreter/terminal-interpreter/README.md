@@ -48,6 +48,18 @@ effects — and `close` releases the instance's runtime state once the activatio
 settles. `TerminalImportAdapter` is the contract a host object declares;
 `TerminalScalarImport` and `TerminalUnitImport` wrap the common leaf signatures.
 
+`TerminalProgram::defer_component` reserves an exact component route in the
+pre-entry supply plan. It supplies neither executable code nor a host adapter;
+a premature call fails. `bind_component` can complete that reservation while
+the original receiver is parked at a checked host-readiness crossing, using the
+same sealed import/export admission and fully prepared component closure as
+pre-entry installation. Fuel pauses and failed activations cannot authorize the
+change; an established slot cannot be rebound. The source-produced
+`terminal_effect_readiness` test covers retained and loaded code, actual guest
+provider execution, no prefix replay and premature-call/adapter/rebinding
+refusals. Build dependency acquisition and exact backing preparation are still
+application-coordinator work, not interpreter responsibilities.
+
 After normal return, `TerminalInstance::observe_borrowed_entry` reads a semantic
 leaf of an original host-lent structural argument by dense argument index and
 canonical declaration path. The original home survives retired helper/entry
