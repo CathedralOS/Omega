@@ -8,12 +8,12 @@ use super::callable_regions::CallableRegions;
 use super::carried_lifetimes::{CarriedLifetime, RegionIdentity};
 use super::region_inference::InputRegionApplication;
 use crate::type_regions::{
-    TypeRegionRelationship, TypeRegionScope, type_reference_region_applications,
+    ReferenceStep, TypeRegionRelationship, TypeRegionScope, type_reference_region_applications,
     type_reference_regions_match,
 };
 use symbols::SymbolHandle;
 use typed_trees::name::Identifier;
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::TypeReferenceHandle;
 
 #[derive(Clone, Copy)]
 enum RegionEnvironment<'scope> {
@@ -70,82 +70,60 @@ impl TypeRegionScope for RegionScope<'_> {
         )
     }
 
-    fn resolve(
+    fn enter_operand(
         mut self,
         program: &dyn crate::CheckingInput,
-        mut reference: TypeReferenceHandle,
-    ) -> Option<(TypeReferenceHandle, Self)> {
-        let mut visited = Vec::new();
-        loop {
-            if !reference.is_valid() {
-                return Some((reference, self));
-            }
-            if visited.contains(&reference)
-                || !program
-                    .type_reference_table
-                    .contains_type_reference(reference)
-            {
-                return None;
-            }
-            visited.push(reference);
-            let owner = program
-                .type_reference_table
-                .operand_lifetime_owner(reference);
-            if owner.is_valid() {
-                self.regions = RegionEnvironment::Captured(owner);
-                self.output_elisions = &[];
-                if program.lifetime_declaration_owner(owner)
-                    != program.lifetime_declaration_owner(self.declaration)
-                {
-                    self.substitutions = &[];
-                    self.starts = &[];
-                    self.applications = &[];
-                }
-            }
-            let TypeReferenceNode::Named { symbol, .. } =
-                program.type_reference_table.type_reference(reference)
-            else {
-                return Some((reference, self));
-            };
-            if let Some((binding_ordinal, (_, operand))) = self
-                .substitutions
-                .iter()
-                .enumerate()
-                .rev()
-                .find(|(_, (parameter, _))| parameter == symbol)
-            {
-                if *operand == reference {
-                    return Some((reference, self));
-                }
-                reference = *operand;
-                let (scope_ordinal, start) = self
-                    .starts
-                    .iter()
-                    .enumerate()
-                    .rev()
-                    .find(|(_, start)| **start <= binding_ordinal)?;
-                self.regions = scope_ordinal
-                    .checked_sub(1)
-                    .and_then(|ordinal| self.applications.get(ordinal))
-                    .map_or(self.arguments, |regions| {
-                        RegionEnvironment::Resolved(regions)
-                    });
-                self.substitutions = &self.substitutions[..*start];
-                self.starts = &self.starts[..scope_ordinal];
-                self.applications =
-                    &self.applications[..self.applications.len().min(scope_ordinal)];
-                self.output_elisions = &[];
-                continue;
-            }
-            if let Some(application) = program
-                .data_definition_by_symbol(*symbol)
-                .and_then(|definition| definition.generic_instance)
-            {
-                reference = application;
-                continue;
-            }
-            return Some((reference, self));
+        owner: symbols::SymbolHandle,
+    ) -> Self {
+        self.regions = RegionEnvironment::Captured(owner);
+        self.output_elisions = &[];
+        if program.lifetime_declaration_owner(owner)
+            != program.lifetime_declaration_owner(self.declaration)
+        {
+            self.substitutions = &[];
+            self.starts = &[];
+            self.applications = &[];
         }
+        self
+    }
+
+    fn named_alias(
+        mut self,
+        _program: &dyn crate::CheckingInput,
+        symbol: symbols::SymbolHandle,
+        reference: TypeReferenceHandle,
+    ) -> Option<ReferenceStep<Self>> {
+        let substitutions = self.substitutions;
+        let starts = self.starts;
+        let applications = self.applications;
+        let (binding_ordinal, operand) = substitutions
+            .iter()
+            .enumerate()
+            .rev()
+            .find(|(_, (parameter, _))| *parameter == symbol)
+            .map(|(ordinal, (_, operand))| (ordinal, *operand))?;
+        if operand == reference {
+            return Some(ReferenceStep::Stop);
+        }
+        let Some((scope_ordinal, start)) = starts
+            .iter()
+            .enumerate()
+            .rev()
+            .find(|(_, start)| **start <= binding_ordinal)
+        else {
+            return Some(ReferenceStep::Refuse);
+        };
+        self.regions = scope_ordinal
+            .checked_sub(1)
+            .and_then(|ordinal| applications.get(ordinal))
+            .map_or(self.arguments, |regions| {
+                RegionEnvironment::Resolved(regions)
+            });
+        self.substitutions = &substitutions[..*start];
+        self.starts = &starts[..scope_ordinal];
+        self.applications = &applications[..applications.len().min(scope_ordinal)];
+        self.output_elisions = &[];
+        Some(ReferenceStep::Chase(self, operand))
     }
 }
 
