@@ -13,6 +13,7 @@ pub mod codec_bytes;
 pub mod cursor;
 pub mod digest_encoder;
 mod optimization_core;
+pub mod record_views;
 pub mod tagged_vocabulary;
 pub mod variant_accessors;
 

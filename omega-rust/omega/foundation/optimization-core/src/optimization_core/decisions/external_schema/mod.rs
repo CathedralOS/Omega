@@ -97,8 +97,9 @@ pub struct ExternalDecisionContext {
     cost_model: TargetCostModelIdentity,
 }
 
-impl ExternalDecisionContext {
-    pub const fn new(
+crate::record_views! {
+    record ExternalDecisionContext; new;
+    copied {
         schema: OptimizationDecisionSchemaIdentity,
         source: OptimizationUnitIdentity,
         selections: OptimizationSelectionIdentity,
@@ -106,44 +107,6 @@ impl ExternalDecisionContext {
         target: OptimizationDecisionTargetIdentity,
         rule_set: OptimizationRuleSetIdentity,
         cost_model: TargetCostModelIdentity,
-    ) -> Self {
-        Self {
-            schema,
-            source,
-            selections,
-            phase_selections,
-            target,
-            rule_set,
-            cost_model,
-        }
-    }
-
-    pub const fn schema(self) -> OptimizationDecisionSchemaIdentity {
-        self.schema
-    }
-
-    pub const fn source(self) -> OptimizationUnitIdentity {
-        self.source
-    }
-
-    pub const fn selections(self) -> OptimizationSelectionIdentity {
-        self.selections
-    }
-
-    pub const fn phase_selections(self) -> OptimizationSelectionIdentity {
-        self.phase_selections
-    }
-
-    pub const fn target(self) -> OptimizationDecisionTargetIdentity {
-        self.target
-    }
-
-    pub const fn rule_set(self) -> OptimizationRuleSetIdentity {
-        self.rule_set
-    }
-
-    pub const fn cost_model(self) -> TargetCostModelIdentity {
-        self.cost_model
     }
 }
 
@@ -157,6 +120,17 @@ pub struct ExternalCandidateFeatures {
     summary: ValidatedCandidateSummary,
     consumed_analyses: AnalysisSet,
     consumed_facts: Vec<OptimizationFactReference>,
+}
+
+crate::record_views! {
+    record ExternalCandidateFeatures;
+    shared {
+        summary: ValidatedCandidateSummary,
+        consumed_analyses: AnalysisSet,
+    }
+    slice {
+        consumed_facts: OptimizationFactReference,
+    }
 }
 
 impl ExternalCandidateFeatures {
@@ -177,24 +151,12 @@ impl ExternalCandidateFeatures {
         })
     }
 
-    pub const fn summary(&self) -> ValidatedCandidateSummary {
-        self.summary
-    }
-
     pub const fn candidate(&self) -> OptimizationCandidateIdentity {
         self.summary.candidate
     }
 
     pub const fn predicted_cost_delta(&self) -> i64 {
         self.summary.predicted_cost_delta
-    }
-
-    pub const fn consumed_analyses(&self) -> AnalysisSet {
-        self.consumed_analyses
-    }
-
-    pub fn consumed_facts(&self) -> &[OptimizationFactReference] {
-        &self.consumed_facts
     }
 }
 
@@ -207,27 +169,20 @@ pub struct ExternalDecisionPoint {
     action: ExternalDecisionAction,
 }
 
-impl ExternalDecisionPoint {
-    pub const fn identity(&self) -> OptimizationDecisionIdentity {
-        self.identity
+crate::record_views! {
+    record ExternalDecisionPoint;
+    shared {
+        identity: OptimizationDecisionIdentity,
+        input: OptimizationUnitIdentity,
+        rule: OptimizationRuleIdentity,
+        action: ExternalDecisionAction,
     }
-
-    pub const fn input(&self) -> OptimizationUnitIdentity {
-        self.input
-    }
-
-    pub const fn rule(&self) -> OptimizationRuleIdentity {
-        self.rule
-    }
-
-    pub fn legal_candidates(&self) -> &[ExternalCandidateFeatures] {
-        &self.legal_candidates
-    }
-
-    pub const fn action(&self) -> ExternalDecisionAction {
-        self.action
+    slice {
+        legal_candidates: ExternalCandidateFeatures,
     }
 }
+
+impl ExternalDecisionPoint {}
 
 /// One member of a decision point's finite action set. Every point admits
 /// `Choose` for each listed candidate plus the explicit model-free skip.
@@ -253,19 +208,18 @@ pub struct ExternalDecisionLog {
     points: Vec<ExternalDecisionPoint>,
 }
 
-impl ExternalDecisionLog {
-    pub const fn identity(&self) -> OptimizationDecisionLogIdentity {
-        self.identity
+crate::record_views! {
+    record ExternalDecisionLog;
+    shared {
+        identity: OptimizationDecisionLogIdentity,
+        context: ExternalDecisionContext,
     }
-
-    pub const fn context(&self) -> ExternalDecisionContext {
-        self.context
-    }
-
-    pub fn points(&self) -> &[ExternalDecisionPoint] {
-        &self.points
+    slice {
+        points: ExternalDecisionPoint,
     }
 }
+
+impl ExternalDecisionLog {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExternalDecisionSchemaError {

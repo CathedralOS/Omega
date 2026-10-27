@@ -19,6 +19,17 @@ pub struct OptimizationWorkBudget {
     pub(crate) iterations: u64,
 }
 
+crate::record_views! {
+    record OptimizationWorkBudget;
+    copied {
+        rule_evaluations: u64,
+        candidates: u64,
+        validation_steps: u64,
+        commits: u64,
+        iterations: u64,
+    }
+}
+
 impl OptimizationWorkBudget {
     pub fn new(
         rule_evaluations: u64,
@@ -76,26 +87,6 @@ impl OptimizationWorkBudget {
             self.commits,
             self.iterations,
         ])
-    }
-
-    pub const fn rule_evaluations(self) -> u64 {
-        self.rule_evaluations
-    }
-
-    pub const fn candidates(self) -> u64 {
-        self.candidates
-    }
-
-    pub const fn validation_steps(self) -> u64 {
-        self.validation_steps
-    }
-
-    pub const fn commits(self) -> u64 {
-        self.commits
-    }
-
-    pub const fn iterations(self) -> u64 {
-        self.iterations
     }
 
     pub fn decode(encoded: &[u8]) -> Result<Self, CoreContractDecodeError> {

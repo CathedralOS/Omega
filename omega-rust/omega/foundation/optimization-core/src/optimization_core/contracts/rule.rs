@@ -18,6 +18,18 @@ pub struct OptimizationRuleContract {
     safety_class: OptimizationSafetyClass,
 }
 
+crate::record_views! {
+    record OptimizationRuleContract;
+    copied {
+        identity: OptimizationRuleIdentity,
+        pass: OptimizationPassIdentity,
+        version: u32,
+        required_analyses: AnalysisSet,
+        invalidated_analyses: AnalysisInvalidationSet,
+        safety_class: OptimizationSafetyClass,
+    }
+}
+
 impl OptimizationRuleContract {
     pub fn new(
         identity: OptimizationRuleIdentity,
@@ -51,30 +63,6 @@ impl OptimizationRuleContract {
         encoded.extend_from_slice(&self.invalidated_analyses.encode());
         encoded.extend_from_slice(&self.safety_class.encode());
         encoded
-    }
-
-    pub const fn identity(self) -> OptimizationRuleIdentity {
-        self.identity
-    }
-
-    pub const fn pass(self) -> OptimizationPassIdentity {
-        self.pass
-    }
-
-    pub const fn version(self) -> u32 {
-        self.version
-    }
-
-    pub const fn required_analyses(self) -> AnalysisSet {
-        self.required_analyses
-    }
-
-    pub const fn invalidated_analyses(self) -> AnalysisInvalidationSet {
-        self.invalidated_analyses
-    }
-
-    pub const fn safety_class(self) -> OptimizationSafetyClass {
-        self.safety_class
     }
 
     pub fn decode(encoded: &[u8]) -> Result<Self, CoreContractDecodeError> {
