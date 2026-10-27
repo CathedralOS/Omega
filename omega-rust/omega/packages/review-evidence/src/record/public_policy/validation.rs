@@ -92,12 +92,24 @@ fn root(identity: &PackageReviewNominalIdentity, package: PackageKeyIdentity) ->
 /// The shared strict canonical-order predicate: every policy family that
 /// keeps a sorted set consumes this one statement of the rule instead of
 /// restating it, and the recovery readers agree with the policy writer on it.
-pub(in crate::record) fn ordered<T: Ord>(values: &[T]) -> Result {
-    if values.windows(2).any(|pair| pair[0] >= pair[1]) {
+/// A set whose canonical key is a projection of the row supplies that key's
+/// comparison instead of deriving a sortable shadow type.
+pub(in crate::record) fn ordered_by<T>(
+    values: &[T],
+    compare: impl Fn(&T, &T) -> std::cmp::Ordering,
+) -> Result {
+    if values
+        .windows(2)
+        .any(|pair| compare(&pair[0], &pair[1]).is_ge())
+    {
         Err("policy set repeats or changes canonical order")
     } else {
         Ok(())
     }
+}
+
+pub(in crate::record) fn ordered<T: Ord>(values: &[T]) -> Result {
+    ordered_by(values, T::cmp)
 }
 
 pub(in crate::record) fn scope(

@@ -13,6 +13,7 @@ use crate::record::PackageReviewProgressSubject;
 use crate::record::PackageReviewSynchronousInvocation;
 use crate::record::package::callable_policy::validation::nominal_set;
 use crate::record::package::callable_policy::validation::ordered;
+use crate::record::package::callable_policy::validation::ordered_by;
 use crate::record::package::callable_policy::validation::signature;
 use crate::record::package::callable_policy::validation::structural;
 
@@ -74,12 +75,7 @@ pub(super) fn validate(callable: &PackagePolicyCallable) -> Result<(), &'static 
         &callable.capability_flows,
         &callable.reachable_capability_flows,
     ] {
-        if flows
-            .windows(2)
-            .any(|pair| !pair[0].compare_canonical(&pair[1]).is_lt())
-        {
-            return Err("callable capability facts are repeated or out of order");
-        }
+        ordered_by(flows, |a, b| a.compare_canonical(b))?;
         for flow in flows {
             flow.capability.validate_resolved()?;
         }
@@ -122,13 +118,7 @@ pub(super) fn validate(callable: &PackagePolicyCallable) -> Result<(), &'static 
             return Err("inferred callable crash summary has no checked body-only owner");
         }
     }
-    if crash
-        .published
-        .windows(2)
-        .any(|pair| pair[0].cause >= pair[1].cause)
-    {
-        return Err("callable crash causes are repeated or out of order");
-    }
+    ordered_by(&crash.published, |a, b| a.cause.cmp(&b.cause))?;
     for route in &crash.published {
         ordered(&route.alternative_guards)?;
         if route.alternative_guards.is_empty()
