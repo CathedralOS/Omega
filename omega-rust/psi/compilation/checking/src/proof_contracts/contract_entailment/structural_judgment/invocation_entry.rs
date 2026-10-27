@@ -83,4 +83,24 @@ impl<'program> StructuralJudge<'program> {
             .collect();
         Some((incoming, self))
     }
+
+    /// Restore the caller's source question without discarding the completed
+    /// path's detached predicates and value identities. Storage returns through
+    /// exact entry origins after applying the call's complete write summary.
+    pub(in crate::proof_contracts::contract_entailment) fn complete_invocation(
+        mut self,
+        caller: &Self,
+        state: &State,
+        subjects: &[InvocationEntrySubject],
+        writes: &facts::NormalizedWriteFrame,
+    ) -> Option<Self> {
+        if !self.requires_value_preservation() {
+            return Some(self);
+        }
+        self.leave_storage_scope(caller, state, subjects, writes)?;
+        self.declaration_state = caller.declaration_state;
+        self.body_type_parameters = caller.body_type_parameters;
+        self.normal_results = std::sync::Arc::clone(&caller.normal_results);
+        Some(self)
+    }
 }

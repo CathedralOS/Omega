@@ -1837,6 +1837,17 @@ fn recognize_structural_state_leaves_from<'a>(
                     .unwrap_or_default();
                     for frame in target_frames {
                         let arguments = frame.observed_arguments()?;
+                        let caller = frame.judge.clone();
+                        let writes = if caller.requires_value_preservation() {
+                            let frames = caller.frame_resolver()?;
+                            Some(if let Some(expression) = call_expression {
+                                frames.operation_write_frame(invocation, expression)
+                            } else {
+                                frames.statement_value_write_frame(invocation, statement)
+                            })
+                        } else {
+                            None
+                        };
                         let (target_environment, captured) = frame.judge.bind_invocation(
                             target_state,
                             &arguments,
@@ -1852,7 +1863,7 @@ fn recognize_structural_state_leaves_from<'a>(
                                 target_state.symbol,
                             );
                         }
-                        leaves.extend(recognize_structural_state_leaves(
+                        let mut completed = recognize_structural_state_leaves(
                             program,
                             machine,
                             &captured,
@@ -1870,7 +1881,16 @@ fn recognize_structural_state_leaves_from<'a>(
                             fresh,
                             requirement,
                             established_guarantees.clone(),
-                        )?);
+                        )?;
+                        if let Some(writes) = &writes {
+                            for arm in &mut completed {
+                                arm.normal_judge = arm
+                                    .normal_judge
+                                    .clone()
+                                    .complete_invocation(&caller, state, &subjects, writes)?;
+                            }
+                        }
+                        leaves.extend(completed);
                     }
                 } else {
                     let TransitionTargetNode::Value(value) = target else {
