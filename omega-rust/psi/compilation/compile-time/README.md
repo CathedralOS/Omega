@@ -87,7 +87,7 @@ their complete contexts.
 checks exact index consumers, selective execution and lexical rejection.
 
 The public ownership-taking pre-resolution and pre-check conveyors keep these
-Psi phases separate. Omega interposes target machine selection and schedules
+Psi phases separate. Omega settles the target-keyed Build provider rows and schedules
 provider-dependent evaluation after the actual provider plans are selected.
 Target decisions must not become Psi language elaboration.
 

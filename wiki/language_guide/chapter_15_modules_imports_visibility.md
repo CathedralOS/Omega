@@ -108,8 +108,9 @@ Build activation, not optional in the final result.
 
 The build evaluator's execution profile and the product target are distinct.
 A macOS helper generating Windows code is checked for the build execution profile,
-and it emits target-tagged declarations rather than reading a target: the Build
-observes no target. Build-only source acquisition is reusable,
+and emits ordinary named implementations rather than target-prefixed declarations.
+One Build evaluation records explicit target-keyed provider rows without observing
+a selected realization target. Build-only source acquisition is reusable,
 but host-generated configuration is not target evidence. The
 [scoped execution contract](../spec/build/scoped_execution.md) fixes these rules;
 [implementation tasks](../../TASKS.md#scoped-build-execution) track availability.

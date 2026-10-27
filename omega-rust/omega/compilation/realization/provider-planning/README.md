@@ -42,7 +42,7 @@ The compiler forwards that adapter to Psi's build-time evaluator, which owns
 execution admissibility, operands and replay; it does not reconstruct provider
 authority.
 
-[Target declarations](src/target_machines.rs) retain every target's default
+[Legacy target declarations](src/target_machines.rs) retain every target's default
 declaration effects and project them onto one realization for settlement.
 After Psi checks all bodies, execution reach resolves a portable family head
 to its exact selected member before following that member's calls. A concrete
@@ -50,11 +50,16 @@ member reference retains its authored target fence; it never redirects into a
 sibling. Missing members name the authored caller and callee. This selection
 does not prune the portable catalog or grant provider authority.
 Build evaluation and the compiler do not implement these selection rules.
+This family-head/member path is retired architecture, not a second supported
+selection API. `BUILD-OWNED-TARGET-SELECTION` in
+[the task board](../../../../../TASKS.md#pipeline-route) removes it in favor of
+ordinary named implementations selected solely by target-keyed Build provider
+rows; exact requirement contracts and native applicability checks remain.
 [Provider declarations](src/provider_declarations.rs) decode static defaults
 and executed Build choices into the same exact selection identities. Package
 review uses its declaration replay without executing Build again.
 
-The public std canary is:
+The existing migration canary is:
 
 ```text
 omega run --both tests/omega/pass/targets/target_machine_gating_exit/main.omg

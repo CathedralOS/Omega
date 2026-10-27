@@ -882,7 +882,7 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
 Follow one connected stage chain under the
 [pipeline](omega-rust/pipeline.md#one-driver-one-pass-per-target-realization)
 and [multi-target contract](wiki/spec/build/configuration.md#multi-target-compilation):
-Psi checks every target's bodies once, Build evaluates once, and `--target`
+Psi checks every supplied implementation once, Build evaluates once, and `--target`
 narrows realization only.
 
 - **PIPELINE-ARCHITECTURE-ENFORCEMENT.** (new-scope; also covers
@@ -925,27 +925,40 @@ narrows realization only.
   `captured_source_generated_constant` stay green); workspace architecture and
   stack-size guards pass.
 
-- **PSI-TARGET-FAMILIES.** (new-scope) Target-scoped machine declarations
-  survive every Psi stage as one family with bodies keyed by target, including
-  unrealized and unreachable bodies, under
+- **BUILD-OWNED-TARGET-SELECTION.** Retire target-prefixed machine declarations
+  and implicit same-path target-body families in favor of ordinary named
+  implementations selected by explicit target-keyed Build provider rows under
   [multi-target compilation](wiki/spec/build/configuration.md#multi-target-compilation)
-  end to end (`omega run --both`).
-  Owners: `omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols/target_siblings.rs`,
-  Psi stages `03–07`, and Omega stage `00` target-family installation.
-  - Retain all target member bodies and opaque contracts in Terminal family
-    rows, join selected plans and entry/callback backing from the source-free
-    Build companion, and exercise portable consumer calls (including filesystem
-    `read_dir_count`, `read_dir_nth`, `remove_dir_all`, `open_with`, and `lock`
-    once supplied by **FILESYSTEM-PLATFORM-SERVICES**).
-  - Preserve explicit/universal lifetimes, captured operands, open const scopes,
-    evidence telescopes, and per-member callback requirement/guarantee
-    conjunctions across all family members.
-  Acceptance: `fail/targets/sibling_body_type_error_rejected`,
-  `pass/targets/target_machine_gating_exit` (70), and the `pass/targets/*`
-  family/callback/provider controls pass in both engines; distinct tagged
-  native realizations execute from one unchanged Terminal artifact and Build
-  companion, while invalid unrealized bodies and duplicate family members
-  reject and a missing called body fails only the affected target realization.
+  and [provider selection](wiki/spec/build/provider_selection.md#build-owned-target-selection).
+  Owners: Psi stages `01–07`, `source/psi/`, Build evaluation, Terminal Psi
+  representations and codecs, and Omega provider settlement and execution.
+  - Reject target/OS-prefixed machine declarations, including bodyless and
+    boundary forms; remove source target modifiers, sibling grouping,
+    synthesized portable family heads, alternate-body contract joins, and
+    target-family codec, dispatch, and installation paths rather than retaining
+    a compatibility mode or replacing the prefix with another source selector.
+    Migrate layout-policy applications that currently name family callables to
+    ordinary implementation identities and Build rows, retaining target-dependent
+    geometry and changing format identity instead of reinterpreting legacy bytes.
+  - Migrate the bundled library, product compiler, samples, and corpus fixtures
+    together to ordinary named implementations and explicit requirements with
+    target-keyed Build rows. Carry `samples/cli/audio/audio_playback` and its
+    sine, square, and melody consumers through unchanged playback oracles;
+    shared binding-value producers and helpers remain ordinary machines.
+  - Transport exact requirement and implementation identities, lifetimes,
+    captured operands, const/evidence telescopes, callbacks, entry backing,
+    ownership, reach, and public contracts through one checked Terminal artifact
+    and Build companion to both engines without target-specific source rewriting.
+  - Pin missing/duplicate provider rows, incompatible selected ABI/import/ISA
+    supply, invalid unselected implementations, and retired-prefix rejection;
+    applicability is checked on the selected closure, not by accepting untyped
+    source or exposing a selected body's private guarantees to callers.
+  Acceptance: one portable call selects distinct ordinary implementations for
+  two targets from the same Terminal artifact and Build companion, with authored
+  results observed by `omega run --both` on matching hosts. Migrated target,
+  callback, filesystem, entry, and audio controls retain their original oracles;
+  invalid controls reject for the relevant obligation, and no source, parser,
+  IR, codec, or runtime path still implements target-prefixed body families.
 
 - **PROVIDER-SELECTION-AFTER-TERMINAL.** (new-scope; also covers
   **OPERATOR-BOUNDARY-CALLS** and **TARGET-SEMANTIC-APPLICATIONS**)

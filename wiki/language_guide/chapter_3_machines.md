@@ -254,7 +254,7 @@ An external realization binds an irreducible imported operation to a
 requirement without pretending the binding is executable Omega code:
 
 ```omega
-windows_x86_64 machine write_file_binding() -> ForeignBinding<12, 9, 0> {
+machine write_file_binding() -> ForeignBinding<12, 9, 0> {
     ForeignBinding::DllImport {
         import: DllImport::PeByName {
             library: "kernel32.dll",
@@ -273,12 +273,17 @@ physical import, while `satisfies` selects the exact requirement and inherits
 its full contract. The provider must refine that contract; the import bytes
 and a matching value signature are not permission to execute it.
 
-A target prefix (`windows_x86_64 machine ...`) declares one body of a family
-keyed by target under a single path. Every body of every family is resolved,
-typed, and checked in every compilation, whatever host or target set is being
-realized: a compile on Windows reports an error in a `macos_arm64` body.
-Callers name the family; realizing a target selects that target's body, and a
-realized target with no body for a called family rejects that realization only.
+Operating-system implementations are ordinary named implementations. Build
+records which implementation backs the requirement for each target; callers
+name the same portable requirement. Shared helpers and binding-value producers
+need no OS prefix. A target name before `machine` is retired syntax, not another
+way to select a provider.
+
+Every supplied implementation is resolved, typed, and checked independently of
+the realization set. Omega selects the target's Build provider row and checks
+the selected closure's native applicability. A missing or incompatible selected
+provider rejects that realization only. The compiler migration remains tracked
+by `BUILD-OWNED-TARGET-SELECTION` in [the task board](../../TASKS.md#pipeline-route).
 
 If the trait has lifetime parameters, the satisfaction path supplies them
 explicitly. [Foreign bindings](../spec/build/foreign_bindings.md) defines exact

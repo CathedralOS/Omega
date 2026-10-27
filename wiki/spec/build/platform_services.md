@@ -22,10 +22,12 @@ Named decision: `portable-service-per-family-binding-carrier`, settled
    its OS lacks. Raw handle types are per family (`PosixDescriptor`,
    `WindowsHandle`) and never appear in the portable API. Operations that exist
    on only one family are reachable only through that family's raw trait.
-3. **Target implementations.** Target-scoped machines
-   (`source/library/std/targets/<target>/`) implement the portable service over
-   the raw service for that target. All translation between the portable shape
-   and the OS shape happens here.
+3. **Target implementations.** Ordinary named implementations
+  (`source/library/std/targets/<target>/`) implement the portable service over
+  the raw service. Build selects them through explicit target-keyed provider
+  rows; neither the folder name nor an OS-prefixed machine declaration supplies
+  selection. All translation between the portable shape and the OS shape
+  happens here. One implementation may serve several compatible targets.
 
 ## Provider-closure transport
 
@@ -35,7 +37,7 @@ An application calls only the exact `PortableService` requirement application.
 The selected target implementation's checked provider closure retains every exact raw-family
 requirement call and selected raw provider it needs. Installing the portable
 slot pins that complete transitive closure to the portable provider era;
-changing a raw provider, its contract, or its target family changes the closure
+changing a raw provider, its contract, or its selected target row changes the closure
 and requires fresh admission. Artifact/cache identity, cycle detection,
 replacement checks, review, and authority evidence all include those transitive
 dependencies.

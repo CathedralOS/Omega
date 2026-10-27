@@ -48,8 +48,8 @@ setup are not additional public program stages.
 
 Independent stage crates remain directly testable, but production consumers do
 not assemble them. The Psi driver feeds stages 00 through 07 once per
-compilation and never observes a realization target: target-scoped machine
-bodies are data checked for every target, and the Build evaluates once into
+compilation and never observes a realization target: every supplied ordinary
+implementation is checked, and the Build evaluates once into provider and entry
 rows keyed by target
 ([multi-target compilation](../wiki/spec/build/configuration.md#multi-target-compilation)).
 It returns one Terminal Psi artifact. The Omega driver realizes each target in
@@ -554,11 +554,14 @@ This product owner consumes artifact and custody owners without depending
 on compiler orchestration or build evaluation. It is an output lifecycle, not a
 new program representation or pipeline phase. The CLI publishes through it directly.
 
-Product target families form during ordinary Psi resolution, including generated
-source extensions. Typed machines retain their authored target independently of
-canonical naming. Build helpers select their separately admitted execution target;
-provider planning consumes typed identities, not a parallel source-name roster
-carried through compilation. A canonical body is not a portable family contract.
+Product source, including generated extensions, declares ordinary named
+implementations and explicit requirements. Build records target-keyed provider
+selections separately; source declarations have no target modifier or implicit
+same-path body family. Provider planning joins exact checked requirement and
+implementation identities, never a source-name roster or a target-selected
+source body. Build helpers use their separately admitted execution profile.
+The remaining target-sibling and portable-family-head machinery is legacy work
+under `BUILD-OWNED-TARGET-SELECTION` in [the task board](../TASKS.md#pipeline-route).
 
 Checked qualification evidence names its source declaration and exact boundary
 requirement, not a selected provider's receipt number. Provider grant binding

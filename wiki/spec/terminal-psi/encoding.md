@@ -802,7 +802,7 @@ Older markers are rejected before their payload is read.
 | 30 | scalar block invariants | the counted invariant rows above |
 | 31 | operation crash contracts | counted operation crash contract rows |
 | 32 | machines | counted machine rows |
-| 33 | target-machine families | counted family rows |
+| 33 | legacy target-machine families | counted family rows; removal pending |
 | 34 | target layout applications | counted complete checked policy alternatives |
 | 35 | boundary application demands | counted exact requirement/application rows |
 | 36 | callback applications | counted checked registrar occurrences |
@@ -900,7 +900,16 @@ Identities and commitments are nonempty; candidates are strictly ordered by
 their complete record and duplicates reject. Repeated calls share this catalog;
 target selection does not alter it.
 
-A family row carries its canonical callable, a nonzero 32-byte checked head
+The reference wire still contains the legacy family section below. It documents
+existing bytes, not accepted target-prefixed source syntax or a second provider
+selection model. `BUILD-OWNED-TARGET-SELECTION` in
+[the task board](../../../TASKS.md#pipeline-route) removes family rows and
+portable heads, including layout-policy references to family callables. The
+replacement retains ordinary implementation identities and exact requirement
+edges; target selection belongs to the Build companion. A codec migration must
+change the format identity rather than reinterpret these old fields.
+
+A legacy family row carries its canonical callable, a nonzero 32-byte checked head
 contract commitment, and counted members ordered by the exact authored
 deployment tag. A callable is a `u8` tag (`1` machine,
 `2` boundary) followed by its nonzero id. Each member carries a counted UTF-8
@@ -925,7 +934,7 @@ The call must settle the complete current owned roster at the selected paths;
 the receipt neither recreates a claim nor grants boundary issuance. Earlier
 markers are not reinterpreted under this layout.
 
-Marker 140 adds target layout applications after target-machine families. A
+Marker 140 adds target layout applications after the legacy family section. A
 record whose geometry remains target dependent uses structural shape tag `13`,
 a nonzero layout-application `u32`, and its counted structural fields. It has
 no packed or host-selected geometry in the portable artifact.
@@ -941,6 +950,10 @@ every alternative against the retained invariant Schema argument. This is
 representation validation; semantic checking remains the producer's obligation.
 Deployment selection consumes one retained alternative without changing the
 canonical portable artifact or inferring default storage for an unresolved row.
+The family callable/member roster in this reference layout encoding is also
+migration work. Target-dependent geometry remains supported, but its policy
+applications must name ordinary checked implementations and join target-keyed
+Build rows, not require target-prefixed source bodies.
 
 The machine roster is strictly
 ordered by machine id. A machine row is its machine id followed, in order, by
@@ -1334,7 +1347,7 @@ are not re-sorted by the canonical-order checker.
 
 Declaration-role tags are `0` for Callable and `1` for ContractEvidence.
 Unknown tags reject. ContractEvidence retains proof-only foreign loan custody;
-it cannot be invoked, installed, imported, or used as a target-family member.
+it cannot be invoked, installed, imported, or selected as a callable provider.
 Its schema owner introduces no runtime provider demand. Callable signatures
 retain their exact declaring schema owner; provider candidates retain their
 exact selecting declaration independently of display labels and callable bodies.

@@ -214,8 +214,9 @@ Two distinct normalized dependencies propagate transitively:
 | Observation application | Projection, subject, projection-semantics version, selected value or interpretation. |
 | Selected-realization application | Requirement/slot, exact realization application, target scope, normalized contract/plan/binding identity. |
 
-The second remains necessary for target-scoped code containing only literals
-and no projection call. Derived values, proofs, plans, public signatures,
+The second remains necessary for a selected ordinary provider containing only
+literals and no projection call. Its target dependency comes from the exact
+Build selection, not a target modifier on its declaration. Derived values, proofs, plans, public signatures,
 caches, and artifacts retain both. Folding preserves dependencies and their
 target-closure receipt; verification reconstructs the projection or selected
 realization instead of trusting a folded scalar.
