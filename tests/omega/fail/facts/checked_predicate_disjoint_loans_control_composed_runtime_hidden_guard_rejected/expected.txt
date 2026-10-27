@@ -1,1 +1,1 @@
-distinct(forward_indices) == true
+from invoke: distinct(indices) == true

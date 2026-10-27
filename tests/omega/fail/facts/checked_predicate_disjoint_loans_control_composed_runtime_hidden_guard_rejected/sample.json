@@ -2,6 +2,6 @@
   "role": "intended-invalid",
   "entry": "main.omg",
   "rejection_contains": [
-    "distinct(forward_indices) == true"
+    "from invoke: distinct(indices) == true"
   ]
 }

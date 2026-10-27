@@ -49,13 +49,18 @@ requires values.len == 2, indices.first < 2, indices.second < 2, indices.positio
     first = Cell { value: 17 };
     second = Cell { value: 53 };
 }
+machine invoke(values: &mut [Cell], indices: &Indices)
+requires values.len == 2, indices.first < 2, indices.second < 2,
+    indices.positions[indices.first] < values.len, indices.positions[indices.second] < values.len,
+    indices.positions[indices.first] != indices.positions[indices.second]
+{ replace(values, indices); }
 machine main() crashes Trap {
     let mut forward: Storage = Storage { before: 101, values: [Cell { value: 1 }, Cell { value: 2 }], after: 109 };
     let mut reverse: Storage = Storage { before: 127, values: [Cell { value: 3 }, Cell { value: 4 }], after: 137 };
     let forward_indices: Indices = Indices { positions: [0u64, 1u64], first: 0, second: 1 };
     let reverse_indices: Indices = Indices { positions: [1u64, 0u64], first: 0, second: 1 };
-    replace(&mut forward.values[..], &forward_indices);
-    replace(&mut reverse.values[..], &reverse_indices);
+    invoke(&mut forward.values[..], &forward_indices);
+    invoke(&mut reverse.values[..], &reverse_indices);
     let equal_indices: Indices = Indices { positions: [0u64, 0u64], first: 0, second: 1 };
     let outside_indices: Indices = Indices { positions: [0u64, 1u64], first: 2, second: 1 };
     let accepts_forward: bool = distinct(&forward_indices);
