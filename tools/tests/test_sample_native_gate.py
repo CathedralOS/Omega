@@ -868,6 +868,21 @@ class FactsSelectionTests(unittest.TestCase):
         self.assertEqual(record["filter"], "")
         self.assertEqual(record["scope"], "programs")
 
+    def test_fact_witnesses_execute_both_engines_and_strip_interp_wrapper_stderr(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "samples" / "cli" / "facts" / "length" / "local"
+            root.mkdir(parents=True)
+            (root / "main.omg").write_text("// Expected exit: 0\nmachine main() {}\n", encoding="utf-8")
+            project = sample_projects.Project(directory=root, entry=root / "main.omg", role="program")
+            completed = subprocess.CompletedProcess([], 0, "", "native exit 0\ninterp exit: 0\n")
+            with patch.object(gate, "project_at", return_value=project), \
+                    patch.object(gate, "accept_review", return_value=(None, "")), \
+                    patch.object(gate, "run", return_value=completed) as runner:
+                result = gate.measure("omega", "samples/cli/facts/length/local", "windows_x86_64", 10)
+            self.assertEqual(result["state"], "pass")
+            self.assertEqual(runner.call_args.args[0], ["omega", "run", "--both", str(project.entry)])
+            self.assertEqual(gate.program_stderr("native exit 0\ninterp exit: 0\n"), "")
+
 
 class RunHistoryTests(unittest.TestCase):
     def setUp(self):
