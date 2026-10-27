@@ -13,9 +13,9 @@ pub(crate) use aliases::DependencyAliasError;
 pub(crate) use error::DependencyProjectionError;
 pub(crate) use extraction::extract_build_dependency_projection;
 
-use crate::declarations::roles::BuildDeclaration;
 use crate::declarations::{AliasName, PackageName};
 use aliases::validate_alias_uniqueness;
+use build_declarations::BuildDeclaration;
 /// Which authorized context one direct dependency edge serves.
 ///
 /// `depend`/`depend_as` rows authorize product imports. `build_depend`/

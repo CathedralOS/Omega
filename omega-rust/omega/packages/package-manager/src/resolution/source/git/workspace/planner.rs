@@ -4,9 +4,9 @@ use super::{
     GitWorkspaceSelectionPlan,
 };
 use crate::declarations::dependencies::read::validate_static_dependency_source;
-use crate::declarations::roles::project_build_declaration_source;
 use build_declarations::{
     BuildDeclaration, BuildDeclarationKind, ProjectName, WorkspaceMemberPath,
+    project_build_declaration_from_source,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -19,7 +19,7 @@ pub(crate) fn discover_git_workspace(
 ) -> Result<GitWorkspaceDiscovery, GitWorkspaceSelectionError> {
     check_declaration_size(root_build_bytes)?;
     let root_source = decode_declaration("build.omg", root_build_bytes)?;
-    let root_declaration = project_build_declaration_source(root_source).map_err(|error| {
+    let root_declaration = project_build_declaration_from_source(root_source).map_err(|error| {
         GitWorkspaceSelectionError::MalformedDeclaration {
             repository_path: "build.omg".to_owned(),
             error,
@@ -100,7 +100,7 @@ pub(crate) fn plan_git_workspace_selection(
             .expect("declared member set was proven complete");
         let repository_path = member_build_path(&member_path);
         let source = decode_declaration(&repository_path, bytes)?;
-        let declaration = project_build_declaration_source(source).map_err(|error| {
+        let declaration = project_build_declaration_from_source(source).map_err(|error| {
             GitWorkspaceSelectionError::MalformedDeclaration {
                 repository_path: repository_path.clone(),
                 error,
