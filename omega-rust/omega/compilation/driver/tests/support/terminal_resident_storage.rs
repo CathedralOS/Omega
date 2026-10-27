@@ -15,11 +15,9 @@ use evaluation_accounting::{
 use semantic_vocabulary::IntegerValue;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
-    ProviderInstallationSelection, TerminalExecutionResult, TerminalExecutionStatus,
-    TerminalInstanceCloseError, TerminalInstantiation, TerminalProgram,
-    TerminalProviderStorageInput, TerminalRuntimeSupplyRequest, TerminalScalarValue,
-    TerminalStructuralInputs, TerminalStructuralScalarFieldValue, TerminalStructuralValue,
-    admit_provider_installation,
+    TerminalExecutionResult, TerminalExecutionStatus, TerminalInstanceCloseError,
+    TerminalInstantiation, TerminalProgram, TerminalProviderStorageInput, TerminalScalarValue,
+    TerminalStructuralInputs,
 };
 use terminal_psi::{StructuralPathSegment, StructuralTypeShape};
 
@@ -99,36 +97,7 @@ fn exercise(
             plan.operation == terminal_psi::TerminalPlacementLifecycleOperation::Initialize
         })
         .expect("source publishes initialization geometry");
-    let selections = module
-        .provider_candidates
-        .iter()
-        .map(|candidate| ProviderInstallationSelection {
-            boundary: candidate.boundary,
-            provider_identity: module
-                .identities
-                .text(candidate.provider_identity)
-                .unwrap()
-                .to_owned(),
-            provider_declaration: module
-                .identities
-                .text(candidate.provider_declaration.identity())
-                .unwrap()
-                .to_owned(),
-            candidate: candidate.candidate,
-        })
-        .collect::<Vec<_>>();
-    let installed = admit_provider_installation(artifact.view(), &selections, &[]).unwrap();
-    let supplies = program
-        .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
-            installation: Some(&installed),
-            host_imports: &[],
-            x86_flags: None,
-            memory_ordering: None,
-            entry: None,
-            target_machines: None,
-            target_layouts: None,
-        })
-        .unwrap();
+    let supplies = terminal_provision::admitted_supplies(artifact, program);
     let entry = program.entry().unwrap();
     let [parameter] = entry.structural_parameters else {
         panic!("one owned extent input");
@@ -136,45 +105,8 @@ fn exercise(
     let [reason] = entry.scalar_parameters else {
         panic!("one scalar reason input");
     };
-    let StructuralTypeShape::Record { fields, .. } = &program
-        .structural_type(parameter.structural_type)
-        .unwrap()
-        .shape
-    else {
-        panic!("extent record");
-    };
-    let scalars = fields
-        .iter()
-        .map(|field| {
-            let coordinate = if field.id == plan.storage.base {
-                4096_u64
-            } else {
-                assert_eq!(field.id, plan.storage.length);
-                allocation_length as u64
-            };
-            TerminalStructuralScalarFieldValue {
-                argument_index: 0,
-                path: Vec::new(),
-                field: field.id,
-                value: TerminalScalarValue::Integer {
-                    scalar_type: field
-                        .field_type
-                        .scalar_type()
-                        .unwrap()
-                        .as_integer()
-                        .unwrap(),
-                    value: IntegerValue::Unsigned(coordinate.into()),
-                },
-            }
-        })
-        .collect::<Vec<_>>();
-    let values = [TerminalStructuralValue {
-        opaque_identity: 100,
-        structural_type: parameter.structural_type,
-        qualifications: parameter.qualifications.clone(),
-        projected_qualifications: parameter.projected_qualifications.clone(),
-        path: Vec::new(),
-    }];
+    let (values, scalars) =
+        terminal_provision::storage_inputs(program, plan, allocation_length as u64);
     let measurement = EvaluationMeasurementIdentity::TerminalPsi {
         fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
         storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
