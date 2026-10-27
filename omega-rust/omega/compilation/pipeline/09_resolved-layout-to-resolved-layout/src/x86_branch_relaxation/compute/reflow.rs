@@ -9,7 +9,7 @@ use machine_code::ResolvedSelectedFunctionLayout;
 
 use super::super::error::OptimizedX86BranchRelaxationError;
 use super::lane;
-use super::work::checked_delta;
+use super::work::{advance, checked_delta};
 
 pub(super) fn reflow_production_functions(
     functions: &mut [ResolvedSelectedFunctionLayout],
@@ -30,10 +30,7 @@ pub(super) fn reflow_production_functions(
                                 jump.target_block,
                             ),
                         )?;
-                        let end = row
-                            .offset
-                            .checked_add(5)
-                            .ok_or(OptimizedX86BranchRelaxationError::OffsetOverflow)?;
+                        let end = advance(row.offset, row.bytes.len())?;
                         let displacement = checked_delta(target, end)?;
                         let encoded = isa_x86_64::encode_x86_64_selected_jump_form(
                             physical,
@@ -99,12 +96,7 @@ fn assign_dense_offsets(
         let start = offset;
         for row in &mut block.instructions {
             row.offset = offset;
-            offset = offset
-                .checked_add(
-                    u64::try_from(row.bytes.len())
-                        .map_err(|_| OptimizedX86BranchRelaxationError::OffsetOverflow)?,
-                )
-                .ok_or(OptimizedX86BranchRelaxationError::OffsetOverflow)?;
+            offset = advance(offset, row.bytes.len())?;
         }
         block.byte_count = offset - start;
     }
@@ -125,12 +117,7 @@ fn rewrite_branch_offsets(
     let fallthrough = *offsets.get(&branch.when_fallthrough_block).ok_or(
         OptimizedX86BranchRelaxationError::MissingTargetBlock(branch.when_fallthrough_block),
     )?;
-    let end = instruction_offset
-        .checked_add(
-            u64::try_from(instruction_size)
-                .map_err(|_| OptimizedX86BranchRelaxationError::OffsetOverflow)?,
-        )
-        .ok_or(OptimizedX86BranchRelaxationError::OffsetOverflow)?;
+    let end = advance(instruction_offset, instruction_size)?;
     if fallthrough != end {
         return Err(OptimizedX86BranchRelaxationError::BranchFallthroughMismatch(instruction));
     }

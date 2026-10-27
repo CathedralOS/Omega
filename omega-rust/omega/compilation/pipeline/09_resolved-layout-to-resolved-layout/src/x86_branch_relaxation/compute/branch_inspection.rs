@@ -7,7 +7,7 @@ use machine_code::{ResolvedSelectedFormRow, ResolvedSelectedFunctionLayout};
 
 use super::super::{X86BranchRelaxationAttemptOutcome, error::OptimizedX86BranchRelaxationError};
 use super::lane;
-use super::work::checked_delta;
+use super::work::{advance, checked_delta};
 
 pub(super) fn inspect_production_branch(
     function: &ResolvedSelectedFunctionLayout,
@@ -71,10 +71,5 @@ fn prospective_short_displacement(
     } else {
         target_offset
     };
-    checked_delta(
-        shifted_target,
-        row.offset
-            .checked_add(2)
-            .ok_or(OptimizedX86BranchRelaxationError::OffsetOverflow)?,
-    )
+    checked_delta(shifted_target, advance(row.offset, lane::SHORT_WIDTH)?)
 }
