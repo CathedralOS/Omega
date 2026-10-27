@@ -79,75 +79,97 @@ fn validate_current(unit: &PsiOptimizationUnit) -> Result<(), &'static str> {
         let mut operations = Vec::new();
         for block in function.blocks.iter().filter(|_| checks_calls) {
             for (index, node) in block.nodes.iter().enumerate() {
-                let (id, callee, role, arguments, structural_arguments, result, selected_evidence) =
-                    match &node.operation {
-                        O::Call {
-                            psi_operation,
-                            callee,
-                            arguments,
-                            result,
-                            scalar_type,
-                            ..
-                        } => (
-                            *psi_operation,
-                            *callee,
-                            DirectCallRole::Scalar,
-                            arguments.clone(),
-                            Vec::new(),
-                            RuntimeEvidenceResult::Scalar {
-                                id: *result,
-                                scalar_type: *scalar_type,
-                            },
-                            Vec::new(),
-                        ),
-                        O::CallStructural {
-                            psi_operation,
-                            callee,
-                            arguments,
-                            structural_arguments,
-                            result,
-                            ..
-                        } => {
-                            let Some(callee) = callee.machine() else {
-                                continue;
-                            };
-                            let (role, result, selected) = match result {
-                                R::Unit => (
-                                    DirectCallRole::Unit,
-                                    RuntimeEvidenceResult::Unit,
-                                    Vec::new(),
-                                ),
-                                R::Scalar(value) => (
-                                    DirectCallRole::Scalar,
-                                    RuntimeEvidenceResult::Scalar {
-                                        id: value.value,
-                                        scalar_type: value.scalar_type,
-                                    },
-                                    Vec::new(),
-                                ),
-                                R::Structural {
-                                    result,
-                                    selected_evidence,
-                                } => (
-                                    DirectCallRole::Structural,
-                                    RuntimeEvidenceResult::Structural(result.clone()),
-                                    selected_evidence.clone(),
-                                ),
-                            };
-                            (
-                                *psi_operation,
-                                callee,
-                                role,
-                                arguments.clone(),
-                                structural_arguments.clone(),
+                let (
+                    site,
+                    callee,
+                    role,
+                    arguments,
+                    structural_arguments,
+                    result,
+                    selected_evidence,
+                ) = match &node.operation {
+                    O::Call {
+                        psi_operation,
+                        callee,
+                        arguments,
+                        result,
+                        scalar_type,
+                        ..
+                    } => (
+                        (*psi_operation).into(),
+                        *callee,
+                        DirectCallRole::Scalar,
+                        arguments.clone(),
+                        Vec::new(),
+                        RuntimeEvidenceResult::Scalar {
+                            id: *result,
+                            scalar_type: *scalar_type,
+                        },
+                        Vec::new(),
+                    ),
+                    O::CallStructural {
+                        psi_operation,
+                        callee,
+                        arguments,
+                        structural_arguments,
+                        result,
+                        ..
+                    } => {
+                        let Some(callee) = callee.machine() else {
+                            continue;
+                        };
+                        let (role, result, selected) = match result {
+                            R::Unit => (
+                                DirectCallRole::Unit,
+                                RuntimeEvidenceResult::Unit,
+                                Vec::new(),
+                            ),
+                            R::Scalar(value) => (
+                                DirectCallRole::Scalar,
+                                RuntimeEvidenceResult::Scalar {
+                                    id: value.value,
+                                    scalar_type: value.scalar_type,
+                                },
+                                Vec::new(),
+                            ),
+                            R::Structural {
                                 result,
-                                selected,
-                            )
-                        }
-                        _ => continue,
-                    };
+                                selected_evidence,
+                            } => (
+                                DirectCallRole::Structural,
+                                RuntimeEvidenceResult::Structural(result.clone()),
+                                selected_evidence.clone(),
+                            ),
+                        };
+                        (
+                            (*psi_operation).into(),
+                            callee,
+                            role,
+                            arguments.clone(),
+                            structural_arguments.clone(),
+                            result,
+                            selected,
+                        )
+                    }
+                    O::InvokeNoNormal {
+                        psi_edge,
+                        callee,
+                        arguments,
+                        structural_arguments,
+                        ..
+                    } => (
+                        semantic_vocabulary::InvocationSite::InvokeNoNormal(*psi_edge),
+                        *callee,
+                        DirectCallRole::NoNormal,
+                        arguments.clone(),
+                        structural_arguments.clone(),
+                        RuntimeEvidenceResult::NoNormal,
+                        Vec::new(),
+                    ),
+                    _ => continue,
+                };
                 operations.push(RuntimeEvidenceOperation {
-                    id,
+                    site,
                     position: (
                         block.id,
                         u32::try_from(index)

@@ -21,13 +21,21 @@ pinned resolution, policy comparison, bounded reporting and the final unchanged-
 check; the application cannot publish an audit as package acceptance.
 
 Start at [build.rs](src/build.rs). One typed `BuildRequest` selects a host,
-single explicit target or batch, and a check, native or named Terminal inspection
-product. Inspection has one target context and uses a private workspace without
+single explicit target or batch, and a check, retained Terminal, native or named
+Terminal inspection product. Terminal production retains its canonical artifact
+for interpretation, rollback comparison or explicit publication, without native
+realization. Inspection has one target context and uses a private workspace without
 native publication. The entrance
 admits output directories, prepares the project, requests products through
 package admission and compiler facades, and publishes ordered outcomes. A target's directory
 refusal stays beside that target; it does not hide successful siblings. Checks
 use disposable workspaces and do not claim the requested product directory.
+
+A Terminal consumer keeps the retained Build companion as well as the artifact.
+Its explicit entry receipt and provider selection reach the runtime separately
+from host provisions. A deployment tag alone selects target bodies, not the
+Build-selected program entry; omitting that receipt runs the artifact's default
+entry instead. Selecting the entry grants no backing storage or host authority.
 
 [products.rs](src/products.rs) translates package and standalone product demands.
 [project_compilation.rs](src/project_compilation.rs) shows ordinary package
@@ -53,9 +61,12 @@ Source acquisition, pins, aliases and workspace selection remain package-owned.
 The runnable [provider-readiness projects](../../../../samples/cli/compilation/provider_readiness)
 exercise this route through ordinary CLI review and native/Terminal execution.
 The legacy source-only corpus route below cannot acquire a missing helper;
-its migration to executed project discovery remains open. Helpers needed while
-observing unselected workspace members also still require retained catalog
-closure support, rather than bypassing final graph membership.
+its migration to executed project discovery remains open. Workspace observations
+retain the closed source graphs of helpers actually executed to compute their
+declarations. The final join reconciles those graphs independently of Product
+routing; it does not acquire an unselected member's pending Product requests.
+Package locks retain these catalog execution sources for pinned offline recovery
+and read-only audit, without adding Product imports.
 
 [source_compilation.rs](src/source_compilation.rs) owns embedded one-shot source
 requests used by standalone products and compiler diagnostics. Its

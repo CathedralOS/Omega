@@ -1,0 +1,15 @@
+// Expected exit: 0
+// A stopped ordinary invocation reads its borrowed input before exiting through its exact scalar status.
+use omega::language::core::process_exit;
+use omega_language_std::process_exit;
+data Word [copy] { value: u64; }
+data Large [copy] { first: u64; second: u64; third: u64; fourth: u64; }
+machine stop(value: &Word, status: i32) -> Large reaches ProcessExit {
+    let observed_status: i32 = match value.value == 17 { true -> status, false -> 64 };
+    ProcessExit::exit_process(observed_status);
+}
+machine main() reaches ProcessExit {
+    let value: Word = Word { value: 17 };
+    let absent: Large = stop(&value, 0);
+    ProcessExit::exit_process(43);
+}

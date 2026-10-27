@@ -257,3 +257,72 @@ still checks. Scoped golden recording adds only the 25 new checking fixtures
 and 12 new native fixtures. These fresh observations supersede no historical
 producer identities; final golden/README changes preserve the producer's
 compiler, library and per-program input/oracle bytes.
+
+## Runtime-selected elements
+
+The `*/runtime_index_predicate/` production keeps the same two-element array,
+loans and writes. The record also carries the two runtime selectors; `distinct`
+checks both selector bounds before comparing the selected array elements.
+Runtime reads retain the exact collection and evaluated selectors. They do not
+become static projection keys or reference permissions.
+
+| Place | Positive | Reject twin |
+| --- | --- | --- |
+| local | [program](local/runtime_index_predicate/main.omg) | [weakened predicate](local/runtime_index_predicate/invalid/main.omg) |
+| field | [program](field/runtime_index_predicate/main.omg) | [weakened predicate](field/runtime_index_predicate/invalid/main.omg) |
+| parameter | [program](parameter/runtime_index_predicate/main.omg) | [weakened predicate](parameter/runtime_index_predicate/invalid/main.omg) |
+| call_result | [program](call_result/runtime_index_predicate/main.omg) | [weakened predicate](call_result/runtime_index_predicate/invalid/main.omg) |
+| match_join | [program](match_join/runtime_index_predicate/main.omg) | [weakened predicate](match_join/runtime_index_predicate/invalid/main.omg) |
+| const_name | [program](const_name/runtime_index_predicate/main.omg) | [weakened predicate](const_name/runtime_index_predicate/invalid/main.omg) |
+| other_state | [program](other_state/runtime_index_predicate/main.omg) | [weakened predicate](other_state/runtime_index_predicate/invalid/main.omg) |
+| other_machine | [program](other_machine/runtime_index_predicate/main.omg) | [weakened predicate](other_machine/runtime_index_predicate/invalid/main.omg) |
+| target_body | [program](target_body/runtime_index_predicate/main.omg) | [weakened predicate](target_body/runtime_index_predicate/invalid/main.omg) |
+
+Establishment interprets the ordinary checked predicate under complete declared
+carriers. Its bounds cannot be justified by its own desired truth: the
+[unguarded read control](controls/runtime_index_formation/invalid/main.omg)
+rejects both partial reads. A [false bounds guard](controls/runtime_index_bounds_guard/invalid/main.omg)
+and an [additional false conjunct](controls/runtime_index_stronger_guard/invalid/main.omg)
+retain the caller's full predicate obligation. Necessary disequality alone is
+not an equivalent public requirement.
+
+Identity and lifetime use immutable owned/shared entry formals or the existing
+completed-operand observations. The source call independently checks its full
+reference types and access; matching bare storage carriers grants no permission.
+[Captured operands](controls/runtime_index_operand_snapshot/main.omg) preserve
+both selected values before a later argument writes the original selector;
+the [captured-equal twin](controls/runtime_index_operand_snapshot/invalid/main.omg)
+still rejects even when that later write makes the original unequal.
+[Array paths](controls/runtime_index_array_path/main.omg) and
+[record roots](controls/runtime_index_record_root/main.omg) retain their complete
+identities; their [wrong-path](controls/runtime_index_array_path/invalid/main.omg)
+and [wrong-root](controls/runtime_index_record_root/invalid/main.omg) twins reject.
+An [exclusive selector write](controls/runtime_index_mutable_selector/invalid/main.omg)
+cannot reuse an immutable entry relation.
+
+Composition retains the whole guarded condition on the target-body declaration.
+Every comparison is independently necessary; the complete conjunction must also
+prove the converse from fresh carriers. Each partial read separately forms from
+earlier guards. The existing typed read planner substitutes the complete actual
+telescope, collection and selectors while preserving the indexing occurrence.
+Terminal production independently validates the resulting coordinate and bounds.
+The guarded condition, ordinary calls, provider settlement, existing layout/call
+plans and native emission all participate in the nine actual dual-engine runs.
+Mathematical observation identity does not supply executable storage authority.
+
+Fresh optimized published baseline `49d4d24247d738100c4988b4aa81b301744a969f`
+refuses the original runtime-index predicate and direct relation. Complete
+producer `b9c54be6f5763f7bf3c396a0ad951c23ba6e4200` supplies 158 fresh public
+observations: 70 native/Terminal exit-zero agreements and 88 intended rejects.
+Its retained corpus checks 69 positives and 88 rejects, and all 69 executable
+fixtures agree at native/Terminal exit zero. Five historical consumers lose no
+behavior; the ranked recursive control checks, and the stored-reference control
+retains its intended requires refusal. Scoped recording adds only 28 checking
+rows and 12 native rows. All four hosted entry bindings remain present;
+execution here is measured on macOS ARM64.
+
+This establishes the authored runtime selections in these owned fixed-array
+predicate carriers. The parent structured-callee/domain, runtime-projection and
+same-statement/theorem acceptance remains open. Arbitrary runtime-length
+collections, stored-reference crossings and unsupported predicate/control or
+static-environment forms are not established by this production.

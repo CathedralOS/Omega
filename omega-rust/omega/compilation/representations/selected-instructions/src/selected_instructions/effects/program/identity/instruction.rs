@@ -61,6 +61,12 @@ fn encode_effect_tail(bytes: &mut Vec<u8>, instruction: &InstructionMachineEffec
     match instruction.call {
         MachineCallEffect::NoneV1 => bytes.push(0),
         MachineCallEffect::SupervisorNormalReturnV1 => bytes.push(3),
+        MachineCallEffect::InternalNoNormalV1 {
+            pre_call_stack_alignment,
+        } => {
+            bytes.push(4);
+            crate::codec_bytes::push_encoded(bytes, pre_call_stack_alignment.to_le_bytes());
+        }
         MachineCallEffect::InternalNormalReturnV1 {
             pre_call_stack_alignment,
         } => {
@@ -214,6 +220,7 @@ pub(crate) fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::Load8Indexed => 21,
         SelectedInstructionKind::Store64 { .. } => 17,
         SelectedInstructionKind::FrameAddress { .. } => 18,
+        SelectedInstructionKind::InvokeNoNormal { .. } => 248,
         SelectedInstructionKind::CallUnit { .. } => 19,
         SelectedInstructionKind::ImageAddress { .. } => 232,
     });
@@ -408,7 +415,7 @@ pub(crate) fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
             bytes.push(predicate.mask_bit());
         }
         SelectedInstructionKind::ReturnAggregate { fragment_count } => bytes.push(fragment_count),
-        crate::selected_call_triple_pattern!(target, ..) => {
+        crate::selected_call_pattern!(target, ..) => {
             target.encode_identity(bytes);
         }
         SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } => {

@@ -364,10 +364,8 @@ defines the complete product bar.
     ARM64, macOS ARM64, and Windows x86-64.
   - Complete remaining runtime aggregate construction and opaque-provider
     result replacement through opaque incoming referents.
-  - Complete generic/reference saved numeric observations from post-return
-    write guarantees (the completed read must name the guaranteed storage
-    version), generic body-checking compositions, byte-predicate observations,
-    and single-evaluation pattern destructuring. Coordinate early exact-arithmetic
+  - Complete generic body-checking compositions, byte-predicate observations, and
+    single-evaluation pattern destructuring. Coordinate early exact-arithmetic
     formation with `ONE-INTEGER-BOUNDS-ENGINE`; a saved nonconstant bound must
     justify the operation before it is formed.
   Acceptance: a composed caller tolerates renamed/reordered states and inserted
@@ -907,10 +905,7 @@ narrows realization only.
     Product-description queries while replacing static Build projection in the
     source-only corpus consumers with executed project discovery.
   - Complete [Build provider readiness](wiki/spec/build/provider_selection.md#build-provider-readiness)
-    for applied/inherited multi-slot requirements and helpers used while observing
-    unselected workspace members. Retain the catalog's executed dependency closure
-    without treating unselected members as Product dependencies or weakening the
-    mandatory final source join.
+    for applied/inherited multi-slot requirements.
   - **BUILD-EVALUATES-ONCE / ONE-DRIVER-PER-STAGE:** evaluate `build.omg` once
     per compilation with no realized target observed, run Psi `00–07` once in
     `compiler.rs` to produce one canonical Terminal Psi artifact, and run Omega
@@ -1480,13 +1475,11 @@ decision (`SourceChecked`) into stage 05 and stage 00.
     `source/library/core/{content,extent}.omg` identities (where only proved
     bodies and admitted declarations supply theorem roots, retaining every
     reachable return alternative, capture epoch, and invocation correlation).
-  - Carry per-invocation geometry, backing, and live supply through provider
-    planning and native settlement in
-    `omega-rust/omega/compilation/realization/provider-planning/src/{service_schema/mod.rs,provider_planning/qualification_grants.rs}`
-    and stage 05 `unit/attached_unit/catalog.rs` so
-    `tests/omega/pass/core/content_retained_custody_round_trip` receives an
-    authorized initial claim from its selected admitted `InitialSupply::acquire`
-    invocation and executes its submit/complete cycle.
+  - Complete general per-invocation geometry, simultaneous live supply, and
+    shared backing across
+    providers must retain exact custody through provider planning and native
+    settlement, including rejection of stale, replayed or duplicate supply.
+    Fresh native allocation and constructor shape alone establish no claim.
   - Complete canonical execution qualification of the hosted-entry programs
     `tests/omega/pass/terminal_psi/{content_custody_exit,structural_content_passthrough}`
     using bundled Content and quantity identities.

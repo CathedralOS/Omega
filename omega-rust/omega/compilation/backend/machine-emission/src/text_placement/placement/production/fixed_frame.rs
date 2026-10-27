@@ -85,11 +85,16 @@ pub(in crate::text_placement::placement) fn place(
                         target_operations::CallSiteOwner::Operation(operation)
                             if exact_operation(&instruction.provenance.operations)?
                                 == operation => {}
+                        target_operations::CallSiteOwner::InvokeNoNormal(edge) => {
+                            super::super::conversion::validate_invocation_site(
+                                semantic_vocabulary::InvocationSite::InvokeNoNormal(edge),
+                                &instruction.provenance.operations,
+                                &instruction.provenance.edges,
+                            )?;
+                        }
                         target_operations::CallSiteOwner::ExternalCompletion(edge) => {
-                            super::super::conversion::validate_boundary_invocation_site(
-                                semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(
-                                    edge,
-                                ),
+                            super::super::conversion::validate_invocation_site(
+                                semantic_vocabulary::InvocationSite::ExternalCompletion(edge),
                                 &instruction.provenance.operations,
                                 &instruction.provenance.edges,
                             )?;
@@ -129,7 +134,7 @@ pub(in crate::text_placement::placement) fn place(
                     if boundary != fixup.boundary || ordinal != fixup.ordinal {
                         return Err(TextPlacementError::SourceShapeMismatch);
                     }
-                    super::super::conversion::validate_boundary_invocation_site(
+                    super::super::conversion::validate_invocation_site(
                         invocation_site,
                         &instruction.provenance.operations,
                         &instruction.provenance.edges,
@@ -436,7 +441,7 @@ fn resolve_foreign(
     caller: MachineId,
     block: selected_instructions::SelectedBlockId,
     instruction: selected_instructions::SelectedInstructionId,
-    invocation_site: semantic_vocabulary::BoundaryInvocationSite,
+    invocation_site: semantic_vocabulary::InvocationSite,
     instruction_offset: u64,
     instruction_bytes: &[u8],
     function_section_offset: u64,

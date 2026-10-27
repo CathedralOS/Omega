@@ -55,6 +55,9 @@ use std::path::PathBuf;
 #[derive(Clone, Debug)]
 pub enum ProjectProduct {
     Check,
+    /// Retain the canonical Terminal artifact without native realization or
+    /// publication. Consumers may interpret, inspect, or publish it explicitly.
+    Terminal,
     /// A named machine's Terminal description, with no native realization.
     Inspection {
         machine: String,
@@ -105,7 +108,7 @@ pub struct BuildOutcome {
     pub executable_path: Option<PathBuf>,
 }
 
-/// A check or native outcome ready for compilation-command presentation.
+/// A check, Terminal or native outcome ready for command presentation.
 pub struct BuildReport {
     pub report: CompileReport,
     pub timings: CompileTimings,

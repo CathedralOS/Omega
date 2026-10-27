@@ -76,4 +76,5 @@ const MAGIC: &[u8; 8] = b"OMGMFX\0\0";
 // Older envelopes contained claim IDs only and cannot be reinterpreted.
 // Version 39 widens semantic alternative-family tags, not instruction-kind
 // tags or closed form payloads. Older one-byte families are never reinterpreted.
-const VERSION: u32 = 39;
+// Version 41 fences the combined MemoryFence / InvokeNoNormal family roster.
+const VERSION: u32 = 41;

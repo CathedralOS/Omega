@@ -267,6 +267,29 @@ pub(crate) fn structural_arguments_match<'declaration, Formal>(
 where
     abstract_operations::StructuralCallFormal<'declaration>: From<&'declaration Formal>,
 {
+    structural_arguments_match_at_invocation(
+        caller,
+        consumer.map(Into::into),
+        arguments,
+        parameters,
+        types,
+        domains,
+        projection,
+    )
+}
+
+pub(crate) fn structural_arguments_match_at_invocation<'declaration, Formal>(
+    caller: &PsiOptimizationFunction,
+    consumer: Option<semantic_vocabulary::InvocationSite>,
+    arguments: &[terminal_psi::StructuralArgument],
+    parameters: &'declaration [Formal],
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    domains: &BTreeMap<StructuralDomainId, &terminal_psi::StructuralDomainDeclaration>,
+    projection: StructuralProjectionPolicy,
+) -> bool
+where
+    abstract_operations::StructuralCallFormal<'declaration>: From<&'declaration Formal>,
+{
     if arguments.len() != parameters.len() {
         return false;
     }
@@ -903,7 +926,7 @@ where
                 parameter,
             )
             .zip(consumer.and_then(|consumer| {
-                crate::unit_validation::function_structure::copied_field_predicates_at_transfer(
+                crate::unit_validation::function_structure::copied_field_predicates_at_invocation(
                     types.values().copied(),
                     caller,
                     argument.place,

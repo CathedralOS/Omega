@@ -1,12 +1,13 @@
 //! Unit construction supplies completed operands to the shared call emitter.
 use super::*;
+use crate::unit::attached_unit::structural_values::ValueOutcome;
 impl Emission<'_, '_, '_> {
     pub(super) fn quotient_call(
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         value: CheckedStructuralValueHandle,
         arguments: &[CheckedStructuralValueHandle],
-    ) -> Result<PlaceId, LoweringError> {
+    ) -> Result<ValueOutcome<PlaceId>, LoweringError> {
         let mut actuals = Vec::new();
         for argument in arguments {
             let child = self.structural_value_node(*argument);
@@ -19,8 +20,11 @@ impl Emission<'_, '_, '_> {
                     &[],
                 ),
             )?;
-            let child =
-                self.child_constructor_operand(identities, ty, *argument, child.type_reference)?;
+            let ValueOutcome::Normal(child) =
+                self.child_constructor_operand(identities, ty, *argument, child.type_reference)?
+            else {
+                return Ok(ValueOutcome::NoNormal);
+            };
             if !child.claims.is_empty() || !child.argument.path.is_empty() {
                 return unsupported("quotient invocation input carries custody");
             }
@@ -38,6 +42,6 @@ impl Emission<'_, '_, '_> {
             self.calls,
         )?;
         self.environment.private_places.push(declaration);
-        Ok(place)
+        Ok(ValueOutcome::Normal(place))
     }
 }

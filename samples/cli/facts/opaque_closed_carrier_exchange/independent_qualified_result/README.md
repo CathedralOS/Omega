@@ -50,7 +50,5 @@ The [raw host result](controls/raw_native_result/main.omg) and
 [checked-component laundering](controls/component_launders_raw_result/main.omg)
 controls both type-check but must reject native admission at
 `UncheckedFactory::make`: that real C leaf is not the existing issuer.
-Native, Terminal and matching-host execution remain to be repaired. This witness remains unfinished until those failures
-are repaired, applicable places and rejects are pinned, and matching-host
-execution and exact composition controls pass. Qualified input, multiplicity,
+That direct-domain result refusal is repaired and published in [PR #295](https://github.com/CathedralOS/Omega/pull/295). Actual macOS ARM64 execution and matching Linux x64, Linux ARM64 and Windows execution establish the bounded result transfer; each CI host records 58 native/Terminal successes, 55 intended corpus rejections and the raw-host controls. Complete raw evidence and exact producer identities are retained with the qualification record. The [inherited-domain continuation](refinement/README.md) also has matching-host native/Terminal evidence on macOS, Linux x64, Linux ARM64 and Windows x64, with source/producer identities and capture limits recorded there; its strict opaque const case remains open. Qualified input, multiplicity,
 carrier drift and retention regressions remain authoritative controls.

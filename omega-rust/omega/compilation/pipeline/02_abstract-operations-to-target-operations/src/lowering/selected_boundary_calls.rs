@@ -4,14 +4,14 @@
 use crate::LoweringError;
 use abstract_operations::{AbstractBoundaryResult, AbstractOperation, AbstractOperationPlan};
 use installation_evidence::InstalledProviderCallEvidence;
-use semantic_vocabulary::{BoundaryInvocationSite, BoundaryMachineId, MachineId};
+use semantic_vocabulary::{BoundaryMachineId, InvocationSite, MachineId};
 use std::collections::BTreeMap;
 use target_operations::NativeCallOrigin;
 use terminal_psi::{TargetMachineCallable, TargetMachineSupply};
 
 pub(crate) struct SelectedBoundaryCall {
     pub caller: MachineId,
-    pub invocation_site: BoundaryInvocationSite,
+    pub invocation_site: InvocationSite,
     pub boundary: BoundaryMachineId,
     pub callee: MachineId,
     pub result: AbstractBoundaryResult,
@@ -19,12 +19,12 @@ pub(crate) struct SelectedBoundaryCall {
 }
 
 pub(crate) type SelectedCallsByCall =
-    BTreeMap<(MachineId, BoundaryInvocationSite, BoundaryMachineId), SelectedBoundaryCall>;
+    BTreeMap<(MachineId, InvocationSite, BoundaryMachineId), SelectedBoundaryCall>;
 
 pub(crate) fn index(
     plan: &AbstractOperationPlan,
     installed: BTreeMap<
-        (MachineId, BoundaryInvocationSite, BoundaryMachineId),
+        (MachineId, InvocationSite, BoundaryMachineId),
         InstalledProviderCallEvidence,
     >,
     input: Option<&terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput>,
@@ -51,7 +51,7 @@ pub(crate) fn index(
                     AbstractOperation::ExternalCompletion {
                         psi_edge, boundary, ..
                     } => (
-                        BoundaryInvocationSite::ExternalCompletion(*psi_edge),
+                        InvocationSite::ExternalCompletion(*psi_edge),
                         boundary,
                         &AbstractBoundaryResult::Unit,
                         &[][..],

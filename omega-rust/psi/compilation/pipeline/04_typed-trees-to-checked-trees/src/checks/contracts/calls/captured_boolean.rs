@@ -313,14 +313,7 @@ fn captured_expression_proven(
             expression_intervals,
             &|parameter| {
                 let name = program.expression_table.name_path_node(parameter)?;
-                if !name.symbol.is_valid()
-                    || name.symbol != name.head_symbol
-                    || program
-                        .expression_table
-                        .name_path_members(name.members)
-                        .len()
-                        != 1
-                {
+                if !program.expression_table.name_path_is_single_member(name) {
                     return None;
                 }
                 let declared = validation::canonical_place_from_expression(program, parameter)?;

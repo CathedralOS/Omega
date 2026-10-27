@@ -5,6 +5,7 @@ use super::{
 };
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input;
+use crate::legalization::{accepted_fact, references_obligation};
 
 pub(super) fn validate(
     target: &TargetUnitOperation,
@@ -469,22 +470,31 @@ pub(super) fn validate(
                     return Err(LegalizationError::custody());
                 }
                 match &field.value {
-                    terminal_psi::RecordFieldValue::Scalar { value, range_obligation } => {
-                        if !sources.iter().any(|(source_value, source)| *source_value == *value
-                            && declared.field_type.scalar_type() == Some(source.scalar_type()))
-                            || terminal_semantics::scalar_field_requires_evidence(&declared.field_type) != range_obligation.is_some()
-                            || range_obligation.is_some_and(|obligation|
-                                !unit.accepted_obligation_facts.iter().any(|fact| fact.machine == optimized.machine
-                                    && fact.owner == optimization_unit::PsiProvenance::Operation(*psi_operation) && fact.obligation == obligation)
-                                || !optimized.facts.iter().any(|fact| matches!(fact,
-                                    optimization_unit::OptimizationFact::OperationObligationReference { obligation: retained, support }
-                                    if *retained == obligation && support == psi_operation)))
-                        { return Err(LegalizationError::custody()); }
+                    terminal_psi::RecordFieldValue::Scalar {
+                        value,
+                        range_obligation,
+                    } => {
+                        if !sources.iter().any(|(source_value, source)| {
+                            *source_value == *value
+                                && declared.field_type.scalar_type() == Some(source.scalar_type())
+                        }) || terminal_semantics::scalar_field_requires_evidence(
+                            &declared.field_type,
+                        ) != range_obligation.is_some()
+                            || range_obligation.is_some_and(|obligation| {
+                                accepted_fact(unit, optimized, *psi_operation, obligation).is_err()
+                                    || !references_obligation(optimized, *psi_operation, obligation)
+                            })
+                        {
+                            return Err(LegalizationError::custody());
+                        }
                     }
                     terminal_psi::RecordFieldValue::Structural(argument) => {
                         validate_owned_field_operand(
-                            optimized, result.place, argument,
-                            &declared.field_type, &unit.structural_types,
+                            optimized,
+                            result.place,
+                            argument,
+                            &declared.field_type,
+                            &unit.structural_types,
                         )?;
                     }
                 }

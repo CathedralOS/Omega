@@ -149,7 +149,9 @@ pub fn validate_aarch64_selected_scalar_call_template(
         .ok_or(Aarch64ScalarCallTemplateError::InstructionKindMismatch)?;
     let unit = matches!(kind, SelectedInstructionKind::CallUnit { .. });
     let expected_alternative = MachineAlternativeKey {
-        family: if unit {
+        family: if matches!(kind, SelectedInstructionKind::InvokeNoNormal { .. }) {
+            MachineAlternativeFamily::InvokeNoNormal
+        } else if unit {
             MachineAlternativeFamily::CallUnit
         } else if matches!(kind, SelectedInstructionKind::CallAggregate { .. }) {
             MachineAlternativeFamily::CallAggregate
@@ -162,7 +164,11 @@ pub fn validate_aarch64_selected_scalar_call_template(
         return Err(Aarch64ScalarCallTemplateError::AlternativeMismatch);
     }
     let (expected_operand_views, expected) =
-        expected_call_mechanics(abi, physical, kind, operand_views)?;
+        if matches!(kind, SelectedInstructionKind::InvokeNoNormal { .. }) {
+            expected_no_normal_mechanics(abi, physical, operand_views, effects)?
+        } else {
+            expected_call_mechanics(abi, physical, kind, operand_views)?
+        };
     if effects != &expected {
         return Err(Aarch64ScalarCallTemplateError::EffectMismatch);
     }
@@ -560,6 +566,61 @@ mod tests {
             Err(Aarch64ScalarCallTemplateError::FixupMismatch)
         );
     }
+}
+
+/// The invocation's full declared ABI key was validated upstream. At the
+/// physical boundary reconstruct every admitted native call row and require
+/// its complete read/write/clobber/stack effects, not merely register names.
+fn expected_no_normal_mechanics(
+    abi: Aarch64SelectedAbi,
+    physical: &ValidatedPhysicalRegisterModel,
+    operand_views: &[RegisterViewId],
+    effects: &MachineEncodedEffects,
+) -> Result<(Vec<RegisterViewId>, MachineEncodedEffects), Aarch64ScalarCallTemplateError> {
+    let darwin = abi == Aarch64SelectedAbi::Darwin;
+    let keys = if darwin {
+        crate::aarch64_darwin_register_call_keys()
+            .into_iter()
+            .chain(crate::aarch64_darwin_register_unit_call_keys())
+            .chain(crate::aarch64_darwin_mixed_unit_call_keys())
+            .collect::<Vec<_>>()
+    } else {
+        crate::aarch64_aapcs64_register_call_keys()
+            .into_iter()
+            .chain(crate::aarch64_aapcs64_register_unit_call_keys())
+            .chain(crate::aarch64_aapcs64_mixed_unit_call_keys())
+            .collect::<Vec<_>>()
+    };
+    let keys = keys
+        .into_iter()
+        .chain(crate::aarch64_float_scalar_call_keys(darwin))
+        .chain(crate::aarch64_register_aggregate_call_keys(darwin))
+        .chain(crate::aarch64_mixed_aggregate_call_keys(darwin))
+        .chain(crate::aarch64_indirect_aggregate_call_keys(darwin))
+        .collect::<Vec<_>>();
+    let catalog = aarch64_register_constraint_catalog_for(physical);
+    for row in &catalog.constraints {
+        if !keys.contains(&row.key)
+            || row.operands.len() != operand_views.len()
+            || !row
+                .operands
+                .iter()
+                .zip(operand_views)
+                .all(|(operand, view)| operand.fixed_view == Some(*view))
+        {
+            continue;
+        }
+        let mut expected = expected_effects(abi, physical, 0);
+        expected.external_operand_reads = row.operand_reads();
+        expected.external_operand_writes = row.operand_writes();
+        expected.implicit_unit_uses = row.implicit_uses.clone();
+        expected.implicit_unit_defs = row.implicit_defs.clone();
+        expected.implicit_unit_clobbers = row.clobbers.clone();
+        if &expected == effects {
+            return Ok((operand_views.to_vec(), expected));
+        }
+    }
+    Err(Aarch64ScalarCallTemplateError::EffectMismatch)
 }
 
 fn expected_call_mechanics(

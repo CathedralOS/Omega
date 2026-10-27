@@ -27,5 +27,6 @@ mod exact_workspace;
 mod request;
 mod root_pin;
 mod snapshot;
+mod tree_session;
 mod validation;
 mod workspace;

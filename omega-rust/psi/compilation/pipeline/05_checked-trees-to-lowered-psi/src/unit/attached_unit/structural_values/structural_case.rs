@@ -6,13 +6,14 @@ use super::super::{
 };
 use super::completed_aggregate::{self, CompletedAggregate};
 use super::emission;
+use crate::unit::attached_unit::structural_values::ValueOutcome;
 
 impl emission::Emission<'_, '_, '_> {
     pub(super) fn structural_case(
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         value: checked_trees::CheckedStructuralValueHandle,
-    ) -> Result<PlaceId, LoweringError> {
+    ) -> Result<ValueOutcome<PlaceId>, LoweringError> {
         let node = self
             .checked
             .facts
@@ -130,7 +131,7 @@ impl emission::Emission<'_, '_, '_> {
             if matches!(target.field_type, StructuralFieldType::Erased { .. }) {
                 return unsupported("erased case member has no runtime initializer");
             }
-            let value = self.completed_member_value(
+            let ValueOutcome::Normal(value) = self.completed_member_value(
                 identities,
                 field,
                 target,
@@ -144,7 +145,10 @@ impl emission::Emission<'_, '_, '_> {
                 initialized.len(),
                 source_count,
                 &mut claims,
-            )?;
+            )?
+            else {
+                return Ok(ValueOutcome::NoNormal);
+            };
             initialized.push((
                 position,
                 terminal_psi::RecordFieldInitializer {
@@ -179,6 +183,6 @@ impl emission::Emission<'_, '_, '_> {
         claims.sort();
         self.operations
             .set_structural_result_claims(place, claims)?;
-        Ok(place)
+        Ok(ValueOutcome::Normal(place))
     }
 }

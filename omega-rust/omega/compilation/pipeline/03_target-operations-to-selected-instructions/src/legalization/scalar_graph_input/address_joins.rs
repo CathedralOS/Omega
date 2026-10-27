@@ -62,7 +62,7 @@ pub(in crate::legalization) fn parameter<'a>(
 pub(in crate::legalization) fn call_argument(
     semantic: &terminal_psi::StructuralArgument,
     destination: &StructuralParameterDeclaration,
-    call_operation: OperationId,
+    call_operation: semantic_vocabulary::InvocationSite,
     caller: &PsiOptimizationFunction,
     call: &CallPlan,
     parameter_ordinal: usize,
@@ -71,7 +71,9 @@ pub(in crate::legalization) fn call_argument(
 ) -> Result<target_operations::TargetStructuralArgument, LegalizationError> {
     let (block, parameter) =
         parameter(caller, semantic.place, plan).ok_or(LegalizationError::custody())?;
-    let call_block = operation_block(caller, call_operation).ok_or(LegalizationError::custody())?;
+    let call_block = super::invocations::position(caller, call_operation, None)
+        .ok_or(LegalizationError::custody())?
+        .0;
     if let Some(window) = window_argument(
         semantic,
         destination,
@@ -127,7 +129,7 @@ pub(in crate::legalization) fn call_argument(
         indices: super::target::control_flow::sources::call_indices(
             native,
             caller,
-            target_operations::CallSiteOwner::Operation(call_operation),
+            target_operations::CallSiteOwner::from(call_operation),
             &elements,
         )?,
         source: target_operations::TargetStructuralArgumentSource::BlockParameter {

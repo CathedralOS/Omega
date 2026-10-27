@@ -18,16 +18,11 @@ fn encode_contract_static_argument_body(
     match argument {
         PackageReviewContractStaticArgument::Type(identity) => {
             encoder.tag("type", 0);
-            encoder.field("identity", |encoder| {
-                encode_type_identity(encoder, identity)
-            })?;
+            encoder.field_by("identity", identity, encode_type_identity)?;
         }
         PackageReviewContractStaticArgument::GenericTypeBinder(position) => {
             encoder.tag("generic_type_binder", 5);
-            encoder.field("position", |encoder| {
-                encoder.u32(*position);
-                Ok(())
-            })?;
+            encoder.u32_field("position", *position)?;
         }
         PackageReviewContractStaticArgument::GenericType {
             base,
@@ -38,10 +33,7 @@ fn encode_contract_static_argument_body(
             encoder.field("base", |encoder| encode_type_identity(encoder, base))?;
             encoder.field("lifetime_arguments", |encoder| {
                 encoder.sequence(lifetime_arguments, |encoder, argument| {
-                    encoder.field("argument", |encoder| {
-                        encoder.u32(*argument);
-                        Ok(())
-                    })?;
+                    encoder.u32_field("argument", *argument)?;
                     Ok(())
                 })
             })?;
@@ -55,36 +47,25 @@ fn encode_contract_static_argument_body(
         }
         PackageReviewContractStaticArgument::ConstBoolean(value) => {
             encoder.tag("const_boolean", 7);
-            encoder.field("value", |encoder| {
-                encoder.boolean(*value);
-                Ok(())
-            })?;
+            encoder.boolean_field("value", *value)?;
         }
         PackageReviewContractStaticArgument::ConstStructured {
             declared_type,
             canonical_value_encoding,
         } => {
             encoder.tag("const_structured", 9);
-            encoder.field("declared_type", |encoder| {
-                encode_type_identity(encoder, declared_type)
-            })?;
+            encoder.field_by("declared_type", declared_type, encode_type_identity)?;
             encoder.field("canonical_value_encoding", |encoder| {
                 encoder.string(canonical_value_encoding)
             })?;
         }
         PackageReviewContractStaticArgument::GenericConstBinder(position) => {
             encoder.tag("generic_const_binder", 6);
-            encoder.field("position", |encoder| {
-                encoder.u32(*position);
-                Ok(())
-            })?;
+            encoder.u32_field("position", *position)?;
         }
         PackageReviewContractStaticArgument::GenericMachineBinder(position) => {
             encoder.tag("generic_machine_binder", 3);
-            encoder.field("position", |encoder| {
-                encoder.u32(*position);
-                Ok(())
-            })?;
+            encoder.u32_field("position", *position)?;
         }
         PackageReviewContractStaticArgument::ConcreteMachine(identity) => {
             encoder.tag("concrete_machine", 4);
@@ -97,15 +78,11 @@ fn encode_contract_static_argument_body(
             trait_arguments,
         } => {
             encoder.tag("conformance_application", 8);
-            encoder.field("declaration", |encoder| {
-                encode_nominal(encoder, declaration)
-            })?;
+            encoder.field_by("declaration", declaration, encode_nominal)?;
             encoder.field("arguments", |encoder| {
                 encoder.sequence(arguments, encode_contract_static_argument)
             })?;
-            encoder.field("trait_identity", |encoder| {
-                encode_nominal(encoder, trait_identity)
-            })?;
+            encoder.field_by("trait_identity", trait_identity, encode_nominal)?;
             encoder.field("trait_arguments", |encoder| {
                 encoder.sequence(trait_arguments, encode_type_identity)
             })?;

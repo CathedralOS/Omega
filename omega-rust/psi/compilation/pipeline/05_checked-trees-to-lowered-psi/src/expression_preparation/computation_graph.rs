@@ -67,7 +67,7 @@ pub(crate) fn borrowed_arguments_from_roots<'checked>(
                 for operation in call
                     .operands()
                     .iter()
-                    .chain(std::iter::once(call.operation()))
+                    .chain(call.operation())
                     .flat_map(checked_trees::CheckedUnitEffectOperationPlan::with_value_calls)
                 {
                     arguments.extend(operation.structural_operands().iter().filter(|argument| {
@@ -192,11 +192,7 @@ pub(crate) fn value_call_operations(
 ) -> Result<Vec<&checked_trees::CheckedUnitEffectOperationPlan>, LoweringError> {
     let mut operations = Vec::new();
     for call in value_calls(checked, machine, state)? {
-        for operation in call
-            .operands()
-            .iter()
-            .chain(std::iter::once(call.operation()))
-        {
+        for operation in call.operands().iter().chain(call.operation()) {
             operations.extend(operation.with_value_calls());
         }
     }
@@ -492,16 +488,13 @@ pub(crate) fn structural_dependencies(
             for operation in call
                 .operands()
                 .iter()
-                .chain(std::iter::once(call.operation()))
+                .chain(call.operation())
                 .flat_map(checked_trees::CheckedUnitEffectOperationPlan::with_value_calls)
             {
-                if let checked_trees::CheckedUnitEffectOperationPlan::EstablishLocal(
-                    checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
-                ) = operation
-                {
+                if let Some((value, _)) = operation.structural_value_evaluation() {
                     for dependency in
                         plans
-                            .value_dependencies(*value)
+                            .value_dependencies(value)
                             .ok_or(LoweringError::Unsupported(
                                 "structural computation has a stale prepared value dependency",
                             ))?

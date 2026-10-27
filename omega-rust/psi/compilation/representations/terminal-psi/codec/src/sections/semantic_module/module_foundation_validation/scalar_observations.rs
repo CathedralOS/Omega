@@ -119,6 +119,27 @@ pub(super) fn machine(
     }
     for block in &machine.blocks {
         use terminal_psi::Terminator;
+        if let Some(invocation) = block.terminator.module_invocation() {
+            validate_terms(
+                module,
+                invocation
+                    .erased_arguments
+                    .iter()
+                    .map(|term| (term, false))
+                    .collect(),
+                &root,
+                &value,
+            )?;
+            for route in invocation
+                .crash_continuations
+                .iter()
+                .flat_map(|row| &row.alternatives)
+            {
+                if let terminal_psi::CrashRouteGuard::Predicate(predicate) = route {
+                    validate(module, predicate.proposition(), &root, &value)?;
+                }
+            }
+        }
         let arguments = match &block.terminator {
             Terminator::Jump {
                 erased_arguments, ..

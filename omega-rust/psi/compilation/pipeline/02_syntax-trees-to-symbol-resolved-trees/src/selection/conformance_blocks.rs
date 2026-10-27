@@ -115,7 +115,9 @@ pub(crate) fn normalize_closed_conformance_blocks(
     });
     for machine in program.machines.iter() {
         if machine.lexical_parent.is_valid() && !program.machines.contains(machine.lexical_parent) {
-            return Err(Diagnostic::error("retained nested machine lost its enclosing declaration"));
+            return Err(Diagnostic::error(
+                "retained nested machine lost its enclosing declaration",
+            ));
         }
     }
     Ok(ordinals)
@@ -248,7 +250,7 @@ fn named_implementation_requirement(
         .find(|(conformance, _)| *conformance == site.receiver_symbol)?;
     let mut matches = rows
         .iter()
-        .filter(|(requirement, _)| requirement.as_str() == site.target.as_str());
+        .filter(|(requirement, _)| requirement.as_str() == site.member.as_str());
     let selected = matches.next().map(|(_, state)| *state);
     if matches.next().is_some() {
         return Some(SymbolHandle::invalid());
@@ -337,7 +339,7 @@ pub(crate) fn route_conformance_requirement_calls(
             &mut |site| {
                 let routed = routed_target(
                     site.target_symbol,
-                    site.target,
+                    site.member,
                     site.argument_count,
                     plan.routes_by_name && site.local_receiver,
                     &plan.routes,
@@ -349,12 +351,12 @@ pub(crate) fn route_conformance_requirement_calls(
                     && scope
                         .hidden_names
                         .iter()
-                        .any(|hidden| hidden.as_str() == site.target.as_str())
+                        .any(|hidden| hidden.as_str() == site.member.as_str())
                 {
                     hidden_calls.push((
                         scope.declaring_trait,
                         scope.implementation.clone(),
-                        site.target.clone(),
+                        site.member.clone(),
                     ));
                 }
                 routed

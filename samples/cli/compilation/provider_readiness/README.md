@@ -47,7 +47,10 @@ this scheduler; moving that harness onto executed project discovery remains
 part of the parent cleanup. No readiness-specific harness or source-shape
 recognizer substitutes for production execution.
 
-Applied/inherited multi-slot readiness, helper dependencies of unselected
-workspace-catalog members, and other-host execution remain unverified. Local
+The [executed workspace journey](../../../../tests/omega/packages/executed-workspace/README.md)
+covers helpers of unselected catalog members, accepted-lock pin retention and
+offline execution separately from Product dependencies.
+
+Applied/inherited multi-slot readiness and other-host execution remain unverified. Local
 observations and exact producer identities belong in the qualification record,
 not a claim that those remaining requirements are complete.

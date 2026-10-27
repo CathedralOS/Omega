@@ -23,17 +23,9 @@ pub(super) fn signature(
     })?;
     encoder.field("parameters", |encoder| {
         encoder.sequence(&value.parameters, |encoder, parameter| {
-            encoder.field("type", |encoder| {
-                encode_type_identity(encoder, &parameter.type_identity)
-            })?;
-            encoder.field("const", |encoder| {
-                encoder.boolean(parameter.is_const);
-                Ok(())
-            })?;
-            encoder.field("mutable", |encoder| {
-                encoder.boolean(parameter.is_mutable);
-                Ok(())
-            })?;
+            encoder.field_by("type", &parameter.type_identity, encode_type_identity)?;
+            encoder.boolean_field("const", parameter.is_const)?;
+            encoder.boolean_field("mutable", parameter.is_mutable)?;
             Ok(())
         })
     })?;
@@ -49,15 +41,11 @@ pub(super) fn requirement(
     match value {
         PackagePolicyExternalRequirement::Trait(value) => {
             encoder.tag("trait", 0);
-            encoder.field("conformance", |encoder| {
-                encode_callable_conformance(encoder, value)
-            })
+            encoder.field_by("conformance", value, encode_callable_conformance)
         }
         PackagePolicyExternalRequirement::Operator { coordinate, alias } => {
             encoder.tag("operator", 1);
-            encoder.field("coordinate", |encoder| {
-                encode_operator_coordinate(encoder, coordinate)
-            })?;
+            encoder.field_by("coordinate", coordinate, encode_operator_coordinate)?;
             encoder.field("alias", |encoder| {
                 encoder.option(alias.as_ref(), |encoder, value| encoder.string(value))
             })

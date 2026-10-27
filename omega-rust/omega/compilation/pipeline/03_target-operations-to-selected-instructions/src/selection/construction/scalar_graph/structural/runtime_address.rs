@@ -18,9 +18,8 @@
 //! access's footprint rows. The corpus audits the retained target geometry;
 //! construction consumes it without a second compiler validation pass.
 use super::{
-    Builder, IntegerSign, LegalizedScalarInstruction, SelectedInstructionKind,
-    SelectedInstructionProvenance, SelectedMemoryAccessRole, VirtualRegisterId, memory_at_origin,
-    transport_register,
+    Builder, IntegerSign, SelectedInstructionKind, SelectedInstructionProvenance,
+    SelectedMemoryAccessRole, VirtualRegisterId, memory_at_origin, transport_register,
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
@@ -35,7 +34,7 @@ use semantic_vocabulary::{IntegerValue, PlaceId, ValueId};
 pub(super) fn projection_base(
     source: &super::LegalizedScalarFunction,
     builder: &mut Builder<'_>,
-    row: &LegalizedScalarInstruction,
+    row: &impl super::super::call_arguments::InvocationArgumentSource,
     place: PlaceId,
     byte_offset: u32,
 ) -> Result<Option<VirtualRegisterId>, SelectedInstructionError> {
@@ -81,7 +80,7 @@ pub(super) fn projection_base(
 pub(super) fn projection_origin<'slots>(
     source: &super::LegalizedScalarFunction,
     builder: &mut Builder<'_>,
-    row: &LegalizedScalarInstruction,
+    row: &impl super::super::call_arguments::InvocationArgumentSource,
     place: PlaceId,
     byte_offset: u32,
     mut slots: &'slots [crate::structural_inputs::structural_reference_input::PointerSlot],
@@ -114,7 +113,7 @@ pub(super) fn projection_origin<'slots>(
 /// and return the register the access addresses with its static offset.
 pub(in crate::selection) fn scale(
     builder: &mut Builder<'_>,
-    row: &LegalizedScalarInstruction,
+    row: &impl super::super::call_arguments::InvocationArgumentSource,
     place: PlaceId,
     byte_offset: u32,
     address: VirtualRegisterId,
@@ -224,7 +223,7 @@ pub(in crate::selection) enum Written {
 /// A write names the stored value on each element row.
 pub(in crate::selection) fn footprint(
     builder: &mut Builder<'_>,
-    row: &LegalizedScalarInstruction,
+    row: &impl super::super::call_arguments::InvocationArgumentSource,
     place: PlaceId,
     byte_offset: u32,
     byte_count: u32,
@@ -233,7 +232,7 @@ pub(in crate::selection) fn footprint(
 ) -> Result<(), SelectedInstructionError> {
     footprint_at_origin(
         builder,
-        selected_instructions::SelectedMemoryAccessOrigin::Operation(row.operation),
+        super::super::call_arguments::invocation_memory_origin(row),
         place,
         byte_offset,
         byte_count,
@@ -294,7 +293,7 @@ fn footprint_at_origin(
 /// pointer load and its footprint at the original storage boundary.
 pub(in crate::selection) fn cross_references(
     builder: &mut Builder<'_>,
-    row: &LegalizedScalarInstruction,
+    row: &impl super::super::call_arguments::InvocationArgumentSource,
     place: PlaceId,
     pointer: VirtualRegisterId,
     indices: &[LegalizedRuntimeIndexOperand],
@@ -303,7 +302,7 @@ pub(in crate::selection) fn cross_references(
     cross_references_at_site(
         builder,
         super::provenance(row),
-        selected_instructions::SelectedMemoryAccessOrigin::Operation(row.operation),
+        super::super::call_arguments::invocation_memory_origin(row),
         place,
         pointer,
         indices,
@@ -370,7 +369,7 @@ pub(in crate::selection) fn cross_references_at_site(
 pub(super) fn scalar_reference(
     source: &super::LegalizedScalarFunction,
     builder: &mut Builder<'_>,
-    row: &LegalizedScalarInstruction,
+    row: &impl super::super::call_arguments::InvocationArgumentSource,
     place: PlaceId,
     pointer: VirtualRegisterId,
     indices: &[LegalizedRuntimeIndexOperand],

@@ -2,7 +2,7 @@ use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{SymbolHandle, SymbolKind, SymbolTableAppender, SymbolTableBuilder};
 
 use crate::symbols::symbol_table::names::{
-    operator_symbol_name, operator_symbol_seed, symbol_seed,
+    operator_symbol_name, operator_symbol_seed, parameter_seeds, symbol_seed,
 };
 
 pub(in crate::symbols::symbol_table) fn insert_domain_symbol_children(
@@ -59,13 +59,9 @@ pub(in crate::symbols::symbol_table) fn insert_operator_symbol_children(
             .data_type_parameters(operator.type_parameters)
             .iter()
             .map(|parameter| symbol_seed(SymbolKind::TypeParameter, &parameter.name, has_sources))
-            .chain(
-                program
-                    .state_parameters(operator.parameters)
-                    .iter()
-                    .map(|parameter| {
-                        symbol_seed(SymbolKind::Parameter, &parameter.name, has_sources)
-                    }),
-            ),
+            .chain(parameter_seeds(
+                program.state_parameters(operator.parameters),
+                has_sources,
+            )),
     );
 }

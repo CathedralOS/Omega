@@ -703,9 +703,7 @@ pub(in crate::symbols) fn assign_machine_declaration_identity_argument_symbols(
         };
         let local = local_type_parameters
             .iter()
-            .find(|parameter| {
-                parameter.name.as_str() == name.as_str()
-            })
+            .find(|parameter| parameter.name.as_str() == name.as_str())
             .map(|parameter| parameter.symbol)
             .unwrap_or_else(SymbolHandle::invalid);
         if local.is_valid() {
@@ -754,9 +752,7 @@ pub(in crate::symbols) fn assign_proposition_family_argument_symbols(
         };
         let local = local_type_parameters
             .iter()
-            .find(|parameter| {
-                parameter.name.as_str() == name.as_str()
-            })
+            .find(|parameter| parameter.name.as_str() == name.as_str())
             .map(|parameter| parameter.symbol)
             .unwrap_or_else(SymbolHandle::invalid);
         *symbol = if local.is_valid() {

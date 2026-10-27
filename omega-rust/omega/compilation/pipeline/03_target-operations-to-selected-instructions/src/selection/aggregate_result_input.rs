@@ -100,7 +100,18 @@ pub(super) fn parameter_home_required(source: &LegalizedScalarFunction, place: P
         call.arguments.iter().any(|argument|
             matches!(argument, legalized_operations::LegalizedScalarArgument::Structural { semantic, target, .. }
                 if semantic.place == place && argument_transport_requires_home(target)))));
-    forwarded || dispatched || cleanup_borrow || source.instructions().any(|row| {
+    let borrows_parameter = |call: &legalized_operations::LegalizedScalarCall| {
+        call.arguments.iter().any(|argument| {
+            matches!(argument, legalized_operations::LegalizedScalarArgument::Structural { semantic, .. }
+                if semantic.place == place && semantic.access != StructuralAccess::Owned)
+        })
+    };
+    let terminal_borrow = source.blocks.iter().any(|block| {
+        matches!(&block.terminator,
+        legalized_operations::LegalizedScalarTerminator::InvokeNoNormal { call, .. }
+            if borrows_parameter(call))
+    });
+    forwarded || dispatched || cleanup_borrow || terminal_borrow || source.instructions().any(|row| {
         match &row.kind {
             LegalizedScalarInstructionKind::StructuralScalarFieldRead { source, .. }
             | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { source, .. }
@@ -144,10 +155,7 @@ pub(super) fn parameter_home_required(source: &LegalizedScalarFunction, place: P
             LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation { left, right, .. } => left.source() == place || right.source() == place,
             LegalizedScalarInstructionKind::ByteSequenceEqual { left, right } => left.source() == place || right.source() == place,
             LegalizedScalarInstructionKind::ByteSequencePredicate { operand, .. } => operand.source() == place,
-            LegalizedScalarInstructionKind::Call(call) => call.arguments.iter().any(|argument| {
-                matches!(argument, legalized_operations::LegalizedScalarArgument::Structural { semantic, .. }
-                    if semantic.place == place && semantic.access != StructuralAccess::Owned)
-            }),
+            LegalizedScalarInstructionKind::Call(call) => borrows_parameter(call),
             LegalizedScalarInstructionKind::NormalizedForeignCall(call) => call
                 .structural_arguments
                 .iter()

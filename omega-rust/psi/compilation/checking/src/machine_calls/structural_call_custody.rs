@@ -1222,7 +1222,9 @@ fn structural_authored_arguments<'program>(
         else {
             return Err("structural call occurrence has no authored expression");
         };
-        if authored.target_symbol != target_state {
+        if crate::call_target_entry_symbol(program, crate::call_target_symbol(program, authored))
+            != target_state
+        {
             return Err("structural call expression target changed");
         }
         program
@@ -1235,7 +1237,8 @@ fn structural_authored_arguments<'program>(
             .get(coordinate.statement_index as usize)
         {
             Some(StatementNode::Call(authored)) => {
-                if authored.target_symbol != target_state {
+                if crate::call_target_entry_symbol(program, authored.target_symbol) != target_state
+                {
                     return Err("structural call statement target changed");
                 }
                 program

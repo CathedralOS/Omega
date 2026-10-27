@@ -1,0 +1,27 @@
+// Expected exit: 0
+machine observe<'storage>(source: &'storage mut u64, value: u64,
+    called: &mut bool, trace: &mut u64, event: u64) -> &'storage mut u64
+ensures source == value { source = value; called = !called; trace = event; source }
+machine same(observed: u64, expected: u64) -> u64
+requires observed == expected { observed }
+data Pair { observed: u64; expected: u64; }
+machine probe(left: u64, right: u64, select: bool) -> u64 {
+    let mut items: [u64; 2] = [3, 1];
+    let mut called: bool = false; let mut trace: u64 = 0;
+    let pair: Pair = match select {
+        true -> Pair { observed: observe(&mut items[0], left, &mut called, &mut trace, 11), expected: left }
+        false -> Pair { observed: observe(&mut items[0], right, &mut called, &mut trace, 13), expected: left }
+    };
+    items[1] = 4;
+    let result: u64 = same(pair.observed, pair.expected);
+    let expected: u64 = match select { true -> left false -> right };
+    let expected_trace: u64 = match select { true -> 11 false -> 13 };
+    transition items[0] == expected && items[1] == 4 && called && trace == expected_trace {
+        true -> result false -> 777
+    }
+}
+machine main() crashes Trap {
+    let first: u64 = probe(7, 9, true); let second: u64 = probe(7, 9, false);
+    transition first == 7 && second == 9 { true -> done() false -> bad() }
+    machine done() {} machine bad() crashes Trap { crash Trap; }
+}

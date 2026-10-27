@@ -1146,7 +1146,7 @@ fn build_native_fixture(
                 )
             })
             .collect::<Result<Vec<_>, Vec<diagnostics::Diagnostic>>>()?;
-        let outcomes = omega_build::compile_packages(&mut prepared.session, requests);
+        let outcomes = omega_build::compile_packages(&mut prepared.session, requests, &mut []);
         Some(
             targets
                 .iter()
@@ -1208,11 +1208,15 @@ fn build_native_fixture(
             )]
         })?;
     let report = &reports[primary].1;
+    if let Some(capture) = capture {
+        capture
+            .observe_components(report)
+            .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?;
+    }
     native_component_descriptions::inspect(
         report,
         root_path.parent().unwrap_or(root_path),
         build_dir,
-        capture,
     )
     .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?;
     if let Some(artifact) = report.retained_native_artifact() {
@@ -1643,10 +1647,14 @@ fn check_fail_fixture(
         omega_build::compile_packages(
             &mut session,
             vec![compiler::PackageCompilationRequest {
-                occurrences,
+                occurrences: occurrences
+                    .into_iter()
+                    .map(compiler::PackageSourceRequest::Execute)
+                    .collect(),
                 product,
                 terminal_permissions: prepared.assumed_permissions,
             }],
+            &mut [],
         )
         .pop()
         .expect("one fixture product")

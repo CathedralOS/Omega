@@ -3,12 +3,31 @@ use crate::{
     TerminalAffineCleanupAction,
 };
 use semantic_vocabulary::{
-    BlockId, BoundaryMachineId, ClaimId, EdgeId, ExternalCompletionKind, ObligationId, PlaceId,
-    ProofTerm, ScalarTerm, StructuralCaseId, StructuralFieldId, ValueId,
+    BlockId, BoundaryMachineId, ClaimId, EdgeId, ExternalCompletionKind, MachineId, ObligationId,
+    PlaceId, ProofTerm, ScalarTerm, StructuralCaseId, StructuralFieldId, ValueId,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Terminator {
+    /// Invoke an exact module machine which cannot complete normally. Ordinary
+    /// entry obligations, argument custody and callee crash routes still apply.
+    /// There is no receiving result, normal cleanup, successor or abandonment
+    /// receipt. The module's checked CFG must establish absence of normal exit;
+    /// this marker is neither a crash event nor authority to elide the caller frame.
+    InvokeNoNormal {
+        edge: EdgeId,
+        /// Exact closed-reach telescope binder, independently joined to the
+        /// invocation occurrence in the enclosing specialization.
+        static_reach_binding: Option<u32>,
+        callee: MachineId,
+        arguments: Vec<ValueId>,
+        erased_arguments: Vec<ScalarTerm>,
+        erased_proof_arguments: Vec<ProofTerm>,
+        structural_arguments: Vec<StructuralArgument>,
+        claim_transfers: Vec<crate::ClaimTransfer>,
+        requirement_obligations: Vec<ObligationId>,
+        crash_continuations: Vec<crate::CrashRouteBucket>,
+    },
     /// Invoke the exact boundary's closed external completion without a normal
     /// result, successor, cleanup, or disposition receipt. This demands actual
     /// delegated authority bound to the instance's containing process domain;
@@ -119,6 +138,10 @@ impl Terminator {
                 structural_arguments,
                 ..
             }
+            | Self::InvokeNoNormal {
+                structural_arguments,
+                ..
+            }
             | Self::ExternalCompletion {
                 structural_arguments,
                 ..
@@ -180,7 +203,9 @@ impl Terminator {
                 &[],
             ),
             Self::StructuralCase { cases, .. } => (None, None, cases),
-            Self::Crash { .. } | Self::ExternalCompletion { .. } => (None, None, &[]),
+            Self::Crash { .. } | Self::ExternalCompletion { .. } | Self::InvokeNoNormal { .. } => {
+                (None, None, &[])
+            }
         };
         first.into_iter().chain(second).chain(
             cases
@@ -195,7 +220,8 @@ impl Terminator {
     /// successor instead of silently treating one arm as the terminator edge.
     pub const fn edge(&self) -> EdgeId {
         match self {
-            Self::Jump { edge, .. }
+            Self::InvokeNoNormal { edge, .. }
+            | Self::Jump { edge, .. }
             | Self::Return { edge, .. }
             | Self::ReturnUnit { edge, .. }
             | Self::ReturnStructural { edge, .. }
@@ -209,7 +235,8 @@ impl Terminator {
 
     pub fn edges(&self) -> impl Iterator<Item = EdgeId> + '_ {
         let edges = match self {
-            Self::Jump { edge, .. }
+            Self::InvokeNoNormal { edge, .. }
+            | Self::Jump { edge, .. }
             | Self::Return { edge, .. }
             | Self::ReturnUnit { edge, .. }
             | Self::ReturnStructural { edge, .. }
@@ -236,7 +263,9 @@ impl Terminator {
     /// them separately.
     pub fn map_scalar_uses(&mut self, map: &mut impl FnMut(ValueId) -> ValueId) {
         match self {
-            Self::Jump { arguments, .. } | Self::ExternalCompletion { arguments, .. } => {
+            Self::Jump { arguments, .. }
+            | Self::ExternalCompletion { arguments, .. }
+            | Self::InvokeNoNormal { arguments, .. } => {
                 for argument in arguments {
                     *argument = map(*argument);
                 }
@@ -309,7 +338,8 @@ impl Terminator {
             | Self::ReturnUnit { .. }
             | Self::ReturnStructural { .. }
             | Self::Crash { .. }
-            | Self::ExternalCompletion { .. } => Vec::new(),
+            | Self::ExternalCompletion { .. }
+            | Self::InvokeNoNormal { .. } => Vec::new(),
         }
     }
 

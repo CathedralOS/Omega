@@ -79,7 +79,9 @@ fn exact_mutable_referent(
         }
         _ => return None,
     };
-    if !target_symbol.is_valid() || target_symbol != call.target_symbol {
+    if !target_symbol.is_valid()
+        || validation::call_target_entry_symbol(program, target_symbol) != call.target_symbol
+    {
         return None;
     }
     let parameters = validation::call_target_parameters(program, target_symbol)?;
@@ -289,7 +291,7 @@ fn preceding_reborrow_preserves_carrier(
     ) else {
         return false;
     };
-    if authored.target_symbol != call.target_symbol {
+    if validation::call_target_entry_symbol(program, authored.target_symbol) != call.target_symbol {
         return false;
     }
     let Some(parameters) = validation::call_target_parameters(program, call.target_symbol) else {

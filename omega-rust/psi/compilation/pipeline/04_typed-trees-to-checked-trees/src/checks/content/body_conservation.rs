@@ -222,20 +222,7 @@ fn plan_at_state(
         return Some(plan);
     }
     let flow = facts.flow.control.state(plan.owner, state.symbol)?;
-    let origins = facts
-        .flow
-        .control
-        .exits
-        .span_or_empty(flow.exits)
-        .iter()
-        .flat_map(|exit| {
-            facts
-                .flow
-                .control
-                .exit_parameter_origins
-                .span_or_empty(exit.parameter_origins)
-        })
-        .collect::<Vec<_>>();
+    let origins = crate::flow::state_exit_parameter_origins(facts, flow);
     fn rebase(
         term: &mut ContentConservationTerm,
         origins: &[&checked_trees::FlowExitParameterOrigin],

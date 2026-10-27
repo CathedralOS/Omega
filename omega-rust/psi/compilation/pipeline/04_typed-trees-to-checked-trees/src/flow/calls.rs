@@ -44,120 +44,138 @@ pub(super) fn build_call_flow_fact<'plans>(
     writes: Option<&super::call_phases::CallStorageWrites>,
 ) -> FlowCallFact {
     let storage_writes = writes.map(|writes| writes.observation_places.as_slice());
-    super::state_values::record_invocation(program, build, machine, state, borrow_call);
-    let contract_call = proof.contract_call_at(&(
-        machine.symbol,
-        state.symbol,
-        borrow_call.statement_index,
-        borrow_call.call_ordinal,
-    ));
-    let entry = build_call_entry_contexts(
-        borrow,
-        build,
-        *active_contexts,
-        *active_constraints,
-        machine.symbol,
-        state.symbol,
-        borrow_call,
-    );
-    super::state_values::lexical_regions::record(
-        program,
-        semantic,
-        build,
-        machine,
-        state,
-        borrow_call,
-        captured_operands,
-        entry.contexts,
-    );
-    let requires = build_call_requires_contexts(semantic, build, machine, state, borrow_call);
-    let argument_sources = super::call_phases::ArgumentSources::new(
-        program,
-        machine.symbol,
-        state.symbol,
-        borrow_call,
-        storage_writes,
-        &build.control,
-        captured_operands,
-    );
-    let observed_writes =
-        writes.map(|writes| writes.with_captured_observations(argument_sources.as_ref()));
-    let invalidation = apply_call_invalidations(
-        program,
-        semantic,
-        domains,
-        build,
-        *active_contexts,
-        *active_constraints,
-        borrow_call,
-        observed_writes.as_ref(),
-    );
-    let mut exit = build_call_exit_contexts(
-        program,
-        proof,
-        semantic,
-        build,
-        machine,
-        state,
-        borrow_call,
-        invalidation.post_contexts,
-        invalidation.post_constraints,
-        argument_sources.as_ref(),
-    );
-    append_one_to_one_call_carry_facts(
-        program,
-        semantic,
-        build,
-        machine,
-        state,
-        borrow_call,
-        &entry,
-        &mut exit,
-    );
-    append_call_result_field_domain_facts(
-        program,
-        semantic,
-        build,
-        machine,
-        state,
-        borrow_call,
-        &mut exit,
-    );
-    append_call_parameter_domain_facts(
-        program,
-        semantic,
-        build,
-        machine,
-        state,
-        borrow_call,
-        &mut exit,
-        argument_sources.as_ref(),
-    );
+    let (contract_call, entry, requires) =
+        phase_profile::scope("05.d.3.b.flow.call.1_entry_and_requires", || {
+            super::state_values::record_invocation(program, build, machine, state, borrow_call);
+            let contract_call = proof.contract_call_at(&(
+                machine.symbol,
+                state.symbol,
+                borrow_call.statement_index,
+                borrow_call.call_ordinal,
+            ));
+            let entry = build_call_entry_contexts(
+                borrow,
+                build,
+                *active_contexts,
+                *active_constraints,
+                machine.symbol,
+                state.symbol,
+                borrow_call,
+            );
+            super::state_values::lexical_regions::record(
+                program,
+                semantic,
+                build,
+                machine,
+                state,
+                borrow_call,
+                captured_operands,
+                entry.contexts,
+            );
+            let requires =
+                build_call_requires_contexts(semantic, build, machine, state, borrow_call);
+            (contract_call, entry, requires)
+        });
+    let (argument_sources, observed_writes, invalidation) =
+        phase_profile::scope("05.d.3.b.flow.call.2_sources_and_invalidation", || {
+            let argument_sources = super::call_phases::ArgumentSources::new(
+                program,
+                machine.symbol,
+                state.symbol,
+                borrow_call,
+                storage_writes,
+                &build.control,
+                captured_operands,
+            );
+            let observed_writes =
+                writes.map(|writes| writes.with_captured_observations(argument_sources.as_ref()));
+            let invalidation = apply_call_invalidations(
+                program,
+                semantic,
+                domains,
+                build,
+                *active_contexts,
+                *active_constraints,
+                borrow_call,
+                observed_writes.as_ref(),
+            );
+            (argument_sources, observed_writes, invalidation)
+        });
+    let mut exit = phase_profile::scope("05.d.3.b.flow.call.3_exit_and_carry", || {
+        let mut exit = build_call_exit_contexts(
+            program,
+            proof,
+            semantic,
+            build,
+            machine,
+            state,
+            borrow_call,
+            invalidation.post_contexts,
+            invalidation.post_constraints,
+            argument_sources.as_ref(),
+        );
+        append_one_to_one_call_carry_facts(
+            program,
+            semantic,
+            build,
+            machine,
+            state,
+            borrow_call,
+            &entry,
+            &mut exit,
+        );
+        exit
+    });
+    phase_profile::scope("05.d.3.b.flow.call.4_result_and_param_domains", || {
+        append_call_result_field_domain_facts(
+            program,
+            semantic,
+            build,
+            machine,
+            state,
+            borrow_call,
+            &mut exit,
+        );
+        append_call_parameter_domain_facts(
+            program,
+            semantic,
+            build,
+            machine,
+            state,
+            borrow_call,
+            &mut exit,
+            argument_sources.as_ref(),
+        );
+    });
     // Every exclusive borrowed referent comes back satisfying the field facts
     // the callee re-proved at its return (checks/contracts/exits).
-    append_call_referent_field_domain_facts(
-        program,
-        semantic,
-        build,
-        machine,
-        state,
-        borrow_call,
-        entry.contexts,
-        &mut exit,
-        argument_sources.as_ref(),
-        domains,
-        writes.map(|writes| writes.contributions.as_slice()),
-    );
-    super::call_phases::append_instruction_effect(
-        program,
-        semantic,
-        build,
-        machine,
-        state,
-        borrow_call,
-        &mut exit,
-    );
-    let boundary_edges = append_call_boundary_edges(program, build, borrow_call);
+    phase_profile::scope("05.d.3.b.flow.call.5_referent_domains", || {
+        append_call_referent_field_domain_facts(
+            program,
+            semantic,
+            build,
+            machine,
+            state,
+            borrow_call,
+            entry.contexts,
+            &mut exit,
+            argument_sources.as_ref(),
+            domains,
+            writes.map(|writes| writes.contributions.as_slice()),
+        );
+    });
+    let boundary_edges = phase_profile::scope("05.d.3.b.flow.call.6_inst_and_boundary", || {
+        super::call_phases::append_instruction_effect(
+            program,
+            semantic,
+            build,
+            machine,
+            state,
+            borrow_call,
+            &mut exit,
+        );
+        append_call_boundary_edges(program, build, borrow_call)
+    });
     *active_contexts = retained_flow_contexts(&build.contexts.semantic_context_refs, exit.contexts);
     *active_constraints =
         retained_constraint_refs(&build.contexts.constraint_refs, exit.constraints);

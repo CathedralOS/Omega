@@ -392,7 +392,19 @@ pub(crate) fn build_checked_unit_effect_plans(
         // until their ordinary cleanup actions have been selected and installed.
         let normal =
             cleanup::normal_edges::sequence_cleanups(program, facts, &targets, &mut shapes, plan)?;
-        if plan.scalar_control.is_none() {
+        if let Some(stopping) = plan
+            .operations
+            .iter()
+            .position(|operation| !operation.has_normal_continuation())
+        {
+            // The evaluated prefix still owns its temporary actions. Its
+            // suspended caller has no normal exit to select or fabricate.
+            if stopping + 1 != plan.operations.len()
+                || !shapes.cleanup_control.normal_exits(normal).is_empty()
+            {
+                return None;
+            }
+        } else if plan.scalar_control.is_none() {
             let [row] = shapes.cleanup_control.normal_exits(normal) else {
                 return None;
             };
@@ -476,6 +488,16 @@ pub(crate) fn build_checked_unit_effect_plans(
         if cleanup::temporary_actions::install(&mut plan.operations, selected).is_none() {
             return false;
         }
+        plan.normal_exit_cleanups = normal;
+        if plan
+            .operations
+            .last()
+            .is_some_and(|operation| !operation.has_normal_continuation())
+        {
+            // Selection above retained no normal row. Preserve the actual
+            // stopping invocation instead of demanding a fictional Complete.
+            return true;
+        }
         let Some(CheckedUnitEffectOperationPlan::Complete {
             trivial_affine_discards,
             ..
@@ -483,7 +505,6 @@ pub(crate) fn build_checked_unit_effect_plans(
         else {
             return false;
         };
-        plan.normal_exit_cleanups = normal;
         // Parameter dispositions now have one authority and one schedule.
         // The former affine-only reconstruction must not dispose them again.
         trivial_affine_discards.clear();
@@ -611,11 +632,10 @@ pub(crate) fn build_checked_unit_effect_plans(
                 .flat_map(|state| state.operation_dependencies()),
         )
         .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
-        .filter_map(|operation| match operation {
-            CheckedUnitEffectOperationPlan::EstablishLocal(
-                checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
-            ) => Some(*value),
-            _ => None,
+        .filter_map(|operation| {
+            operation
+                .structural_value_evaluation()
+                .map(|(value, _)| value)
         })
         .chain(scalar_value_roots)
         .collect::<Vec<_>>();
@@ -1213,7 +1233,7 @@ fn body_route(
     // A result the graph's vocabulary cannot describe is only a sequence's.
     // The classification uses a scratch shape namespace: choosing a route
     // registers no type.
-    if state_graph::result_plan(program, &mut ShapeCollector::new(program), machine).is_none() {
+    if types::declared_result_plan(program, &mut ShapeCollector::new(program), machine).is_none() {
         return BodyRoute::Sequence;
     }
     let statements = program.statement_table.statements(state.statement_nodes);
@@ -1344,7 +1364,7 @@ pub(super) fn scalar_case_value_shapes(
     let mut shapes = ShapeCollector::new(program);
     // A primitive result owns no structural value shape.
     if let checked_trees::CheckedControlResultPlan::Scalar { .. } =
-        state_graph::returns::signature(program, &mut shapes, reference)?
+        types::declared_result_type(program, &mut shapes, reference)?
     {
         return None;
     }

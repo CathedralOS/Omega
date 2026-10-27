@@ -121,12 +121,13 @@ impl CheckedStructuralControlSuccessorPlan {
                     operands,
                     establishment,
                     ..
-                } => Some((operands, establishment.as_ref())),
+                } => Some((operands, Some(establishment.as_ref()))),
+                CheckedStructuralControlTransferSourcePlan::EvaluateNoNormal { operations } => {
+                    Some((operations, None))
+                }
                 _ => None,
             })
-            .flat_map(|(operands, establishment)| {
-                operands.iter().chain(std::iter::once(establishment))
-            })
+            .flat_map(|(operands, establishment)| operands.iter().chain(establishment))
     }
 
     /// Calls retained by the complete selected-edge operand sequence.
@@ -134,6 +135,12 @@ impl CheckedStructuralControlSuccessorPlan {
         self.operand_operations()
             .flat_map(crate::CheckedUnitEffectOperationPlan::with_value_calls)
             .filter(|operation| operation.call().is_some())
+    }
+
+    /// Operand evaluation can stop before any state arrival or transfer.
+    pub fn has_normal_continuation(&self) -> bool {
+        self.operand_operations()
+            .all(crate::CheckedUnitEffectOperationPlan::has_normal_continuation)
     }
 }
 
@@ -257,6 +264,12 @@ pub enum CheckedStructuralControlTransferSourcePlan {
         operands: CheckedOperandSequence,
         establishment: Box<crate::CheckedUnitEffectOperationPlan>,
         presentation: CheckedUnitStructuralArgumentPlan,
+    },
+    /// The selected edge stops while evaluating this required argument. The
+    /// remaining arguments and state arrival never execute; there is no
+    /// result home or presentation pretending to transfer to the destination.
+    EvaluateNoNormal {
+        operations: CheckedOperandSequence,
     },
     /// A borrowed-place argument loans the named subtree
     /// into the borrowed target parameter: the successor argument keeps the

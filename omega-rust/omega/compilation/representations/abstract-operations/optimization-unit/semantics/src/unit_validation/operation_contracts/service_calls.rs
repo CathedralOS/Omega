@@ -39,7 +39,7 @@ pub(crate) fn operation_service_contract_matches(
             .all(|service| caller.published_service_ceiling.contains(service))
     };
     match operation {
-        O::Call { callee, .. } => functions
+        O::Call { callee, .. } | O::InvokeNoNormal { callee, .. } => functions
             .get(callee)
             .is_some_and(|callee| reached_is_published(&callee.published_service_ceiling)),
         O::CallStructural { .. } => unit.call_machine_references(operation).all(|machine| {
@@ -73,6 +73,18 @@ pub(crate) fn operation_structural_call_contract_matches(
     call_accesses: &crate::current_ownership::CallAccesses,
 ) -> bool {
     match operation {
+        O::InvokeNoNormal { callee, structural_arguments, claim_transfers, requirement_obligations, crash_continuations, psi_edge, .. } => functions.get(callee).is_some_and(|callee| {
+            let surface = callee.verified_contract.as_ref().is_some_and(|contract| requirement_obligations.len() == contract.requires.len() && crash_continuations == &contract.crash_routes);
+            surface && crate::unit_validation::operation_contracts::structural_access::structural_arguments_match_at_invocation(
+                caller,
+                Some(semantic_vocabulary::InvocationSite::InvokeNoNormal(*psi_edge)),
+                structural_arguments,
+                &callee.structural_parameters,
+                types,
+                domains,
+                StructuralProjectionPolicy::Projected,
+            ) && validate_internal_claim_transfers(caller, callee, structural_arguments, claim_transfers)
+        }),
         O::CallStructural {
             callee:
                 abstract_operations::AbstractCallTarget::Dynamic {

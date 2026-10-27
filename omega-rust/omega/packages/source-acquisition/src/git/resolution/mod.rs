@@ -25,7 +25,9 @@ mod pinned_source;
 mod recorded_objects;
 mod repository;
 mod selection;
+mod tree_session;
 mod workspace_member;
+pub use tree_session::{GitWorkspaceCatalog, GitWorkspaceSession};
 
 use acquisition::resolve_git_source_from_retained_cache;
 use materialization::materialize_whole_git_source;

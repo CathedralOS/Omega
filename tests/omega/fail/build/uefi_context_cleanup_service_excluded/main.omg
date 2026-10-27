@@ -43,7 +43,10 @@ machine KernelState::drop(context: &mut KernelState) reaches CleanupAudit {
     CleanupAudit::finish();
 }
 
-machine selected_continuation(image: Extent in Granted, context: &mut KernelState, storage: Extent in Granted) {
+machine selected_continuation(image: Extent in Granted, context: &mut KernelState, storage: Extent in Granted)
+reaches CleanupAudit
+{
+    CleanupAudit::finish();
     context.phase = 17;
     transition { _ -> retain(image, storage) }
     machine retain(image: Extent in Granted, storage: Extent in Granted) {
@@ -52,7 +55,9 @@ machine selected_continuation(image: Extent in Granted, context: &mut KernelStat
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start(image: Extent in Granted, storage: Extent in Granted) {
+machine entry_start(image: Extent in Granted, storage: Extent in Granted)
+reaches CleanupAudit
+{
     let mut entry_storage: KernelState;
     selected_continuation(image, &mut entry_storage, storage);
 }

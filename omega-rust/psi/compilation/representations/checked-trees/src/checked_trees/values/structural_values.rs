@@ -32,6 +32,15 @@ struct StructuralCallSchedule {
 
 pub type CheckedStructuralValueHandle = Handle<CheckedStructuralValue>;
 
+/// Whether evaluating a checked value can reach its receiving continuation.
+/// Unknown callees and unmodelled scalar computations conservatively remain
+/// normal; absence of a result never supplies cleanup or termination authority.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckedValueCompletion {
+    Normal,
+    NoNormal,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedStructuralValueRoot {
     /// A completed entry copy has its own producer, independently of an
@@ -307,6 +316,126 @@ pub struct CheckedStructuralDispatchArm {
 }
 
 impl CheckedStructuralValuePlans {
+    /// Summarize evaluation without turning catalog order into execution order.
+    /// Sequential children stop their parent; dispatch keeps a normal path
+    /// unless its subject stops or every admitted, nonempty alternative stops.
+    pub fn completion(
+        &self,
+        root: CheckedStructuralValueHandle,
+        calls: &[crate::CheckedStructuralValueCall],
+    ) -> Option<CheckedValueCompletion> {
+        self.completion_with(root, calls, &|_| None)
+    }
+
+    /// Independent roots (notably computed dispatch subjects) retain private
+    /// call namespaces. Their preparation owner can supply the same summary
+    /// before those schedules move into this arena, without importing ordinals.
+    pub fn completion_with(
+        &self,
+        root: CheckedStructuralValueHandle,
+        calls: &[crate::CheckedStructuralValueCall],
+        prepared_root: &dyn Fn(CheckedStructuralValueHandle) -> Option<CheckedValueCompletion>,
+    ) -> Option<CheckedValueCompletion> {
+        fn visit(
+            plans: &CheckedStructuralValuePlans,
+            value: CheckedStructuralValueHandle,
+            calls: &[crate::CheckedStructuralValueCall],
+            active: &mut Vec<CheckedStructuralValueHandle>,
+            prepared_root: &dyn Fn(CheckedStructuralValueHandle) -> Option<CheckedValueCompletion>,
+        ) -> Option<CheckedValueCompletion> {
+            use CheckedValueCompletion::{NoNormal, Normal};
+            if !plans.nodes.is_valid(value) {
+                return None;
+            }
+            if let Some(completion) = prepared_root(value) {
+                return Some(completion);
+            }
+            if active.contains(&value) {
+                return Some(Normal);
+            }
+            active.push(value);
+            let mut children = Vec::new();
+            let completion = match &plans.nodes.get(value).kind {
+                CheckedStructuralValueKind::Call { .. } => {
+                    let mut matching = calls.iter().filter(|call| call.value == value);
+                    let call = matching.next();
+                    if matching.next().is_some() {
+                        return None;
+                    }
+                    if call.is_some_and(|call| !call.has_normal_continuation()) {
+                        NoNormal
+                    } else {
+                        Normal
+                    }
+                }
+                CheckedStructuralValueKind::Dispatch { subject, arms } => {
+                    let subject = subject.structural_value();
+                    let subject_stops = if subject.is_valid() {
+                        let subject_calls = plans
+                            .call_schedule(subject)
+                            .map_or(calls, |(_, calls)| calls);
+                        visit(plans, subject, subject_calls, active, prepared_root)? == NoNormal
+                    } else {
+                        false
+                    };
+                    let arms = plans.dispatch_arms.span(*arms)?;
+                    // Visit every arm even after finding a normal one: this
+                    // query must not make malformed admitted arms invisible.
+                    let mut all_stop = !arms.is_empty();
+                    for arm in arms {
+                        all_stop &=
+                            visit(plans, arm.value, calls, active, prepared_root)? == NoNormal;
+                    }
+                    if subject_stops || all_stop {
+                        NoNormal
+                    } else {
+                        Normal
+                    }
+                }
+                CheckedStructuralValueKind::Record { fields, .. }
+                | CheckedStructuralValueKind::StructuralCase { fields, .. } => {
+                    for field in plans.record_fields.span(*fields)? {
+                        if let CheckedStructuralRecordFieldValue::Structural(child) = field.value {
+                            children.push(child);
+                        }
+                    }
+                    Normal
+                }
+                CheckedStructuralValueKind::QuotientCall { arguments, .. } => {
+                    children.extend(arguments);
+                    Normal
+                }
+                CheckedStructuralValueKind::FixedArray { elements } => {
+                    children.extend(elements);
+                    Normal
+                }
+                CheckedStructuralValueKind::Projection { source, .. }
+                | CheckedStructuralValueKind::ViewSubslice { source, .. }
+                | CheckedStructuralValueKind::QuotientAdaptation { source, .. } => {
+                    children.push(*source);
+                    Normal
+                }
+                CheckedStructuralValueKind::Reference { source_value, .. } => {
+                    if source_value.is_valid() {
+                        children.push(*source_value);
+                    }
+                    Normal
+                }
+                _ => Normal,
+            };
+            let mut result = completion;
+            for child in children {
+                if visit(plans, child, calls, active, prepared_root)? == NoNormal {
+                    result = NoNormal;
+                    break;
+                }
+            }
+            active.pop();
+            Some(result)
+        }
+        visit(self, root, calls, &mut Vec::new(), prepared_root)
+    }
+
     /// Structural values actually reached from a retained root, including
     /// computed backing storage. This is the value graph, not the referent
     /// type graph: a stored pointer alone never demands its pointee's storage.
@@ -678,8 +807,8 @@ mod index_tests {
             source_span: Default::default(),
             type_reference: Default::default(),
             qualification_decisions: Default::default(),
-            content_inputs: Default::default(),
             content_transformation: Default::default(),
+            content_inputs: Default::default(),
             kind: super::CheckedStructuralValueKind::Scalar {
                 value: Default::default(),
             },

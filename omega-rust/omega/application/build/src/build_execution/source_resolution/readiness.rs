@@ -18,6 +18,7 @@ use package_manager::resolution::source::{
     DeclaredBuildSource, ExecutedSourceResolution, ResolvedBuildSources,
 };
 use std::path::Path;
+use std::sync::Arc;
 use target::TargetProfile;
 
 use ProjectSourceResolutionError::{Compilation, Resources, Source};
@@ -28,6 +29,11 @@ struct SourceBuild {
     // Taken only during settlement or final transfer; a failed transition
     // aborts this invocation instead of replaying the original Build.
     build: Option<ResolvedBuild>,
+}
+
+struct ExecutedSourceBuild {
+    build: ReturnedPackageBuild,
+    providers: Vec<Arc<ResolvedBuildSources>>,
 }
 
 pub(super) struct ReadinessScheduler<'session, 'operation> {
@@ -67,15 +73,30 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
         let mut builds = Vec::with_capacity(self.sources.len());
         for mut source in self.sources {
             let identity = source.declared.identity();
-            if !resolved.contains(identity) {
-                return Err(Source(
-                    "executed helper is absent from the final source graph".into(),
-                ));
-            }
             let mut build = source
                 .build
                 .take()
                 .ok_or_else(|| Source("Build work was already consumed".into()))?;
+            if !resolved.contains(identity) {
+                // Unselected members are declarations, not Product roots. Only
+                // their actually executed provider closures can account for a
+                // source absent from the selected Product graph.
+                let mut observed = false;
+                for catalog in &self.catalog_builds {
+                    for graph in catalog.observation.provider_graphs() {
+                        if graph.contains(identity) {
+                            join_source(graph, identity, &mut build)?;
+                            observed = true;
+                        }
+                    }
+                }
+                if !observed {
+                    return Err(Source(
+                        "executed helper is absent from the final source graph".into(),
+                    ));
+                }
+                continue;
+            }
             let inputs = join_source(resolved, identity, &mut build)?;
             builds.push(ResolvedPackageBuild { build, inputs });
         }
@@ -121,7 +142,7 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                     request.build.snapshot = snapshot;
                 }
                 request.collect_timings = self.timings;
-                self.execute_build(&acquired, request)?
+                self.execute_build(&acquired, request)?.build
             };
             let declared = acquired
                 .declare_build(normal_return(&build)?)
@@ -142,7 +163,8 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
         &mut self,
         acquired: &AcquiredBuildSource,
         request: CheckedCompileRequest,
-    ) -> Result<ReturnedPackageBuild, ProjectSourceResolutionError> {
+    ) -> Result<ExecutedSourceBuild, ProjectSourceResolutionError> {
+        let mut providers = Vec::new();
         let mut invocation = self
             .session
             .compiler
@@ -167,7 +189,7 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                         })?;
                     let (ordinal, dependency) =
                         self.prepare_dependency(acquired, activation.requests(), alias)?;
-                    let resolved = self.resolve_graph(dependency)?;
+                    let resolved = Arc::new(self.resolve_graph(dependency)?);
                     self.settle_graph(&resolved)?;
                     let build = self.prepare_product(dependency, DependencyPurpose::Build)?;
                     let provider = self
@@ -185,15 +207,19 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                             &provider,
                         )
                         .map_err(Source)?;
+                    providers.push(resolved);
                 }
             }
             Some(activation.complete().map_err(Source)?)
         } else {
             None
         };
-        Ok(ReturnedPackageBuild {
-            invocation,
-            returned,
+        Ok(ExecutedSourceBuild {
+            build: ReturnedPackageBuild {
+                invocation,
+                returned,
+            },
+            providers,
         })
     }
 
@@ -276,7 +302,7 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                 )
                 .map_err(Resources)?;
             request.collect_timings = self.timings;
-            let build = self.execute_build(&acquired, request)?;
+            let build = self.execute_build(&acquired, request)?.build;
             let returned = build
                 .returned
                 .ok_or_else(|| Source("workspace catalog has no executed declaration".into()))?;
@@ -307,16 +333,25 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                 self.active.push(acquired.clone());
                 let executed = self.execute_build(acquired, request);
                 self.active.pop();
-                let build = executed?;
-                declarations.push(
-                    build
-                        .invocation
-                        .observe_declaration(normal_return(&build)?)
-                        .map_err(Compilation)?,
-                );
+                let executed = executed?;
+                let build = executed.build;
+                let declaration = build
+                    .invocation
+                    .observe_declaration(normal_return(&build)?)
+                    .map_err(Compilation)?;
+                let observation =
+                    package_manager::resolution::source::WorkspaceMemberObservation::new(
+                        acquired,
+                        declaration,
+                        normal_return(&build)?,
+                        executed.providers,
+                    )
+                    .map_err(Source)?;
+                declarations.push(observation.clone());
                 self.catalog_builds.push(CatalogMemberBuild {
                     capture: acquired.source_capture().clone(),
                     build,
+                    observation,
                 });
             }
             self.acquisitions

@@ -1,8 +1,5 @@
 //! Addressable activation-local storage shared by literal and derived descriptors.
-use super::{
-    Builder, LegalizedScalarInstruction, PlaceId, SelectedMemoryAccessRole, VirtualRegisterId,
-    memory,
-};
+use super::{Builder, PlaceId, SelectedMemoryAccessRole, VirtualRegisterId, memory};
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
 use crate::selection::construction::scalar_graph::structural::provenance;
@@ -12,37 +9,32 @@ use selected_instructions::{FrameStorageSlotId, LocalStorageSlotId};
 /// Descriptor scratch is operand-owned; its provenance retains the actual
 /// backing place by rejoining that operand, not by fabricating a storage owner.
 fn storage_origin_place(
-    row: &LegalizedScalarInstruction,
+    row: &impl super::super::call_arguments::InvocationArgumentSource,
     slot: LocalStorageSlotId,
 ) -> Option<PlaceId> {
-    let LocalStorageSlotId::StructuralCallArgument {
-        operation,
-        argument_index,
-    } = slot
-    else {
-        return slot.structural_place();
+    let argument_index = match (slot, row.invocation_site()) {
+        (
+            LocalStorageSlotId::StructuralCallArgument {
+                operation,
+                argument_index,
+            },
+            semantic_vocabulary::InvocationSite::Operation(site),
+        ) if operation == site => argument_index,
+        (
+            LocalStorageSlotId::InvocationArgument {
+                edge,
+                argument_index,
+            },
+            semantic_vocabulary::InvocationSite::InvokeNoNormal(site),
+        ) if edge == site => argument_index,
+        (
+            LocalStorageSlotId::StructuralCallArgument { .. }
+            | LocalStorageSlotId::InvocationArgument { .. },
+            _,
+        ) => return None,
+        _ => return slot.structural_place(),
     };
-    if operation != row.operation {
-        return None;
-    }
-    match &row.kind {
-        legalized_operations::LegalizedScalarInstructionKind::Call(call) => {
-            let legalized_operations::LegalizedScalarArgument::Structural { semantic, .. } =
-                call.arguments.get(usize::try_from(argument_index).ok()?)?
-            else {
-                return None;
-            };
-            Some(semantic.place)
-        }
-        legalized_operations::LegalizedScalarInstructionKind::NormalizedForeignCall(call) => {
-            let mut arguments = crate::selection::scalar_call_abi::normalized_foreign::structural_parameter_positions(call)
-                .zip(&call.structural_arguments)
-                .filter(|(position, _)| *position == argument_index as usize);
-            let (_, argument) = arguments.next()?;
-            arguments.next().is_none().then_some(argument.place)
-        }
-        _ => None,
-    }
+    row.invocation_argument_place(usize::try_from(argument_index).ok()?)
 }
 
 pub(in crate::selection::construction::scalar_graph) struct PresentedDescriptor {
@@ -54,7 +46,7 @@ pub(in crate::selection::construction::scalar_graph) struct PresentedDescriptor 
 /// The caller owns each word's meaning; this operation owns frame transport.
 pub(in crate::selection::construction::scalar_graph) fn descriptor(
     builder: &mut Builder<'_>,
-    row: &LegalizedScalarInstruction,
+    row: &impl super::super::call_arguments::InvocationArgumentSource,
     slot: LocalStorageSlotId,
     first_word: VirtualRegisterId,
     second_word: VirtualRegisterId,
@@ -77,7 +69,7 @@ pub(in crate::selection::construction::scalar_graph) fn descriptor(
 /// Dynamic views additionally transport the independently checked extent.
 pub(in crate::selection::construction::scalar_graph) fn fixed_array_argument(
     builder: &mut Builder<'_>,
-    row: &LegalizedScalarInstruction,
+    row: &impl super::super::call_arguments::InvocationArgumentSource,
     place: PlaceId,
     argument_index: u32,
     backing: VirtualRegisterId,
@@ -87,10 +79,7 @@ pub(in crate::selection::construction::scalar_graph) fn fixed_array_argument(
     if !matches!(descriptor_byte_size, 8 | 16) {
         return Err(SelectedInstructionError::custody());
     }
-    let slot = LocalStorageSlotId::StructuralCallArgument {
-        operation: row.operation,
-        argument_index,
-    };
+    let slot = super::super::call_arguments::argument_slot(row, argument_index);
     if descriptor_byte_size == 16 {
         let count = transport_register(builder, place, 8)?;
         builder.emit_materialize_i64(
@@ -125,17 +114,14 @@ pub(in crate::selection::construction::scalar_graph) fn fixed_array_argument(
 /// that selected `field` remain on the header read's memory footprint.
 pub(in crate::selection::construction::scalar_graph) fn byte_field_argument(
     builder: &mut Builder<'_>,
-    row: &LegalizedScalarInstruction,
+    row: &impl super::super::call_arguments::InvocationArgumentSource,
     place: PlaceId,
     argument_index: u32,
     field: VirtualRegisterId,
     field_offset: u32,
     indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
 ) -> Result<PresentedDescriptor, SelectedInstructionError> {
-    let slot = LocalStorageSlotId::StructuralCallArgument {
-        operation: row.operation,
-        argument_index,
-    };
+    let slot = super::super::call_arguments::argument_slot(row, argument_index);
     let length = transport_register(builder, place, field_offset)?;
     super::runtime_address::footprint(
         builder,
@@ -161,7 +147,7 @@ pub(in crate::selection::construction::scalar_graph) fn byte_field_argument(
 
 pub(super) fn store(
     builder: &mut Builder<'_>,
-    row: &LegalizedScalarInstruction,
+    row: &impl super::super::call_arguments::InvocationArgumentSource,
     slot: LocalStorageSlotId,
     offset: u32,
     value: VirtualRegisterId,
@@ -184,7 +170,7 @@ pub(super) fn store(
 
 pub(super) fn address(
     builder: &mut Builder<'_>,
-    row: &LegalizedScalarInstruction,
+    row: &impl super::super::call_arguments::InvocationArgumentSource,
     slot: LocalStorageSlotId,
     offset: u32,
     byte_count: u32,
@@ -205,7 +191,7 @@ pub(super) fn address(
     )?;
     let mut provenance = provenance(row);
     if settles_fuel {
-        provenance.fuel = row.fuel.clone();
+        provenance.fuel = row.invocation_fuel().to_vec();
     }
     builder.emit_frame_address(FrameStorageSlotId::Local(slot), register, provenance)?;
     Ok(register)

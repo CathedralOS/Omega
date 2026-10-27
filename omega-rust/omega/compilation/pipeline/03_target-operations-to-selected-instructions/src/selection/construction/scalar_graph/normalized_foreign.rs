@@ -17,7 +17,7 @@ use legalized_operations::LegalizedScalarInstruction;
 use selected_instructions::{
     LocalStorageSlotId, SelectedLocalStorageSlot, SelectedNormalizedForeignCall,
 };
-use semantic_vocabulary::BoundaryInvocationSite;
+use semantic_vocabulary::InvocationSite;
 
 mod descriptor_input;
 mod scalar_result_buffer;
@@ -80,7 +80,7 @@ pub(super) fn emit_invocation(
             ownership,
             fuel,
         } => (
-            BoundaryInvocationSite::ExternalCompletion(edge),
+            InvocationSite::ExternalCompletion(edge),
             None,
             effect,
             ownership,
@@ -447,9 +447,11 @@ pub(super) fn emit_invocation(
     Ok(())
 }
 
-fn completion_edges(site: BoundaryInvocationSite) -> Vec<semantic_vocabulary::EdgeId> {
+fn completion_edges(site: InvocationSite) -> Vec<semantic_vocabulary::EdgeId> {
     match site {
-        BoundaryInvocationSite::Operation(_) => Vec::new(),
-        BoundaryInvocationSite::ExternalCompletion(edge) => vec![edge],
+        InvocationSite::Operation(_) => Vec::new(),
+        InvocationSite::ExternalCompletion(edge) | InvocationSite::InvokeNoNormal(edge) => {
+            vec![edge]
+        }
     }
 }

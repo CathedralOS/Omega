@@ -33,6 +33,25 @@ pub(crate) fn required_values(function: &LegalizedScalarFunction) -> BTreeSet<Va
             }
         };
         match &block.terminator {
+            Terminator::InvokeNoNormal { call, .. } => {
+                pending.extend(
+                    call.arguments
+                        .iter()
+                        .filter_map(|argument| argument.scalar_source()),
+                );
+                pending.extend(call.arguments.iter().flat_map(|argument| {
+                    match argument {
+                        legalized_operations::LegalizedScalarArgument::Structural {
+                            indices,
+                            ..
+                        } => indices
+                            .iter()
+                            .map(|index| index.operand.value)
+                            .collect::<Vec<_>>(),
+                        _ => Vec::new(),
+                    }
+                }));
+            }
             Terminator::ExternalCompletion { arguments, .. } => {
                 pending.extend(
                     arguments

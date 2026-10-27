@@ -37,6 +37,7 @@ pub(super) fn observe(
     let execute = |allowance, quantum| {
         terminal_runtime::execute_sliced(
             TerminalRuntimeRequest {
+                entry: None,
                 native_provider: None,
                 artifact,
                 provisions,

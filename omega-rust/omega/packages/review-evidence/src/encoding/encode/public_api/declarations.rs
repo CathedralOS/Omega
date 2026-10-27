@@ -33,13 +33,8 @@ pub(in crate::encoding::encode) fn trait_shape(
     encoder: &mut Encoder,
     shape: &PackagePolicyTraitShape,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("identity", |encoder| {
-        encode_nominal(encoder, &shape.identity)
-    })?;
-    encoder.field("is_boundary", |encoder| {
-        encoder.boolean(shape.is_boundary);
-        Ok(())
-    })?;
+    encoder.field_by("identity", &shape.identity, encode_nominal)?;
+    encoder.boolean_field("is_boundary", shape.is_boundary)?;
     encoder.field("lifetime_parameter_count", |encoder| {
         encoder.usize(shape.lifetime_parameter_count)
     })?;
@@ -54,16 +49,14 @@ pub(in crate::encoding::encode) fn trait_shape(
     })?;
     encoder.field("requirements", |encoder| {
         encoder.sequence(&shape.requirements, |encoder, requirement| {
-            encoder.field("identity", |encoder| {
-                encode_nominal(encoder, &requirement.identity)
-            })?;
+            encoder.field_by("identity", &requirement.identity, encode_nominal)?;
             encoder.field("spelling", |encoder| {
                 encoder.option(requirement.spelling.as_ref(), spelling)
             })?;
-            encoder.field("has_default_realization", |encoder| {
-                encoder.boolean(requirement.has_default_realization);
-                Ok(())
-            })?;
+            encoder.boolean_field(
+                "has_default_realization",
+                requirement.has_default_realization,
+            )?;
             encoder.field("lifetime_parameter_count", |encoder| {
                 encoder.usize(requirement.lifetime_parameter_count)
             })?;
@@ -84,33 +77,25 @@ pub(in crate::encoding) fn conformance_shape(
     encoder: &mut Encoder,
     shape: &PackagePolicyConformanceShape,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("identity", |encoder| {
-        encode_nominal(encoder, &shape.identity)
-    })?;
+    encoder.field_by("identity", &shape.identity, encode_nominal)?;
     encoder.field("lifetime_parameter_count", |encoder| {
         encoder.usize(shape.lifetime_parameter_count)
     })?;
     encoder.field("type_parameters", |encoder| {
         encoder.sequence(&shape.type_parameters, type_parameter)
     })?;
-    encoder.field("interface", |encoder| {
-        encode_evidence_interface(encoder, &shape.interface)
-    })
+    encoder.field_by("interface", &shape.interface, encode_evidence_interface)
 }
 
 pub(in crate::encoding::encode) fn domain_shape(
     encoder: &mut Encoder,
     shape: &PackagePolicyDomainShape,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("identity", |encoder| {
-        encode_nominal(encoder, &shape.identity)
-    })?;
+    encoder.field_by("identity", &shape.identity, encode_nominal)?;
     encoder.field("type_parameters", |encoder| {
         encoder.sequence(&shape.type_parameters, type_parameter)
     })?;
-    encoder.field("target_type", |encoder| {
-        encode_type_identity(encoder, &shape.target_type)
-    })?;
+    encoder.field_by("target_type", &shape.target_type, encode_type_identity)?;
     encoder.field("index_arguments", |encoder| {
         encoder.sequence(&shape.index_arguments, encode_type_identity)
     })?;
@@ -168,13 +153,8 @@ pub(in crate::encoding::encode) fn operator_shape(
     encoder: &mut Encoder,
     shape: &PackagePolicyOperatorShape,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("coordinate", |encoder| {
-        encode_operator_coordinate(encoder, &shape.coordinate)
-    })?;
-    encoder.field("is_boundary", |encoder| {
-        encoder.boolean(shape.is_boundary);
-        Ok(())
-    })?;
+    encoder.field_by("coordinate", &shape.coordinate, encode_operator_coordinate)?;
+    encoder.boolean_field("is_boundary", shape.is_boundary)?;
     encoder.field("spelling", |encoder| {
         encoder.option(shape.spelling.as_ref(), spelling)
     })?;
@@ -197,9 +177,7 @@ pub(in crate::encoding::encode) fn data_shape(
     encoder: &mut Encoder,
     shape: &PackagePolicyDataShape,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("identity", |encoder| {
-        encode_nominal(encoder, &shape.identity)
-    })?;
+    encoder.field_by("identity", &shape.identity, encode_nominal)?;
     encoder.field("kind", |encoder| {
         match &shape.kind {
             PackageReviewDataKind::Ordinary => encoder.tag("ordinary", 0),
@@ -228,19 +206,13 @@ pub(in crate::encoding::encode) fn data_shape(
         encode_data_properties(encoder, shape.properties);
         Ok(())
     })?;
-    encoder.field("zero_gated", |encoder| {
-        encoder.boolean(shape.zero_gated);
-        Ok(())
-    })?;
+    encoder.boolean_field("zero_gated", shape.zero_gated)?;
     encoder.field("invariants", |encoder| {
         encoder.sequence(&shape.invariants, encode_contract_fact)
     })?;
     encoder.field("retired_identities", |encoder| {
         encoder.sequence(&shape.retired_identities, |encoder, identity| {
-            encoder.field("identity", |encoder| {
-                encoder.u64(*identity);
-                Ok(())
-            })?;
+            encoder.u64_field("identity", *identity)?;
             Ok(())
         })
     })?;

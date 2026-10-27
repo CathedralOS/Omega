@@ -111,10 +111,9 @@ pub(super) fn validate(
         );
     }
 
-    // A transition VALUE target (`_ -> (expr)`) is a return value. A state
-    // without a result (its own arrow absent and the machine's too) has
-    // nothing to deliver it into: the terminal arm is spelled `_ -> {}`, and
-    // lowering has no row that returns a value from a unit state.
+    // A terminal call forwards the same logical result as an ordinary call.
+    // A Unit call can complete a Unit state; a scalar/structural value still
+    // cannot escape through a state that declares no such result.
     if let Some(state) = current_state
         && !state.return_type.is_valid()
     {

@@ -1,0 +1,12 @@
+// The internal observation protocol cannot supply the public mutable selection authority.
+machine build(builder: &mut Build) {
+    Build::application(builder, "behavior_exclusion_forged_protocol");
+    Build::depend(builder, Source::Path { location: "../../../packages/assert-kit" });
+    Build::select_provider<assert_kit::main::Assert, assert_kit::main::NoOpAssertProvider>(builder);
+    Optimizations::enable(&mut builder.optimizations, Optimization::ControlFlowCleanup);
+    BuildBindingOperations::exclude(0u64, 0u64);
+    Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
+    Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
+    Build::bind(builder, linux_arm64::ProgramEntry, entry_start);
+    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
+}

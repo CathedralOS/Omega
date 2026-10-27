@@ -1288,6 +1288,9 @@ fn application_source_resolution(project: &str, private_call: bool) {
     );
     for request in &admitted.requests {
         for occurrence in &request.occurrences {
+            let compiler::PackageSourceRequest::Execute(occurrence) = occurrence else {
+                panic!("fresh admission must retain its execution request");
+            };
             let account = occurrence
                 .build
                 .evaluation_sponsor
@@ -1356,7 +1359,9 @@ fn executed_dependency_source_join(project: &str, private_call: bool) {
                         resolution = next;
                         continue;
                     }
-                    package_manager::resolution::source::BuildSourceAcquisition::Workspace(_) => {
+                    package_manager::resolution::source::BuildSourceAcquisition::Workspace {
+                        ..
+                    } => {
                         panic!("local source fixture unexpectedly requested a workspace catalog")
                     }
                 };

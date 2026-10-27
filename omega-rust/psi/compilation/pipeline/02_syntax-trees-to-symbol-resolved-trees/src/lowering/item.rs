@@ -324,6 +324,7 @@ fn lower_item_with_exposure(
                         // as a declaration which never needed evaluation.
                         .map_or(initializer, |record| record.authored),
                     initializer_source_span: syntax_trees.expressions.source_span(definition.value),
+                    pending_target_observation: definition.pending_target_observation,
                     evaluated_value,
                 },
             );

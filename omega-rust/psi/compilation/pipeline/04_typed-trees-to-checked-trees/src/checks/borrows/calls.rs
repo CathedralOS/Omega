@@ -30,70 +30,203 @@ pub(super) use staging::{InvocationBoundary, access_released_in_prefix};
 pub(super) fn check_compatibility<'p>(
     program: &'p dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    state_flows: &[(&FlowStateFact, Option<&checked_trees::StateBorrowFact>)],
     incoming_guards: &IncomingGuardIndex,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     diagnostics: &mut Vec<Diagnostic>,
+) {
+    let per_state: Vec<Vec<Diagnostic>> = validation::checking_thread_pool().install(|| {
+        use rayon::prelude::*;
+        state_flows
+            .par_iter()
+            .filter_map(|&(state_flow, borrow_state)| {
+                let borrow_state = borrow_state?;
+                let calls = facts.borrow.calls.span_or_empty(borrow_state.calls);
+                if calls.is_empty() {
+                    return None;
+                }
+                let mut local_diagnostics = Vec::new();
+                let mut local_bound_lookup = None;
+                let premises = validation::find_state_in_machine(
+                    program,
+                    state_flow.machine_symbol,
+                    state_flow.state_symbol,
+                )
+                .and_then(|state| {
+                    program
+                        .machine_by_symbol(state_flow.machine_symbol)
+                        .map(|machine| (machine, state))
+                })
+                .map(|(machine, state)| {
+                    super::overlap::stated_ordering_premises(
+                        program,
+                        facts,
+                        machine,
+                        state,
+                        incoming_guards,
+                        &mut local_bound_lookup,
+                    )
+                })
+                .unwrap_or_default();
+                for call in calls {
+                    if !invocation_is_evaluated(program, facts, state_flow, call) {
+                        continue;
+                    }
+                    let mut available_premises = premises.clone();
+                    super::overlap::append_statement_premises(
+                        program,
+                        facts,
+                        state_flow,
+                        call.statement_index,
+                        call_frames,
+                        &mut available_premises,
+                        &mut local_bound_lookup,
+                    );
+                    let target_name = call_target_label(program, call.target_symbol);
+                    let entry_constraints =
+                        call_borrow_constraints(program, call, state_flow, facts);
+                    check_build_selection_receiver(
+                        program,
+                        facts,
+                        state_flow,
+                        calls,
+                        call,
+                        &available_premises,
+                        &mut local_diagnostics,
+                        &mut local_bound_lookup,
+                    );
+                    check_call_access_conflicts(
+                        program,
+                        facts,
+                        state_flow,
+                        call,
+                        entry_constraints,
+                        &target_name,
+                        &available_premises,
+                        call_frames,
+                        &mut local_diagnostics,
+                        &mut local_bound_lookup,
+                    );
+                }
+                (!local_diagnostics.is_empty()).then_some(local_diagnostics)
+            })
+            .collect()
+    });
+    for local_diagnostics in per_state {
+        diagnostics.extend(local_diagnostics);
+    }
+}
+
+/// Source recording calls require exclusive Build use even though their host
+/// preparation only observes identity. Judge the exact evaluated preparation
+/// prefix, independently of whether the commit is a statement or a nested
+/// expression. The emitted protocol never manufactures writes to Build fields.
+fn check_build_selection_receiver<'p>(
+    program: &'p dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    state_flow: &FlowStateFact,
+    calls: &[BorrowCallFact],
+    commit: &BorrowCallFact,
+    premises: &[super::overlap::StatedOrderingPremise],
+    diagnostics: &mut Vec<Diagnostic>,
     bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) {
-    for (_, state_flow) in facts.flow.control.states.iter() {
-        let Some(borrow_state) = super::matching_borrow_state(facts, state_flow) else {
-            continue;
-        };
-        let calls = facts.borrow.calls.span_or_empty(borrow_state.calls);
-        if calls.is_empty() {
-            continue;
-        }
-        let premises = validation::find_state_in_machine(
-            program,
-            state_flow.machine_symbol,
-            state_flow.state_symbol,
-        )
-        .and_then(|state| {
-            program
-                .machine_by_symbol(state_flow.machine_symbol)
-                .map(|machine| (machine, state))
-        })
-        .map(|(machine, state)| {
-            super::overlap::stated_ordering_premises(
-                program,
-                facts,
-                machine,
-                state,
-                incoming_guards,
-                bound_lookup,
-            )
-        })
-        .unwrap_or_default();
-        for call in calls {
-            if !invocation_is_evaluated(program, facts, state_flow, call) {
-                continue;
-            }
-            let mut available_premises = premises.clone();
-            super::overlap::append_statement_premises(
-                program,
-                facts,
-                state_flow,
-                call.statement_index,
-                call_frames,
-                &mut available_premises,
-                bound_lookup,
-            );
-            let target_name = call_target_label(program, call.target_symbol);
-            let entry_constraints = call_borrow_constraints(program, call, state_flow, facts);
-            check_call_access_conflicts(
-                program,
-                facts,
-                state_flow,
-                call,
-                entry_constraints,
-                &target_name,
-                &available_premises,
-                call_frames,
-                diagnostics,
-                bound_lookup,
-            );
-        }
+    if !commit.authored_expression.is_valid() {
+        return;
     }
+    let Some(operation) = program
+        .expression_table
+        .call_node(commit.authored_expression)
+    else {
+        return;
+    };
+    if !operation.build_selection.is_valid() || operation.target.as_str() == "prepare" {
+        return;
+    }
+    let request = program
+        .expression_table
+        .build_selection_request(operation.build_selection);
+    let arguments = program
+        .expression_table
+        .expression_handles(operation.arguments);
+    let receiver_preparation = arguments.first().and_then(|expression| {
+        let preparation = program.expression_table.call_node(*expression)?;
+        let retained = program
+            .expression_table
+            .build_selection_request(preparation.build_selection)?;
+        // Copies allocate independent request handles for each call. Their
+        // source-issued payload, never arena-index equality, links the pair.
+        if preparation.target.as_str() != "prepare" || Some(retained) != request {
+            return None;
+        }
+        let receiver = program
+            .expression_table
+            .expression_handles(preparation.arguments)
+            .first()?;
+        Some((*expression, *receiver))
+    });
+    let Some((preparation_expression, receiver)) = receiver_preparation else {
+        diagnostics.push(Diagnostic::error(
+            "Build product operation lost its source-issued receiver preparation",
+        ));
+        return;
+    };
+    let Some(prefix) = calls.iter().rev().find(|call| {
+        call.statement_index == commit.statement_index
+            && call.authored_expression == preparation_expression
+    }) else {
+        diagnostics.push(Diagnostic::error(
+            "Build product operation lost its evaluated receiver preparation",
+        ));
+        return;
+    };
+    let Some(statement) = facts
+        .flow
+        .control
+        .statements
+        .span_or_empty(state_flow.statements)
+        .iter()
+        .find(|statement| statement.statement_index == commit.statement_index)
+    else {
+        diagnostics.push(Diagnostic::error(
+            "Build product operation lost its containing statement frontier",
+        ));
+        return;
+    };
+    // Call ordinals identify authored sites, not evaluation order. The exact
+    // argument edge establishes that preparation precedes commit; the shared
+    // evaluated schedule and captured entry constraints establish its frontier.
+    if !invocation_is_evaluated(program, facts, state_flow, prefix) {
+        diagnostics.push(Diagnostic::error(
+            "Build product receiver preparation is absent from its evaluated schedule",
+        ));
+        return;
+    }
+    let Some(frontier) = facts.flow.state_call(
+        state_flow,
+        prefix.statement_index,
+        prefix.call_ordinal,
+        prefix.target_symbol,
+        prefix.receiver_symbol,
+    ) else {
+        diagnostics.push(Diagnostic::error(
+            "Build product receiver preparation lost its exact call-entry frontier",
+        ));
+        return;
+    };
+    let mut prefix_statement = statement.clone();
+    prefix_statement.entry_constraints = frontier.entry_constraints;
+    check_exclusive_place_use(
+        program,
+        facts,
+        state_flow,
+        &prefix_statement,
+        receiver,
+        arguments.get(1).copied().unwrap_or_default(),
+        premises,
+        diagnostics,
+        bound_lookup,
+    );
 }
 
 fn call_borrow_constraints<'a>(

@@ -19,6 +19,14 @@ recorded commit/tree/content. Alias/member changes do not refresh unchanged
 locator/revision requests. Git edges cannot be called resolved-but-unfetched:
 commit/tree and member-declaration verification already require resolver custody.
 
+Workspace declaration observations retain the helper source graphs used during
+their execution. [graph/subject/catalog.rs](graph/subject/catalog.rs) records
+these separately from the selected Product graph, checks shared source custody,
+and flattens nested catalog observations into bounded execution records. Locks
+encode these records only when present; ordinary subjects retain their existing
+encoding and decision fingerprints. Pins and locked request admission read both
+graphs, but catalog helpers grant no Product dependency or import.
+
 Locked recovery selects recorded target policy before touching acquisition, then
 reconstructs the exact graph. Resume uses proposed pins, not current branch tips.
 Historical-source diagnostics obey the same offline option; missing old bytes

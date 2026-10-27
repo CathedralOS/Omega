@@ -39,21 +39,22 @@ const WRITE_SEMANTICS_PRESENCE_OFFSET: usize = 572;
 const WRITE_SEMANTICS_OFFSET: usize = 573;
 
 #[test]
-fn post_allocation_codec_retains_pre_streaming_bytes_at_empty_boundaries() {
+fn post_allocation_codec_pins_current_schema_at_empty_boundaries() {
     use sha2::Digest;
-    // Captured from the whole-buffer v21 encoder before changing its storage.
-    // Round trips alone could let the codec and identity drift together.
+    // Version-22 pins were measured after the explicit protocol-domain change.
+    // Historical v21 pins are retained in the merge evidence. Round trips
+    // alone could let the codec and identity drift together.
     let identities = [
-        "81ae82f282f0b42d01fe4f27edeb54c205a6766fa4bc3490d8e16869c6e1c88a",
-        "87c5761e5480a1e03643e77075e804408afc5315ca94934eb3fdd79169534239",
-        "e6e993c6fba81ed794cb5242015f67a3b640930228b81affeaf31b1433fa14bd",
-        "b6a5b6be77bd548d2e38605c9c4cbf23a1e1c903d06fbba63b21c30e00ee93f0",
+        "18a91a223c167662dc022bd28563fb63715aa1bfa39240bbb5ec84036e871de9",
+        "016b184915ec6e273f581a57a44f3bcca6c92dd8a6c0bfc4911a90a01eaf9072",
+        "6c29af6164b824be348bf17d30ec10f4cc1075a05164c8945fda1984ce6c17dc",
+        "06ed789fb9dbe980427c8f1de269508f765436289a569cffe8c8725a81c8d280",
     ];
     let wire_digests = [
-        "41a28159395be83700d76726a4bf94b7ba451a58039a961b79e4efb2b0d20e38",
-        "84e9091f3f0563fc7e1705ff043dc265887874299c92e3a4bcc13cc50922ea9b",
-        "0360e4cfc87a430b6765d604ac3e0011994fefcac2f03142c71c336c58142385",
-        "762a788d614791be3f2cd3f439cc5f882b6c3acd838a6e8cad601f0182927341",
+        "0332ff359e3baf8a4174d9c8c616a8b51d43359d8021eb2069b958b197c0cb83",
+        "6bb7ab5439211ea03b1699ab3c379d9276212cb3d86e46a52f4a15a2a7dc9251",
+        "918dc65f3589f99482633ca53f4a544bb801c8a93a389a1fee107262156ff0a1",
+        "5787c93c59b129f9946d2d8b90a91bad1a92db8209d5d877cb054989406a6a74",
     ];
     for variant in 0..4 {
         let mut source = plan();
@@ -444,7 +445,7 @@ fn physical_codec_retains_owned_entry_homes_and_rejects_stale_or_absent_identity
         source.functions[0].blocks[0].instructions[0].address = Some(address);
         source.identity = post_allocation_machine_identity(&source);
         let encoded = source.encode();
-        assert_eq!(u32::from_le_bytes(encoded[8..12].try_into().unwrap()), 21);
+        assert_eq!(u32::from_le_bytes(encoded[8..12].try_into().unwrap()), 22);
         assert_eq!(
             PostAllocationMachinePlan::decode(&encoded),
             Ok(source.clone())

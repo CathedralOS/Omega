@@ -22,6 +22,7 @@ use terminal_psi::{
     ScalarQualificationSet,
 };
 
+mod domain_predicates;
 mod fields;
 mod parameters;
 pub(crate) use fields::FieldType;
@@ -204,6 +205,7 @@ impl PreparedScalarQualifications {
         }
         let parameter_atoms =
             parameters::prepare(identities, checked, bodies, &mut catalog, &mut atom_sets)?;
+        domain_predicates::complete_value_components(&mut catalog.domains);
         catalog.domains.sort_by(|left, right| {
             identities
                 .text(left.identity)
@@ -409,6 +411,48 @@ fn retain_domain(
         LoweringError::Unsupported("scalar qualification has an invalid semantic identity"),
     )?;
     let establishment_routes = scalar_domain_establishment_routes(identities, checked, symbol)?;
+    let definition = checked
+        .typed
+        .domain_definition_for_instance(symbol, semantic_id)
+        .or_else(|| checked.domain_definition(symbol))
+        .ok_or(LoweringError::Unsupported(
+            "scalar qualification lost its required-domain declaration",
+        ))?;
+    let requirements =
+        typed_trees::domain::required_subject_memberships(&checked.typed, definition);
+    let required_memberships = requirements
+        .as_ref()
+        .map(|requirements| {
+            let mut domains = requirements
+                .iter()
+                .map(|membership| {
+                    DomainSemanticId::new(u64::from(membership.semantic_domain.0))
+                        .ok_or(LoweringError::InvalidContentDomainIdentity)
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            domains.sort();
+            domains.dedup();
+            Ok::<_, LoweringError>(domains)
+        })
+        .transpose()?;
+    let predicate = if required_memberships.is_some() {
+        if definition.establishment_routes.is_empty()
+            && checked.typed.proof_facts(definition).is_empty()
+        {
+            None
+        } else {
+            let local = validation::scalar_domain_local_predicate(&checked.typed, definition)
+                .ok_or(LoweringError::Unsupported(
+                    "scalar required-domain theory has no complete local predicate",
+                ))?;
+            Some(retained_domain_predicate(identities, &local, scalar_type)?)
+        }
+    } else {
+        validation::scalar_domain_definition_predicate(&checked.typed, symbol, semantic_id)
+            .map(|predicate| retained_domain_predicate(identities, &predicate, scalar_type))
+            .transpose()?
+            .or(predicate)
+    };
     let retained_identity = identities.intern(&identity);
     if let Some(existing) = catalog
         .domains
@@ -418,12 +462,15 @@ fn retain_domain(
         if existing.carrier != scalar_type
             || existing.semantic_domain != semantic_domain
             || existing.establishment_routes != establishment_routes
+            || existing.required_memberships != required_memberships
             || existing.predicate != predicate
         {
             return unsupported("scalar qualification identity has conflicting declarations");
         }
+        return Ok(identity);
     } else {
         catalog.domains.push(ScalarDomainDeclaration {
+            required_memberships,
             predicate,
             id: ScalarDomainId::new(1).ok_or(LoweringError::Unsupported(
                 "invalid initial scalar domain identity",
@@ -433,6 +480,63 @@ fn retain_domain(
             carrier: scalar_type,
             establishment_routes,
         });
+    }
+    if let Some(requirements) = requirements {
+        for membership in requirements {
+            let parent = checked
+                .typed
+                .domain_definition_for_instance(
+                    membership.domain_symbol,
+                    membership.semantic_domain,
+                )
+                .or_else(|| checked.domain_definition(membership.domain_symbol))
+                .ok_or(LoweringError::Unsupported(
+                    "required scalar domain is absent",
+                ))?;
+            let predicate = if parent.establishment_routes.is_empty()
+                && checked.typed.proof_facts(parent).is_empty()
+            {
+                None
+            } else {
+                let local = validation::scalar_domain_local_predicate(&checked.typed, parent)
+                    .or_else(|| {
+                        let primitive_type =
+                            checked.primitive_type_reference(parent.target_type)?;
+                        let predicates = validation::scalar_membership_value_predicates(
+                            &checked.typed,
+                            membership,
+                            &checked_trees::CheckedScalarExpression::Parameter {
+                                position: 0,
+                                primitive_type,
+                            },
+                        )?;
+                        Some(
+                            predicates
+                                .into_iter()
+                                .reduce(|left, right| {
+                                    checked_trees::CheckedBooleanExpression::And {
+                                        left: Box::new(left),
+                                        right: Box::new(right),
+                                    }
+                                })
+                                .unwrap_or(checked_trees::CheckedBooleanExpression::Constant(true)),
+                        )
+                    })
+                    .ok_or(LoweringError::Unsupported(
+                        "required scalar domain has no complete local predicate",
+                    ))?;
+                Some(retained_domain_predicate(identities, &local, scalar_type)?)
+            };
+            retain_domain(
+                catalog,
+                identities,
+                checked,
+                membership.domain_symbol,
+                membership.semantic_domain,
+                scalar_type,
+                predicate,
+            )?;
+        }
     }
     Ok(identity)
 }

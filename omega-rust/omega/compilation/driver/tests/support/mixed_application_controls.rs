@@ -184,6 +184,10 @@ fn first_mixed(module: &mut TerminalModule) -> Option<&mut ProofTerm> {
                 Terminator::Jump {
                     erased_proof_arguments,
                     ..
+                }
+                | Terminator::InvokeNoNormal {
+                    erased_proof_arguments,
+                    ..
                 } => [Some(erased_proof_arguments), None],
                 Terminator::Conditional {
                     when_true,

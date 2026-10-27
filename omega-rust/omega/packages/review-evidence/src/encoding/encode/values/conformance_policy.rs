@@ -13,9 +13,7 @@ pub(crate) fn encode_application(
     encoder: &mut Encoder,
     application: &PackagePolicyClosedConformanceApplication,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("declaration", |encoder| {
-        encode_nominal(encoder, &application.declaration)
-    })?;
+    encoder.field_by("declaration", &application.declaration, encode_nominal)?;
     encoder.field("lifetime_arguments", |encoder| {
         encoder.sequence(&application.lifetime_arguments, ordinal)
     })?;
@@ -28,9 +26,11 @@ pub(crate) fn encode_application(
     encoder.field("machine_arguments", |encoder| {
         encoder.sequence(&application.machine_arguments, encode_nominal)
     })?;
-    encoder.field("trait_identity", |encoder| {
-        encode_nominal(encoder, &application.trait_identity)
-    })?;
+    encoder.field_by(
+        "trait_identity",
+        &application.trait_identity,
+        encode_nominal,
+    )?;
     encoder.field("trait_lifetime_arguments", |encoder| {
         encoder.sequence(&application.trait_lifetime_arguments, ordinal)
     })?;
@@ -39,27 +39,20 @@ pub(crate) fn encode_application(
     })?;
     encoder.field("rows", |encoder| {
         encoder.sequence(&application.rows, |encoder, row| {
-            encoder.field("declaring_trait", |encoder| {
-                encode_nominal(encoder, &row.declaring_trait)
-            })?;
-            encoder.field("requirement", |encoder| {
-                encode_nominal(encoder, &row.requirement)
-            })?;
-            encoder.field("realization_machine", |encoder| {
-                encode_nominal(encoder, &row.realization_machine)
-            })?;
-            encoder.field("realization_state", |encoder| {
-                encode_nominal(encoder, &row.realization_state)
-            })
+            encoder.field_by("declaring_trait", &row.declaring_trait, encode_nominal)?;
+            encoder.field_by("requirement", &row.requirement, encode_nominal)?;
+            encoder.field_by(
+                "realization_machine",
+                &row.realization_machine,
+                encode_nominal,
+            )?;
+            encoder.field_by("realization_state", &row.realization_state, encode_nominal)
         })
     })
 }
 
 fn ordinal(encoder: &mut Encoder, ordinal: &u32) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("value", |encoder| {
-        encoder.u32(*ordinal);
-        Ok(())
-    })?;
+    encoder.u32_field("value", *ordinal)?;
     Ok(())
 }
 
@@ -74,12 +67,8 @@ fn const_argument(
             canonical_value_encoding,
         } => {
             encoder.tag("evaluated", 0);
-            encoder.field("parameter_carrier", |encoder| {
-                type_identity(encoder, parameter_carrier)
-            })?;
-            encoder.field("declared_carrier", |encoder| {
-                type_identity(encoder, declared_carrier)
-            })?;
+            encoder.field_by("parameter_carrier", parameter_carrier, type_identity)?;
+            encoder.field_by("declared_carrier", declared_carrier, type_identity)?;
             encoder.field("canonical_value_encoding", |encoder| {
                 encoder.string(canonical_value_encoding)
             })
@@ -89,9 +78,7 @@ fn const_argument(
             expression,
         } => {
             encoder.tag("caller_expression", 2);
-            encoder.field("parameter_carrier", |encoder| {
-                type_identity(encoder, parameter_carrier)
-            })?;
+            encoder.field_by("parameter_carrier", parameter_carrier, type_identity)?;
             encoder.field("expression", |encoder| type_identity(encoder, expression))
         }
         PackagePolicyConformanceConstArgument::CallerBinder {
@@ -100,13 +87,9 @@ fn const_argument(
             binder_carrier,
         } => {
             encoder.tag("caller_binder", 1);
-            encoder.field("parameter_carrier", |encoder| {
-                type_identity(encoder, parameter_carrier)
-            })?;
+            encoder.field_by("parameter_carrier", parameter_carrier, type_identity)?;
             encoder.field("binder", |encoder| encode_nominal(encoder, binder))?;
-            encoder.field("binder_carrier", |encoder| {
-                type_identity(encoder, binder_carrier)
-            })
+            encoder.field_by("binder_carrier", binder_carrier, type_identity)
         }
     }
 }

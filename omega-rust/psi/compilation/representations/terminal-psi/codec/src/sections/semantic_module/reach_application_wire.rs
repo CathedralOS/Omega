@@ -44,7 +44,7 @@ pub(crate) fn encode(
     }
     writer.len("reach calls", application.calls.len())?;
     for call in &application.calls {
-        writer.id(call.operation);
+        super::wire::encode_invocation_site(writer, call.site);
         writer.u32(call.binder);
         writer.boolean(call.application.is_some());
         if let Some(application) = &call.application {
@@ -157,7 +157,7 @@ pub(crate) fn decode(
         dependencies: decode_counted(reader, |reader| reader.u32())?,
         calls: decode_counted(reader, |reader| {
             Ok(ClosedReachCall {
-                operation: reader.id("OperationId")?,
+                site: super::wire::decode_invocation_site(reader)?,
                 binder: reader.u32()?,
                 application: if reader.boolean()? {
                     Some(ClosedReachCallApplication {

@@ -153,20 +153,119 @@ pub(super) fn receive(
     )))
 }
 
-pub(super) fn same_routes(
-    structural: &StructuralDomainDeclaration,
+/// Retain each prerequisite as a distinct same-carrier obligation. An unknown
+/// or cyclic relation is not an empty receiving restriction.
+pub(super) fn required_domains<'domain>(
+    domains: impl Iterator<Item = &'domain StructuralDomainDeclaration> + Clone,
+    root: &'domain StructuralDomainDeclaration,
+) -> Option<Vec<&'domain StructuralDomainDeclaration>> {
+    let mut pending = vec![(root.semantic_domain, false)];
+    let mut active = Vec::new();
+    let mut visited = Vec::new();
+    let mut result = Vec::new();
+    while let Some((semantic_domain, completed)) = pending.pop() {
+        if completed {
+            if active.pop() != Some(semantic_domain) {
+                return None;
+            }
+            visited.push(semantic_domain);
+            continue;
+        }
+        if active.contains(&semantic_domain) {
+            return None;
+        }
+        if visited.contains(&semantic_domain) {
+            continue;
+        }
+        let mut matching = domains.clone().filter(|domain| {
+            domain.carrier == root.carrier && domain.semantic_domain == semantic_domain
+        });
+        let domain = matching.next()?;
+        if matching.next().is_some() {
+            return None;
+        }
+        let required = domain.required_memberships.as_ref()?;
+        if !required.windows(2).all(|pair| pair[0] < pair[1]) {
+            return None;
+        }
+        result.push(domain);
+        active.push(semantic_domain);
+        pending.push((semantic_domain, true));
+        pending.extend(required.iter().rev().map(|domain| (*domain, false)));
+    }
+    Some(result)
+}
+
+/// Scalar and addressable presentations share semantic coordinates only inside
+/// this module. Match the complete parent graph and each independent issuer
+/// group; root route equality alone can erase a routed parent.
+pub(super) fn same_theory<'types, 'domain>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    domains: impl Iterator<Item = &'domain StructuralDomainDeclaration> + Clone,
+    structural: &'domain StructuralDomainDeclaration,
     scalar: &terminal_psi::ScalarDomainDeclaration,
+    catalog: &terminal_psi::ScalarQualificationCatalog,
 ) -> bool {
-    // Both presentations retain the same complete owner-bound route protocol.
-    // Require canonical unique rosters before equality: duplicated matches do
-    // not form a bijection even if both malformed lists repeat the same row.
-    structural
-        .establishment_routes
-        .windows(2)
-        .all(|pair| pair[0] < pair[1])
-        && scalar
-            .establishment_routes
-            .windows(2)
-            .all(|pair| pair[0] < pair[1])
-        && structural.establishment_routes == scalar.establishment_routes
+    let Some(structural_nodes) = required_domains(domains, structural) else {
+        return false;
+    };
+    let Some(scalar_nodes) = scalar.required_domain_closure(&catalog.domains) else {
+        return false;
+    };
+    structural_nodes.len() == scalar_nodes.len()
+        && structural_nodes.iter().all(|structural| {
+            let mut matching = scalar_nodes.iter().copied().filter(|domain| {
+                domain.semantic_domain == structural.semantic_domain
+                    && domain.carrier == scalar.carrier
+            });
+            let Some(scalar) = matching.next() else {
+                return false;
+            };
+            if matching.next().is_some()
+                || structural.required_memberships != scalar.required_memberships
+                || !structural
+                    .establishment_routes
+                    .windows(2)
+                    .all(|pair| pair[0] < pair[1])
+                || !scalar
+                    .establishment_routes
+                    .windows(2)
+                    .all(|pair| pair[0] < pair[1])
+                || structural.establishment_routes != scalar.establishment_routes
+            {
+                return false;
+            }
+            let Some(required) = refinement(types.clone(), structural) else {
+                return false;
+            };
+            if required.carrier() != scalar.carrier {
+                return false;
+            }
+            let proposition = match &scalar.predicate {
+                Some(predicate) => {
+                    let mut proposition = predicate.proposition.clone();
+                    proposition.remap_value_ids(|value| {
+                        if value == predicate.subject {
+                            ScalarRefinement::SUBJECT
+                        } else {
+                            value
+                        }
+                    });
+                    proposition
+                }
+                None if scalar.establishment_routes.is_empty()
+                    && scalar.has_no_required_memberships() =>
+                {
+                    Proposition::Truth
+                }
+                None => return false,
+            };
+            let Ok(actual) = ScalarRefinement::new(scalar.carrier, proposition) else {
+                return false;
+            };
+            let required = StructuralFieldType::RefinedScalar(required);
+            let actual = StructuralFieldType::RefinedScalar(actual);
+            crate::scalar_field_entails(&required, &actual)
+                && crate::scalar_field_entails(&actual, &required)
+        })
 }

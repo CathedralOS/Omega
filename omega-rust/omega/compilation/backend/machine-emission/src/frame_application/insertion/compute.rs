@@ -237,6 +237,10 @@ fn validate_and_collect_returns(
                 FunctionFragmentControlProvenance::HostedExitProcess { .. }
                     | FunctionFragmentControlProvenance::OperationTrap { .. }
                     | FunctionFragmentControlProvenance::Crash { .. }
+                    | FunctionFragmentControlProvenance::InternalCall {
+                        owner: target_operations::CallSiteOwner::InvokeNoNormal(_),
+                        ..
+                    }
             ) && (index + 1 != block.instructions.len() || row.bytes.is_empty())
             {
                 return Err(FrameApplicationError::MissingFinalReturn(function.machine));

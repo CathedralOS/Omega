@@ -265,13 +265,8 @@ impl<'checked> StorageDemand<'checked, '_, '_> {
         namespace: &mut Vec<&'checked CheckedUnitEffectOperationPlan>,
     ) -> Result<(), LoweringError> {
         for operation in operations {
-            if let CheckedUnitEffectOperationPlan::EstablishLocal(
-                checked_trees::CheckedUnitLocalBindingPlan::StructuralValue {
-                    value, calls, ..
-                },
-            ) = operation
-            {
-                self.value(*value, namespace)?;
+            if let Some((value, calls)) = operation.structural_value_evaluation() {
+                self.value(value, namespace)?;
                 self.calls(calls, &mut namespace.clone())?;
             }
             let subject = match operation {
@@ -321,12 +316,7 @@ impl<'checked> StorageDemand<'checked, '_, '_> {
         // One value's later calls can use its earlier completed calls. Only
         // the containing value boundary discards this temporary namespace.
         for call in calls {
-            self.operations(
-                call.operands()
-                    .iter()
-                    .chain(std::iter::once(call.operation())),
-                namespace,
-            )?;
+            self.operations(call.operands().iter().chain(call.operation()), namespace)?;
         }
         Ok(())
     }

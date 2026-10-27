@@ -767,6 +767,7 @@ impl TerminalExecution<'_> {
                     .is_some_and(|domain| {
                         domain.content_projection.is_none()
                             && domain.establishment_routes.is_empty()
+                            && domain.has_no_required_memberships()
                             && match &domain.predicate {
                                 Some(predicate) => terminal_semantics::domain_predicate_is_closed(
                                     self.program.structural_types().values(),

@@ -314,6 +314,15 @@ fn push_call(
     call_ordinal: usize,
     calls: &mut Vec<CallWork>,
 ) {
+    // An ordinary call can retain its exact machine declaration rather than
+    // its entry-state symbol. Effect rows describe the executable entry, just
+    // as Flow's occurrence join does; a machine head is not a stored state.
+    // Preserve the authored declaration separately for signature ceilings.
+    let authored_target = target_state_symbol;
+    let target_state_symbol = program
+        .machine_by_symbol(authored_target)
+        .and_then(|machine| program.machine_states(machine).first())
+        .map_or(authored_target, |state| state.symbol);
     let target_machine_symbol = machine_symbol_for_state(program, target_state_symbol);
     // Static selection changes execution, not the requirement's independent
     // acknowledgement envelope. Both nominal and structural binders retain it.
@@ -324,7 +333,7 @@ fn push_call(
             signature_effects.for_symbol(if requirement_symbol.is_valid() {
                 requirement_symbol
             } else {
-                target_state_symbol
+                authored_target
             })
         });
     calls.push(CallWork {

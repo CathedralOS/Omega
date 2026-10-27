@@ -153,12 +153,14 @@ fn append_value_predicates(
                 // A field predicate follows the copied value. Routed
                 // qualifications require their own custody correspondence,
                 // not this predicate rule.
-                if !program.domain_definitions().iter().any(|definition| {
-                    definition.symbol == domain_symbol
-                        && definition.establishment_routes.is_empty()
-                        && definition.alias.is_none()
-                        && definition.predicate_body.is_present()
-                }) {
+                if !program
+                    .domain_definition(domain_symbol)
+                    .is_some_and(|definition| {
+                        definition.establishment_routes.is_empty()
+                            && definition.alias.is_none()
+                            && definition.predicate_body.is_present()
+                    })
+                {
                     continue;
                 }
                 FactPayload::DomainMembership {

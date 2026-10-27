@@ -16,7 +16,7 @@ pub(super) fn check(
     instruction: &SelectedInstruction,
     actual: &Control,
 ) -> Result<(), ResolvedFragmentEmissionError> {
-    if let selected_instructions::selected_call_triple_pattern!(target, ..) = instruction.kind {
+    if let selected_instructions::selected_call_pattern!(target, ..) = instruction.kind {
         let mut rows = function
             .calls
             .iter()
@@ -29,6 +29,28 @@ pub(super) fn check(
                 && selected_instructions::SelectedCallTarget::from_native(row.call.target)
                     == target,
         )?;
+        if matches!(
+            instruction.kind,
+            SelectedInstructionKind::InvokeNoNormal { .. }
+        ) {
+            let SelectedTerminator::InvokeNoNormal {
+                instruction: terminal,
+                psi_edge,
+            } = &block.terminator
+            else {
+                return Err(crate::fragment_emission::projection::ResolvedFragmentEmissionError::ArtifactMismatch);
+            };
+            if terminal.id != instruction.id
+                || row.owner != target_operations::CallSiteOwner::InvokeNoNormal(*psi_edge)
+            {
+                return Err(crate::fragment_emission::projection::ResolvedFragmentEmissionError::ArtifactMismatch);
+            }
+        } else if matches!(
+            row.owner,
+            target_operations::CallSiteOwner::InvokeNoNormal(_)
+        ) {
+            return Err(crate::fragment_emission::projection::ResolvedFragmentEmissionError::ArtifactMismatch);
+        }
         return require(
             matches!(actual, Control::InternalCall { target: actual_target, owner } if *actual_target == target && *owner == row.owner),
         );
@@ -50,6 +72,15 @@ pub(super) fn check(
         ));
     }
     let (terminal, predicate, successors) = match &block.terminator {
+        SelectedTerminator::InvokeNoNormal {
+            instruction: terminal,
+            ..
+        } => {
+            // The actual invocation was checked above. Other instructions in
+            // this block cannot borrow its terminal provenance.
+            return require(terminal.id != instruction.id && matches!(actual, Control::None));
+        }
+
         SelectedTerminator::OperationTrap {
             instruction: terminal,
             operation,

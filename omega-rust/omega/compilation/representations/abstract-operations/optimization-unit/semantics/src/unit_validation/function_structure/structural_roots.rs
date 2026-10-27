@@ -1128,27 +1128,39 @@ pub(crate) fn validate_structural_root_operations(
                         }
                         continue;
                     }
-                    // Predicate establishment was checked by Psi. The native
-                    // contract still rejects direct routed issuance here;
-                    // absence of direct routes does not re-prove source admission.
-                    for domain in result
+                    // Psi checked the predicates before erasure. Introduction
+                    // still owes every unsupplied issuer in the retained graph,
+                    // selected from this occurrence's actual source memberships.
+                    let additions = result
                         .qualifications
                         .iter()
-                        .filter(|domain| !contract.qualifications.contains(domain))
+                        .map(|domain| (&[][..], domain))
                         .chain(
                             result
                                 .projected_qualifications
                                 .iter()
-                                .filter(|row| !contract.projected_qualifications.contains(row))
-                                .map(|row| &row.domain),
-                        )
-                    {
-                        if structural_domains
-                            .get(domain)
-                            .is_none_or(|declaration| !declaration.establishment_routes.is_empty())
-                        {
+                                .map(|row| (row.path.as_slice(), &row.domain)),
+                        );
+                    for (path, domain) in additions {
+                        let (supplied, _) = terminal_psi::StructuralPathQualification::select(
+                            &contract.qualifications,
+                            &contract.projected_qualifications,
+                            path,
+                        );
+                        if structural_domains.get(domain).is_none_or(|declaration| {
+                            declaration
+                                .missing_membership_requirements(
+                                    &unit.structural_domains,
+                                    &supplied,
+                                )
+                                .is_none_or(|missing| {
+                                    missing
+                                        .iter()
+                                        .any(|node| !node.establishment_routes.is_empty())
+                                })
+                        }) {
                             return Err(invalid(
-                                "transfer adds an unknown or directly routed membership",
+                                "transfer adds a membership with unknown or unsupplied issuer requirements",
                             ));
                         }
                     }

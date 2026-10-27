@@ -383,7 +383,7 @@ fn append_unresolved_state_result_mapping_diagnostics(
                 && receipt.state_symbol == state.symbol
                 && receipt.statement_index == statement_index
                 && receipt.expression == result_expression
-                && receipt.target_symbol == call.target_symbol
+                && receipt.target_symbol == target_state.symbol
                 && receipt.result_root == event.root
                 && ownership.segments.span_or_empty(receipt.result_segments) == receiving_path
                 && receipt.claim_identity == event.claim_identity

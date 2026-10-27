@@ -591,10 +591,7 @@ fn operand_chain_length(
 /// roster. Admission decides the pair; this is only the source-bound
 /// candidate surface and the joint measure's call term.
 pub(crate) fn is_call_consumer(kind: SelectedInstructionKind) -> bool {
-    matches!(
-        kind,
-        selected_instructions::selected_call_triple_pattern!(..)
-    )
+    matches!(kind, selected_instructions::selected_call_pattern!(..))
 }
 
 /// The joint measure a committed step must strictly drop: the plan's
@@ -1001,29 +998,17 @@ pub(super) fn add_usage(
     left: OptimizationWorkUsage,
     right: OptimizationWorkUsage,
 ) -> Result<OptimizationWorkUsage, OptimizedPreAllocationCustodyError> {
-    Ok(OptimizationWorkUsage {
-        rule_evaluations: charge(left.rule_evaluations, right.rule_evaluations)?,
-        candidates: charge(left.candidates, right.candidates)?,
-        validation_steps: charge(left.validation_steps, right.validation_steps)?,
-        commits: charge(left.commits, right.commits)?,
-        iterations: charge(left.iterations, right.iterations)?,
-    })
+    crate::work_accounting::combine(left, right)
+        .map_err(|_| OptimizedPreAllocationCustodyError::WorkOverflow)
 }
 
 pub(super) fn ensure_pre_allocation_budget(
     usage: OptimizationWorkUsage,
     budget: OptimizationWorkBudget,
 ) -> Result<(), OptimizedPreAllocationCustodyError> {
-    if usage.within(budget) {
-        Ok(())
-    } else {
-        Err(
-            OptimizedPreAllocationCustodyError::PreAllocationBudgetExceeded {
-                required: usage,
-                budget,
-            },
-        )
-    }
+    crate::work_accounting::admit(usage, budget, |required, budget| {
+        OptimizedPreAllocationCustodyError::PreAllocationBudgetExceeded { required, budget }
+    })
 }
 
 /// Rebuild the analyses the committed step must carry: a transformation may
