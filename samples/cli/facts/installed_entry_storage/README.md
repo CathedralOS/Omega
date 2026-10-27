@@ -23,6 +23,13 @@ write contract; no caller guard re-establishes it.
 | other_machine | [program](other_machine/main.omg) | [unproved write](other_machine/invalid/main.omg) |
 | target_body | [program](target_body/main.omg) | [unproved write](target_body/invalid/main.omg) |
 
+The match-join place invokes both branch inputs. Each branch carries the same
+proved code byte 9 and a distinct tag (11 or 13); after the unchanged placed
+write, the program traps if the selected tag differs from that input. Thus an
+inverted or constant branch cannot pass merely because both code fields are 9.
+The reject twin changes only both code fields to 8 and still refuses the write
+contract; the tag check never establishes the code requirement.
+
 The row is pinned under `tests/omega/{pass,fail}/facts/` as
 `installed_entry_storage_through_<place>_{exit,unproved}`. Every positive binds
 all four hosted targets. `entry_ram.txt` explicitly requests initialization for

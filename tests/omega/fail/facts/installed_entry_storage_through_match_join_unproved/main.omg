@@ -95,4 +95,23 @@ machine finish(view: &mut Placed<RegPlacement, Registers>, code: u8) requires co
     }
     state bad() { crash Trap; }
 }
-machine start(view: &mut Placed<RegPlacement, Registers>) crashes Trap { let flag: bool = false; let code: u8 = match flag { true -> 8u8 _ -> 8u8 }; finish(view, code); }
+data Selection { code: u8; branch_tag: u8; }
+
+machine write_selected(view: &mut Placed<RegPlacement, Registers>, flag: bool, expected_tag: u8) crashes Trap {
+    let selected: Selection = match flag {
+        true -> Selection { code: 8u8, branch_tag: 11u8 },
+        _ -> Selection { code: 8u8, branch_tag: 13u8 },
+    };
+    finish(view, selected.code);
+    transition selected.branch_tag == expected_tag {
+        true -> done()
+        _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}
+
+machine start(view: &mut Placed<RegPlacement, Registers>) crashes Trap {
+    write_selected(view, true, 11u8);
+    write_selected(view, false, 13u8);
+}
