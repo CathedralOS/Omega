@@ -281,17 +281,13 @@ fn assign_callable_value_symbols(
             let expression = match fact {
                 symbol_resolved_trees::domain::ProofFact::Expression(expression) => *expression,
                 symbol_resolved_trees::domain::ProofFact::Membership(membership) => {
-                    for handle in membership.domain_arguments.handles() {
-                        let mut argument = child_type_references.get(handle).clone();
-                        crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_constraints(
-                            symbols,
-                            child_type_references,
-                            machine.type_constraints,
-                            contract_scope.type_parameters,
-                            &mut argument,
-                        );
-                        *child_type_references.get_mut(handle) = argument;
-                    }
+                    crate::symbols::type_references::assign_type_reference_argument_symbols_with_constraints(
+                        symbols,
+                        child_type_references,
+                        machine.type_constraints,
+                        contract_scope.type_parameters,
+                        membership.domain_arguments,
+                    );
                     membership.value
                 }
             };
