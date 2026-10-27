@@ -31,6 +31,12 @@ package admission and compiler facades, and publishes ordered outcomes. A target
 refusal stays beside that target; it does not hide successful siblings. Checks
 use disposable workspaces and do not claim the requested product directory.
 
+A Terminal consumer keeps the retained Build companion as well as the artifact.
+Its explicit entry receipt and provider selection reach the runtime separately
+from host provisions. A deployment tag alone selects target bodies, not the
+Build-selected program entry; omitting that receipt runs the artifact's default
+entry instead. Selecting the entry grants no backing storage or host authority.
+
 [products.rs](src/products.rs) translates package and standalone product demands.
 [project_compilation.rs](src/project_compilation.rs) shows ordinary package
 compilation: settle returned Builds, admit the target batch and prepare products, then reconcile

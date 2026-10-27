@@ -263,9 +263,10 @@ fn produce(request: &Request) -> Result<(), Box<dyn std::error::Error>> {
                 std::ptr::eq(first, artifact),
                 "equal source targets must share Terminal storage"
             );
-            let mut matching = product
+            let companion = product
                 .native_realization_proposal()
-                .ok_or("Terminal product lost its Build companion")?
+                .ok_or("Terminal product lost its Build companion")?;
+            let mut matching = companion
                 .target_provider_proposals()
                 .iter()
                 .filter(|proposal| proposal.target == profile.target_name());
@@ -277,6 +278,7 @@ fn produce(request: &Request) -> Result<(), Box<dyn std::error::Error>> {
                 "duplicate Terminal target selection"
             );
             let observed = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
+                entry: Some(companion.program_entry().checked_entry()),
                 native_provider: None,
                 artifact,
                 target: Some(profile.target_name()),
