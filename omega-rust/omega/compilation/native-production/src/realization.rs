@@ -46,53 +46,61 @@ pub(crate) fn realize_native_artifact(
         input,
         mut providers,
         boundary_application_coverage,
-    } = admit_prepared_native_realization(input, &artifact, &request.admission)?;
-    let entry_settlement = native_artifact::admit_executable_entry(
-        &input,
-        &artifact,
-        request.program_entry,
-        request.admission.providers.target(),
-    )?;
+    } = phase_profile::scope("06.1.c3_admit_prepared_native_realization", || {
+        admit_prepared_native_realization(input, &artifact, &request.admission)
+    })?;
+    let entry_settlement = phase_profile::scope("06.1.c4_admit_executable_entry", || {
+        native_artifact::admit_executable_entry(
+            &input,
+            &artifact,
+            request.program_entry,
+            request.admission.providers.target(),
+        )
+    })?;
     // Capture before emission takes the installation. These are the admitted
     // rows of this same image request, not reconstructed provider-name hints.
     let entry = request.program_entry;
-    let runtime_provisions = entry
-        .checked_entry
-        .map(|checked| {
-            native_artifact::TerminalRuntimeProvisions::capture_native_admission(
-                checked,
-                entry.fused_service_establishments(),
-                providers
-                    .installation
-                    .as_ref()
-                    .map(|installation| installation.terminal_selection()),
-                providers
-                    .settlements
-                    .iter()
-                    .map(|settlement| native_artifact::TerminalRuntimeHostProvision {
-                        boundary: settlement.boundary,
-                        realization: settlement.realization.clone(),
-                    })
-                    .collect(),
-                &input.plan().boundary_machines,
-                &artifact.semantic_module().provider_candidates,
-                request.admission.providers.selected_provider_plans,
-                &artifact.semantic_module().identities,
-                entry.source().identities(),
-                entry.source().target_slot(),
-                request.admission.providers.external_binding_rows,
-            )
-        })
-        .transpose()
-        .map_err(|message| vec![Diagnostic::error(message)])?;
+    let runtime_provisions = phase_profile::scope("06.1.c5_capture_native_admission", || {
+        entry
+            .checked_entry
+            .map(|checked| {
+                native_artifact::TerminalRuntimeProvisions::capture_native_admission(
+                    checked,
+                    entry.fused_service_establishments(),
+                    providers
+                        .installation
+                        .as_ref()
+                        .map(|installation| installation.terminal_selection()),
+                    providers
+                        .settlements
+                        .iter()
+                        .map(|settlement| native_artifact::TerminalRuntimeHostProvision {
+                            boundary: settlement.boundary,
+                            realization: settlement.realization.clone(),
+                        })
+                        .collect(),
+                    &input.plan().boundary_machines,
+                    &artifact.semantic_module().provider_candidates,
+                    request.admission.providers.selected_provider_plans,
+                    &artifact.semantic_module().identities,
+                    entry.source().identities(),
+                    entry.source().target_slot(),
+                    request.admission.providers.external_binding_rows,
+                )
+            })
+            .transpose()
+            .map_err(|message| vec![Diagnostic::error(message)])
+    })?;
     let private_entry_ram = input.private_entry_ram().to_vec();
-    let emitted = emit_realization_object(
-        input,
-        providers.installation.take(),
-        &providers.settlements,
-        entry_settlement.as_ref(),
-        &request,
-    )?;
+    let emitted = phase_profile::scope("06.1.d_emit_realization_object", || {
+        emit_realization_object(
+            input,
+            providers.installation.take(),
+            &providers.settlements,
+            entry_settlement.as_ref(),
+            &request,
+        )
+    })?;
     let runtime_provisions = runtime_provisions.map(|provisions| {
         provisions
             .with_private_entry_ram(private_entry_ram)
@@ -107,15 +115,17 @@ pub(crate) fn realize_native_artifact(
         .clone()
         .settle_elf_loader(&emitted.object, request.elf_interpreter)
         .map_err(|error| vec![error.diagnostic().clone()])?;
-    let artifact = RequestedNativeArtifact::emit_admitted(
-        request.admission.providers.target(),
-        artifact,
-        emitted,
-        image_request,
-        request.admission.providers.selected_provider_plans,
-        providers,
-        boundary_application_coverage,
-    )?;
+    let artifact = phase_profile::scope("06.1.e_emit_admitted_image", || {
+        RequestedNativeArtifact::emit_admitted(
+            request.admission.providers.target(),
+            artifact,
+            emitted,
+            image_request,
+            request.admission.providers.selected_provider_plans,
+            providers,
+            boundary_application_coverage,
+        )
+    })?;
     Ok(RealizedNativeProduct {
         artifact,
         runtime_provisions,

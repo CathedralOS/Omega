@@ -28,4 +28,5 @@ terminal-psi = { path = "../../representations/terminal-psi" }
 terminal-semantics = { path = "../../representations/terminal-psi/semantics" }
 terminal-codec = { path = "../../representations/terminal-psi/codec" }
 validation = { path = "../../checking" }
+phase-profile = { path = "../../../foundation/phase-profile" }
 

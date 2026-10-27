@@ -42,6 +42,18 @@ pub(super) fn compute_terminal_pre_allocation_machine_effects<S: ValidatedSelect
         return Err(MachineEffectError::RegisterEnvironmentMismatch);
     }
     validate_catalog_roots(source.target, constraints, selected_keys, catalog)?;
+    let declarations_by_key = {
+        let mut map = std::collections::BTreeMap::<
+            (MachineSemanticKind, register_model::RegisterConstraintKey),
+            Option<&MachineEffectDeclaration>,
+        >::new();
+        for row in &catalog.catalog().declarations {
+            map.entry((row.semantic, row.constraint))
+                .and_modify(|existing| *existing = None)
+                .or_insert(Some(row));
+        }
+        map
+    };
     let mut functions = Vec::with_capacity(source.functions.len());
     for function in &source.functions {
         let mut blocks = Vec::with_capacity(function.blocks.len());
@@ -53,7 +65,7 @@ pub(super) fn compute_terminal_pre_allocation_machine_effects<S: ValidatedSelect
                     instruction,
                     physical,
                     constraints,
-                    catalog,
+                    &declarations_by_key,
                 )?);
             }
             let terminator = selected_instructions::terminator_instruction(&block.terminator);
@@ -62,7 +74,7 @@ pub(super) fn compute_terminal_pre_allocation_machine_effects<S: ValidatedSelect
                 terminator,
                 physical,
                 constraints,
-                catalog,
+                &declarations_by_key,
             )?);
             blocks.push(BlockMachineEffects {
                 block: block.id,
@@ -213,12 +225,15 @@ fn terminal_selected_keys(
     }
 }
 
-fn compute_instruction(
+fn compute_instruction<'a>(
     function: &SelectedFunction,
     instruction: &SelectedInstruction,
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
-    catalog: &ValidatedMachineEffectCatalog,
+    declarations_by_key: &std::collections::BTreeMap<
+        (MachineSemanticKind, register_model::RegisterConstraintKey),
+        Option<&'a MachineEffectDeclaration>,
+    >,
 ) -> Result<InstructionMachineEffects, MachineEffectError> {
     if matches!(instruction.kind, SelectedInstructionKind::Store { byte_size, .. } if !matches!(byte_size, 1 | 2 | 4 | 8))
     {
@@ -275,7 +290,7 @@ fn compute_instruction(
         instruction,
         physical,
         &constraint,
-        exact_declaration(function.machine, instruction, catalog)?,
+        exact_declaration(function.machine, instruction, declarations_by_key)?,
     )?;
     Ok(InstructionMachineEffects {
         instruction: instruction.id,
@@ -297,28 +312,24 @@ fn compute_instruction(
 fn exact_declaration<'a>(
     machine: semantic_vocabulary::MachineId,
     instruction: &SelectedInstruction,
-    catalog: &'a ValidatedMachineEffectCatalog,
+    declarations_by_key: &std::collections::BTreeMap<
+        (MachineSemanticKind, register_model::RegisterConstraintKey),
+        Option<&'a MachineEffectDeclaration>,
+    >,
 ) -> Result<&'a MachineEffectDeclaration, MachineEffectError> {
     let semantic = machine_semantic_kind(instruction.kind);
-    let mut matches = catalog
-        .catalog()
-        .declarations
-        .iter()
-        .filter(|row| row.semantic == semantic && row.constraint == instruction.constraint);
-    let Some(declaration) = matches.next() else {
-        return Err(MachineEffectError::MissingDeclaration {
+    match declarations_by_key.get(&(semantic, instruction.constraint)) {
+        Some(Some(declaration)) => Ok(*declaration),
+        Some(None) => Err(MachineEffectError::AmbiguousDeclaration {
+            instruction: instruction.id,
+        }),
+        None => Err(MachineEffectError::MissingDeclaration {
             machine,
             instruction: instruction.id,
             semantic,
             constraint: instruction.constraint,
-        });
-    };
-    if matches.next().is_some() {
-        return Err(MachineEffectError::AmbiguousDeclaration {
-            instruction: instruction.id,
-        });
+        }),
     }
-    Ok(declaration)
 }
 
 pub(crate) fn machine_semantic_kind(kind: SelectedInstructionKind) -> MachineSemanticKind {

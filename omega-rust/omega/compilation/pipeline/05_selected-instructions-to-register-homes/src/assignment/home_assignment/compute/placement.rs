@@ -23,7 +23,9 @@ pub(crate) fn compute_function(
     if legality.virtual_registers.len() != ranges.virtual_registers.len() {
         return Err(RegisterHomeError::FunctionMismatch { function });
     }
-    let domains = build_domains(function, legality, ranges)?;
+    let domains = phase_profile::scope("06.1.d.05.j.1_build_domains", || {
+        build_domains(function, legality, ranges)
+    })?;
     let max_reg_id = legality
         .virtual_registers
         .iter()
@@ -38,24 +40,28 @@ pub(crate) fn compute_function(
         }
     }
     let affinities = PreparedAffinities::new(domains.len(), &domain_of, &ranges.copy_affinities);
-    let conflicts = PreparedConflicts::new(
-        function,
-        &domains,
-        &domain_of,
-        ranges,
-        physical,
-        &affinities,
-    )?;
-    if conflicts.uses_bitmasks() {
-        return compute_function_bitmask(
+    let conflicts = phase_profile::scope("06.1.d.05.j.2_prepared_conflicts", || {
+        PreparedConflicts::new(
             function,
-            legality,
             &domains,
-            max_reg_id,
+            &domain_of,
+            ranges,
+            physical,
             &affinities,
-            &conflicts,
-            pressure,
-        );
+        )
+    })?;
+    if conflicts.uses_bitmasks() {
+        return phase_profile::scope("06.1.d.05.j.3_compute_bitmask", || {
+            compute_function_bitmask(
+                function,
+                legality,
+                &domains,
+                max_reg_id,
+                &affinities,
+                &conflicts,
+                pressure,
+            )
+        });
     }
     // Give neighbor and affinity queries direct membership instead of
     // searching every unrelated domain again.
@@ -597,9 +603,9 @@ fn compute_function_bitmask(
             if domain.candidates.is_empty() {
                 domain.candidates_mask
             } else {
-                let mut mask = 0u64;
+                let mut mask = 0u128;
                 for &cand in &domain.candidates {
-                    mask |= 1u64 << cand.0;
+                    mask |= 1u128 << cand.0;
                 }
                 mask
             }
@@ -611,7 +617,7 @@ fn compute_function_bitmask(
     let mut assigned_partner_mask = if affinities.is_empty() {
         Vec::new()
     } else {
-        vec![0u64; domains.len()]
+        vec![0u128; domains.len()]
     };
     let can_use_u64_keys = domains.len() <= u16::MAX as usize
         && domains.windows(2).all(|w| w[0].leader() < w[1].leader())
@@ -675,7 +681,7 @@ fn compute_function_bitmask(
                 homes[member.virtual_register.0 as usize] = Some(view);
             }
             if !assigned_partner_mask.is_empty() {
-                let bit = 1u64 << view.0;
+                let bit = 1u128 << view.0;
                 for affinity in affinities.get_domain_affinities(domain_index) {
                     if let Some(partner_domain) = affinity.partner_domain {
                         assigned_partner_mask[partner_domain] |= bit;
@@ -759,7 +765,7 @@ fn compute_function_bitmask(
                 homes[member.virtual_register.0 as usize] = Some(view);
             }
             if !assigned_partner_mask.is_empty() {
-                let bit = 1u64 << view.0;
+                let bit = 1u128 << view.0;
                 for affinity in affinities.get_domain_affinities(domain_index) {
                     if let Some(partner_domain) = affinity.partner_domain {
                         assigned_partner_mask[partner_domain] |= bit;
@@ -805,10 +811,10 @@ fn compute_function_bitmask(
 
 fn preferred_view_mask(
     domain_index: usize,
-    viable_masks: &[u64],
+    viable_masks: &[u128],
     active: &[bool],
     homes: &[Option<RegisterViewId>],
-    assigned_partner_mask: &[u64],
+    assigned_partner_mask: &[u128],
     affinities: &PreparedAffinities,
     conflicts: &PreparedConflicts,
 ) -> Option<RegisterViewId> {
@@ -833,7 +839,7 @@ fn preferred_view_mask(
         }
         mc
     };
-    let mut stranded_mask = 0u64;
+    let mut stranded_mask = 0u128;
     // The selection tournament always pops a domain with the minimum positive
     // viable count among active domains, so every active neighbor has at least
     // `candidates_mask.count_ones()` viable views. Thus `n_len <= max_conflicts`
@@ -848,23 +854,14 @@ fn preferred_view_mask(
             if n_len == 0 || n_len > max_conflicts {
                 continue;
             }
-            if n_len == 1 {
-                let sole_view = RegisterViewId(n_mask.trailing_zeros() as u16);
-                stranded_mask |= conflicts.conflict_mask(pair, sole_view);
-            } else {
-                let rev_pair = pair.reversed();
-                let mut rem = candidates_mask & !stranded_mask;
-                while rem != 0 {
-                    let bit = rem.trailing_zeros() as u16;
-                    rem &= rem - 1;
-                    let view = RegisterViewId(bit);
-                    if n_len <= conflicts.max_physical_conflicts(view)
-                        && (n_mask & !conflicts.conflict_mask(rev_pair, view)) == 0
-                    {
-                        stranded_mask |= 1u64 << bit;
-                    }
-                }
+            let mut all_conflict = candidates_mask & !stranded_mask;
+            let mut nm = n_mask;
+            while nm != 0 && all_conflict != 0 {
+                let w_bit = nm.trailing_zeros() as u16;
+                nm &= nm - 1;
+                all_conflict &= conflicts.conflict_mask(pair, RegisterViewId(w_bit));
             }
+            stranded_mask |= all_conflict;
             if (candidates_mask & !stranded_mask) == 0 {
                 break;
             }
@@ -880,95 +877,122 @@ fn preferred_view_mask(
         return Some(RegisterViewId(pool_mask.trailing_zeros() as u16));
     }
     let domain_affinities = affinities.get_domain_affinities(domain_index);
-    let mut stolen_by_view = [0usize; 64];
-    let mut any_stolen = false;
-    if conflicts.has_affinity_neighbor(domain_index) {
-        for (neighbor, pair) in conflicts.get_affinity_neighbors_with_pair(domain_index) {
-            if !active[neighbor] {
-                continue;
+    let mut search_mask = pool_mask;
+    if !domain_affinities.is_empty() {
+        let mut guaranteed_mask = 0u128;
+        let mut best_guaranteed_mask = 0u128;
+        let mut max_guaranteed = 0usize;
+        let mut guaranteed_counts = [0u16; 128];
+        let mut has_active_partner = false;
+        for affinity in domain_affinities {
+            if let Some(view) = homes.get(affinity.partner.0 as usize).copied().flatten() {
+                let bit = 1u128 << view.0;
+                if (pool_mask & bit) != 0 {
+                    let idx = usize::from(view.0);
+                    let count = if (guaranteed_mask & bit) == 0 {
+                        guaranteed_mask |= bit;
+                        1usize
+                    } else {
+                        usize::from(guaranteed_counts[idx]) + 1
+                    };
+                    guaranteed_counts[idx] = count as u16;
+                    if count > max_guaranteed {
+                        max_guaranteed = count;
+                        best_guaranteed_mask = bit;
+                    } else if count == max_guaranteed {
+                        best_guaranteed_mask |= bit;
+                    }
+                }
+            } else if let Some(partner_domain) = affinity.partner_domain
+                && partner_domain != domain_index
+                && active[partner_domain]
+            {
+                has_active_partner = true;
             }
-            let n_mask = viable_masks[neighbor];
-            if (assigned_partner_mask[neighbor] & pool_mask & n_mask) == 0 {
-                continue;
+        }
+        if max_guaranteed > 0 {
+            if best_guaranteed_mask.is_power_of_two() {
+                return Some(RegisterViewId(best_guaranteed_mask.trailing_zeros() as u16));
             }
-            let neighbor_affinities = affinities.get_domain_affinities(neighbor);
-            let rev_pair = pair.reversed();
-            for affinity in neighbor_affinities {
-                if let Some(view) = homes.get(affinity.partner.0 as usize).copied().flatten() {
-                    let bit = 1u64 << view.0;
-                    if (pool_mask & bit) != 0
-                        && (n_mask & bit) != 0
-                        && conflicts.conflicts_with_pair(rev_pair, view, view)
-                    {
-                        stolen_by_view[usize::from(view.0)] += 1;
-                        any_stolen = true;
+            search_mask = best_guaranteed_mask;
+        }
+        if has_active_partner {
+            search_mask = narrow_by_partner_votes_mask(
+                domain_index,
+                search_mask,
+                viable_masks,
+                active,
+                homes,
+                affinities,
+                conflicts,
+            );
+            if search_mask.is_power_of_two() {
+                return Some(RegisterViewId(search_mask.trailing_zeros() as u16));
+            }
+        }
+    }
+    if !conflicts.has_affinity_neighbor(domain_index) {
+        return Some(RegisterViewId(search_mask.trailing_zeros() as u16));
+    }
+    let mut stolen_mask = 0u128;
+    let mut stolen_by_view = [0u16; 128];
+    for (neighbor, pair) in conflicts.get_affinity_neighbors_with_pair(domain_index) {
+        if !active[neighbor] {
+            continue;
+        }
+        let n_mask = viable_masks[neighbor];
+        let common_mask = assigned_partner_mask[neighbor] & search_mask & n_mask;
+        if common_mask == 0 {
+            continue;
+        }
+        let neighbor_affinities = affinities.get_domain_affinities(neighbor);
+        let rev_pair = pair.reversed();
+        for affinity in neighbor_affinities {
+            if let Some(view) = homes.get(affinity.partner.0 as usize).copied().flatten() {
+                let bit = 1u128 << view.0;
+                if (common_mask & bit) != 0 && conflicts.conflicts_with_pair(rev_pair, view, view) {
+                    let idx = usize::from(view.0);
+                    if (stolen_mask & bit) == 0 {
+                        stolen_mask |= bit;
+                        stolen_by_view[idx] = 1;
+                    } else {
+                        stolen_by_view[idx] = stolen_by_view[idx].saturating_add(1);
                     }
                 }
             }
         }
     }
-    if domain_affinities.is_empty() && !any_stolen {
-        return Some(RegisterViewId(pool_mask.trailing_zeros() as u16));
+    let unstolen = search_mask & !stolen_mask;
+    if unstolen != 0 {
+        return Some(RegisterViewId(unstolen.trailing_zeros() as u16));
     }
-    let outlooks = if domain_affinities.is_empty() {
-        BTreeMap::new()
-    } else {
-        partner_outlooks_mask(
-            domain_index,
-            viable_masks,
-            active,
-            homes,
-            affinities,
-            conflicts,
-        )
-    };
-    let mut leading = None::<(usize, usize, Reverse<usize>, RegisterViewId)>;
-    let mut pm = pool_mask;
-    while pm != 0 {
-        let bit = pm.trailing_zeros() as u16;
-        pm &= pm - 1;
-        let view = RegisterViewId(bit);
-        let view_bit = 1u64 << bit;
-        let mut guaranteed = 0usize;
-        let mut votes = 0usize;
-        for affinity in domain_affinities {
-            if homes.get(affinity.partner.0 as usize).copied().flatten() == Some(view) {
-                guaranteed += 1;
-            } else if let Some(partner_domain) = affinity.partner_domain
-                && let Some(outlook) = outlooks.get(&partner_domain)
-                && (viable_masks[partner_domain] & view_bit) != 0
-            {
-                let drawn = outlook.assigned_count(view) + outlook.pending;
-                if drawn > outlook.peak
-                    || (drawn == outlook.peak && outlook.peak_view.is_some_and(|peak| view < peak))
-                {
-                    votes += 1;
-                }
-            }
-        }
+    let mut best_view = RegisterViewId(search_mask.trailing_zeros() as u16);
+    let mut best_stolen = u16::MAX;
+    let mut sm = search_mask;
+    while sm != 0 {
+        let bit = sm.trailing_zeros() as u16;
+        sm &= sm - 1;
         let stolen = stolen_by_view[usize::from(bit)];
-        let rank = (guaranteed, votes, Reverse(stolen));
-        if leading.is_none_or(|(best_guaranteed, best_votes, best_stolen, _)| {
-            rank > (best_guaranteed, best_votes, best_stolen)
-        }) {
-            leading = Some((guaranteed, votes, Reverse(stolen), view));
+        if stolen < best_stolen {
+            best_stolen = stolen;
+            best_view = RegisterViewId(bit);
         }
     }
-    leading
-        .map(|(_, _, _, view)| view)
-        .or_else(|| Some(RegisterViewId(pool_mask.trailing_zeros() as u16)))
+    Some(best_view)
 }
 
-fn partner_outlooks_mask(
+fn narrow_by_partner_votes_mask(
     domain_index: usize,
-    viable_masks: &[u64],
+    search_mask: u128,
+    viable_masks: &[u128],
     active: &[bool],
     homes: &[Option<RegisterViewId>],
     affinities: &PreparedAffinities,
     conflicts: &PreparedConflicts,
-) -> BTreeMap<usize, PartnerOutlook> {
-    let mut outlooks = BTreeMap::<usize, PartnerOutlook>::new();
-    for affinity in affinities.get_domain_affinities(domain_index) {
+) -> u128 {
+    let domain_affinities = affinities.get_domain_affinities(domain_index);
+    let mut partners = Vec::<(usize, usize)>::new();
+    for affinity in domain_affinities {
         let Some(partner_domain) = affinity.partner_domain else {
             continue;
         };
@@ -976,28 +1000,93 @@ fn partner_outlooks_mask(
             && active[partner_domain]
             && !conflicts.constrained(partner_domain, domain_index)
         {
-            outlooks.entry(partner_domain).or_default().pending += 1;
+            if let Some((_, pending)) = partners.iter_mut().find(|(d, _)| *d == partner_domain) {
+                *pending += 1;
+            } else {
+                partners.push((partner_domain, 1));
+            }
         }
     }
-    for (&partner_domain, outlook) in &mut outlooks {
+    if partners.is_empty() {
+        return search_mask;
+    }
+    let single_partner = partners.len() == 1;
+    let mut voted_mask = 0u128;
+    let mut best_votes_mask = search_mask;
+    let mut max_votes = 0usize;
+    let mut vote_counts = [0u16; 128];
+    let mut assigned = Vec::<(RegisterViewId, usize)>::new();
+    for (partner_domain, pending) in partners {
+        let v_mask = viable_masks[partner_domain];
+        let candidate_v_mask = v_mask & search_mask;
+        if candidate_v_mask == 0 {
+            continue;
+        }
+        assigned.clear();
         for affinity in affinities.get_domain_affinities(partner_domain) {
             if let Some(home) = homes.get(affinity.partner.0 as usize).copied().flatten() {
-                outlook.increment_assigned(home);
+                if let Some((_, count)) = assigned.iter_mut().find(|(v, _)| *v == home) {
+                    *count += 1;
+                } else {
+                    assigned.push((home, 1));
+                }
+            }
+        }
+        let mut peak = 0usize;
+        let mut peak_view = RegisterViewId(v_mask.trailing_zeros() as u16);
+        for &(av, count) in &assigned {
+            if (v_mask & (1u128 << av.0)) != 0
+                && (count > peak || (count == peak && av < peak_view))
+            {
+                peak = count;
+                peak_view = av;
+            }
+        }
+        let partner_vote_mask = if pending > peak {
+            candidate_v_mask
+        } else if pending == peak {
+            let mut vm = (1u128 << peak_view.0) - 1;
+            for &(av, _) in &assigned {
+                vm |= 1u128 << av.0;
+            }
+            vm & candidate_v_mask
+        } else {
+            let mut vm = 0u128;
+            for &(av, count) in &assigned {
+                let drawn = count + pending;
+                if drawn > peak || (drawn == peak && av < peak_view) {
+                    vm |= 1u128 << av.0;
+                }
+            }
+            vm & candidate_v_mask
+        };
+        if single_partner {
+            return if partner_vote_mask != 0 {
+                partner_vote_mask
+            } else {
+                search_mask
+            };
+        }
+        let mut pvm = partner_vote_mask;
+        while pvm != 0 {
+            let bit = pvm.trailing_zeros() as u16;
+            pvm &= pvm - 1;
+            let bit_mask = 1u128 << bit;
+            let idx = usize::from(bit);
+            let total = if (voted_mask & bit_mask) == 0 {
+                voted_mask |= bit_mask;
+                pending
+            } else {
+                usize::from(vote_counts[idx]) + pending
+            };
+            vote_counts[idx] = total as u16;
+            if total > max_votes {
+                max_votes = total;
+                best_votes_mask = bit_mask;
+            } else if total == max_votes {
+                best_votes_mask |= bit_mask;
             }
         }
     }
-    for (partner_domain, outlook) in &mut outlooks {
-        let mut mask = viable_masks[*partner_domain];
-        while mask != 0 {
-            let bit = mask.trailing_zeros() as u16;
-            mask &= mask - 1;
-            let view = RegisterViewId(bit);
-            let count = outlook.assigned_count(view);
-            if outlook.peak_view.is_none() || count > outlook.peak {
-                outlook.peak = count;
-                outlook.peak_view = Some(view);
-            }
-        }
-    }
-    outlooks
+    best_votes_mask
 }

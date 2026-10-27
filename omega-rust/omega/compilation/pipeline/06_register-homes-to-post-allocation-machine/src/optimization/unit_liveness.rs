@@ -10,9 +10,11 @@
 use physical_instructions::{PostAllocationMachineFunction, PostAllocationMachineInstruction};
 use register_model::RegisterUnitId;
 
-/// Per-block live-in facts for one unit set over one function.
+/// Per-block live-in and suffix-effect facts for one unit set over one function.
 pub(super) struct UnitLivenessTable {
     live_in: Vec<bool>,
+    /// Per block, for each instruction index `i`, the effect of the suffix `instructions[i + 1..]`.
+    suffix_effects: Vec<Vec<BlockEffect>>,
 }
 
 /// What one block does to the unit set before control leaves it.
@@ -34,16 +36,22 @@ impl UnitLivenessTable {
         successors: &[Vec<usize>],
         units: &[RegisterUnitId],
     ) -> Self {
-        let effects = function
-            .blocks
-            .iter()
-            .map(|block| block_effect(&block.instructions, units))
-            .collect::<Vec<_>>();
+        let mut effects = Vec::with_capacity(function.blocks.len());
+        let mut suffix_effects = Vec::with_capacity(function.blocks.len());
+        for block in &function.blocks {
+            let (block_eff, suffixes) = compute_block_and_suffix_effects(&block.instructions, units);
+            effects.push(block_eff);
+            suffix_effects.push(suffixes);
+        }
         let mut live_in = vec![false; function.blocks.len()];
         // Facts only turn on, so the iteration is bounded by the block count.
+        // Iterate backwards to propagate along forward control-flow edges in fewer passes.
         for _ in 0..=function.blocks.len() {
             let mut changed = false;
-            for (block, effect) in effects.iter().enumerate() {
+            for (block, effect) in effects.iter().enumerate().rev() {
+                if live_in[block] {
+                    continue;
+                }
                 let value = match effect {
                     BlockEffect::Reads => true,
                     BlockEffect::Kills => false,
@@ -51,7 +59,7 @@ impl UnitLivenessTable {
                         successors.iter().any(|successor| live_in[*successor])
                     }),
                 };
-                if value && !live_in[block] {
+                if value {
                     live_in[block] = true;
                     changed = true;
                 }
@@ -60,7 +68,10 @@ impl UnitLivenessTable {
                 break;
             }
         }
-        Self { live_in }
+        Self {
+            live_in,
+            suffix_effects,
+        }
     }
 
     /// Whether any unit of `units` is live after instruction `index` of
@@ -77,7 +88,13 @@ impl UnitLivenessTable {
     ) -> (bool, u64) {
         let instructions = &function.blocks[block].instructions[index + 1..];
         let scanned = instructions.len() as u64;
-        match block_effect(instructions, units) {
+        let effect = self
+            .suffix_effects
+            .get(block)
+            .and_then(|s| s.get(index))
+            .copied()
+            .unwrap_or_else(|| block_effect(instructions, units));
+        match effect {
             BlockEffect::Reads => (true, scanned),
             BlockEffect::Kills => (false, scanned),
             BlockEffect::Transparent => (
@@ -90,6 +107,24 @@ impl UnitLivenessTable {
             ),
         }
     }
+}
+
+fn compute_block_and_suffix_effects(
+    instructions: &[PostAllocationMachineInstruction],
+    units: &[RegisterUnitId],
+) -> (BlockEffect, Vec<BlockEffect>) {
+    let mut suffixes = vec![BlockEffect::Transparent; instructions.len()];
+    let mut running = BlockEffect::Transparent;
+    for index in (0..instructions.len()).rev() {
+        suffixes[index] = running;
+        let instruction = &instructions[index];
+        if reads_any(instruction, units) {
+            running = BlockEffect::Reads;
+        } else if rewrites_every(instruction, units) {
+            running = BlockEffect::Kills;
+        }
+    }
+    (running, suffixes)
 }
 
 fn block_effect(

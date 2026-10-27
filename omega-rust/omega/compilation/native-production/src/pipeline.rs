@@ -69,49 +69,61 @@ pub(crate) fn emit_target(
             .map_err(OptimizedVerifiedPhysicalPipelineError::RegisterAllocation)
     })?;
     phase_profile::scope("06.1.d.06_stage_frame_realization", || {
-        let machine =
+        let machine = phase_profile::scope("06.1.d.06.a_post_allocation_machine", || {
             register_homes_to_post_allocation_machine::stage_optimized_post_allocation_machine_plan(
                 &allocation.current(),
             )
-            .map_err(OptimizedVerifiedPhysicalPipelineError::PostAllocationMachine)?;
+            .map_err(OptimizedVerifiedPhysicalPipelineError::PostAllocationMachine)
+        })?;
         let current = allocation.current();
         let selected = current.selected();
         let registers = current.register_environment().physical();
-        let frame = machine_emission::stage_function_frame(
-            &current,
-            &machine,
-            machine_emission::frame_layout::TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
-            current.budget_per_pass(),
-        )?;
-        let encoding = stage_optimized_layout_independent_selected_form_encoding(
-            selected,
-            &machine,
-            registers,
-            Some(frame.layout().plan()),
-        )
-        .map_err(FunctionRelativeOptimizationRealizationError::Encoding)?;
-        let layout =
+        let frame = phase_profile::scope("06.1.d.06.b_stage_function_frame", || {
+            machine_emission::stage_function_frame(
+                &current,
+                &machine,
+                machine_emission::frame_layout::TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
+                current.budget_per_pass(),
+            )
+        })?;
+        let encoding = phase_profile::scope("06.1.d.06.c_selected_form_encoding", || {
+            stage_optimized_layout_independent_selected_form_encoding(
+                selected,
+                &machine,
+                registers,
+                Some(frame.layout().plan()),
+            )
+            .map_err(FunctionRelativeOptimizationRealizationError::Encoding)
+        })?;
+        let layout = phase_profile::scope("06.1.d.06.d_resolved_selected_form_layout", || {
             stage_optimized_resolved_selected_form_layout(selected, &machine, registers, &encoding)
-                .map_err(FunctionRelativeOptimizationRealizationError::Layout)?;
-        let optimized_layout = execute_resolved_layout_optimization(
-            registers,
-            &layout,
-            &current
-                .selections()
-                .project_phase(OptimizationExecutionPhase::FunctionRelativeLayout),
-            current.budget_per_pass(),
-        )
-        .map_err(FunctionRelativeOptimizationRealizationError::LayoutOptimization)?;
-        let realization = machine_emission::assemble_fixed_frame_realization(
-            allocation,
-            machine,
-            frame,
-            encoding,
-            layout,
-            optimized_layout,
-        )?;
+                .map_err(FunctionRelativeOptimizationRealizationError::Layout)
+        })?;
+        let optimized_layout = phase_profile::scope("06.1.d.06.e_resolved_layout_opt", || {
+            execute_resolved_layout_optimization(
+                registers,
+                &layout,
+                &current
+                    .selections()
+                    .project_phase(OptimizationExecutionPhase::FunctionRelativeLayout),
+                current.budget_per_pass(),
+            )
+            .map_err(FunctionRelativeOptimizationRealizationError::LayoutOptimization)
+        })?;
+        let realization = phase_profile::scope("06.1.d.06.f_assemble_fixed_frame", || {
+            machine_emission::assemble_fixed_frame_realization(
+                allocation,
+                machine,
+                frame,
+                encoding,
+                layout,
+                optimized_layout,
+            )
+        })?;
         let physical = StagedOptimizedFunctionFragmentEmissionSource::from(realization);
-        native_artifact::emit_fragment_object(physical).map_err(BodyEmissionError::Object)
+        phase_profile::scope("06.1.d.06.g_emit_fragment_object", || {
+            native_artifact::emit_fragment_object(physical).map_err(BodyEmissionError::Object)
+        })
     })
 }
 

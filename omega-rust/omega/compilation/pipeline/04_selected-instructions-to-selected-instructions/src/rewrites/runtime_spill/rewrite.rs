@@ -102,21 +102,24 @@ pub fn spill_selected_runtime_value_with_crossing_status(
     budget: OptimizationWorkBudget,
     span_policy: RuntimeSpillSpanPolicy,
 ) -> Result<(ValidatedRuntimeSpill, bool), RuntimeSpillError> {
-    let admitted = derive_runtime_spill(
-        source,
-        function_index,
-        register,
-        environment,
-        span_policy,
-        budget,
-    )?;
-    let crossed_unit_write = admitted.crossed_unit_write;
-    let mut transformed = source.selected_plan().clone();
-    transformed
-        .functions
-        .mutate_preserving_register_prefix(
+    let admitted = phase_profile::scope("06.1.d.05.spill.derive", || {
+        derive_runtime_spill(
+            source,
             function_index,
-            |local_storage_slots, virtual_registers, boundary_settlements, blocks| -> Result<(), RuntimeSpillError> {
+            register,
+            environment,
+            span_policy,
+            budget,
+        )
+    })?;
+    let crossed_unit_write = admitted.crossed_unit_write;
+    let transformed = phase_profile::scope("06.1.d.05.spill.mutate", || -> Result<_, RuntimeSpillError> {
+        let mut transformed = source.selected_plan().clone();
+        transformed
+            .functions
+            .mutate_preserving_register_prefix(
+                function_index,
+                |local_storage_slots, virtual_registers, boundary_settlements, blocks| -> Result<(), RuntimeSpillError> {
                 // Reused slots are already declared, so their bytes stay charged exactly
                 // once in the function's frame demand; the private slot is appended only
                 // when at least one storage window landed on it.
@@ -636,6 +639,10 @@ pub fn spill_selected_runtime_value_with_crossing_status(
                 Ok(())
             },
         )?;
-    let sealed = super::validation::seal_runtime_spill_with_span_policy(source, transformed)?;
+        Ok(transformed)
+    })?;
+    let sealed = phase_profile::scope("06.1.d.05.spill.seal", || {
+        super::validation::seal_runtime_spill_with_span_policy(source, transformed)
+    })?;
     Ok((sealed, crossed_unit_write))
 }
