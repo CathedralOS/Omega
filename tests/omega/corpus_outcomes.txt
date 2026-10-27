@@ -1254,6 +1254,8 @@ fail/borrows/dynamic_window_result_recast_backing rejected 1524ms expected @a92f
 	statement 2 mutates `bytes[2]` while local borrow `word` is still active (borrowed at statement 1; its last use is at statement 3)
 fail/borrows/dynamic_window_result_requires_bounds rejected 2892ms expected @a92f16431042
 	cannot prove subslice range end bound `start..end` is within unknown slice length of `bytes` in select::capture
+fail/borrows/empty_array_snapshot_requires_read_authority rejected 499ms expected @b78d64e8fd65
+	machine `snapshot` state `entry` reads through index projection of write-only parameter `rows`; `&write` permits admitted fixed-array element replacement but never observation
 fail/borrows/evidence_bound_record_result_keeps_loan rejected 1617ms expected @a92f16431042
 	statement 3 mutates `source` while local borrow `forwarded` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 fail/borrows/exclusive_reference_array_copy rejected 2705ms expected @a92f16431042
@@ -12114,6 +12116,26 @@ fail/facts/nested_twentytwo_level_record_field_bound_through_target_body_rejecte
 	exact arithmetic in machine `check_target` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `check_target` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `check_target` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/nested_zero_leaf_array_storage_through_call_result_rejected rejected 2537ms expected @b78d64e8fd65
+	cannot prove index `512` is within length 512
+fail/facts/nested_zero_leaf_array_storage_through_const_name_rejected rejected 2087ms expected @b78d64e8fd65
+	cannot prove index `512` is within length 512
+fail/facts/nested_zero_leaf_array_storage_through_field_rejected rejected 2487ms expected @b78d64e8fd65
+	cannot prove index `512` is within length 512
+fail/facts/nested_zero_leaf_array_storage_through_local_rejected rejected 2303ms expected @b78d64e8fd65
+	cannot prove index `512` is within length 512
+fail/facts/nested_zero_leaf_array_storage_through_match_join_rejected rejected 2231ms expected @b78d64e8fd65
+	cannot prove index `512` is within length 512
+fail/facts/nested_zero_leaf_array_storage_through_other_machine_rejected rejected 2062ms expected @b78d64e8fd65
+	cannot prove index `512` is within length 512
+fail/facts/nested_zero_leaf_array_storage_through_other_state_rejected rejected 2313ms expected @b78d64e8fd65
+	cannot prove index `512` is within length 512
+fail/facts/nested_zero_leaf_array_storage_through_parameter_rejected rejected 2173ms expected @b78d64e8fd65
+	cannot prove index `512` is within length 512
+fail/facts/nested_zero_leaf_array_storage_through_target_body_rejected rejected 1198ms expected @b78d64e8fd65
+	cannot prove index `512` is within length 512
+fail/facts/nested_zero_leaf_array_storage_zeroed_source_rejected rejected 1165ms expected @b78d64e8fd65
+	cannot prove index `512` is within length 512
 fail/facts/nine_arg_stack_calling_plan_through_call_result_rejected rejected 1731ms expected @a92f16431042
 	exact arithmetic in machine `probe` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/nine_arg_stack_calling_plan_through_const_name_rejected rejected 1476ms expected @a92f16431042
@@ -22850,6 +22872,7 @@ pass/borrows/formed_mutable_slice_argument_completion_exit checked 2956ms check-
 pass/borrows/guard_subject_ends_before_returning_call_exit checked 2729ms check-target:macos_arm64 @a92f16431042
 pass/borrows/incoming_reference_slot_replacement_exit checked 2659ms check-target:macos_arm64 @a92f16431042
 pass/borrows/indexed_record_field_replacement_exit checked 6537ms check-target:macos_arm64 @a92f16431042
+pass/borrows/initialized_empty_array_snapshot_replacement_exit checked 3010ms check-target:macos_arm64 @b78d64e8fd65
 pass/borrows/interleaved_parameter_field_replacement_exit checked 7632ms check-target:macos_arm64 @a92f16431042
 pass/borrows/later_state_reference_field_loan_exit checked 2731ms check-target:macos_arm64 @a92f16431042
 pass/borrows/lifetime_return_borrow checked 2127ms @a92f16431042
@@ -22871,6 +22894,7 @@ pass/borrows/loop_descriptor_reformation_exit checked 7293ms check-target:macos_
 pass/borrows/mut_loan_local_write_through_exit checked 7163ms check-target:macos_arm64 @a92f16431042
 pass/borrows/mutable_record_loan_read_in_state_arms_exit checked 7176ms check-target:macos_arm64 @a92f16431042
 pass/borrows/mutable_reference_match_local checked 2313ms check-target:macos_arm64 @a92f16431042
+pass/borrows/nested_byte_row_forwarded_window_exit checked 3049ms check-target:macos_arm64 @b78d64e8fd65
 pass/borrows/nested_reference_byte_observations_exit checked 6432ms check-target:macos_arm64 @a92f16431042
 pass/borrows/nested_reference_call_checked_index_exit checked 2316ms check-target:macos_arm64 @a92f16431042
 pass/borrows/nested_reference_crossings_exit checked 6224ms check-target:macos_arm64 @a92f16431042
@@ -27562,6 +27586,16 @@ pass/facts/nested_twentytwo_level_record_field_bound_through_other_machine_exit 
 pass/facts/nested_twentytwo_level_record_field_bound_through_other_state_exit checked 2377ms check-target:macos_arm64 @a92f16431042
 pass/facts/nested_twentytwo_level_record_field_bound_through_parameter_exit checked 4127ms check-target:macos_arm64 @a92f16431042
 pass/facts/nested_twentytwo_level_record_field_bound_through_target_body_exit checked 4215ms check-target:macos_arm64 @a92f16431042
+pass/facts/nested_zero_leaf_array_storage_through_call_result_exit checked 3219ms check-target:macos_arm64 @b78d64e8fd65
+pass/facts/nested_zero_leaf_array_storage_through_const_name_exit checked 3540ms check-target:macos_arm64 @b78d64e8fd65
+pass/facts/nested_zero_leaf_array_storage_through_field_exit checked 3377ms check-target:macos_arm64 @b78d64e8fd65
+pass/facts/nested_zero_leaf_array_storage_through_local_exit checked 3372ms check-target:macos_arm64 @b78d64e8fd65
+pass/facts/nested_zero_leaf_array_storage_through_match_join_exit checked 3358ms check-target:macos_arm64 @b78d64e8fd65
+pass/facts/nested_zero_leaf_array_storage_through_other_machine_exit checked 3269ms check-target:macos_arm64 @b78d64e8fd65
+pass/facts/nested_zero_leaf_array_storage_through_other_state_exit checked 3255ms check-target:macos_arm64 @b78d64e8fd65
+pass/facts/nested_zero_leaf_array_storage_through_parameter_exit checked 3104ms check-target:macos_arm64 @b78d64e8fd65
+pass/facts/nested_zero_leaf_array_storage_through_target_body_exit checked 2935ms check-target:macos_arm64 @b78d64e8fd65
+pass/facts/nested_zero_leaf_array_storage_zeroed_source_exit checked 2978ms check-target:macos_arm64 @b78d64e8fd65
 pass/facts/nine_arg_stack_calling_plan_through_call_result_exit checked 2495ms check-target:macos_arm64 @a92f16431042
 pass/facts/nine_arg_stack_calling_plan_through_const_name_exit checked 2527ms check-target:macos_arm64 @a92f16431042
 pass/facts/nine_arg_stack_calling_plan_through_field_exit checked 2667ms check-target:macos_arm64 @a92f16431042
