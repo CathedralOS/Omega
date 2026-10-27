@@ -1,0 +1,20 @@
+use omega::language::core::program_image;
+
+machine build(builder: &mut Build) suspends;
+requires addr::Bound == 18446744073709551616 {
+    Build::package(builder, "nested_backing");
+    Build::build_depend_as(builder, "leaf", Source::Path { location: "leaf" });
+    BuildLog::write_line(&mut builder.log, "backing before");
+    suspend Build::await_provider<ProgramImage, leaf::LeafImage>(builder);
+    let observed: addr = ProgramImage::retained_suffix_start();
+    transition observed == 64 {
+        true -> finish(builder)
+        _ -> wrong(builder)
+    }
+    machine finish(builder: &mut Build) {
+        BuildLog::write_line(&mut builder.log, "backing after");
+    }
+    machine wrong(builder: &mut Build) {
+        Build::package(builder, "wrong_nested_backing");
+    }
+}

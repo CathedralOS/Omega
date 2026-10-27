@@ -5,6 +5,7 @@
 //! artifacts can enter native production or external transport.
 
 use crate::{CanonicalTerminalArtifact, CanonicalTerminalArtifactError, TerminalArtifactView};
+use std::sync::Arc;
 use terminal_psi::{TerminalModule, TerminalPsiIdentity};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -69,9 +70,31 @@ impl<'code> From<TerminalArtifactView<'code>> for TerminalExecutionView<'code> {
     }
 }
 
+/// Shared immutable execution storage. Retaining code preserves its exact
+/// invocation owner; it neither publishes private code nor admits host supply.
+/// There is no byte-export operation on this execution-only owner.
+#[derive(Clone)]
+pub struct RetainedTerminalCode {
+    module: Arc<TerminalModule>,
+    identity: TerminalPsiIdentity,
+}
+
+impl RetainedTerminalCode {
+    pub(crate) fn new(module: Arc<TerminalModule>, identity: TerminalPsiIdentity) -> Self {
+        Self { module, identity }
+    }
+
+    pub fn view(&self) -> TerminalExecutionView<'_> {
+        TerminalExecutionView {
+            module: &self.module,
+            identity: self.identity,
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct InvocationTerminalCode {
-    module: TerminalModule,
+    module: Arc<TerminalModule>,
     identity: TerminalPsiIdentity,
 }
 
@@ -85,7 +108,10 @@ impl InvocationTerminalCode {
             ));
         }
         let identity = crate::terminal_psi_identity(&module)?;
-        Ok(Self { module, identity })
+        Ok(Self {
+            module: Arc::new(module),
+            identity,
+        })
     }
 
     pub fn view(&self) -> TerminalExecutionView<'_> {
@@ -93,6 +119,10 @@ impl InvocationTerminalCode {
             module: &self.module,
             identity: self.identity,
         }
+    }
+
+    pub fn retain_code(&self) -> RetainedTerminalCode {
+        RetainedTerminalCode::new(Arc::clone(&self.module), self.identity)
     }
 }
 
@@ -103,6 +133,13 @@ pub enum TerminalProgramProduct {
 }
 
 impl TerminalProgramProduct {
+    pub fn retain_code(&self) -> RetainedTerminalCode {
+        match self {
+            Self::Portable(artifact) => artifact.retain_code(),
+            Self::Invocation(code) => code.retain_code(),
+        }
+    }
+
     pub fn view(&self) -> TerminalExecutionView<'_> {
         match self {
             Self::Portable(artifact) => artifact.view().into(),

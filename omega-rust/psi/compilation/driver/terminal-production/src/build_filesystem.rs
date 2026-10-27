@@ -29,14 +29,14 @@ pub struct TerminalBuildFilesystemCall {
 #[derive(Debug, PartialEq, Eq)]
 pub struct TerminalBuildFilesystem {
     identity: terminal_codec::TerminalExecutionIdentity,
-    calls: Vec<TerminalBuildFilesystemCall>,
+    calls: std::sync::Arc<[TerminalBuildFilesystemCall]>,
 }
 
 impl TerminalBuildFilesystem {
     pub fn calls_for(
         &self,
         artifact: terminal_codec::TerminalExecutionView<'_>,
-    ) -> Option<&[TerminalBuildFilesystemCall]> {
+    ) -> Option<&std::sync::Arc<[TerminalBuildFilesystemCall]>> {
         (self.identity == artifact.custody_identity()).then_some(&self.calls)
     }
 
@@ -46,7 +46,7 @@ impl TerminalBuildFilesystem {
     ) -> Self {
         Self {
             identity: artifact.custody_identity(),
-            calls,
+            calls: calls.into(),
         }
     }
 }

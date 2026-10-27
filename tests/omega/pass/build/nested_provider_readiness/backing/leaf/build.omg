@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::package(builder, "readiness_leaf");
+    BuildLog::write_line(&mut builder.log, "leaf once");
+}

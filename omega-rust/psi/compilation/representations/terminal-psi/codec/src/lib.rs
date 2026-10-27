@@ -11,7 +11,7 @@ pub(crate) use optimization::codec_bytes;
 mod canonical_artifact;
 mod execution_code;
 pub use execution_code::{
-    InvocationTerminalCode, TerminalExecutionIdentity, TerminalExecutionView,
+    InvocationTerminalCode, RetainedTerminalCode, TerminalExecutionIdentity, TerminalExecutionView,
     TerminalProgramProduct, TerminalPublication,
 };
 mod codec_error;

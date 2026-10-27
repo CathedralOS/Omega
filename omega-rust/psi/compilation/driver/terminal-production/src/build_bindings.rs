@@ -42,29 +42,29 @@ pub struct TerminalBuildBindingCall {
 #[derive(Debug, PartialEq, Eq)]
 pub struct TerminalBuildBindings {
     identity: terminal_codec::TerminalExecutionIdentity,
-    calls: Vec<TerminalBuildBindingCall>,
-    queries: Vec<crate::TerminalBuildQueryCall>,
-    declarations: Vec<std::sync::Arc<ProductDeclarationRequest>>,
+    calls: std::sync::Arc<[TerminalBuildBindingCall]>,
+    queries: std::sync::Arc<[crate::TerminalBuildQueryCall]>,
+    declarations: std::sync::Arc<[std::sync::Arc<ProductDeclarationRequest>]>,
 }
 
 impl TerminalBuildBindings {
     pub fn queries_for(
         &self,
         artifact: terminal_codec::TerminalExecutionView<'_>,
-    ) -> Option<&[crate::TerminalBuildQueryCall]> {
+    ) -> Option<&std::sync::Arc<[crate::TerminalBuildQueryCall]>> {
         (self.identity == artifact.custody_identity()).then_some(&self.queries)
     }
     pub fn calls_for(
         &self,
         artifact: terminal_codec::TerminalExecutionView<'_>,
-    ) -> Option<&[TerminalBuildBindingCall]> {
+    ) -> Option<&std::sync::Arc<[TerminalBuildBindingCall]>> {
         (self.identity == artifact.custody_identity()).then_some(&self.calls)
     }
 
     pub fn declarations_for(
         &self,
         artifact: terminal_codec::TerminalExecutionView<'_>,
-    ) -> Option<&[std::sync::Arc<ProductDeclarationRequest>]> {
+    ) -> Option<&std::sync::Arc<[std::sync::Arc<ProductDeclarationRequest>]>> {
         (self.identity == artifact.custody_identity()).then_some(&self.declarations)
     }
 
@@ -76,9 +76,9 @@ impl TerminalBuildBindings {
     ) -> Self {
         Self {
             identity: artifact.custody_identity(),
-            calls,
-            queries,
-            declarations,
+            calls: calls.into(),
+            queries: queries.into(),
+            declarations: declarations.into(),
         }
     }
 }

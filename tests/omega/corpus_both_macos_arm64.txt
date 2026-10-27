@@ -282,6 +282,7 @@ pass/build/discarded_provider_selection_exit built 6550ms exit:70 interpreter-ex
 pass/build/explicit_provider_readiness_exit built 2267ms exit:0 interpreter-exit:0 interpreter:agrees @f229bab668eb
 pass/build/installed_entry_ram_two_occurrences_exit built 1578ms exit:0 entry-ram:match interpreter-exit:0 interpreter-entry-ram:match interpreter:agrees @0360a23ad5f5+wt
 pass/build/nested_generated_dependency_dual_purpose built 3586ms exit:0 interpreter-exit:0 interpreter:agrees @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/build/product_entry_query_product_scope_alias built 2125ms exit:0 interpreter-exit:0 interpreter:agrees @07ad7c55cebd
 pass/build/product_selection_conditional_exit built 931ms exit:0 interpreter-exit:0 interpreter:agrees @7530b1177ef5+wt
 pass/build/product_selection_helper_exit built 1003ms exit:0 interpreter-exit:0 interpreter:agrees @7530b1177ef5+wt
 pass/build/receiver_view_writeback_exit built 4759ms exit:0 interpreter-exit:0 interpreter:agrees terminal-runtime.configure_build_boundary:unrequested terminal-inspections:match @5f1191d43438+wt
