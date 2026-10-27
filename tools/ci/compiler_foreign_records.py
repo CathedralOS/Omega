@@ -33,6 +33,12 @@ POSITIVES += ("pass/facts/opaque_independent_qualified_input_import_alias_exit",
               "pass/facts/opaque_independent_qualified_input_renumbered_catalog_exit")
 NEGATIVES += ("fail/facts/opaque_independent_qualified_input_bare_sibling_unissued",)
 
+# Checked independent results carry existing other-issuer membership back out.
+POSITIVES += tuple(f"pass/facts/opaque_independent_qualified_result_through_{p}_exit" for p in PLACES)
+NEGATIVES += tuple(f"fail/facts/opaque_independent_qualified_result_through_{p}_unissued" for p in PLACES)
+POSITIVES += ("pass/facts/opaque_independent_qualified_result_import_alias_exit",
+              "pass/facts/opaque_independent_qualified_result_renumbered_catalog_exit")
+
 
 def authenticate_windows_lldiv(output):
     """Observe the SDK's exact PE import, not a guessed library or fixture result.
@@ -129,6 +135,47 @@ def qualify_nested_source_import(output, cli):
     return observation
 
 
+def qualify_result_provenance(output, cli):
+    """A checked component cannot launder another issuer's raw-host promise."""
+    profile = compiler_pilot.corpus_gate.require_optimized(cli)
+    digest = hashlib.sha256(cli.read_bytes()).hexdigest()
+    candidate = compiler_pilot.command(["git", "rev-parse", "HEAD"])
+    records = []
+    report = dict(candidate=candidate, target=compiler_pilot.corpus_gate.host_target(),
+                  compiler_sha256=digest, compiler_profile=profile, observations=records,
+                  dirty=bool(compiler_pilot.command(["git", "status", "--porcelain"])), passed=False)
+    try:
+        for name in ("raw_native_result", "component_launders_raw_result"):
+            authored = compiler_pilot.ROOT / "samples/cli/facts/opaque_closed_carrier_exchange/independent_qualified_result/controls" / name
+            def source_hashes():
+                return {str(p.relative_to(authored)): hashlib.sha256(p.read_bytes()).hexdigest()
+                        for p in authored.rglob("*") if p.is_file()
+                        and ".omega" not in p.relative_to(authored).parts
+                        and p.suffix in (".omg", ".txt")}
+            sources = source_hashes()
+            expected = [line.strip() for line in (authored / "expected_native_error.txt").read_text(encoding="utf-8").splitlines()
+                        if line.strip() and not line.startswith("#")]
+            for mode, flags, code in (("check", ("--check",), 0), ("native", ("run", "--both"), 200)):
+                arguments = [str(cli), *flags, str(authored / "main.omg")]
+                result = subprocess.run(arguments, cwd=compiler_pilot.ROOT, stdin=subprocess.DEVNULL,
+                                        capture_output=True, text=True, timeout=180)
+                stem = name + "-" + mode
+                (output / (stem + ".stdout.txt")).write_text(result.stdout, encoding="utf-8")
+                (output / (stem + ".stderr.txt")).write_text(result.stderr, encoding="utf-8")
+                passed = result.returncode == code and (mode == "check" or all(x in result.stdout + result.stderr for x in expected))
+                records.append(dict(control=name, mode=mode, argv=arguments, exit=result.returncode,
+                                    expected=expected if mode == "native" else [], source_sha256=sources, passed=passed))
+                if not passed:
+                    raise ValueError(f"{name}/{mode}: missing intended provenance admission rejection: {result.stderr}")
+            if source_hashes() != sources:
+                raise ValueError(f"{name}: authored source changed during control execution")
+        if hashlib.sha256(cli.read_bytes()).hexdigest() != digest:
+            raise ValueError("provenance-control compiler changed during execution")
+        report["passed"] = True
+    finally:
+        (output / "result-provenance.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+
+
 if __name__ == "__main__":
     os.environ["OMEGA_LIBRARY_ROOT"] = str(compiler_pilot.ROOT / "source/library")
     output = compiler_pilot.ROOT / "build/compiler-foreign-records"
@@ -138,6 +185,7 @@ if __name__ == "__main__":
     cli = Path(os.environ.get("CARGO_TARGET_DIR", compiler_pilot.ROOT / "target")) / "debug" / name
     try:
         qualify_nested_source_import(output / "public-cli", cli.resolve())
+        qualify_result_provenance(output / "public-cli", (output / "public-cli" / name).resolve())
     except (OSError, ValueError, subprocess.SubprocessError) as error:
         print(f"foreign records public CLI: {error}", file=sys.stderr)
         status = 1

@@ -24,6 +24,7 @@ pub struct AdmittedComponentProvider {
     candidate: MachineId,
     selection: AdmittedProviderSelections,
     input_memberships: crate::component_memberships::InputMemberships,
+    result_memberships: crate::component_memberships::Memberships,
 }
 
 impl AdmittedComponentProvider {
@@ -55,6 +56,17 @@ impl AdmittedComponentProvider {
     ) -> Option<semantic_vocabulary::StructuralDomainId> {
         self.input_memberships
             .get(input)?
+            .iter()
+            .find(|(source, _)| *source == domain)
+            .map(|(_, target)| *target)
+    }
+    /// Translate an actual producing result fact; receiving annotations never
+    /// supply membership to an unqualified returned occurrence.
+    pub fn result_membership(
+        &self,
+        domain: semantic_vocabulary::StructuralDomainId,
+    ) -> Option<semantic_vocabulary::StructuralDomainId> {
+        self.result_memberships
             .iter()
             .find(|(source, _)| *source == domain)
             .map(|(_, target)| *target)
@@ -116,6 +128,12 @@ pub fn admit_component_provider(
         provider.module(),
         supplying,
     )?;
+    let result_memberships = crate::component_memberships::admit_result_memberships(
+        receiver.module(),
+        receiving,
+        provider.module(),
+        supplying,
+    )?;
     Ok(AdmittedComponentProvider {
         receiver: receiver.identity(),
         receiving_boundary,
@@ -124,5 +142,6 @@ pub fn admit_component_provider(
         candidate: selected.candidate,
         selection,
         input_memberships,
+        result_memberships,
     })
 }
