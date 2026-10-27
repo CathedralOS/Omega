@@ -2,18 +2,11 @@ use crate::final_image::FinalImage;
 use arena::{Arena, Handle};
 use object_file::SymbolKind;
 
-/// Domain-separated commitment to the exact object-owned symbol table copied
-/// into one final image. Object-local handles remain compact coordinates; this
-/// digest binds each coordinate to its complete symbol row and the selected
-/// entry handle before native-artifact replay or publication can rely on it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct FinalImageSymbolDigest([u8; 32]);
-
-impl FinalImageSymbolDigest {
-    pub const fn as_bytes(&self) -> &[u8; 32] {
-        &self.0
-    }
-}
+// Domain-separated commitment to the exact object-owned symbol table copied
+// into one final image. Object-local handles remain compact coordinates; this
+// digest binds each coordinate to its complete symbol row and the selected
+// entry handle before native-artifact replay or publication can rely on it.
+image_digest!(FinalImageSymbolDigest);
 
 pub fn final_image_symbol_digest(image: &FinalImage) -> FinalImageSymbolDigest {
     let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
@@ -50,7 +43,7 @@ pub fn final_image_symbol_digest(image: &FinalImage) -> FinalImageSymbolDigest {
             SymbolKind::Object => 3,
         });
     }
-    FinalImageSymbolDigest(digest.finish())
+    FinalImageSymbolDigest::from_digest(digest.finish())
 }
 
 fn digest_handle(
@@ -70,6 +63,13 @@ pub struct FinalImageSymbolTable {
 }
 
 impl FinalImageSymbolTable {
+    /// The symbol a handle names, or `None` when the handle is invalid.
+    pub(crate) fn symbol(&self, handle: FinalImageSymbolHandle) -> Option<&FinalImageSymbol> {
+        self.symbols
+            .is_valid(handle)
+            .then(|| self.symbols.get(handle))
+    }
+
     pub fn with_capacity(
         entry_symbol: FinalImageSymbolHandle,
         symbol_capacity: usize,

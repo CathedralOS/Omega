@@ -20,11 +20,7 @@ pub fn final_image_symbol_address(
     symbol: FinalImageSymbolHandle,
     layout: &FinalImageLayout,
 ) -> Option<u64> {
-    if !image.symbol_table.symbols.is_valid(symbol) {
-        return None;
-    }
-
-    let symbol = image.symbol_table.symbols.get(symbol);
+    let symbol = image.symbol_table.symbol(symbol)?;
     let section_address = match symbol.section {
         FinalImageSection::Text => layout.text_address,
         FinalImageSection::Data => layout.data_address,
@@ -44,11 +40,10 @@ pub fn final_image_imports_symbol(image: &FinalImage, symbol: FinalImageSymbolHa
 }
 
 pub fn final_image_symbol_name(image: &FinalImage, symbol: FinalImageSymbolHandle) -> &str {
-    if image.symbol_table.symbols.is_valid(symbol) {
-        image.symbol_table.symbols.get(symbol).name.as_str()
-    } else {
-        ""
-    }
+    image
+        .symbol_table
+        .symbol(symbol)
+        .map_or("", |symbol| symbol.name.as_str())
 }
 
 /// The validated entry symbol of a final image under the named image format:
@@ -60,14 +55,7 @@ pub fn final_image_entry_symbol<'a>(
 ) -> Result<&'a FinalImageSymbol, diagnostics::Diagnostic> {
     let entry_symbol = image
         .symbol_table
-        .symbols
-        .is_valid(image.symbol_table.entry_symbol)
-        .then(|| {
-            image
-                .symbol_table
-                .symbols
-                .get(image.symbol_table.entry_symbol)
-        })
+        .symbol(image.symbol_table.entry_symbol)
         .ok_or_else(|| {
             diagnostics::Diagnostic::error(format!(
                 "{format} entry symbol `{}` is missing from the final image",
