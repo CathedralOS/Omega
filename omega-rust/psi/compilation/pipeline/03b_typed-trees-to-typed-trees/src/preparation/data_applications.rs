@@ -383,6 +383,15 @@ fn elaborate_application(program: &mut TypedTrees, reference: TypeReferenceHandl
         instantiated.push(member);
     }
     let mut application = template;
+    if application.predicate_subject_type.is_valid() {
+        application.predicate_subject_type = instantiate_type(
+            program,
+            application.predicate_subject_type,
+            &substitutions,
+            &lifetimes,
+            scope,
+        );
+    }
     application.members = program.data_members.insert_many(instantiated);
     application.type_parameters = HandleSpan::empty();
     application.lifetime_parameters.clear();

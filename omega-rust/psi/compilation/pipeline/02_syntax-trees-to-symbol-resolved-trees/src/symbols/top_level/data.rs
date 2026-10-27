@@ -92,7 +92,7 @@ pub(super) fn assign_data_symbols(program: &mut SymbolResolvedTrees, symbols: &S
                 symbol_resolved_trees::types::TypeReference::Unit
             } else if let Some(origin) = &data_definition.generic_instance {
                 origin.clone()
-            } else if local_type_parameters.is_empty() {
+            } else if local_type_parameters.is_empty() && data_definition.lifetime_parameters.is_empty() {
                 symbol_resolved_trees::types::TypeReference::Named {
                     symbol: data_symbol,
                     name: symbol_resolved_trees::name::DiagnosticName::generated(data_definition.name.as_str()),

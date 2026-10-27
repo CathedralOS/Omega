@@ -1111,6 +1111,10 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
             }
         }
         visit_type_parameters(program, retained, data.type_parameters);
+        if data.predicate_subject_symbol.is_valid() {
+            visit_symbol(retained, data.predicate_subject_symbol);
+            visit_type_reference(program, retained, data.predicate_subject_type);
+        }
         if let Some(instance) = data.generic_instance {
             visit_type_reference(program, retained, instance);
         }

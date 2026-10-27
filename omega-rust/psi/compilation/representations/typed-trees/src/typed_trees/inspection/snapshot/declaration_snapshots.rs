@@ -224,6 +224,8 @@ pub struct DataDefinitionSnapshot {
     pub lifetime_parameters: Vec<String>,
     pub type_parameters: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub predicate_subject: Option<DataPredicateSubjectSnapshot>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub generic_instance: Option<TypeReferenceSnapshot>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cleanup_selection: Option<CleanupSelectionSnapshot>,
@@ -232,6 +234,12 @@ pub struct DataDefinitionSnapshot {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub retired_identities: Vec<u64>,
     pub members: Vec<DataMemberSnapshot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct DataPredicateSubjectSnapshot {
+    pub carrier: TypeReferenceSnapshot,
+    pub owned_by_data: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -393,6 +401,13 @@ pub(crate) fn data_definition_snapshot(
             .iter()
             .map(|parameter| parameter.name.to_string())
             .collect(),
+        predicate_subject: (data.predicate_subject_symbol.is_valid()
+            && data.predicate_subject_type.is_valid())
+            .then(|| DataPredicateSubjectSnapshot {
+                carrier: type_reference_snapshot(program, data.predicate_subject_type),
+                owned_by_data: program.symbols.get(data.predicate_subject_symbol).parent == data.symbol
+                    && program.symbols.get(data.predicate_subject_symbol).kind == symbols::SymbolKind::Parameter,
+            }),
         generic_instance: data
             .generic_instance
             .map(|origin| type_reference_snapshot(program, origin)),
