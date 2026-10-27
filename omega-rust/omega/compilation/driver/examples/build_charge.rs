@@ -1356,7 +1356,9 @@ fn executed_dependency_source_join(project: &str, private_call: bool) {
                         resolution = next;
                         continue;
                     }
-                    package_manager::resolution::source::BuildSourceAcquisition::Workspace(_) => {
+                    package_manager::resolution::source::BuildSourceAcquisition::Workspace {
+                        ..
+                    } => {
                         panic!("local source fixture unexpectedly requested a workspace catalog")
                     }
                 };
