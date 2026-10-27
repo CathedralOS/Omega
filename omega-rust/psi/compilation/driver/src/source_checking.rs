@@ -31,6 +31,7 @@ pub struct SourceAdmission<'request> {
 /// invocation; the first is the incremental predecessor, followed by siblings.
 pub struct CheckRequest<'request> {
     pub program: typed_trees::TypedTrees,
+    pub pending_constants: Vec<build_time_evaluation::PreCheckEvaluation>,
     pub admission: SourceAdmission<'request>,
     pub previous: &'request [&'request RetainedCheck],
     pub retain: bool,
@@ -39,6 +40,7 @@ pub struct CheckRequest<'request> {
 /// Successful language judgment, before optional whole-product root selection.
 pub struct CheckedSource {
     pub program: Arc<checked_trees::CheckedTrees>,
+    pub constants: Option<build_time_evaluation::RetainedConstantEvaluation>,
     pub retained: Option<RetainedCheck>,
     pub reused: bool,
 }
@@ -47,6 +49,7 @@ pub struct CheckedSource {
 #[derive(Clone)]
 pub struct SelectedCheckedSource {
     pub program: Arc<checked_trees::CheckedTrees>,
+    pub constants: Option<build_time_evaluation::RetainedConstantEvaluation>,
     pub provider_defaults:
         Arc<[build_time_evaluation::provider_declarations::TargetProviderDefaults]>,
     pub retained: Option<RetainedCheck>,
@@ -57,6 +60,10 @@ impl CheckRequest<'_> {
     pub fn check(self) -> Result<CheckedSource, Vec<Diagnostic>> {
         let _profile = phase_profile::guard("05");
         let mut program = self.program;
+        let constants = build_time_evaluation::RetainedConstantEvaluation::capture(
+            &program,
+            self.pending_constants,
+        );
         phase_profile::scope("05.a.source_completion", || {
             validation::source_completion::prepare_source_completion(
                 &mut program,
@@ -122,6 +129,7 @@ impl CheckRequest<'_> {
         };
         Ok(CheckedSource {
             program: outcome.checked,
+            constants,
             retained: outcome.retained,
             reused: outcome.took_prior,
         })
@@ -150,6 +158,7 @@ impl CheckedSource {
             typed_trees_to_checked_trees::select_checked_tree_product(self.program, roots)?;
         Ok(SelectedCheckedSource {
             program,
+            constants: self.constants,
             provider_defaults: provider_defaults.into(),
             retained: self.retained,
             selection,
@@ -185,14 +194,21 @@ impl ProductSelections {
         {
             let mut selected = prior.output.clone();
             selected.retained = checked.retained;
+            // Sharing a checked judgment does not reuse the prior invocation's
+            // deferred work or its authored evaluation storage.
+            selected.constants = checked.constants;
             return Ok(selected);
         }
         let input = checked.program.clone();
         let output = checked.select_product(roots.clone())?;
+        let mut cached = output.clone();
+        // Root selection retains its checked output, not another owner's
+        // authored forest or execution continuation.
+        cached.constants = None;
         self.entries.push(SelectedProduct {
             input,
             roots,
-            output: output.clone(),
+            output: cached,
         });
         Ok(output)
     }

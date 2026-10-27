@@ -56,6 +56,9 @@ pub use const_evaluation::data_layout_queries::{
     LayoutQueryMeasurements, LayoutQueryProvider, fold_data_layout_queries,
 };
 pub use const_evaluation::range_endpoints::evaluate_const_range_endpoints;
+pub use const_evaluation::retained_constants::{
+    ConstantValueClosureRequest, RetainedConstantEvaluation,
+};
 pub use const_evaluation::selected_constants::SelectedConstantEvaluationRequest;
 pub use layouts::layout_plans::compute_native_layout_plan_for_machine;
 pub use layouts::placed_views::{PlacedViewRecord, desugar_placed_views};

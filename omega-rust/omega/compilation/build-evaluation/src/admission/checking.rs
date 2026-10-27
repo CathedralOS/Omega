@@ -130,6 +130,7 @@ pub(crate) fn prepare_checked_build(
             };
             let result = psi_compiler::CheckRequest {
                 program,
+                pending_constants: Vec::new(),
                 admission: psi_compiler::SourceAdmission {
                     declarations: packages
                         .map(|inputs| inputs as &dyn validation::DeclarationSelectionAuthority),
