@@ -2,10 +2,11 @@
 
 use super::diff::{DiffBudget, myers_diff, render_hunks, source_line_count, split_lines};
 use super::output::BoundedOutput;
+use super::patch::PackageSourcePatchSide;
 use super::{
     MAXIMUM_BYTES_PER_SNAPSHOT, MAXIMUM_ENTRIES_PER_SNAPSHOT, MAXIMUM_METADATA_BYTES_PER_SNAPSHOT,
+    PackageSourcePatchError,
 };
-use super::{PackageSourcePatchError, PackageSourcePatchSide};
 use crate::Hex;
 use crate::resolution::source::PackageSourceCustody;
 use package_source::local::operations::{

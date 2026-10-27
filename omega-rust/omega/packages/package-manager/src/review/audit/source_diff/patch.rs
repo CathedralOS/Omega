@@ -1,7 +1,6 @@
 //! Source-patch model and rendering workflow.
 
 use crate::Hex;
-use crate::declarations::PackageKey;
 use crate::resolution::source::{PackageSourceCustody, PackageSourceSelectionEvidenceError};
 use crate::review::timings;
 use package_source::SourceResolveError;
@@ -117,28 +116,14 @@ impl std::error::Error for PackageSourcePatchError {}
 /// are lane-prefixed and byte-escaped but are not claimed prompt-safe.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PackageSourcePatch {
-    baseline_key: Option<PackageKey>,
-    candidate_key: PackageKey,
     changed_entries: usize,
     incomplete_model_content_entries: usize,
     rendered: String,
 }
 
 impl PackageSourcePatch {
-    pub const fn candidate_key(&self) -> &PackageKey {
-        &self.candidate_key
-    }
-
     pub const fn changed_entries(&self) -> usize {
         self.changed_entries
-    }
-
-    pub const fn is_empty(&self) -> bool {
-        self.changed_entries == 0
-    }
-
-    pub const fn incomplete_model_content_entries(&self) -> usize {
-        self.incomplete_model_content_entries
     }
 
     pub const fn requires_standalone_audit(&self) -> bool {
@@ -147,10 +132,6 @@ impl PackageSourcePatch {
 
     pub fn as_str(&self) -> &str {
         &self.rendered
-    }
-
-    pub fn into_string(self) -> String {
-        self.rendered
     }
 }
 
@@ -239,8 +220,6 @@ pub(crate) fn render_package_source_patch(
     revalidate_snapshot(candidate, PackageSourcePatchSide::Candidate)?;
 
     Ok(PackageSourcePatch {
-        baseline_key: baseline.map(|baseline| baseline.key().clone()),
-        candidate_key: candidate.key().clone(),
         changed_entries,
         incomplete_model_content_entries,
         rendered: output.finish(),

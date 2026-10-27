@@ -5,9 +5,7 @@ mod output;
 mod patch;
 mod snapshot;
 
-pub(crate) use patch::{
-    PackageSourcePatchError, PackageSourcePatchSide, render_package_source_patch,
-};
+pub(crate) use patch::{PackageSourcePatchError, render_package_source_patch};
 
 /// Independent ceilings for one model-facing source patch.
 ///
