@@ -11057,6 +11057,9 @@ fail/facts/nested_machine_invocation/const_name rejected 1841ms expected @02e7d9
 fail/facts/nested_machine_invocation/field rejected 1837ms expected @02e7d90a49ae+wt
 	machine `keep` state `entry` terminal expression expects `T`, got `bool`
 	machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`
+fail/facts/nested_machine_invocation/inferred_crash rejected 2036ms expected @5a04fc6149ab+wt
+	call from `main` to `wrong` at statement 0 call 0 has an uncovered Abort crash route; publish a same-cause route whose guard covers this invocation
+	machine `wrong` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
 fail/facts/nested_machine_invocation/local rejected 1840ms expected @02e7d90a49ae+wt
 	machine `keep` state `entry` terminal expression expects `T`, got `bool`
 	machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`

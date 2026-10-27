@@ -1,0 +1,5 @@
+// Rejected: a published Abort ceiling cannot admit a Trap body site.
+machine main() crashes Trap {
+    wrong();
+    machine wrong() crashes Abort { crash Trap; }
+}

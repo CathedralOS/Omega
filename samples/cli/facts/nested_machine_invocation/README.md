@@ -40,6 +40,14 @@ Additional witnesses exercise [static constants](const_context/main.omg),
 [Ancestor cycles](ancestor_cycle/main.omg) execute 100,000 terminal cycles while
 retaining a caller-owned mutable borrow, then return to the ordinary caller.
 
+[Attached declarations](attached_context/main.omg) use the same terminal-call
+contract as free declarations. [Private crash inference](inferred_crash/main.omg)
+executes a nested helper's checked Trap without an authored crash clause on that
+private helper; the [invalid control](inferred_crash/invalid/main.omg) retains
+an explicit, incompatible Abort ceiling and rejects. Native crash status is
+host-specific; the corpus pins `trap`, not a portable numeric exit. Terminal
+execution of that unchanged artifact also traps under all four target selections.
+
 The row establishes static binder identity, explicit argument composition,
 result checking, continuation, and end-to-end erasure/realization for these
 calls. All four hosted target bindings are authored; executable observations
