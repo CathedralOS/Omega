@@ -1,6 +1,33 @@
 //! Source guards for the application/compiler ownership boundary.
 
 #[test]
+fn readiness_retains_live_jobs_without_recursive_source_execution() {
+    let source = include_str!("build_execution/source_resolution/readiness.rs");
+    let scheduler = source
+        .split_once("fn drive_work(")
+        .unwrap()
+        .1
+        .split_once("fn build_request(")
+        .unwrap()
+        .0;
+    for recursive in [
+        "self.execute_source(",
+        "self.resolve_graph(",
+        "self.run_work(",
+        "self.drive_work(",
+    ] {
+        assert!(
+            !scheduler.contains(recursive),
+            "recursive dependency scheduling: {recursive}"
+        );
+    }
+    assert!(scheduler.contains("while let Some(work) = pending.pop()"));
+    assert!(scheduler.contains("Work::Run(build)"));
+    assert!(scheduler.contains("self.settle_graph(&graph)?"));
+    assert!(source.contains("activation: build_evaluation::TerminalBuildActivation"));
+}
+
+#[test]
 fn readiness_prepares_helper_products_without_recursive_dependency_calls() {
     let source = include_str!("build_execution/source_resolution/readiness.rs");
     let preparation = source

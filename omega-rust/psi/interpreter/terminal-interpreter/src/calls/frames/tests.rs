@@ -13,7 +13,6 @@ use evaluation_accounting::{
     EvaluationMeasurementIdentity, EvaluationResource, TerminalStorageScheduleIdentity,
 };
 use semantic_vocabulary::{BlockId, ClaimId, ContractId, EdgeId, StructuralTypeId};
-use std::borrow::Cow;
 use std::sync::Arc;
 use terminal_psi::{
     Block, MachineContract, NominalAffineCleanup, RegisterTargetApplicability,
@@ -64,7 +63,7 @@ pub(crate) fn empty_program() -> Arc<AdmittedTerminalProgram<'static>> {
         identity: terminal_codec::TerminalExecutionIdentity::portable(
             terminal_codec::terminal_psi_identity(&module).unwrap(),
         ),
-        catalogs: Arc::new(Cow::Owned(module)),
+        catalogs: Arc::new(crate::program::ProgramStorage::Owned(module)),
         target_layouts: None,
     })
 }

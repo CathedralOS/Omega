@@ -379,8 +379,14 @@ while its named dependency is acquired, settled and compiled to Terminal Psi,
 then installs that exact implementation before resuming. Helper Product
 preparation uses an explicit dependency-first frontier, retaining
 generated bundles by package and purpose without recursive preparation calls.
-Source acquisition and checking still retain recursive walks; this frontier does
-not remove the existing large compiler stack reservation. The final source join
+Source execution, provider/query dependencies, graph resolution and workspace
+catalogs also use application-owned pending work. Each paused Build retains its
+original invocation, interpreter activation and exact host adapters. Immutable
+Terminal code and source-issued call tables share their existing owners without
+encoding, decoding or rebuilding code. Host issuance and activation start remain
+once-only even when caller handles are cloned or dropped. Checking still retains
+recursive walks; this work does not remove the large compiler stack reservation.
+The final source join
 also reconciles helper graphs retained with workspace declaration observations;
 unselected members' pending Product requests stay inert. Package locks retain
 catalog execution custody separately from Product routing. Applied/inherited
