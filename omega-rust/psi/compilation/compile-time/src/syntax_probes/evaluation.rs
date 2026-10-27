@@ -60,8 +60,21 @@ impl PreparedEvaluationInputs {
         roots: &[SymbolHandle],
         expressions: &[SourceSpan],
     ) -> EvaluationDomain {
+        let admission = crate::BuildTimeAdmissionPlan::infer(program, None);
+        Self::domain_for_admission(program, &admission, roots, expressions)
+    }
+
+    /// An admission owner already inferred this immutable program's execution
+    /// edges. Reuse that association when selecting its checking premises;
+    /// the resulting projection still owes ordinary preparation and checking.
+    pub(crate) fn domain_for_admission(
+        program: &TypedTrees,
+        admission: &crate::BuildTimeAdmissionPlan,
+        roots: &[SymbolHandle],
+        expressions: &[SourceSpan],
+    ) -> EvaluationDomain {
         let mut execution = roots.to_vec();
-        selected_body_dependencies(program, &mut execution);
+        admission.append_execution_dependencies(program, &mut execution);
         let (work, selection) = declaration_dependencies(program, &execution, expressions, &[]);
         EvaluationDomain::selected(work, selection)
     }

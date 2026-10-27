@@ -508,7 +508,7 @@ impl BuildTimeAdmissionPlan {
         custody: BuildTimeInvocationCustody,
         discharge_authored_requires: bool,
     ) -> Result<(), BuildTimeAdmissionRejection> {
-        let checked = concrete_invocation::checked_demanded_closure(program, machine.symbol)?;
+        let checked = concrete_invocation::checked_demanded_closure(self, program, machine.symbol)?;
         let execution = checked.typed.as_ref();
         let root = execution
             .machine_by_symbol(machine.symbol)
@@ -660,7 +660,9 @@ impl BuildTimeAdmissionPlan {
         // source sites, whatever this invocation's arguments.
         let discharge_authored_requires = discharge_authored_requires
             || (self.closure_includes_authored_requires(program, machine)
-                && concrete_invocation::argument_independent_closure_discharges(input, machine)?);
+                && concrete_invocation::argument_independent_closure_discharges(
+                    self, input, machine,
+                )?);
         let closure_violation = checked_closure_violation(
             &self.call_edges,
             program,
@@ -967,7 +969,7 @@ impl BuildTimeAdmissionPlan {
         };
         let discharge_authored_requires = discharge_authored_requires
             || self.zero_argument_invocation_discharge(program, machine, &arguments, Some(custody));
-        let checked = concrete_invocation::checked_demanded_closure(program, machine_symbol)?;
+        let checked = concrete_invocation::checked_demanded_closure(self, program, machine_symbol)?;
         let execution = checked.typed.as_ref();
         let machine = execution
             .machine_by_symbol(machine_symbol)
