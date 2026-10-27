@@ -14,7 +14,10 @@ use selected_instructions::{
 };
 use semantic_vocabulary::IntegerValue;
 
-use super::{SelectedFormEncodingState, encode_row};
+use super::{
+    NativeTarget, OptimizedSelectedFormEncodingError, SelectedFormEncodingRow,
+    SelectedFormEncodingState, encode_row,
+};
 use machine_code::SelectedFormMachineDisposition;
 
 pub(super) fn fixture() -> (
@@ -102,65 +105,72 @@ pub(super) fn selected_function() -> selected_instructions::SelectedFunction {
     }
 }
 
+/// Encode one row over the suite's fixture: the seven-argument producer call
+/// every row-encoding test used to restate.
+pub(super) fn encode_fixture_row(
+    target: NativeTarget,
+    selected: &SelectedInstruction,
+    machine: &PostAllocationMachineInstruction,
+    physical: &ValidatedPhysicalRegisterModel,
+    address: Option<machine_code::ResolvedPhysicalAddress>,
+    encoded: &mut machine_code::SelectedFormEncodedRowStore,
+) -> Result<SelectedFormEncodingRow, OptimizedSelectedFormEncodingError> {
+    encode_row(
+        target,
+        selected,
+        machine,
+        physical,
+        &selected_function(),
+        address,
+        encoded,
+    )
+}
+
+/// Replay one row over the suite's fixture: the seven-argument admission call
+/// every rejection test used to restate.
+pub(super) fn replay_fixture_row(
+    target: NativeTarget,
+    selected: &SelectedInstruction,
+    machine: &PostAllocationMachineInstruction,
+    physical: &ValidatedPhysicalRegisterModel,
+    row: &SelectedFormEncodingRow,
+    encoded: &machine_code::SelectedFormEncodedRowStore,
+) -> Result<(), OptimizedSelectedFormEncodingError> {
+    crate::validation::row::validate(
+        target,
+        &selected_function(),
+        selected,
+        machine,
+        physical,
+        row,
+        encoded,
+    )
+}
+
 #[test]
 fn current_machine_encoding_preserves_ordinary_bytes_and_rejects_retired_dispositions() {
     let mut encoded = machine_code::SelectedFormEncodedRowStore::new();
     let (physical, selected, machine) = fixture();
     let target = target::NativeTarget::linux_x64();
-    let row = encode_row(
-        target,
-        &selected,
-        &machine,
-        &physical,
-        &selected_function(),
-        None,
-        &mut encoded,
-    )
-    .unwrap();
+    let row =
+        encode_fixture_row(target, &selected, &machine, &physical, None, &mut encoded).unwrap();
     assert!(matches!(row.state, SelectedFormEncodingState::Encoded));
     assert_eq!(
         encoded.bytes(row.code),
         &[0x48, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0]
     );
-    crate::validation::row::validate(
-        target,
-        &selected_function(),
-        &selected,
-        &machine,
-        &physical,
-        &row,
-        &encoded,
-    )
-    .unwrap();
+    replay_fixture_row(target, &selected, &machine, &physical, &row, &encoded).unwrap();
     let mut changed = row.clone();
     changed.machine_disposition = SelectedFormMachineDisposition::Aarch64ElidedSameViewCopyI64V1 {
         consumer: SelectedInstructionId(2),
     };
     assert!(
-        crate::validation::row::validate(
-            target,
-            &selected_function(),
-            &selected,
-            &machine,
-            &physical,
-            &changed,
-            &encoded,
-        )
-        .is_err()
+        replay_fixture_row(target, &selected, &machine, &physical, &changed, &encoded).is_err()
     );
     let changed = row;
     encoded.bytes_mut(changed.code)[0] ^= 1;
     assert!(
-        crate::validation::row::validate(
-            target,
-            &selected_function(),
-            &selected,
-            &machine,
-            &physical,
-            &changed,
-            &encoded,
-        )
-        .is_err()
+        replay_fixture_row(target, &selected, &machine, &physical, &changed, &encoded).is_err()
     );
 }
 
@@ -169,44 +179,18 @@ fn system_call_encoding_rejects_a_detached_selected_custody_roster() {
     let mut encoded = machine_code::SelectedFormEncodedRowStore::new();
     let (physical, mut selected, machine) = fixture();
     let target = target::NativeTarget::linux_x64();
-    let ordinary = encode_row(
-        target,
-        &selected,
-        &machine,
-        &physical,
-        &selected_function(),
-        None,
-        &mut encoded,
-    )
-    .unwrap();
+    let ordinary =
+        encode_fixture_row(target, &selected, &machine, &physical, None, &mut encoded).unwrap();
     selected.kind = SelectedInstructionKind::NormalizedForeignCall {
         boundary: semantic_vocabulary::BoundaryMachineId::new(3).unwrap(),
         ordinal: 0,
     };
     selected.constraint = isa_x86_64::x86_64_linux_system_call_keys()[0];
     assert!(
-        encode_row(
-            target,
-            &selected,
-            &machine,
-            &physical,
-            &selected_function(),
-            None,
-            &mut encoded,
-        )
-        .is_err()
+        encode_fixture_row(target, &selected, &machine, &physical, None, &mut encoded).is_err()
     );
     assert!(
-        crate::validation::row::validate(
-            target,
-            &selected_function(),
-            &selected,
-            &machine,
-            &physical,
-            &ordinary,
-            &encoded,
-        )
-        .is_err()
+        replay_fixture_row(target, &selected, &machine, &physical, &ordinary, &encoded).is_err()
     );
 }
 
@@ -227,40 +211,22 @@ fn unrouted_address_on_ordinary_kind_rejects_in_producer_and_replay() {
         displacement: 0,
     });
     assert!(matches!(
-        encode_row(
+        encode_fixture_row(
             target,
             &selected,
             &machine,
             &physical,
-            &selected_function(),
             unrouted,
-            &mut encoded,
+            &mut encoded
         ),
         Err(crate::OptimizedSelectedFormEncodingError::ArtifactMismatch)
     ));
-    let row = encode_row(
-        target,
-        &selected,
-        &machine,
-        &physical,
-        &selected_function(),
-        None,
-        &mut encoded,
-    )
-    .unwrap();
+    let row =
+        encode_fixture_row(target, &selected, &machine, &physical, None, &mut encoded).unwrap();
     let mut changed = row;
     changed.address = unrouted;
     assert!(
-        crate::validation::row::validate(
-            target,
-            &selected_function(),
-            &selected,
-            &machine,
-            &physical,
-            &changed,
-            &encoded,
-        )
-        .is_err()
+        replay_fixture_row(target, &selected, &machine, &physical, &changed, &encoded).is_err()
     );
 }
 
@@ -281,53 +247,26 @@ fn unrouted_address_on_deferred_control_rejects_in_producer_and_replay() {
         displacement: 0,
     });
     assert!(matches!(
-        encode_row(
+        encode_fixture_row(
             target,
             &selected,
             &machine,
             &physical,
-            &selected_function(),
             unrouted,
-            &mut encoded,
+            &mut encoded
         ),
         Err(crate::OptimizedSelectedFormEncodingError::ArtifactMismatch)
     ));
-    let row = encode_row(
-        target,
-        &selected,
-        &machine,
-        &physical,
-        &selected_function(),
-        None,
-        &mut encoded,
-    )
-    .unwrap();
+    let row =
+        encode_fixture_row(target, &selected, &machine, &physical, None, &mut encoded).unwrap();
     assert!(matches!(
         row.state,
         SelectedFormEncodingState::DeferredControl { .. }
     ));
-    crate::validation::row::validate(
-        target,
-        &selected_function(),
-        &selected,
-        &machine,
-        &physical,
-        &row,
-        &encoded,
-    )
-    .unwrap();
+    replay_fixture_row(target, &selected, &machine, &physical, &row, &encoded).unwrap();
     let mut changed = row;
     changed.address = unrouted;
     assert!(
-        crate::validation::row::validate(
-            target,
-            &selected_function(),
-            &selected,
-            &machine,
-            &physical,
-            &changed,
-            &encoded,
-        )
-        .is_err()
+        replay_fixture_row(target, &selected, &machine, &physical, &changed, &encoded).is_err()
     );
 }
