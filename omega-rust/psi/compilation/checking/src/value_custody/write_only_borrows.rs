@@ -1798,6 +1798,14 @@ fn validate_metadata_receiver(
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(_) => {}
         ExpressionNode::Member(member) => {
+            reject_stored_pointer_metadata_receiver(
+                program,
+                machine,
+                state,
+                member.receiver,
+                roots,
+                diagnostics,
+            );
             validate_metadata_receiver(
                 program,
                 machine,
@@ -1808,6 +1816,14 @@ fn validate_metadata_receiver(
             );
         }
         ExpressionNode::Indexed(indexed) => {
+            reject_stored_pointer_metadata_receiver(
+                program,
+                machine,
+                state,
+                indexed.collection,
+                roots,
+                diagnostics,
+            );
             validate_metadata_receiver(
                 program,
                 machine,
@@ -1819,6 +1835,49 @@ fn validate_metadata_receiver(
             validate_expression(program, machine, state, indexed.index, roots, diagnostics);
         }
         _ => validate_expression(program, machine, state, expression, roots, diagnostics),
+    }
+}
+
+/// A `.len` receiver hop through a stored reference leaves the loan's storage:
+/// the observed descriptor lives in another object's referent, which `&write`
+/// never authorizes. Only the root's own borrow crosses for free — it names the
+/// loan directly, and its referent is the authorized storage.
+fn reject_stored_pointer_metadata_receiver(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    receiver: ExpressionHandle,
+    roots: &[WriteOnlyRoot],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if matches!(
+        program.expression_table.expression(receiver),
+        ExpressionNode::Name(_)
+    ) {
+        return;
+    }
+    let Some(root) = write_only_place_root(program, receiver, roots) else {
+        return;
+    };
+    let Some(reference) = crate::value_custody::places::declared_place_type_raw(
+        program,
+        machine,
+        Some(state),
+        receiver,
+    ) else {
+        return;
+    };
+    let reference = program
+        .type_reference_table
+        .unconstrained_type_reference(reference);
+    if matches!(
+        program.type_reference_table.type_reference(reference),
+        TypeReferenceNode::Reference { .. }
+    ) {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` state `{}` reaches `.len` metadata below a stored pointer of write-only parameter `{}`; the observed descriptor lives in another referent's storage — `&write` admits descriptor metadata only below its own referent",
+            machine.name, state.name, root.name,
+        )));
     }
 }
 
