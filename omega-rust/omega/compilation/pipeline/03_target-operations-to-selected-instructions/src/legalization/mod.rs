@@ -4,6 +4,7 @@
 //! consumed in the same compile, so no verifier replays it.
 
 mod model;
+mod obligations;
 mod runtime_indices;
 mod scalar_graph_input;
 mod source;
@@ -11,6 +12,7 @@ mod source;
 pub use model::LegalizationError;
 pub(crate) use model::legalization_validator_identity;
 pub(crate) use model::{LegalizationValidationReceipt, ValidatedLegalizedOperations};
+pub(crate) use obligations::{accepted_fact, facts, references_obligation};
 
 use abstract_operations::AbstractOperationPlan;
 use abstract_operations_to_abstract_operations::ValidatedOptimizedAbstractPlan;
