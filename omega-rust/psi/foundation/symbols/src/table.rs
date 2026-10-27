@@ -11,8 +11,8 @@ use super::builtin::BUILTIN_TYPE_COUNT;
 mod child_batches;
 mod indices;
 use indices::{
-    BindingSourceIndex, BindingSourceIndexCache, ModulePathIndex, ModulePathIndexCache,
-    ModuleScopeIndex, ModuleScopeIndexCache, RootNameIndex, RootNameIndexCache,
+    BindingSourceIndexCache, ModulePathIndex, ModulePathIndexCache, ModuleScopeIndex,
+    ModuleScopeIndexCache, RootNameIndex, RootNameIndexCache,
 };
 mod modules;
 
@@ -480,6 +480,8 @@ impl SymbolTable {
                 .insert(SymbolName::from_ref(SymbolNameRef::Borrowed(name))),
         };
         self.symbols.get_mut(symbol).name = name;
+        self.binding_source_index.clear();
+        self.module_path_index.clear();
         self.module_scope_index.clear();
         self.root_names.clear();
     }
@@ -818,24 +820,10 @@ impl SymbolTable {
         reference_source: SourceId,
     ) -> &[SourceScopedTopLevelBinding] {
         const EMPTY: &[SourceScopedTopLevelBinding] = &[];
-        let index = self.binding_source_index.0.get_or_init(|| {
-            let mut index = BindingSourceIndex::default();
-            for binding in &self.source_scoped_top_level_bindings {
-                if !self.source_binding_is_selected(binding) {
-                    continue;
-                }
-                index
-                    .by_source
-                    .entry(binding.reference_source)
-                    .or_default()
-                    .push(binding.clone());
-            }
-            index
-        });
-        index
+        self.source_binding_index()
             .by_source
             .get(&reference_source)
-            .map_or(EMPTY, Vec::as_slice)
+            .map_or(EMPTY, |scope| scope.bindings.as_slice())
     }
 
     fn root_name_index(&self) -> RootNameIndex {
