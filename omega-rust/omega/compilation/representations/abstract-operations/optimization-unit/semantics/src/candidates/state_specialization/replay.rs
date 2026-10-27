@@ -615,7 +615,11 @@ fn accepted_provenance(
             machine,
             edge: row.taken_edge,
         };
-        provenance.push(realized_at_own_site(incoming_site, &incoming.provenance, &incoming.fuel));
+        provenance.push(realized_at_own_site(
+            incoming_site,
+            &incoming.provenance,
+            &incoming.fuel,
+        ));
         provenance.push(provenance_realized_at(
             resolved_site,
             incoming_site,
@@ -630,7 +634,11 @@ fn accepted_provenance(
             machine,
             edge: taken_edge,
         };
-        provenance.push(realized_at_own_site(resolved_site, &resolved.provenance, &resolved.fuel));
+        provenance.push(realized_at_own_site(
+            resolved_site,
+            &resolved.provenance,
+            &resolved.fuel,
+        ));
     }
     canonicalize_provenance(&mut provenance);
     Ok(provenance)

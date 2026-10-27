@@ -1,5 +1,7 @@
 //! Same-block and dominating scalar CSE validation and rewrite application.
 use crate::candidates::accept_region_rewrite;
+use crate::candidates::candidate_block;
+use crate::candidates::candidate_function;
 use crate::candidates::contract;
 use crate::candidates::global_value_numbering::{ScalarCseProofClass, ScalarCseScope};
 use crate::candidates::retire_node_custody;
@@ -15,10 +17,10 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::admission::{independent_cse_expression, independently_accepted_operation_fact};
 use super::dominance_reconstruction::independent_reachable_dominators;
-use super::rule_catalog;
 use super::expression_keys::{
     independent_compatible_policy_scalar_leader, independent_compatible_policy_scalar_redundant,
 };
+use super::rule_catalog;
 use crate::candidates::sweep_output_nodes;
 
 pub(super) fn validate_scalar_common_subexpression_candidate(
@@ -71,15 +73,9 @@ pub(super) fn validate_scalar_common_subexpression_candidate(
     if patch.leader.machine != patch.redundant.machine {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
-    let function = input
-        .function(patch.leader.machine)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-    let leader_block = function
-        .block(patch.leader.block)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-    let redundant_block = function
-        .block(patch.redundant.block)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let function = candidate_function(input, patch.leader.machine)?;
+    let leader_block = candidate_block(function, patch.leader.block)?;
+    let redundant_block = candidate_block(function, patch.redundant.block)?;
     let leader = leader_block
         .nodes
         .get(

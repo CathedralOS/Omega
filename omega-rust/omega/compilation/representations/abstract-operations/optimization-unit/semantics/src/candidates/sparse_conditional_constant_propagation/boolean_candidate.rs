@@ -3,7 +3,9 @@ use crate::candidates::realized_at_own_site;
 use crate::candidates::sparse_conditional_constant_propagation::{
     boolean_evaluation, observation_at,
 };
-use crate::candidates::{candidate_block, candidate_function, require_realized_rows};
+use crate::candidates::{
+    candidate_block, candidate_function, candidate_node, require_realized_rows,
+};
 use crate::{
     OptimizationUnitValidationError, ValidatedPsiRewrite, reconstruct_closed_scalar_node_boundary,
 };
@@ -46,10 +48,7 @@ pub(crate) fn validate_boolean_evaluation_candidate(
     }
     let function = candidate_function(input, patch.location.machine)?;
     let block = candidate_block(function, patch.location.block)?;
-    let node = block
-        .nodes
-        .get(usize::try_from(patch.location.node).expect("u32 fits usize"))
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let node = candidate_node(block, patch.location.node)?;
     let input_observation = observation_at(input, patch.location)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     let input_live = reconstruct_closed_scalar_node_boundary(input, patch.location)

@@ -1,5 +1,7 @@
 //! Phi-translated join validation and rewrite application.
 use crate::candidates::accept_region_rewrite;
+use crate::candidates::candidate_block;
+use crate::candidates::candidate_function;
 use crate::candidates::contract;
 use crate::candidates::global_value_numbering::ScalarCseProofClass;
 use crate::candidates::retire_node_custody;
@@ -16,10 +18,10 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::admission::{independent_cse_expression, independently_accepted_operation_fact};
 use super::dominance_reconstruction::independent_reachable_dominators;
-use super::rule_catalog;
 use super::expression_keys::{
     independent_compatible_policy_scalar_leader, independent_compatible_policy_scalar_redundant,
 };
+use super::rule_catalog;
 use crate::candidates::sweep_output_nodes;
 
 /// Independently validate one obligation-free, proof-certified, or
@@ -49,12 +51,8 @@ pub(super) fn validate_phi_translated_scalar_common_subexpression_candidate(
     if candidate.node_decision_point() != Some(patch.redundant) {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
-    let function = input
-        .function(patch.redundant.machine)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-    let join = function
-        .block(patch.redundant.block)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let function = candidate_function(input, patch.redundant.machine)?;
+    let join = candidate_block(function, patch.redundant.block)?;
     let redundant_index = usize::try_from(patch.redundant.node)
         .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
     let redundant = crate::candidates::candidate_node(join, patch.redundant.node)?;

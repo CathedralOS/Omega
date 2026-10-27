@@ -1,6 +1,5 @@
 use crate::candidates::{
-    canonicalize_provenance, provenance_realized_at, realize_node_provenance,
-    realized_at_own_site,
+    canonicalize_provenance, provenance_realized_at, realize_node_provenance, realized_at_own_site,
 };
 use optimization_unit::{
     NodeLocation, OwnershipFrontierSite, PsiOptimizationFunction, PsiOptimizationUnit,

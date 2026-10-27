@@ -1,7 +1,7 @@
 //! Candidate contract, shape, evidence, and accounting join.
+use crate::candidates::contract;
 use crate::candidates::rewrite_accounting::scalar_identity::reconstruct_total_scalar_identity_accounting;
 use crate::candidates::sparse_conditional_constant_propagation::scalar_value_definition;
-use crate::candidates::contract;
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
 use optimization_core::{AnalysisKind, OptimizationRuleIdentity, OptimizationSafetyClass};
 use optimization_unit::{

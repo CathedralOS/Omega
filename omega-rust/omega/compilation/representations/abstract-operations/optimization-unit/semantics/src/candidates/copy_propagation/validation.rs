@@ -1,7 +1,5 @@
 //! Redundant-parameter witness reconstruction and rewrite acceptance.
-use crate::candidates::{
-    canonicalize_provenance, realize_node_provenance, realized_at_own_site,
-};
+use crate::candidates::{canonicalize_provenance, realize_node_provenance, realized_at_own_site};
 use crate::unit_validation::derived_metadata::{
     expected_definitions, expected_edges, expected_ownership, expected_uses,
 };

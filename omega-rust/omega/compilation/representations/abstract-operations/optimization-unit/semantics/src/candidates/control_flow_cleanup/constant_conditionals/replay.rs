@@ -4,7 +4,7 @@ use crate::candidates::{
     accept_region_rewrite, candidate_block, candidate_function, canonicalize_provenance,
     require_realized_rows, sweep_output_nodes,
 };
-use crate::candidates::{proven_unreachable_at_own_site, realized_at_own_site};
+use crate::candidates::{candidate_node, proven_unreachable_at_own_site, realized_at_own_site};
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
 use abstract_operations::AbstractOperation as O;
 use optimization_unit::{
@@ -28,10 +28,7 @@ pub(super) fn validate(
     }
     let function = candidate_function(input, patch.location.machine)?;
     let block = candidate_block(function, patch.location.block)?;
-    let node = block
-        .nodes
-        .get(usize::try_from(patch.location.node).expect("u32 fits usize"))
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let node = candidate_node(block, patch.location.node)?;
     let O::Conditional {
         condition,
         when_true,
@@ -200,14 +197,22 @@ pub(crate) fn reconstruct_conditional_fold_accounting(
                 };
                 if !node.provenance.is_empty() {
                     let site = PsiRealizationSite::Node(location);
-                    unreachable.push(proven_unreachable_at_own_site(site, &node.provenance, &node.fuel));
+                    unreachable.push(proven_unreachable_at_own_site(
+                        site,
+                        &node.provenance,
+                        &node.fuel,
+                    ));
                 }
                 for edge in &node.successors {
                     let site = PsiRealizationSite::Edge {
                         machine: function.machine,
                         edge: edge.psi_edge,
                     };
-                    unreachable.push(proven_unreachable_at_own_site(site, &edge.provenance, &edge.fuel));
+                    unreachable.push(proven_unreachable_at_own_site(
+                        site,
+                        &edge.provenance,
+                        &edge.fuel,
+                    ));
                 }
             }
             continue;

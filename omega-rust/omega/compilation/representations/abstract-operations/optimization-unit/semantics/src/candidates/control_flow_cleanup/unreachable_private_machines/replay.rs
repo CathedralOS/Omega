@@ -181,7 +181,11 @@ pub(crate) fn pruned_machine_provenance(
                     node: u32::try_from(node_index).ok()?,
                 });
                 if !node.provenance.is_empty() {
-                    rows.push(proven_unreachable_at_own_site(input, &node.provenance, &node.fuel));
+                    rows.push(proven_unreachable_at_own_site(
+                        input,
+                        &node.provenance,
+                        &node.fuel,
+                    ));
                 }
                 for edge in &node.successors {
                     let input = PsiRealizationSite::Edge {
@@ -189,7 +193,11 @@ pub(crate) fn pruned_machine_provenance(
                         edge: edge.psi_edge,
                     };
                     if !edge.provenance.is_empty() {
-                        rows.push(proven_unreachable_at_own_site(input, &edge.provenance, &edge.fuel));
+                        rows.push(proven_unreachable_at_own_site(
+                            input,
+                            &edge.provenance,
+                            &edge.fuel,
+                        ));
                     }
                 }
             }

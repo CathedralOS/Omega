@@ -5,7 +5,9 @@ use crate::candidates::rewrite_accounting::threading::{
     reconstruct_linear_thread_ownership_is_identity,
 };
 use crate::candidates::sweep_output_nodes;
-use crate::candidates::{accept_region_rewrite, require_realized_rows};
+use crate::candidates::{
+    accept_region_rewrite, candidate_block, candidate_function, require_realized_rows,
+};
 use crate::unit_validation::derived_metadata::{
     expected_definitions, expected_edges, expected_ownership, expected_uses,
 };
@@ -26,17 +28,13 @@ pub(super) fn validate(
     {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
-    let function = input
-        .function(patch.predecessor.machine)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let function = candidate_function(input, patch.predecessor.machine)?;
     require_scalar_bindings(function)?;
 
     if function.entry == patch.empty.block {
         return Err(OptimizationUnitValidationError::CandidateReachabilityMismatch);
     }
-    let empty_block = function
-        .block(patch.empty.block)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let empty_block = candidate_block(function, patch.empty.block)?;
     let [empty_node] = empty_block.nodes.as_slice() else {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     };
