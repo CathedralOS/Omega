@@ -1,0 +1,15 @@
+{
+  "source": "14a211b80ef82c2d89dfcabbd4b5fdc9d44bb7b6",
+  "producer": {
+    "revision": "14a211b80ef82c2d89dfcabbd4b5fdc9d44bb7b6",
+    "sha256": "3c3336b56ca58afe65a068ac1e5a5a6f8f216457232d93787ca262ad4217e44b",
+    "profile": "{\"schema\":\"omega-compiler-build-profile-v1\",\"opt_level\":\"1\"}\n"
+  },
+  "files": {
+    "samples/cli/facts/nested_machine_invocation/private_arithmetic/cyclic/build.omg": "3d158b4bc3360f95b330216ce209ed169493fd63cc506d930c5fadda6de9d59c",
+    "samples/cli/facts/nested_machine_invocation/private_arithmetic/cyclic/main.omg": "8d43e09eeb6834abec743ceea639e19e7560c207c4e7074df21a2d60c0db86b9",
+    "samples/cli/facts/nested_machine_invocation/private_arithmetic/cyclic/invalid/build.omg": "1331824c0d3d723e5840a57af7015decca6ad18fb882e8fe3bcac65ea6e08864",
+    "samples/cli/facts/nested_machine_invocation/private_arithmetic/cyclic/invalid/main.omg": "00a425fbe1f96b6c4b44e4440cdf929670ee076d37b8ab742003e38caed8f9e6",
+    "samples/cli/facts/nested_machine_invocation/private_arithmetic/cyclic/invalid/sample.json": "e47b08bbe1acbdedcc9271d10fb89eedf23a4edfac8a2c7df7d57bda7a4c3d5a"
+  }
+}

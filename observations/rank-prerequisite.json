@@ -1,0 +1,8 @@
+{
+  "reason": "Std replay with producer c020 fixed the two exact-arithmetic prefix refusals and exposed17 later errors. Three name supported exact SCC rank witnesses, including posix_filesystem_rda_drain/rdd_step. Reuse completed independently qualified PR435 rather than duplicating that repair.",
+  "publication": "4b0b309a4e17f5a729dafae071163d8cc63b082a",
+  "worker_source": "4f713de518d70b1903e7c672f6d89e525880856e",
+  "before": "c0205ff6abeaa3b7250ce242fda6f830bd8a4ade",
+  "frontier": "build/private-cyclic/parser-admission-3.log",
+  "original_base": "baf1b6ea0633681bcc2cf34d563d748a47fadb36"
+}

@@ -1,0 +1,95 @@
+[
+  {
+    "name": "alternate_arrival",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-cyclic/producer-4/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/cyclic/controls/alternate_arrival/main.omg"
+    ],
+    "sha256": "5b82cef6f9ccef72d3ec7bd1c77ba83c928943256723d3ae589a0d7f3255e94d",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `private_cyclic_alternate_arrival` with 1 diagnostic(s)\n  error: exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `private_cyclic_alternate_arrival`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/private_arithmetic/cyclic/controls/alternate_arrival/main.omg:11:37\n"
+  },
+  {
+    "name": "disjoint_write",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-cyclic/producer-4/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/cyclic/controls/disjoint_write/main.omg"
+    ],
+    "sha256": "6a6d8095622cb0fa5f76659f473ddbd1fb3f9c3dba58c410c3526d5b0d98f240",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "name": "nested_cycle",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-cyclic/producer-4/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/cyclic/controls/nested_cycle/main.omg"
+    ],
+    "sha256": "7011edcc52a23e13b1761406ee2928f13916ff877347d9ae3a4619c6826b7930",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `private_cyclic_nested_cycle` with 1 diagnostic(s)\n  error: exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `private_cyclic_nested_cycle`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/private_arithmetic/cyclic/controls/nested_cycle/main.omg:11:37\n"
+  },
+  {
+    "name": "other_field",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-cyclic/producer-4/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/cyclic/controls/other_field/main.omg"
+    ],
+    "sha256": "1ce920707ce6c311c11d7d5f124bbd90741a015fd14216eb15fb92d3ceec036e",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `private_cyclic_other_field` with 1 diagnostic(s)\n  error: exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `private_cyclic_other_field`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/private_arithmetic/cyclic/controls/other_field/main.omg:11:37\n"
+  },
+  {
+    "name": "overwritten_guard",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-cyclic/producer-4/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/cyclic/controls/overwritten_guard/main.omg"
+    ],
+    "sha256": "1b46bfcedb4bdad47d44c34792db008ee297ac3d6a7300f7a70cea5a30f1a16e",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `private_cyclic_overwritten_guard` with 1 diagnostic(s)\n  error: exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `private_cyclic_overwritten_guard`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/private_arithmetic/cyclic/controls/overwritten_guard/main.omg:13:37\n"
+  },
+  {
+    "name": "parent_guard_only",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-cyclic/producer-4/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/cyclic/controls/parent_guard_only/main.omg"
+    ],
+    "sha256": "717390c18349c3ec41c71b70f22b8af7e49d6ec6a19ced9d6c46dcbe103375db",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `private_cyclic_parent_guard_only` with 1 diagnostic(s)\n  error: exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `private_cyclic_parent_guard_only`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/private_arithmetic/cyclic/controls/parent_guard_only/main.omg:11:37\n"
+  },
+  {
+    "name": "unrelated_builtin",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-cyclic/producer-4/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/cyclic/controls/unrelated_builtin/main.omg"
+    ],
+    "sha256": "695bf276c38ec1bd643feaf14d7627cd07c12b63d32114e01aed15122f585ae4",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  }
+]

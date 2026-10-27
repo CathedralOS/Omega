@@ -1,0 +1,12 @@
+{
+  "command": [
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-cyclic/producer-4/omega",
+    "run",
+    "--both",
+    "build/private-cyclic/counterfactual/main.omg"
+  ],
+  "sha256": "4ec19d94aad0c6a19977365462b899342dcf2229889b47963ddd388a27da678f",
+  "exit": 255,
+  "stdout": "",
+  "stderr": "native signal 5\ninterp crash: Trap (host presentation agrees)\n"
+}

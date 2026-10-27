@@ -1,0 +1,394 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "485a671a334e1f2b7c553c155172cfdfa6c4d319",
+  "dirty": true,
+  "leg": "checked",
+  "target": null,
+  "golden": "tests/omega/corpus_outcomes.txt",
+  "golden_reason_gaps": {
+    "rows": 1,
+    "of": 19243
+  },
+  "subset": true,
+  "filter": "facts/nested_machine_private_cyclic_",
+  "shard": null,
+  "verdict": "recorded",
+  "exit_code": 0,
+  "counts": {
+    "fixtures": 27,
+    "by_status": {
+      "checked": 12,
+      "rejected": 15
+    },
+    "wrong_reason": 0,
+    "wrong_reason_fixtures": [],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 0,
+    "lost_success_fixtures": [],
+    "pinned_off_target": 0,
+    "pinned_off_target_fixtures": [],
+    "by_verdict": {}
+  },
+  "oracle_failures": [],
+  "infrastructure_error": null,
+  "golden_provenance": null,
+  "perf_context": null,
+  "observations": [
+    {
+      "fixture": "pass/facts/nested_machine_private_cyclic_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3749,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "485a671a334e"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_cyclic_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3672,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "485a671a334e"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_cyclic_disjoint_write_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3740,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "485a671a334e"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_cyclic_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3672,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "485a671a334e"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_cyclic_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3335,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "485a671a334e"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_cyclic_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3420,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "485a671a334e"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_cyclic_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3430,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "485a671a334e"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_cyclic_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3421,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "485a671a334e"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_cyclic_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3389,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "485a671a334e"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_cyclic_root_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3288,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "485a671a334e"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_cyclic_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3349,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "485a671a334e"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_cyclic_unrelated_builtin_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3399,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "485a671a334e"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_cyclic_alternate_arrival_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 314,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": "485a671a334e"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_cyclic_call_result_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 331,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": "485a671a334e"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_cyclic_const_name_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 320,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": "485a671a334e"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_cyclic_field_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 325,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": "485a671a334e"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_cyclic_local_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 339,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": "485a671a334e"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_cyclic_match_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 337,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": "485a671a334e"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_cyclic_nested_cycle_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 353,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": "485a671a334e"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_cyclic_other_field_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 328,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": "485a671a334e"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_cyclic_other_machine_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 369,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": "485a671a334e"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_cyclic_other_state_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 339,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": "485a671a334e"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_cyclic_overwritten_guard_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 326,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": "485a671a334e"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_cyclic_parameter_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 328,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": "485a671a334e"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_cyclic_parent_guard_only_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 310,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": "485a671a334e"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_cyclic_root_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 336,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": "485a671a334e"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_cyclic_target_body_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 301,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).",
+        "exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).",
+        "exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).",
+        "exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": "485a671a334e"
+    }
+  ],
+  "fixtures": []
+}

@@ -1,0 +1,26 @@
+[
+  {
+    "label": "baseline",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/effectful-integration/producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/cyclic/controls/unrelated_builtin/main.omg"
+    ],
+    "sha256": "695bf276c38ec1bd643feaf14d7627cd07c12b63d32114e01aed15122f585ae4",
+    "exit": 0,
+    "stdout": "compiled 20 source file(s) from /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/private_arithmetic/cyclic/controls/unrelated_builtin/main.omg; wrote_output=false\n",
+    "stderr": ""
+  },
+  {
+    "label": "prototype",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-cyclic/producer-2/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/cyclic/controls/unrelated_builtin/main.omg"
+    ],
+    "sha256": "695bf276c38ec1bd643feaf14d7627cd07c12b63d32114e01aed15122f585ae4",
+    "exit": 0,
+    "stdout": "compiled 20 source file(s) from /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/private_arithmetic/cyclic/controls/unrelated_builtin/main.omg; wrote_output=false\n",
+    "stderr": ""
+  }
+]

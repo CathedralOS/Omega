@@ -1,0 +1,26 @@
+[
+  {
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/effectful-integration/producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/cyclic/main.omg"
+    ],
+    "source_sha256": "8d43e09eeb6834abec743ceea639e19e7560c207c4e7074df21a2d60c0db86b9",
+    "invalid": false,
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `private_cyclic` with 1 diagnostic(s)\n  error: exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `private_cyclic`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/private_arithmetic/cyclic/main.omg:11:37\n"
+  },
+  {
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/effectful-integration/producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/cyclic/invalid/main.omg"
+    ],
+    "source_sha256": "00a425fbe1f96b6c4b44e4440cdf929670ee076d37b8ab742003e38caed8f9e6",
+    "invalid": true,
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `private_cyclic_invalid` with 1 diagnostic(s)\n  error: exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `private_cyclic_invalid`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/private_arithmetic/cyclic/invalid/main.omg:11:37\n"
+  }
+]
