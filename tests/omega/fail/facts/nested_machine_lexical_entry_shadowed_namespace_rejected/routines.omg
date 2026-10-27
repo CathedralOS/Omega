@@ -1,0 +1,2 @@
+module routines;
+public machine entry(value: u64) -> u64 requires value > 0; ensures result == value; { value }
