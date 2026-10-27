@@ -24,7 +24,7 @@ fn receiver_form(target: target::NativeTarget) -> Option<ReceiverForm> {
         Some(ReceiverForm {
             name: "omega_macos_arm64_installed_entry_ram",
             surface: EntrySurface::DarwinReceiver,
-            // Darwin write(2) uses X16 and reports failure through carry.
+            // Darwin's write syscall uses X16 = 4 and reports carry failure.
             write_call: &[0xd280_0090, 0xd400_1001, 0x5400_00a2],
             failure_exit: &[0xd280_1900, 0xd280_0030, 0xd400_1001, 0xd420_0000],
             normal_completion: &[0xa940_792a, 0x9100_015f, 0x5280_0000, 0xd65f_03c0],

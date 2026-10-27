@@ -164,7 +164,8 @@ impl Reader<'_> {
         Ok(())
     }
     fn address(&mut self, register: u32, expected: u64) -> Result<(), Diagnostic> {
-        let fail = || invalid(self.target);
+        let target = self.target;
+        let fail = || invalid(target);
         let pc = self.pc()?;
         let page = self.take()?;
         let add = self.take()?;
