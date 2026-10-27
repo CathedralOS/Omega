@@ -10,6 +10,7 @@ use crate::layout_reports::{
     ConventionalSumLayoutReport, LayoutPlanReport,
 };
 use crate::materialization::MaterializationDiagnostic;
+use crate::materialization::field_values::validate_authored_width;
 
 /// Compiler-issued identity of an inbound entry stub. The numeric identity is
 /// never a callable address and cannot be used for arithmetic or control flow.
@@ -168,11 +169,7 @@ impl SymbolicFieldValue {
         width_bits: u16,
         target: RelocationTarget,
     ) -> Result<Self, MaterializationDiagnostic> {
-        if width_bits == 0 || width_bits > 64 {
-            return Err(MaterializationDiagnostic(format!(
-                "symbolic field width {width_bits} is outside 1..=64 bits"
-            )));
-        }
+        validate_authored_width("symbolic", width_bits)?;
         Ok(Self {
             field: field.into(),
             member_identity: None,

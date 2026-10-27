@@ -4,6 +4,21 @@
 use crate::materialization::MaterializationDiagnostic;
 use crate::materialization::stored_integer_writes::low_mask;
 
+/// The authored scalar carrier width vocabulary: one to 64 bits, named by the
+/// value kind whose constructor rejected it. A scalar value, a decode schema,
+/// and a symbolic field all read this one rule.
+pub(crate) fn validate_authored_width(
+    kind: &str,
+    width_bits: u16,
+) -> Result<(), MaterializationDiagnostic> {
+    if width_bits == 0 || width_bits > 64 {
+        return Err(MaterializationDiagnostic(format!(
+            "{kind} field width {width_bits} is outside 1..=64 bits"
+        )));
+    }
+    Ok(())
+}
+
 /// One ordinary scalar supplied to a validated dictated-layout materializer.
 /// Positional fields select compiler-validated plan entries by name; numbered
 /// fields use their stable member identity. Callers never provide a byte
@@ -22,11 +37,7 @@ impl ScalarFieldValue {
         width_bits: u16,
         value: u64,
     ) -> Result<Self, MaterializationDiagnostic> {
-        if width_bits == 0 || width_bits > 64 {
-            return Err(MaterializationDiagnostic(format!(
-                "scalar field width {width_bits} is outside 1..=64 bits"
-            )));
-        }
+        validate_authored_width("scalar", width_bits)?;
         if width_bits < 64 && value > low_mask(width_bits) {
             return Err(MaterializationDiagnostic(format!(
                 "scalar value {value:#x} does not fit its {width_bits}-bit field"
@@ -214,11 +225,7 @@ impl ScalarFieldSchema {
         field: impl Into<String>,
         width_bits: u16,
     ) -> Result<Self, MaterializationDiagnostic> {
-        if width_bits == 0 || width_bits > 64 {
-            return Err(MaterializationDiagnostic(format!(
-                "scalar field width {width_bits} is outside 1..=64 bits"
-            )));
-        }
+        validate_authored_width("scalar", width_bits)?;
         Ok(Self {
             field: field.into(),
             member_identity: None,

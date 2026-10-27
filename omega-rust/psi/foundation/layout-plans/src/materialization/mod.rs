@@ -17,8 +17,8 @@ use crate::materialization::field_values::{
     ScalarFieldValue,
 };
 use crate::materialization::stored_integer_writes::{
-    apply_write, low_mask, read_container, scalar_fragment, validate_fragment, validate_write,
-    validate_write_source_value,
+    apply_write, byte_sized_width, low_mask, read_container, scalar_fragment, validate_fragment,
+    validate_write, validate_write_source_value,
 };
 use crate::placement::{ByteOrder, MaterializationAction, PlacementConstraints};
 use crate::symbolic_materialization::apply_scalar_entry;
@@ -576,11 +576,7 @@ pub fn decode_scalar_layout(
                     entry.field
                 ))
             })?;
-            if stored_width == 0
-                || stored_width > 64
-                || !stored_width.is_multiple_of(8)
-                || width_bits < stored_width
-            {
+            if !byte_sized_width(stored_width) || width_bits < stored_width {
                 return Err(MaterializationDiagnostic(format!(
                     "scalar field `{}` cannot decode {stored_width}-bit stored-integer storage into its {}-bit semantic carrier",
                     entry.field, width_bits
