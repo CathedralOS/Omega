@@ -8,9 +8,8 @@ use checked_trees::{CheckFacts, FlowStateFact};
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
-/// Routed theories require the exact live instance at the initializer's actual
-/// place. Read the completed operand snapshot, never the destination binding's
-/// post-statement facts or places equated by their display names.
+/// Consume the exact operand's completed proof, then its captured facts and
+/// checked call contract. A receiving annotation cannot supply membership.
 pub(super) fn value_proves_qualification(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
@@ -19,31 +18,34 @@ pub(super) fn value_proves_qualification(
     value: ExpressionHandle,
     domain: SymbolHandle,
     identity: language_semantics::SemanticDomainId,
+    decisions: &arena::Arena<checked_trees::CheckedValueQualification>,
+    frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
     if !value_case_path_is_selected(program, facts, state, statement_index, value) {
         return false;
     }
-    if !validation::field_domains::domain_requires_provenance(program, domain) {
-        return value_result_type_carries_domain(
-            program,
-            state,
-            statement_index,
-            value,
-            domain,
-            identity,
-        ) || value_proves_domain(program, facts, state, statement_index, value, domain);
+    if decisions.iter().any(|(_, decision)| {
+        decision.machine == state.machine_symbol
+            && decision.state == state.state_symbol
+            && decision.statement_index as usize == statement_index
+            && decision.expression == value
+            && !decision.structural_value.is_valid()
+            && decision.domain_symbol == domain
+            && decision.semantic_domain == identity
+    }) {
+        return true;
     }
-    let Some(subject) = validation::canonical_place_from_expression_in_state(
+    let contexts = value_semantic_contexts(facts, state, statement_index, value);
+    value_proves_qualification_in_contexts(
         program,
-        state.state_symbol,
+        facts,
+        state,
         statement_index,
         value,
-    ) else {
-        return false;
-    };
-    let contexts = value_semantic_contexts(facts, state, statement_index, value);
-    super::super::exits::exact_scalar_membership(
-        program, facts, &contexts, &subject, domain, identity,
+        domain,
+        identity,
+        &contexts,
+        frames,
     )
 }
 
