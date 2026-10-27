@@ -33,26 +33,26 @@ impl RegisterHomePlan {
         let ranges = LiveRangeIdentity::from_bytes(cursor.array()?);
         let register_environment = TargetRegisterEnvironmentIdentity::from_bytes(cursor.array()?);
         let allocator_availability = AllocatorAvailabilityIdentity::from_bytes(cursor.array()?);
-        let function_count = cursor.length()?;
-        let mut functions = Vec::with_capacity(function_count.min(cursor.remaining()));
-        for _ in 0..function_count {
-            let raw_machine = cursor.u64()?;
-            let machine = MachineId::new(raw_machine)
-                .ok_or(RegisterHomeDecodeError::InvalidMachineId(raw_machine))?;
-            let assignment_count = cursor.length()?;
-            let mut assignments = Vec::with_capacity(assignment_count.min(cursor.remaining()));
-            for _ in 0..assignment_count {
-                assignments.push(VirtualRegisterHome {
-                    virtual_register: VirtualRegisterId(cursor.u32()?),
-                    class: RegisterClassId(cursor.u16()?),
-                    view: RegisterViewId(cursor.u16()?),
-                });
-            }
-            functions.push(FunctionRegisterHomes {
-                machine,
-                assignments,
-            });
-        }
+        let functions =
+            crate::codec_bytes::decode_list::<_, RegisterHomeDecodeError>(&mut cursor, |cursor| {
+                let raw_machine = cursor.u64()?;
+                let machine = MachineId::new(raw_machine)
+                    .ok_or(RegisterHomeDecodeError::InvalidMachineId(raw_machine))?;
+                let assignments = crate::codec_bytes::decode_list::<_, RegisterHomeDecodeError>(
+                    &mut *cursor,
+                    |cursor| {
+                        Ok(VirtualRegisterHome {
+                            virtual_register: VirtualRegisterId(cursor.u32()?),
+                            class: RegisterClassId(cursor.u16()?),
+                            view: RegisterViewId(cursor.u16()?),
+                        })
+                    },
+                )?;
+                Ok(FunctionRegisterHomes {
+                    machine,
+                    assignments,
+                })
+            })?;
         if cursor.remaining() != 0 {
             return Err(RegisterHomeDecodeError::TrailingBytes);
         }
@@ -81,8 +81,4 @@ pub enum RegisterHomeDecodeError {
     TrailingBytes,
 }
 
-crate::decode_error_display! { RegisterHomeDecodeError, "invalid Terminal register-home encoding" }
-
-optimization_core::truncated_from_adapter!(RegisterHomeDecodeError);
-
-optimization_core::take_error_from_adapter!(RegisterHomeDecodeError);
+crate::decode_error! { RegisterHomeDecodeError, "invalid Terminal register-home encoding" }

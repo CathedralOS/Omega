@@ -118,6 +118,24 @@ impl Envelope {
     }
 }
 
+/// Length-framed decode: the u64 count, then that many elements decoded in
+/// order, with the capacity ceiling every hand-spelled copy carried. Each
+/// decoder keeps its own error type for truncation and oversized lengths.
+pub(crate) fn decode_list<T, E>(
+    cursor: &mut crate::cursor::Cursor<'_>,
+    mut decode: impl FnMut(&mut crate::cursor::Cursor<'_>) -> Result<T, E>,
+) -> Result<Vec<T>, E>
+where
+    E: From<crate::cursor::Truncated> + From<crate::cursor::TakeError>,
+{
+    let count = cursor.length()?;
+    let mut values = Vec::with_capacity(count.min(cursor.remaining()));
+    for _ in 0..count {
+        values.push(decode(cursor)?);
+    }
+    Ok(values)
+}
+
 /// The shared canonical identity formula: `Sha256(domain-tag ++ content)`.
 /// Every terminal artifact identity in this crate is this digest over its own
 /// authored domain tag and canonical content bytes.

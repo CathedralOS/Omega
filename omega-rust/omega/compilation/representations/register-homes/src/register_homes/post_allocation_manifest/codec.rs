@@ -50,28 +50,24 @@ impl PostAllocationOptimizationManifest {
         let pre_physical = PrePhysicalOptimizationManifestIdentity::from_bytes(cursor.array()?);
         let target = decode_target(&mut cursor)?;
         let selected = SelectedInstructionPlanIdentity::from_bytes(cursor.array()?);
-        let selected_lowering_completion = match cursor.byte()? {
-            0 => None,
-            1 => Some(SelectedLoweringOptimizationCompletionIdentity::from_bytes(
-                cursor.array()?,
-            )),
-            tag => {
-                return Err(
-                    PostAllocationOptimizationManifestDecodeError::UnknownCompletionStatus(tag),
-                );
-            }
-        };
-        let pre_allocation_completion = match cursor.byte()? {
-            0 => None,
-            1 => Some(PreAllocationOptimizationCompletionIdentity::from_bytes(
-                cursor.array()?,
-            )),
-            tag => {
-                return Err(
-                    PostAllocationOptimizationManifestDecodeError::UnknownCompletionStatus(tag),
-                );
-            }
-        };
+        let selected_lowering_completion = crate::cursor::optional(
+            &mut cursor,
+            |cursor| {
+                Ok(SelectedLoweringOptimizationCompletionIdentity::from_bytes(
+                    cursor.array()?,
+                ))
+            },
+            PostAllocationOptimizationManifestDecodeError::UnknownCompletionStatus,
+        )?;
+        let pre_allocation_completion = crate::cursor::optional(
+            &mut cursor,
+            |cursor| {
+                Ok(PreAllocationOptimizationCompletionIdentity::from_bytes(
+                    cursor.array()?,
+                ))
+            },
+            PostAllocationOptimizationManifestDecodeError::UnknownCompletionStatus,
+        )?;
         let transformation_count = cursor.length()?;
         let mut selected_transformations =
             Vec::with_capacity(transformation_count.min(cursor.remaining()));

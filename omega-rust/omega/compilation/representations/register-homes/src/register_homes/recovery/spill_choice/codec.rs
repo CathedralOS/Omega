@@ -54,12 +54,11 @@ impl SpillChoicePlan {
                     let point = LiveRangePoint(cursor.u32()?);
                     let incoming = VirtualRegisterId(cursor.u32()?);
                     let incoming_class = RegisterClassId(cursor.u16()?);
-                    let candidate_count = cursor.length()?;
-                    let mut incoming_common_candidates =
-                        Vec::with_capacity(candidate_count.min(cursor.remaining()));
-                    for _ in 0..candidate_count {
-                        incoming_common_candidates.push(RegisterViewId(cursor.u16()?));
-                    }
+                    let incoming_common_candidates =
+                        crate::codec_bytes::decode_list::<_, SpillChoiceDecodeError>(
+                            &mut cursor,
+                            |cursor| Ok(RegisterViewId(cursor.u16()?)),
+                        )?;
                     let resident_count = cursor.length()?;
                     let mut active_residents =
                         Vec::with_capacity(resident_count.min(cursor.remaining()));
@@ -78,11 +77,11 @@ impl SpillChoicePlan {
                     for _ in 0..contender_count {
                         let virtual_register = VirtualRegisterId(cursor.u32()?);
                         let exclusive_end = LiveRangePoint(cursor.u32()?);
-                        let reclaimed_view = match cursor.byte()? {
-                            0 => None,
-                            1 => Some(RegisterViewId(cursor.u16()?)),
-                            tag => return Err(SpillChoiceDecodeError::UnknownOption(tag)),
-                        };
+                        let reclaimed_view = crate::cursor::optional(
+                            &mut cursor,
+                            |cursor| Ok(RegisterViewId(cursor.u16()?)),
+                            SpillChoiceDecodeError::UnknownOption,
+                        )?;
                         contenders.push(PressureContender {
                             virtual_register,
                             exclusive_end,

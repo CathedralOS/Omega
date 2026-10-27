@@ -323,12 +323,7 @@ pub(super) fn decode_call_source(
             };
             let boundary = decode_id(cursor, BoundaryMachineId::new)?;
             let provider = provider::decode(cursor, retain_projected_qualifications)?;
-            let source_count = cursor.length()?;
-            let mut completion_claim_sources =
-                Vec::with_capacity(source_count.min(cursor.remaining()));
-            for _ in 0..source_count {
-                completion_claim_sources.push(decode_completion_claim_source(cursor)?);
-            }
+            let completion_claim_sources = decode_list(cursor, decode_completion_claim_source)?;
             let completion_receipts = decode_list(cursor, decode_completion_receipt)?;
             Ok(NativeCallOrigin::InstalledProvider {
                 boundary,
@@ -585,11 +580,11 @@ pub(in super::super) fn decode_cleanup(
             let structural_type = decode_id(cursor, StructuralTypeId::new)?;
             let cleanup_machine = decode_id(cursor, MachineId::new)?;
             let consumed_claims = decode_ids(cursor, ClaimId::new)?;
-            let cleanup_receiver = match cursor.byte()? {
-                0 => None,
-                1 => Some(decode_id(cursor, PlaceId::new)?),
-                tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
-            };
+            let cleanup_receiver = crate::cursor::optional(
+                cursor,
+                |cursor| decode_id(cursor, PlaceId::new),
+                FixedViewCopyDecodeError::UnknownOption,
+            )?;
             Ok(TerminalAffineCleanupAction::InvokeNominal(
                 terminal_psi::NominalAffineCleanup {
                     retains_descendants: tag == 5,
