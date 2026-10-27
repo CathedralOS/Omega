@@ -17,6 +17,31 @@
 //! crash route buckets and plans, `resource_envelopes.rs` resource axes and
 //! envelopes and `scalar_contracts.rs` closed scalar value contracts.
 
+/// The four reads that carry one exact contract identity — the machine, its
+/// state or entry, the report fingerprint and the commitment. The fingerprint
+/// and its commitment always travel together, so the crash capsule, the crash
+/// call site and both resource carriers declare these reads once, here.
+macro_rules! contract_identity_accessors {
+    ($machine:ident, $entry:ident, $fingerprint:ident, $commitment:ident) => {
+        pub const fn $machine(&self) -> SymbolHandle {
+            self.$machine
+        }
+
+        pub const fn $entry(&self) -> SymbolHandle {
+            self.$entry
+        }
+
+        pub const fn $fingerprint(&self) -> u64 {
+            self.$fingerprint
+        }
+
+        pub const fn $commitment(&self) -> MachineContractCommitment {
+            self.$commitment
+        }
+    };
+}
+pub(crate) use contract_identity_accessors;
+
 mod contract_identity;
 mod crash_plans;
 mod crash_predicates;
