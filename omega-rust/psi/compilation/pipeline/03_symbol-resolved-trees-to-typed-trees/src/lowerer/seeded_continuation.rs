@@ -30,6 +30,138 @@ pub struct SeededTypingBase {
 }
 
 impl SeededTypingBase {
+    /// Read the immutable resolver paired with these typed arenas. Consumers
+    /// may extend it only through the resolver's checked continuation carrier.
+    pub fn resolved(&self) -> &SymbolResolvedTrees {
+        &self.resolved
+    }
+
+    pub fn shared_resolved(&self) -> Arc<SymbolResolvedTrees> {
+        Arc::clone(&self.resolved)
+    }
+
+    /// Admit current lookup on both halves before resuming original pending
+    /// bodies. Do not project roots yet: their syntax owns positional links.
+    pub fn activate_body_completion(
+        mut self,
+        frontier: syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
+        sources: Arc<source::SourceMap>,
+        bindings: Vec<symbols::SourceScopedTopLevelBinding>,
+    ) -> Result<
+        (
+            Self,
+            syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
+        ),
+        Vec<Diagnostic>,
+    > {
+        let frontier = self
+            .join_prepared_allocations(frontier)?
+            .activate_sources(sources, bindings)?;
+        self.resolved = frontier.shared_trees();
+        Arc::make_mut(&mut self.typed).symbols = self.resolved.symbols.clone();
+        Ok((self, frontier))
+    }
+
+    /// Type a newly indexed authored cohort without completing its bodies or
+    /// retyping retained declarations. Body completion resumes the returned
+    /// frontier on the same rebased resolved allocation.
+    pub fn append_deferred(
+        self,
+        extension: syntax_trees_to_symbol_resolved_trees::DeferredResolvedExtension,
+    ) -> Result<
+        (
+            Self,
+            syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
+        ),
+        Vec<Diagnostic>,
+    > {
+        let (source, frontier) = extension
+            .rebase_for_typed_continuation(self.typed.authored_declaration_selections())?;
+        let typed = lower_seeded_extension(source, self).map_err(|(_, reason)| {
+            vec![Diagnostic::error(format!(
+                "authored declaration typing could not extend its retained source: {reason:?}"
+            ))]
+        })?;
+        Ok((typed, frontier))
+    }
+
+    /// Select source roots on both halves of this exact pair. Backing handles
+    /// and ledgers survive; source membership and complete import authority do
+    /// not. The Psi source owner establishes lookup-context compatibility before
+    /// using this operation, then resolves the new authored cohort ordinarily.
+    pub fn activate_sources(
+        mut self,
+        sources: Arc<source::SourceMap>,
+        current_sources: Arc<source::SourceMap>,
+        bindings: Vec<symbols::SourceScopedTopLevelBinding>,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let mut resolved = self.resolved_base_for_extension()?;
+        if resolved
+            .symbols
+            .source_map()
+            .is_none_or(|previous| !sources.retains_source_storage(&previous))
+        {
+            return Err(vec![Diagnostic::error(
+                "source activation does not retain its paired source coordinates",
+            )]);
+        }
+        let mut typed =
+            validation::execution_projection::project_source_program(&self.typed, &sources);
+        let selection = typed_trees::references::DeclarationSelection::from_program(&typed);
+        macro_rules! select_roots {
+            ($($field:ident),+ $(,)?) => {
+                $(resolved.roots.$field.retain(|root| selection.contains(root.symbol));)+
+            };
+        }
+        select_roots!(
+            const_declarations,
+            data_definitions,
+            domain_definitions,
+            machines,
+            measures,
+            operators,
+            propositions,
+            mathematical_definitions,
+            traits,
+            conformances,
+            wire_schemas,
+        );
+        let retained_owner = |mut owner: symbols::SymbolHandle| {
+            while owner.is_valid() {
+                if selection.contains(owner) {
+                    return true;
+                }
+                owner = resolved.symbols.get(owner).parent;
+            }
+            false
+        };
+        resolved
+            .authored_service_reach_rows
+            .retain(|row| retained_owner(row.owner));
+        resolved
+            .evidence_forwardings
+            .retain(|row| selection.contains(row.machine_symbol));
+        let symbols = typed
+            .symbols
+            .clone()
+            .begin_source_activation(sources, bindings.clone())
+            .map_err(|reason| vec![Diagnostic::error(reason)])?
+            .finish()
+            // Fix the old cohort first. Current files admitted for fresh
+            // parsing lose historical module registrations, but their removed
+            // declarations must not become lookup candidates again.
+            .begin_source_activation(current_sources, bindings)
+            .map_err(|reason| vec![Diagnostic::error(reason)])?
+            .finish();
+        resolved.symbols = symbols.clone();
+        typed.symbols = symbols;
+        resolved.resolution_indexes = Default::default();
+        Ok(Self {
+            resolved: Arc::new(resolved),
+            typed: Arc::new(typed),
+        })
+    }
+
     /// Both continuation owners reserve typing's prepared allocations before
     /// resolution resumes. Indexed domains and abstract service rows share ID
     /// spaces with authored declarations, just as generated symbols do.
@@ -77,7 +209,7 @@ impl SeededTypingBase {
     pub fn lower_extension(
         self,
         source: syntax_trees_to_symbol_resolved_trees::SeededSymbolResolvedTrees,
-    ) -> Result<TypedTrees, Vec<Diagnostic>> {
+    ) -> Result<Self, Vec<Diagnostic>> {
         let rebased = source
             .rebase_authored_selections_for_typed_continuation(
                 self.typed.authored_declaration_selections(),
@@ -166,11 +298,12 @@ pub fn lower_symbol_resolved_trees_to_seeded_base(
 
 /// Append an ordinarily resolved declaration cohort to an exact retained typed
 /// base. Mutation occurs on a clone, so every error returns the input base
-/// byte-for-byte; no caller is licensed to reconstruct a second frontend.
+/// byte-for-byte. The result keeps the extended resolver and typed arenas
+/// together; no caller is licensed to reconstruct a second frontend.
 pub fn lower_seeded_extension(
     source: syntax_trees_to_symbol_resolved_trees::RebasedSeededSymbolResolvedTrees,
     retained: SeededTypingBase,
-) -> Result<TypedTrees, (SeededTypingBase, SeededContinuationError)> {
+) -> Result<SeededTypingBase, (SeededTypingBase, SeededContinuationError)> {
     let (source, resolved_base) = source.into_typing_continuation_parts();
     if resolved_base != *retained.resolved {
         return Err((retained, SeededContinuationError::CrossPairedResolvedBase));
@@ -247,7 +380,11 @@ pub fn lower_seeded_extension(
     // Replaying a whole-tree storage comparison here is not a trust boundary:
     // generated declarations legitimately extend retained owners' child spans.
     // Retained preservation belongs to those operations and their fixtures.
-    Ok(lowerer.typed_trees)
+    let typed = lowerer.typed_trees;
+    Ok(SeededTypingBase {
+        resolved: Arc::new(source),
+        typed: Arc::new(typed),
+    })
 }
 
 /// Authored completion shares ordinary body lowering, but admits only the

@@ -463,8 +463,11 @@ where_facts: contract.where_facts })?;
                             handle,
                         ),
                     owner: crate::resolution::lowerer::PendingSignatureOwner::Requirement(owner),
-                    keyword_source_spans,
-                    authored,
+                    reaches:
+                        crate::selection::service_reaches::PendingAuthoredServiceReach::Authored {
+                            keyword_source_spans,
+                            authored,
+                        },
                 },
             );
         }

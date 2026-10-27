@@ -26,11 +26,13 @@ struct RecursiveEntry {
     owner: SymbolHandle,
 }
 
-pub(crate) fn normalize(program: &mut SymbolResolvedTrees) {
+pub(crate) fn normalize(program: &mut SymbolResolvedTrees, work: &[SymbolHandle]) {
     let attached = attached_machines(program);
     for machine_position in 0..program.machines.len() {
         let machine = &program.machines[machine_position];
-        if !unambiguous_canonical_entry(program, &attached, machine) {
+        if !work.contains(&machine.symbol)
+            || !unambiguous_canonical_entry(program, &attached, machine)
+        {
             continue;
         }
         let states = machine.states;

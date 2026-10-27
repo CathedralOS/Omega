@@ -155,8 +155,17 @@ publication entrance.
 Package preparation advances dependency-first rounds across target rosters;
 demanded component continuations enter the same source batch as their siblings,
 rather than completing one target's entire dependency chain first.
-Build admission and charges remain occurrence-local. Separate dependency rounds
-and standalone/session preparation still prevent one complete source prefix:
+Build admission and charges remain occurrence-local. The invocation also owns
+one source catalogue and Psi's canonical pre-Build frontend snapshots. Admission
+assigns coordinates before parsing; a dependency continuation keeps resolution,
+typing and pending evaluations paired while the consumer adds fresh declarations.
+Source membership, imports, aliases and declaration authority must still match.
+Anonymous Build-to-Product sealing admits a new source instance and issues its
+exact correspondence; executed descriptions keep their original records and
+Product lookup consumes that correspondence. Retention transfers no checking
+judgment, executed Build return or evaluation charge. Cross-invocation package
+and Terminal product persistence remain separate work.
+
 
 | Input → output | Owner |
 | --- | --- |

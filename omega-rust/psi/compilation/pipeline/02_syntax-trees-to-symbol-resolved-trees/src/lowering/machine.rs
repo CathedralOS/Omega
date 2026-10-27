@@ -289,7 +289,7 @@ fn lower_lexical_machine_parts(
         }
     };
     lowerer.pending_machine_service_reaches.push(
-        crate::selection::service_reaches::PendingAuthoredServiceReach {
+        crate::selection::service_reaches::PendingAuthoredServiceReach::Authored {
             keyword_source_spans: machine.service_reach_keyword_source_spans.clone(),
             authored: service_reaches,
         },
@@ -421,6 +421,7 @@ pub(crate) fn complete_machine_body(
     })?;
     let owner = lowerer.symbol_resolved_trees.machines[pending.machine_ordinal].symbol;
     inputs.finish(lowerer, owner);
+    lowerer.completed_machines.push(owner);
     Ok(())
 }
 

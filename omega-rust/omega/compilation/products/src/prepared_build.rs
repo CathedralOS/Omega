@@ -63,6 +63,7 @@ impl SettledPackageBuild {
 /// completes. Pending authored bodies and generated sources grant no execution.
 #[derive(Clone)]
 pub struct BuiltTypedProgram {
+    pub preparation: crate::SourcePreparation,
     pub source: psi_compiler::SourceContinuation,
     pub base_sources: Arc<source::SourceMap>,
     pub computed_build_config: Arc<ComputedBuildConfig>,

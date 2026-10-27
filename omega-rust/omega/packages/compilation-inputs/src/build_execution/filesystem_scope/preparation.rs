@@ -170,7 +170,7 @@ pub fn prepare_filesystem_scope(
                             )]
                         })?;
                     let mut required_members = Vec::new();
-                    let authored_members = required_sources.files().filter(|file| {
+                    let authored_members = required_sources.selected_files().filter(|file| {
                         file.origin == source::SourceOrigin::User
                             && file.resolution_stratum == source::SourceResolutionStratum::Base
                             && file.package_root == source_root
@@ -205,7 +205,7 @@ pub fn prepare_filesystem_scope(
                         &source_root,
                         request,
                         required_sources
-                            .files()
+                            .selected_files()
                             .map(|file| file.path.clone())
                             .chain(std::iter::once(root_path.to_path_buf())),
                     )

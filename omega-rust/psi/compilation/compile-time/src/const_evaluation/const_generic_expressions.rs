@@ -17,13 +17,10 @@ pub(crate) use call_custody::{DependencyValue, retain_current_initializer_calls}
 pub(super) mod lexical_selection;
 pub(super) mod value;
 
-use std::sync::Arc;
-
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use language_semantics::const_value::DecodedCanonicalConstValue;
-use source::{SourceMap, SourceSpan};
-use symbols::SourceScopedTopLevelBinding;
+use source::SourceSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::identifier::Identifier;
@@ -33,16 +30,18 @@ use syntax_trees::types::{ConstArgumentOrigin, TypeReferenceHandle, TypeReferenc
 
 pub(crate) fn evaluate(
     mut syntax: SyntaxTrees,
-    sources: Option<Arc<SourceMap>>,
-    bindings: &[SourceScopedTopLevelBinding],
-    authority: Option<&dyn crate::BuildTimeSelectionAuthority>,
+    context: &crate::BuildTimeSources<'_>,
 ) -> Result<SyntaxTrees, Vec<Diagnostic>> {
     let _profile = phase_profile::guard("pre_resolution.constant_expressions");
+    let sources = context.sources.clone();
+    let bindings = context.source_scoped_top_level_bindings;
+    let authority = context.selection_authority.as_deref();
     let data_arguments =
         syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_data_const_argument_expressions(
             &syntax,
             sources.clone(),
             bindings.to_vec(),
+            context.retained_base(),
         )?;
     let extent_arguments =
         syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_array_extent_expressions(
@@ -53,6 +52,7 @@ pub(crate) fn evaluate(
             &syntax,
             sources.clone(),
             bindings.to_vec(),
+            context.retained_base(),
         )?;
     phase_profile::count(
         "pre_resolution.constant_expressions.data",
@@ -126,11 +126,7 @@ pub(crate) fn evaluate(
         // Resolve its authored path first so that route cannot capture a static
         // declaration through a runtime parameter or prior local binding.
         let resolved = syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_const_argument_selection(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-                syntax: syntax.clone(),
-                sources: sources.clone(),
-                top_level_bindings: bindings.to_vec(),
-            },
+            context.resolution_request(syntax.clone()),
         )?;
         for (argument, original) in aggregate_arguments {
             if let TypeReferenceNode::ConstExpression(expression) =
@@ -184,11 +180,7 @@ pub(crate) fn evaluate(
         // Resolve the original machine owners before placeholder synthesis.
         // Their runtime bodies are neither typed as probes nor executed here.
         let resolved = syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_const_argument_selection(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-                syntax: syntax.clone(),
-                sources: sources.clone(),
-                top_level_bindings: bindings.to_vec(),
-            },
+            context.resolution_request(syntax.clone()),
         )?;
         for (argument, expression, _, _) in &pending {
             if lexical_arguments.contains(argument) {
@@ -234,23 +226,23 @@ pub(crate) fn evaluate(
         probe,
         sources.clone(),
         bindings,
-        None,
+        context.retained_base(),
         &declarations,
     )?;
     let frontier =
         syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_deferred_initializer_probe(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-                syntax: probe,
-                sources,
-                top_level_bindings: bindings.to_vec(),
-            },
+            context.resolution_request(probe),
         )?;
     let owner_symbols = owners
         .iter()
         .map(|owner| owner.resolve(frontier.trees()))
         .collect::<Result<Vec<_>, _>>()?;
-    let prepared =
-        crate::syntax_probes::prepare_owned_probe_evaluation(frontier, &owner_symbols, &[])?;
+    let prepared = crate::syntax_probes::prepare_owned_probe_evaluation(
+        frontier,
+        &owner_symbols,
+        &[],
+        context.predecessor.clone(),
+    )?;
     let typed = prepared.typed;
 
     for ((argument, original, _, public), owner) in pending.into_iter().zip(owner_symbols) {

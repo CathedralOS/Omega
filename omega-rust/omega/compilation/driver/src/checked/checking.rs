@@ -30,6 +30,7 @@ pub(crate) fn prepare_checked_source(
     package_sources: Option<std::sync::Arc<package_compilation::PackageCompilationSourceInputs>>,
     source_capture: Option<&package_compilation::CapturedLocalSource>,
     collect_timings: bool,
+    preparation: compilation_products::SourcePreparation,
 ) -> Result<PreparedCheckedSource, Vec<Diagnostic>> {
     let mut timings = if collect_timings {
         CompileTimings::enabled()
@@ -41,8 +42,13 @@ pub(crate) fn prepare_checked_source(
         package_sources,
         source_capture,
         &mut timings,
+        &mut *preparation.catalogue()?,
     )?;
-    Ok(PreparedCheckedSource::from_parsed(sources, timings))
+    Ok(PreparedCheckedSource::from_parsed(
+        sources,
+        timings,
+        preparation,
+    ))
 }
 
 /// Consume retained frontend work or run assembly and Psi 02-03 explicitly.
@@ -52,6 +58,7 @@ fn prepare_typed_frontier(
     package_inputs: Option<&PackageCompilationInputs>,
     build_execution_profile: Option<target::TargetProfile>,
 ) -> Result<(TypedCompilationFrontier, CompileTimings), Vec<Diagnostic>> {
+    let preparation = source.preparation();
     let (sources, mut timings, retention) =
         match source.into_frontier(package_inputs, build_execution_profile)? {
             PreparedSourceFrontier::Retained(frontier, timings) => {
@@ -66,7 +73,8 @@ fn prepare_typed_frontier(
         };
     counters::record_source_assembly();
     let assembly_started = std::time::Instant::now();
-    let (source_file_count, syntax) = sources.assemble(package_inputs, &mut timings)?;
+    let (source_file_count, syntax) =
+        sources.assemble(package_inputs, &mut timings, &mut *preparation.catalogue()?)?;
     timings.add_completed(
         artifacts::compile_timings::SOURCE_ASSEMBLY,
         assembly_started.elapsed().as_micros(),
@@ -74,6 +82,7 @@ fn prepare_typed_frontier(
     let base_sources = syntax.sources.clone();
     let frontend_started = std::time::Instant::now();
     let frontier = build_continuation::lower_typed_frontier(
+        preparation,
         source_file_count,
         syntax,
         build_execution_profile,

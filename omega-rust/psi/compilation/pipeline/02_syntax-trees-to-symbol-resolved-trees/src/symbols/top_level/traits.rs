@@ -22,7 +22,7 @@ pub(super) fn assign_trait_symbols(
     // `satisfies R`, no `requires R`, no `:` parent. Evidence binders
     // (`B: L satisfies R`) are the legal consumer.
     let (refinement_symbols, trait_proposition_slots, trait_machine_identity_slots) =
-        trait_parameter_tables(symbols, program);
+        trait_parameter_tables(program);
     let type_constraints = &program.tables.types.constraints;
     let declarations = &mut program.tables.declarations;
     let data_type_parameters = &mut declarations.data_type_parameters;

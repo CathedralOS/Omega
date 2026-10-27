@@ -2,13 +2,10 @@
 //!
 //! `assign_top_level_symbols` is the first assignment pass that
 //! `assign_symbols` and `assign_symbols_against_resolved_base` (in
-//! `symbols/mod.rs`) run after the symbol table is built. Declaration symbols
-//! are matched by position within each declaration kind, not by name. After
-//! the builtin type/function and fixed `core::*` prefix, seeded symbol tables
-//! can append a new cohort of declarations. Each kind therefore consumes its
-//! own root-child stream, including declarations whose symbols are retained.
-//! The retained generational identity must equal that declaration's slot.
-//! Only after all root identities agree do child-assignment steps run:
+//! `symbols/mod.rs`) run after the symbol table is built. Each declaration
+//! already owns the handle published by its allocator. Current roots can be a
+//! selection of the backing graph; they never rejoin the global child stream
+//! by position or spelling. Child-assignment steps run in this order:
 //!
 //! 1. domains (`domains`), then data (`data`);
 //! 2. named conformances, done here: each takes its symbol, then
@@ -45,10 +42,7 @@ mod traits;
 
 use arena::Arena;
 use symbol_resolved_trees::SymbolResolvedTrees;
-use symbols::{
-    FixedCoreDeclaration, SymbolHandle, SymbolKind, SymbolTable, builtin_function_symbols,
-    builtin_type_symbols,
-};
+use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use super::top_level::data::assign_data_symbols;
 use super::top_level::domains::assign_domain_symbols;
@@ -62,7 +56,6 @@ use super::top_level::traits::assign_trait_symbols;
 /// traits are transparent refinements, and each trait's per-parameter
 /// proposition/machine-identity kind slots keyed by its top-level symbol.
 pub(super) fn trait_parameter_tables(
-    symbols: &SymbolTable,
     program: &SymbolResolvedTrees,
 ) -> (
     std::collections::HashSet<SymbolHandle>,
@@ -74,14 +67,7 @@ pub(super) fn trait_parameter_tables(
         .traits
         .iter()
         .filter(|definition| definition.refines.is_some())
-        .filter_map(|definition| {
-            let symbol = crate::symbols::lookup::top_level_symbol_for_source(
-                symbols,
-                SymbolKind::Trait,
-                &definition.name,
-            );
-            symbol.is_valid().then_some(symbol)
-        })
+        .map(|definition| definition.symbol)
         .collect();
     let trait_proposition_slots = program
         .roots
@@ -89,11 +75,7 @@ pub(super) fn trait_parameter_tables(
         .iter()
         .map(|trait_definition| {
             (
-                crate::symbols::lookup::top_level_symbol_for_source(
-                    symbols,
-                    SymbolKind::Trait,
-                    &trait_definition.name,
-                ),
+                trait_definition.symbol,
                 program
                     .tables
                     .declarations
@@ -116,11 +98,7 @@ pub(super) fn trait_parameter_tables(
         .iter()
         .map(|definition| {
             (
-                crate::symbols::lookup::top_level_symbol_for_source(
-                    symbols,
-                    SymbolKind::Trait,
-                    &definition.name,
-                ),
+                definition.symbol,
                 program
                     .tables
                     .declarations
@@ -150,107 +128,7 @@ pub(super) fn assign_top_level_symbols(
     program: &mut SymbolResolvedTrees,
     symbols: &SymbolTable,
 ) -> Vec<diagnostics::Diagnostic> {
-    // Extensions append complete strata after the retained roots. Match each
-    // declaration kind in its stable append order; a single global cursor
-    // cannot replay that layout. Fixed core declarations share authored kinds
-    // and must be excluded before filtering the cohorts.
-    let roots = symbols
-        .child_handles(symbols.root())
-        .into_iter()
-        .flatten()
-        .skip(
-            builtin_type_symbols().len()
-                + builtin_function_symbols().len()
-                + FixedCoreDeclaration::COUNT,
-        )
-        .collect::<Vec<_>>();
     let mut diagnostics = Vec::new();
-    macro_rules! bind_cohort {
-        ($declarations:expr, $kind:expr, $declaration:ident, $admitted:expr) => {{
-            let kind = $kind;
-            let mut slots = roots
-                .iter()
-                .copied()
-                .filter(|symbol| symbols.get(*symbol).kind == kind);
-            $declarations.for_each_mut(|$declaration| {
-                if $admitted {
-                    let slot = slots.next().unwrap_or_else(SymbolHandle::invalid);
-                    let retained = &mut $declaration.symbol;
-                    if !slot.is_valid() || (retained.is_valid() && *retained != slot) {
-                        diagnostics.push(diagnostics::Diagnostic::error(format!(
-                            "retained {kind:?} declaration differs from its indexed root child",
-                        )));
-                    } else if !retained.is_valid() {
-                        *retained = slot;
-                    }
-                }
-            });
-            if slots.next().is_some() {
-                diagnostics.push(diagnostics::Diagnostic::error(format!(
-                    "indexed {kind:?} root child has no retained declaration",
-                )));
-            }
-        }};
-    }
-    bind_cohort!(
-        program.roots.domain_definitions,
-        SymbolKind::Domain,
-        declaration,
-        true
-    );
-    bind_cohort!(
-        program.roots.data_definitions,
-        SymbolKind::Data,
-        declaration,
-        true
-    );
-    bind_cohort!(
-        program.roots.conformances,
-        SymbolKind::Conformance,
-        declaration,
-        declaration.alias.is_some()
-    );
-    bind_cohort!(
-        program.roots.machines,
-        SymbolKind::Machine,
-        declaration,
-        !declaration.lexical_parent.is_valid()
-    );
-    bind_cohort!(
-        program.roots.propositions,
-        SymbolKind::Proposition,
-        declaration,
-        true
-    );
-    bind_cohort!(
-        program.roots.mathematical_definitions,
-        SymbolKind::MathematicalDefinition,
-        declaration,
-        true
-    );
-    bind_cohort!(
-        program.roots.operators,
-        SymbolKind::Operator,
-        declaration,
-        true
-    );
-    bind_cohort!(
-        program.roots.measures,
-        SymbolKind::Measure,
-        declaration,
-        true
-    );
-    bind_cohort!(program.roots.traits, SymbolKind::Trait, declaration, true);
-    bind_cohort!(
-        program.roots.wire_schemas,
-        SymbolKind::WireSchema,
-        declaration,
-        true
-    );
-    if !diagnostics.is_empty() {
-        return diagnostics;
-    }
-
     assign_domain_symbols(program, symbols);
     assign_data_symbols(program, symbols);
     assign_conformance_parameter_symbols(program, symbols);

@@ -47,9 +47,10 @@ mod constant;
 // The entrance, its post-base re-entry, and the requests and carriers both
 // name.
 pub use resolution::{
-    DeferredResolvedFrontier, ExtensionRequest, RebasedResolvedBodyCompletion,
-    RebasedSeededSymbolResolvedTrees, ResolutionRequest, ResolvedBodyCompletion,
-    SeededSymbolResolvedTrees, resolve, resolve_deferred, resolve_extension,
+    DeferredResolvedExtension, DeferredResolvedFrontier, ExtensionRequest,
+    RebasedResolvedBodyCompletion, RebasedSeededSymbolResolvedTrees, ResolutionRequest,
+    ResolvedBodyCompletion, SeededSymbolResolvedTrees, resolve, resolve_deferred,
+    resolve_deferred_extension, resolve_extension,
 };
 
 /// What build-time evaluation drives before this stage can run.
@@ -62,6 +63,7 @@ pub mod pre_resolution {
     pub use crate::constant::initializer_dependencies::{
         ConstInitializerDependencies, ResolvedMachineBodyDemand,
     };
+    pub use crate::constant::initializer_normalization::InitializerCustodyPurpose;
     pub use crate::constant::requires_const_initializer_evaluation;
     pub use crate::preparation::declaration_selection::select_data_declarations;
     pub use crate::preparation::generic_data::{

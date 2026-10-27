@@ -3,7 +3,6 @@
 //! supply neither identity nor authority. Runtime loans are checked separately.
 
 use diagnostics::Diagnostic;
-use std::sync::Arc;
 use symbol_resolved_trees::{SymbolResolvedTrees, types::TypeReference};
 use symbols::{SymbolHandle, SymbolKind};
 use syntax_trees::SyntaxTrees;
@@ -19,8 +18,7 @@ pub(super) struct SelectedArgument {
 
 pub(super) fn retain_applied_results(
     syntax: &mut SyntaxTrees,
-    sources: Option<Arc<source::SourceMap>>,
-    bindings: &[symbols::SourceScopedTopLevelBinding],
+    context: &crate::BuildTimeSources<'_>,
 ) -> Result<Vec<SelectedArgument>, Vec<Diagnostic>> {
     if !syntax.expressions.iter_expressions().any(|(_, node)| {
         matches!(node,
@@ -32,11 +30,7 @@ pub(super) fn retain_applied_results(
     // target and conformance routing, without publishing executable bodies.
     let resolved =
         syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_call_result_selection(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-                syntax: syntax.clone(),
-                sources,
-                top_level_bindings: bindings.to_vec(),
-            },
+            context.resolution_request(syntax.clone()),
         )?;
     let mut selections = Vec::new();
     for (_, node) in resolved.tables.bodies.expressions.iter_expressions() {

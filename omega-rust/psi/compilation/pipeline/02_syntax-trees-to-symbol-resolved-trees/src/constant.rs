@@ -174,23 +174,11 @@ pub fn requires_const_initializer_evaluation(
 /// declaration join precedes receipt helper demand and must not repeat here:
 /// it also records the declaration's selected carrier and visibility custody.
 /// Constant-expression symbol and selection passes run inside because they
-/// consume only these pending values. A seeded lowerer first renumbers its
-/// pending selections after the base's declarations.
+/// consume only these pending values. Selections already name exact declaration
+/// handles, including retained constants; no cohort-relative ordinal is rebased.
 pub(crate) fn finalize(
     lowerer: &mut crate::resolution::lowerer::Lowerer,
 ) -> Result<(), Vec<Diagnostic>> {
-    if let Some(base_declarations) = lowerer
-        .seed
-        .as_ref()
-        .map(|seed| seed.roots.const_declarations)
-    {
-        for selection in &mut lowerer.pending_const_selections {
-            selection.declaration_ordinal = selection
-                .declaration_ordinal
-                .checked_add(base_declarations)
-                .expect("seeded const declaration ordinal overflow");
-        }
-    }
     let program = &mut lowerer.symbol_resolved_trees;
     finalize_const_argument_selections(
         program,

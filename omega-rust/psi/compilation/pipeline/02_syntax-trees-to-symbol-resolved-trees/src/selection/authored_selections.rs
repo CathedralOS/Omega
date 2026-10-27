@@ -157,10 +157,10 @@ fn resolved_symbols_share_authored_declaration(
 
 pub(crate) fn finalize_authored_expression_selections(
     program: &mut SymbolResolvedTrees,
+    work: &[ExpressionHandle],
     pending: &[PendingAuthoredExpression],
     pending_proof_memberships: &[PendingAuthoredProofMembership],
 ) -> Result<(), Diagnostic> {
-    normalize_case_membership_facts(program, pending_proof_memberships)?;
     for pending_expression in pending {
         if program
             .tables
@@ -175,18 +175,13 @@ pub(crate) fn finalize_authored_expression_selections(
         }
     }
 
-    // Compiler rewrites may copy an authored expression before declaration
-    // selections are finalized. The expression table carries that authored
-    // provenance explicitly, so enumerate every retained copy and bind all of
-    // them to the one occurrence minted for the exact source token. This keeps
-    // later lowering free to select whichever semantically equivalent copy it
-    // owns without orphaning the source occurrence.
-    let authored_expressions = program
-        .tables
-        .bodies
-        .expressions
-        .iter_expressions()
-        .filter_map(|(expression, _)| {
+    // The producer includes every expression it allocated, including copied
+    // authored expressions. Retained lookup rows are outside this work list:
+    // a missing occurrence there is not permission to invent new source work.
+    let authored_expressions = work
+        .iter()
+        .copied()
+        .filter_map(|expression| {
             if program
                 .tables
                 .bodies
@@ -282,7 +277,7 @@ pub(crate) fn finalize_authored_expression_selections(
     Ok(())
 }
 
-fn normalize_case_membership_facts(
+pub(super) fn normalize_case_membership_facts(
     program: &mut SymbolResolvedTrees,
     pending: &[PendingAuthoredProofMembership],
 ) -> Result<(), Diagnostic> {

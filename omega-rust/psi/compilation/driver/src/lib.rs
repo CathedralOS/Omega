@@ -29,11 +29,13 @@ pub use source_checking::{
     CheckRequest, CheckedSource, CheckedTreeProductSelection, ProductSelections, RetainedCheck,
     SelectedCheckedSource, SourceAdmission, settle_closed_constant_execution,
 };
-pub use source_parsing::{ParsedText, SourceInput, SourceParseError, parse_text};
+pub use source_parsing::{
+    ParsedText, SourceInput, SourceParseError, load_source_files, parse_text,
+};
 
 pub use source_compilation::{
     BuildSourceInput, CompletedSource, PreparedSource, SourceCompilationRequest,
-    SourceContinuation, SourceExtensionRequest,
+    SourceContinuation, SourceExtensionRequest, SourceFrontends,
 };
 
 pub use psi_terminal_production::{

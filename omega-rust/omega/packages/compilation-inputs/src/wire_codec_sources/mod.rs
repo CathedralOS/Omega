@@ -71,7 +71,7 @@ pub(crate) fn generated_wire_codec_source(
     sources: &SourceMap,
 ) -> Option<String> {
     let product_sources: HashSet<usize> = sources
-        .files()
+        .selected_files()
         .filter(|file| {
             file.dependency_scope == DependencyScope::Product
                 && file.origin != SourceOrigin::Toolchain
@@ -139,6 +139,9 @@ pub(crate) fn generated_wire_codec_source(
         let Some(machine) = syntax_trees.tables.items.item(*handle).as_machine() else {
             continue;
         };
+        if !sources.source_is_selected(machine.name.source_span().source_id) {
+            continue;
+        }
         collect_call_sites(
             syntax_trees,
             machine,

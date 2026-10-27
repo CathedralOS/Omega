@@ -202,6 +202,7 @@ impl DefaultBodyScope {
 pub(crate) fn route_named_implementation_calls(
     program: &mut SymbolResolvedTrees,
     inputs: &[super::body_calls::CallSelectionInput],
+    work: &[SymbolHandle],
 ) {
     let implementation_rows = program
         .conformances
@@ -228,7 +229,10 @@ pub(crate) fn route_named_implementation_calls(
         .iter()
         .map(|machine| machine.symbol)
         .collect::<Vec<_>>();
-    for machine in machines {
+    for machine in machines
+        .into_iter()
+        .filter(|machine| work.contains(machine))
+    {
         super::body_calls::retarget_machine_calls(
             program,
             machine,
@@ -275,6 +279,7 @@ fn named_implementation_requirement(
 pub(crate) fn route_conformance_requirement_calls(
     program: &mut SymbolResolvedTrees,
     inputs: &[super::body_calls::CallSelectionInput],
+    work: &[SymbolHandle],
 ) -> Result<(), Vec<Diagnostic>> {
     let trait_catalog = build_trait_catalog(program);
     let default_body_trait = |machine: SymbolHandle| {
@@ -331,7 +336,10 @@ pub(crate) fn route_conformance_requirement_calls(
     }
 
     let mut hidden_calls = Vec::new();
-    for plan in plans {
+    for plan in plans
+        .into_iter()
+        .filter(|plan| work.contains(&plan.machine))
+    {
         crate::selection::body_calls::retarget_machine_calls(
             program,
             plan.machine,

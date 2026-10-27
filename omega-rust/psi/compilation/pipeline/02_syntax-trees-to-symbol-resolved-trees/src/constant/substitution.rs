@@ -60,15 +60,12 @@ pub(crate) fn substitute_resolved_constants(
                 .with_source_span(reference));
             }
         } else if program
-            .symbols
-            .child_handles(program.symbols.root())
-            .into_iter()
-            .flatten()
+            .data_definitions
+            .iter()
+            .map(|declaration| declaration.symbol)
+            .chain(program.machines.iter().map(|machine| machine.symbol))
             .any(|other| {
-                matches!(
-                    program.symbols.get(other).kind,
-                    SymbolKind::Data | SymbolKind::Machine
-                ) && program.symbols.name(other) == program.symbols.name(*symbol)
+                program.symbols.name(other) == program.symbols.name(*symbol)
                     && program.symbols.same_symbol_source_package(other, *symbol)
                     && !program.symbols.source_scopes_separate(other, *symbol)
             })
@@ -133,13 +130,11 @@ pub(crate) fn substitute_resolved_constants(
         else {
             continue;
         };
-        let Some(declaration_ordinal) = declarations.iter().position(|symbol| *symbol == selected)
-        else {
+        let Some(declaration) = program.roots.const_declaration(selected) else {
             return Err(Diagnostic::error(
                 "resolved constant selection has no retained declaration",
             ));
         };
-        let declaration = &program.roots.const_declarations[declaration_ordinal];
         if mode == crate::resolution::lowerer::ConstResolutionMode::ArgumentSelection
             || (mode == crate::resolution::lowerer::ConstResolutionMode::InitializerSelection
                 && declaration.evaluated_value.is_none())
@@ -151,7 +146,7 @@ pub(crate) fn substitute_resolved_constants(
             selections.push(crate::resolution::lowerer::PendingConstSelection {
                 expression: occurrence.expression,
                 source_span: reference,
-                declaration_ordinal,
+                declaration: selected,
                 exposure: occurrence.exposure,
             });
             continue;
@@ -229,7 +224,7 @@ pub(crate) fn substitute_resolved_constants(
         selections.push(crate::resolution::lowerer::PendingConstSelection {
             expression: occurrence.expression,
             source_span: reference,
-            declaration_ordinal,
+            declaration: selected,
             exposure: occurrence.exposure,
         });
     }

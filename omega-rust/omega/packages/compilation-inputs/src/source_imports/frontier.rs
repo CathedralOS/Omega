@@ -1,4 +1,4 @@
-//! Parsed source instances with exact package and toolchain ownership.
+//! Source instances acquire exact package and toolchain ownership before parsing.
 
 use arena::Arena;
 use diagnostics::Diagnostic;
@@ -34,12 +34,55 @@ struct RegisteredPackageRoot {
 }
 
 impl SourceStorage {
+    /// Derive default-Build ownership from captured custody, then admit a new
+    /// named cohort before parser coordinates or bindings leave this owner.
+    pub(crate) fn seal_default_owner(
+        &mut self,
+        catalogue: &mut source::SourceCatalogue,
+    ) -> Result<Option<Vec<source::LoadedSource>>, Vec<Diagnostic>> {
+        let Some(capture) = self.retain_anonymous_owner(&[])? else {
+            return Ok(None);
+        };
+        let sealed = capture.complete_without_dependencies()?;
+        let identity = sealed
+            .selected_files()
+            .find(|file| {
+                file.origin == SourceOrigin::User && file.package_root == self.default_package_root
+            })
+            .and_then(|file| file.package_identity)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "default Build lost its derived source owner",
+                )]
+            })?;
+        self.sources = std::sync::Arc::unwrap_or_clone(sealed);
+        self.default_package_identity = Some(identity);
+        for root in &mut self.package_roots {
+            if root.root == self.default_package_root && root.identity.is_none() {
+                root.identity = Some(identity);
+            }
+        }
+        self.reselect_current_sources(catalogue).map(Some)
+    }
+
+    pub(crate) fn root_sources(&self) -> Vec<source::SourceId> {
+        self.sources
+            .selected_files()
+            .filter(|file| {
+                file.package_root == self.default_package_root
+                    && file.package_identity == self.default_package_identity
+            })
+            .map(|file| file.source_id)
+            .collect()
+    }
+
     /// Initialize exact package roots and product dependency authority before loading.
     /// Build-only dependencies never authorize product source selection.
     pub fn prepare(
         root_path: &Path,
         package_inputs: Option<&crate::PackageCompilationInputs>,
         source_capture: Option<&crate::CapturedLocalSource>,
+        catalogue: &mut source::SourceCatalogue,
     ) -> Result<Self, Vec<Diagnostic>> {
         if package_inputs.is_some() && source_capture.is_some() {
             return Err(vec![Diagnostic::error(
@@ -59,6 +102,7 @@ impl SourceStorage {
                     super::bundled_core_root()?,
                     package_inputs.source_filesystem().clone(),
                 );
+                storage.sources = catalogue.begin_selection();
                 for (identity, source_root) in package_inputs.packages() {
                     storage.register_reconciled_package_root(source_root.to_path_buf(), identity);
                 }
@@ -112,6 +156,7 @@ impl SourceStorage {
                             "cannot mount anonymous source capture: {error}"
                         ))]
                     })?;
+                storage.sources = catalogue.begin_selection();
                 storage.anonymous_capture = Some(captured.tree().clone());
                 // Core is a closed toolchain dependency, not the subset of
                 // declarations demanded by one exported machine.
@@ -172,7 +217,7 @@ impl SourceStorage {
         }
         for file in self
             .sources
-            .files()
+            .selected_files()
             .filter(|file| file.origin == SourceOrigin::User && file.package_identity.is_none())
         {
             let path = filesystem.canonicalize(&file.path).map_err(|error| {
@@ -203,6 +248,44 @@ impl SourceStorage {
         Ok(())
     }
 
+    /// Publish the newly sealed Product selection without changing coordinates
+    /// retained by its anonymous Build. Parser pages are recreated from these
+    /// captured bytes; the checked Build keeps its own immutable source map.
+    pub(crate) fn reselect_current_sources(
+        &mut self,
+        catalogue: &mut source::SourceCatalogue,
+    ) -> Result<Vec<source::LoadedSource>, Vec<Diagnostic>> {
+        let current = self.sources.selected_files().cloned().collect::<Vec<_>>();
+        self.sources = catalogue.begin_selection();
+        let admitted = current
+            .into_iter()
+            .map(|file| {
+                let original = file.source_id;
+                let admitted = self.admit_source(
+                    source::SourceContents {
+                        path: file.path,
+                        source: file.source,
+                        scope: file.dependency_scope,
+                    },
+                    Some(file.origin),
+                    file.resolution_stratum,
+                    catalogue,
+                )?;
+                self.sources
+                    .retain_source_rejoin(original, admitted.source_id)
+                    .map_err(|message| vec![Diagnostic::error(message)])?;
+                Ok::<_, Vec<Diagnostic>>(admitted)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        self.syntax_trees = admitted
+            .first()
+            .map(|source| SyntaxTrees::new(source.source_id))
+            .unwrap_or_default();
+        self.source_roots = Arena::default();
+        self.resolved_imports.clear();
+        Ok(admitted)
+    }
+
     /// Retain the captured inputs without assigning a declaration owner while
     /// an authored Build can still request dependencies.
     pub(crate) fn retain_anonymous_owner(
@@ -220,7 +303,7 @@ impl SourceStorage {
         // namespace, never by hashing or trusting that display spelling.
         for file in self
             .sources
-            .files()
+            .selected_files()
             .filter(|file| file.origin == SourceOrigin::User && file.package_identity.is_none())
         {
             if generated
@@ -254,7 +337,7 @@ impl SourceStorage {
         // rename this complete captured source owner.
         let contracts = crate::toolchain_source_identities(
             self.sources
-                .files()
+                .selected_files()
                 .filter(|file| file.package_root != *core_root),
         )?;
         Ok(Some(crate::AnonymousSourceCapture {
@@ -358,43 +441,43 @@ impl SourceStorage {
         }
     }
 
-    pub fn extend(&mut self, parsed: ParsedSources) -> Result<(), Vec<Diagnostic>> {
-        self.extend_in_stratum(parsed, source::SourceResolutionStratum::Base)
-    }
-
-    /// Join a dependency's generated-source bundle units: assembled with the
-    /// base like any loaded source, but marked so their own package's
-    /// authored units cannot select them (`SourceResolutionStratum`).
-    pub fn extend_dependency_generated(
+    /// Assign custody to captured bytes before the parser stamps source spans.
+    /// Retained exact instances keep their coordinates even when the current
+    /// import frontier visits them in a different order.
+    pub fn admit_source(
         &mut self,
-        parsed: ParsedSources,
-    ) -> Result<(), Vec<Diagnostic>> {
-        self.extend_in_stratum(
-            parsed,
-            source::SourceResolutionStratum::DependencyActivationExtension,
-        )
-    }
-
-    fn extend_in_stratum(
-        &mut self,
-        mut parsed: ParsedSources,
+        contents: source::SourceContents,
+        origin_override: Option<SourceOrigin>,
         resolution_stratum: source::SourceResolutionStratum,
-    ) -> Result<(), Vec<Diagnostic>> {
-        for parsed_source in parsed.sources.span_mut_or_empty(parsed.batch) {
-            let (package_root, package_identity, origin) =
-                self.source_metadata(&parsed_source.path, parsed_source.origin);
-            let added = self.sources.add_checked_instance(
-                std::mem::take(&mut parsed_source.path),
-                parsed_source.source.clone(),
+        catalogue: &mut source::SourceCatalogue,
+    ) -> Result<source::LoadedSource, Vec<Diagnostic>> {
+        let (package_root, package_identity, origin) =
+            self.source_metadata(&contents.path, origin_override);
+        let admitted = catalogue
+            .admit_checked_instance(
+                &mut self.sources,
+                contents.path,
+                contents.source,
                 package_root,
                 package_identity,
                 origin,
                 resolution_stratum,
-                parsed_source.scope,
-            );
+                contents.scope,
+            )
+            .map_err(|message| vec![Diagnostic::error(message)])?;
+        Ok(source::LoadedSource {
+            source_id: admitted.source_id,
+            path: admitted.path.clone(),
+            source: admitted.source.clone(),
+            origin: Some(admitted.origin),
+            scope: admitted.dependency_scope,
+        })
+    }
 
-            debug_assert_eq!(added.source_id, parsed_source.source_id);
-
+    /// Parser roots already name the admitted records. Attaching them allocates
+    /// no source coordinates and cannot change their custody.
+    pub fn attach_parsed(&mut self, mut parsed: ParsedSources) {
+        for parsed_source in parsed.sources.span_mut_or_empty(parsed.batch) {
             // Import discovery has finished with this consumed batch. Keep its
             // per-source associations without copying their owned buffers.
             self.source_roots.append(SourceRoots {
@@ -402,12 +485,6 @@ impl SourceStorage {
                 root_items: std::mem::take(&mut parsed_source.root_items),
             });
         }
-
-        Ok(())
-    }
-
-    pub(crate) fn next_source_id(&self) -> usize {
-        self.sources.len()
     }
 
     pub fn file_count(&self) -> usize {
@@ -568,39 +645,37 @@ mod tests {
     fn parsed_instances_retain_source_bytes_with_independent_checked_scopes() {
         let text: Arc<str> = Arc::from("public data Shared {} // retained bytes");
         let retained = Arc::downgrade(&text);
-        let mut parsed = ParsedSources::default();
-        parsed.batch = parsed.sources.insert_many(
-            [DependencyScope::Build, DependencyScope::Product]
-                .into_iter()
-                .enumerate()
-                .map(|(index, scope)| ParsedSource {
-                    source_id: SourceId(index),
-                    path: PathBuf::from("shared.omg"),
-                    source: text.clone(),
-                    origin: Some(SourceOrigin::Toolchain),
-                    root_items: Vec::new(),
-                    import_root_range: 0..0,
-                    scope,
-                }),
-        );
-        let path_buffers = parsed
-            .sources
-            .span_or_empty(parsed.batch)
-            .iter()
-            .map(|source| source.path.as_os_str().as_encoded_bytes().as_ptr() as usize)
-            .collect::<Vec<_>>();
         let mut storage = SourceStorage::default();
-        storage.extend(parsed).expect("retained source batch");
+        let mut catalogue = source::SourceCatalogue::default();
+        let loaded = [DependencyScope::Build, DependencyScope::Product].map(|scope| {
+            storage
+                .admit_source(
+                    source::SourceContents {
+                        path: PathBuf::from("shared.omg"),
+                        source: text.clone(),
+                        scope,
+                    },
+                    Some(SourceOrigin::Toolchain),
+                    SourceResolutionStratum::Base,
+                    &mut catalogue,
+                )
+                .unwrap()
+        });
+        let mut parsed = ParsedSources::default();
+        parsed.batch = parsed
+            .sources
+            .insert_many(loaded.into_iter().map(|loaded| ParsedSource {
+                source_id: loaded.source_id,
+                path: loaded.path,
+                source: loaded.source,
+                origin: loaded.origin,
+                root_items: Vec::new(),
+                import_root_range: 0..0,
+                scope: loaded.scope,
+            }));
+        storage.attach_parsed(parsed);
         let build = storage.sources.get(SourceId(0)).expect("build instance");
         let product = storage.sources.get(SourceId(1)).expect("product instance");
-        assert_eq!(
-            build.path.as_os_str().as_encoded_bytes().as_ptr() as usize,
-            path_buffers[0]
-        );
-        assert_eq!(
-            product.path.as_os_str().as_encoded_bytes().as_ptr() as usize,
-            path_buffers[1]
-        );
         assert_eq!(storage.source_roots.len(), 2);
         for (_, roots) in storage.source_roots.iter() {
             assert!(storage.sources.get(roots.source_id).is_some());
@@ -631,6 +706,71 @@ mod tests {
         assert_eq!(storage.sources.text_at(product_span), "Shared");
         drop(storage);
         assert!(retained.upgrade().is_none());
+    }
+
+    #[test]
+    fn source_admission_keeps_retained_coordinates_in_current_frontier_order() {
+        let mut catalogue = source::SourceCatalogue::default();
+        let mut original = SourceStorage::default();
+        let contents = |name: &str| source::SourceContents {
+            path: PathBuf::from(name),
+            source: Arc::from("retained contents"),
+            scope: DependencyScope::Product,
+        };
+        for name in ["first.omg", "unused.omg", "last.omg"] {
+            original
+                .admit_source(
+                    contents(name),
+                    Some(SourceOrigin::Toolchain),
+                    SourceResolutionStratum::Base,
+                    &mut catalogue,
+                )
+                .unwrap();
+        }
+        let mut current = SourceStorage {
+            sources: original.sources.fork_source_selection().unwrap(),
+            ..SourceStorage::default()
+        };
+        let loaded = ["last.omg", "first.omg", "new.omg"].map(|name| {
+            current
+                .admit_source(
+                    contents(name),
+                    Some(SourceOrigin::Toolchain),
+                    SourceResolutionStratum::Base,
+                    &mut catalogue,
+                )
+                .unwrap()
+        });
+        assert_eq!(loaded.each_ref().map(|file| file.source_id.0), [2, 0, 3]);
+        let mut parsed = ParsedSources::default();
+        parsed.batch = parsed
+            .sources
+            .insert_many(loaded.into_iter().map(|file| ParsedSource {
+                source_id: file.source_id,
+                path: file.path,
+                source: file.source,
+                origin: file.origin,
+                root_items: Vec::new(),
+                import_root_range: 0..0,
+                scope: file.scope,
+            }));
+        current.attach_parsed(parsed);
+        assert_eq!(current.sources.len(), 4);
+        assert_eq!(current.file_count(), 3);
+        assert_eq!(
+            current
+                .source_roots
+                .iter()
+                .map(|(_, roots)| roots.source_id.0)
+                .collect::<Vec<_>>(),
+            [2, 0, 3]
+        );
+        assert!(!current.sources.source_is_selected(SourceId(1)));
+        assert_eq!(
+            current.sources.get(SourceId(1)),
+            original.sources.get(SourceId(1))
+        );
+        assert!(current.sources.retains_source_storage(&original.sources));
     }
     #[test]
     fn implicit_explicit_and_package_core_imports_keep_the_same_owner() {

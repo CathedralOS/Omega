@@ -255,6 +255,7 @@ pub fn resolve_build_request_author(
     typed: &TypedTrees,
     author: source::SourceSpan,
 ) -> Result<SymbolHandle, String> {
+    let author = typed.symbols.rejoin_product_occurrence(author);
     let mut matching = typed
         .machines()
         .iter()

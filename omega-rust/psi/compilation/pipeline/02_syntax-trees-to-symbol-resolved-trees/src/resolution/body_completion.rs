@@ -140,6 +140,21 @@ impl PartialEq for DeferredResolvedFrontier {
 impl Eq for DeferredResolvedFrontier {}
 
 impl DeferredResolvedFrontier {
+    /// Resume typing against the exact predecessor owned by this resolver.
+    /// Ordinary probes append to that pair; they must not retype its completed
+    /// declarations or reinterpret its finalized authored selections.
+    pub fn into_extension(self) -> Result<super::DeferredResolvedExtension, Vec<Diagnostic>> {
+        let predecessor = self.selection.shared_retained_base().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "deferred resolution has no owned predecessor for typing",
+            )]
+        })?;
+        Ok(super::DeferredResolvedExtension {
+            successor: self,
+            predecessor,
+        })
+    }
+
     /// Transfer probe-only input custody on this exact completed declaration
     /// roster. Symbol handles remain those consumed by its seeded typed base.
     pub fn into_pending_type_inputs(
@@ -155,6 +170,30 @@ impl DeferredResolvedFrontier {
     /// Share the canonical resolved predecessor with its typed checkpoint.
     pub fn shared_trees(&self) -> Arc<SymbolResolvedTrees> {
         Arc::clone(&self.trees)
+    }
+
+    /// Replace lookup membership without filtering declaration vectors: pending
+    /// syntax still names their original ordinals. The paired typing owner
+    /// admits the exact predecessor before invoking this operation.
+    pub fn activate_sources(
+        mut self,
+        sources: Arc<source::SourceMap>,
+        bindings: Vec<symbols::SourceScopedTopLevelBinding>,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let trees = Arc::make_mut(&mut self.trees);
+        trees.symbols = trees
+            .symbols
+            .clone()
+            .begin_source_activation(Arc::clone(&sources), bindings.clone())
+            .map_err(|reason| vec![Diagnostic::error(reason)])?
+            .finish();
+        trees.resolution_indexes = Default::default();
+        self.selection = self
+            .selection
+            .activate_sources(Arc::clone(&sources), bindings.clone())?;
+        self.sources = Some(sources);
+        self.bindings = bindings;
+        Ok(self)
     }
 
     /// Reserve the paired typing owner's allocation suffix before resolution
@@ -263,7 +302,7 @@ impl DeferredResolvedFrontier {
                 provisional.structural_type_equations_pending = true;
                 append_generated_declarations(&mut provisional, &self.syntax, syntax_frontier)?;
                 lower_selected_bodies(&mut provisional, &self.syntax, &pending, selected)?;
-                super::finish_resolution(&mut provisional, &self.syntax, &[])?;
+                super::finish_resolution(&mut provisional, &self.syntax, &[], selected)?;
                 let selection = provisional.take_constant_selection()?;
                 let links = provisional.equation_sources.take().unwrap_or_default();
                 let before = self.syntax.root_item_handles().len();
@@ -284,11 +323,7 @@ impl DeferredResolvedFrontier {
         let mut lowerer = self.seed_body_lowerer()?;
         append_generated_declarations(&mut lowerer, &self.syntax, syntax_frontier)?;
         lower_selected_bodies(&mut lowerer, &self.syntax, &pending, selected)?;
-        super::settle_resolution(&mut lowerer, &self.syntax)?;
-        lowerer
-            .symbol_resolved_trees
-            .append_completed_body_tables(&predecessor, selected);
-        super::finish_resolved_tables(&mut lowerer, &[])?;
+        super::finish_resolution(&mut lowerer, &self.syntax, &[], selected)?;
         let hoist_counter = lowerer.hoist_counter;
         self.supplied_operand_owners = std::mem::take(&mut lowerer.supplied_operand_owners);
         self.conformance_inputs = std::mem::take(&mut lowerer.conformance_inputs);
@@ -317,7 +352,7 @@ impl DeferredResolvedFrontier {
 
     fn seed_body_lowerer(&self) -> Result<Lowerer, Vec<Diagnostic>> {
         let mut lowerer = Lowerer::new(self.sources.clone(), self.bindings.clone());
-        lowerer.seed_resolved_base((*self.trees).clone())?;
+        lowerer.seed_resolved_base(Arc::clone(&self.trees))?;
         lowerer.supplied_operand_owners = self.supplied_operand_owners.clone();
         lowerer.conformance_inputs = self.conformance_inputs.clone();
         lowerer.constant_selection = Some(self.selection.clone());
@@ -459,6 +494,7 @@ mod tests {
                 syntax,
                 sources: Some(std::sync::Arc::new(sources)),
                 top_level_bindings: Vec::new(),
+                retained_base: None,
             })
             .unwrap();
         let pending: Vec<_> = frontier.pending_machines().collect();

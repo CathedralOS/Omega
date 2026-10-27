@@ -309,7 +309,7 @@ fn lower_item_with_exposure(
                 definition.type_reference,
             )?;
             let ordinal = lowerer.symbol_resolved_trees.roots.const_declarations.len();
-            lowerer.symbol_resolved_trees.roots.const_declarations.push(
+            let declaration = lowerer.symbol_resolved_trees.roots.const_declarations.push(
                 symbol_resolved_trees::constant::ConstDeclaration {
                     symbol: symbols::SymbolHandle::invalid(),
                     is_public: definition.is_public,
@@ -336,6 +336,7 @@ fn lower_item_with_exposure(
             }
             lowerer.pending_const_declarations.push(
                 crate::resolution::lowerer::PendingConstDeclaration {
+                    declaration,
                     scope: definition.scope.clone(),
                     semantic_name: crate::constant::semantic_const_name(syntax_trees, definition),
                     source_span: definition.name.source_span(),

@@ -94,6 +94,36 @@ impl TypedTrees {
         }
     }
 
+    /// Prepared logical views belong to the source applications that demand
+    /// them. Sharing a declaring trait does not keep an unrelated tuple alive
+    /// after its conformance or call occurrence leaves a projection. The rows
+    /// have no inbound handles; executable requirement instances keep their
+    /// separate occurrence ownership and are not removed by this operation.
+    pub fn retain_live_trait_callable_applications(&mut self) {
+        let mut live = Vec::new();
+        for root in self.applied_trait_roots() {
+            root.visit(self, &mut |scope| {
+                if let Some(identity) = scope.application_identity(self) {
+                    live.push((scope.declaration.symbol, identity));
+                }
+            });
+        }
+        let removed = self
+            .applied_callable_signatures
+            .iter()
+            .filter_map(|(handle, prepared)| match prepared.owner {
+                AppliedCallableOwner::Trait {
+                    declaration,
+                    application,
+                } if !live.contains(&(declaration, application)) => Some(handle),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        for handle in removed {
+            self.applied_callable_signatures.free(handle);
+        }
+    }
+
     /// Project declaration-owned application rows with the declaration roster.
     /// Backing arenas are not checking roots: a private evaluation projection
     /// cannot retain an instance obligation after removing its known source

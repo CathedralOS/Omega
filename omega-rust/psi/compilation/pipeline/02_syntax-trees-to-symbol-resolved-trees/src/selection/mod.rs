@@ -56,9 +56,14 @@ pub(crate) fn select_operator_homes(lowerer: &mut Lowerer) -> Result<(), Vec<Dia
 /// source token, after constants have been substituted.
 pub(crate) fn finalize_authored_selections(lowerer: &mut Lowerer) -> Result<(), Vec<Diagnostic>> {
     let const_roots = lowerer
-        .symbol_resolved_trees
-        .const_declarations
+        .pending_const_declarations
         .iter()
+        .map(|pending| {
+            lowerer
+                .symbol_resolved_trees
+                .const_declarations
+                .get(pending.declaration)
+        })
         .flat_map(|declaration| [declaration.initializer, declaration.authored_initializer])
         .filter(|expression| expression.is_valid())
         .collect::<Vec<_>>();
@@ -69,8 +74,35 @@ pub(crate) fn finalize_authored_selections(lowerer: &mut Lowerer) -> Result<(), 
         &const_roots,
     )
     .map_err(|message| vec![Diagnostic::error(message)])?;
+    authored_selections::normalize_case_membership_facts(
+        &mut lowerer.symbol_resolved_trees,
+        &lowerer.pending_authored_proof_memberships,
+    )
+    .map_err(|diagnostic| vec![diagnostic])?;
+    let expression_work = lowerer
+        .symbol_resolved_trees
+        .tables
+        .bodies
+        .expressions
+        .iter_expressions()
+        .filter_map(|(expression, _)| {
+            lowerer
+                .seed
+                .as_ref()
+                .is_none_or(|seed| {
+                    !seed
+                        .source
+                        .tables
+                        .bodies
+                        .expressions
+                        .expression_is_valid(expression)
+                })
+                .then_some(expression)
+        })
+        .collect::<Vec<_>>();
     authored_selections::finalize_authored_expression_selections(
         &mut lowerer.symbol_resolved_trees,
+        &expression_work,
         &lowerer.pending_authored_expressions,
         &lowerer.pending_authored_proof_memberships,
     )
@@ -100,7 +132,7 @@ pub(crate) fn finalize(lowerer: &mut Lowerer) -> Result<(), Vec<Diagnostic>> {
     .map_err(|diagnostic| vec![diagnostic])?;
     evidence_forwardings::bind_evidence_forwarding_owners(&mut lowerer.symbol_resolved_trees);
     let (pending_machine_service_reaches, pending_signature_service_reaches) =
-        lowerer.pending_service_reaches();
+        lowerer.pending_service_reaches()?;
     let machine_ordinals =
         conformance_blocks::normalize_closed_conformance_blocks(&mut lowerer.symbol_resolved_trees)
             .map_err(|diagnostic| vec![diagnostic])?;
@@ -121,9 +153,13 @@ pub(crate) fn finalize(lowerer: &mut Lowerer) -> Result<(), Vec<Diagnostic>> {
         &mut lowerer.symbol_resolved_trees,
     )
     .map_err(|diagnostic| vec![diagnostic])?;
-    domain_establishment::normalize_domain_establishment_routes(&mut lowerer.symbol_resolved_trees)
-        .map_err(|diagnostic| vec![diagnostic])?;
-    match lowerer.seed.take() {
+    let seed = lowerer.seed.take();
+    domain_establishment::normalize_domain_establishment_routes(
+        &mut lowerer.symbol_resolved_trees,
+        seed.as_ref().map(|seed| seed.source.as_ref()),
+    )
+    .map_err(|diagnostic| vec![diagnostic])?;
+    match seed {
         None => service_reaches::normalize_service_reaches(
             &mut lowerer.symbol_resolved_trees,
             &pending_machine_service_reaches,
@@ -133,8 +169,8 @@ pub(crate) fn finalize(lowerer: &mut Lowerer) -> Result<(), Vec<Diagnostic>> {
             &mut lowerer.symbol_resolved_trees,
             &pending_machine_service_reaches,
             &pending_signature_service_reaches,
-            seed.service_reaches,
-            seed.service_reach_rows,
+            seed.source.service_reaches.clone(),
+            seed.source.service_reach_rows.clone(),
         ),
     }
     .map_err(|diagnostic| vec![diagnostic])?;
