@@ -203,27 +203,13 @@ fn base_name_seed(payload: &ValidatedElfDynamicTablePayload) -> &[u8] {
         .section_name_table_seed
 }
 
-fn validate_candidate(
-    candidate: Candidate,
-) -> Result<ValidatedElfDynamicTableSectionDescriptorPlan, CandidateValidationError<Candidate>> {
-    checked::validate_candidate(
-        candidate,
-        |candidate| validate_contents(&candidate.payload, &candidate.contents),
-        |candidate| {
-            candidate.non_authoritative_descriptor_compatibility_fingerprint
-                == non_authoritative_descriptor_compatibility_fingerprint(
-                    &candidate.payload,
-                    &candidate.contents,
-                )
-        },
-        "ELF dynamic-table descriptor compatibility fingerprint does not replay",
-        |candidate| ValidatedElfDynamicTableSectionDescriptorPlan {
-            payload: candidate.payload,
-            contents: candidate.contents,
-            non_authoritative_descriptor_compatibility_fingerprint: candidate
-                .non_authoritative_descriptor_compatibility_fingerprint,
-        },
-    )
+checked::seal_stage! {
+    field: payload,
+    contents: contents,
+    validated: ValidatedElfDynamicTableSectionDescriptorPlan,
+    validate: validate_contents,
+    fingerprint: non_authoritative_descriptor_compatibility_fingerprint,
+    message: "ELF dynamic-table descriptor compatibility fingerprint does not replay",
 }
 
 fn validate_contents(

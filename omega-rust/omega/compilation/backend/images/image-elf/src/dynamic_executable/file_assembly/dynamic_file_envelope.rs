@@ -228,28 +228,14 @@ fn write_program_header(bytes: &mut Vec<u8>, header: &ElfLoadProgramHeader) {
     write_u64(bytes, header.alignment());
 }
 
-fn validate_candidate(
-    candidate: Candidate,
-) -> Result<ValidatedElfDynamicFileEnvelope, CandidateValidationError<Candidate>> {
-    checked::validate_candidate(
-        candidate,
-        |candidate| validate_contents(&candidate.resolved_dynamic_table, &candidate.contents),
-        |candidate| {
-            candidate.non_authoritative_envelope_compatibility_fingerprint != 0
-                && candidate.non_authoritative_envelope_compatibility_fingerprint
-                    == non_authoritative_envelope_compatibility_fingerprint(
-                        &candidate.resolved_dynamic_table,
-                        &candidate.contents,
-                    )
-        },
-        "dynamic ELF envelope compatibility fingerprint does not replay",
-        |candidate| ValidatedElfDynamicFileEnvelope {
-            resolved_dynamic_table: candidate.resolved_dynamic_table,
-            contents: candidate.contents,
-            non_authoritative_envelope_compatibility_fingerprint: candidate
-                .non_authoritative_envelope_compatibility_fingerprint,
-        },
-    )
+checked::seal_stage! {
+    field: resolved_dynamic_table,
+    contents: contents,
+    validated: ValidatedElfDynamicFileEnvelope,
+    validate: validate_contents,
+    fingerprint: non_authoritative_envelope_compatibility_fingerprint,
+    nonzero,
+    message: "dynamic ELF envelope compatibility fingerprint does not replay",
 }
 
 fn validate_contents(

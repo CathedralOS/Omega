@@ -210,27 +210,13 @@ fn placement_fixup(
     })
 }
 
-fn validate_candidate(
-    candidate: Candidate,
-) -> Result<ValidatedElfSectionHeaderTableTemplate, CandidateValidationError<Candidate>> {
-    checked::validate_candidate(
-        candidate,
-        |candidate| validate_contents(&candidate.roster, &candidate.contents),
-        |candidate| {
-            candidate.non_authoritative_template_compatibility_fingerprint
-                == non_authoritative_template_compatibility_fingerprint(
-                    &candidate.roster,
-                    &candidate.contents,
-                )
-        },
-        "ELF section-header template compatibility fingerprint does not replay",
-        |candidate| ValidatedElfSectionHeaderTableTemplate {
-            roster: candidate.roster,
-            contents: candidate.contents,
-            non_authoritative_template_compatibility_fingerprint: candidate
-                .non_authoritative_template_compatibility_fingerprint,
-        },
-    )
+checked::seal_stage! {
+    field: roster,
+    contents: contents,
+    validated: ValidatedElfSectionHeaderTableTemplate,
+    validate: validate_contents,
+    fingerprint: non_authoritative_template_compatibility_fingerprint,
+    message: "ELF section-header template compatibility fingerprint does not replay",
 }
 
 fn validate_contents(

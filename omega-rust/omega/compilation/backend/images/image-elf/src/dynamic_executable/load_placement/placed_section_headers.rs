@@ -184,28 +184,14 @@ fn derive_contents(
     })
 }
 
-fn validate_candidate(
-    candidate: Candidate,
-) -> Result<ValidatedElfPlacedSectionHeaderTable, CandidateValidationError<Candidate>> {
-    checked::validate_candidate(
-        candidate,
-        |candidate| validate_contents(&candidate.load_layout, &candidate.contents),
-        |candidate| {
-            candidate.non_authoritative_placed_compatibility_fingerprint != 0
-                && candidate.non_authoritative_placed_compatibility_fingerprint
-                    == non_authoritative_placed_compatibility_fingerprint(
-                        &candidate.load_layout,
-                        &candidate.contents,
-                    )
-        },
-        "placed ELF section-header compatibility fingerprint does not replay",
-        |candidate| ValidatedElfPlacedSectionHeaderTable {
-            load_layout: candidate.load_layout,
-            contents: candidate.contents,
-            non_authoritative_placed_compatibility_fingerprint: candidate
-                .non_authoritative_placed_compatibility_fingerprint,
-        },
-    )
+checked::seal_stage! {
+    field: load_layout,
+    contents: contents,
+    validated: ValidatedElfPlacedSectionHeaderTable,
+    validate: validate_contents,
+    fingerprint: non_authoritative_placed_compatibility_fingerprint,
+    nonzero,
+    message: "placed ELF section-header compatibility fingerprint does not replay",
 }
 
 fn validate_contents(

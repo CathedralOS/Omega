@@ -467,27 +467,13 @@ fn site_end(site: &ElfDirectImportCallSite) -> Result<usize, Diagnostic> {
         .ok_or_else(|| Diagnostic::error("ELF import call-site span overflows usize"))
 }
 
-fn validate_candidate(
-    candidate: Candidate,
-) -> Result<ValidatedElfProcedureLinkageRelocationPlan, CandidateValidationError<Candidate>> {
-    checked::validate_candidate(
-        candidate,
-        |candidate| validate_contents(&candidate.descriptors, &candidate.contents),
-        |candidate| {
-            candidate.non_authoritative_linkage_compatibility_fingerprint
-                == non_authoritative_linkage_compatibility_fingerprint(
-                    &candidate.descriptors,
-                    &candidate.contents,
-                )
-        },
-        "ELF procedure-linkage compatibility fingerprint does not replay",
-        |candidate| ValidatedElfProcedureLinkageRelocationPlan {
-            descriptors: candidate.descriptors,
-            contents: candidate.contents,
-            non_authoritative_linkage_compatibility_fingerprint: candidate
-                .non_authoritative_linkage_compatibility_fingerprint,
-        },
-    )
+checked::seal_stage! {
+    field: descriptors,
+    contents: contents,
+    validated: ValidatedElfProcedureLinkageRelocationPlan,
+    validate: validate_contents,
+    fingerprint: non_authoritative_linkage_compatibility_fingerprint,
+    message: "ELF procedure-linkage compatibility fingerprint does not replay",
 }
 
 fn validate_contents(

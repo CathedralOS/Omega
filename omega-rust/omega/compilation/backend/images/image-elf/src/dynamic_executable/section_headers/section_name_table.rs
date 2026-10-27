@@ -192,27 +192,13 @@ fn upstream_name_seed(dynamic_table: &ValidatedElfDynamicTableSectionDescriptorP
     &dynamic_table.contents().section_name_table_seed
 }
 
-fn validate_candidate(
-    candidate: Candidate,
-) -> Result<ValidatedElfSectionNameTablePlan, CandidateValidationError<Candidate>> {
-    checked::validate_candidate(
-        candidate,
-        |candidate| validate_contents(&candidate.dynamic_table, &candidate.contents),
-        |candidate| {
-            candidate.non_authoritative_table_compatibility_fingerprint
-                == non_authoritative_table_compatibility_fingerprint(
-                    &candidate.dynamic_table,
-                    &candidate.contents,
-                )
-        },
-        "ELF section-name-table compatibility fingerprint does not replay",
-        |candidate| ValidatedElfSectionNameTablePlan {
-            dynamic_table: candidate.dynamic_table,
-            contents: candidate.contents,
-            non_authoritative_table_compatibility_fingerprint: candidate
-                .non_authoritative_table_compatibility_fingerprint,
-        },
-    )
+checked::seal_stage! {
+    field: dynamic_table,
+    contents: contents,
+    validated: ValidatedElfSectionNameTablePlan,
+    validate: validate_contents,
+    fingerprint: non_authoritative_table_compatibility_fingerprint,
+    message: "ELF section-name-table compatibility fingerprint does not replay",
 }
 
 fn validate_contents(

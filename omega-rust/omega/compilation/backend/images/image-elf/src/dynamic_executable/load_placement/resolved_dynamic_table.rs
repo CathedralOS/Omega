@@ -310,28 +310,14 @@ fn application_for_fixup(
     })
 }
 
-fn validate_candidate(
-    candidate: Candidate,
-) -> Result<ValidatedElfResolvedDynamicTable, CandidateValidationError<Candidate>> {
-    checked::validate_candidate(
-        candidate,
-        |candidate| validate_contents(&candidate.placed_section_headers, &candidate.contents),
-        |candidate| {
-            candidate.non_authoritative_resolved_compatibility_fingerprint != 0
-                && candidate.non_authoritative_resolved_compatibility_fingerprint
-                    == non_authoritative_resolved_compatibility_fingerprint(
-                        &candidate.placed_section_headers,
-                        &candidate.contents,
-                    )
-        },
-        "resolved ELF dynamic-table compatibility fingerprint does not replay",
-        |candidate| ValidatedElfResolvedDynamicTable {
-            placed_section_headers: candidate.placed_section_headers,
-            contents: candidate.contents,
-            non_authoritative_resolved_compatibility_fingerprint: candidate
-                .non_authoritative_resolved_compatibility_fingerprint,
-        },
-    )
+checked::seal_stage! {
+    field: placed_section_headers,
+    contents: contents,
+    validated: ValidatedElfResolvedDynamicTable,
+    validate: validate_contents,
+    fingerprint: non_authoritative_resolved_compatibility_fingerprint,
+    nonzero,
+    message: "resolved ELF dynamic-table compatibility fingerprint does not replay",
 }
 
 fn validate_contents(

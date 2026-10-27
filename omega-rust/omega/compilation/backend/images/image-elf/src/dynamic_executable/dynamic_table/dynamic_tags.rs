@@ -386,27 +386,13 @@ fn target(descriptors: &ValidatedElfProcedureLinkageSectionDescriptorPlan) -> Ta
         .target()
 }
 
-fn validate_candidate(
-    candidate: Candidate,
-) -> Result<ValidatedElfDynamicTagPlan, CandidateValidationError<Candidate>> {
-    checked::validate_candidate(
-        candidate,
-        |candidate| validate_contents(&candidate.descriptors, &candidate.contents),
-        |candidate| {
-            candidate.non_authoritative_tag_compatibility_fingerprint
-                == non_authoritative_tag_compatibility_fingerprint(
-                    &candidate.descriptors,
-                    &candidate.contents,
-                )
-        },
-        "ELF dynamic-tag compatibility fingerprint does not replay",
-        |candidate| ValidatedElfDynamicTagPlan {
-            descriptors: candidate.descriptors,
-            contents: candidate.contents,
-            non_authoritative_tag_compatibility_fingerprint: candidate
-                .non_authoritative_tag_compatibility_fingerprint,
-        },
-    )
+checked::seal_stage! {
+    field: descriptors,
+    contents: contents,
+    validated: ValidatedElfDynamicTagPlan,
+    validate: validate_contents,
+    fingerprint: non_authoritative_tag_compatibility_fingerprint,
+    message: "ELF dynamic-tag compatibility fingerprint does not replay",
 }
 
 fn validate_contents(

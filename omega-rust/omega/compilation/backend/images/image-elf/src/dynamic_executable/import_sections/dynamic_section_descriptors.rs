@@ -317,27 +317,13 @@ fn descriptor(
     })
 }
 
-fn validate_candidate(
-    candidate: Candidate,
-) -> Result<ValidatedElfDynamicSectionDescriptorPlan, CandidateValidationError<Candidate>> {
-    checked::validate_candidate(
-        candidate,
-        |candidate| validate_contents(&candidate.payloads, &candidate.contents),
-        |candidate| {
-            candidate.non_authoritative_descriptor_compatibility_fingerprint
-                == non_authoritative_descriptor_compatibility_fingerprint(
-                    &candidate.payloads,
-                    &candidate.contents,
-                )
-        },
-        "ELF dynamic descriptor compatibility fingerprint does not replay",
-        |candidate| ValidatedElfDynamicSectionDescriptorPlan {
-            payloads: candidate.payloads,
-            contents: candidate.contents,
-            non_authoritative_descriptor_compatibility_fingerprint: candidate
-                .non_authoritative_descriptor_compatibility_fingerprint,
-        },
-    )
+checked::seal_stage! {
+    field: payloads,
+    contents: contents,
+    validated: ValidatedElfDynamicSectionDescriptorPlan,
+    validate: validate_contents,
+    fingerprint: non_authoritative_descriptor_compatibility_fingerprint,
+    message: "ELF dynamic descriptor compatibility fingerprint does not replay",
 }
 
 fn validate_contents(

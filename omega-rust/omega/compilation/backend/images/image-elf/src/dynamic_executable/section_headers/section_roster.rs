@@ -321,27 +321,13 @@ const fn index_for_kind(kind: ElfDynamicRosterSectionKind) -> u32 {
     kind as u32
 }
 
-fn validate_candidate(
-    candidate: Candidate,
-) -> Result<ValidatedElfDynamicSectionRoster, CandidateValidationError<Candidate>> {
-    checked::validate_candidate(
-        candidate,
-        |candidate| validate_contents(&candidate.section_names, &candidate.contents),
-        |candidate| {
-            candidate.non_authoritative_roster_compatibility_fingerprint
-                == non_authoritative_roster_compatibility_fingerprint(
-                    &candidate.section_names,
-                    &candidate.contents,
-                )
-        },
-        "ELF dynamic section-roster compatibility fingerprint does not replay",
-        |candidate| ValidatedElfDynamicSectionRoster {
-            section_names: candidate.section_names,
-            contents: candidate.contents,
-            non_authoritative_roster_compatibility_fingerprint: candidate
-                .non_authoritative_roster_compatibility_fingerprint,
-        },
-    )
+checked::seal_stage! {
+    field: section_names,
+    contents: contents,
+    validated: ValidatedElfDynamicSectionRoster,
+    validate: validate_contents,
+    fingerprint: non_authoritative_roster_compatibility_fingerprint,
+    message: "ELF dynamic section-roster compatibility fingerprint does not replay",
 }
 
 fn validate_contents(

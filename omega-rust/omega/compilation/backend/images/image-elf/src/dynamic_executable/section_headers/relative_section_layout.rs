@@ -233,27 +233,13 @@ fn derive_contents(
     Ok(ElfRelativeSectionPayloadLayoutContents { rows, region_spans })
 }
 
-fn validate_candidate(
-    candidate: Candidate,
-) -> Result<ValidatedElfRelativeSectionPayloadLayout, CandidateValidationError<Candidate>> {
-    checked::validate_candidate(
-        candidate,
-        |candidate| validate_contents(&candidate.payloads, &candidate.contents),
-        |candidate| {
-            candidate.non_authoritative_layout_compatibility_fingerprint
-                == non_authoritative_layout_compatibility_fingerprint(
-                    &candidate.payloads,
-                    &candidate.contents,
-                )
-        },
-        "relative ELF payload-layout compatibility fingerprint does not replay",
-        |candidate| ValidatedElfRelativeSectionPayloadLayout {
-            payloads: candidate.payloads,
-            contents: candidate.contents,
-            non_authoritative_layout_compatibility_fingerprint: candidate
-                .non_authoritative_layout_compatibility_fingerprint,
-        },
-    )
+checked::seal_stage! {
+    field: payloads,
+    contents: contents,
+    validated: ValidatedElfRelativeSectionPayloadLayout,
+    validate: validate_contents,
+    fingerprint: non_authoritative_layout_compatibility_fingerprint,
+    message: "relative ELF payload-layout compatibility fingerprint does not replay",
 }
 
 fn validate_contents(

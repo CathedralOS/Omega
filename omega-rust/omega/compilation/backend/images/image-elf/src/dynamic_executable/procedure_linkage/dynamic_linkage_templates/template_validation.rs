@@ -11,27 +11,14 @@ use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::tem
 use crate::dynamic_executable::checked::{read_field, read_u32, read_u64, require};
 use super::super::super::checked;
 
-pub(crate) fn validate_candidate(
-    candidate: Candidate,
-) -> Result<ValidatedElfProcedureLinkageTemplatePlan, CandidateValidationError<Candidate>> {
-    checked::validate_candidate(
-        candidate,
-        |candidate| validate_contents(&candidate.linkage, &candidate.contents),
-        |candidate| {
-            candidate.non_authoritative_template_compatibility_fingerprint
-                == non_authoritative_template_compatibility_fingerprint(
-                    &candidate.linkage,
-                    &candidate.contents,
-                )
-        },
-        "ELF GOT/PLT template compatibility fingerprint does not replay",
-        |candidate| ValidatedElfProcedureLinkageTemplatePlan {
-            linkage: candidate.linkage,
-            contents: candidate.contents,
-            non_authoritative_template_compatibility_fingerprint: candidate
-                .non_authoritative_template_compatibility_fingerprint,
-        },
-    )
+checked::seal_stage! {
+    field: linkage,
+    contents: contents,
+    validated: ValidatedElfProcedureLinkageTemplatePlan,
+    validate: validate_contents,
+    fingerprint: non_authoritative_template_compatibility_fingerprint,
+    message: "ELF GOT/PLT template compatibility fingerprint does not replay",
+    vis: pub(crate),
 }
 
 pub(crate) fn validate_contents(

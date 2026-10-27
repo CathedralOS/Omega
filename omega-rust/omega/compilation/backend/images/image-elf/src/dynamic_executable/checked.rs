@@ -298,6 +298,99 @@ pub(crate) struct CandidateValidationError<C> {
     pub(crate) diagnostic: Diagnostic,
 }
 
+/// Emit one stage's candidate seal: run that stage's own independent contents
+/// validator, replay the non-authoritative compatibility fingerprint the
+/// carrier publishes (when it publishes one), and assemble the validated
+/// carrier from the consumed candidate. Every dynamic-lane stage seals its
+/// candidate this way, so the envelope is stated once here and each stage
+/// supplies only its own field names and fingerprint rule.
+///
+/// `$field` is the field holding the upstream carrier the stage consumed;
+/// `$contents` is the field holding the contents it derived. A stage whose
+/// carrier publishes a fingerprint that must also be non-zero adds `nonzero`.
+macro_rules! seal_stage {
+    (
+        field: $field:ident,
+        contents: $contents:ident,
+        validated: $validated:ident,
+        validate: $validate:ident,
+        fingerprint: $fingerprint:ident,
+        message: $message:literal
+        $(, vis: $vis:vis)? $(,)?
+    ) => {
+        $( $vis )? fn validate_candidate(
+            candidate: Candidate,
+        ) -> Result<$validated, CandidateValidationError<Candidate>> {
+            checked::validate_candidate(
+                candidate,
+                |candidate| $validate(&candidate.$field, &candidate.$contents),
+                |candidate| {
+                    candidate.$fingerprint == $fingerprint(&candidate.$field, &candidate.$contents)
+                },
+                $message,
+                |candidate| $validated {
+                    $field: candidate.$field,
+                    $contents: candidate.$contents,
+                    $fingerprint: candidate.$fingerprint,
+                },
+            )
+        }
+    };
+    (
+        field: $field:ident,
+        contents: $contents:ident,
+        validated: $validated:ident,
+        validate: $validate:ident,
+        fingerprint: $fingerprint:ident,
+        nonzero,
+        message: $message:literal
+        $(, vis: $vis:vis)? $(,)?
+    ) => {
+        $( $vis )? fn validate_candidate(
+            candidate: Candidate,
+        ) -> Result<$validated, CandidateValidationError<Candidate>> {
+            checked::validate_candidate(
+                candidate,
+                |candidate| $validate(&candidate.$field, &candidate.$contents),
+                |candidate| {
+                    candidate.$fingerprint != 0
+                        && candidate.$fingerprint
+                            == $fingerprint(&candidate.$field, &candidate.$contents)
+                },
+                $message,
+                |candidate| $validated {
+                    $field: candidate.$field,
+                    $contents: candidate.$contents,
+                    $fingerprint: candidate.$fingerprint,
+                },
+            )
+        }
+    };
+    (
+        field: $field:ident,
+        contents: $contents:ident,
+        validated: $validated:ident,
+        validate: $validate:ident
+        $(, vis: $vis:vis)? $(,)?
+    ) => {
+        $( $vis )? fn validate_candidate(
+            candidate: Candidate,
+        ) -> Result<$validated, CandidateValidationError<Candidate>> {
+            checked::validate_candidate(
+                candidate,
+                |candidate| $validate(&candidate.$field, &candidate.$contents),
+                |_| true,
+                "",
+                |candidate| $validated {
+                    $field: candidate.$field,
+                    $contents: candidate.$contents,
+                },
+            )
+        }
+    };
+}
+pub(crate) use seal_stage;
+
 /// Shared validation envelope: run the contents validator, replay the
 /// non-authoritative compatibility fingerprint, and on success assemble the
 /// validated record from the consumed candidate.

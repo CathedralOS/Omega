@@ -343,28 +343,13 @@ fn target(templates: &ValidatedElfProcedureLinkageTemplatePlan) -> TargetProfile
         .target()
 }
 
-fn validate_candidate(
-    candidate: Candidate,
-) -> Result<ValidatedElfProcedureLinkageSectionDescriptorPlan, CandidateValidationError<Candidate>>
-{
-    checked::validate_candidate(
-        candidate,
-        |candidate| validate_contents(&candidate.templates, &candidate.contents),
-        |candidate| {
-            candidate.non_authoritative_descriptor_compatibility_fingerprint
-                == non_authoritative_descriptor_compatibility_fingerprint(
-                    &candidate.templates,
-                    &candidate.contents,
-                )
-        },
-        "ELF linkage-descriptor compatibility fingerprint does not replay",
-        |candidate| ValidatedElfProcedureLinkageSectionDescriptorPlan {
-            templates: candidate.templates,
-            contents: candidate.contents,
-            non_authoritative_descriptor_compatibility_fingerprint: candidate
-                .non_authoritative_descriptor_compatibility_fingerprint,
-        },
-    )
+checked::seal_stage! {
+    field: templates,
+    contents: contents,
+    validated: ValidatedElfProcedureLinkageSectionDescriptorPlan,
+    validate: validate_contents,
+    fingerprint: non_authoritative_descriptor_compatibility_fingerprint,
+    message: "ELF linkage-descriptor compatibility fingerprint does not replay",
 }
 
 fn validate_contents(

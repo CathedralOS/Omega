@@ -172,27 +172,13 @@ fn encode_contents(
     })
 }
 
-fn validate_candidate(
-    candidate: Candidate,
-) -> Result<ValidatedElfDynamicTablePayload, CandidateValidationError<Candidate>> {
-    checked::validate_candidate(
-        candidate,
-        |candidate| validate_contents(&candidate.plan, &candidate.contents),
-        |candidate| {
-            candidate.non_authoritative_payload_compatibility_fingerprint
-                == non_authoritative_payload_compatibility_fingerprint(
-                    &candidate.plan,
-                    &candidate.contents,
-                )
-        },
-        "ELF dynamic payload compatibility fingerprint does not replay",
-        |candidate| ValidatedElfDynamicTablePayload {
-            plan: candidate.plan,
-            contents: candidate.contents,
-            non_authoritative_payload_compatibility_fingerprint: candidate
-                .non_authoritative_payload_compatibility_fingerprint,
-        },
-    )
+checked::seal_stage! {
+    field: plan,
+    contents: contents,
+    validated: ValidatedElfDynamicTablePayload,
+    validate: validate_contents,
+    fingerprint: non_authoritative_payload_compatibility_fingerprint,
+    message: "ELF dynamic payload compatibility fingerprint does not replay",
 }
 
 fn validate_contents(
