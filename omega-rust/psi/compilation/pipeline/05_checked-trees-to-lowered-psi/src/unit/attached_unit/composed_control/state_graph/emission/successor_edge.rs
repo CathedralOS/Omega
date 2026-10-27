@@ -19,7 +19,9 @@ use super::super::{
     subslices,
 };
 use super::StateGraphEmission;
-use crate::emission::operation_emission::buffer::{OperationBuffer, StorageObservations};
+use crate::emission::operation_emission::buffer::{
+    OperationBuffer, StorageObservations, structural_result_declaration,
+};
 use crate::emission::operation_emission::place_declarations::operation_result_place;
 use crate::expression_preparation::bindings::ScalarBindings;
 use crate::expression_preparation::bindings::structural_fields::EstablishedCasePayload;
@@ -713,16 +715,10 @@ impl StateGraphEmission<'_, '_> {
                             let producer = operations.allocate();
                             operations.push(Operation::unsuspended(
                                 producer,
-                                OperationResult::Structural(
-                                    terminal_psi::StructuralOperationResult {
-                                        qualification_establishments: Vec::new(),
-                                        place: destination,
-                                        structural_type,
-                                        multiplicity: StructuralMultiplicity::Unrestricted,
-                                        qualifications: Vec::new(),
-                                        projected_qualifications: Vec::new(),
-                                        claims: Vec::new(),
-                                    },
+                                structural_result_declaration(
+                                    destination,
+                                    structural_type,
+                                    StructuralMultiplicity::Unrestricted,
                                 ),
                                 OperationKind::StructuralLeafCopy { source, path },
                             ));

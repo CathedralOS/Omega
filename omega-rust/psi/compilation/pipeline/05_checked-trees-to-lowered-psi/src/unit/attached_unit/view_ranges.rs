@@ -12,7 +12,7 @@
 //! expression would lose that identity and could repeat a call's effects. Both
 //! schedules then narrow the same half-open descriptor with exact arithmetic.
 use super::{CheckedTrees, LoweringError, allocate_dense, place_id, unsupported};
-use crate::emission::operation_emission::buffer::OperationBuffer;
+use crate::emission::operation_emission::buffer::{OperationBuffer, structural_result_declaration};
 use crate::emission::operation_emission::expressions::{
     LoweredDirectExpression, LoweredElementPathSegment, TERMINAL_NESTED_SELECTOR_LIMIT,
     emit_prepared_path, path_with_current_bounds,
@@ -568,15 +568,7 @@ pub(crate) fn emit_view(
     let access = source.access;
     operations.push(terminal_psi::Operation::unsuspended(
         producer,
-        terminal_psi::OperationResult::Structural(terminal_psi::StructuralOperationResult {
-            qualification_establishments: Vec::new(),
-            place,
-            structural_type,
-            multiplicity,
-            qualifications: Vec::new(),
-            projected_qualifications: Vec::new(),
-            claims: Vec::new(),
-        }),
+        structural_result_declaration(place, structural_type, multiplicity),
         if access == terminal_psi::StructuralAccess::MutableBorrow {
             terminal_psi::OperationKind::EstablishMutableElementView {
                 destination: place,

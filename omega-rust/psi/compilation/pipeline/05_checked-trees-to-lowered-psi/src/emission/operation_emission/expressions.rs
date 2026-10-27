@@ -3,7 +3,9 @@
 use super::boolean::{LoweredBooleanReturnExpression, emit_boolean_expression};
 use super::buffer::OperationBuffer;
 use super::integer::LoweredIntegerBinaryKind;
-use crate::emission::operation_emission::buffer::scalar_result_declaration;
+use crate::emission::operation_emission::buffer::{
+    scalar_result_declaration, structural_result_declaration,
+};
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
 use crate::terminal_identities::mint;
@@ -679,15 +681,11 @@ pub(super) fn emit_read_source(
             );
             operations.push(Operation::unsuspended(
                 producer,
-                OperationResult::Structural(terminal_psi::StructuralOperationResult {
-                    qualification_establishments: Vec::new(),
+                structural_result_declaration(
                     place,
-                    structural_type: *structural_type,
-                    multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
-                    qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
-                    claims: Vec::new(),
-                }),
+                    *structural_type,
+                    terminal_psi::StructuralMultiplicity::Unrestricted,
+                ),
                 OperationKind::StructuralCaseLeafCopy {
                     source: *source,
                     path: path.clone(),
