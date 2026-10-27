@@ -176,6 +176,121 @@ impl<Image> NativeArtifactParts<Image> {
                 == self.terminal_authority_permission_policy_identity
     }
 
+    /// This row's complete identity preimage. Each product answers the
+    /// format's own digest facts — the direct image its final-image symbol
+    /// digest, its foreign-call roster and its writer subsystem; the dynamic
+    /// writer the admitted image inside its request and no subsystem fact.
+    /// `physical_evidence_gap` is derived state the row never retains. The
+    /// caller passes the row's own emitted image output, exactly as
+    /// `evidence_derivation` takes it.
+    fn identity_fields<'a>(
+        &'a self,
+        output: &'a image::EmittedImageOutput,
+        final_image_symbol_digest: [u8; 32],
+        foreign_calls: &[image_emission::ObjectForeignCall],
+        image_subsystem: Option<u16>,
+        physical_evidence_gap: Option<&NativePhysicalEvidenceGap>,
+    ) -> NativeArtifactIdentityFields<'a> {
+        let (
+            compiler_text_validation_digest,
+            compiler_function_validation,
+            compiler_entry_region_binding,
+            compiler_entry_footprint_binding,
+        ) = compiler_identity_evidence(output);
+        NativeArtifactIdentityFields {
+            terminal_artifact_identity: *self.psi_artifact.manifest().identity().as_bytes(),
+            target: self.target,
+            object_text_bytes: self.object.text_bytes(),
+            image_bytes: &output.bytes,
+            final_text_bytes: &output.final_text_bytes,
+            image_subsystem,
+            output_file_name: &output.file_name,
+            output_format: &output.format,
+            output_counts: [
+                output.text_bytes,
+                output.data_bytes,
+                output.bss_bytes,
+                output.symbols,
+                output.relocations,
+                output.final_image_symbols,
+                output.final_image_imports,
+                output.final_image_relocations,
+            ],
+            callback_placement_identity_report_fingerprint: output
+                .callback_placement_identity_report_fingerprint,
+            final_image_symbol_digest,
+            executable_region_inventory_digest: *output
+                .executable_regions
+                .inventory_digest
+                .as_bytes(),
+            executable_region_inventory_report_fingerprint: output
+                .executable_regions
+                .inventory_report_fingerprint,
+            compiler_text_validation_digest,
+            compiler_function_validation,
+            compiler_entry_region_binding,
+            compiler_entry_footprint_binding,
+            selected_provider_closure_digest: *self.selected_provider_closure_digest.as_bytes(),
+            foreign_call_custody_digest: foreign_call_custody_digest(foreign_calls),
+            selected_provider_plans: &self.selected_provider_plans,
+            provider_executions: &self.provider_executions,
+            terminal_authority_policy_identity: self.terminal_authority_policy_identity,
+            terminal_authority_permission_policy_identity: self
+                .terminal_authority_permission_policy_identity,
+            terminal_authority_closure_review_identity: self
+                .terminal_authority_closure_review
+                .identity(),
+            boundary_application_coverage_identity: boundary_application_coverage_identity(
+                self.boundary_application_coverage.as_ref(),
+            ),
+            physical_evidence_scope: &self.physical_evidence_scope,
+            physical_evidence_identity: self
+                .physical_evidence
+                .as_ref()
+                .map(|evidence| *evidence.identity()),
+            physical_evidence_gap_identity: physical_evidence_gap.map(|gap| *gap.identity()),
+        }
+    }
+
+    /// The derivation-owned gap a retained row replays: recomputed from the
+    /// replayed inputs, never retained as a caller claim, so a retained row
+    /// can never assert a blocking subject the derivation would not have
+    /// produced.
+    fn replayed_gap(
+        &self,
+        output: &image::EmittedImageOutput,
+        final_image_symbol_digest: [u8; 32],
+    ) -> Result<Option<NativePhysicalEvidenceGap>, &'static str> {
+        Ok(
+            match self.evidence_derivation(output, final_image_symbol_digest)? {
+                NativePhysicalEvidenceDerivation::Blocked(gap) => Some(gap),
+                NativePhysicalEvidenceDerivation::Unavailable
+                | NativePhysicalEvidenceDerivation::Complete(_) => None,
+            },
+        )
+    }
+
+    /// The physical children and gap an exact replay of this row expects.
+    fn replayed_evidence(
+        &self,
+        output: &image::EmittedImageOutput,
+        final_image_symbol_digest: [u8; 32],
+    ) -> Result<
+        (
+            Option<NativePhysicalEvidence>,
+            Option<NativePhysicalEvidenceGap>,
+        ),
+        &'static str,
+    > {
+        Ok(
+            match self.evidence_derivation(output, final_image_symbol_digest)? {
+                NativePhysicalEvidenceDerivation::Unavailable => (None, None),
+                NativePhysicalEvidenceDerivation::Complete(evidence) => (Some(evidence), None),
+                NativePhysicalEvidenceDerivation::Blocked(gap) => (None, Some(gap)),
+            },
+        )
+    }
+
     /// Derive this row's physical children over the exact Terminal, object,
     /// image and selected-plan custody it carries. The caller passes the row's
     /// own emitted image output and final-image symbol digest: the direct
@@ -241,16 +356,10 @@ impl NativeArtifact {
 
     /// Replay every source-free identity and byte relation retained here.
     pub fn from_replayed_parts(parts: NativeArtifactParts) -> Result<Self, &'static str> {
-        // The gap is derivation state, not a retained claim: it is recomputed
-        // from the replayed inputs so a retained artifact can never assert a
-        // blocking subject the derivation would not have produced.
-        let final_image_symbol_digest = *parts.image.final_image_symbol_digest().as_bytes();
-        let physical_evidence_gap =
-            match parts.evidence_derivation(parts.image.output(), final_image_symbol_digest)? {
-                NativePhysicalEvidenceDerivation::Blocked(gap) => Some(gap),
-                NativePhysicalEvidenceDerivation::Unavailable
-                | NativePhysicalEvidenceDerivation::Complete(_) => None,
-            };
+        let physical_evidence_gap = parts.replayed_gap(
+            parts.image.output(),
+            *parts.image.final_image_symbol_digest().as_bytes(),
+        )?;
         let artifact = Self::seal(parts, physical_evidence_gap);
         artifact.validate()?;
         Ok(artifact)
@@ -313,14 +422,9 @@ impl NativeArtifact {
         )
         .map_err(provider_execution::ProviderExecutionReplayError::direct_message)?;
         let final_image_symbol_digest = *self.parts.image.final_image_symbol_digest().as_bytes();
-        let (expected_physical_evidence, expected_physical_evidence_gap) = match self
+        let (expected_physical_evidence, expected_physical_evidence_gap) = self
             .parts
-            .evidence_derivation(self.parts.image.output(), final_image_symbol_digest)?
-        {
-            NativePhysicalEvidenceDerivation::Unavailable => (None, None),
-            NativePhysicalEvidenceDerivation::Complete(evidence) => (Some(evidence), None),
-            NativePhysicalEvidenceDerivation::Blocked(gap) => (None, Some(gap)),
-        };
+            .replayed_evidence(self.parts.image.output(), final_image_symbol_digest)?;
         if self.parts.physical_evidence != expected_physical_evidence {
             return Err(
                 "native artifact physical children disagree with its validated identity projection",
@@ -338,77 +442,13 @@ impl NativeArtifact {
     }
 
     fn recomputed_identity(&self) -> NativeArtifactIdentity {
-        let output = self.parts.image.output();
-        let (
-            compiler_text_validation_digest,
-            compiler_function_validation,
-            compiler_entry_region_binding,
-            compiler_entry_footprint_binding,
-        ) = compiler_identity_evidence(output);
-        derive_native_artifact_identity(NativeArtifactIdentityFields {
-            terminal_artifact_identity: *self.parts.psi_artifact.manifest().identity().as_bytes(),
-            target: self.parts.target,
-            object_text_bytes: self.parts.object.text_bytes(),
-            image_bytes: &output.bytes,
-            final_text_bytes: &output.final_text_bytes,
-            image_subsystem: self.parts.image.subsystem(),
-            output_file_name: &output.file_name,
-            output_format: &output.format,
-            output_counts: [
-                output.text_bytes,
-                output.data_bytes,
-                output.bss_bytes,
-                output.symbols,
-                output.relocations,
-                output.final_image_symbols,
-                output.final_image_imports,
-                output.final_image_relocations,
-            ],
-            callback_placement_identity_report_fingerprint: output
-                .callback_placement_identity_report_fingerprint,
-            final_image_symbol_digest: *self.parts.image.final_image_symbol_digest().as_bytes(),
-            executable_region_inventory_digest: *output
-                .executable_regions
-                .inventory_digest
-                .as_bytes(),
-            executable_region_inventory_report_fingerprint: output
-                .executable_regions
-                .inventory_report_fingerprint,
-            compiler_text_validation_digest,
-            compiler_function_validation,
-            compiler_entry_region_binding,
-            compiler_entry_footprint_binding,
-            selected_provider_closure_digest: *self
-                .parts
-                .selected_provider_closure_digest
-                .as_bytes(),
-            foreign_call_custody_digest: foreign_call_custody_digest(
-                self.parts.image.foreign_calls(),
-            ),
-            selected_provider_plans: &self.parts.selected_provider_plans,
-            provider_executions: &self.parts.provider_executions,
-            terminal_authority_policy_identity: self.parts.terminal_authority_policy_identity,
-            terminal_authority_permission_policy_identity: self
-                .parts
-                .terminal_authority_permission_policy_identity,
-            terminal_authority_closure_review_identity: self
-                .parts
-                .terminal_authority_closure_review
-                .identity(),
-            boundary_application_coverage_identity: boundary_application_coverage_identity(
-                self.parts.boundary_application_coverage.as_ref(),
-            ),
-            physical_evidence_scope: &self.parts.physical_evidence_scope,
-            physical_evidence_identity: self
-                .parts
-                .physical_evidence
-                .as_ref()
-                .map(|evidence| *evidence.identity()),
-            physical_evidence_gap_identity: self
-                .physical_evidence_gap
-                .as_ref()
-                .map(|gap| *gap.identity()),
-        })
+        derive_native_artifact_identity(self.parts.identity_fields(
+            self.parts.image.output(),
+            *self.parts.image.final_image_symbol_digest().as_bytes(),
+            self.parts.image.foreign_calls(),
+            self.parts.image.subsystem(),
+            self.physical_evidence_gap.as_ref(),
+        ))
     }
 
     pub const fn target(&self) -> target::NativeTarget {
