@@ -146,10 +146,11 @@ pub struct BuildTimeAdmissionPlan {
     selected_machine_bodies: Vec<crate::SelectedBuildTimeMachineBody>,
     pub(crate) accounting: crate::evaluation_accounting::EvaluationAccounting,
     checked_closures: std::cell::RefCell<
-        symbols::SymbolKeyMap<
-            (usize, usize, usize, SymbolHandle),
+        Vec<(
+            (usize, usize, usize),
+            crate::build_time_evaluation::EvaluationDomain,
             Result<std::rc::Rc<(CheckedTrees, Self)>, String>,
-        >,
+        )>,
     >,
 }
 
@@ -519,18 +520,49 @@ impl BuildTimeAdmissionPlan {
         program: &TypedTrees,
         machine_symbol: SymbolHandle,
     ) -> Result<std::rc::Rc<(CheckedTrees, Self)>, String> {
-        let key = (
+        let program_key = (
             std::ptr::from_ref(program) as usize,
             program.machines().len(),
             program.data_definitions().len(),
-            machine_symbol,
         );
-        if let Some(cached) = self.checked_closures.borrow().get(&key).cloned() {
-            return cached;
+        let mut roots = vec![machine_symbol];
+        for family in &program.target_machine_families {
+            if family.canonical == machine_symbol
+                || family
+                    .members
+                    .iter()
+                    .any(|member| member.machine == machine_symbol)
+            {
+                if !roots.contains(&family.canonical) {
+                    roots.push(family.canonical);
+                }
+                for member in &family.members {
+                    if !roots.contains(&member.machine) {
+                        roots.push(member.machine);
+                    }
+                }
+            }
+        }
+        let domain = crate::syntax_probes::PreparedEvaluationInputs::domain_for_admission(
+            program,
+            self,
+            &roots,
+            &[],
+        );
+        if let Some(cached) = self
+            .checked_closures
+            .borrow()
+            .iter()
+            .find_map(|(key, cached_domain, result)| {
+                (*key == program_key && *cached_domain == domain).then(|| result.clone())
+            })
+        {
+            let pair = cached?;
+            concrete_invocation::require_complete_invocation_conditions(&pair.0, machine_symbol)?;
+            return Ok(pair);
         }
         let computed = (|| {
-            let checked =
-                concrete_invocation::checked_demanded_closure(self, program, machine_symbol)?;
+            let checked = concrete_invocation::checked_demanded_closure(&domain, program)?;
             let execution = checked.typed.as_ref();
             let admission = Self::infer(execution, self.selection_authority.clone())
                 .with_selected_operators(execution, &self.selected_operators)?
@@ -539,8 +571,10 @@ impl BuildTimeAdmissionPlan {
         })();
         self.checked_closures
             .borrow_mut()
-            .insert(key, computed.clone());
-        computed
+            .push((program_key, domain, computed.clone()));
+        let pair = computed?;
+        concrete_invocation::require_complete_invocation_conditions(&pair.0, machine_symbol)?;
+        Ok(pair)
     }
 
     fn require_checked_invocation_floor(

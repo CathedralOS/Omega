@@ -101,7 +101,8 @@ pub(crate) struct CurrentScalarValues<'program> {
     fields: Vec<ScalarField>,
     conditions: Vec<ConditionBinding>,
     hypotheses: Vec<ScopedArithmeticHypothesis>,
-    scalar_observations: Vec<validation::CapturedScalarObservation>,
+    in_transition_target: bool,
+    scalar_observations: std::cell::OnceCell<Vec<validation::CapturedScalarObservation>>,
 }
 
 impl<'program> CurrentScalarValues<'program> {
@@ -201,19 +202,8 @@ impl<'program> CurrentScalarValues<'program> {
             fields: Vec::new(),
             conditions: Vec::new(),
             hypotheses: Vec::new(),
-            scalar_observations: validation::captured_numeric_observations(
-                program,
-                machine,
-                state,
-                statement_index,
-                target.is_valid(),
-                validation::NumericObservationDemand {
-                    scalar_values: true,
-                    integer_operations: false,
-                    scalar_associations: false,
-                },
-            )
-            .scalar_values,
+            in_transition_target: target.is_valid(),
+            scalar_observations: std::cell::OnceCell::new(),
         };
         values.seed_parameter_fields();
         let owned_frames = frames
@@ -739,6 +729,21 @@ impl<'program> CurrentScalarValues<'program> {
             }
             if let Some(observation) = self
                 .scalar_observations
+                .get_or_init(|| {
+                    validation::captured_numeric_observations(
+                        program,
+                        machine,
+                        state,
+                        self.statement_index,
+                        self.in_transition_target,
+                        validation::NumericObservationDemand {
+                            scalar_values: true,
+                            integer_operations: false,
+                            scalar_associations: false,
+                        },
+                    )
+                    .scalar_values
+                })
                 .iter()
                 .find(|observation| observation.expression == expression)
             {

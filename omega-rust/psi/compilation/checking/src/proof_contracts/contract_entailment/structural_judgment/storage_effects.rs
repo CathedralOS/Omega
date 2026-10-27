@@ -315,9 +315,7 @@ impl StructuralJudge<'_> {
         self.invalidated_storage = returned.invalidated_storage;
         self.storage_exposures = returned.storage_exposures;
         self.premise_facts = returned.premise_facts;
-        self.storage_write_sequence = self
-            .storage_write_sequence
-            .max(returned.storage_write_sequence);
+        self.storage_write_sequence = returned.storage_write_sequence;
         self.capture_sequence = self.capture_sequence.max(returned.capture_sequence);
         Some(())
     }

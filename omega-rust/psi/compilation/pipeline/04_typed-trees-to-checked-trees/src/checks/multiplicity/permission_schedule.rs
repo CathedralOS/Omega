@@ -208,14 +208,11 @@ impl SelectedCases {
     pub(super) fn at_step(
         program: &dyn validation::CheckingInput,
         facts: &checked_trees::CheckFacts,
+        flow: &checked_trees::FlowStateFact,
         machine: &typed_trees::machine::Machine,
         state: &typed_trees::state::State,
         step: PermissionStep,
     ) -> Option<Self> {
-        let flow = facts
-            .flow
-            .control
-            .unique_state(machine.symbol, state.symbol)?;
         let (statement, constraints) = match step {
             PermissionStep::Evaluate {
                 statement,
@@ -283,10 +280,16 @@ impl SelectedCases {
             // keeps the exclusions selected before its operands.
             _ => return None,
         };
+        if constraints.is_empty() {
+            return None;
+        }
         let contexts = facts
             .flow
             .semantic_constraint_contexts(constraints)
             .collect::<Vec<_>>();
+        if contexts.is_empty() {
+            return None;
+        }
         let evidence = crate::flow::CaseEvidence::prepare(
             program,
             &facts.semantic,
@@ -295,9 +298,11 @@ impl SelectedCases {
             state.symbol,
             statement,
         )?;
-        Some(Self {
-            inactive: evidence.inactive_owned_cases(),
-        })
+        let inactive = evidence.inactive_owned_cases();
+        if inactive.is_empty() {
+            return None;
+        }
+        Some(Self { inactive })
     }
 
     pub(super) fn apply_claims(&self, places: &mut [super::linear_obligations::LinearPlace]) {

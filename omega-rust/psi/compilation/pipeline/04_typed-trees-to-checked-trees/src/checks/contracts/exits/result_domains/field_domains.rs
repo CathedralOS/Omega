@@ -132,17 +132,23 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
                 .collect::<Option<Vec<_>>>()
         })
         .flatten();
-    let cases = super::super::cases::CaseObservation::for_exit(
-        program,
-        facts,
-        exit,
-        &entry_contexts,
-        call_frames,
-    );
+    let cases = std::cell::OnceCell::new();
     for (path, domain_symbol, semantic_domain) in paths {
-        if cases
-            .as_ref()
-            .is_some_and(|cases| cases.result_path_is_inactive(&path))
+        if path
+            .iter()
+            .any(|segment| matches!(segment, facts::PlaceSegment::Case { .. }))
+            && cases
+                .get_or_init(|| {
+                    super::super::cases::CaseObservation::for_exit(
+                        program,
+                        facts,
+                        exit,
+                        &entry_contexts,
+                        call_frames,
+                    )
+                })
+                .as_ref()
+                .is_some_and(|cases| cases.result_path_is_inactive(&path))
         {
             continue;
         }
@@ -360,8 +366,8 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
                     domain_symbol,
                     semantic_domain,
                 )
-                || completed_satisfies()
                 || captured_satisfies(&path)
+                || completed_satisfies()
         };
         if !satisfied {
             let (root, mut segments) = base
