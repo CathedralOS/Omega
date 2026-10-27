@@ -126,6 +126,9 @@ pub use proof_contracts::contract_entailment::ranking_range::{
     closed_collection_length_at_place, closed_collection_length_under_matches,
     unique_literal_field,
 };
+pub use proof_contracts::contract_entailment::{
+    ImmutableEntryReadIdentity, immutable_entry_indexed_read_identity,
+};
 pub use proof_contracts::contract_results::{
     ReservedResultPlace, callable_contract_scopes, reserved_result_owner, reserved_result_place,
 };
@@ -427,9 +430,6 @@ pub use proof_contracts::arithmetic_domains::immutable_integer_expression_bounds
 pub use proof_contracts::arithmetic_domains::integer_widen_is_total;
 pub use proof_contracts::arithmetic_domains::normal_return_integer_bounds;
 pub use proof_contracts::arithmetic_domains::normal_return_length_collection;
-pub use proof_contracts::arithmetic_domains::{
-    occurrence_integer_expression_bounds, occurrence_integer_expression_recipe,
-};
 pub use proof_contracts::arithmetic_domains::occurrence_integer_expression_fits_range;
 pub use proof_contracts::arithmetic_domains::occurrence_integer_expressions_bounds;
 pub use proof_contracts::arithmetic_domains::state_parameter_integer_interval;
@@ -439,6 +439,9 @@ pub use proof_contracts::arithmetic_domains::{
     StoredIntegerReach, standing_integer_bounds, stored_integer_bounds,
     stored_integer_source_projection, stored_integer_source_projections,
     stored_integer_source_reach,
+};
+pub use proof_contracts::arithmetic_domains::{
+    occurrence_integer_expression_bounds, occurrence_integer_expression_recipe,
 };
 pub use proof_contracts::contract_entailment::arithmetic_judgment::integer_embedding_sources_equal;
 pub use proof_contracts::contract_entailment::call_requirements::selected_value_call_requirement_entailed;
