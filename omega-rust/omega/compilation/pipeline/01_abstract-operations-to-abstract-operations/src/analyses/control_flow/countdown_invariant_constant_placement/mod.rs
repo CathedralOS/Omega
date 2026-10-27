@@ -98,13 +98,9 @@ pub enum CountdownInvariantConstantPlacementAnalysisError {
     SnapshotMismatch,
 }
 
-impl std::fmt::Display for CountdownInvariantConstantPlacementAnalysisError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "countdown invariant-constant placement analysis failure: {self:?}"
-        )
-    }
-}
+failed_display!(
+    CountdownInvariantConstantPlacementAnalysisError,
+    "countdown invariant-constant placement analysis failure"
+);
 
 impl std::error::Error for CountdownInvariantConstantPlacementAnalysisError {}

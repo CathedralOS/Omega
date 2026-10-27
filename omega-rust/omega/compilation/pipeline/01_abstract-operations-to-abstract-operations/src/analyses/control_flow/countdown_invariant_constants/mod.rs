@@ -102,14 +102,10 @@ pub enum CountdownInvariantConstantAnalysisError {
     SnapshotMismatch,
 }
 
-impl std::fmt::Display for CountdownInvariantConstantAnalysisError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "countdown invariant-constant analysis failure: {self:?}"
-        )
-    }
-}
+failed_display!(
+    CountdownInvariantConstantAnalysisError,
+    "countdown invariant-constant analysis failure"
+);
 
 impl std::error::Error for CountdownInvariantConstantAnalysisError {}
 fn validate_locations(

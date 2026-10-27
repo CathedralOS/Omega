@@ -79,11 +79,7 @@ pub enum CountedLoopAnalysisError {
     SnapshotMismatch,
 }
 
-impl std::fmt::Display for CountedLoopAnalysisError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "counted-loop analysis failure: {self:?}")
-    }
-}
+failed_display!(CountedLoopAnalysisError, "counted-loop analysis failure");
 
 impl std::error::Error for CountedLoopAnalysisError {}
 

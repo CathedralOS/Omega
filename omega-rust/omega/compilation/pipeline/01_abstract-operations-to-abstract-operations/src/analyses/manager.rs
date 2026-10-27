@@ -20,11 +20,7 @@ pub enum AnalysisManagerError {
     WorkerPanicked(AnalysisKind),
 }
 
-impl std::fmt::Display for AnalysisManagerError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "Psi optimizer analysis failure: {self:?}")
-    }
-}
+failed_display!(AnalysisManagerError, "Psi optimizer analysis failure");
 
 impl std::error::Error for AnalysisManagerError {}
 
