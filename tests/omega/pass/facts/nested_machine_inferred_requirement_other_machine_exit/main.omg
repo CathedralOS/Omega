@@ -1,0 +1,23 @@
+// Every arrival establishes the equality consumed by the nested helper.
+// Expected exit: 0
+data Note { value: u64; tag: u64; }
+machine same(left: u64, right: u64) -> u64
+requires left == right; ensures result == left; { left }
+machine probe(value: u64, select: bool) -> Note {
+    transition select {
+        true -> forward(value, value, 11)
+        false -> forward(value, value, 13)
+    }
+    machine forward(left: u64, right: u64, tag: u64) -> Note {
+        Note { value: same(left, right), tag: tag }
+    }
+}
+machine relay(value: u64, select: bool) -> Note { probe(value, select) }
+machine main() crashes Trap {
+    let first: Note = relay(7, true);
+    let second: Note = relay(9, false);
+    transition first.value == 7 && first.tag == 11 && second.value == 9 && second.tag == 13 {
+        true -> done() false -> bad()
+    }
+    machine done() {} machine bad() crashes Trap { crash Trap; }
+}

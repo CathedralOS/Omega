@@ -305,16 +305,21 @@ pub(crate) fn collect_machine_proposals_for_callee(
 /// Specialization consumes resolved declaration identity; it never resolves
 /// names. An unresolved qualified call may denote an intrinsic or an invalid
 /// member, not a same-spelled generic machine from another owner.
-pub(crate) fn resolve_callee(
-    callee_states: &[CalleeState],
+/// Source calls may select a declaration or its entry. Resolve that identity
+/// before tuple inference; a declaration spelling is not an unresolved generic.
+pub(crate) fn resolve_callee<'callee>(
+    program: &dyn ::validation::CheckingInput,
+    callee_states: &'callee [CalleeState],
     target_symbol: SymbolHandle,
-) -> Option<&CalleeState> {
+) -> Option<&'callee CalleeState> {
     if !target_symbol.is_valid() {
         return None;
     }
-    callee_states
-        .iter()
-        .find(|callee| callee.symbol == target_symbol)
+    let entry = program
+        .machine_by_symbol(target_symbol)
+        .and_then(|machine| program.machine_states(machine).first())
+        .map_or(target_symbol, |state| state.symbol);
+    callee_states.iter().find(|callee| callee.symbol == entry)
 }
 
 pub(crate) fn state_by_symbol(

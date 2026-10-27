@@ -7,6 +7,8 @@
 //! prevent an independently surviving path from proving its call premises,
 //! and excluding it supplies no crash permission or denotational admission.
 
+mod call_entries;
+
 use super::call_requirements::establish_citation;
 use super::structural_prefix::StructuralPrefixVisitor;
 use crate::proof_contracts::contract_entailment::citations::{
@@ -1092,6 +1094,31 @@ fn recognize_structural_state_leaves_from<'a>(
                 // Other incoming paths are still visited by the parent.
                 return Some(Vec::new());
             }
+            if !matches!(statement, StatementNode::Transition(_)) && requirement.is_some() {
+                // This observes callee entry before the statement completes or
+                // imports its guarantees. Hoisted calls and authored locals own
+                // the same ordered operation entries as terminal calls.
+                call_entries::observe_statement(
+                    program,
+                    machine,
+                    invocation,
+                    judge,
+                    classification,
+                    diagnostics,
+                    states,
+                    state,
+                    statement_index,
+                    parameter_names,
+                    &environment,
+                    &case_hypotheses,
+                    &case_equations,
+                    &pending_citations,
+                    path,
+                    fresh,
+                    requirement,
+                    &established_guarantees,
+                )?;
+            }
             // Statement calls and their operands own separate write frames.
             // Retire affected storage without discarding unrelated captures.
             // Legacy citation substitution has no post-state argument model,
@@ -2016,14 +2043,22 @@ fn transparent_body_is_observation_free(
     };
     let eligible = |operational: &flow_effects::OperationalPlan,
                     reaches: &flow_effects::ServiceReachInferencePlan| {
-        crate::machine_calls::denotational_calls::checked_value_call_candidate(
+        let result = crate::machine_calls::denotational_calls::checked_value_call_candidate(
             program,
             machine,
             entry,
             operational,
             reaches,
-        )
-        .is_ok()
+        );
+        if super::struct_trace()
+            && let Err(reason) = &result
+        {
+            eprintln!(
+                "STRUCT body opaque machine={} reason={reason:?}",
+                machine.name
+            );
+        }
+        result.is_ok()
     };
     if let Some(plans) = program.prepared_effect_plans() {
         return eligible(&plans.operational, &plans.service_reaches);
