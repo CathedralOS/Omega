@@ -1,0 +1,34 @@
+// Every cyclic private arrival carries depth >= 1, so consume can form depth - 1.
+// Expected exit: 0
+data Counter { depth: u64; marker: u64; canary: u64; }
+machine probe(output: &mut Counter, depth: u64, select: bool) {
+    output.depth = depth;
+    transition { _ -> visit(output, select) }
+    machine visit(output: &mut Counter, select: bool) {
+        let ready: bool = output.depth >= 0;
+        transition ready { true -> consume(output, select) false -> finished(output) }
+    }
+    machine consume(output: &mut Counter, select: bool) {
+        output.depth = output.depth - 1;
+        output.marker = 5;
+        transition { _ -> visit(output, select) }
+    }
+    machine finished(output: &mut Counter) {}
+}
+machine main() crashes Trap {
+    let mut output: Counter = Counter { depth: 77, marker: 0, canary: 33 };
+    probe(&mut output, 7, true);
+    let first_depth: u64 = output.depth;
+    let first_marker: u64 = output.marker;
+    output.marker = 0;
+    probe(&mut output, 9, false);
+    let second_depth: u64 = output.depth;
+    let second_marker: u64 = output.marker;
+    output.marker = 0;
+    probe(&mut output, 0, true);
+    transition first_depth == 0 && first_marker == 5 && second_depth == 0 && second_marker == 5 && output.depth == 0 && output.marker == 0 && output.canary == 33 {
+        true -> done() false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

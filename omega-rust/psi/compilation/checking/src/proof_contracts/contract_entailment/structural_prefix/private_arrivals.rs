@@ -2,7 +2,8 @@
 //! The enclosing declaration starts with arbitrary inputs and its own contract.
 //! Its ordinary path owner substitutes completed actuals and retains guards and
 //! prior citations. Every admissible private arrival must be observed; an opaque
-//! call, escaping selection or private cycle cannot donate a convenient premise.
+//! call or escaping selection cannot donate a convenient premise. Recurrent
+//! entries are observed afresh, never under a previous iteration's values.
 //! Coverage and proof are separate: this coordinator observes every arrival;
 //! the consumer owns its predicate, all-path judgment, and theorem eligibility.
 
@@ -12,7 +13,9 @@ use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 
+mod cycles;
 mod scope;
+pub(crate) use scope::ClosedArrivals;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Arrival {
@@ -28,8 +31,8 @@ pub(in crate::proof_contracts::contract_entailment) fn observe_private_arrivals(
     case_facts_only: bool,
 ) -> Option<bool> {
     let root = scope::lexical_root(program, machine)?;
-    let expected = match scope::closed_arrivals(program, root, machine) {
-        Ok(expected) => expected,
+    let arrivals = match scope::closed_arrivals(program, root, machine) {
+        Ok(arrivals) => arrivals,
         Err(reason) => {
             if super::super::struct_trace() {
                 eprintln!("PRIVATE arrivals machine={} reason={reason}", machine.name);
@@ -39,22 +42,40 @@ pub(in crate::proof_contracts::contract_entailment) fn observe_private_arrivals(
     };
     let entry = program.machine_states(machine).first()?;
     let classification = crate::proof_only_classification(program);
+    // Erased proof recursion retains its existing ranked induction owner.
+    // These fresh runtime intervals cannot license another theorem's IH.
+    if arrivals.cycle_entries.iter().any(|symbol| {
+        program
+            .machine_by_symbol(*symbol)
+            .is_none_or(|entry| classification.is_proof_machine(program, entry))
+    }) {
+        return Some(false);
+    }
+    let roots = program
+        .machines()
+        .iter()
+        .filter(|candidate| {
+            scope::is_root(program, candidate, root)
+                || arrivals.cycle_entries.contains(&candidate.symbol)
+        })
+        .collect::<Vec<_>>();
+    let boundaries = roots.iter().map(|root| root.symbol).collect::<Vec<_>>();
+
     let mut observer = ArrivalRequirement {
         requirement,
         entry: entry.symbol,
         root: root.symbol,
         observed: Vec::new(),
+        boundaries,
+        closed: std::sync::Arc::clone(&arrivals),
     };
     let mut diagnostics = Vec::new();
     let mut recognized = true;
     // Each executable application starts independently with arbitrary runtime
     // inputs under its own applied contract. Knowing the source template locates
     // that declaration group; it supplies neither caller values nor premises.
-    for arrival_root in program
-        .machines()
-        .iter()
-        .filter(|candidate| scope::is_root(program, candidate, root))
-    {
+    for arrival_root in roots {
+        observer.root = arrival_root.symbol;
         let Some(root_entry) = program.machine_states(arrival_root).first() else {
             return Some(false);
         };
@@ -72,7 +93,6 @@ pub(in crate::proof_contracts::contract_entailment) fn observe_private_arrivals(
         if case_facts_only {
             judge.restrict_to_case_facts();
         }
-        observer.root = arrival_root.symbol;
         recognized &= super::recognize_structural_case_arms(
             program,
             arrival_root,
@@ -90,15 +110,16 @@ pub(in crate::proof_contracts::contract_entailment) fn observe_private_arrivals(
             root.name,
             recognized,
             observer.observed.len(),
-            expected.len(),
+            arrivals.expected.len(),
             diagnostics.len()
         );
     }
     Some(
         recognized
             && diagnostics.is_empty()
-            && !expected.is_empty()
-            && expected
+            && !arrivals.expected.is_empty()
+            && arrivals
+                .expected
                 .iter()
                 .all(|arrival| observer.observed.contains(arrival)),
     )
@@ -109,6 +130,8 @@ struct ArrivalRequirement<'query> {
     entry: SymbolHandle,
     root: SymbolHandle,
     observed: Vec<Arrival>,
+    boundaries: Vec<SymbolHandle>,
+    closed: std::sync::Arc<ClosedArrivals>,
 }
 
 impl StructuralPrefixVisitor for ArrivalRequirement<'_> {
@@ -125,7 +148,14 @@ impl StructuralPrefixVisitor for ArrivalRequirement<'_> {
         self.requirement.unresolved(machine);
     }
     fn stops_at_machine(&self, machine: SymbolHandle) -> bool {
-        self.requirement.stops_at_machine(machine)
+        // Closure checked every direct/escaping private use. Opaque calls in
+        // unrelated bodies cannot name this private occurrence; re-entry into
+        // an enclosing root is covered by that root's independent invocation.
+        // Ordinary completion still observes their actual writes and values.
+        let boundary = self.boundaries.contains(&machine);
+        (!boundary && !self.closed.bodies.contains(&machine))
+            || (machine != self.root && boundary)
+            || self.requirement.stops_at_machine(machine)
     }
     fn observe<'program>(&mut self, observation: PrefixObservation<'_, 'program>) {
         let program = observation.0;

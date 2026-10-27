@@ -84,11 +84,17 @@ fn belongs_to(
     false
 }
 
+pub(crate) struct ClosedArrivals {
+    pub(super) expected: Vec<Arrival>,
+    pub(super) cycle_entries: Vec<SymbolHandle>,
+    pub(super) bodies: Vec<SymbolHandle>,
+}
+
 pub(super) fn closed_arrivals(
     program: &dyn crate::CheckingInput,
     root: &Machine,
     callee: &Machine,
-) -> Result<Vec<Arrival>, &'static str> {
+) -> Result<std::sync::Arc<ClosedArrivals>, &'static str> {
     if let Some(memos) = crate::frozen_program::frozen_program_memos(program) {
         if let Ok(guard) = memos.private_closed_arrivals.lock()
             && let Some(cached) = guard.get(&(root.symbol, callee.symbol))
@@ -96,7 +102,9 @@ pub(super) fn closed_arrivals(
             return cached.clone();
         }
     }
-    let result = compute_closed_arrivals(program, root, callee);
+    // This summary depends only on the frozen call/use graph. It contains
+    // neither a runtime observation nor a predicate's proof judgment.
+    let result = compute_closed_arrivals(program, root, callee).map(std::sync::Arc::new);
     if let Some(memos) = crate::frozen_program::frozen_program_memos(program)
         && let Ok(mut guard) = memos.private_closed_arrivals.lock()
     {
@@ -109,7 +117,7 @@ fn compute_closed_arrivals(
     program: &dyn crate::CheckingInput,
     root: &Machine,
     callee: &Machine,
-) -> Result<Vec<Arrival>, &'static str> {
+) -> Result<ClosedArrivals, &'static str> {
     let members: Vec<_> = program
         .machines()
         .iter()
@@ -130,6 +138,7 @@ fn compute_closed_arrivals(
     let mut expected = Vec::new();
     let mut edges = vec![Vec::new(); members.len()];
     let mut outside = Vec::new();
+    let mut declared_entries = Vec::new();
     for caller in program.machines() {
         for state in program.machine_states(caller) {
             for (index, _) in program
@@ -152,6 +161,9 @@ fn compute_closed_arrivals(
                     };
                     if !belongs_to(program, caller.symbol, root.symbol) {
                         outside.push(destination);
+                    }
+                    if is_root(program, caller, root) && !declared_entries.contains(&destination) {
+                        declared_entries.push(destination);
                     }
                     if let Some(source) = members
                         .iter()
@@ -206,8 +218,10 @@ fn compute_closed_arrivals(
         return Err("the private declaration group has an exposed callable");
     }
     let mut target_symbols = std::collections::HashSet::new();
+    let mut bodies = Vec::new();
     for (index, member) in members.iter().enumerate() {
         if needed[index] {
+            bodies.push(member.symbol);
             target_symbols.insert(member.symbol);
             for state in program.machine_states(member) {
                 target_symbols.insert(state.symbol);
@@ -228,41 +242,18 @@ fn compute_closed_arrivals(
     if !uses.closed || !uses.pending.is_empty() {
         return Err("a private callable has a non-direct or out-of-scope use");
     }
-    // Cycles avoiding the declared enclosing entry need their own established
-    // invariant. The first observed arrival cannot justify later iterations.
-    let mut incoming = vec![0usize; members.len()];
-    for (_, successors) in edges
-        .iter()
-        .enumerate()
-        .filter(|(source, _)| needed[*source])
-    {
-        for &successor in successors {
-            if needed[successor] {
-                incoming[successor] += 1;
-            }
-        }
-    }
-    let mut ready: Vec<_> = incoming
-        .iter()
-        .enumerate()
-        .filter_map(|(index, &count)| (needed[index] && count == 0).then_some(index))
+    // A recurring entry has no inherited runtime values. Its separately
+    // observed prefix must establish the requested fact again from arbitrary
+    // inputs; roots/initializers and a prior iteration supply no invariant.
+    let cycle_entries = super::cycles::entries(&edges, &needed, &declared_entries)
+        .into_iter()
+        .map(|index| members[index].symbol)
         .collect();
-    let mut visited = 0;
-    while let Some(index) = ready.pop() {
-        visited += 1;
-        for &successor in &edges[index] {
-            if !needed[successor] {
-                continue;
-            }
-            incoming[successor] -= 1;
-            if incoming[successor] == 0 {
-                ready.push(successor);
-            }
-        }
-    }
-    (visited == needed.iter().filter(|&&needed| needed).count())
-        .then_some(expected)
-        .ok_or("a private call cycle avoids the enclosing declaration entry")
+    Ok(ClosedArrivals {
+        expected,
+        cycle_entries,
+        bodies,
+    })
 }
 
 struct PrivateUses<'program> {

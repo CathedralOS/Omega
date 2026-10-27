@@ -1085,6 +1085,20 @@ fn recognize_structural_state_leaves_from<'a>(
             execution.iter().copied().enumerate().skip(start_position)
         {
             let statement = &statements[statement_index];
+            if super::struct_trace() && requirement.is_some() {
+                let kind = match statement {
+                    StatementNode::LocalData(_) => "local",
+                    StatementNode::Assignment(_) => "assignment",
+                    StatementNode::Transition(_) => "transition",
+                    StatementNode::Expression(_) => "expression",
+                    StatementNode::Call(_) => "call",
+                    _ => "metadata",
+                };
+                eprintln!(
+                    "STRUCT prefix-step root={} body={} state={} statement={statement_index} kind={kind}",
+                    machine.name, invocation.name, state.name,
+                );
+            }
             let next_statement = execution
                 .get(execution_position + 1)
                 .copied()
@@ -1940,6 +1954,12 @@ fn recognize_structural_state_leaves_from<'a>(
         Some(leaves)
     })();
 
+    if result.is_none() && super::struct_trace() && requirement.is_some() {
+        eprintln!(
+            "STRUCT prefix-incomplete root={} body={} state={} start={start_index}",
+            machine.name, invocation.name, state.name,
+        );
+    }
     if start_index == 0 {
         path.pop();
     }
