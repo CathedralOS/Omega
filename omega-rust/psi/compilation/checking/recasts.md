@@ -91,16 +91,21 @@ in both directions. Semantic writes through the wider encoded view still prove
 fit. Foreign thin pointers may carry this explicitly checked physical aggregate
 backing, never an internal scalar pointer-and-codec descriptor.
 
-A record's data `where` facts take part when every conjunct bounds one of its
-direct scalar fields by a literal (`value >= 0.0 && value <= 1.0`). Such a
-conjunction constrains each field independently, so it narrows that field's
-leaf exactly as the revoked bracketed range did, and the leaf-wise comparison
-decides the whole judgment. Float bounds read the literal at the field's
-format, require the builtin or sealed IEEE comparison, and admit only closed
-comparisons. Writes through a view re-prove the view's own declaration, which
-the comparison showed equivalent (mutable) or implied (shared). A relational
-fact, a bound on a nested aggregate or a membership fact keeps the record
-fenced, and byte-region views still require recursively fact-free targets.
+A record's data `where` facts take part when the complete conjunction describes
+independent direct scalar-field sets. Integer fields use the same normalized
+bounds as standing default domains: literal comparisons and admitted ordinary
+predicate calls whose full-carrier converse independently proves the complete
+Cartesian envelope. A necessary consequence of a stronger predicate is
+insufficient. The representation consumer reads these emitted field bounds;
+it does not interpret predicate bodies or manufacture source expressions.
+
+Float fields retain their literal/carrier judgment (`value >= 0.0 && value <= 1.0`),
+require the builtin or sealed IEEE comparison, and admit only closed comparisons.
+Exact schema field identities join these bounds to any synthesized physical
+layout. The existing leaf-wise bit-set comparison still requires equivalence
+for mutable views and implication for shared views. Writes re-prove the view's
+own declaration. Unsupported coupled, nested, or membership facts fence the
+whole record, and byte-region views still require recursively fact-free targets.
 
 One direct erased-lifetime shell around an eligible synthesized record may
 use its exact instance layout when lifetime arity is exact, no runtime

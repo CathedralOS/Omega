@@ -830,13 +830,12 @@ mod tests {
             ty: denotation.two,
             value,
         });
-        let mut certificate = MathematicalCertificate {
-            signature: denotation.declarations,
-            level_arity: 0,
-            context: Vec::new(),
+        let mut certificate = MathematicalCertificate::with_signature(
+            denotation.declarations,
+            Vec::new(),
             term,
-            expected: expected_type,
-        };
+            expected_type,
+        );
         assert!(
             certificate.signature.is_empty(),
             "truth tables need no assumptions"
@@ -893,13 +892,12 @@ mod tests {
             left: value,
             right: value,
         });
-        let certificate = MathematicalCertificate {
-            signature: denotation.declarations,
-            level_arity: 0,
-            context: Vec::new(),
+        let certificate = MathematicalCertificate::with_signature(
+            denotation.declarations,
+            Vec::new(),
             term,
             expected,
-        };
+        );
         assert_eq!(
             certificate_assumption_closure(&denotation.arena, &certificate),
             [0, 1].into_iter().collect()
@@ -1178,13 +1176,12 @@ mod tests {
             .boolean_identity_transport(premise, goal, evidence)
             .expect("the transport runs")
             .expect("the contrapositive identity is a case-analysis derivation");
-        let certificate = MathematicalCertificate {
-            signature: denotation.declarations.clone(),
-            level_arity: 0,
-            context: vec![premise],
+        let certificate = MathematicalCertificate::with_signature(
+            denotation.declarations.clone(),
+            vec![premise],
             term,
-            expected: goal,
-        };
+            goal,
+        );
         verify_mathematical_certificate(
             &mut denotation.arena,
             &certificate,
@@ -1241,13 +1238,12 @@ mod tests {
             .boolean_goal_transport(premise, reflexive_goal, evidence)
             .expect("the transport runs")
             .expect("an always-inhabited goal derives");
-        let certificate = MathematicalCertificate {
-            signature: denotation.declarations.clone(),
-            level_arity: 0,
-            context: vec![premise],
+        let certificate = MathematicalCertificate::with_signature(
+            denotation.declarations.clone(),
+            vec![premise],
             term,
-            expected: reflexive_goal,
-        };
+            reflexive_goal,
+        );
         verify_mathematical_certificate(
             &mut denotation.arena,
             &certificate,
@@ -1326,13 +1322,12 @@ mod tests {
             .boolean_goal_transport(premise, goal, evidence)
             .expect("the transport runs")
             .expect("the disjunction's second branch inhabits at each `a` valuation");
-        let certificate = MathematicalCertificate {
-            signature: denotation.declarations.clone(),
-            level_arity: 0,
-            context: vec![premise],
+        let certificate = MathematicalCertificate::with_signature(
+            denotation.declarations.clone(),
+            vec![premise],
             term,
-            expected: goal,
-        };
+            goal,
+        );
         verify_mathematical_certificate(
             &mut denotation.arena,
             &certificate,

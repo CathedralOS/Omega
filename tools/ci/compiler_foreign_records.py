@@ -2,7 +2,8 @@
 """Matching-host C scalar-record result evidence through the normal corpus gate."""
 
 import argparse
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
+from dataclasses import dataclass
 import ctypes
 import hashlib
 import json
@@ -189,9 +190,18 @@ def qualify_result_provenance(output, cli):
         (output / "result-provenance.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
 
 
+@dataclass(frozen=True)
+class OwnedFactRow:
+    relative: str
+    fixture_prefix: str
+    additional_projects: tuple = ()
+
+
 OWNED_ROWS = {
-    "nested": ("foreign_scalar_record_result/nested", "foreign_nested_scalar_record_result"),
-    "arrays": ("foreign_scalar_record_result/arrays", "foreign_owned_array_record"),
+    "nested": OwnedFactRow("foreign_scalar_record_result/nested", "foreign_nested_scalar_record_result"),
+    "arrays": OwnedFactRow("foreign_scalar_record_result/arrays", "foreign_owned_array_record"),
+    "zero-leaf": OwnedFactRow("nested_zero_leaf_array_storage", "nested_zero_leaf_array_storage",
+                              (("zeroed_source", "nested_zero_leaf_array_storage_zeroed_source"),)),
 }
 COHORTS = ("scalar-opaque",) + tuple(OWNED_ROWS)
 
@@ -200,8 +210,27 @@ def select_cohorts(selection):
     selected = COHORTS if selection == "all" else tuple(dict.fromkeys(
         part.strip() for part in selection.split(",") if part.strip()))
     if not selected or any(name not in COHORTS for name in selected):
-        raise ValueError("cohorts must name scalar-opaque, nested, arrays, or all")
+        raise ValueError("cohorts must name " + ", ".join(COHORTS) + ", or all")
     return selected
+
+
+def select_fixtures(selection, inventories):
+    """Select exact catalog IDs; a diagnostic subset never qualifies a full row."""
+    if selection is None:
+        return inventories
+    requested = tuple(part.strip() for part in selection.split(","))
+    if not requested or any(not part for part in requested):
+        raise ValueError("fixtures must name a nonempty comma-separated list of exact catalog IDs")
+    known = {fixture for positive, negative in inventories.values()
+             for fixture in (*positive, *negative)}
+    unknown = set(requested) - known
+    if unknown:
+        raise ValueError(f"unknown fixtures in selected cohorts: {sorted(unknown)}")
+    wanted = set(requested)
+    selected = {name: (tuple(f for f in positive if f in wanted),
+                       tuple(f for f in negative if f in wanted))
+                for name, (positive, negative) in inventories.items()}
+    return {name: pair for name, pair in selected.items() if any(pair)}
 
 
 @contextmanager
@@ -262,18 +291,20 @@ def scalar_opaque(output, producer):
         raise ValueError(f"scalar/opaque corpus exit {status}; public controls: {failures}")
 
 
-def owned_row(output, fact, prefix, library, producer):
-    positives, negatives = compiler_fact_rows.fixtures(compiler_pilot.ROOT, fact, prefix)
+def owned_row(output, fact, specification, library, producer):
+    projects = specification.additional_projects
+    positives, negatives = compiler_fact_rows.fixtures(
+        compiler_pilot.ROOT, fact, specification.fixture_prefix, additional_projects=projects)
     resources = {str(path): compiler_fact_rows.digest(path)
                  for folder in (output / "provider", fact / "fixture")
                  for path in folder.iterdir() if path.is_file()}
     (output / "resource-inputs.json").write_text(json.dumps(resources, indent=2) + "\n", encoding="utf-8")
     with provider_path(library):
-        inventory = compiler_fact_rows.prepare(output, fact, producer)
+        inventory = compiler_fact_rows.prepare(output, fact, producer, additional_projects=projects)
         status = compiler_pilot.run_suite(str(output.relative_to(compiler_pilot.ROOT / "build")),
                                          positives, negatives, producer=producer)
         try:
-            compiler_fact_rows.measure(output, inventory, producer)
+            compiler_fact_rows.measure(output, inventory, producer, additional_projects=projects)
         finally:
             for path, expected in resources.items():
                 if compiler_fact_rows.digest(path) != expected:
@@ -285,7 +316,9 @@ def owned_row(output, fact, prefix, library, producer):
 def main(arguments=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cohorts", default=os.environ.get("OMEGA_FOREIGN_RECORD_COHORTS") or "scalar-opaque",
-                        help="comma-separated scalar-opaque,nested,arrays; all selects every cohort")
+                        help="comma-separated " + ",".join(COHORTS) + "; all selects every cohort")
+    parser.add_argument("--fixtures", default=os.environ.get("OMEGA_FOREIGN_RECORD_FIXTURES") or None,
+                        help="optional comma-separated exact catalog IDs; diagnostic corpus subset only")
     parser.add_argument("--list", action="store_true", help="show exact selected fixtures without building")
     options = parser.parse_args(arguments)
     output = compiler_pilot.ROOT / "build/compiler-foreign-records"
@@ -293,23 +326,28 @@ def main(arguments=None):
     plans = {}
     for name in selected:
         if name in OWNED_ROWS:
-            relative, prefix = OWNED_ROWS[name]
-            fact = compiler_pilot.ROOT / "samples/cli/facts" / relative
-            plans[name] = (fact, prefix, *compiler_fact_rows.fixtures(compiler_pilot.ROOT, fact, prefix))
+            specification = OWNED_ROWS[name]
+            fact = compiler_pilot.ROOT / "samples/cli/facts" / specification.relative
+            plans[name] = (fact, specification, *compiler_fact_rows.fixtures(
+                compiler_pilot.ROOT, fact, specification.fixture_prefix,
+                additional_projects=specification.additional_projects))
+    inventories = select_fixtures(options.fixtures, {
+        name: plans[name][2:] if name in plans else (POSITIVES, NEGATIVES)
+        for name in selected})
+    scope = "selected-corpus-fixtures" if options.fixtures is not None else "full-cohorts"
     if options.list:
-        print(json.dumps({name: dict(positive=plans[name][2], negative=plans[name][3])
-                          if name in plans else dict(positive=POSITIVES, negative=NEGATIVES)
-                          for name in selected}, indent=2))
+        print(json.dumps({name: dict(positive=pair[0], negative=pair[1])
+                          for name, pair in inventories.items()}, indent=2))
         return 0
     os.environ["OMEGA_LIBRARY_ROOT"] = str(compiler_pilot.ROOT / "source/library")
     output.mkdir(parents=True, exist_ok=True)
     attempt = Path(tempfile.mkdtemp(prefix="attempt-", dir=output))
     report = dict(candidate=compiler_pilot.command(["git", "rev-parse", "HEAD"]),
-                  target=compiler_pilot.corpus_gate.host_target(), cohorts=[], passed=False)
+                  target=compiler_pilot.corpus_gate.host_target(), scope=scope, cohorts=[], passed=False)
     try:
         ready = []
-        for name in selected:
-            record = dict(name=name, passed=False)
+        for name, (positives, negatives) in inventories.items():
+            record = dict(name=name, scope=scope, positive=positives, negative=negatives, passed=False)
             report["cohorts"].append(record)
             cohort = attempt / name
             cohort.mkdir()
@@ -323,7 +361,14 @@ def main(arguments=None):
             report["producer"] = producer.record()
             for name, cohort, library, record in ready:
                 try:
-                    if name in plans:
+                    if options.fixtures is not None:
+                        with provider_path(library) if library is not None else nullcontext():
+                            status = compiler_pilot.run_suite(
+                                str(cohort.relative_to(compiler_pilot.ROOT / "build")),
+                                inventories[name][0], inventories[name][1], producer=producer)
+                        if status:
+                            raise ValueError(f"selected corpus fixtures failed (exit {status})")
+                    elif name in plans:
                         owned_row(cohort, plans[name][0], plans[name][1], library, producer)
                     else:
                         scalar_opaque(cohort, producer)

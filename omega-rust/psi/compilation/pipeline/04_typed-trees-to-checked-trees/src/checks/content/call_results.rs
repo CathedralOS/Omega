@@ -106,6 +106,7 @@ pub(super) fn check_call_result_qualifications(
         let place = facts.semantic.places.get(place);
         let path = facts.semantic.place_segments.span_or_empty(place.segments);
         let mut primitive_error = None;
+        let mut failure_reason = None;
         let valid = (|| {
             let ProgramPoint::CallEnsures {
                 machine_symbol,
@@ -155,16 +156,21 @@ pub(super) fn check_call_result_qualifications(
             };
             let public_contract =
                 validation::requirement_contract_signature(program, machine_symbol, &site);
+            // Flow names the selected body's executable entry; typed calls can
+            // retain its machine head. Only that exact entry is equivalent.
             // Rewriting may replace an evidence child with an executable body
             // while flow retains its public requirement as the fact's source.
             // Only the validated invocation contract joins those identities.
             let exact_source = fact.evidence.source_symbol == call.target_symbol
+                || fact.evidence.source_symbol
+                    == validation::call_target_entry_symbol(program, call.target_symbol)
                 || public_contract
                     .is_some_and(|(_, signature)| fact.evidence.source_symbol == signature.symbol);
             if fact.evidence.origin != QualificationEvidenceOrigin::Propagated
                 || !exact_source
                 || fact.evidence.requirement_symbol.is_valid()
             {
+                failure_reason = Some("the published qualification does not identify this exact invocation");
                 return None;
             }
             let invocation = Invocation {
@@ -187,6 +193,7 @@ pub(super) fn check_call_result_qualifications(
             if !declared.iter().any(|(declared_path, symbol, identity)| {
                 declared_path == path && *symbol == domain_symbol && *identity == semantic_domain
             }) {
+                failure_reason = Some("the selected result contract does not declare this exact qualified path and domain instance");
                 return None;
             }
             let projection = facts
@@ -473,8 +480,9 @@ pub(super) fn check_call_result_qualifications(
                 ),
                 _ => String::new(),
             };
+            let reason = failure_reason.unwrap_or("the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved");
             diagnostics.push(Diagnostic::error(format!(
-                "cannot establish call-result qualification `{}`{location}: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved",
+                "cannot establish call-result qualification `{}`{location}: {reason}",
                 domain.name,
             )));
         }

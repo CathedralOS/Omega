@@ -274,6 +274,34 @@ for receiving admission, not failures of shared portable production.
 Completion consumes an explicit native-proposal request and the produced
 application, not a checked compilation. The application retains physical-adapter
 selection; completion still binds its exact arrival contract against the artifact.
+The native compiler owns this source-free preparation in `application.rs`, plus
+admission of the independently supplied package-permission rows. Product
+coordination supplies those inputs and requests preparation; it has no direct
+dependency on numbered Omega stages. Artifact-only and component publication use
+the same preparation without emitting an image. This does not yet remove source
+provider selection from product coordination or stage vocabulary from shared
+product representations.
+
+Retained constant proof closure belongs to Psi source checking. The product
+coordinator supplies selected value views, application membership and address
+model inputs; Psi selects the recorded obligations, discharges them in their
+existing order, requires complete coverage and publishes the closed checked
+facts. It also settles pending boundary clauses before returning that program.
+The coordinator no longer rebuilds proof facts or chooses that final checking
+step. Psi also owns selected constant evaluation: available query closure,
+continuation evaluation and layout-plan installation, final query closure, then
+initializer completion. The target supplies read-only geometry through one
+prepared layout view per pass; it never rewrites expressions or selects source
+formation rules. Build admission and Product completion use this same operation.
+Psi captures deferred constant work together with its authored source before
+checking changes occurrences. Reusing a checked judgment retains the current
+invocation's deferred work, not the cached consumer's. Selected Product closure
+evaluates a private copy, rejoins recorded recipe identities and closes queries
+in the actual checked forest; the coordinator no longer copies constant values
+or layout tables between those forests.
+Provider selection and target geometry still originate outside Psi. This is not
+yet target-independent constant production or a completed Terminal-only provider
+pipeline; portable deferred recipes remain part of the migration.
 
 Independent component emission belongs to the same source-free native compiler
 entrance as root emission. Product preparation supplies each verified component,
@@ -376,7 +404,17 @@ completion accepts the exact returned Build, never an execution callback or a
 checked-tree sidecar. Target-local refusals and post-Build discovery remain in
 their outcomes. Explicit provider readiness retains the suspended activation
 while its named dependency is acquired, settled and compiled to Terminal Psi,
-then installs that exact implementation before resuming. The final source join
+then installs that exact implementation before resuming. Helper Product
+preparation uses an explicit dependency-first frontier, retaining
+generated bundles by package and purpose without recursive preparation calls.
+Source execution, provider/query dependencies, graph resolution and workspace
+catalogs also use application-owned pending work. Each paused Build retains its
+original invocation, interpreter activation and exact host adapters. Immutable
+Terminal code and source-issued call tables share their existing owners without
+encoding, decoding or rebuilding code. Host issuance and activation start remain
+once-only even when caller handles are cloned or dropped. Checking still retains
+recursive walks; this work does not remove the large compiler stack reservation.
+The final source join
 also reconciles helper graphs retained with workspace declaration observations;
 unselected members' pending Product requests stay inert. Package locks retain
 catalog execution custody separately from Product routing. Applied/inherited

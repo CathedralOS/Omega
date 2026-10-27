@@ -2,7 +2,7 @@
 //! scalar representation re-view between those carriers and integers.
 
 use crate::errors::{TerminalInterpretError, malformed};
-use crate::execution::{OperationFlow, TerminalExecution};
+use crate::execution::{OperationFlow, TerminalExecution, dispatched_operation};
 use crate::scalar_operations::{ieee_float_compare, nearest_ieee_float_fused_multiply_add};
 use crate::values::TerminalScalarValue;
 use semantic_vocabulary::ScalarType;
@@ -14,9 +14,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::IeeeFloatConstant { value } = operation.kind else {
-            unreachable!("dispatched execute_ieee_float_constant")
-        };
+        dispatched_operation!(operation => IeeeFloatConstant { value });
         if operation.result.expect_scalar().scalar_type != ScalarType::IeeeFloat(value.format()) {
             return Err(malformed());
         }
@@ -27,14 +25,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::IeeeFloatCompare {
-            comparison,
-            left,
-            right,
-        } = operation.kind
-        else {
-            unreachable!("dispatched execute_ieee_float_compare")
-        };
+        dispatched_operation!(operation => IeeeFloatCompare { comparison, left, right });
         let read_float = |operand| match self.values.get(&operand).copied() {
             Some(TerminalScalarValue::IeeeFloat(value)) => Ok(value),
             Some(_) => Err(malformed()),
@@ -60,9 +51,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::ScalarRepresentationView { operand, .. } = operation.kind else {
-            unreachable!("dispatched execute_scalar_representation_view")
-        };
+        dispatched_operation!(operation => ScalarRepresentationView { operand, .. });
         let result = operation.result.expect_scalar();
         let source = self.scalar_value(operand)?;
         let (source_type, source_value) = match source {
@@ -101,14 +90,9 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::NearestIeeeFloatFusedMultiplyAdd {
-            left,
-            right,
-            addend,
-        } = operation.kind
-        else {
-            unreachable!("dispatched execute_nearest_ieee_float_fused_multiply_add")
-        };
+        dispatched_operation!(operation => NearestIeeeFloatFusedMultiplyAdd {
+            left, right, addend
+        });
         let Some(format) = operation.result.expect_scalar().scalar_type.as_ieee_float() else {
             return Err(malformed());
         };
@@ -132,9 +116,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::BooleanConstant { value } = operation.kind else {
-            unreachable!("dispatched execute_boolean_constant")
-        };
+        dispatched_operation!(operation => BooleanConstant { value });
         self.require_boolean_result(operation)?;
         self.store_scalar(operation, TerminalScalarValue::Boolean(value))
     }
@@ -143,9 +125,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::BooleanNot { operand } = operation.kind else {
-            unreachable!("dispatched execute_boolean_not")
-        };
+        dispatched_operation!(operation => BooleanNot { operand });
         self.require_boolean_result(operation)?;
         let TerminalScalarValue::Boolean(value) = self.scalar_value(operand)? else {
             return Err(malformed());
@@ -157,9 +137,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::BooleanEqual { left, right } = operation.kind else {
-            unreachable!("dispatched execute_boolean_equal")
-        };
+        dispatched_operation!(operation => BooleanEqual { left, right });
         self.require_boolean_result(operation)?;
         let TerminalScalarValue::Boolean(left) = self.scalar_value(left)? else {
             return Err(malformed());

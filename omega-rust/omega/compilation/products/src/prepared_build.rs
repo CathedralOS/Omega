@@ -112,11 +112,6 @@ pub struct CheckedProductSource {
     pub accepted_template_classifications: trust_model::AcceptedTemplateClassifications,
     pub retained_checks: crate::RetainedCompilationChecks,
     pub product_selection: Option<psi_compiler::CheckedTreeProductSelection>,
-    /// The deferred constant evaluation each target closure resumes under its
-    /// selected rows. Empty when the program retains no constant recipe.
-    pub constant_recipe_continuations: Vec<build_time_evaluation::PreCheckEvaluation>,
-    /// The typed program those continuations fold on: the authored source
-    /// before executable preparation, where boundary token uses are still
-    /// their authored occurrences. Present only beside continuations.
-    pub constant_recipe_source: Option<Arc<typed_trees::TypedTrees>>,
+    /// Psi-owned deferred work and its authored storage, captured before checking.
+    pub constants: Option<build_time_evaluation::RetainedConstantEvaluation>,
 }

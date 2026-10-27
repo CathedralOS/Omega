@@ -152,6 +152,7 @@ pub struct TerminalExecution<'artifact> {
     /// byte arrays and stored shared descriptors reuse the backing representation;
     /// each observing operation separately authenticates its declared carrier.
     pub(crate) structural_byte_storage: RuntimeRows<StructuralRuntimePlace, ByteSequenceView>,
+    pub(crate) empty_array_storage: crate::scalar_array::empty_storage::EmptyArrayStorage,
     /// Entry-provided discriminators remain attached to the original referent
     /// across projected and forwarded calls, independent of machine-local IDs.
     pub(crate) structural_cases: RuntimeRows<StructuralRuntimePlace, StructuralCaseContents>,
@@ -452,6 +453,37 @@ macro_rules! dispatch_operations {
     };
 }
 
+/// Destructure the operation kind an executor was handed, or reject the
+/// operation as malformed. Matching is against the borrowed kind, so the
+/// caller's own pattern — renames, `ref` bindings, and its `..` rest row —
+/// stays at the site and keeps every binding mode the body already reads.
+macro_rules! operation_kind {
+    ($operation:expr => $variant:ident $($fields:tt)*) => {
+        let OperationKind::$variant $($fields)* = &$operation.kind else {
+            return Err($crate::errors::malformed());
+        };
+    };
+}
+
+pub(crate) use operation_kind;
+
+/// Destructure the operation kind the dispatch table selected for this
+/// executor. The table and the executor name the same variant, so a mismatch
+/// is an interpreter defect rather than adversary input: the row panics with
+/// the variant it saw instead of inventing a rejection no verifier produced.
+macro_rules! dispatched_operation {
+    ($operation:expr => $variant:ident $($fields:tt)*) => {
+        let OperationKind::$variant $($fields)* = $operation.kind else {
+            unreachable!(
+                "dispatched operation kind mismatch: {}",
+                stringify!($variant)
+            )
+        };
+    };
+}
+
+pub(crate) use dispatched_operation;
+
 impl<'artifact> TerminalExecution<'artifact> {
     /// Start one instance on an already-admitted program: bind this
     /// invocation's inputs and custody, commit no operation. The program is
@@ -602,6 +634,9 @@ impl<'artifact> TerminalExecution<'artifact> {
             entry_storage_open: true,
             structural_byte_sequence_fields: RuntimeRows::new(account.as_ref()),
             structural_byte_storage: RuntimeRows::new(account.as_ref()),
+            empty_array_storage: crate::scalar_array::empty_storage::EmptyArrayStorage::new(
+                account.as_ref(),
+            ),
             structural_cases: RuntimeRows::new(account.as_ref()),
             structural_host_atoms: RuntimeRows::new(account.as_ref()),
             next_host_atom_collection_size: 1024,

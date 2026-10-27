@@ -518,8 +518,12 @@ impl ImmutableSourceParseCheckpoint {
                 catalogue,
             )?;
         }
-        if self.build_source_id.is_none() {
-            source_storage.seal_default_owner(catalogue)?;
+        // A Product preparation follows the completed dependency join, whether
+        // Build was implicit or authored. Retaining an authored Build source
+        // does not leave its Product declarations anonymously owned. Initial
+        // Build preparation still defers this operation until normal return.
+        if deferred_product.is_none() {
+            source_storage.seal_product_owner(catalogue)?;
         }
         // Each new preparation gets a fresh consumer cohort. Reusing parser
         // coordinates across discovery and final binding would make the old
@@ -662,8 +666,8 @@ impl ImmutableSourceParseCheckpoint {
             .filter(|file| file.dependency_scope == source::DependencyScope::Build)
             .map(|file| file.source_id)
             .collect();
-        // Default Build has completed its empty dependency join. Authored
-        // Build retains the same source map without assigning an owner yet.
+        // Initial authored Build remains unbound. A Product preparation has
+        // sealed its source owner before parsing, after the dependency join.
         // Supplied graph owners remain authoritative in either case.
         let capture = source_storage.retain_anonymous_owner(&generated_source_custody)?;
         let (sources, anonymous_owner) = match capture {

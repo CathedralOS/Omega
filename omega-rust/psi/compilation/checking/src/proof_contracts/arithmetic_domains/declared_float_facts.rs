@@ -113,10 +113,18 @@ fn collect(
         return;
     }
     active.push(definition.symbol);
-    if let Some(bounds) = crate::proof_contracts::default_domains::data_where_field_literal_bounds(
-        program, definition,
-    ) {
+    if let Some(bounds) =
+        crate::proof_contracts::default_domains::data_where_field_representation_bounds(
+            program, definition,
+        )
+    {
         for bound in bounds {
+            let crate::proof_contracts::default_domains::FieldRepresentationBound::FloatLiteral(
+                bound,
+            ) = bound
+            else {
+                continue;
+            };
             let Some(field) = program.data_field(definition, bound.field) else {
                 continue;
             };

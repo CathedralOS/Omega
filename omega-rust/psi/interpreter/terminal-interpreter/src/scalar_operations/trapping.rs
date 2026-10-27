@@ -11,7 +11,7 @@
 //! claim set at the operation.
 
 use crate::errors::{TerminalInterpretError, malformed};
-use crate::execution::{OperationFlow, TerminalExecution};
+use crate::execution::{OperationFlow, TerminalExecution, dispatched_operation};
 use crate::results::{TerminalCrash, TerminalCrashSite, TerminalExecutionStatus};
 use crate::values::TerminalScalarValue;
 use semantic_vocabulary::ValueId;
@@ -39,12 +39,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::TrappingInteger {
-            operation: trapping,
-        } = operation.kind
-        else {
-            unreachable!("dispatched execute_trapping_integer")
-        };
+        dispatched_operation!(operation => TrappingInteger { operation: trapping });
         let result_type = crate::scalar_operations::integer_scalar_type(operation)?;
         let binary = |execution: &Self, left: ValueId, right: ValueId| {
             let (left_type, left) = execution.integer_operand(left)?;

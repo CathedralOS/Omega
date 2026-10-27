@@ -2,6 +2,174 @@
 //! representations remain legitimate dependencies; transform crates do not.
 
 #[test]
+fn selected_constant_evaluation_belongs_to_psi() {
+    let selection = include_str!("../../realization/selected-dispatch/src/constant_evaluation.rs");
+    assert!(selection.contains("build_time_evaluation::SelectedConstantEvaluationRequest"));
+    for forbidden in [
+        "evaluate_selected_operators(",
+        ".finish(typed)",
+        "fold_data_layout_queries(",
+    ] {
+        assert!(
+            !selection.contains(forbidden),
+            "selection drives {forbidden}"
+        );
+    }
+    let geometry = include_str!("../../realization/provider-planning/src/data_layout_queries.rs");
+    for forbidden in [
+        "expression_mut(",
+        "proof_only::",
+        "PreCheckEvaluation",
+        "reject_unresolved_layout_operands",
+    ] {
+        assert!(!geometry.contains(forbidden), "geometry owns {forbidden}");
+    }
+    let evaluation = include_str!(
+        "../../../../psi/compilation/compile-time/src/const_evaluation/selected_constants.rs"
+    );
+    let queries = include_str!(
+        "../../../../psi/compilation/compile-time/src/const_evaluation/data_layout_queries.rs"
+    );
+    let closure = include_str!(
+        "../../../../psi/compilation/compile-time/src/const_evaluation/retained_constants.rs"
+    );
+    for source in [evaluation, queries, closure] {
+        for forbidden in [
+            "provider_planning::",
+            "selected_dispatch::",
+            "target::",
+            "layout::",
+        ] {
+            assert!(
+                !source.contains(forbidden),
+                "Psi evaluation depends on {forbidden}"
+            );
+        }
+    }
+}
+
+#[test]
+fn deferred_constant_custody_and_value_publication_belong_to_psi() {
+    let checking = include_str!("checked/checking/source_checking.rs");
+    let closure = include_str!("execution_settlement/constant_recipe_closure.rs");
+    let product = include_str!("../../products/src/prepared_build.rs");
+    for source in [checking, closure, product] {
+        for forbidden in [
+            "constant_recipe_source",
+            "constant_recipe_continuations",
+            "read_constant_recipe_closure(",
+            "with_constant_recipe_closure(",
+            "plan_laid_layouts =",
+            "const_declarations.for_each_mut",
+        ] {
+            assert!(!source.contains(forbidden), "coordinator owns {forbidden}");
+        }
+    }
+    assert!(closure.contains("evaluation.close_constants("));
+    assert!(product.contains("RetainedConstantEvaluation"));
+    let checking = include_str!("../../../../psi/compilation/driver/src/source_checking.rs");
+    assert!(
+        checking
+            .find("RetainedConstantEvaluation::capture(")
+            .unwrap()
+            < checking.find("prepare_source_completion(").unwrap()
+    );
+}
+
+#[test]
+fn reused_product_selection_keeps_current_deferred_work() {
+    use std::sync::Arc;
+
+    let (syntax, pending) = build_time_evaluation::evaluate_pre_resolution(
+        build_time_evaluation::BuildTimeEvaluationRequest {
+            syntax_trees: Default::default(),
+            source_context: Default::default(),
+        },
+    )
+    .expect("empty elaboration")
+    .into_syntax_and_pre_check();
+    drop(syntax);
+    let program = Arc::new(checked_trees::CheckedTrees::default());
+    let constants =
+        build_time_evaluation::RetainedConstantEvaluation::capture(&program.typed, vec![pending])
+            .expect("retained continuation");
+    let mut selections = psi_compiler::ProductSelections::default();
+    let first = selections
+        .select(
+            psi_compiler::CheckedSource {
+                program: Arc::clone(&program),
+                constants: None,
+                retained: None,
+                reused: false,
+            },
+            None,
+        )
+        .expect("first root selection");
+    let second = selections
+        .select(
+            psi_compiler::CheckedSource {
+                program: Arc::clone(&program),
+                constants: Some(constants.clone()),
+                retained: None,
+                reused: true,
+            },
+            None,
+        )
+        .expect("reused root selection");
+    assert!(Arc::ptr_eq(&first.program, &second.program));
+    assert!(std::ptr::eq(
+        constants.source(),
+        second.constants.as_ref().expect("current work").source()
+    ));
+    let third = selections
+        .select(
+            psi_compiler::CheckedSource {
+                program,
+                constants: None,
+                retained: None,
+                reused: true,
+            },
+            None,
+        )
+        .expect("no current deferred work");
+    assert!(Arc::ptr_eq(&first.program, &third.program));
+    assert!(third.constants.is_none());
+}
+
+#[test]
+fn constant_proof_closure_belongs_to_psi() {
+    let coordinator = include_str!("execution_settlement/constant_recipe_closure.rs");
+    assert!(coordinator.contains("psi_compiler::ConstantProofClosure::new("));
+    for forbidden in [
+        "discharge_all(",
+        "CheckedTrees::with_roots(",
+        "settle_closed_constant_execution(",
+        "closed_facts",
+        "decided_formations",
+    ] {
+        assert!(
+            !coordinator.contains(forbidden),
+            "coordinator owns {forbidden}"
+        );
+    }
+    let facade = include_str!("../../../../psi/compilation/driver/src/lib.rs");
+    assert!(!facade.contains("settle_closed_constant_execution"));
+    let proof =
+        include_str!("../../../../psi/compilation/driver/src/source_checking/constant_closure.rs");
+    for forbidden in [
+        "provider_planning::",
+        "selected_dispatch::",
+        "target::",
+        "native_production::",
+    ] {
+        assert!(
+            !proof.contains(forbidden),
+            "Psi proof closure depends on {forbidden}"
+        );
+    }
+}
+
+#[test]
 fn package_review_retains_products_not_checked_compiler_state() {
     for source in [
         include_str!(
@@ -220,18 +388,14 @@ fn components_use_the_shared_product_sequence() {
     let component = include_str!("product_execution/component.rs");
     assert!(!component.contains("produce_retained_terminal_artifacts("));
     assert!(!component.contains("TerminalProductionRequest"));
-    assert!(component.contains("finish_terminal_application("));
+    assert!(component.contains("produced.prepare(request)"));
     assert!(component.contains("accepted_terminal_authority_permission_policy("));
     let (preparation, completion) = component
         .split_once("pub(crate) fn finish(")
         .expect("component preparation precedes completion");
     assert!(preparation.contains("component_calling_applications("));
     assert!(!completion.contains("component_calling_applications("));
-    let terminal = include_str!("terminal/terminal_artifact.rs");
-    let completion = terminal
-        .split_once("pub(crate) fn finish_terminal_application(")
-        .expect("retained application completion")
-        .1;
+    let completion = include_str!("../../native-production/src/application.rs");
     assert!(!completion.contains("program.typed"));
     assert!(!completion.contains("component_calling_applications("));
     assert!(!include_str!("lib.rs").contains("publish_checked_component"));
@@ -240,16 +404,14 @@ fn components_use_the_shared_product_sequence() {
 
 #[test]
 fn terminal_production_owns_the_build_provider_companion() {
-    let source = include_str!("terminal/terminal_artifact.rs");
-    let (production, completion) = source
-        .split_once("pub(crate) fn finish_terminal_application(")
-        .expect("source production precedes native completion");
-    assert!(production.contains("pub provider_proposals:"));
+    let production = include_str!("terminal/terminal_artifact.rs");
+    let completion = include_str!("../../native-production/src/application.rs");
+    assert!(completion.contains("pub provider_proposals:"));
     assert!(production.contains("provider_proposals: produce_target_provider_proposals("));
     assert!(production.contains("TargetProviderPublicationRequest"));
-    assert!(completion.contains("with_target_provider_proposals(produced.provider_proposals)"));
+    assert!(completion.contains("with_target_provider_proposals(self.provider_proposals)"));
     assert!(completion.contains("TerminalNativeProposalRequest<'_>"));
-    assert!(completion.contains("if produced.physical_entry_adapter"));
+    assert!(completion.contains("if self.physical_entry_adapter"));
     for forbidden in [
         "produce_target_provider_proposals(",
         "TargetProviderPublicationRequest",
@@ -263,6 +425,34 @@ fn terminal_production_owns_the_build_provider_companion() {
             !completion.contains(forbidden),
             "completion reopens {forbidden}"
         );
+    }
+}
+
+#[test]
+fn product_coordinator_has_no_native_stage_dependency() {
+    let manifest = include_str!("../Cargo.toml")
+        .split("[dev-dependencies]")
+        .next()
+        .expect("production manifest");
+    assert!(!manifest.contains("/pipeline/"));
+    for source in [
+        include_str!("terminal/terminal_artifact.rs"),
+        include_str!("product_execution/native_inputs.rs"),
+        include_str!("product_execution.rs"),
+        include_str!("product_execution/component.rs"),
+    ] {
+        for stage_operation in [
+            "terminal_psi_to_abstract_operations::",
+            "project_terminal_native_realization_proposal(",
+            "validate_package_terminal_authority_permission_custody(",
+            "terminal_authority_permission_policy_with_rows(",
+            "bind_physical_adapter(",
+        ] {
+            assert!(
+                !source.contains(stage_operation),
+                "coordinator owns {stage_operation}"
+            );
+        }
     }
 }
 

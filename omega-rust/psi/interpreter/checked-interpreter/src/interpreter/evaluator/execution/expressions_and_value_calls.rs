@@ -124,7 +124,7 @@ impl<'program> Evaluator<'program> {
             });
             if operands != selected.operands
                 || !unique
-                || selected.provider.is_empty()
+                || selected.provider.is_zero()
                 || !checked_selection
             {
                 return trap(

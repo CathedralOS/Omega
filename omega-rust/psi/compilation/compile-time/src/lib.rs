@@ -10,6 +10,8 @@
 //!
 //! `build_time_evaluation.rs` is the lifecycle root. The evaluators are grouped
 //! by subject: `const_evaluation/`, `layouts/`, and `machine_execution/`.
+//! `const_evaluation/selected_constants.rs` owns deferred evaluation order;
+//! layout providers answer geometry without choosing source checks or mutations.
 //! `syntax_probes.rs` owns their temporary frontend work; `reflection/` owns
 //! semantic schema, selection, and visitation plans and their independent replay.
 //! `wire_demands.rs` decodes authored wire demands. Their compatibility
@@ -50,7 +52,14 @@ pub use const_evaluation::const_generic_calls::evaluate_const_generic_calls;
 pub use const_evaluation::const_lengths::{
     evaluate_const_array_lengths, evaluate_zero_argument_machine,
 };
+pub use const_evaluation::data_layout_queries::{
+    LayoutQueryMeasurements, LayoutQueryProvider, fold_data_layout_queries,
+};
 pub use const_evaluation::range_endpoints::evaluate_const_range_endpoints;
+pub use const_evaluation::retained_constants::{
+    ConstantValueClosureRequest, RetainedConstantEvaluation,
+};
+pub use const_evaluation::selected_constants::SelectedConstantEvaluationRequest;
 pub use layouts::layout_plans::compute_native_layout_plan_for_machine;
 pub use layouts::placed_views::{PlacedViewRecord, desugar_placed_views};
 pub use layouts::placement_lifecycles::{

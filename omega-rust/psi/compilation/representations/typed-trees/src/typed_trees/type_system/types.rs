@@ -863,12 +863,7 @@ impl TypeReferenceTable {
             TypeReferenceNode::Reference { referee, .. } => self.named_type(*referee),
             TypeReferenceNode::Constrained { base_type, .. } => self.named_type(*base_type),
             TypeReferenceNode::Named { name, .. } => Some(name),
-            TypeReferenceNode::FixedArray { .. }
-            | TypeReferenceNode::Slice { .. }
-            | TypeReferenceNode::Generic { .. }
-            | TypeReferenceNode::ConstExpression(_)
-            | TypeReferenceNode::DynamicTrait { .. }
-            | TypeReferenceNode::Unit => None,
+            _ => None,
         }
     }
 

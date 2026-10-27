@@ -71,7 +71,7 @@ impl BindingState {
     }
 }
 
-impl TerminalBuildBindingHost<'_> {
+impl TerminalBuildBindingHost {
     pub(crate) fn awaiting_query(&self) -> Result<Option<Arc<BuildProductQuery>>, String> {
         let state = self
             .state
@@ -127,6 +127,7 @@ impl TerminalBuildBindingHost<'_> {
         .ok_or("Product description payload size overflowed")?;
         query.answer_storage = self
             .account
+            .as_ref()
             .map(|account| account.reserve_storage(1, payload))
             .transpose()
             .map_err(|error| format!("Product description storage: {error}"))?;
@@ -165,6 +166,7 @@ impl TerminalBuildBindingHost<'_> {
             .ok_or_else(|| TerminalEffectRejection::new("Product query payload size overflowed"))?;
         let storage = self
             .account
+            .as_ref()
             .map(|account| account.reserve_storage(1, payload))
             .transpose()
             .map_err(|error| {
@@ -349,10 +351,11 @@ impl TerminalBuildBindingHost<'_> {
                 ));
             }
         };
-        terminal_interpreter::TerminalByteSequenceValue::copy(path.as_bytes(), self.account)
-            .map(TerminalEffectResult::ByteSequence)
-            .map_err(|error| {
-                TerminalEffectRejection::new(format!("description path storage: {error}"))
-            })
+        terminal_interpreter::TerminalByteSequenceValue::copy(
+            path.as_bytes(),
+            self.account.as_ref(),
+        )
+        .map(TerminalEffectResult::ByteSequence)
+        .map_err(|error| TerminalEffectRejection::new(format!("description path storage: {error}")))
     }
 }

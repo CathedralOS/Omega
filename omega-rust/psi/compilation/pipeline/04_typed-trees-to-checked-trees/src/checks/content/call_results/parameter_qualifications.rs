@@ -187,7 +187,8 @@ impl<'program> ParameterQualificationJoin<'program> {
         instance: SemanticDomainId,
     ) -> Option<()> {
         if evidence.origin != QualificationEvidenceOrigin::Propagated
-            || evidence.source_symbol != self.target
+            || (evidence.source_symbol != self.target
+                && evidence.source_symbol != self.call_flow.target_symbol)
             || evidence.requirement_symbol.is_valid()
         {
             return None;

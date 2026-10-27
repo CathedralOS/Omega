@@ -17,9 +17,10 @@ use syntax_trees::SyntaxTrees;
 /// Private preparation evidence for semantic initializer evaluation. The forest
 /// retains unresolved values and operator obligations; it is not a completed
 /// resolution result and grants no authority to type, execute, or publish it.
+/// Declaration relationships and their pending source/body work remain under
+/// the same owner; a read-only graph query does not discard that frontier.
 pub struct ConstInitializerSelection {
-    pub(crate) trees: SymbolResolvedTrees,
-    pub(crate) selection: crate::preparation::declaration_selection::ConstantSelection<'static>,
+    pub(super) frontier: super::DeferredResolvedFrontier,
 }
 
 /// Encoding for private initializer preparation. Its bytes carry no domain
@@ -36,7 +37,7 @@ impl ConstInitializerSelection {
         &self,
         symbol: symbols::SymbolHandle,
     ) -> Result<&symbol_resolved_trees::constant::ConstDeclaration, Vec<Diagnostic>> {
-        let base = self.selection.retained_base().ok_or_else(|| {
+        let base = self.frontier.selection.retained_base().ok_or_else(|| {
             vec![Diagnostic::error(
                 "constant input has no retained predecessor",
             )]
@@ -57,7 +58,7 @@ impl ConstInitializerSelection {
         symbol: symbols::SymbolHandle,
         purpose: crate::constant::initializer_normalization::InitializerCustodyPurpose,
     ) -> Result<syntax_trees::item::ConstInitializerCustody, Vec<Diagnostic>> {
-        let base = self.selection.retained_base().ok_or_else(|| {
+        let base = self.frontier.selection.retained_base().ok_or_else(|| {
             vec![Diagnostic::error(
                 "constant input has no retained predecessor",
             )]
@@ -91,6 +92,7 @@ impl ConstInitializerSelection {
             ]);
         }
         let declaration = self
+            .frontier
             .trees
             .const_declaration_at_source_span(definition.name.source_span())
             .ok_or_else(|| vec![Diagnostic::error("initializer leaf lost its declaration")])?;
@@ -100,12 +102,12 @@ impl ConstInitializerSelection {
             declaration.initializer
         };
         crate::constant::initializer_dependencies::expression_at_source(
-            &self.trees,
+            &self.frontier.trees,
             root,
             syntax.expressions.source_span(expression),
         )
         .and_then(|expression| {
-            crate::constant::initializer_dependencies::collect(&self.trees, expression)
+            crate::constant::initializer_dependencies::collect(&self.frontier.trees, expression)
         })
         .map_err(|reason| {
             vec![Diagnostic::error(reason).with_source_span(definition.name.source_span())]
@@ -148,6 +150,7 @@ impl ConstInitializerSelection {
         Vec<Diagnostic>,
     > {
         let declaration = self
+            .frontier
             .trees
             .const_declaration_at_source_span(definition.name.source_span())
             .ok_or_else(|| {
@@ -156,7 +159,7 @@ impl ConstInitializerSelection {
                 )]
             })?;
         crate::constant::initializer_dependencies::collect_declaration(
-            &self.trees,
+            &self.frontier.trees,
             if declaration.authored_initializer.is_valid() {
                 declaration.authored_initializer
             } else {
@@ -164,7 +167,7 @@ impl ConstInitializerSelection {
             },
             &declaration.declared_type,
             purpose,
-            self.selection.retained_base(),
+            self.frontier.selection.retained_base(),
         )
         .map_err(|reason| {
             vec![Diagnostic::error(reason).with_source_span(definition.name.source_span())]
@@ -172,7 +175,7 @@ impl ConstInitializerSelection {
     }
 
     pub fn trees(&self) -> &SymbolResolvedTrees {
-        &self.trees
+        &self.frontier.trees
     }
 
     /// Every declaration that needs initializer evaluation kept its exact
@@ -189,7 +192,8 @@ impl ConstInitializerSelection {
             }
             _ => None,
         }) {
-            self.trees
+            self.frontier
+                .trees
                 .const_declaration_at_source_span(definition.name.source_span())
                 .ok_or_else(|| {
                     vec![Diagnostic::error(
@@ -206,10 +210,14 @@ impl ConstInitializerSelection {
         syntax: &SyntaxTrees,
         definition: &syntax_trees::item::ConstDefinition,
     ) -> Result<Vec<crate::constant::PendingConstInitializerLeaf>, Vec<Diagnostic>> {
-        crate::constant::pending_const_initializer_leaves(syntax, definition, &self.selection)
-            .map_err(|reason| {
-                vec![Diagnostic::error(reason).with_source_span(definition.name.source_span())]
-            })
+        crate::constant::pending_const_initializer_leaves(
+            syntax,
+            definition,
+            &self.frontier.selection,
+        )
+        .map_err(|reason| {
+            vec![Diagnostic::error(reason).with_source_span(definition.name.source_span())]
+        })
     }
 
     /// Encode completed initializer payloads, without asserting the destination's
@@ -223,7 +231,7 @@ impl ConstInitializerSelection {
         crate::preparation::generic_data::canonicalize_pending_initializer_payload(
             syntax,
             definition,
-            Some(&self.selection),
+            Some(&self.frontier.selection),
         )
     }
 
@@ -235,7 +243,7 @@ impl ConstInitializerSelection {
         crate::preparation::generic_data::const_destination_requires_proof(
             syntax,
             definition,
-            Some(&self.selection),
+            Some(&self.frontier.selection),
         )
     }
 }

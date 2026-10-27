@@ -50,40 +50,21 @@ impl SelectedConstantEvaluation {
         typed: &mut TypedTrees,
         pending: Vec<PreCheckEvaluation>,
     ) -> Result<(), Vec<Diagnostic>> {
-        build_time_evaluation::prepare_selected_target_family_calls(typed, &self.target_bodies)
-            .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        provider_planning::data_layout_queries::fold_data_layout_queries(
-            typed,
-            self.target_profile,
-            &self.opaque_representation_selections,
-            true,
-            &self.selection,
-        )?;
-        let mut evaluated = Vec::with_capacity(pending.len());
-        for continuation in pending {
-            evaluated.push(continuation.evaluate_selected_operators(
-                typed,
-                SelectedBuildTimeOperators {
-                    operators: &self.operators,
-                    provider_bodies: &self.provider_bodies,
-                },
-            )?);
+        build_time_evaluation::SelectedConstantEvaluationRequest {
+            program: typed,
+            pending,
+            operators: SelectedBuildTimeOperators {
+                operators: &self.operators,
+                provider_bodies: &self.provider_bodies,
+            },
+            target_bodies: &self.target_bodies,
+            selection: &self.selection,
+            layouts: &provider_planning::data_layout_queries::TargetLayoutQueries {
+                target: self.target_profile,
+                opaque_representations: &self.opaque_representation_selections,
+            },
         }
-        // The deferred evaluation installed the validated plan-laid layouts;
-        // queries over `Policy<Schema>` operands fold now, and any operand the
-        // program never instantiated reports the layout authority's own
-        // missing-layout diagnostic.
-        provider_planning::data_layout_queries::fold_data_layout_queries(
-            typed,
-            self.target_profile,
-            &self.opaque_representation_selections,
-            false,
-            &self.selection,
-        )?;
-        for continuation in evaluated {
-            continuation.finish(typed)?;
-        }
-        Ok(())
+        .evaluate()
     }
 
     /// The provider rows this target's pending constant folds are evaluated
@@ -100,10 +81,65 @@ impl SelectedConstantEvaluation {
         (&self.operators, &self.provider_bodies)
     }
 
-    pub fn target_body_receipts(
-        &self,
-    ) -> Vec<typed_trees::constant_recipes::ConstantTargetBodySelection> {
-        self.target_bodies.iter().map(|row| row.receipt()).collect()
+    /// Close a retained Product application without mutating its shared source.
+    /// Selection owns dependency receipts; Psi owns evaluation and value rejoining.
+    pub fn close_constants(
+        self,
+        retained: &build_time_evaluation::RetainedConstantEvaluation,
+        checked: &TypedTrees,
+    ) -> Result<TypedTrees, Vec<Diagnostic>> {
+        use typed_trees::constant_recipes::ConstantRecipeDependencyReceipt;
+
+        let mut receipts: Vec<_> = self
+            .operators
+            .iter()
+            .map(|row| ConstantRecipeDependencyReceipt {
+                requirement: row.requirement,
+                plan_identity: row.provider.as_bytes(),
+                target_scope: self.target_profile.target_name().to_owned(),
+                provider_declaration: Default::default(),
+                provider_machine: Default::default(),
+            })
+            .chain(
+                self.provider_bodies
+                    .iter()
+                    .map(|row| ConstantRecipeDependencyReceipt {
+                        requirement: row.requirement,
+                        plan_identity: row.provider.as_bytes(),
+                        target_scope: row.target_scope.clone(),
+                        provider_declaration: row.provider_declaration,
+                        provider_machine: row.provider_machine,
+                    }),
+            )
+            .collect();
+        receipts.sort_by(|left, right| {
+            left.target_scope
+                .cmp(&right.target_scope)
+                .then(
+                    left.requirement
+                        .arena_index()
+                        .cmp(&right.requirement.arena_index()),
+                )
+                .then(left.plan_identity.cmp(&right.plan_identity))
+        });
+        receipts.dedup();
+        build_time_evaluation::ConstantValueClosureRequest {
+            retained,
+            checked,
+            operators: SelectedBuildTimeOperators {
+                operators: &self.operators,
+                provider_bodies: &self.provider_bodies,
+            },
+            target_bodies: &self.target_bodies,
+            selection: &self.selection,
+            layouts: provider_planning::data_layout_queries::TargetLayoutQueries {
+                target: self.target_profile,
+                opaque_representations: &self.opaque_representation_selections,
+            },
+            receipts,
+            target_scope: self.target_profile.target_name(),
+        }
+        .close()
     }
 
     /// Join provider authority once for every retained source use. Psi prepares

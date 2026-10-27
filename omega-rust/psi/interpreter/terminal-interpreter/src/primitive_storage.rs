@@ -1042,6 +1042,66 @@ impl TerminalExecution<'_> {
         Ok(None)
     }
 
+    /// Initialization observations follow the same captured activation and
+    /// descriptor aliases as scalar access. Empty payloads still require an
+    /// actual packed value or an initialized structural storage subtree.
+    pub(crate) fn initialized_empty_array_in_frame(
+        &self,
+        home: PrimitiveStorageHome,
+        path: &[StructuralPathSegment],
+        expected: StructuralTypeId,
+    ) -> Result<bool, TerminalInterpretError> {
+        let (machine, values, arrays, views) = if home.depth == self.call_stack.len() {
+            (
+                self.current_machine,
+                &self.structural_values,
+                &self.scalar_array_values,
+                &self.element_view_values,
+            )
+        } else {
+            let frame = self.call_stack.get(home.depth).ok_or_else(malformed)?;
+            (
+                frame.current_machine,
+                &frame.structural_values,
+                &frame.scalar_array_values,
+                &frame.element_view_values,
+            )
+        };
+        if machine != home.machine {
+            return Err(malformed());
+        }
+        if let Some(loan) = views.get(&home.place) {
+            let value = values.get(&home.place).ok_or_else(malformed)?;
+            if value.structural_type != home.structural_type || !loan.matches_descriptor_home(value)
+            {
+                return Err(malformed());
+            }
+            return loan.initialized_empty_scalar_array(self, path, expected);
+        }
+        let types = self.program.structural_types();
+        if crate::custody::resolve_structural_path_type(&types, home.structural_type, path)?
+            != expected
+        {
+            return Err(malformed());
+        }
+        if let Some(array) = arrays.backing(&home.place) {
+            if array.structural_type != home.structural_type {
+                return Err(malformed());
+            }
+            return Ok(terminal_semantics::scalar_array_leaf_shape(
+                types.values(),
+                array.structural_type,
+            )
+            .is_some_and(|(_, count)| count == 0 && array.elements().is_empty()));
+        }
+        let value = values.get(&home.place).ok_or_else(malformed)?;
+        if value.structural_type != home.structural_type {
+            return Err(malformed());
+        }
+        let selected = crate::custody::project_structural_value(&types, value, path)?;
+        self.initialized_empty_scalar_array(&StructuralRuntimePlace::from(&selected), expected)
+    }
+
     pub(crate) fn primitive_home_access(
         &self,
         home: PrimitiveStorageHome,
@@ -1691,15 +1751,13 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let identity = self.local_structural_identities.allocate()?;
-        let view = TerminalStructuralValue {
-            opaque_identity: identity,
-            structural_type: result.structural_type,
-            // Canonical admission authenticated these memberships against the
-            // exact initializing SSA value; storage retains that same theory.
-            qualifications: result.qualifications.clone(),
-            projected_qualifications: Vec::new(),
-            path: Vec::new(),
-        };
+        // Canonical admission authenticated these memberships against the
+        // exact initializing SSA value; storage retains that same theory.
+        let view = TerminalStructuralValue::minted(
+            identity,
+            result.structural_type,
+            result.qualifications.clone(),
+        );
         self.structural_values.insert(result.place, view.clone())?;
         self.structural_primitive_storage
             .insert(StructuralRuntimePlace::from(&view), scalar)?;

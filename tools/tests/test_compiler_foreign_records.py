@@ -1,5 +1,6 @@
 """Reject incomplete rows, stale producers and hidden cohort failures before credit."""
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
@@ -38,10 +39,66 @@ class OwnedForeignCohortTests(unittest.TestCase):
 
     def test_selection_is_explicit_and_default_cohort_stays_available(self):
         self.assertEqual(foreign.select_cohorts("nested, arrays,nested"), ("nested", "arrays"))
-        self.assertEqual(foreign.select_cohorts("all"), ("scalar-opaque", "nested", "arrays"))
+        self.assertEqual(foreign.select_cohorts("all"), ("scalar-opaque", "nested", "arrays", "zero-leaf"))
+        self.assertEqual(foreign.select_cohorts("zero-leaf"), ("zero-leaf",))
         for selection in ("", " , ", "unknown", "nested,unknown", "nested; echo wrong"):
             with self.subTest(selection=selection), self.assertRaises(ValueError):
                 foreign.select_cohorts(selection)
+
+    def test_fixture_selection_keeps_catalog_order_and_drops_unselected_cohorts(self):
+        inventories = {"first": (("pass/a", "pass/b"), ("fail/a",)),
+                       "second": (("pass/c",), ("fail/c",))}
+        self.assertIs(foreign.select_fixtures(None, inventories), inventories)
+        self.assertEqual(foreign.select_fixtures("fail/a,pass/b,pass/b", inventories),
+                         {"first": (("pass/b",), ("fail/a",))})
+        for selection in ("", " ", ",", "pass/a,", "pass/a,unknown", "pass/a; echo wrong", "../pass/a"):
+            with self.subTest(selection=selection), self.assertRaises(ValueError):
+                foreign.select_fixtures(selection, inventories)
+
+    def test_fixture_list_and_invalid_selectors_never_build(self):
+        positive, negative = foreign.POSITIVES[0], foreign.NEGATIVES[0]
+        with patch.object(pilot, "prepare_producer") as build, \
+             patch("sys.stdout", new_callable=io.StringIO) as output:
+            self.assertEqual(foreign.main(["--cohorts", "scalar-opaque", "--fixtures",
+                                           f"{negative},{positive}", "--list"]), 0)
+            self.assertEqual(json.loads(output.getvalue()), {
+                "scalar-opaque": dict(positive=[positive], negative=[negative])})
+            for selection in ("", "unknown", "pass/a; echo wrong"):
+                with self.subTest(selection=selection), self.assertRaises(ValueError):
+                    foreign.main(["--fixtures", selection])
+            build.assert_not_called()
+
+    def test_selected_corpus_scope_preserves_failures_without_running_full_rows(self):
+        for corpus_status in (0, 1):
+            with self.subTest(corpus_status=corpus_status), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                producer = Mock()
+                producer.record.return_value = dict(revision="a" * 40)
+                with patch.object(pilot, "ROOT", root), \
+                     patch.object(pilot, "command", return_value="a" * 40), \
+                     patch.object(pilot.corpus_gate, "host_target", return_value="linux_x86_64"), \
+                     patch.object(pilot, "prepare_producer", return_value=producer) as build, \
+                     patch.object(rows, "fixtures", return_value=(("positive",), ("negative",))), \
+                     patch.object(foreign, "prepare_provider", return_value=root / "provider/library") as provider, \
+                     patch.object(foreign, "provider_path", return_value=nullcontext()) as environment, \
+                     patch.object(pilot, "run_suite", return_value=corpus_status) as corpus, \
+                     patch.object(foreign, "owned_row") as full, \
+                     patch.object(foreign, "scalar_opaque") as scalar:
+                    status = foreign.main(["--cohorts", "nested", "--fixtures", "negative,positive"])
+                report = json.loads((root / "build/compiler-foreign-records/latest.json").read_text())
+                self.assertEqual(status, corpus_status)
+                self.assertEqual(report["scope"], "selected-corpus-fixtures")
+                self.assertEqual(report["passed"], corpus_status == 0)
+                self.assertEqual(report["cohorts"][0]["positive"], ["positive"])
+                self.assertEqual(report["cohorts"][0]["negative"], ["negative"])
+                self.assertEqual(report["cohorts"][0]["scope"], "selected-corpus-fixtures")
+                build.assert_called_once()
+                provider.assert_called_once()
+                environment.assert_called_once_with(root / "provider/library")
+                self.assertEqual(corpus.call_args.args[1:], (("positive",), ("negative",)))
+                self.assertIs(corpus.call_args.kwargs["producer"], producer)
+                full.assert_not_called()
+                scalar.assert_not_called()
 
     def test_missing_twin_and_changed_pin_refuse_discovery(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -65,10 +122,52 @@ class OwnedForeignCohortTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "zero-exit oracle"):
                 rows.fixtures(root, fact, "example")
 
+    def test_additional_producer_needs_its_own_positive_and_reject_pins(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fact = self.fact(root)
+            projects = (("zeroed", "example_zeroed"),)
+            for relative in ("zeroed", "zeroed/invalid"):
+                source = fact / relative
+                source.mkdir(parents=True, exist_ok=True)
+                (source / "main.omg").write_text("// Expected exit: 0\nmachine run_main() {}\n")
+                (source / "build.omg").write_text("authored package\n")
+            (fact / "zeroed/invalid/expected.txt").write_text("holds no value\n")
+            with self.assertRaisesRegex(ValueError, "required authored place/twin"):
+                rows.fixtures(root, fact, "example", additional_projects=projects)
+            for tier, suffix, relative in (("pass", "exit", "zeroed"), ("fail", "rejected", "zeroed/invalid")):
+                pinned = root / f"tests/omega/{tier}/facts/example_zeroed_{suffix}"
+                pinned.mkdir(parents=True)
+                for source in (fact / relative).iterdir():
+                    if source.is_file():
+                        (pinned / source.name).write_bytes(source.read_bytes())
+            positive, negative = rows.fixtures(root, fact, "example", additional_projects=projects)
+            self.assertEqual(len(positive), 10)
+            self.assertEqual(positive[-1], "pass/facts/example_zeroed_exit")
+            self.assertEqual(negative[-1], "fail/facts/example_zeroed_rejected")
+
+    def test_measurement_refuses_a_missing_or_duplicate_project_before_execution(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            producer = Mock()
+            prepared = [dict(place=place) for place in ("root",) + rows.PLACES]
+            with patch.object(rows, "execute") as execute:
+                with self.assertRaisesRegex(ValueError, "project roster differs"):
+                    rows.measure(Path(temporary), dict(rows=prepared), producer,
+                                 additional_projects=(("zeroed", "example_zeroed"),))
+                with self.assertRaisesRegex(ValueError, "distinct names"):
+                    rows.prepare(Path(temporary), Path(temporary), producer,
+                                 additional_projects=(("local", "duplicate"),))
+                execute.assert_not_called()
+
     def test_preparation_and_measurement_never_add_evidence_to_accepted_source(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             fact = self.fact(root)
+            producer_source = fact / "zeroed"
+            producer_source.mkdir()
+            for name in ("main.omg", "build.omg"):
+                (producer_source / name).write_bytes((fact / name).read_bytes())
+            projects = (("zeroed", "example_zeroed"),)
             output = root / "evidence"
             producer = Mock(cli=root / "producer/omega", target="linux_x86_64")
             producer.record.return_value = dict(revision="a" * 40)
@@ -103,15 +202,15 @@ class OwnedForeignCohortTests(unittest.TestCase):
 
             with patch.object(rows.sample_native_gate, "accept_review", side_effect=review), \
                  patch.object(rows, "execute", side_effect=execute):
-                inventory = rows.prepare(output, fact, producer)
-                self.assertEqual(len(accepted), 10)
+                inventory = rows.prepare(output, fact, producer, additional_projects=projects)
+                self.assertEqual(len(accepted), 11)
                 self.assertTrue(all({p.name for p in project.iterdir()} == names
                                     for project, names in accepted.items()))
-                report = rows.measure(output, inventory, producer)
+                report = rows.measure(output, inventory, producer, additional_projects=projects)
             self.assertTrue(report["passed"])
             self.assertTrue(all({p.name for p in project.iterdir()} == names
                                 for project, names in accepted.items()))
-            self.assertEqual(len(list((output / "sample-logs").glob("*/products/program.oterm"))), 10)
+            self.assertEqual(len(list((output / "sample-logs").glob("*/products/program.oterm"))), 11)
             self.assertTrue(report["observations"][0]["cases"]["passed"])
 
     def test_mutating_frozen_source_or_lock_refuses(self):

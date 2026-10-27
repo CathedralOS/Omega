@@ -4429,6 +4429,16 @@ pass/facts/nested_twentytwo_level_record_field_bound_through_other_machine_exit 
 pass/facts/nested_twentytwo_level_record_field_bound_through_other_state_exit built 2801ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/nested_twentytwo_level_record_field_bound_through_parameter_exit built 3316ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/nested_twentytwo_level_record_field_bound_through_target_body_exit built 3219ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
+pass/facts/nested_zero_leaf_array_storage_through_call_result_exit built 7049ms exit:0 interpreter-exit:0 interpreter:agrees @84e39b1c4f5a
+pass/facts/nested_zero_leaf_array_storage_through_const_name_exit built 7150ms exit:0 interpreter-exit:0 interpreter:agrees @84e39b1c4f5a
+pass/facts/nested_zero_leaf_array_storage_through_field_exit built 7008ms exit:0 interpreter-exit:0 interpreter:agrees @84e39b1c4f5a
+pass/facts/nested_zero_leaf_array_storage_through_local_exit built 6997ms exit:0 interpreter-exit:0 interpreter:agrees @84e39b1c4f5a
+pass/facts/nested_zero_leaf_array_storage_through_match_join_exit built 6860ms exit:0 interpreter-exit:0 interpreter:agrees @84e39b1c4f5a
+pass/facts/nested_zero_leaf_array_storage_through_other_machine_exit built 7022ms exit:0 interpreter-exit:0 interpreter:agrees @84e39b1c4f5a
+pass/facts/nested_zero_leaf_array_storage_through_other_state_exit built 7011ms exit:0 interpreter-exit:0 interpreter:agrees @84e39b1c4f5a
+pass/facts/nested_zero_leaf_array_storage_through_parameter_exit built 7088ms exit:0 interpreter-exit:0 interpreter:agrees @84e39b1c4f5a
+pass/facts/nested_zero_leaf_array_storage_through_target_body_exit built 6983ms exit:0 interpreter-exit:0 interpreter:agrees @84e39b1c4f5a
+pass/facts/nested_zero_leaf_array_storage_zeroed_source_exit built 6913ms exit:0 interpreter-exit:0 interpreter:agrees @84e39b1c4f5a
 pass/facts/nine_arg_stack_calling_plan_through_call_result_exit built 2879ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/nine_arg_stack_calling_plan_through_const_name_exit built 2799ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/nine_arg_stack_calling_plan_through_field_exit built 2545ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
