@@ -67,6 +67,21 @@ pub(super) enum InvocationIdentity {
     Transition(typed_trees::statement::TransitionTargetHandle),
 }
 
+impl InvocationIdentity {
+    pub(super) fn from_call_site(
+        site: validation::CallSite<'_>,
+        target: Option<typed_trees::statement::TransitionTargetHandle>,
+    ) -> Option<Self> {
+        match site {
+            validation::CallSite::Expression { expression, .. } => {
+                Some(Self::Expression(expression))
+            }
+            validation::CallSite::Statement(_) => Some(Self::Statement),
+            validation::CallSite::TransitionNamed { .. } => target.map(Self::Transition),
+        }
+    }
+}
+
 pub(super) fn routes_compatible(left: &[EvaluationBranch], right: &[EvaluationBranch]) -> bool {
     left.iter().all(|left| {
         right
