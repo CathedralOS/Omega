@@ -40,10 +40,7 @@ impl<'program> IntegerObservations<'program> {
         }
     }
 
-    pub(super) fn expand_policy_values(
-        &mut self,
-        judge: &StructuralJudge<'program>,
-    ) -> Option<bool> {
+    pub(super) fn expand_policy_values(&mut self, judge: &StructuralJudge<'_>) -> Option<bool> {
         let mut changed = false;
         for index in 0..self.policy_values.len() {
             if self.policy_values[index].expanded {
@@ -70,7 +67,7 @@ impl<'program> IntegerObservations<'program> {
 }
 
 fn completed_value<'program>(
-    judge: &StructuralJudge<'program>,
+    judge: &StructuralJudge<'_>,
     source: &StructuralTerm,
     observations: &mut IntegerObservations<'program>,
 ) -> Option<Polynomial> {

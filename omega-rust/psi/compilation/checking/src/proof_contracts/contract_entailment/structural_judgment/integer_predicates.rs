@@ -203,7 +203,7 @@ impl<'program> IntegerObservations<'program> {
     fn install_premises(
         &mut self,
         premises: &mut Vec<(Comparison, Range<usize>)>,
-        judge: &StructuralJudge<'program>,
+        judge: &StructuralJudge<'_>,
     ) -> bool {
         loop {
             if !self.admit_formed_premises(premises) {
