@@ -32,7 +32,7 @@ pub fn build(request: BuildRequest) -> Result<Vec<TargetBuildOutcome>, BuildErro
         ProjectProduct::Check | ProjectProduct::Inspection { .. } => {
             Some(TemporaryDirectory::create("check", false).map_err(BuildError::CheckWorkspace)?)
         }
-        ProjectProduct::Native { .. } => None,
+        ProjectProduct::Terminal | ProjectProduct::Native { .. } => None,
     };
     // Placement belongs to the authored source, never its resolver snapshot.
     let base_directory = match &check_workspace {

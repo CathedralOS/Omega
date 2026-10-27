@@ -181,6 +181,7 @@ pub(super) fn target_installations(
             }
         };
         let result = terminal_runtime::execute(TerminalRuntimeRequest {
+            entry: None,
             native_provider: Some(std::process::Command::new(executable)),
             x86_flags,
             memory_ordering:
@@ -314,6 +315,7 @@ pub(super) fn interpret(
         Err(error) => return Observation::failure(format!("native sponsor executable: {error}")),
     };
     let result = match terminal_runtime::execute(TerminalRuntimeRequest {
+        entry: None,
         native_provider: Some(std::process::Command::new(executable)),
         x86_flags,
         memory_ordering: target
