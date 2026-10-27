@@ -42,185 +42,6 @@ struct QueryDependencies {
     selections: Vec<build_evaluation::BuildDependencySelection>,
 }
 
-/// A running guest and its compiler continuation move together across pauses.
-struct LiveBuild {
-    acquired: AcquiredBuildSource,
-    invocation: compiler::PackageBuildInvocation,
-    queries: compiler::ProductQueries,
-    activation: build_evaluation::TerminalBuildActivation,
-    dependencies: Vec<Arc<ResolvedBuildSources>>,
-}
-
-enum Demand {
-    Provider {
-        alias: String,
-        declaration: String,
-        selected: Option<(usize, usize)>,
-    },
-    Query {
-        query: Arc<build_evaluation::terminal_bindings::BuildProductQuery>,
-        dependencies: QueryDependencies,
-    },
-}
-
-impl Demand {
-    fn purpose(&self) -> DependencyPurpose {
-        match self {
-            Self::Provider { .. } => DependencyPurpose::Build,
-            Self::Query { .. } => DependencyPurpose::Product,
-        }
-    }
-}
-
-struct PendingDependencies {
-    build: Box<LiveBuild>,
-    demand: Demand,
-    requests: std::vec::IntoIter<(usize, Option<String>)>,
-}
-
-impl PendingDependencies {
-    fn new(build: Box<LiveBuild>, demand: Demand) -> Self {
-        // Only the cursor and display aliases are copied. Acquisition still
-        // consumes the original activation's authenticated request ledger.
-        let requests = build
-            .activation
-            .requests()
-            .iter()
-            .filter_map(|issued| match issued.request() {
-                BuildRequest::Dependency { purpose, alias, .. } if *purpose == demand.purpose() => {
-                    Some(alias)
-                }
-                _ => None,
-            })
-            .enumerate()
-            .filter(|(_, alias)| match &demand {
-                Demand::Provider {
-                    alias: selected, ..
-                } => alias
-                    .as_ref()
-                    .is_none_or(|alias| alias.as_str() == selected),
-                Demand::Query { .. } => true,
-            })
-            .map(|(ordinal, alias)| {
-                (
-                    ordinal,
-                    alias.as_ref().map(|alias| alias.as_str().to_owned()),
-                )
-            })
-            .collect::<Vec<_>>()
-            .into_iter();
-        Self {
-            build,
-            demand,
-            requests,
-        }
-    }
-}
-
-struct PendingWorkspace {
-    members: package_manager::resolution::source::AcquiredWorkspaceMembers,
-    next_member: usize,
-    declarations: Vec<package_manager::resolution::source::WorkspaceMemberObservation>,
-}
-
-// These are application dependency continuations, not compiler-stage jobs.
-// The next operation consumes the one completed child; live guest state never
-// resides in a callback, recursive call, or serializable checkpoint.
-enum Work {
-    Source {
-        acquired: AcquiredBuildSource,
-        entry: std::path::PathBuf,
-        execution: package_compilation::BuildExecutionInputs,
-    },
-    Declare(AcquiredBuildSource),
-    Build {
-        acquired: AcquiredBuildSource,
-        request: CheckedCompileRequest,
-    },
-    Run(Box<LiveBuild>),
-    Dependencies(PendingDependencies),
-    DependencySource {
-        dependencies: PendingDependencies,
-        ordinal: usize,
-        alias: Option<String>,
-    },
-    QueryGraph {
-        dependencies: PendingDependencies,
-        ordinal: usize,
-        source: usize,
-        alias: String,
-    },
-    InstallProvider {
-        build: Box<LiveBuild>,
-        declaration: String,
-        ordinal: usize,
-        source: usize,
-    },
-    Acquire(AcquiredSourceSelection),
-    ExecuteAcquired,
-    WorkspaceRoot(package_manager::resolution::source::AcquiredWorkspaceBuild),
-    WorkspaceMembers(PendingWorkspace),
-    WorkspaceMember {
-        workspace: PendingWorkspace,
-        acquired: AcquiredBuildSource,
-    },
-    Graph(ExecutedSourceResolution),
-    GraphAcquisition(BuildSourceAcquisition),
-    GraphDependency(package_manager::resolution::source::AcquiredBuildDependency),
-    GraphWorkspace(package_manager::resolution::source::PendingBuildSource),
-}
-
-enum CompletedWork {
-    Source(usize),
-    Build(ExecutedSourceBuild),
-    Acquired(AcquiredBuildSource),
-    Graph(ResolvedBuildSources),
-}
-
-impl CompletedWork {
-    fn source(self) -> Result<usize, ProjectSourceResolutionError> {
-        match self {
-            Self::Source(source) => Ok(source),
-            _ => Err(Source("Build scheduler expected a declared source".into())),
-        }
-    }
-
-    fn build(self) -> Result<ExecutedSourceBuild, ProjectSourceResolutionError> {
-        match self {
-            Self::Build(build) => Ok(build),
-            _ => Err(Source(
-                "Build scheduler expected an executed activation".into(),
-            )),
-        }
-    }
-
-    fn acquired(self) -> Result<AcquiredBuildSource, ProjectSourceResolutionError> {
-        match self {
-            Self::Acquired(source) => Ok(source),
-            _ => Err(Source(
-                "Build scheduler expected acquired source custody".into(),
-            )),
-        }
-    }
-
-    fn graph(self) -> Result<ResolvedBuildSources, ProjectSourceResolutionError> {
-        match self {
-            Self::Graph(graph) => Ok(graph),
-            _ => Err(Source(
-                "Build scheduler expected a resolved source graph".into(),
-            )),
-        }
-    }
-}
-
-fn take_completed(
-    completed: &mut Option<CompletedWork>,
-) -> Result<CompletedWork, ProjectSourceResolutionError> {
-    completed
-        .take()
-        .ok_or_else(|| Source("Build scheduler lost its completed dependency".into()))
-}
-
 /// Invocation scratch for one Product waiting on its generated-source inputs.
 /// A dependency's completed bundle returns to this frame, not a recursive Rust
 /// call. The same source may still have distinct Build and Product occurrences.
@@ -969,4 +790,183 @@ fn join_source(
             Ok(inputs)
         }
     }
+}
+
+/// A running guest and its compiler continuation move together across pauses.
+struct LiveBuild {
+    acquired: AcquiredBuildSource,
+    invocation: compiler::PackageBuildInvocation,
+    queries: compiler::ProductQueries,
+    activation: build_evaluation::TerminalBuildActivation,
+    dependencies: Vec<Arc<ResolvedBuildSources>>,
+}
+
+enum Demand {
+    Provider {
+        alias: String,
+        declaration: String,
+        selected: Option<(usize, usize)>,
+    },
+    Query {
+        query: Arc<build_evaluation::terminal_bindings::BuildProductQuery>,
+        dependencies: QueryDependencies,
+    },
+}
+
+impl Demand {
+    fn purpose(&self) -> DependencyPurpose {
+        match self {
+            Self::Provider { .. } => DependencyPurpose::Build,
+            Self::Query { .. } => DependencyPurpose::Product,
+        }
+    }
+}
+
+struct PendingDependencies {
+    build: Box<LiveBuild>,
+    demand: Demand,
+    requests: std::vec::IntoIter<(usize, Option<String>)>,
+}
+
+impl PendingDependencies {
+    fn new(build: Box<LiveBuild>, demand: Demand) -> Self {
+        // Only the cursor and display aliases are copied. Acquisition still
+        // consumes the original activation's authenticated request ledger.
+        let mut requests = Vec::new();
+        let mut ordinal = 0;
+        for issued in build.activation.requests() {
+            let BuildRequest::Dependency { purpose, alias, .. } = issued.request() else {
+                continue;
+            };
+            if *purpose != demand.purpose() {
+                continue;
+            }
+            let request_ordinal = ordinal;
+            ordinal += 1;
+            if let Demand::Provider {
+                alias: selected, ..
+            } = &demand
+            {
+                if alias
+                    .as_ref()
+                    .is_some_and(|alias| alias.as_str() != selected)
+                {
+                    continue;
+                }
+            }
+            requests.push((
+                request_ordinal,
+                alias.as_ref().map(|alias| alias.as_str().to_owned()),
+            ));
+        }
+        Self {
+            build,
+            demand,
+            requests: requests.into_iter(),
+        }
+    }
+}
+
+struct PendingWorkspace {
+    members: package_manager::resolution::source::AcquiredWorkspaceMembers,
+    next_member: usize,
+    declarations: Vec<package_manager::resolution::source::WorkspaceMemberObservation>,
+}
+
+// These are application dependency continuations, not compiler-stage jobs.
+// The next operation consumes the one completed child; live guest state never
+// resides in a callback, recursive call, or serializable checkpoint.
+enum Work {
+    Source {
+        acquired: AcquiredBuildSource,
+        entry: std::path::PathBuf,
+        execution: package_compilation::BuildExecutionInputs,
+    },
+    Declare(AcquiredBuildSource),
+    Build {
+        acquired: AcquiredBuildSource,
+        request: CheckedCompileRequest,
+    },
+    Run(Box<LiveBuild>),
+    Dependencies(PendingDependencies),
+    DependencySource {
+        dependencies: PendingDependencies,
+        ordinal: usize,
+        alias: Option<String>,
+    },
+    QueryGraph {
+        dependencies: PendingDependencies,
+        ordinal: usize,
+        source: usize,
+        alias: String,
+    },
+    InstallProvider {
+        build: Box<LiveBuild>,
+        declaration: String,
+        ordinal: usize,
+        source: usize,
+    },
+    Acquire(AcquiredSourceSelection),
+    ExecuteAcquired,
+    WorkspaceRoot(package_manager::resolution::source::AcquiredWorkspaceBuild),
+    WorkspaceMembers(PendingWorkspace),
+    WorkspaceMember {
+        workspace: PendingWorkspace,
+        acquired: AcquiredBuildSource,
+    },
+    Graph(ExecutedSourceResolution),
+    GraphAcquisition(BuildSourceAcquisition),
+    GraphDependency(package_manager::resolution::source::AcquiredBuildDependency),
+    GraphWorkspace(package_manager::resolution::source::PendingBuildSource),
+}
+
+enum CompletedWork {
+    Source(usize),
+    Build(ExecutedSourceBuild),
+    Acquired(AcquiredBuildSource),
+    Graph(ResolvedBuildSources),
+}
+
+impl CompletedWork {
+    fn source(self) -> Result<usize, ProjectSourceResolutionError> {
+        match self {
+            Self::Source(source) => Ok(source),
+            _ => Err(Source("Build scheduler expected a declared source".into())),
+        }
+    }
+
+    fn build(self) -> Result<ExecutedSourceBuild, ProjectSourceResolutionError> {
+        match self {
+            Self::Build(build) => Ok(build),
+            _ => Err(Source(
+                "Build scheduler expected an executed activation".into(),
+            )),
+        }
+    }
+
+    fn acquired(self) -> Result<AcquiredBuildSource, ProjectSourceResolutionError> {
+        match self {
+            Self::Acquired(source) => Ok(source),
+            _ => Err(Source(
+                "Build scheduler expected acquired source custody".into(),
+            )),
+        }
+    }
+
+    fn graph(self) -> Result<ResolvedBuildSources, ProjectSourceResolutionError> {
+        match self {
+            Self::Graph(graph) => Ok(graph),
+            _ => Err(Source(
+                "Build scheduler expected a resolved source graph".into(),
+            )),
+        }
+    }
+}
+
+fn take_completed(
+    completed: &mut Option<CompletedWork>,
+) -> Result<CompletedWork, ProjectSourceResolutionError> {
+    completed
+        .take()
+        .ok_or_else(|| Source("Build scheduler lost its completed dependency".into()))
 }
