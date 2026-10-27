@@ -15,7 +15,7 @@ receiver admission, not as a mandatory gate on ordinary artifact production.
 
 The selected target package supplies ordinary named default provider implementations. The build,
 test harness, or component manager owning a service slot may override them with
-an admitted provider. Conformances and exact bodyless bindings declare candidates;
+an admitted provider. Conformances and exact Build-owned native bindings declare candidate intent;
 the compiler derives ProviderPlan; configuration selects it. Requirements do not
 select their own providers. A boundary operator has no provider clause, and there
 is no parallel top-level primitive-provider registry.
@@ -77,9 +77,11 @@ Build::select_provider<Console, CapturedConsole>(builder);
 Build::select_provider<Console, CapturedConsole>(builder, CompositionMode::Independent);
 ```
 
-Runtime-variable descriptors are ordinary capability values. Static target
-handles and descriptors belong inside selected target realizations, not value
-arguments to provider selection. Distinct authored configurations use distinct
+Runtime-variable descriptors are ordinary capability values, not provider
+selectors. An explicit compile-time target-catalog reference keys a Build row;
+it is not a runtime routing descriptor or an observation of the realized target.
+Physical handles and runtime descriptors stay inside selected implementations.
+Distinct authored configurations use distinct
 nominal/static identities. A facade may compose checked target-specific leaves.
 An exact call to a realization machine delegates directly; spelling its operator
 inside the provider redispatches and can recurse.
@@ -98,7 +100,7 @@ For example, one portable `AudioPlayback` requirement may have Build rows select
 profiles, and `MacosAudioPlayback` for `macos_arm64`. Applications still call the
 same requirement. Shared implementation code and binding-value producers are
 ordinary machines; naming a Windows import does not require a Windows prefix.
-Raw per-OS requirements and irreducible foreign leaves remain explicit beneath
+Raw per-OS requirements and Build-owned native bindings remain explicit beneath
 the selected provider closure.
 
 Psi checks every supplied implementation independently of target selection.
@@ -115,12 +117,26 @@ tracks the end-to-end migration; the existing prefix is not an alternate API.
 [Foreign binding](foreign_bindings.md) identities are normalized evaluated values;
 the requirement owns its
 [calling-policy application](calling_plans.md#identity-and-selection).
-A bodyless leaf uses `via`
-only for payload its declaration and target cannot derive. Compiler intrinsics
-are selected from exact declaration, signature, and target. The complete binding
-producer closure and result enter final admission. Changing a typed foreign
+The owning package records `Build::bind<Requirement>(builder, target, locator)`
+for irreducible native supply. The requirement operand is an exact designated
+product reference; target is an ordinary validated catalog reference, and the
+locator is ordinary compile-time data with literal byte lengths inferred.
+Source-level `via` clauses and one-to-one bodyless realization declarations are
+retired. The package's native rows travel with its selected provider closure;
+application Build need not repeat dependency symbols or name private raw slots.
+Native rows supply exact boundary backing, not whole-trait conformance evidence,
+and complete schema coverage remains mandatory. Build-host readiness stays
+separate from these product rows.
+
+Compiler intrinsics are selected from exact declaration, signature, and target.
+The complete binding producer closure and result enter final admission.
+Changing a typed foreign
 locator, evaluated plan, or sealed catalog entry changes artifact identity and
-requires fresh admission; Build cannot rewrite them during selection.
+requires fresh admission; Build records binding intent, not mutable trusted
+plans. Stable native-provider identity retains exact requirement, target,
+supplying package, locator, calling policy, and authored provenance even without
+a forwarding machine. `BUILD-OWNED-NATIVE-BINDINGS` in
+[the task board](../../../TASKS.md) owns implementation of this accepted form.
 
 Overrides outrank target defaults and retain authored selection identity/order.
 Missing, private, ambiguous, foreign, and duplicate candidates reject. A selected

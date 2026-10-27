@@ -90,6 +90,13 @@ visible conformance implicit. When a proof-static binder selects a token-bearing
 requirement, specialization retains that exact implementation map and provider
 planning may later realize its boundary rows without changing the selection.
 
+A package-local [native binding](../build/foreign_bindings.md#build-owned-native-binding)
+supplies one exact boundary requirement's backing without a bodyless
+`machine ... satisfies ... via ...` forwarding declaration. It does not invent
+a named implementation map, discharge laws, or license `dyn`. Complete provider
+schema coverage and exact requirement contracts still apply; checked adapters
+remain ordinary named implementations with real bodies.
+
 This same selection supplies operation and law requirements for computed static
 indices. A generic consumer requiring commutativity takes an ordinary conformance
 binder whose trait contains that law for the selected operation. The index

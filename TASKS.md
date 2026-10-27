@@ -960,6 +960,44 @@ narrows realization only.
   invalid controls reject for the relevant obligation, and no source, parser,
   IR, codec, or runtime path still implements target-prefixed body families.
 
+- **BUILD-OWNED-NATIVE-BINDINGS.** Implement the ratified package-local
+  `Build::bind<Requirement>(builder, target, locator)` form under
+  [foreign bindings](wiki/spec/build/foreign_bindings.md#build-owned-native-binding),
+  retiring source `via` clauses and one-to-one bodyless native realization
+  declarations without weakening contracts, admission, or authority.
+  - Resolve exact designated product requirements after discovery/checking and
+    retain target-keyed native intent on the original Build activation; preserve
+    package ownership, private raw-slot closure, explicit defaults/override
+    precedence, complete schema coverage, and separation from Build-host service
+    readiness without ordinary imports of unresolved product source.
+  - Infer `ForeignBinding`/locator const lengths from ordinary fixed-byte values
+    and constructor constraints, with unused coordinates zero. Inline PE, ELF,
+    Mach-O, and syscall bindings need no manually counted generic arguments,
+    per-symbol value helper, or forwarding declaration; incorrect explicit
+    counts and ambiguous inference reject rather than using erased byte blobs.
+  - Derive exact native-provider and calling-plan identities from requirement,
+    target, immutable supplier package, normalized locator, pinned calling
+    policy, and authored evaluation provenance. Transport lifetime/static
+    applications, original loans, operational ceilings, callbacks, contracts,
+    trust, replacement, and authority through Build, Terminal/provider rows,
+    package review, both execution engines, and native emission without source
+    spelling or a synthetic forwarding machine as the identity anchor.
+    Change affected review/codec schema identities instead of reinterpreting
+    declaration-bound legacy records as Build-owned native rows.
+  - Migrate library, product source, fixtures, and the audio playback consumers
+    to the new form with original exit/output/playback oracles. Remove `via`
+    parsing and legacy declaration-to-binding recovery, including intrinsic and
+    typed table/field sites, without adding unsupported variants to
+    `ForeignBinding` or requiring application roots to duplicate private imports.
+  Acceptance: direct Build bindings for Windows PlaySoundW, Linux ALSA, and
+  macOS AudioQueue lower and run through `omega run --both` on matching hosts,
+  with locator lengths inferred and exact review/audit identities retained.
+  Controls reject retired syntax, wrong counts/ABI, unresolved/private product
+  references, conflicting rows, unadmitted foreign contracts, wrong Build
+  activation and product-to-Build-host leakage. Missing backing fails only its
+  affected realization; no `via` compatibility path or mandatory per-symbol
+  forwarding declaration remains.
+
 - **PROVIDER-SELECTION-AFTER-TERMINAL.** (new-scope; also covers
   **OPERATOR-BOUNDARY-CALLS** and **TARGET-SEMANTIC-APPLICATIONS**)
   Complete source-free per-target provider settlement, legacy operator and

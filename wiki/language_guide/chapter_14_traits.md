@@ -295,10 +295,14 @@ The mapping substitutes through the inherited signature and contracts. See
 from the public conformance telescope.
 
 The `satisfies` clause follows the signature and precedes termination, contracts,
-and the checked body. An irreducible external implementation instead uses
-`via <Binding>;` and inherits the requirement's contract; the binding payload is
-not evidence that foreign code honors it. Neither form creates a whole
-conformance.
+and the checked body. Irreducible native backing instead uses a package-local
+`Build::bind<Requirement>(builder, target, locator)` row; no per-symbol bodyless
+realization or source `via` clause is declared. The locator's byte lengths are
+inferred from its ordinary values. Native supply retains the requirement's full
+contract and needs foreign admission; the binding payload proves no behavior.
+Neither exact satisfaction nor native binding creates a whole conformance.
+See [Build-owned native binding](../spec/build/foreign_bindings.md#build-owned-native-binding)
+for the accepted form and its remaining implementation work.
 
 ## Individual Machine Requirements
 

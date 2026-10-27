@@ -549,6 +549,15 @@ The rules that touch every edit:
   not a `Trait::member = Existing::machine;` reference row. Follow
   [named implementations](wiki/spec/language/conformances.md#data-and-code-are-independent)
   and remove legacy support rather than preserving it for old tests.
+- Source `via` binding clauses and one-to-one bodyless native forwarding
+  declarations are retired. The owning package records
+  `Build::bind<Requirement>(builder, target, locator)` intent; literal locator
+  byte lengths are inferred, not manually counted in helpers or Build generics.
+  The compiler derives plans and preserves exact contracts, ABI, provenance,
+  admission, and authority. Product rows never install Build-host backing;
+  application roots do not repeat dependency-private imports. Follow
+  [native bindings](wiki/spec/build/foreign_bindings.md#build-owned-native-binding);
+  `BUILD-OWNED-NATIVE-BINDINGS` owns compiler/source/review migration.
 - Source `state` declarations are retired in favor of arbitrarily nested
   machines. Nesting scopes names, never runtime data or implicit authority.
   All runtime arguments are explicit; ordinary calls resume, terminal calls

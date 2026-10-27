@@ -226,8 +226,9 @@ The callable machine model has five explicit supply forms:
 |---|---|
 | Checked Omega implementation | `{ ... }` body |
 | Trait requirement | Bodyless declaration inside the trait |
-| External requirement realization | Bodyless `boundary machine ... satisfies Trait<...>::requirement;`, with `via <Binding>` only for an explicit payload |
+| Native requirement backing | Package-local `Build::bind<Requirement>(builder, target, locator)` intent, validated and admitted under the requirement contract |
 | Admission-bearing claim | Bodyless `boundary machine ... ensures ...;` |
+| Compiler-supplied primitive | Exact toolchain declaration with a sealed catalog implementation, without an authored binding payload |
 
 A boundary operation is a requirement inside a boundary trait. When one
 operation needs independent provider selection, use a one-member boundary trait
@@ -246,32 +247,35 @@ public boundary trait InterruptCompletion {
 }
 ```
 
-A named implementation maps that row to a checked or external machine;
-`build.omg` selects the implementation. The qualified acknowledgement supplies
+A named implementation maps that row to a checked machine, or package Build
+records its direct native backing. The qualified acknowledgement supplies
 the call's authority premise but neither chooses nor realizes the machine.
 
-An external realization binds an irreducible imported operation to a
-requirement without pretending the binding is executable Omega code:
+The owning package's Build binds an irreducible imported operation directly to
+its exact requirement. This accepted form remains implementation work:
 
 ```omega
-machine write_file_binding() -> ForeignBinding<12, 9, 0> {
+Build::bind<WindowsAudioPlaybackIo::c_play_sound>(
+    builder,
+    windows_x86_64,
     ForeignBinding::DllImport {
         import: DllImport::PeByName {
-            library: "kernel32.dll",
-            export: "WriteFile",
+            library: "winmm.dll",
+            export: "PlaySoundW",
         },
     }
-}
-
-boundary machine kernel32_write_file(handle: WinHandle, bytes: &[u8]) -> WriteResult
-    satisfies Kernel32Requirements::write_file
-    via write_file_binding();
+);
 ```
 
-The expression after `via` is a typed compile-time locator value. It names the
-physical import, while `satisfies` selects the exact requirement and inherits
-its full contract. The provider must refine that contract; the import bytes
-and a matching value signature are not permission to execute it.
+The locator is ordinary compile-time data, not a runtime machine body. Its
+fixed-byte lengths are inferred from the literal values; authors need not write
+`ForeignBinding<9, 10, 0>` or a per-symbol helper. Source `via` clauses and
+one-to-one bodyless realization declarations are retired. The binding retains
+the exact requirement, target, supplying package, calling policy and provenance;
+its foreign promise must be admitted under the full requirement contract.
+Import bytes and matching value signatures grant no execution authority.
+`BUILD-OWNED-NATIVE-BINDINGS` in [the task board](../../TASKS.md#pipeline-route)
+tracks the compiler and source migration.
 
 Operating-system implementations are ordinary named implementations. Build
 records which implementation backs the requirement for each target; callers
@@ -285,8 +289,9 @@ the selected closure's native applicability. A missing or incompatible selected
 provider rejects that realization only. The compiler migration remains tracked
 by `BUILD-OWNED-TARGET-SELECTION` in [the task board](../../TASKS.md#pipeline-route).
 
-If the trait has lifetime parameters, the satisfaction path supplies them
-explicitly. [Foreign bindings](../spec/build/foreign_bindings.md) defines exact
+If the trait has lifetime parameters, a checked satisfaction path supplies them
+explicitly and a direct native binding retains the requirement's full binder
+schema and application. [Foreign bindings](../spec/build/foreign_bindings.md) defines exact
 application identity, target-specific locators, calling plans, and admission.
 A compiler intrinsic has no binding payload: its declaration, normalized
 signature, and target identify the sealed implementation.

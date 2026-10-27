@@ -57,6 +57,16 @@ the realization set from that artifact and the target's Build rows: provider
 selection and installation in stage 00, then stages 01 through 09 and image
 emission.
 
+Native binding intent belongs to package-local Build rows:
+`Build::bind<Requirement>(builder, target, locator)` names an exact designated
+product requirement and ordinary typed locator data with inferred byte lengths.
+It does not execute product code or install Build-host supply. The compiler
+derives native candidates/plans and retains requirement, target, supplier,
+calling policy and authored provenance through review and realization. Source
+`via` clauses and per-symbol forwarding realizers are retired; remaining parser,
+source and review carriers are work under `BUILD-OWNED-NATIVE-BINDINGS` in
+[the task board](../TASKS.md#pipeline-route), not a parallel supply route.
+
 The two drivers are the production dependency boundary around the stages. A
 consumer needing source semantics calls the Psi driver with explicit source,
 package and Build custody; a consumer needing machine output calls the Omega

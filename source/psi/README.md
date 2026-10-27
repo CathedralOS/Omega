@@ -2,7 +2,14 @@
 
 This sibling package owns the Omega-written, target-neutral Psi half of the
 production compiler. `source/omega/` consumes it through the `psi` package
-identity; Omega does not own this source tree. The current live slice contains
+identity; Omega does not own this source tree. The parser/typing inventory below
+describes current implementation, including retired target prefixes and `via`
+binding clauses. Those are migration debt, not accepted alternative syntax.
+Package-local `Build::bind<Requirement>(builder, target, locator)` replaces the
+per-symbol native forwarding declaration, with locator lengths inferred;
+`BUILD-OWNED-NATIVE-BINDINGS` and `BUILD-OWNED-TARGET-SELECTION` in
+[the task board](../../TASKS.md#pipeline-route) own the implementation changes.
+The current live slice contains
 source/span and token representations, a UTF-8-framed lexer that stores only
 semantic tokens, and a fail-closed whole-file parser for ordinary
 `use path::member;` roots,
@@ -180,7 +187,7 @@ package; one token with the same parameters twice at one home rejects
 ([`resolve/operators.omg`](resolve/operators.omg)). A `satisfies` clause binds
 its trait (a trait position), the trait's static arguments in the machine's
 generic scope and the trait's member it names, recorded per clause in
-`NameResolution::requirements`, and its `via` payload in the machine's
+`NameResolution::requirements`, and its legacy `via` payload in the machine's
 static scope, without its parameters; a trait reached through a module path
 rejects as unsupported. A `terminates by` witness's subjects bind in the
 body's parameter scope, and its view names the compiler's ranking vocabulary
@@ -403,7 +410,7 @@ borrow (attenuation from `&mut` and forwarding are spelled at the argument,
 else `ImplicitAttenuation`), and a write-only reference reads as nothing
 ([borrows and aliases](../../wiki/spec/language/ownership.md#borrows-and-aliases)). A machine that `satisfies` a
 requirement must have the requirement's signature with the trait's type
-parameters replaced by the clause's arguments, and its `via` payload, a
+parameters replaced by the clause's arguments, and its legacy `via` payload, a
 `terminates by` witness's subjects and `Nat::IncreasingTo`'s limit type like
 expressions
 ([`typing/clauses.omg`](typing/clauses.omg)); a requirement with generic
