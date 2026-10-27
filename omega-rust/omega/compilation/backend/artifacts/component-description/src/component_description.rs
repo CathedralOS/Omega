@@ -491,26 +491,18 @@ impl std::error::Error for DescriptionDecodeRejection {}
 
 /// Collision-resistant identity of one exact encoded description.
 pub(crate) fn component_description_identity(canonical_bytes: &[u8]) -> [u8; 32] {
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(DESCRIPTION_IDENTITY_DOMAIN);
-    digest.raw(
-        &u64::try_from(canonical_bytes.len())
-            .unwrap_or(0)
-            .to_le_bytes(),
-    );
-    digest.raw(&canonical_bytes);
-    digest.finish()
+    crate::digest_encoder::DomainDigestEncoder::content(
+        DESCRIPTION_IDENTITY_DOMAIN,
+        canonical_bytes,
+    )
 }
 
 /// Collision-resistant contract identity of one requirement spelling.
 pub(crate) fn requirement_contract_identity(requirement_identity: &str) -> [u8; 32] {
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(REQUIREMENT_CONTRACT_DOMAIN);
-    digest.raw(
-        &u64::try_from(requirement_identity.len())
-            .unwrap_or(0)
-            .to_le_bytes(),
-    );
-    digest.raw(requirement_identity.as_bytes());
-    digest.finish()
+    crate::digest_encoder::DomainDigestEncoder::content(
+        REQUIREMENT_CONTRACT_DOMAIN,
+        requirement_identity.as_bytes(),
+    )
 }
 
 /// Distinguishes a concrete root from a portable family head in exported labels.
@@ -578,14 +570,8 @@ pub(crate) fn register_mechanism_assumption(
     digest.finish()
 }
 
-pub(crate) fn hex(bytes: &[u8]) -> String {
-    let mut out = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        use std::fmt::Write;
-        let _ = write!(out, "{byte:02x}");
-    }
-    out
-}
+/// Lowercase hex rendering of digest bytes, taken from the shared encoder.
+pub(crate) use crate::digest_encoder::hex;
 
 /// Every fact `verify_component` can re-derive from the embedded artifact
 /// alone. The producer emits exactly these rows (plus declared rows bound to
@@ -1164,64 +1150,44 @@ pub(crate) fn describe_decoded_component_facts(
 // Canonical wire codec
 // ---------------------------------------------------------------------------
 
-struct Reader<'a> {
-    bytes: &'a [u8],
-    offset: usize,
+// The read half of the wire protocol is the workspace's shared cursor; this
+// decoder supplies only its own roster and identity bounds.
+use optimization_core::cursor::{Cursor, Truncated};
+
+/// The shared bounded cursor, narrowed to this decoder's own failure: a
+/// truncated read is a corrupt description.
+///
+/// `cursor::Cursor` owns the read half of the workspace's byte protocol
+/// (truncation and length handling); this wire adds only its own roster and
+/// identity bounds below, and maps a truncated read onto its corrupt row.
+type Reader<'a> = Cursor<'a>;
+
+impl From<Truncated> for DescriptionDecodeRejection {
+    fn from(_: Truncated) -> Self {
+        Self::Corrupt("truncated input")
+    }
 }
 
-impl<'a> Reader<'a> {
-    fn new(bytes: &'a [u8]) -> Self {
-        Self { bytes, offset: 0 }
+/// One roster's declared row count, bounded before any row is read.
+fn roster_len(
+    reader: &mut Reader<'_>,
+    what: &'static str,
+) -> Result<usize, DescriptionDecodeRejection> {
+    let count = reader.u32()? as usize;
+    if count > MAX_DESCRIPTION_ROSTER {
+        return Err(DescriptionDecodeRejection::RosterBoundExceeded(what));
     }
+    Ok(count)
+}
 
-    fn remaining(&self) -> usize {
-        self.bytes.len() - self.offset
+/// One length-framed identity string, bounded before it is read.
+fn read_identity(reader: &mut Reader<'_>) -> Result<String, DescriptionDecodeRejection> {
+    let length = reader.u32()? as usize;
+    if length > MAX_IDENTITY_BYTES {
+        return Err(DescriptionDecodeRejection::IdentityInvalid("too long"));
     }
-
-    fn take(&mut self, count: usize) -> Result<&'a [u8], DescriptionDecodeRejection> {
-        if self.remaining() < count {
-            return Err(DescriptionDecodeRejection::Corrupt("truncated input"));
-        }
-        let slice = &self.bytes[self.offset..self.offset + count];
-        self.offset += count;
-        Ok(slice)
-    }
-
-    fn u8(&mut self) -> Result<u8, DescriptionDecodeRejection> {
-        Ok(self.take(1)?[0])
-    }
-
-    fn u32(&mut self) -> Result<u32, DescriptionDecodeRejection> {
-        Ok(u32::from_le_bytes(self.array()?))
-    }
-
-    fn u64(&mut self) -> Result<u64, DescriptionDecodeRejection> {
-        Ok(u64::from_le_bytes(self.array()?))
-    }
-
-    fn array<const N: usize>(&mut self) -> Result<[u8; N], DescriptionDecodeRejection> {
-        self.take(N)?
-            .try_into()
-            .map_err(|_| DescriptionDecodeRejection::Corrupt("truncated fixed bytes"))
-    }
-
-    fn roster_len(&mut self, what: &'static str) -> Result<usize, DescriptionDecodeRejection> {
-        let count = self.u32()? as usize;
-        if count > MAX_DESCRIPTION_ROSTER {
-            return Err(DescriptionDecodeRejection::RosterBoundExceeded(what));
-        }
-        Ok(count)
-    }
-
-    fn identity(&mut self) -> Result<String, DescriptionDecodeRejection> {
-        let length = self.u32()? as usize;
-        if length > MAX_IDENTITY_BYTES {
-            return Err(DescriptionDecodeRejection::IdentityInvalid("too long"));
-        }
-        let bytes = self.take(length)?;
-        String::from_utf8(bytes.to_vec())
-            .map_err(|_| DescriptionDecodeRejection::IdentityInvalid("not utf-8"))
-    }
+    String::from_utf8(reader.take(length)?.to_vec())
+        .map_err(|_| DescriptionDecodeRejection::IdentityInvalid("not utf-8"))
 }
 
 fn push_u32(out: &mut Vec<u8>, value: u32) {
@@ -1397,7 +1363,7 @@ pub fn decode_component_description_with_artifact(
             "description byte length",
         ));
     }
-    let mut reader = Reader::new(bytes);
+    let mut reader = Cursor::new(bytes);
     if reader.take(DESCRIPTION_MAGIC.len())? != DESCRIPTION_MAGIC {
         return Err(DescriptionDecodeRejection::InvalidMagic);
     }
@@ -1407,7 +1373,7 @@ pub fn decode_component_description_with_artifact(
             "description schema",
         ));
     }
-    let frontier = DescriptionFrontier::from_tag(reader.u8()?)
+    let frontier = DescriptionFrontier::from_tag(reader.byte()?)
         .ok_or(DescriptionDecodeRejection::UnsupportedTag("frontier tag"))?;
 
     let artifact_length = reader.u32()? as usize;
@@ -1417,9 +1383,9 @@ pub fn decode_component_description_with_artifact(
 
     let mut imports = Vec::new();
     let mut last_import: Option<(u32, String)> = None;
-    for _ in 0..reader.roster_len("import")? {
+    for _ in 0..roster_len(&mut reader, "import")? {
         let slot = reader.u32()?;
-        let requirement_identity = reader.identity()?;
+        let requirement_identity = read_identity(&mut reader)?;
         let contract_identity = reader.array::<32>()?;
         let key = (slot, requirement_identity.clone());
         if last_import.as_ref() >= Some(&key) {
@@ -1435,8 +1401,8 @@ pub fn decode_component_description_with_artifact(
 
     let mut exports = Vec::new();
     let mut last_export: Option<String> = None;
-    for _ in 0..reader.roster_len("export")? {
-        let identity = reader.identity()?;
+    for _ in 0..roster_len(&mut reader, "export")? {
+        let identity = read_identity(&mut reader)?;
         if last_export.as_ref() >= Some(&identity) {
             return Err(DescriptionDecodeRejection::NonCanonicalOrder("export"));
         }
@@ -1446,11 +1412,11 @@ pub fn decode_component_description_with_artifact(
 
     let mut entries = Vec::new();
     let mut last_entry: Option<(u8, String)> = None;
-    for _ in 0..reader.roster_len("entry")? {
-        let kind = ComponentEntryKind::from_tag(reader.u8()?)
+    for _ in 0..roster_len(&mut reader, "entry")? {
+        let kind = ComponentEntryKind::from_tag(reader.byte()?)
             .ok_or(DescriptionDecodeRejection::UnsupportedTag("entry kind"))?;
-        let identity = reader.identity()?;
-        let evidence = match reader.u8()? {
+        let identity = read_identity(&mut reader)?;
+        let evidence = match reader.byte()? {
             0 => EntryEvidence::ModuleDerived,
             1 => EntryEvidence::AssumptionBound(reader.array::<32>()?),
             _ => return Err(DescriptionDecodeRejection::UnsupportedTag("entry evidence")),
@@ -1469,12 +1435,12 @@ pub fn decode_component_description_with_artifact(
 
     let mut outgoing = Vec::new();
     let mut last_outgoing: Option<(u8, String)> = None;
-    for _ in 0..reader.roster_len("outgoing authority")? {
-        let class = OutgoingAuthorityClass::from_tag(reader.u8()?).ok_or(
+    for _ in 0..roster_len(&mut reader, "outgoing authority")? {
+        let class = OutgoingAuthorityClass::from_tag(reader.byte()?).ok_or(
             DescriptionDecodeRejection::UnsupportedTag("authority class"),
         )?;
-        let identity = reader.identity()?;
-        let evidence = match reader.u8()? {
+        let identity = read_identity(&mut reader)?;
+        let evidence = match reader.byte()? {
             0 => OutgoingEvidence::ModuleDerived,
             1 => OutgoingEvidence::ProviderSealed(reader.array::<32>()?),
             2 => OutgoingEvidence::PhysicalMechanism(reader.array::<32>()?),
@@ -1501,11 +1467,11 @@ pub fn decode_component_description_with_artifact(
 
     let mut service_bounds = Vec::new();
     let mut last_bound: Option<(String, Vec<ServiceId>)> = None;
-    for _ in 0..reader.roster_len("service bound")? {
-        let requirement_identity = reader.identity()?;
+    for _ in 0..roster_len(&mut reader, "service bound")? {
+        let requirement_identity = read_identity(&mut reader)?;
         let mut bound = Vec::new();
         let mut last_service: Option<ServiceId> = None;
-        for _ in 0..reader.roster_len("service bound services")? {
+        for _ in 0..roster_len(&mut reader, "service bound services")? {
             let service = ServiceId::new(reader.u64()?)
                 .ok_or(DescriptionDecodeRejection::Corrupt("zero service identity"))?;
             if last_service >= Some(service) {
@@ -1531,11 +1497,11 @@ pub fn decode_component_description_with_artifact(
 
     let mut custody = Vec::new();
     let mut last_custody: Option<(u8, String)> = None;
-    for _ in 0..reader.roster_len("custody")? {
-        let kind = CustodyKind::from_tag(reader.u8()?)
+    for _ in 0..roster_len(&mut reader, "custody")? {
+        let kind = CustodyKind::from_tag(reader.byte()?)
             .ok_or(DescriptionDecodeRejection::UnsupportedTag("custody kind"))?;
-        let identity = reader.identity()?;
-        let evidence = match reader.u8()? {
+        let identity = read_identity(&mut reader)?;
+        let evidence = match reader.byte()? {
             0 => CustodyEvidence::ModuleDerived,
             1 => CustodyEvidence::AssumptionBound(reader.array::<32>()?),
             _ => {
@@ -1558,7 +1524,7 @@ pub fn decode_component_description_with_artifact(
 
     let mut providers = Vec::new();
     let mut last_provider: Option<u64> = None;
-    for _ in 0..reader.roster_len("provider")? {
+    for _ in 0..roster_len(&mut reader, "provider")? {
         let report_identity = reader.u64()?;
         let plan_digest = reader.array::<32>()?;
         let plan_input_length = reader.u32()? as usize;
@@ -1568,11 +1534,11 @@ pub fn decode_component_description_with_artifact(
             ));
         }
         let plan_input = reader.take(plan_input_length)?.to_vec();
-        let requirement_count = reader.roster_len("provider requirement")?;
+        let requirement_count = roster_len(&mut reader, "provider requirement")?;
         let mut requirement_identities = Vec::with_capacity(requirement_count);
         let mut last_requirement: Option<String> = None;
         for _ in 0..requirement_count {
-            let requirement = reader.identity()?;
+            let requirement = read_identity(&mut reader)?;
             if last_requirement.as_ref() >= Some(&requirement) {
                 return Err(DescriptionDecodeRejection::NonCanonicalOrder(
                     "provider requirement",
@@ -1596,12 +1562,12 @@ pub fn decode_component_description_with_artifact(
 
     let mut obligations = Vec::new();
     let mut last_obligation: Option<(u8, String)> = None;
-    for _ in 0..reader.roster_len("obligation")? {
-        let kind = ObligationKind::from_tag(reader.u8()?).ok_or(
+    for _ in 0..roster_len(&mut reader, "obligation")? {
+        let kind = ObligationKind::from_tag(reader.byte()?).ok_or(
             DescriptionDecodeRejection::UnsupportedTag("obligation kind"),
         )?;
-        let identity = reader.identity()?;
-        let detail = reader.identity()?;
+        let identity = read_identity(&mut reader)?;
+        let detail = read_identity(&mut reader)?;
         let key = (kind.tag(), identity.clone());
         if last_obligation.as_ref() >= Some(&key) {
             return Err(DescriptionDecodeRejection::NonCanonicalOrder("obligation"));
@@ -1616,7 +1582,7 @@ pub fn decode_component_description_with_artifact(
 
     let mut assumptions = Vec::new();
     let mut last_assumption: Option<[u8; 32]> = None;
-    for _ in 0..reader.roster_len("assumption")? {
+    for _ in 0..roster_len(&mut reader, "assumption")? {
         let assumption = reader.array::<32>()?;
         if last_assumption >= Some(assumption) {
             return Err(DescriptionDecodeRejection::NonCanonicalOrder("assumption"));
@@ -1625,7 +1591,7 @@ pub fn decode_component_description_with_artifact(
         assumptions.push(assumption);
     }
 
-    let realization_identity = match reader.u8()? {
+    let realization_identity = match reader.byte()? {
         0 => None,
         1 => Some(reader.array::<32>()?),
         _ => {
