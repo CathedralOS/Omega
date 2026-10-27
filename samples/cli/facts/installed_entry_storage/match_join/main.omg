@@ -112,6 +112,8 @@ machine write_selected(view: &mut Placed<RegPlacement, Registers>, flag: bool, e
 }
 
 machine start(view: &mut Placed<RegPlacement, Registers>) crashes Trap {
-    write_selected(view, true, 11u8);
-    write_selected(view, false, 13u8);
+    let first_status: u32 = view.status.read(&view.status);
+    write_selected(view, first_status == 41u32, 11u8);
+    let second_status: u32 = view.status.read(&view.status);
+    write_selected(view, second_status != 41u32, 13u8);
 }
