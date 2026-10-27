@@ -31,3 +31,4 @@ terminal-codec = { path = "../representations/terminal-psi/codec" }
 
 rayon = "1.10"
 arena = { path = "../../foundation/arena" }
+flow-effects = { path = "../../foundation/flow-effects" }

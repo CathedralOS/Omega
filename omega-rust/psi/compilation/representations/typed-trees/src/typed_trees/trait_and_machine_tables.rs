@@ -5,6 +5,39 @@ use crate::{data, machine, signature, trait_definition};
 use symbols::SymbolHandle;
 
 impl TypedTrees {
+    /// Read a family's exact member from the retained catalog. A missing target
+    /// never selects another member or treats the bodyless head as executable.
+    pub fn target_family_member(
+        &self,
+        head: SymbolHandle,
+        target: &str,
+    ) -> Option<&machine::Machine> {
+        let family = self
+            .target_machine_families
+            .iter()
+            .find(|family| family.canonical == head)?;
+        let member = family
+            .members
+            .iter()
+            .find(|member| member.target.as_str() == target)?;
+        self.machine_by_symbol(member.machine)
+    }
+
+    /// Resolve a body reference under a canonical target identity supplied by
+    /// its owner. Exact member references stay exact, even for another target.
+    pub fn machine_for_target<'program>(
+        &'program self,
+        machine: &'program machine::Machine,
+        target: &str,
+    ) -> Option<&'program machine::Machine> {
+        if machine.target_family_interface {
+            return self.target_family_member(machine.symbol, target);
+        }
+        self.machine_authored_target(machine)
+            .is_none_or(|declared| declared == target)
+            .then_some(machine)
+    }
+
     super::typed_tree_table! {
         traits => traits(trait_definition::TraitDefinition) [push_trait_definition];
         conformances => conformances(trait_definition::Conformance) [push_conformance];
