@@ -333,7 +333,7 @@ fn demanded_provider_plans(
     // Satisfaction declares a candidate, not a request to install it. Use the
     // source owner's callable-use inventory, not all nominal references: a
     // conformance row necessarily mentions its requirement without calling it.
-    let mut uses = typed_trees::references::collect_program_references(&checked.typed)
+    let mut uses = checked_trees::typed_trees::references::collect_program_references(&checked.typed)
         .callable_uses
         .into_iter()
         .map(|symbol| {
@@ -407,8 +407,9 @@ pub fn settle_checked_providers(
     // PRV4 provider selection mirrors the native pipeline: candidates remain
     // separate by provider type and only the uniquely covering candidate may
     // rewrite adapter calls in the interpreter program.
-    let evaluated_via_bindings = crate::evaluated_via_bindings::evaluate_via_bindings(
-        context,
+    let evaluated_via_bindings = crate::evaluated_via_bindings::evaluate_checked_via_bindings(
+        checked,
+        source::DependencyScope::Product,
         planning_target,
         package_inputs,
     )?;

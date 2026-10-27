@@ -9,8 +9,10 @@
 //! product retain separate package instances.
 
 use checked_trees::typed_trees::TypedTrees;
+use checked_trees::typed_trees::product_operand::{
+    ProductEntryCompatibility, ProductEntryDeclaration,
+};
 use diagnostics::Diagnostic;
-use typed_trees::product_operand::{ProductEntryCompatibility, ProductEntryDeclaration};
 
 mod discovery;
 mod extent_layout;

@@ -7,7 +7,7 @@
 //! is another application even when its declaration symbol is unchanged.
 
 use arena::HandleSpan;
-use checked_trees::{CheckedTrees, typed_trees};
+use checked_trees::CheckedTrees;
 use flow_effects::{OperationalPlan, StaticMachineCallBinding};
 use symbols::SymbolHandle;
 use target::TargetProfile;
@@ -60,10 +60,13 @@ pub fn proof_application_declaration_owners(
     let typed = &checked.typed;
     let mut roots = machines.to_vec();
     loop {
-        let selection =
-            typed_trees::references::DeclarationSelection::from_symbols(roots.iter().copied());
+        let selection = checked_trees::typed_trees::references::DeclarationSelection::from_symbols(
+            roots.iter().copied(),
+        );
         let references =
-            typed_trees::references::collect_selected_program_references(typed, &selection);
+            checked_trees::typed_trees::references::collect_selected_program_references(
+                typed, &selection,
+            );
         let before = roots.len();
         // Descriptive custody still retains type/contract formation; it
         // grants no executable body application. Both roles may add only
@@ -113,7 +116,8 @@ pub fn proof_application_declaration_owners(
 /// Ground model recipes may close these descriptions under the selected copy's
 /// capsule without executing them or inventing a machine application.
 pub fn declaration_formation_owners(checked: &CheckedTrees) -> Vec<SymbolHandle> {
-    let mut declarations = typed_trees::references::collect_program_declarations(&checked.typed);
+    let mut declarations =
+        checked_trees::typed_trees::references::collect_program_declarations(&checked.typed);
     declarations.retain(|owner| checked.typed.machine_by_symbol(*owner).is_none());
     for owner in checked.typed.traits() {
         declarations.extend(
