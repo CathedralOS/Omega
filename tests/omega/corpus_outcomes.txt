@@ -15255,6 +15255,54 @@ fail/facts/subslice_state_extent_wrong_view_rejected rejected 2452ms expected @a
 	cannot prove index `position` is within unknown slice length of `buffer` in trial::extended
 	cannot prove index `position` is within unknown slice length of `buffer` in trial::extended
 	cannot prove index `position` is within unknown slice length of `buffer` in trial::extended
+fail/facts/target_family_callback_guarantee/call_result rejected 893ms expected @eb23675fbe3f
+	machine argument `identity` for `apply` does not refine `Callback`: its ensures facts are not a conservative refinement
+	machine argument `identity` for `apply` does not refine `Operation`: its ensures facts are not a conservative refinement
+fail/facts/target_family_callback_guarantee/const_name rejected 874ms expected @eb23675fbe3f
+	machine argument `identity` for `apply` does not refine `Callback`: its ensures facts are not a conservative refinement
+	machine argument `identity` for `apply` does not refine `Operation`: its ensures facts are not a conservative refinement
+	machine argument `identity` for `apply` does not refine `Callback`: its ensures facts are not a conservative refinement
+	machine argument `identity` for `apply` does not refine `Operation`: its ensures facts are not a conservative refinement
+	machine argument `identity` for `apply` does not refine `Callback`: its ensures facts are not a conservative refinement
+	machine argument `identity` for `apply` does not refine `Operation`: its ensures facts are not a conservative refinement
+fail/facts/target_family_callback_guarantee/disjunctive_guarantee rejected 896ms expected @eb23675fbe3f
+	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
+	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
+	machine argument `identity` for `apply` does not refine `Callback`: its ensures facts are not a conservative refinement
+	machine argument `identity` for `apply` does not refine `Action`: its ensures facts are not a conservative refinement
+	machine argument `identity` for `apply` does not refine `Operation`: its ensures facts are not a conservative refinement
+fail/facts/target_family_callback_guarantee/distinct_capture rejected 836ms expected @eb23675fbe3f
+	machine argument `identity` for `contract::apply` does not refine `Selected`: its ensures facts are not a conservative refinement
+fail/facts/target_family_callback_guarantee/field rejected 932ms expected @eb23675fbe3f
+	machine argument `identity` for `apply` does not refine `Callback`: its ensures facts are not a conservative refinement
+	machine argument `identity` for `apply` does not refine `Operation`: its ensures facts are not a conservative refinement
+fail/facts/target_family_callback_guarantee/local rejected 899ms expected @eb23675fbe3f
+	machine argument `identity` for `apply` does not refine `Callback`: its ensures facts are not a conservative refinement
+	machine argument `identity` for `apply` does not refine `Operation`: its ensures facts are not a conservative refinement
+fail/facts/target_family_callback_guarantee/match_join rejected 913ms expected @eb23675fbe3f
+	machine argument `identity` for `apply` does not refine `Callback`: its ensures facts are not a conservative refinement
+	machine argument `identity` for `apply` does not refine `Operation`: its ensures facts are not a conservative refinement
+fail/facts/target_family_callback_guarantee/other_machine rejected 912ms expected @eb23675fbe3f
+	machine argument `identity` for `apply` does not refine `Callback`: its ensures facts are not a conservative refinement
+	machine argument `identity` for `apply` does not refine `Operation`: its ensures facts are not a conservative refinement
+fail/facts/target_family_callback_guarantee/other_state rejected 859ms expected @eb23675fbe3f
+	machine argument `identity` for `apply` does not refine `Callback`: its ensures facts are not a conservative refinement
+	machine argument `identity` for `apply` does not refine `Operation`: its ensures facts are not a conservative refinement
+fail/facts/target_family_callback_guarantee/parameter rejected 856ms expected @eb23675fbe3f
+	machine argument `identity` for `apply` does not refine `Callback`: its ensures facts are not a conservative refinement
+	machine argument `identity` for `apply` does not refine `Operation`: its ensures facts are not a conservative refinement
+fail/facts/target_family_callback_guarantee/sibling_helper rejected 1342ms expected @eb23675fbe3f
+	argument `value` for state `entry` expects `u64`, got `bool`
+	argument `value` for state `entry` expects `u64`, got `bool`
+fail/facts/target_family_callback_guarantee/stronger_precondition rejected 929ms expected @eb23675fbe3f
+	machine argument `identity` for `apply` does not refine `Selected`: its requires facts are not a conservative refinement
+	machine argument `identity` for `apply` does not refine `Selected`: its requires facts are not a conservative refinement
+	machine argument `identity` for `apply` does not refine `Callback`: its requires facts are not a conservative refinement
+	machine argument `identity` for `apply` does not refine `Action`: its requires facts are not a conservative refinement
+	machine argument `identity` for `apply` does not refine `Operation`: its requires facts are not a conservative refinement
+fail/facts/target_family_callback_guarantee/target_body rejected 896ms expected @eb23675fbe3f
+	machine argument `identity` for `apply` does not refine `Callback`: its ensures facts are not a conservative refinement
+	machine argument `identity` for `apply` does not refine `Operation`: its ensures facts are not a conservative refinement
 fail/facts/target_layout_derived_constant_through_call_result_reject rejected 3663ms expected @a92f16431042
 	machine `main` state `entry` local `slack`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-1, -1] lie outside [0, 18446744073709551615]
 fail/facts/target_layout_derived_constant_through_const_name_reject rejected 4019ms expected @a92f16431042
@@ -28548,6 +28596,18 @@ pass/facts/structural_issuer_forwarding_other_state checked 3001ms check-target:
 pass/facts/structural_issuer_forwarding_parameter checked 3081ms check-target:macos_arm64 @a92f16431042
 pass/facts/structural_issuer_forwarding_target_body checked 3162ms check-target:macos_arm64 @a92f16431042
 pass/facts/subslice_state_extent_after_write_exit checked 3472ms check-target:macos_arm64 @a92f16431042
+pass/facts/target_family_callback_guarantee/call_result checked 3030ms check-target:macos_arm64 @eb23675fbe3f
+pass/facts/target_family_callback_guarantee/const_name checked 3032ms check-target:macos_arm64 @eb23675fbe3f
+pass/facts/target_family_callback_guarantee/distinct_capture checked 3090ms check-target:macos_arm64 @eb23675fbe3f
+pass/facts/target_family_callback_guarantee/field checked 3110ms check-target:macos_arm64 @eb23675fbe3f
+pass/facts/target_family_callback_guarantee/local checked 3093ms check-target:macos_arm64 @eb23675fbe3f
+pass/facts/target_family_callback_guarantee/match_join checked 3023ms check-target:macos_arm64 @eb23675fbe3f
+pass/facts/target_family_callback_guarantee/other_machine checked 3190ms check-target:macos_arm64 @eb23675fbe3f
+pass/facts/target_family_callback_guarantee/other_state checked 3045ms check-target:macos_arm64 @eb23675fbe3f
+pass/facts/target_family_callback_guarantee/parameter checked 3169ms check-target:macos_arm64 @eb23675fbe3f
+pass/facts/target_family_callback_guarantee/sibling_helper checked 3059ms check-target:macos_arm64 @eb23675fbe3f
+pass/facts/target_family_callback_guarantee/target_body checked 3025ms check-target:macos_arm64 @eb23675fbe3f
+pass/facts/target_family_callback_guarantee/target_values checked 3057ms check-target:macos_arm64 @eb23675fbe3f
 pass/facts/target_layout_derived_constant_through_call_result_exit checked 4481ms check-target:macos_arm64 @a92f16431042
 pass/facts/target_layout_derived_constant_through_const_name_exit checked 4981ms check-target:macos_arm64 @a92f16431042
 pass/facts/target_layout_derived_constant_through_field_exit checked 4998ms check-target:macos_arm64 @a92f16431042

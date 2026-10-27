@@ -5663,6 +5663,18 @@ pass/facts/structural_issuer_forwarding_other_state built 1936ms exit:0 interpre
 pass/facts/structural_issuer_forwarding_parameter built 2761ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/structural_issuer_forwarding_target_body built 2958ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/subslice_state_extent_after_write_exit built 2973ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
+pass/facts/target_family_callback_guarantee/call_result built 2671ms exit:0 interpreter-exit:0 interpreter:agrees @eb23675fbe3f
+pass/facts/target_family_callback_guarantee/const_name built 2692ms exit:0 interpreter-exit:0 interpreter:agrees @eb23675fbe3f
+pass/facts/target_family_callback_guarantee/distinct_capture built 2652ms @eb23675fbe3f
+pass/facts/target_family_callback_guarantee/field built 2704ms exit:0 interpreter-exit:0 interpreter:agrees @eb23675fbe3f
+pass/facts/target_family_callback_guarantee/local built 2700ms exit:0 interpreter-exit:0 interpreter:agrees @eb23675fbe3f
+pass/facts/target_family_callback_guarantee/match_join built 2607ms exit:0 interpreter-exit:0 interpreter:agrees @eb23675fbe3f
+pass/facts/target_family_callback_guarantee/other_machine built 2610ms exit:0 interpreter-exit:0 interpreter:agrees @eb23675fbe3f
+pass/facts/target_family_callback_guarantee/other_state built 2569ms exit:0 interpreter-exit:0 interpreter:agrees @eb23675fbe3f
+pass/facts/target_family_callback_guarantee/parameter built 2597ms exit:0 interpreter-exit:0 interpreter:agrees @eb23675fbe3f
+pass/facts/target_family_callback_guarantee/sibling_helper built 2611ms exit:0 interpreter-exit:0 interpreter:agrees @eb23675fbe3f
+pass/facts/target_family_callback_guarantee/target_body built 2669ms exit:0 interpreter-exit:0 interpreter:agrees @eb23675fbe3f
+pass/facts/target_family_callback_guarantee/target_values built 2657ms exit:0 interpreter-exit:0 interpreter:agrees @eb23675fbe3f
 pass/facts/target_layout_derived_constant_through_call_result_exit built 3544ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/target_layout_derived_constant_through_const_name_exit built 3440ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/target_layout_derived_constant_through_field_exit built 3438ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt

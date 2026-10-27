@@ -10,6 +10,8 @@ pub struct ConstDeclaration {
     /// Exact authored initializer occurrence retained solely for package
     /// review source custody after const substitution.
     pub initializer_source_span: source::SourceSpan,
+    /// The source initializer awaits target-selected meaning.
+    pub pending_target_observation: bool,
     /// Completed declaration meaning, separately from runtime materialization.
     pub evaluated_value: Option<language_core::constant_value::EvaluatedConstant>,
     /// Detached authored evidence; absent only when no normalization occurred.
