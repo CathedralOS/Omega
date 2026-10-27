@@ -483,7 +483,7 @@ mod tests {
         };
         set_machine(&mut program, entry, machine(1, Vec::new()));
         let boundary = BoundaryMachineId::new(1).unwrap();
-        let catalogs = std::sync::Arc::make_mut(&mut program.catalogs).to_mut();
+        let catalogs = program.fixture_module_mut();
         let declaration = boundary_declaration(catalogs, boundary);
         catalogs.boundary_machines.push(declaration);
         program
@@ -497,9 +497,7 @@ mod tests {
         mut machine: TerminalMachine,
     ) {
         machine.id = identity;
-        let machines = &mut std::sync::Arc::make_mut(&mut program.catalogs)
-            .to_mut()
-            .machines;
+        let machines = &mut program.fixture_module_mut().machines;
         match machines.binary_search_by_key(&identity, |machine| machine.id) {
             Ok(position) => machines[position] = machine,
             Err(position) => machines.insert(position, machine),
@@ -519,7 +517,7 @@ mod tests {
     }
 
     fn add_provider(program: &mut AdmittedTerminalProgram<'_>, boundary: BoundaryMachineId) {
-        let catalogs = std::sync::Arc::make_mut(&mut program.catalogs).to_mut();
+        let catalogs = program.fixture_module_mut();
         let requirement_identity = intern_identity(catalogs, "graph boundary");
         let provider_identity = intern_identity(catalogs, "graph provider");
         let candidate_identity = intern_identity(catalogs, "graph candidate");
@@ -599,8 +597,8 @@ mod tests {
         boundary: BoundaryMachineId,
         kind: ExternalCompletionKind,
     ) {
-        std::sync::Arc::make_mut(&mut program.catalogs)
-            .to_mut()
+        program
+            .fixture_module_mut()
             .boundary_machines
             .iter_mut()
             .find(|declaration| declaration.id == boundary)
@@ -637,7 +635,7 @@ mod tests {
         let mut program = program();
         let mut demanding = machine(0, Vec::new());
         demanding.assembly_target_requirement = terminal_psi::RegisterTargetApplicability::Aarch64;
-        let catalogs = std::sync::Arc::make_mut(&mut program.catalogs).to_mut();
+        let catalogs = program.fixture_module_mut();
         demanding.id = MachineId::new(2).unwrap();
         catalogs.machines.push(demanding);
         assert!(check(&program, None).is_ok());
@@ -711,8 +709,8 @@ mod tests {
         let mut program = program();
         let external = BoundaryMachineId::new(1).unwrap();
         let missing = BoundaryMachineId::new(2).unwrap();
-        std::sync::Arc::make_mut(&mut program.catalogs)
-            .to_mut()
+        program
+            .fixture_module_mut()
             .boundary_machines
             .iter_mut()
             .find(|declaration| declaration.id == external)
@@ -763,7 +761,7 @@ mod tests {
 
     fn dynamic_program() -> AdmittedTerminalProgram<'static> {
         let mut program = program();
-        let catalogs = std::sync::Arc::make_mut(&mut program.catalogs).to_mut();
+        let catalogs = program.fixture_module_mut();
         let slot =
             |catalogs: &mut terminal_psi::TerminalModule, slot| terminal_psi::TerminalDynamicSlot {
                 slot,
@@ -841,7 +839,7 @@ mod tests {
         );
         let provider = MachineId::new(4).unwrap();
         let provider_import = BoundaryMachineId::new(2).unwrap();
-        let catalogs = std::sync::Arc::make_mut(&mut program.catalogs).to_mut();
+        let catalogs = program.fixture_module_mut();
         let declaration = boundary_declaration(catalogs, provider_import);
         catalogs.boundary_machines.push(declaration);
         set_machine(
@@ -876,11 +874,8 @@ mod tests {
     #[test]
     fn capability_graph_dynamic_call_refuses_external_completion_in_later_table() {
         let mut program = dynamic_program();
-        std::sync::Arc::make_mut(&mut program.catalogs)
-            .to_mut()
-            .dynamic_dispatch
-            .tables[0]
-            .rows[0] = Some(program.resolve_entry(None).unwrap());
+        program.fixture_module_mut().dynamic_dispatch.tables[0].rows[0] =
+            Some(program.resolve_entry(None).unwrap());
         let boundary = install_process_exit_caller(&mut program, 2);
         assert_eq!(
             check(&program, None),
@@ -898,8 +893,8 @@ mod tests {
         let mut program = dynamic_program();
         let boundary = BoundaryMachineId::new(1).unwrap();
         let kind = ExternalCompletionKind::ProcessExit;
-        std::sync::Arc::make_mut(&mut program.catalogs)
-            .to_mut()
+        program
+            .fixture_module_mut()
             .boundary_machines
             .iter_mut()
             .find(|declaration| declaration.id == boundary)
@@ -976,11 +971,7 @@ mod tests {
     #[test]
     fn capability_graph_demands_successor_cleanup_import() {
         let (mut program, action) = import_cleanup_program();
-        let entry = std::sync::Arc::make_mut(&mut program.catalogs)
-            .to_mut()
-            .machines
-            .first_mut()
-            .unwrap();
+        let entry = program.fixture_module_mut().machines.first_mut().unwrap();
         let successor = BlockId::new(2).unwrap();
         let mut destination = entry.blocks[0].clone();
         destination.id = successor;
@@ -1003,11 +994,7 @@ mod tests {
     #[test]
     fn capability_graph_ignores_unreachable_cleanup_import() {
         let (mut program, action) = import_cleanup_program();
-        let entry = std::sync::Arc::make_mut(&mut program.catalogs)
-            .to_mut()
-            .machines
-            .first_mut()
-            .unwrap();
+        let entry = program.fixture_module_mut().machines.first_mut().unwrap();
         let mut unreachable = entry.blocks[0].clone();
         unreachable.id = BlockId::new(2).unwrap();
         unreachable.terminator = Terminator::ReturnUnit {

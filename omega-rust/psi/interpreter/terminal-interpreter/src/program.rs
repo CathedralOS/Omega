@@ -74,6 +74,18 @@ impl AsRef<TerminalModule> for ProgramStorage<'_> {
 }
 
 impl AdmittedTerminalProgram<'_> {
+    /// Fixtures construct incomplete owned modules before testing admission.
+    /// Production execution never exposes mutable canonical storage.
+    #[cfg(test)]
+    pub(crate) fn fixture_module_mut(&mut self) -> &mut TerminalModule {
+        let storage = std::sync::Arc::get_mut(&mut self.catalogs)
+            .expect("fixture construction requires unshared storage");
+        let ProgramStorage::Owned(module) = storage else {
+            panic!("fixture construction requires its own module");
+        };
+        module
+    }
+
     /// Resolve this invocation's executable root without changing canonical
     /// storage. Catalog selection identifies a retained body; it grants no
     /// input backing, provider authority, or result issuance.
