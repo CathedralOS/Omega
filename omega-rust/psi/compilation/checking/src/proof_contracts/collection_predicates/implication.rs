@@ -1916,7 +1916,7 @@ impl Implication<'_> {
 /// One admission policy for caller-derived and directly generalized frames.
 /// readable_shape adapts an already admitted read; it must not silently admit
 /// mutable-reference proof formals when a relation query constructs its frame.
-fn admitted_activation_parameters(
+pub(super) fn admitted_activation_parameters(
     program: &dyn crate::CheckingInput,
     parameters: &[typed_trees::signature::StateParameter],
     argument_count: usize,

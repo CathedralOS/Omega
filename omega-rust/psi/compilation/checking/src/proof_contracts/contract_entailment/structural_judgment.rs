@@ -1920,19 +1920,21 @@ impl<'program> StructuralJudge<'program> {
         // enclosing unfold, which grows exponentially with the term's depth.
         let parameter_count = environment.len();
 
-        // A pure ordinary application can contain a call-valued local or
-        // tail as well as a Named terminal target. Only its already-eligible
-        // body gets specification termification; each nested call still owes
-        // its own operational admission, selections and source formation.
-        // Closed computation and ordinary runtime-prefix capture are unchanged.
+        // A framed predicate can contain a call-valued local or tail as well
+        // as a Named terminal target. Its readonly arguments remain captured
+        // observations, not mathematical carriers. Only this admitted body
+        // gets specification termification; nested helpers retain their exact
+        // mathematical-call fence. Prefix capture and closed computation keep
+        // their original modes and the active proof declaration is unchanged.
         let specification_body = (self.runtime_body_values
             && !self.require_closed_computation
             && !self.specification_terms
-            && specification_application_candidate(
+            && crate::proof_contracts::collection_predicates::framed_predicate_body_candidate(
                 program,
                 self.machine_symbol,
                 target,
                 selections,
+                arguments.len(),
                 self.frame_resolver(),
             )
             .is_ok())
