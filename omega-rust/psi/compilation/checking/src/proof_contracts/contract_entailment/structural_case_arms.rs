@@ -1811,7 +1811,7 @@ fn recognize_structural_state_leaves_from<'a>(
                             )?
                         };
                     let subjects =
-                        if judge.requires_value_preservation() && requirement.is_some() {
+                        if judge.requires_value_preservation() {
                             let frames = judge.frame_resolver()?;
                             if let Some(expression) = call_expression {
                                 frames.expression_entry_reference_subjects(
