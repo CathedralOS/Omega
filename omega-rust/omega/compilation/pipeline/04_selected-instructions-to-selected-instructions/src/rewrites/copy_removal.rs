@@ -101,27 +101,18 @@ impl CopyRemovalReceipt {
 
 receipt_selected_identities!(CopyRemovalReceipt);
 
-/// Canonical identity of one validated copy removal: every receipt field —
-/// the coordinate, both plan identities, and the proof inputs — is part of
-/// the durable record, so two removals of the same instruction under
-/// different sources stay distinct transformations.
-pub(crate) fn copy_removal_identity(receipt: &CopyRemovalReceipt) -> CopyRemovalIdentity {
-    CopyRemovalIdentity::from_canonical_bytes(&crate::rewrites::rewrite_bytes(
-        b"omega.terminal-copy-removal.v1\0",
-        &receipt.source_selected.bytes(),
-        &receipt.transformed_selected.bytes(),
-        &receipt.optimization_unit.bytes(),
-        |bytes| {
-            crate::codec_bytes::push_encoded(bytes, receipt.fuel_schedule.marker().to_le_bytes());
-            bytes.extend_from_slice(
-                &u64::try_from(receipt.function_index)
-                    .expect("copy-removal function index fits u64")
-                    .to_le_bytes(),
-            );
-            crate::codec_bytes::push_encoded(bytes, receipt.copy.0.to_le_bytes());
-        },
-    ))
-}
+// Canonical identity of one validated copy removal: every receipt field —
+// the coordinate, both plan identities, and the proof inputs — is part of
+// the durable record, so two removals of the same instruction under
+// different sources stay distinct transformations.
+rewrite_receipt_identity!(
+    copy_removal_identity,
+    CopyRemovalIdentity,
+    CopyRemovalReceipt,
+    b"omega.terminal-copy-removal.v1\0",
+    "copy-removal",
+    copy,
+);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CopyRemovalError {

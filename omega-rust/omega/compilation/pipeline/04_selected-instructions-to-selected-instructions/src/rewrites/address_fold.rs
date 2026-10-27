@@ -105,27 +105,18 @@ impl AddressFoldReceipt {
 
 receipt_selected_identities!(AddressFoldReceipt);
 
-/// Canonical identity of one validated address fold: every receipt field —
-/// the coordinate, both plan identities, and the proof inputs — is part of
-/// the durable record, so two folds of the same instruction under different
-/// sources stay distinct transformations.
-pub(crate) fn address_fold_identity(receipt: &AddressFoldReceipt) -> AddressFoldIdentity {
-    AddressFoldIdentity::from_canonical_bytes(&crate::rewrites::rewrite_bytes(
-        b"omega.terminal-address-fold.v1\0",
-        &receipt.source_selected.bytes(),
-        &receipt.transformed_selected.bytes(),
-        &receipt.optimization_unit.bytes(),
-        |bytes| {
-            crate::codec_bytes::push_encoded(bytes, receipt.fuel_schedule.marker().to_le_bytes());
-            bytes.extend_from_slice(
-                &u64::try_from(receipt.function_index)
-                    .expect("address-fold function index fits u64")
-                    .to_le_bytes(),
-            );
-            crate::codec_bytes::push_encoded(bytes, receipt.access.0.to_le_bytes());
-        },
-    ))
-}
+// Canonical identity of one validated address fold: every receipt field —
+// the coordinate, both plan identities, and the proof inputs — is part of
+// the durable record, so two folds of the same instruction under different
+// sources stay distinct transformations.
+rewrite_receipt_identity!(
+    address_fold_identity,
+    AddressFoldIdentity,
+    AddressFoldReceipt,
+    b"omega.terminal-address-fold.v1\0",
+    "address-fold",
+    access,
+);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AddressFoldError {

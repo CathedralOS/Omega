@@ -79,6 +79,37 @@ macro_rules! receipt_selected_identities {
     };
 }
 
+/// Every rewrite receipt's canonical identity: the family's own domain
+/// separator, both selected-plan identities, the optimization unit, the fuel
+/// schedule, the transformed function coordinate, and the rule's instruction
+/// coordinate(s). One declarative row per rule expands the encoder, so a rule
+/// declares only what distinguishes its identity. A row's prose stays a plain
+/// `//` comment: a doc comment on a macro invocation is an unused attribute.
+macro_rules! rewrite_receipt_identity {
+    (
+        $function:ident, $identity:ident, $receipt:ident,
+        $separator:literal, $phrase:literal, $($coordinate:ident),+ $(,)?
+    ) => {
+        pub(crate) fn $function(receipt: &$receipt) -> $identity {
+            $identity::from_canonical_bytes(&crate::rewrites::rewrite_bytes(
+                $separator,
+                &receipt.source_selected.bytes(),
+                &receipt.transformed_selected.bytes(),
+                &receipt.optimization_unit.bytes(),
+                |bytes| {
+                    crate::codec_bytes::push_encoded(bytes, receipt.fuel_schedule.marker().to_le_bytes());
+                    bytes.extend_from_slice(
+                        &u64::try_from(receipt.function_index)
+                            .expect(concat!($phrase, " function index fits u64"))
+                            .to_le_bytes(),
+                    );
+                    $(crate::codec_bytes::push_encoded(bytes, receipt.$coordinate.0.to_le_bytes());)+
+                },
+            ))
+        }
+    };
+}
+
 /// A rule that declares a consumer and a producer `MachineSemanticKind`
 /// answers the same kind-probe twice: whether an instruction kind is the
 /// declared consumer or producer. One row per rule expands both probes.
