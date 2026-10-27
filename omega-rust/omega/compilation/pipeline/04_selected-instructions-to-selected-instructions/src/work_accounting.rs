@@ -34,6 +34,27 @@ pub(crate) fn count(value: usize) -> Result<u64, WorkDefect> {
     u64::try_from(value).map_err(|_| WorkDefect::Overflow)
 }
 
+/// Sum two exact receipts axis by axis. The checked addition and its overflow
+/// refusal live here, so a custody family that combines a carried receipt with
+/// a fresh one names only its own error kind at the call site.
+pub(crate) fn combine(
+    left: OptimizationWorkUsage,
+    right: OptimizationWorkUsage,
+) -> Result<OptimizationWorkUsage, WorkDefect> {
+    Ok(OptimizationWorkUsage {
+        rule_evaluations: checked(left.rule_evaluations, right.rule_evaluations)?,
+        candidates: checked(left.candidates, right.candidates)?,
+        validation_steps: checked(left.validation_steps, right.validation_steps)?,
+        commits: checked(left.commits, right.commits)?,
+        iterations: checked(left.iterations, right.iterations)?,
+    })
+}
+
+/// Sum one axis pair exactly; the overflow refusal stays the owner's.
+fn checked(left: u64, right: u64) -> Result<u64, WorkDefect> {
+    left.checked_add(right).ok_or(WorkDefect::Overflow)
+}
+
 /// One bounded pass's receipt under construction.
 pub(crate) struct Work {
     usage: OptimizationWorkUsage,

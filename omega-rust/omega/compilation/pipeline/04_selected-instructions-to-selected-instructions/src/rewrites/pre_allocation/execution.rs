@@ -998,13 +998,8 @@ pub(super) fn add_usage(
     left: OptimizationWorkUsage,
     right: OptimizationWorkUsage,
 ) -> Result<OptimizationWorkUsage, OptimizedPreAllocationCustodyError> {
-    Ok(OptimizationWorkUsage {
-        rule_evaluations: charge(left.rule_evaluations, right.rule_evaluations)?,
-        candidates: charge(left.candidates, right.candidates)?,
-        validation_steps: charge(left.validation_steps, right.validation_steps)?,
-        commits: charge(left.commits, right.commits)?,
-        iterations: charge(left.iterations, right.iterations)?,
-    })
+    crate::work_accounting::combine(left, right)
+        .map_err(|_| OptimizedPreAllocationCustodyError::WorkOverflow)
 }
 
 pub(super) fn ensure_pre_allocation_budget(
