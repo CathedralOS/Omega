@@ -17,6 +17,7 @@ mod borrow;
 mod checking;
 mod checks;
 mod execution;
+pub use execution::finalize_execution::settle_closed_constant_execution;
 mod facts;
 mod flow;
 #[cfg(test)]

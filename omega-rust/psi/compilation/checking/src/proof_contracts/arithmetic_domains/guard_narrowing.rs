@@ -28,11 +28,11 @@ pub use arrivals::{
     OccurrenceIntegerBounds, arrival_integer_expression_bounds,
     occurrence_collection_footprint_fits, occurrence_integer_bounds,
     occurrence_integer_expression_bounds, occurrence_integer_expression_fits_range,
-    occurrence_integer_expressions_bounds,
+    occurrence_integer_expression_recipe, occurrence_integer_expressions_bounds,
 };
 pub(crate) use arrivals::{
-    OccurrenceValueEnvironments, inferred_normal_return_interval, occurrence_value_environment,
-    occurrence_value_environments,
+    OccurrenceValueEnvironments, inferred_normal_return_interval, occurrence_integer_child_values,
+    occurrence_value_environment, occurrence_value_environments,
 };
 use projected_facts::ProjectedOperand;
 
@@ -140,6 +140,14 @@ pub(crate) fn requires_value_environment(
         let Some(comparison) = program.expression_table.binary_node(expression) else {
             return;
         };
+        parameter_bounds::narrow_recipe(
+            program,
+            machine,
+            Some(entry_state),
+            &mut environment,
+            comparison,
+            true,
+        );
         if let Some((left, right)) =
             joint_subtract_guard(program, machine, Some(entry_state), comparison)
         {
@@ -696,6 +704,7 @@ pub(super) fn narrow_environment_by_comparison(
             return;
         }
     }
+    parameter_bounds::narrow_recipe(program, machine, state, environment, &comparison, positive);
     parameter_bounds::narrow(program, machine, state, environment, condition, positive);
     // An immutable singleton parameter is the same integer at every
     // evaluation, so it supplies the literal-equivalent bound without reading

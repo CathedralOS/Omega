@@ -2,6 +2,7 @@
 
 machine build(builder: &mut Build) {
     Build::application(builder, "provider_boundary_range_endpoint_exit");
+    Build::select_provider<Math, Provider>(builder);
     Build::depend(builder, Source::Path {
         location: "../../../../../source/library/std"
     });

@@ -428,6 +428,7 @@ pub(super) fn validate_literal_default_domain(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
+    observations: &super::ConstructionObservations<'_>,
     expression: ExpressionHandle,
     statement_index: usize,
     literal: &TableStructLiteral,
@@ -444,6 +445,7 @@ pub(super) fn validate_literal_default_domain(
         program,
         machine,
         state,
+        observations,
         expression,
         statement_index,
         literal,
@@ -465,6 +467,7 @@ pub(super) fn validate_literal_case_constraints(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
+    observations: &super::ConstructionObservations<'_>,
     expression: ExpressionHandle,
     statement_index: usize,
     literal: &TableStructLiteral,
@@ -507,6 +510,7 @@ pub(super) fn validate_literal_case_constraints(
         program,
         machine,
         state,
+        observations,
         expression,
         statement_index,
         literal,
@@ -568,6 +572,7 @@ fn validate_literal_facts(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
+    observations: &super::ConstructionObservations<'_>,
     expression: ExpressionHandle,
     statement_index: usize,
     literal: &TableStructLiteral,
@@ -633,7 +638,7 @@ fn validate_literal_facts(
     let mut predicate_diagnostics = Vec::new();
     for fact in program.proof_facts.span_or_empty(facts) {
         match fact {
-            typed_trees::domain::ProofFact::Expression(_) => {
+            typed_trees::domain::ProofFact::Expression(predicate) => {
                 use crate::proof_contracts::contract_entailment::structural_judgment::StructuralJudgment;
                 match judgments.next().unwrap_or(StructuralJudgment::Unknown) {
                     StructuralJudgment::Proven => {}
@@ -642,6 +647,9 @@ fn validate_literal_facts(
                          fact evaluates FALSE at this construction (ch12: construction is \
                          the gate)"
                     ))),
+                    StructuralJudgment::Unknown if super::deferred_predicates::construction_conditions(
+                        program, machine, state, statement_index, expression, literal, owner, &parameters, *predicate,
+                    ).is_some_and(|conditions| observations.retain_range_obligations(conditions)) => {},
                     StructuralJudgment::Unknown => predicate_diagnostics.push(Diagnostic::error(format!(
                         "{subject} literal cannot prove {fact_label}: a \
                          `where` fact is not established by the values observed at this \

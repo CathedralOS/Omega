@@ -630,13 +630,6 @@ defines the complete product bar.
     and running `pass/float/named_integer_conversion_source_proofs_exit` (exit 78)
     on Linux/Windows without rebuilding `proven_predicates_grant_domain`
     (`omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/calls.rs`).
-  - Close the three remaining `requires <param> <= call()` range-suffix sites
-    (`pass/providers/provider_const_endpoint:26`,
-    `pass/comptime/provider_boundary_range_endpoint_exit:33`,
-    `fail/comptime/recipe_endpoint_membership_refused_at_closure:26`) by adding
-    a contract-expression work-root class and fold-publication site feeding
-    `constant_recipe_obligations.rs` against `closed_constant_recipe_value`
-    (without widening `ConstantPredicateObligation`).
   - Migrate the 16 recursive filesystem parameter suffixes with
     **FILESYSTEM-PLATFORM-SERVICES**, and qualify remaining collection/slice
     view and capture compositions (`samples/cli/probes/slice_view_whole/main.omg`,

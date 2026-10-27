@@ -91,3 +91,7 @@ pub use build_time_evaluation::{
     EvaluatedPreCheck, PreCheckEvaluation, PreResolutionEvaluation, SelectedBuildTimeOperators,
     evaluate_pre_resolution,
 };
+
+pub use machine_execution::selected_target_bodies::{
+    SelectedBuildTimeTargetBody, prepare_selected_target_family_calls,
+};

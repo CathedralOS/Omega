@@ -78,6 +78,12 @@ pub(crate) fn validate_specification_calls(
         let ExpressionNode::Call(call) = node else {
             continue;
         };
+        // Exact roster membership defers this closed value invocation to the
+        // evaluator's ordinary admission under selected provider custody. It
+        // grants no denotation to arbitrary runtime or symbolic calls.
+        if program.is_deferred_contract_invocation(expression) {
+            continue;
+        }
         if crate::mathematical_applications::selected_definition(program, call).is_some() {
             // Checked mathematical signature formation owns the dependent
             // application. It has no operational closure to classify.

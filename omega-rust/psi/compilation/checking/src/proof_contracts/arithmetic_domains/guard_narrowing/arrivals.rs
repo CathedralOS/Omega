@@ -149,6 +149,49 @@ pub fn occurrence_integer_bounds(
     }
 }
 
+/// Conditional bounds captured at this exact evaluated occurrence. Consumers
+/// retain every observation as a target obligation before publishing a proof.
+pub fn occurrence_integer_expression_recipe(
+    program: &dyn crate::CheckingInput,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    expression: ExpressionHandle,
+) -> Option<checked_trees::IntegerRangeRecipe> {
+    expression_observation(
+        program,
+        machine_symbol,
+        state_symbol,
+        Some(statement_index),
+        expression,
+    )?
+    .recipe
+}
+
+/// The evaluated integer children emitted by one aggregate construction.
+/// A postwrite consumer reads this roster instead of reconstructing earlier
+/// fields from the statement's final storage environment.
+pub(crate) fn occurrence_integer_child_values(
+    program: &dyn crate::CheckingInput,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    expression: ExpressionHandle,
+) -> Option<Vec<super::super::expression_analysis::CheckedIntegerValue>> {
+    Some(
+        expression_observation(
+            program,
+            machine_symbol,
+            state_symbol,
+            Some(statement_index),
+            expression,
+        )?
+        .completed_children
+        .into_values()
+        .collect(),
+    )
+}
+
 pub fn occurrence_integer_expressions_bounds(
     program: &dyn crate::CheckingInput,
     machine_symbol: SymbolHandle,
@@ -332,6 +375,7 @@ pub(crate) fn occurrence_value_environments(
             .into_iter()
             .map(ExpressionObservation::environment)
             .collect(),
+        completed_children: Default::default(),
         infer_call_bodies: true,
         collect_arrivals: false,
     };
@@ -386,6 +430,7 @@ fn expression_observations(
         frames: frames.as_ref(),
         arrivals: Vec::new(),
         observations: Vec::new(),
+        completed_children: Default::default(),
         infer_call_bodies: true,
         collect_arrivals: false,
     };
@@ -532,6 +577,7 @@ pub(super) fn incoming_environments(
                     frames,
                     arrivals: Vec::new(),
                     observations: Vec::new(),
+                    completed_children: Default::default(),
                     infer_call_bodies: invocation.is_none(),
                     collect_arrivals: true,
                 };
@@ -775,7 +821,9 @@ fn discover_normal_return_interval(
                     expression,
                     interval: None,
                     environment: None,
+                    completed_children: Default::default(),
                 }],
+                completed_children: Default::default(),
                 infer_call_bodies: false,
                 collect_arrivals: false,
             };
@@ -803,6 +851,10 @@ struct ExpressionObservation {
     expression: ExpressionHandle,
     interval: Option<Interval>,
     environment: Option<ValueEnvironment>,
+    completed_children: std::collections::BTreeMap<
+        (u32, u32),
+        super::super::expression_analysis::CheckedIntegerValue,
+    >,
 }
 
 impl ExpressionObservation {
@@ -813,6 +865,7 @@ impl ExpressionObservation {
             expression,
             interval: None,
             environment: None,
+            completed_children: Default::default(),
         }
     }
 
@@ -823,6 +876,7 @@ impl ExpressionObservation {
             expression,
             interval: None,
             environment: None,
+            completed_children: Default::default(),
         }
     }
 }
@@ -834,6 +888,10 @@ struct ArrivalWalk<'program, 'frames> {
     /// Each arrival this walk delivers, by target state position, in order.
     arrivals: Vec<(usize, ValueEnvironment)>,
     observations: Vec<ExpressionObservation>,
+    completed_children: std::collections::BTreeMap<
+        (u32, u32),
+        super::super::expression_analysis::CheckedIntegerValue,
+    >,
     infer_call_bodies: bool,
     collect_arrivals: bool,
 }
@@ -858,23 +916,93 @@ impl ArrivalWalk<'_, '_> {
         environment: &ValueEnvironment,
     ) -> EvaluatedValue {
         match self.checked_value(source, expression, environment) {
-            Some(analysis) => EvaluatedValue {
-                interval: analysis.value.interval,
-                copied: CopiedIntegerValue::capture(
-                    self.program,
-                    self.machine,
-                    Some(source),
-                    expression,
-                    declared_place_type_raw(self.program, self.machine, Some(source), expression)
+            Some(analysis) => {
+                let mut values = analysis.decisions.expression_values;
+                // The end environment can no longer name an earlier child
+                // after a sibling write. Its completed snapshot owns that
+                // payload; post-environment reconstruction cannot overwrite it.
+                if matches!(
+                    self.program.expression_table.expression(expression),
+                    ExpressionNode::StructLiteral(_) | ExpressionNode::ArrayLiteral(_)
+                ) {
+                    // Scalar reevaluations keep their current analysis. A
+                    // shared handle captured as an earlier child cannot retarget
+                    // a later ordinary scalar read to that earlier version.
+                    values.retain(|value| {
+                        !self.completed_children.contains_key(&(
+                            value.expression.arena_index(),
+                            value.expression.generation(),
+                        ))
+                    });
+                    values.extend(self.completed_children.values().cloned());
+                }
+                EvaluatedValue {
+                    interval: analysis.value.interval,
+                    copied: CopiedIntegerValue::capture(
+                        self.program,
+                        self.machine,
+                        Some(source),
+                        expression,
+                        declared_place_type_raw(
+                            self.program,
+                            self.machine,
+                            Some(source),
+                            expression,
+                        )
                         .unwrap_or_default(),
-                    environment,
-                    &analysis.decisions.expression_values,
-                ),
-            },
+                        environment,
+                        &values,
+                    ),
+                }
+            }
             None => EvaluatedValue {
                 interval: Interval::UNBOUNDED,
                 copied: CopiedIntegerValue::default(),
             },
+        }
+    }
+
+    /// The existing child sequence emits its integer snapshot before the next
+    /// sibling executes. Repeated source handles conservatively join every
+    /// visit, including a missing enclosure; no last-visit overwrite is allowed.
+    fn capture_completed_child(
+        &mut self,
+        source: &State,
+        expression: ExpressionHandle,
+        environment: &ValueEnvironment,
+    ) {
+        let primitive =
+            crate::expression_result_type_reference(self.program, self.machine, source, expression)
+                .and_then(|reference| self.program.primitive_type_reference(reference));
+        if !primitive.is_some_and(|primitive| primitive.is_fixed_integer()) {
+            return;
+        }
+        let analyzed = self.checked_value(source, expression, environment);
+        let interval = analyzed
+            .as_ref()
+            .map_or(Interval::UNBOUNDED, |value| value.value.interval);
+        let recipe = analyzed.and_then(|value| {
+            value
+                .value
+                .range_recipe(self.program, self.machine.symbol, expression)
+        });
+        let key = (expression.arena_index(), expression.generation());
+        if let Some(previous) = self.completed_children.get_mut(&key) {
+            previous.interval = previous.interval.union(interval);
+            previous.recipe = previous
+                .recipe
+                .take()
+                .zip(recipe)
+                .map(|(left, right)| left.union(&right));
+        } else {
+            self.completed_children.insert(
+                key,
+                super::super::expression_analysis::CheckedIntegerValue {
+                    expression,
+                    interval,
+                    recipe,
+                },
+            );
         }
     }
 
@@ -1120,6 +1248,7 @@ impl ArrivalWalk<'_, '_> {
         environment: &mut ValueEnvironment,
     ) -> bool {
         for (statement_index, statement) in statements {
+            self.completed_children.clear();
             environment.prepare_numeric_observations(
                 self.program,
                 self.machine,
@@ -1500,6 +1629,7 @@ impl ArrivalWalk<'_, '_> {
         statement: &StatementNode,
         environment: &mut ValueEnvironment,
     ) {
+        self.completed_children.clear();
         // A terminal observation skips stores after the requested operands, but
         // it still prepares the exact statement's captured numeric identities.
         // Transitions delegate to the ordinary walk, which prepares them once.
@@ -1640,11 +1770,13 @@ impl ArrivalWalk<'_, '_> {
             ExpressionNode::ArrayLiteral(values) => {
                 for value in self.program.expression_table.expression_handles(*values) {
                     self.expression(source, *value, environment);
+                    self.capture_completed_child(source, *value, environment);
                 }
             }
             ExpressionNode::StructLiteral(literal) => {
                 for field in self.program.expression_table.struct_fields(literal.fields) {
                     self.expression(source, field.value, environment);
+                    self.capture_completed_child(source, field.value, environment);
                 }
             }
             ExpressionNode::SavedSubject(_) | typed_trees::literal_expression_pattern!() => {}
@@ -1679,6 +1811,25 @@ impl ArrivalWalk<'_, '_> {
                     .range_recipe(self.program, self.machine.symbol, expression)
             });
             let observation = &mut self.observations[position];
+            if include_bounds
+                && matches!(
+                    self.program.expression_table.expression(expression),
+                    ExpressionNode::StructLiteral(_) | ExpressionNode::ArrayLiteral(_)
+                )
+            {
+                for (key, value) in &self.completed_children {
+                    if let Some(previous) = observation.completed_children.get_mut(key) {
+                        previous.interval = previous.interval.union(value.interval);
+                        previous.recipe = previous
+                            .recipe
+                            .take()
+                            .zip(value.recipe.clone())
+                            .map(|(left, right)| left.union(&right));
+                    } else {
+                        observation.completed_children.insert(*key, value.clone());
+                    }
+                }
+            }
             if include_bounds {
                 observation.recipe = if observation.interval.is_none() {
                     recipe
@@ -1837,3 +1988,6 @@ fn state_has_in_machine_arrivals(
     }
     false
 }
+
+#[cfg(test)]
+mod tests;

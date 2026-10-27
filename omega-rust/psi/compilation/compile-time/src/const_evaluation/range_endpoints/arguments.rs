@@ -30,6 +30,7 @@ impl Invocation<'_> {
             root: expression,
             machine: machine.symbol,
             static_application,
+            contract_expression: false,
         };
         super::resolve_endpoint_callee(self.execution, &endpoint)
     }
