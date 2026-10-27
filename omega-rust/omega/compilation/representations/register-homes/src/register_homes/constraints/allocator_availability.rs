@@ -111,8 +111,4 @@ pub enum AllocatorAvailabilityDecodeError {
     IdentityMismatch,
 }
 
-crate::decode_error_display! { AllocatorAvailabilityDecodeError, "invalid terminal allocator availability" }
-
-optimization_core::truncated_from_adapter!(AllocatorAvailabilityDecodeError);
-
-optimization_core::take_error_from_adapter!(AllocatorAvailabilityDecodeError);
+crate::decode_error! { AllocatorAvailabilityDecodeError, "invalid terminal allocator availability" }

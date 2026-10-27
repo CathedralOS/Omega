@@ -144,8 +144,4 @@ pub enum RecoveryClassificationDecodeError {
     TrailingBytes,
 }
 
-optimization_core::truncated_from_adapter!(RecoveryClassificationDecodeError);
-
-optimization_core::take_error_from_adapter!(RecoveryClassificationDecodeError);
-
-crate::decode_error_display! { RecoveryClassificationDecodeError, "invalid Terminal recovery-classification encoding" }
+crate::decode_error! { RecoveryClassificationDecodeError, "invalid Terminal recovery-classification encoding" }

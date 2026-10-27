@@ -81,8 +81,4 @@ pub enum RegisterHomeDecodeError {
     TrailingBytes,
 }
 
-crate::decode_error_display! { RegisterHomeDecodeError, "invalid Terminal register-home encoding" }
-
-optimization_core::truncated_from_adapter!(RegisterHomeDecodeError);
-
-optimization_core::take_error_from_adapter!(RegisterHomeDecodeError);
+crate::decode_error! { RegisterHomeDecodeError, "invalid Terminal register-home encoding" }
