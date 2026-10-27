@@ -1,2 +1,2 @@
-cannot prove
-.view.len == 4
+cannot prove requires contract for call require_four from main
+needs fact `length == 4`
