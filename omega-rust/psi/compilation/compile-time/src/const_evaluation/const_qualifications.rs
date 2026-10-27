@@ -54,6 +54,7 @@ pub(crate) fn prove_ready(
         // The initializer owner distinguishes completed case names from pending
         // const references and computations. Syntactic `Name` is not readiness.
         if selection.pending_leaves(&syntax, &definition)?.is_empty()
+            && destination_inputs_ready(&selection, &syntax, &definition)?
             && (definition.pending_qualification.is_some()
                 || selection.initializer_requires_destination_proof(&syntax, &definition))
         {
@@ -165,6 +166,35 @@ pub(crate) fn prove_ready(
         syntax.items.replace_item(item, Item::Const(definition));
     }
     Ok(syntax)
+}
+
+/// Literal elements do not settle the destination's geometry. The existing
+/// declaration dependency owner includes exact named extents, generic actuals
+/// and predicate dependencies; none may be replaced by a provisional value.
+/// A retained completed payload is readiness only, never destination proof.
+fn destination_inputs_ready(
+    selection: &syntax_trees_to_symbol_resolved_trees::pre_resolution::ConstInitializerSelection,
+    syntax: &SyntaxTrees,
+    definition: &syntax_trees::item::ConstDefinition,
+) -> Result<bool, Vec<Diagnostic>> {
+    for (_, source) in selection
+        .initializer_dependencies(syntax, definition)?
+        .constants
+    {
+        let dependency = selection
+            .trees()
+            .const_declaration_at_source_span(source)
+            .ok_or_else(|| {
+                vec![
+                    Diagnostic::error("constant destination dependency lost its exact declaration")
+                        .with_source_span(source),
+                ]
+            })?;
+        if dependency.evaluated_value.is_none() {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }
 
 /// This is the publication boundary for a completed destination probe. Keeping
