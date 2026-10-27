@@ -466,6 +466,23 @@ macro_rules! operation_kind {
 
 pub(crate) use operation_kind;
 
+/// Destructure the operation kind the dispatch table selected for this
+/// executor. The table and the executor name the same variant, so a mismatch
+/// is an interpreter defect rather than adversary input: the row panics with
+/// the variant it saw instead of inventing a rejection no verifier produced.
+macro_rules! dispatched_operation {
+    ($operation:expr => $variant:ident $($fields:tt)*) => {
+        let OperationKind::$variant $($fields)* = $operation.kind else {
+            unreachable!(
+                "dispatched operation kind mismatch: {}",
+                stringify!($variant)
+            )
+        };
+    };
+}
+
+pub(crate) use dispatched_operation;
+
 impl<'artifact> TerminalExecution<'artifact> {
     /// Start one instance on an already-admitted program: bind this
     /// invocation's inputs and custody, commit no operation. The program is
