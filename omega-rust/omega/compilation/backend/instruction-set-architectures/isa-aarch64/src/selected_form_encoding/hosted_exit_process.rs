@@ -210,6 +210,7 @@ mod tests {
         encode_aarch64_selected_hosted_exit_process_form,
         validate_aarch64_selected_hosted_exit_process_form,
     };
+    use crate::test_support::reject_every_bit_flip;
     use selected_instructions::{
         MachineAlternativeFamily, MachineAlternativeKey, SelectedInstructionKind,
     };
@@ -236,22 +237,17 @@ mod tests {
                 )
                 .unwrap();
                 assert_eq!(encoded.footprint().encoded, effects(target).unwrap());
-                for bit in 0..encoded.bytes().len() * 8 {
-                    let mut corrupted = encoded.bytes().to_vec();
-                    corrupted[bit / 8] ^= 1 << (bit % 8);
-                    assert!(
-                        validate_aarch64_selected_hosted_exit_process_form(
-                            target,
-                            &physical,
-                            kind,
-                            alternative,
-                            &operands,
-                            &corrupted
-                        )
-                        .is_err(),
-                        "bit {bit}"
-                    );
-                }
+                reject_every_bit_flip(encoded.bytes(), &format!("{kind:?}"), |corrupted| {
+                    validate_aarch64_selected_hosted_exit_process_form(
+                        target,
+                        &physical,
+                        kind,
+                        alternative,
+                        &operands,
+                        &corrupted,
+                    )
+                    .is_err()
+                });
                 let different = [physical
                     .model()
                     .view_named(if name == "x0" { "x1" } else { "x0" })

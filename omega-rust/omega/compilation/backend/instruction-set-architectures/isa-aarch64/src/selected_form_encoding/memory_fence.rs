@@ -58,6 +58,7 @@ pub(crate) fn decode(bytes: &[u8]) -> Option<MemoryFenceKind> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::rejects_every_bit_flip;
     use selected_instructions::{RegisterOperation, SelectedInstructionKind};
     #[test]
     fn catalog_fences_keep_exact_bytes_and_reject_other_effects() {
@@ -90,21 +91,7 @@ mod tests {
                     && realized.footprint().register_writes.is_empty()
             );
             assert!(!realized.footprint().writes_nzcv);
-            for bit in 0..expected.len() * 8 {
-                let mut changed = expected.to_vec();
-                changed[bit / 8] ^= 1 << (bit % 8);
-                assert!(
-                    crate::validate_aarch64_selected_form_encoding(
-                        &physical,
-                        instruction,
-                        alternative,
-                        &[],
-                        &changed
-                    )
-                    .is_err(),
-                    "changed bit {bit}"
-                );
-            }
+            rejects_every_bit_flip(&physical, instruction, alternative, &[], expected);
             let mut doubled = expected.to_vec();
             doubled.extend(expected);
             for changed in [&doubled[..], &expected[..expected.len() - 1], &[]] {

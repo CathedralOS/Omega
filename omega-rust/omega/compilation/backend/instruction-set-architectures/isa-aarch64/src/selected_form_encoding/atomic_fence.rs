@@ -31,6 +31,7 @@ pub(crate) fn declaration(constraint: RegisterConstraintKey) -> MachineEffectDec
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::rejects_every_bit_flip;
     use selected_instructions::{
         MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedEffects,
         SelectedInstructionKind,
@@ -54,21 +55,7 @@ mod tests {
             encoded.footprint().encoded,
             MachineEncodedEffects::atomic_fence_v1()
         );
-        for bit in 0..encoded.bytes().len() * 8 {
-            let mut bytes = encoded.bytes().to_vec();
-            bytes[bit / 8] ^= 1 << (bit % 8);
-            assert!(
-                crate::validate_aarch64_selected_form_encoding(
-                    &physical,
-                    kind,
-                    alternative,
-                    &[],
-                    &bytes
-                )
-                .is_err(),
-                "changed bit {bit}"
-            );
-        }
+        rejects_every_bit_flip(&physical, kind, alternative, &[], encoded.bytes());
         let mut extended = encoded.bytes().to_vec();
         extended.push(0);
         for bytes in [&extended[..], &encoded.bytes()[..encoded.bytes().len() - 1]] {

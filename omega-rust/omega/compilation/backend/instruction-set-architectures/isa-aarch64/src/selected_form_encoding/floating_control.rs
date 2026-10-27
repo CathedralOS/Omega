@@ -226,6 +226,7 @@ mod tests {
         effects, encode_aarch64_selected_floating_control_form,
         validate_aarch64_selected_floating_control_form,
     };
+    use crate::test_support::reject_every_bit_flip;
     use selected_instructions::{
         LocalStorageSlotId, MachineAlternativeKey, MachineSemanticKind, SelectedInstructionKind,
     };
@@ -265,22 +266,17 @@ mod tests {
                 )
                 .unwrap();
                 assert_eq!(encoded.footprint().encoded, effects(restore));
-                for bit in 0..encoded.bytes().len() * 8 {
-                    let mut changed = encoded.bytes().to_vec();
-                    changed[bit / 8] ^= 1 << (bit % 8);
-                    assert!(
-                        validate_aarch64_selected_floating_control_form(
-                            &physical,
-                            kind,
-                            alternative,
-                            &[],
-                            displacement,
-                            &changed
-                        )
-                        .is_err(),
-                        "bit {bit}"
-                    );
-                }
+                reject_every_bit_flip(encoded.bytes(), &format!("{kind:?}"), |changed| {
+                    validate_aarch64_selected_floating_control_form(
+                        &physical,
+                        kind,
+                        alternative,
+                        &[],
+                        displacement,
+                        &changed,
+                    )
+                    .is_err()
+                });
                 assert!(
                     validate_aarch64_selected_floating_control_form(
                         &physical,

@@ -296,6 +296,7 @@ mod tests {
         NativeTarget, decode, effects, encode_aarch64_selected_hosted_write_byte_form,
         validate_aarch64_selected_hosted_write_byte_form,
     };
+    use crate::test_support::reject_every_bit_flip;
     use selected_instructions::{
         LocalStorageSlotId, MachineAlternativeFamily, MachineAlternativeKey,
         MachineEncodedStackEffect, SelectedInstructionKind,
@@ -356,23 +357,18 @@ mod tests {
                         encoded.footprint().encoded.stack,
                         MachineEncodedStackEffect::UnchangedV1
                     );
-                    for bit in 0..encoded.bytes().len() * 8 {
-                        let mut changed = encoded.bytes().to_vec();
-                        changed[bit / 8] ^= 1 << (bit % 8);
-                        assert!(
-                            validate_aarch64_selected_hosted_write_byte_form(
-                                target,
-                                &physical,
-                                kind,
-                                alternative,
-                                &operands,
-                                displacement,
-                                &changed
-                            )
-                            .is_err(),
-                            "encoded bit {bit}"
-                        );
-                    }
+                    reject_every_bit_flip(encoded.bytes(), &format!("{kind:?}"), |changed| {
+                        validate_aarch64_selected_hosted_write_byte_form(
+                            target,
+                            &physical,
+                            kind,
+                            alternative,
+                            &operands,
+                            displacement,
+                            &changed,
+                        )
+                        .is_err()
+                    });
                     assert!(
                         validate_aarch64_selected_hosted_write_byte_form(
                             target,

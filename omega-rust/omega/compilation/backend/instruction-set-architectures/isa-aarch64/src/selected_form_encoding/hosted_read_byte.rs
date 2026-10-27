@@ -267,6 +267,7 @@ mod tests {
         encode_aarch64_selected_hosted_read_byte_form,
         validate_aarch64_selected_hosted_read_byte_form,
     };
+    use crate::test_support::reject_every_bit_flip;
     use selected_instructions::{
         LocalStorageSlotId, MachineAlternativeFamily, MachineAlternativeKey,
         MachineEncodedStackEffect, MachineSemanticKind, MachineSizeKnowledge,
@@ -328,30 +329,23 @@ mod tests {
                     encoded.footprint().encoded.stack,
                     MachineEncodedStackEffect::UnchangedV1
                 );
-                for bit in 0..encoded.bytes().len() * 8 {
-                    let mut changed = encoded.bytes().to_vec();
-                    changed[bit / 8] ^= 1 << (bit % 8);
-                    assert!(
-                        validate_aarch64_selected_hosted_read_byte_form(
-                            target,
-                            &physical,
-                            kind,
-                            alternative,
-                            &[],
-                            i64::from(displacement),
-                            &changed
-                        )
-                        .is_err(),
-                        "bit {bit}"
-                    );
-                    // A changed address immediate can still spell another
-                    // well-formed home; it never spells this one.
+                reject_every_bit_flip(encoded.bytes(), "hosted read byte", |changed| {
                     assert_ne!(
                         decode_aarch64_selected_hosted_read_byte(target, &changed),
                         Some(displacement),
-                        "decoder bit {bit}"
+                        "decoder bit"
                     );
-                }
+                    validate_aarch64_selected_hosted_read_byte_form(
+                        target,
+                        &physical,
+                        kind,
+                        alternative,
+                        &[],
+                        i64::from(displacement),
+                        &changed,
+                    )
+                    .is_err()
+                });
                 for invalid_offset in [1, 3, u32::MAX - 3, u32::MAX] {
                     assert!(
                         encode_aarch64_selected_hosted_read_byte_form(
