@@ -1313,10 +1313,8 @@ decision (`SourceChecked`) into stage 05 and stage 00.
   under [calling plans](wiki/spec/build/calling_plans.md),
   [opaque representations](wiki/spec/build/opaque_representations.md), and
   [outbound custody](wiki/spec/build/foreign_storage.md#outbound-custody):
-  - Qualify remaining borrowed descriptor carriers, original scalar-field
-    backing through thin foreign export
-    ([foreign_scalar_backing](samples/cli/facts/foreign_scalar_backing/README.md)),
-    and C record-result host/ABI lanes beyond
+  - Qualify remaining borrowed descriptor carriers and C record-result
+    host/ABI lanes beyond
     [foreign_scalar_record_result](samples/cli/facts/foreign_scalar_record_result/README.md),
     [foreign_indirect_float_record_result](samples/cli/facts/foreign_indirect_float_record_result/README.md),
     [recursive owned record input/results](samples/cli/facts/foreign_scalar_record_result/nested/README.md)
