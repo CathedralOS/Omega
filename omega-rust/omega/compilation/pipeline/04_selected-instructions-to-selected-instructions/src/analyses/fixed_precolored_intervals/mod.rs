@@ -4,7 +4,6 @@
 //! intervals. It does not choose a home, insert a copy, or split a live range.
 
 mod compute;
-mod validate;
 
 use crate::WorkDefect;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkUsage};
@@ -24,8 +23,24 @@ pub(crate) fn analyze_fixed_precolored_intervals(
     budget: optimization_core::OptimizationWorkBudget,
 ) -> Result<ValidatedFixedPrecoloredIntervals, FixedPrecoloredIntervalError> {
     let plan = compute::compute(ranges, legality, policy, budget)?;
-    validate::seal_fixed_precolored_intervals(plan)
+    seal_fixed_precolored_intervals(plan)
 }
+
+seal_plan!(
+    seal_fixed_precolored_intervals(FixedPrecoloredIntervalPlan)
+        -> ValidatedFixedPrecoloredIntervals: FixedPrecoloredIntervalValidationReceipt
+        = register_homes::fixed_precolored_interval_plan_identity, FixedPrecoloredIntervalError
+    {
+        ranges,
+        legality,
+        register_environment,
+        allocator_availability,
+        optimization_unit,
+        fuel_schedule,
+        policy,
+        usage
+    }
+);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FixedPrecoloredIntervalValidationReceipt {

@@ -148,6 +148,31 @@ macro_rules! work_defect_conversion {
     )+};
 }
 
+/// The whole seal of a freshly produced plan: every receipt row is copied from
+/// the plan root the producer just built, and that plan becomes the validated
+/// carrier. A bounded pass names its plan, carrier, receipt, identity function
+/// and the plan fields its receipt records instead of restating the body.
+macro_rules! seal_plan {
+    (
+        $seal:ident($plan:ty) -> $carrier:ident : $receipt:ident
+            = $identity:path, $error:ty
+        { $($field:ident),* $(,)? }
+    ) => {
+        /// Admit a freshly produced plan with its receipt; the producer calls
+        /// this instead of replaying its own output.
+        pub(crate) fn $seal(candidate: $plan) -> Result<$carrier, $error> {
+            let receipt = $receipt {
+                identity: $identity(&candidate),
+                $($field: candidate.$field,)*
+            };
+            Ok($carrier {
+                plan: candidate,
+                receipt,
+            })
+        }
+    };
+}
+
 /// `Display` for the crate's `<context> failed: {self:?}` error convention.
 macro_rules! failed_display {
     ($type:ty, $message:literal) => {

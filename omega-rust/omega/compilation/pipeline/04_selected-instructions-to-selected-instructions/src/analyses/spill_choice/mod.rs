@@ -9,7 +9,6 @@ use register_model::{
 };
 
 pub(crate) mod compute;
-pub(crate) mod validate;
 
 use optimization_core::OptimizationWorkUsage;
 use register_homes::{
@@ -43,8 +42,22 @@ pub fn choose_spill_victims(
         policy,
         budget,
     )?;
-    validate::seal_spill_choices(plan)
+    seal_spill_choices(plan)
 }
+
+seal_plan!(
+    seal_spill_choices(SpillChoicePlan)
+        -> ValidatedSpillChoices: SpillChoiceValidationReceipt
+        = register_homes::spill_choice_identity, SpillChoiceError
+    {
+        legality,
+        ranges,
+        register_environment,
+        allocator_availability,
+        policy,
+        usage
+    }
+);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SpillChoiceValidationReceipt {

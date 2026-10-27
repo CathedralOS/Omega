@@ -6,7 +6,6 @@
 
 mod compute;
 mod error;
-mod validation;
 
 use crate::WorkDefect;
 pub(crate) use error::FixedPrecoloredSplitRequirementError;
@@ -29,8 +28,27 @@ pub(crate) fn analyze_fixed_precolored_split_requirements(
     budget: optimization_core::OptimizationWorkBudget,
 ) -> Result<ValidatedFixedPrecoloredSplitRequirements, FixedPrecoloredSplitRequirementError> {
     let plan = compute::compute(ranges, legality, fixed, policy, budget)?;
-    validation::seal_fixed_precolored_split_requirements(plan)
+    seal_fixed_precolored_split_requirements(plan)
 }
+
+seal_plan!(
+    seal_fixed_precolored_split_requirements(FixedPrecoloredSplitRequirementPlan)
+        -> ValidatedFixedPrecoloredSplitRequirements: FixedPrecoloredSplitRequirementValidationReceipt
+        = register_homes::fixed_precolored_split_requirement_plan_identity,
+        FixedPrecoloredSplitRequirementError
+    {
+        fixed_intervals,
+        ranges,
+        legality,
+        register_environment,
+        allocator_availability,
+        optimization_unit,
+        fuel_schedule,
+        target,
+        policy,
+        usage
+    }
+);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FixedPrecoloredSplitRequirementValidationReceipt {

@@ -6,7 +6,6 @@ use register_model::{
     ValidatedRegisterReservationProfile,
 };
 pub(crate) mod compute;
-pub(crate) mod validate;
 
 use register_homes::AllocatorAvailabilityPolicy;
 use register_homes::{AllocatorAvailabilityIdentity, AllocatorAvailabilityPlan};
@@ -33,8 +32,18 @@ pub(crate) fn materialize_allocator_availability(
         selected_keys,
         policy,
     )?;
-    validate::seal_allocator_availability(plan)
+    seal_allocator_availability(plan)
 }
+
+seal_plan!(
+    seal_allocator_availability(AllocatorAvailabilityPlan)
+        -> ValidatedAllocatorAvailability: AllocatorAvailabilityValidationReceipt
+        = register_homes::allocator_availability_identity, AllocatorAvailabilityError
+    {
+        register_environment,
+        physical
+    }
+);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AllocatorAvailabilityValidationReceipt {
@@ -65,7 +74,6 @@ impl ValidatedAllocatorAvailability {
     receipt_accessor_rows!(ref ValidatedAllocatorAvailability {
         receipt: AllocatorAvailabilityValidationReceipt,
     });
-
     pub(crate) fn unconstrained_views(&self, class: RegisterClassId) -> Option<&[RegisterViewId]> {
         self.plan
             .classes

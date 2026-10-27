@@ -6,7 +6,6 @@ use crate::ValidatedSpillChoices;
 use register_homes::RecoveryClassificationPolicy;
 
 pub(crate) mod compute;
-pub(crate) mod validate;
 
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkUsage};
 use register_homes::{
@@ -37,8 +36,28 @@ pub fn classify_pressure_recovery<S: ValidatedSelectedAnalysis>(
         policy,
         budget,
     )?;
-    validate::seal_recovery_classifications(plan)
+    seal_recovery_classifications(plan)
 }
+
+// The work accounting this plan was produced under already admitted its exact
+// total, so this seal does not repeat that admission.
+seal_plan!(
+    seal_recovery_classifications(RecoveryClassificationPlan)
+        -> ValidatedRecoveryClassifications: RecoveryClassificationValidationReceipt
+        = register_homes::recovery_classification_identity, RecoveryClassificationError
+    {
+        selected,
+        spill_choices,
+        ranges,
+        legality,
+        register_environment,
+        allocator_availability,
+        optimization_unit,
+        fuel_schedule,
+        policy,
+        usage
+    }
+);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RecoveryClassificationValidationReceipt {

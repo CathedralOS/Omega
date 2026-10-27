@@ -16,7 +16,6 @@ use selected_instructions::{
 use std::collections::BTreeMap;
 
 use crate::work_accounting::Work;
-mod validation;
 
 pub(crate) use error::FixedPrecoloredSegmentHomeError;
 use register_homes::FixedPrecoloredSegmentHomePolicy;
@@ -63,8 +62,28 @@ pub(crate) fn assign_fixed_precolored_segment_homes(
         policy,
         budget,
     )?;
-    validation::seal_fixed_precolored_segment_homes(plan)
+    seal_fixed_precolored_segment_homes(plan)
 }
+
+seal_plan!(
+    seal_fixed_precolored_segment_homes(FixedPrecoloredSegmentHomePlan)
+        -> ValidatedFixedPrecoloredSegmentHomes: FixedPrecoloredSegmentHomeValidationReceipt
+        = register_homes::fixed_precolored_segment_home_plan_identity,
+        FixedPrecoloredSegmentHomeError
+    {
+        split_requirements,
+        fixed_intervals,
+        ranges,
+        legality,
+        register_environment,
+        allocator_availability,
+        optimization_unit,
+        fuel_schedule,
+        target,
+        policy,
+        usage
+    }
+);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FixedPrecoloredSegmentHomeValidationReceipt {
