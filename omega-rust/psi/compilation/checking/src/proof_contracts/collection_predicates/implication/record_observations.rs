@@ -99,6 +99,7 @@ impl Implication<'_> {
     pub(super) fn integer_subjects(
         &mut self,
         expression: ExpressionHandle,
+        reference: TypeReferenceHandle,
         value: Value,
         path: &mut Path,
         subjects: &mut Vec<(super::super::PredicateIntegerSubject, Integer)>,
@@ -143,7 +144,11 @@ impl Implication<'_> {
                     if crate::reference_shell(self.program, field_type).is_some()
                         || !matches!(
                             value_shape(self.program, field_type),
-                            Some(ValueShape::Integer(_) | ValueShape::Record(_))
+                            Some(
+                                ValueShape::Integer(_)
+                                    | ValueShape::Record(_)
+                                    | ValueShape::Collection { .. }
+                            )
                         )
                     {
                         continue;
@@ -151,13 +156,73 @@ impl Implication<'_> {
                     let (next, field) = self.record_member(path.clone(), value.clone(), symbol)?;
                     *path = next;
                     let before = subjects.len();
-                    self.integer_subjects(expression, field, path, subjects, depth + 1)?;
+                    self.integer_subjects(
+                        expression,
+                        field_type,
+                        field,
+                        path,
+                        subjects,
+                        depth + 1,
+                    )?;
                     // Each recursive read's path is relative to the original
                     // actual. Preserve every enclosing field in declaration order.
                     for (subject, _) in &mut subjects[before..] {
                         subject
                             .projection
                             .insert(0, facts::PlaceSegment::Field { symbol });
+                    }
+                }
+            }
+            Value::Collection {
+                identity,
+                length,
+                element,
+            } => {
+                let Some(ValueShape::Collection {
+                    length: Some(extent),
+                    element_type,
+                }) = value_shape(self.program, reference)
+                else {
+                    // A runtime descriptor is not a finite element roster.
+                    return Some(());
+                };
+                if element_type != *element {
+                    return None;
+                }
+                for index in 0..extent {
+                    self.spend()?;
+                    let selector = number(i128::try_from(index).ok()?);
+                    if !self.implies(
+                        path,
+                        &compare(BinaryOperator::GreaterOrEqual, selector.clone(), number(0)),
+                    ) || !self.implies(
+                        path,
+                        &compare(BinaryOperator::Less, selector.clone(), length.clone()),
+                    ) {
+                        return None;
+                    }
+                    // Reuse the collection reader's exact value identity and
+                    // branch assumptions. A split cannot be silently selected;
+                    // these fresh fixed formals need one complete read path.
+                    let mut outcomes = self.read(path.clone(), *identity, selector, *element, 0)?;
+                    if outcomes.len() != 1 {
+                        return None;
+                    }
+                    let (next, value) = outcomes.pop()?;
+                    *path = next;
+                    let before = subjects.len();
+                    self.integer_subjects(
+                        expression,
+                        element_type,
+                        value,
+                        path,
+                        subjects,
+                        depth + 1,
+                    )?;
+                    for (subject, _) in &mut subjects[before..] {
+                        subject
+                            .projection
+                            .insert(0, facts::PlaceSegment::FixedIndex { index });
                     }
                 }
             }
