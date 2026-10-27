@@ -16,7 +16,7 @@ pub(crate) mod view_subslice;
 use crate::emission::operation_emission::buffer::scalar_result_declaration;
 use crate::emission::selected_comparison::SelectedComparisonMeaning;
 use crate::lowering_error::LoweringError;
-use crate::terminal_identities::value_id;
+use crate::terminal_identities::{mint_with, value_id};
 pub(crate) use boolean::emit_boolean_expression;
 use buffer::OperationBuffer;
 use calls::{CallEmissionContext, LoweredDirectCallBinding};
@@ -83,21 +83,15 @@ pub(crate) fn emit_scalar_binding(
         LoweredScalarBinding::StorageAddress(argument, scalar_type) => {
             let source =
                 argument.emit(parameters, call_emission, next_value_identity, operations)?;
-            let id = value_id(*next_value_identity);
-            *next_value_identity =
-                next_value_identity
-                    .checked_add(1)
-                    .ok_or(LoweringError::Unsupported(
-                        "address result identity overflow",
-                    ))?;
-            let operation = operations.allocate();
-            operations.push(Operation {
-                static_reach_binding: None,
-                suspension_crossing: None,
-                id: operation,
-                result: buffer::scalar_result_declaration(id, *scalar_type),
-                kind: OperationKind::StorageAddress { source },
-            });
+            let id = mint_with(
+                next_value_identity,
+                value_id,
+                "address result identity overflow",
+            )?;
+            operations.push_leaf(
+                buffer::scalar_result_declaration(id, *scalar_type),
+                OperationKind::StorageAddress { source },
+            );
             Ok(id)
         }
 
@@ -108,13 +102,11 @@ pub(crate) fn emit_scalar_binding(
         } => {
             let left = emit_direct_expression(left, parameters, next_value_identity, operations);
             let right = emit_direct_expression(right, parameters, next_value_identity, operations);
-            let id = value_id(*next_value_identity);
-            *next_value_identity =
-                next_value_identity
-                    .checked_add(1)
-                    .ok_or(LoweringError::Unsupported(
-                        "comparison value identity overflow",
-                    ))?;
+            let id = mint_with(
+                next_value_identity,
+                value_id,
+                "comparison value identity overflow",
+            )?;
             let operation = operations.allocate();
             // Operator-use and application-site identities retain the authored
             // owner; this coordinate names the machine receiving the operation.
@@ -188,21 +180,15 @@ pub(crate) fn emit_scalar_binding(
             // contract stays on the comparison the occurrence names, which is
             // the operation owning the scalar operands the formal telescope
             // binds; this negation only carries its Boolean result forward.
-            let negated_id = value_id(*next_value_identity);
-            *next_value_identity =
-                next_value_identity
-                    .checked_add(1)
-                    .ok_or(LoweringError::Unsupported(
-                        "comparison negation value identity overflow",
-                    ))?;
-            let negation = operations.allocate();
-            operations.push(Operation {
-                static_reach_binding: None,
-                suspension_crossing: None,
-                id: negation,
-                result: scalar_result_declaration(negated_id, ScalarType::Boolean),
-                kind: OperationKind::BooleanNot { operand: id },
-            });
+            let negated_id = mint_with(
+                next_value_identity,
+                value_id,
+                "comparison negation value identity overflow",
+            )?;
+            operations.push_leaf(
+                scalar_result_declaration(negated_id, ScalarType::Boolean),
+                OperationKind::BooleanNot { operand: id },
+            );
             Ok(negated_id)
         }
         LoweredScalarBinding::Expression(expression) => Ok(emit_direct_expression(

@@ -15,7 +15,7 @@ use super::buffer::{OperationBuffer, SourceCallCoordinate};
 use super::calls::{CallEmissionContext, PreparedStructuralArgument};
 use super::expressions::{LoweredDirectExpression, emit_direct_expression};
 use crate::lowering_error::{LoweringError, unsupported};
-use crate::terminal_identities::value_id;
+use crate::terminal_identities::{mint_with, value_id};
 use semantic_vocabulary::OperationId;
 use semantic_vocabulary::{QualifiedScalarType, ValueId};
 use terminal_psi::{Operation, OperationKind, OperationResult, ValueDeclaration};
@@ -93,12 +93,11 @@ pub(super) fn emit_dynamic_call_binding(
         &structural_arguments,
         current_claims,
     )?;
-    let result = value_id(*next_value_identity);
-    *next_value_identity = next_value_identity
-        .checked_add(1)
-        .ok_or(LoweringError::Unsupported(
-            "selector call value identity overflow",
-        ))?;
+    let result = mint_with(
+        next_value_identity,
+        value_id,
+        "selector call value identity overflow",
+    )?;
     let operation = operations.allocate();
     operations.record_source_call(
         call.source_coordinate,
