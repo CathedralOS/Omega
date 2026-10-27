@@ -78,7 +78,7 @@ fn validate_statement(
         StatementNode::Call(call) => {
             validate_call(
                 call.target.as_str(),
-                call.target.source_span(),
+                call.source_span,
                 statement_index,
                 true,
                 operational_calls,
