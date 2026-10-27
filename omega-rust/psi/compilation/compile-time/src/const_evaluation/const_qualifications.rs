@@ -143,11 +143,32 @@ pub(crate) fn prove_ready(
     let request = typed_trees_to_typed_trees::PreparationRequest::settled();
     let (program, preparation) =
         typed_trees_to_typed_trees::prepare_typed_trees(program, &request)?;
-    typed_trees_to_checked_trees::lower_typed_trees(
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
         program,
         preparation,
         &typed_trees_to_checked_trees::CheckingRequest::new(),
     )?;
+
+    // A conditional checker receipt is not a completed destination judgment.
+    // Reuse the shared demanded-closure fence, including returned type owners;
+    // unrelated pending declarations remain outside each exact probe root.
+    for (owner, (_, definition)) in owners.iter().zip(&pending) {
+        if checked.typed.machine_by_symbol(*owner).is_none() {
+            return Err(vec![
+                Diagnostic::error("constant qualification lost its exact checked probe root")
+                    .with_source_span(definition.name.source_span()),
+            ]);
+        }
+        crate::machine_execution::admission::require_complete_checked_conditions(&checked, *owner)
+            .map_err(|reason| {
+                vec![
+                    Diagnostic::error(format!(
+                        "constant destination qualification remains conditional: {reason}",
+                    ))
+                    .with_source_span(definition.name.source_span()),
+                ]
+            })?;
+    }
 
     for (item, mut definition) in pending {
         definition.pending_qualification = None;
