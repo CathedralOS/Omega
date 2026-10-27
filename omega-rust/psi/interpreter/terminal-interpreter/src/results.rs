@@ -126,6 +126,9 @@ pub enum TerminalExecutionStatus {
     /// The checked call retains its operands and loans; no completion or
     /// writeback has occurred. Readiness is independent of scheduling fuel.
     AwaitingEffect(TerminalEffectWait),
+    /// Executor-local pause for a synchronous host result, not a guest task
+    /// suspension or permission to release the invocation's live storage.
+    HostComputationPending(TerminalEffectWait),
     Crashed(TerminalCrash),
     ExternalCompletion(TerminalExternalCompletion),
 }
