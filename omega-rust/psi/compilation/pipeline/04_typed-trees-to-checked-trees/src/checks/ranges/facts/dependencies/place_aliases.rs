@@ -8,7 +8,6 @@
 //! Once reanchored, the reference depends on its own captured descriptor and
 //! descendant selectors, not the variables that selected its original root.
 
-use super::reads::ReadWalk;
 use super::{ExpressionDependencies, reads};
 use crate::checks::ranges::RangeFacts;
 use symbols::SymbolHandle;
@@ -176,26 +175,21 @@ impl RangeFacts<'_> {
                 // require all resulting roots to exist at this capture. A
                 // future mutable read or new computed value cannot pass that
                 // currency check merely because its declaration exists.
-                let complete = {
-                    let mut walk = ReadWalk::new(
-                        program,
-                        machine,
-                        state,
-                        if uses_frozen_selector {
-                            program
-                                .statement_table
-                                .statements(state.statement_nodes)
-                                .len()
-                        } else {
-                            prefix
-                        },
-                        self.checked_calls,
-                        self.checked_operators,
-                        &mut dependencies,
-                        bound_lookup,
-                    );
-                    walk.collect_reads(expression, 0)
-                };
+                let complete = self.walk_reads(
+                    program,
+                    machine,
+                    state,
+                    if uses_frozen_selector {
+                        program
+                            .statement_table
+                            .statements(state.statement_nodes)
+                            .len()
+                    } else {
+                        prefix
+                    },
+                    expression,
+                    &mut dependencies,
+                );
                 if !complete
                     || !dependencies.iter().all(|read| {
                         reads::root_is_current(program, machine, state, prefix, read.root)

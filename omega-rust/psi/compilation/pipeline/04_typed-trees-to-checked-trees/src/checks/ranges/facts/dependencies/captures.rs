@@ -4,7 +4,6 @@ use super::{
 use crate::checks::ranges::RangeFacts;
 use crate::checks::ranges::facts::dependencies::ExpressionDependencies;
 use crate::checks::ranges::facts::dependencies::reads;
-use crate::checks::ranges::facts::dependencies::reads::ReadWalk;
 use crate::checks::ranges::facts::dependencies::same_reads;
 
 impl<'field> RangeFacts<'field> {
@@ -23,19 +22,14 @@ impl<'field> RangeFacts<'field> {
             return;
         }
         let mut reads = Vec::new();
-        let complete = {
-            let mut walk = ReadWalk::new(
-                program,
-                machine,
-                state,
-                self.statement_index,
-                self.checked_calls,
-                self.checked_operators,
-                &mut reads,
-                self.bound_lookup(),
-            );
-            walk.collect_reads(expression, 0)
-        };
+        let complete = self.walk_reads(
+            program,
+            machine,
+            state,
+            self.statement_index,
+            expression,
+            &mut reads,
+        );
         if complete {
             self.alias_index(&program.expression_table.display_name(expression), name);
             self.alias_captured_selector(program, machine, state, expression, symbol);
@@ -55,19 +49,14 @@ impl<'field> RangeFacts<'field> {
             return;
         }
         let mut captured_reads = Vec::new();
-        let complete = {
-            let mut walk = ReadWalk::new(
-                program,
-                machine,
-                state,
-                self.statement_index,
-                self.checked_calls,
-                self.checked_operators,
-                &mut captured_reads,
-                self.bound_lookup(),
-            );
-            walk.collect_reads(captured, 0)
-        };
+        let complete = self.walk_reads(
+            program,
+            machine,
+            state,
+            self.statement_index,
+            captured,
+            &mut captured_reads,
+        );
         if !complete {
             return;
         }
@@ -186,19 +175,14 @@ impl<'field> RangeFacts<'field> {
                         continue;
                     }
                     let mut selector_reads = Vec::new();
-                    let complete = {
-                        let mut walk = ReadWalk::new(
-                            program,
-                            machine,
-                            state,
-                            self.statement_index,
-                            self.checked_calls,
-                            self.checked_operators,
-                            &mut selector_reads,
-                            bound_lookup,
-                        );
-                        walk.collect_reads(*source_index, 0)
-                    };
+                    let complete = self.walk_reads(
+                        program,
+                        machine,
+                        state,
+                        self.statement_index,
+                        *source_index,
+                        &mut selector_reads,
+                    );
                     if !complete
                         || !same_reads(program, Some(&captured_reads), Some(&selector_reads))
                     {
@@ -223,33 +207,27 @@ impl<'field> RangeFacts<'field> {
                     continue;
                 }
                 let mut reads = Vec::new();
-                let bound_lookup = self.bound_lookup();
                 // The current binding now exists. Later immutable copies may
                 // already have typed uses but do not introduce a new value.
                 // Read those uses through the shared captured-value identity,
                 // then require every resulting dependency to exist now. This
                 // does not evaluate a future initializer or admit a new read.
                 let prefix = self.statement_index.saturating_add(1);
-                let complete = {
-                    let mut walk = ReadWalk::new(
-                        program,
-                        machine,
-                        state,
-                        if same_snapshot {
-                            program
-                                .statement_table
-                                .statements(state.statement_nodes)
-                                .len()
-                        } else {
-                            prefix
-                        },
-                        self.checked_calls,
-                        self.checked_operators,
-                        &mut reads,
-                        bound_lookup,
-                    );
-                    walk.collect_reads(expression, 0)
-                };
+                let complete = self.walk_reads(
+                    program,
+                    machine,
+                    state,
+                    if same_snapshot {
+                        program
+                            .statement_table
+                            .statements(state.statement_nodes)
+                            .len()
+                    } else {
+                        prefix
+                    },
+                    expression,
+                    &mut reads,
+                );
                 if !complete
                     || !reads.iter().all(|read| {
                         reads::root_is_current(program, machine, state, prefix, read.root)
