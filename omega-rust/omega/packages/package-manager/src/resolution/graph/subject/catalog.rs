@@ -145,10 +145,8 @@ pub(super) fn validate(
         for graph in
             std::iter::once(subject).chain(dependencies.iter().map(|entry| &entry.provider))
         {
-            if graph
-                .packages
-                .binary_search_by(|source| source.key().cmp(dependency.observer.key()))
-                .is_ok()
+            if ResolvedSourceIdentity::index_in(&graph.packages, dependency.observer.key())
+                .is_some()
                 && !graph
                     .dependency_requests
                     .iter()

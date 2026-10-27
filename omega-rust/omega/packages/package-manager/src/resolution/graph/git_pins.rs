@@ -3,6 +3,7 @@
 use crate::declarations::PackageKey;
 use crate::resolution::graph::{
     CanonicalDependencySourceRequest, CanonicalRootSourceRequest, CanonicalSourceClosureSubject,
+    ResolvedSourceIdentity,
 };
 use crate::resolution::source::ResolvePackageSourceError;
 use package_source::git::resolution::GitExactRevisionAcquisition;
@@ -78,12 +79,10 @@ impl<'a> GitDependencyPins<'a> {
         acquisition: GitExactRevisionAcquisition,
     ) -> Result<Self, GitDependencyPinsError> {
         for (index, package) in updates.iter().enumerate() {
-            if !accepted.execution_source_graphs().any(|graph| {
-                graph
-                    .packages()
-                    .binary_search_by(|source| source.key().cmp(package))
-                    .is_ok()
-            }) {
+            if !accepted
+                .execution_source_graphs()
+                .any(|graph| ResolvedSourceIdentity::index_in(graph.packages(), package).is_some())
+            {
                 return Err(GitDependencyPinsError::UnknownPackage(package.clone()));
             }
             if updates[..index].contains(package) {
