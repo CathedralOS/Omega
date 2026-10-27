@@ -131,12 +131,24 @@
           "match": "\\b(?:true|false)\\b"
         },
         {
-          "name": "storage.type.primitive.omega",
+          "name": "entity.name.type.primitive.omega",
           "match": "\\b(?:bool|[ui](?:8|16|32|64|128|size)|f(?:16|32|64|128))\\b"
         },
         {
+          "name": "storage.modifier.visibility.omega",
+          "match": "\\bpublic\\b"
+        },
+        {
+          "name": "storage.modifier.mutability.omega",
+          "match": "\\bmut\\b"
+        },
+        {
+          "name": "variable.language.self.omega",
+          "match": "\\bself\\b"
+        },
+        {
           "name": "keyword.control.omega",
-          "match": "\\b(?:as|boundary|calling_convention|capability|case|const|contains|crash|data|decreases|discharges|dispatches|domain|dyn|else|ensures|exists|exports|foreign|forall|host|if|implements|imports|in|invariant|invokes|layout|let|library|loop|machine|match|module|mut|on|operator|owns|platform|proof|proposition|public|reaches|requires|return|satisfies|self|state|static|struct|target|theorem|then|trait|transition|type|use|when|where|while|witness|write)\\b"
+          "match": "\\b(?:as|block|blocks|boundary|by|calling_convention|capability|case|const|contains|crash|data|decreases|discharges|dispatches|domain|dyn|else|ensures|exists|exports|foreign|forall|host|if|implements|imports|in|invariant|invokes|layout|let|library|loop|machine|match|module|on|operator|owns|platform|proof|proposition|reaches|requires|return|satisfies|state|static|struct|suspend|suspends|target|terminates|theorem|then|trait|transition|type|use|via|when|where|while|witness|write)\\b"
         }
       ]
     },
