@@ -143,15 +143,11 @@ impl Builder<'_, '_> {
         &mut self,
         kind: &CheckedScalarComputationKind,
     ) -> arena::HandleSpan<checked_trees::CheckedNormalCleanupAction> {
-        let receiver_value = match kind {
-            CheckedScalarComputationKind::StructuralField { receiver_value, .. }
-            | CheckedScalarComputationKind::CaseMembership { receiver_value, .. } => receiver_value,
-            _ => return arena::HandleSpan::empty(),
-        };
+        let receiver_value = kind.observed_receiver();
         if !receiver_value.is_valid() {
             return arena::HandleSpan::empty();
         }
-        let receiver = self.structural_values.nodes.get(*receiver_value);
+        let receiver = self.structural_values.nodes.get(receiver_value);
         if !validation::canonical_place_from_expression_in_state(
             self.program,
             self.state,
