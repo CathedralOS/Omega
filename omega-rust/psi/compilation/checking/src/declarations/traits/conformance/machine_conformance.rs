@@ -416,6 +416,8 @@ fn validate_machine_top_level_requirement_conformance(
             program.machine_contracts(machine),
             required_parameters,
             actual_parameters,
+            requirement.symbol,
+            machine.symbol,
             diagnostics,
         );
     }

@@ -64,6 +64,12 @@ pub enum CheckedScalarStateTerminator {
 /// A selected scalar arm transfers into a state, returns, or crashes without a successor.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedScalarBranchDestination {
+    /// An exact checked module invocation with no normal result or successor.
+    /// Its ordinary entry obligations and argument evaluation remain live.
+    InvokeNoNormal {
+        statement_ordinal: u32,
+        is_continuation: bool,
+    },
     Jump(CheckedStructuralControlSuccessorPlan),
     /// The exact standalone source crash retains its cause and site custody.
     Crash {

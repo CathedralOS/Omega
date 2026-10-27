@@ -485,6 +485,8 @@ pub struct CheckingMemos {
         OnceLock<Arc<Vec<typed_trees::expression::ExpressionHandle>>>,
     pub(crate) owned_field_domains:
         OnceLock<crate::value_custody::field_domains::OwnedFieldDomainQueries>,
+    pub(crate) declared_type_domains:
+        OnceLock<crate::value_custody::field_domains::DeclaredTypeDomainQueries>,
     pub(crate) claim_frontiers:
         OnceLock<crate::value_custody::type_properties::ClaimFrontierQueries>,
     pub(crate) establishment: OnceLock<crate::value_custody::type_properties::EstablishmentQueries>,
@@ -703,6 +705,7 @@ impl CheckingMemos {
             erased_initializers: self.erased_initializers,
             mathematical_expression_nodes: self.mathematical_expression_nodes,
             owned_field_domains: self.owned_field_domains,
+            declared_type_domains: self.declared_type_domains,
             claim_frontiers: self.claim_frontiers,
             establishment: self.establishment,
             call_destinations: self.call_destinations,

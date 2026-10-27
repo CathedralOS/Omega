@@ -215,17 +215,13 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
                     if let Some(type_parameters) = type_parameters {
                         let local_type_parameters =
                             data_type_parameters.span_or_empty(type_parameters);
-                        for handle in membership.domain_arguments.handles() {
-                            let mut argument = child_type_references.get(handle).clone();
-                            super::type_references::assign_type_reference_symbol_with_locals_and_constraints(
-                                symbols,
-                                child_type_references,
-                                type_constraints,
-                                local_type_parameters,
-                                &mut argument,
-                            );
-                            *child_type_references.get_mut(handle) = argument;
-                        }
+                        super::type_references::assign_type_reference_argument_symbols_with_constraints(
+                            symbols,
+                            child_type_references,
+                            type_constraints,
+                            local_type_parameters,
+                            membership.domain_arguments,
+                        );
                     }
                     assign_proof_expression_symbols(
                         symbols,

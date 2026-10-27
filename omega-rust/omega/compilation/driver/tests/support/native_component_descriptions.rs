@@ -15,7 +15,6 @@ pub(super) fn inspect(
     report: &compilation_products::CompileReport,
     fixture: &Path,
     build_dir: &Path,
-    capture: Option<&super::artifact_capture::Capture>,
 ) -> Result<(), String> {
     let oracle = fixture.join("expected_native_component_descriptions.txt");
     if !oracle.exists() {
@@ -37,16 +36,6 @@ pub(super) fn inspect(
         ));
     }
     for (ordinal, product) in products.iter().enumerate() {
-        if let Some(capture) = capture {
-            capture.observe(
-                &format!("component-{ordinal}.image"),
-                product.image().image().contents(),
-            )?;
-            capture.observe(
-                &format!("component-{ordinal}.description"),
-                product.description(),
-            )?;
-        }
         let request = ComponentVerificationRequest {
             expected_subject: product.selection().provider(),
             accepted_schemas: BTreeSet::from([COMPONENT_DESCRIPTION_SCHEMA_V3]),

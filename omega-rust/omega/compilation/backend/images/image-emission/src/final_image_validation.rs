@@ -470,7 +470,8 @@ fn validate_callback_relocation_targets(
                     ))?;
                 let operation = match call.owner {
                     target_operations::CallSiteOwner::Operation(operation) => operation,
-                    target_operations::CallSiteOwner::CleanupAction { .. }
+                    target_operations::CallSiteOwner::InvokeNoNormal(_)
+                    | target_operations::CallSiteOwner::CleanupAction { .. }
                     | target_operations::CallSiteOwner::ExternalCompletion(_) => {
                         return Err(Diagnostic::error(
                             "callback address relocation is not owned by a semantic registrar operation",

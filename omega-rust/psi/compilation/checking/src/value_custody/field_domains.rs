@@ -20,6 +20,7 @@ use typed_trees::types::{
 };
 
 mod declared_fields;
+pub(crate) use declared_fields::DeclaredTypeDomainQueries;
 pub use declared_fields::{
     FieldDomainRow, WHOLE_ELEMENT_EXTENT, declared_type_domain_rows, exact_declared_field,
     readable_slice_element,
@@ -79,9 +80,9 @@ pub fn assignment_target_domain_constraints<'program>(
     declared_domain_constraints(program, type_reference)
         .into_iter()
         .filter(|domain| {
-            program.domain_definitions().iter().any(|definition| {
-                definition.symbol == domain.symbol && definition.predicate_body.is_present()
-            })
+            program
+                .domain_definition(domain.symbol)
+                .is_some_and(|definition| definition.predicate_body.is_present())
         })
         .collect()
 }

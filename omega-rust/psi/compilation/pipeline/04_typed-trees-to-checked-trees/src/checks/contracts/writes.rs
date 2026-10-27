@@ -66,6 +66,7 @@ pub(super) fn check_domain_field_writes(
     facts: &CheckFacts,
     constructor_memberships: &ConstructorMemberships<'_>,
     state_flow: &FlowStateFact,
+    state_structural_values: &[&checked_trees::CheckedStructuralValue],
     frames: Option<&validation::CallFrameResolver<'_>>,
     decisions: &mut arena::Arena<checked_trees::CheckedValueQualification>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -89,7 +90,7 @@ pub(super) fn check_domain_field_writes(
             validation::field_domains::domain_constraint_identities(program, entry.return_type)
         })
         .unwrap_or_default();
-    for (_, value) in facts.values.structural_values.nodes.iter() {
+    for &value in state_structural_values {
         if value.machine != state_flow.machine_symbol
             || value.state != state_flow.state_symbol
             || !matches!(

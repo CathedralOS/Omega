@@ -3,7 +3,7 @@
 //! After flow settles, re-run its same ordered collector with authenticated
 //! observation/source correspondences. Only identical access rosters can gain
 //! the existing copied-payload end before access zero; paths, kinds and loans
-//! are unchanged. Nested expression invocations retain their own ordinary ends.
+//! are unchanged. Nested operand invocations retain their own ordinary ends.
 
 use checked_trees::CheckFacts;
 
@@ -26,34 +26,17 @@ pub(crate) fn retain_completed_dispatch_extractions(
         })
         .collect::<Vec<_>>();
     for (machine, state, call) in calls {
-        let Some(validation::CallSite::TransitionNamed { .. }) = validation::find_call_site(
-            program,
-            machine,
-            state,
-            call.statement_index,
-            call.call_ordinal,
-        ) else {
-            continue;
-        };
         let Some(machine) = program.machine_by_symbol(machine) else {
             continue;
         };
         let Some(state) = program.state_in_machine(machine, state) else {
             continue;
         };
-        let Some(extraction) = crate::flow::completed_dispatch_extraction(
+        let Some((site, extraction)) = transition_invocation(
             program,
             crate::flow::CapturedSubjectFacts::from(&*facts),
             machine,
             state,
-            call.statement_index,
-        ) else {
-            continue;
-        };
-        let Some(site) = validation::find_call_site(
-            program,
-            machine.symbol,
-            state.symbol,
             call.statement_index,
             call.call_ordinal,
         ) else {
@@ -62,7 +45,7 @@ pub(crate) fn retain_completed_dispatch_extractions(
         let arguments = validation::call_site_argument_expressions(program, &site);
         let mut segments = arena::Arena::new();
         let mut accesses = arena::Arena::new();
-        let expected = super::collect_completed_transition_target_argument_accesses(
+        let expected = super::collect_argument_accesses(
             program,
             &mut segments,
             &mut accesses,
@@ -71,7 +54,7 @@ pub(crate) fn retain_completed_dispatch_extractions(
             call.statement_index,
             machine.symbol,
             call.target_symbol,
-            extraction,
+            super::ArgumentAccessSchedule::TransitionTarget(extraction),
         );
         let Some(expected) = accesses.span(expected) else {
             continue;
@@ -103,4 +86,38 @@ pub(crate) fn retain_completed_dispatch_extractions(
             }
         }
     }
+}
+
+/// Only the exact whole arm invocation inherits the dispatch's completed
+/// payload copies. A nested call, even to the same declaration, does not.
+/// The source collector authenticates exact selected case projections itself.
+/// Completed flow correspondence only enriches that relation for projections
+/// naming a different captured source; absence cannot manufacture such an alias.
+/// Both publication and independent access replay use this same authority.
+pub(super) fn transition_invocation<'program>(
+    program: &'program dyn validation::CheckingInput,
+    facts: crate::flow::CapturedSubjectFacts<'_>,
+    machine: &'program typed_trees::machine::Machine,
+    state: &'program typed_trees::state::State,
+    statement_index: usize,
+    call_ordinal: usize,
+) -> Option<(
+    validation::CallSite<'program>,
+    Option<validation::DispatchExtraction>,
+)> {
+    let site = validation::find_call_site_in_state(
+        program,
+        machine,
+        state,
+        statement_index,
+        call_ordinal,
+    )?;
+    let target =
+        validation::transition_call_target(program, machine, state, statement_index, call_ordinal)?;
+    if !site.completes_transition(program, target) {
+        return None;
+    }
+    let extraction =
+        crate::flow::completed_dispatch_extraction(program, facts, machine, state, statement_index);
+    Some((site, extraction))
 }

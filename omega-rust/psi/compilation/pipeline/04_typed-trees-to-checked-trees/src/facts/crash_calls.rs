@@ -237,8 +237,30 @@ pub(super) fn attach_checked_crash_calls(
         Some(summary_graph),
     );
     let mut plan_indices = symbols::SymbolKeyMap::<SymbolHandle, usize>::default();
+    let mut plan_entry_parameter_names = Vec::with_capacity(plans.len());
     for (index, plan) in plans.iter().enumerate() {
         plan_indices.entry(plan.machine).or_insert(index);
+        let entry_names = program
+            .machine_by_symbol(plan.machine)
+            .and_then(|machine| program.machine_states(machine).first())
+            .map(|entry| {
+                program
+                    .state_parameters(entry)
+                    .iter()
+                    .map(|parameter| parameter.name.as_str().to_owned())
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        plan_entry_parameter_names.push(entry_names);
+    }
+    let mut capsule_by_target = symbols::SymbolKeyMap::<
+        (SymbolHandle, SymbolHandle),
+        &checked_trees::CrashContractCapsule,
+    >::default();
+    for capsule in crash_capsules {
+        capsule_by_target
+            .entry((capsule.target_machine(), capsule.target_state()))
+            .or_insert(capsule);
     }
     let mut summary_by_machine =
         symbols::SymbolKeyMap::<SymbolHandle, &[SummaryCrashBucket]>::default();
@@ -247,199 +269,230 @@ pub(super) fn attach_checked_crash_calls(
             .entry(*machine)
             .or_insert(summary.as_slice());
     }
+    let state_flows: Vec<&checked_trees::FlowStateFact> = flow
+        .control
+        .states
+        .iter()
+        .map(|(_, state_flow)| state_flow)
+        .collect();
+    let per_state_calls: Vec<Vec<(SymbolHandle, checked_trees::CheckedCrashCallSite)>> =
+        validation::checking_thread_pool().install(|| {
+            use rayon::prelude::*;
+            state_flows
+                .par_iter()
+                .map(|&state_flow| {
+                    let mut state_calls = Vec::new();
+                    for call_flow in flow.control.calls.span_or_empty(state_flow.calls) {
+                        let Some(call_site) = validation::find_call_site(
+                            program,
+                            state_flow.machine_symbol,
+                            state_flow.state_symbol,
+                            call_flow.statement_index,
+                            call_flow.call_ordinal,
+                        ) else {
+                            continue;
+                        };
+                        let Some((target_machine_symbol, target_state_symbol)) =
+                            private_summaries::selected_invocation_target(
+                                program,
+                                call_site,
+                                call_flow.target_symbol,
+                            )
+                        else {
+                            continue;
+                        };
+                        let local_target = program.machine_by_symbol(target_machine_symbol);
+                        let local_plan_index = plan_indices.get(&target_machine_symbol).copied();
+                        let local_plan = local_plan_index.and_then(|index| plans.get(index));
+                        let (
+                            target_parameters,
+                            target_parameter_names_owned,
+                            target_parameter_names_ref,
+                            target_routes,
+                            target_contract_fingerprint,
+                            target_contract_commitment,
+                        ) = if let (Some(target_machine), Some(target_plan), Some(plan_index)) =
+                            (local_target, local_plan, local_plan_index)
+                        {
+                            let Some(target_state) =
+                                program.state_in_machine(target_machine, target_state_symbol)
+                            else {
+                                continue;
+                            };
+                            let target_routes = if target_machine.target_family_interface {
+                                let Some(&summary) = summary_by_machine.get(&target_machine_symbol)
+                                else {
+                                    // Authored clauses alone do not close a family's private
+                                    // inferred body causes or unresolved member dependencies.
+                                    continue;
+                                };
+                                SelectedTargetCrashRoutes::Private(summary)
+                            } else if !target_plan.crash.published().is_empty() {
+                                SelectedTargetCrashRoutes::Published {
+                                    buckets: target_plan.crash.published(),
+                                    contracts: program.machine_contracts(target_machine),
+                                }
+                            } else if target_machine.supply_mode
+                                == language_semantics::MachineSupplyMode::CheckedBody
+                            {
+                                let Some(&summary) = summary_by_machine.get(&target_machine_symbol)
+                                else {
+                                    // Dependency-unresolved private bodies remain
+                                    // unexamined rather than erasing a nested crash.
+                                    continue;
+                                };
+                                SelectedTargetCrashRoutes::Private(summary)
+                            } else {
+                                // Omission on a requirement/boundary/exported interface is
+                                // the published negative guarantee, so retain an empty row
+                                // as positive crash-free evidence.
+                                SelectedTargetCrashRoutes::Empty
+                            };
+                            (
+                                program.state_parameters(target_state),
+                                Vec::new(),
+                                Some(plan_entry_parameter_names[plan_index].as_slice()),
+                                target_routes,
+                                target_plan.report_fingerprint,
+                                target_plan.commitment,
+                            )
+                        } else {
+                            let Some(&capsule) = capsule_by_target
+                                .get(&(target_machine_symbol, target_state_symbol))
+                            else {
+                                continue;
+                            };
+                            let Some(signature) = requirement_signature(
+                                program,
+                                target_machine_symbol,
+                                target_state_symbol,
+                            ) else {
+                                continue;
+                            };
+                            // A selector call's operands lead with its selector, which the
+                            // requirement's formals omit; published routes would substitute
+                            // misaligned actuals, so such a call keeps no refinement row.
+                            if program
+                                .dynamic_slot_by_symbol(call_flow.target_symbol)
+                                .is_some()
+                                && !capsule.published_buckets().is_empty()
+                            {
+                                continue;
+                            }
+                            let parameters = program.state_signature_parameters(signature);
+                            (
+                                parameters,
+                                parameters
+                                    .iter()
+                                    .map(|parameter| parameter.name.as_str().to_owned())
+                                    .collect(),
+                                None,
+                                if capsule.published_buckets().is_empty() {
+                                    SelectedTargetCrashRoutes::Empty
+                                } else {
+                                    SelectedTargetCrashRoutes::Published {
+                                        buckets: capsule.published_buckets(),
+                                        contracts: program.state_signature_contracts(signature),
+                                    }
+                                },
+                                capsule.target_contract_report_fingerprint(),
+                                capsule.target_contract_commitment(),
+                            )
+                        };
+                        if call_site.is_internal_state_transfer(program, state_flow.machine_symbol)
+                        {
+                            // Only local state arrivals stay inside this invocation.
+                            // Terminal machine calls retain ordinary crash obligations.
+                            continue;
+                        }
+                        let target_parameter_names = target_parameter_names_ref
+                            .unwrap_or(target_parameter_names_owned.as_slice());
+                        let arguments =
+                            validation::call_site_argument_expressions(program, &call_site);
+                        let mut surviving_summary = match target_routes {
+                            SelectedTargetCrashRoutes::Published { buckets, contracts } => {
+                                refine_published_crash_routes(
+                                    program,
+                                    operators,
+                                    exact_integer_casts,
+                                    semantic,
+                                    flow,
+                                    state_flow,
+                                    call_flow,
+                                    &call_site,
+                                    target_state_symbol,
+                                    target_parameters,
+                                    target_parameter_names,
+                                    buckets,
+                                    contracts,
+                                    content_conservation,
+                                )
+                            }
+                            SelectedTargetCrashRoutes::Private(summary) => {
+                                let substitution = call_argument_substitution(
+                                    program,
+                                    operators,
+                                    semantic,
+                                    flow,
+                                    state_flow,
+                                    call_flow,
+                                    target_parameters,
+                                    arguments,
+                                    exact_integer_casts,
+                                );
+                                normalize_summary_buckets(
+                                    summary
+                                        .iter()
+                                        .map(|bucket| bucket.substitute(&substitution))
+                                        .collect(),
+                                )
+                            }
+                            SelectedTargetCrashRoutes::Empty => Vec::new(),
+                        };
+                        if let Some(caller) = program.machine_by_symbol(state_flow.machine_symbol) {
+                            entry_equations::refine(
+                                program,
+                                operators,
+                                caller,
+                                &mut surviving_summary,
+                            );
+                        }
+                        let surviving_buckets = surviving_summary
+                            .into_iter()
+                            .filter_map(SummaryCrashBucket::into_checked)
+                            .collect::<Vec<_>>();
+                        state_calls.push((
+                            state_flow.machine_symbol,
+                            checked_trees::CheckedCrashCallSite::new_with_commitment(
+                                checked_trees::CrashCallSiteLocation::new(
+                                    state_flow.state_symbol,
+                                    u32::try_from(call_flow.statement_index).expect(
+                                        "statement ordinal exceeds checked crash-call identity range",
+                                    ),
+                                    u32::try_from(call_flow.call_ordinal).expect(
+                                        "call ordinal exceeds checked crash-call identity range",
+                                    ),
+                                ),
+                                target_machine_symbol,
+                                target_state_symbol,
+                                target_contract_fingerprint,
+                                target_contract_commitment,
+                                surviving_buckets,
+                            ),
+                        ));
+                    }
+                    state_calls
+                })
+                .collect()
+        });
     let mut calls_by_caller =
         symbols::SymbolKeyMap::<SymbolHandle, Vec<checked_trees::CheckedCrashCallSite>>::default();
-    for (_, state_flow) in flow.control.states.iter() {
-        for call_flow in flow.control.calls.span_or_empty(state_flow.calls) {
-            let Some(call_site) = validation::find_call_site(
-                program,
-                state_flow.machine_symbol,
-                state_flow.state_symbol,
-                call_flow.statement_index,
-                call_flow.call_ordinal,
-            ) else {
-                continue;
-            };
-            let Some((target_machine_symbol, target_state_symbol)) =
-                private_summaries::selected_invocation_target(
-                    program,
-                    call_site,
-                    call_flow.target_symbol,
-                )
-            else {
-                continue;
-            };
-            let local_target = program.machine_by_symbol(target_machine_symbol);
-            let local_plan = plan_indices
-                .get(&target_machine_symbol)
-                .and_then(|&index| plans.get(index));
-            let (
-                target_parameters,
-                target_parameter_names,
-                target_routes,
-                target_contract_fingerprint,
-                target_contract_commitment,
-            ) = if let (Some(target_machine), Some(target_plan)) = (local_target, local_plan) {
-                let Some(target_state) =
-                    program.state_in_machine(target_machine, target_state_symbol)
-                else {
-                    continue;
-                };
-                let target_routes = if target_machine.target_family_interface {
-                    let Some(&summary) = summary_by_machine.get(&target_machine_symbol) else {
-                        // Authored clauses alone do not close a family's private
-                        // inferred body causes or unresolved member dependencies.
-                        continue;
-                    };
-                    SelectedTargetCrashRoutes::Private(summary)
-                } else if !target_plan.crash.published().is_empty() {
-                    SelectedTargetCrashRoutes::Published {
-                        buckets: target_plan.crash.published(),
-                        contracts: program.machine_contracts(target_machine),
-                    }
-                } else if target_machine.supply_mode
-                    == language_semantics::MachineSupplyMode::CheckedBody
-                {
-                    let Some(&summary) = summary_by_machine.get(&target_machine_symbol) else {
-                        // Dependency-unresolved private bodies remain
-                        // unexamined rather than erasing a nested crash.
-                        continue;
-                    };
-                    SelectedTargetCrashRoutes::Private(summary)
-                } else {
-                    // Omission on a requirement/boundary/exported interface is
-                    // the published negative guarantee, so retain an empty row
-                    // as positive crash-free evidence.
-                    SelectedTargetCrashRoutes::Empty
-                };
-                (
-                    program.state_parameters(target_state),
-                    program
-                        .machine_states(target_machine)
-                        .first()
-                        .map(|entry| {
-                            program
-                                .state_parameters(entry)
-                                .iter()
-                                .map(|parameter| parameter.name.as_str().to_owned())
-                                .collect::<Vec<_>>()
-                        })
-                        .unwrap_or_default(),
-                    target_routes,
-                    target_plan.report_fingerprint,
-                    target_plan.commitment,
-                )
-            } else {
-                let Some(capsule) = crash_capsules.iter().find(|capsule| {
-                    capsule.target_machine() == target_machine_symbol
-                        && capsule.target_state() == target_state_symbol
-                }) else {
-                    continue;
-                };
-                let Some(signature) =
-                    requirement_signature(program, target_machine_symbol, target_state_symbol)
-                else {
-                    continue;
-                };
-                // A selector call's operands lead with its selector, which the
-                // requirement's formals omit; published routes would substitute
-                // misaligned actuals, so such a call keeps no refinement row.
-                if program
-                    .dynamic_slot_by_symbol(call_flow.target_symbol)
-                    .is_some()
-                    && !capsule.published_buckets().is_empty()
-                {
-                    continue;
-                }
-                let parameters = program.state_signature_parameters(signature);
-                (
-                    parameters,
-                    parameters
-                        .iter()
-                        .map(|parameter| parameter.name.as_str().to_owned())
-                        .collect(),
-                    if capsule.published_buckets().is_empty() {
-                        SelectedTargetCrashRoutes::Empty
-                    } else {
-                        SelectedTargetCrashRoutes::Published {
-                            buckets: capsule.published_buckets(),
-                            contracts: program.state_signature_contracts(signature),
-                        }
-                    },
-                    capsule.target_contract_report_fingerprint(),
-                    capsule.target_contract_commitment(),
-                )
-            };
-            if call_site.is_internal_state_transfer(program, state_flow.machine_symbol) {
-                // Only local state arrivals stay inside this invocation.
-                // Terminal machine calls retain ordinary crash obligations.
-                continue;
-            }
-            let arguments = validation::call_site_argument_expressions(program, &call_site);
-            let mut surviving_summary = match target_routes {
-                SelectedTargetCrashRoutes::Published { buckets, contracts } => {
-                    refine_published_crash_routes(
-                        program,
-                        operators,
-                        exact_integer_casts,
-                        semantic,
-                        flow,
-                        state_flow,
-                        call_flow,
-                        &call_site,
-                        target_state_symbol,
-                        target_parameters,
-                        &target_parameter_names,
-                        buckets,
-                        contracts,
-                        content_conservation,
-                    )
-                }
-                SelectedTargetCrashRoutes::Private(summary) => {
-                    let substitution = call_argument_substitution(
-                        program,
-                        operators,
-                        semantic,
-                        flow,
-                        state_flow,
-                        call_flow,
-                        target_parameters,
-                        arguments,
-                        exact_integer_casts,
-                    );
-                    normalize_summary_buckets(
-                        summary
-                            .iter()
-                            .map(|bucket| bucket.substitute(&substitution))
-                            .collect(),
-                    )
-                }
-                SelectedTargetCrashRoutes::Empty => Vec::new(),
-            };
-            if let Some(caller) = program.machine_by_symbol(state_flow.machine_symbol) {
-                entry_equations::refine(program, operators, caller, &mut surviving_summary);
-            }
-            let surviving_buckets = surviving_summary
-                .into_iter()
-                .filter_map(SummaryCrashBucket::into_checked)
-                .collect::<Vec<_>>();
+    for state_calls in per_state_calls {
+        for (caller_machine, site) in state_calls {
             calls_by_caller
-                .entry(state_flow.machine_symbol)
+                .entry(caller_machine)
                 .or_default()
-                .push(checked_trees::CheckedCrashCallSite::new_with_commitment(
-                    checked_trees::CrashCallSiteLocation::new(
-                        state_flow.state_symbol,
-                        u32::try_from(call_flow.statement_index)
-                            .expect("statement ordinal exceeds checked crash-call identity range"),
-                        u32::try_from(call_flow.call_ordinal)
-                            .expect("call ordinal exceeds checked crash-call identity range"),
-                    ),
-                    target_machine_symbol,
-                    target_state_symbol,
-                    target_contract_fingerprint,
-                    target_contract_commitment,
-                    surviving_buckets,
-                ));
+                .push(site);
         }
     }
 

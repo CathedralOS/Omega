@@ -26,7 +26,7 @@ use crate::execution::terminal_unit::calls::view_subslice::{ViewKind, view_ident
 
 pub(crate) fn structural_computation_argument(
     program: &dyn ::validation::CheckingInput,
-    borrow: &checked_trees::BorrowFacts,
+    facts: crate::flow::CapturedSubjectFacts<'_>,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
     call: &checked_trees::FlowCallFact,
@@ -38,6 +38,7 @@ pub(crate) fn structural_computation_argument(
         ) -> Option<checked_trees::CheckedUnitStructuralPathSegment>,
     >,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
+    let borrow = facts.borrow;
     if target.is_const {
         return None;
     }
@@ -62,7 +63,7 @@ pub(crate) fn structural_computation_argument(
         expression,
     )?;
 
-    rejoin_computation_accesses(program, borrow, machine, state.symbol, call)?;
+    rejoin_computation_accesses(program, facts, machine, state.symbol, call)?;
     exact_actual(program, call, expression, target)?;
     // Primitive loans retain the declaration's original home. Binding
     // replacement mutability selects its existing value/storage carrier,
@@ -120,13 +121,7 @@ pub(crate) fn structural_computation_argument(
         );
     }
     let name = program.expression_table.name_path_node(named)?;
-    if !name.symbol.is_valid()
-        || name.head_symbol != name.symbol
-        || program
-            .expression_table
-            .name_path_members(name.members)
-            .len()
-            != 1
+    if !program.expression_table.name_path_is_single_member(name)
         || place.root != facts::PlaceRoot::Symbol(name.symbol)
         || !place.segments.is_empty()
     {
@@ -191,7 +186,7 @@ pub(crate) fn subslice_computation_argument(
     operators: &checked_trees::CheckedOperatorFacts,
     expressions: &checked_trees::CheckedScalarExpressionPlans,
     computations: &checked_trees::CheckedScalarComputationPlans,
-    borrow: &checked_trees::BorrowFacts,
+    facts: crate::flow::CapturedSubjectFacts<'_>,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
     call: &checked_trees::FlowCallFact,
@@ -199,11 +194,12 @@ pub(crate) fn subslice_computation_argument(
     target: &StateParameter,
     argument_ordinal: u32,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
+    let borrow = facts.borrow;
     if target.is_const {
         return None;
     }
     exact_actual(program, call, expression, target)?;
-    rejoin_computation_accesses(program, borrow, machine, state.symbol, call)?;
+    rejoin_computation_accesses(program, facts, machine, state.symbol, call)?;
     let owner = program.machine(machine)?;
     let place = validation::canonical_place_from_expression_in_state(
         program,
@@ -290,7 +286,12 @@ fn exact_actual(
         .expression_handles(authored.arguments)
         .get(target_position)
         == Some(&expression);
-    if authored.target_symbol != call.target_symbol || !exact_actual {
+    if validation::call_target_entry_symbol(
+        program,
+        validation::call_target_symbol(program, authored),
+    ) != call.target_symbol
+        || !exact_actual
+    {
         return None;
     }
     Some(())
@@ -818,14 +819,14 @@ fn owned_argument(
 /// with the existing collector so scalar reads occupy their actual positions.
 fn rejoin_computation_accesses(
     program: &dyn ::validation::CheckingInput,
-    borrow: &checked_trees::BorrowFacts,
+    facts: crate::flow::CapturedSubjectFacts<'_>,
     machine: SymbolHandle,
     state: SymbolHandle,
     source: &checked_trees::FlowCallFact,
 ) -> Option<()> {
     if !matches!(
         crate::borrow::accesses::rejoin_expression_call_accesses(
-            program, borrow, machine, state, source,
+            program, facts, machine, state, source,
         )?,
         validation::CallSite::Expression { .. }
     ) {

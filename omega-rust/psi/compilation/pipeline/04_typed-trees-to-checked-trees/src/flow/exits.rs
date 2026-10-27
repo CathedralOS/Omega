@@ -21,6 +21,35 @@ pub(super) use guards::{
     append_predicate_context,
 };
 
+/// The parameter origins one exit retained, in roster order. Every contract
+/// consumer reads the same two-level arena — the exit's own span, then each
+/// origin's row — so the read lives here once.
+pub(crate) fn exit_parameter_origins<'a>(
+    facts: &'a checked_trees::CheckFacts,
+    exit: &FlowExitFact,
+) -> &'a [checked_trees::FlowExitParameterOrigin] {
+    facts
+        .flow
+        .control
+        .exit_parameter_origins
+        .span_or_empty(exit.parameter_origins)
+}
+
+/// The parameter origins every exit of one state retained, in exit order.
+pub(crate) fn state_exit_parameter_origins<'a>(
+    facts: &'a checked_trees::CheckFacts,
+    flow: &checked_trees::FlowStateFact,
+) -> Vec<&'a checked_trees::FlowExitParameterOrigin> {
+    facts
+        .flow
+        .control
+        .exits
+        .span_or_empty(flow.exits)
+        .iter()
+        .flat_map(|exit| exit_parameter_origins(facts, exit))
+        .collect()
+}
+
 /// Preserve the outgoing source frontier independently from return contracts.
 pub(super) fn append_outgoing_state_fact(
     build: &mut FlowBuildContext,

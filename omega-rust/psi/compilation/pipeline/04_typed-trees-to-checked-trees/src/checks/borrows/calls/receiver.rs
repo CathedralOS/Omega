@@ -88,7 +88,7 @@ pub(in crate::checks::borrows) fn check_exclusive_place_use<'p>(
     {
         let mut segments = arena::Arena::new();
         let mut accesses = arena::Arena::new();
-        let span = crate::borrow::accesses::collect_call_argument_accesses(
+        let span = crate::borrow::accesses::collect_argument_accesses(
             program,
             &mut segments,
             &mut accesses,
@@ -97,6 +97,7 @@ pub(in crate::checks::borrows) fn check_exclusive_place_use<'p>(
             statement.statement_index,
             state_flow.machine_symbol,
             symbols::SymbolHandle::default(),
+            crate::borrow::accesses::ArgumentAccessSchedule::Invocation,
         );
         for access in accesses.span_or_empty(span) {
             let place = CapturedPlace {

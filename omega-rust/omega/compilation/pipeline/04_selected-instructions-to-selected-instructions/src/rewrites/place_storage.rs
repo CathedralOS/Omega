@@ -76,6 +76,8 @@ pub(super) fn local_slot_is_place_storage(
         | LocalStorageSlotId::Boundary { .. }
         | LocalStorageSlotId::EdgeSnapshot { .. }
         | LocalStorageSlotId::StructuralCallArgument { .. }
+        | LocalStorageSlotId::InvocationArgument { .. }
+        | LocalStorageSlotId::InvocationResult { .. }
         | LocalStorageSlotId::BoundaryResult { .. } => false,
     }
 }

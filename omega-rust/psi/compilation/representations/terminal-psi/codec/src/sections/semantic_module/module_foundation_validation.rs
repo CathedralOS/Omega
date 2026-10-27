@@ -969,14 +969,12 @@ fn validate_operation_foundation(
         OperationKind::EstablishByteSequenceLiteral { .. } => {
             value_foundations::validate_establish_byte_sequence_literal(module, machine, operation)?
         }
-        OperationKind::CallUnit { .. } => {
-            call_foundations::validate_call_unit(module, machine, operation)?
-        }
+        OperationKind::CallUnit { .. } => call_foundations::validate_call_unit(module, operation)?,
         OperationKind::CallDynamic { .. } => {
             call_foundations::validate_call_dynamic(module, machine, operation)?
         }
         OperationKind::CallStructuralScalar { .. } => {
-            call_foundations::validate_call_structural_scalar(module, machine, operation)?
+            call_foundations::validate_call_structural_scalar(module, operation)?
         }
         terminal_psi::call_structural_pair_pattern!(..) => {
             call_foundations::validate_call_structural(module, machine, operation)?

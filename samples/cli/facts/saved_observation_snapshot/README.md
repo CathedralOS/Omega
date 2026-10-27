@@ -7,7 +7,7 @@ The nine places now read `items[0]` through an opaque generic reference result:
 `capture<View>(source: View, marker: &mut u64, event: u64) -> View`, with
 `View == &'source u64`. The owned `u64` receiving context performs the read
 after the helper completes. The helper writes a caller-visible marker so an
-omitted or repeated evaluation cannot silently satisfy the runtime oracle.
+omitted call or incorrect match arm cannot silently satisfy the runtime oracle.
 
 The consuming operation remains `agree(observed, current)` with
 `requires observed == current && observed == 7`. Every positive starts with
@@ -61,7 +61,7 @@ establish execution on macOS ARM64 only.
   admitted without widening access authority.
 - **Composition:** the same fact and consuming operation cross all nine places.
   Match arms receive the owned scalar context before their results join.
-  Marker effects expose which arm executed and whether evaluation occurred once.
+  Marker effects expose which arm executed and whether the call was omitted.
 - **Soundness boundaries:** every candidate referent must have the same scalar
   interpretation; scalar equality requires agreement across all referents and
   range evidence uses their hull. Write-only or differently interpreted
@@ -86,13 +86,10 @@ establish execution on macOS ARM64 only.
 ## Remaining acceptance
 
 This repair establishes generic reference reads of existing scalar/bound facts;
-the parent capability remains open. A reference-producing call that writes its
-referent and guarantees `source == 7` still loses that guarantee when its result
-is read into an owned scalar. In the retained `receiver_write` witness, the
-initial element is 3, `observe` writes 7, and the same `agree` contract refuses;
-reading the current element directly already succeeds on the baseline. The
-missing connection is between the completed read and the call's post-return
-storage version, not permission to reuse its pre-call value.
+the parent capability remains open. Symbolic saved numeric predicates through selected-value joins, generic-body
+checking compositions, byte observations and pattern destructuring remain open.
+The post-call production below discharges exact scalar guarantees from a
+receiver write; it does not claim every symbolic implication at a join.
 
 The retained `range_contract` witness transports a nonconstant [7, 9] bound
 through a generic reference read and succeeds at a consuming contract for both
@@ -102,3 +99,39 @@ must consume the evidence without admitting unproved arithmetic; this remains
 under `ONE-INTEGER-BOUNDS-ENGINE`. Generic body-checking compositions,
 byte-predicate observations and single-evaluation pattern destructuring also
 remain open. No completed parent outcome is claimed here.
+
+## Post-call write guarantees
+
+[`after_call/`](after_call/) repeats the same fact, bound and `agree` operation
+through all nine places. Its reference-producing `capture` starts from an
+element containing 3, writes 7 and returns its descriptor with `ensures source
+== 7`. The owned receiving read occurs afterward; only the later disjoint write
+is outside that observation. Each twin changes that later write destination.
+The marker and neighbor canaries remain observable, including both match arms.
+The original generic production above remains pinned and executable.
+
+All nine new places refuse on fixed base `2bc59765844c7b0a23de537e45dd17033459ad11`.
+At repair source `77c6ba18275`, all nine run with native and Terminal exit 0 on
+macOS ARM64; all nine twins reject their affected contract. Source and producer
+hashes and actual engine observations are retained in the PR evidence under
+`row-{baseline,candidate-3}.json`. Other hosted targets remain unexecuted here.
+
+The completed value retains its descriptor, scalar interpretation and detached
+read epoch. Calls and returns transport the existing checked predicates at that
+epoch. Inline closed scalar dependencies use their established producer values;
+unknown dependencies still need an agreeing capture. Effectful returns bind the
+authenticated outgoing operand rather than replay their authored expression.
+For a match, the flat may-write list remains conservative. The immutable
+storage DAG must show **every** predecessor reaching an independently proved
+same-valued read with no subsequent overlapping or unknown write. An unchanged
+or uncovered predecessor cannot disappear from this judgment. This adds no
+callee-body evaluation, symbolic store summary or new access authority.
+
+Additional controls under [`after_call/controls/`](after_call/controls/) pin
+arbitrary-input relations (7 and 9), symbolic return guarantees, and a detached
+copy surviving a later source overwrite. Their invalid controls reject an
+unrelated equality, a pre-call snapshot, an uncovered match predecessor, and an
+unknown overlapping write after the join. These controls test proof boundaries;
+they do not count as additional completed fact rows. The eight requirement
+layers above apply unchanged, with the post-return contract supplying
+establishment and the complete storage-history cut supplying join composition.

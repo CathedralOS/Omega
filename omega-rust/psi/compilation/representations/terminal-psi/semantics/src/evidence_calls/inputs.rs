@@ -4,7 +4,9 @@
 //! reconstructed descriptor graph. No source text or inferred call is allowed.
 use crate::descriptor_lifetimes::DescriptorPosition;
 use crate::descriptor_results::{DescriptorMachine, PayloadMembershipContract};
-use semantic_vocabulary::{BlockId, MachineId, OperationId, PlaceId, ScalarTerm, ValueId};
+use semantic_vocabulary::{
+    BlockId, InvocationSite, MachineId, OperationId, PlaceId, ScalarTerm, ValueId,
+};
 use terminal_psi::{
     CheckedMachineDeclaration, DirectCallParts, DirectCallRole, EvidenceContractLane,
     EvidenceTermDeclaration, OutcomeSpecificCallEvidence, OutcomeSpecificEnsure, ProofOutputCall,
@@ -15,6 +17,7 @@ use terminal_psi::{
 
 pub enum RuntimeEvidenceResult {
     Unit,
+    NoNormal,
     Scalar {
         id: ValueId,
         scalar_type: semantic_vocabulary::ScalarType,
@@ -37,7 +40,7 @@ impl RuntimeEvidenceResult {
 }
 
 pub struct RuntimeEvidenceOperation {
-    pub id: OperationId,
+    pub site: InvocationSite,
     pub position: DescriptorPosition,
     pub callee: MachineId,
     pub role: DirectCallRole,
@@ -74,7 +77,10 @@ impl RuntimeEvidenceBody {
         self.calls.iter()
     }
     pub fn operation(&self, id: OperationId) -> Option<&RuntimeEvidenceOperation> {
-        let mut rows = self.calls.iter().filter(|row| row.id == id);
+        self.invocation(InvocationSite::Operation(id))
+    }
+    pub fn invocation(&self, site: InvocationSite) -> Option<&RuntimeEvidenceOperation> {
+        let mut rows = self.calls.iter().filter(|row| row.site == site);
         let row = rows.next()?;
         rows.next().is_none().then_some(row)
     }

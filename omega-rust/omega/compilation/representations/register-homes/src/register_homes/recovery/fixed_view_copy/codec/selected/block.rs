@@ -50,6 +50,15 @@ pub(super) fn encode_block(bytes: &mut Vec<u8>, block: &SelectedBlock) {
         encode_instruction(bytes, instruction);
     }
     match &block.terminator {
+        SelectedTerminator::InvokeNoNormal {
+            instruction,
+            psi_edge,
+        } => {
+            bytes.push(8);
+            encode_instruction(bytes, instruction);
+            crate::codec_bytes::push_encoded(bytes, psi_edge.get().to_le_bytes());
+        }
+
         SelectedTerminator::OperationTrap {
             instruction,
             operation,
@@ -203,6 +212,10 @@ pub(super) fn decode_block(
                 frontier_lower_bound,
             }
         }
+        8 => SelectedTerminator::InvokeNoNormal {
+            instruction: decode_instruction(cursor)?,
+            psi_edge: decode_id(cursor, EdgeId::new)?,
+        },
         5 => SelectedTerminator::HostedExitProcess {
             instruction: decode_instruction(cursor)?,
             completion_edge: decode_id(cursor, EdgeId::new)?,

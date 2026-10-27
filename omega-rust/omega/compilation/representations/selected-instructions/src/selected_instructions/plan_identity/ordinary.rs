@@ -5,6 +5,14 @@ use crate::SelectedTerminator;
 
 pub(super) fn encode_terminator(bytes: &mut Vec<u8>, terminator: &SelectedTerminator) {
     match terminator {
+        SelectedTerminator::InvokeNoNormal {
+            instruction,
+            psi_edge,
+        } => {
+            bytes.push(8);
+            encode_instruction(bytes, instruction);
+            crate::codec_bytes::push_encoded(bytes, psi_edge.get().to_le_bytes());
+        }
         SelectedTerminator::OperationTrap {
             instruction,
             operation,

@@ -331,6 +331,8 @@ fn cleanup_rosters_mut(terminator: &mut Terminator) -> Vec<&mut Vec<TerminalAffi
             .iter_mut()
             .map(|case| &mut case.cleanup_actions)
             .collect(),
-        Terminator::Crash { .. } | Terminator::ExternalCompletion { .. } => Vec::new(),
+        Terminator::InvokeNoNormal { .. }
+        | Terminator::Crash { .. }
+        | Terminator::ExternalCompletion { .. } => Vec::new(),
     }
 }

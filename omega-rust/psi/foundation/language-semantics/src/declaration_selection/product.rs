@@ -7,6 +7,8 @@
 //! the product join resolves them under that source's authority.
 //! These are in-process source selections, not serialized Terminal identities.
 
+use super::BuildOperation;
+
 /// Compiler-issued context for one ordinary Build selection call. Entry slots
 /// and declaration choices share activation custody, while retaining their
 /// distinct Product admission obligations.
@@ -25,18 +27,20 @@ impl<Requirement> Default for BuildSelectionRequest<Requirement> {
 }
 
 impl<Requirement> BuildSelectionRequest<Requirement> {
-    /// Behavior exclusions and trust acceptances name the enclosing machine.
-    /// Other selections retain their operand scopes directly and need no lexical subject.
+    /// Exclusions and authority-bearing declarations retain their selecting
+    /// machine for final admission. Provider and representation operands carry
+    /// their own lexical scopes and require no additional machine subject.
     pub fn requires_lexical_subject(&self) -> bool {
         match self {
             Self::Exclusion(_) => true,
-            Self::Declaration(request) => {
-                matches!(
-                    request.operation,
-                    super::BuildOperation::ServiceExclusion
-                        | super::BuildOperation::BoundaryAcceptance
-                )
-            }
+            Self::Declaration(request) => matches!(
+                request.operation,
+                super::BuildOperation::ServiceExclusion
+                    | super::BuildOperation::BoundaryAcceptance
+                    | super::BuildOperation::ServiceAudit
+                    | super::BuildOperation::AssumedBindingContract
+                    | super::BuildOperation::WireCompatibilityRequest
+            ),
             Self::Entry(_) | Self::ProviderReadiness(_) => false,
         }
     }
@@ -155,6 +159,48 @@ pub struct ExecutedEnumExclusion {
     pub selecting_machine: source::SourceSpan,
 }
 
+/// Declaration role required by one exact compiler-owned Build operation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProductOperandRole {
+    BoundarySubject,
+    Provider,
+    Requirement,
+    Data,
+    Representation,
+    WireCompatibilityFact,
+}
+
+impl BuildOperation {
+    pub const fn product_operand_role(self, position: usize) -> Option<ProductOperandRole> {
+        use ProductOperandRole as Role;
+        match (self, position) {
+            (Self::ProviderSelection, 0)
+            | (Self::ServiceExclusion | Self::ServiceAudit | Self::BoundaryAcceptance, 0) => {
+                Some(Role::BoundarySubject)
+            }
+            (Self::ProviderSelection, 1) => Some(Role::Provider),
+            (Self::AssumedBindingContract, 0 | 1) => Some(Role::Requirement),
+            (Self::RepresentationSelection, 0) | (Self::WireCompatibilityRequest, 0..=3) => {
+                Some(Role::Data)
+            }
+            (Self::RepresentationSelection, 1) => Some(Role::Representation),
+            (Self::WireCompatibilityRequest, 4..) => Some(Role::WireCompatibilityFact),
+            _ => None,
+        }
+    }
+
+    pub const fn product_operand_count_valid(self, count: usize) -> bool {
+        match self {
+            Self::ProviderSelection
+            | Self::RepresentationSelection
+            | Self::AssumedBindingContract => count == 2,
+            Self::ServiceExclusion | Self::ServiceAudit | Self::BoundaryAcceptance => count == 1,
+            Self::WireCompatibilityRequest => count >= 5,
+            _ => false,
+        }
+    }
+}
+
 /// Source-authorized locators until the Product join admits their exact roles.
 /// Neither these strings nor a copied request grants declaration visibility.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -168,6 +214,46 @@ pub struct ProductDeclarationRequest {
 pub struct ProductDeclarationOperand {
     pub path: String,
     pub source_span: source::SourceSpan,
+}
+
+impl ProductDeclarationRequest {
+    pub fn validate_shape(&self) -> Result<(), &'static str> {
+        if !self
+            .operation
+            .product_operand_count_valid(self.operands.len())
+        {
+            return Err("Build product request has the wrong declaration operand count");
+        }
+        if self.source_span.span.start >= self.source_span.span.end {
+            return Err("Build product request has no authored occurrence");
+        }
+        for (position, operand) in self.operands.iter().enumerate() {
+            if operand.path.is_empty()
+                || operand.source_span.span.start >= operand.source_span.span.end
+            {
+                return Err("Build product operand has no authored declaration locator");
+            }
+            if self.operation.product_operand_role(position)
+                == Some(ProductOperandRole::WireCompatibilityFact)
+            {
+                let fact = crate::wire::WireCompatibilityFact::from_name(&operand.path)
+                    .ok_or("Build wire demand names an unknown compatibility fact")?;
+                if self.operands[..position]
+                    .iter()
+                    .enumerate()
+                    .any(|(index, previous)| {
+                        self.operation.product_operand_role(index)
+                            == Some(ProductOperandRole::WireCompatibilityFact)
+                            && crate::wire::WireCompatibilityFact::from_name(&previous.path)
+                                == Some(fact)
+                    })
+                {
+                    return Err("Build wire demand repeats a compatibility fact");
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 /// The ordinary provider composition choice, independent of declaration or

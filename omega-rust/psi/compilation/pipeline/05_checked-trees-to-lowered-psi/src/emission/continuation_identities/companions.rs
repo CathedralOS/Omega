@@ -18,6 +18,9 @@ impl IdentityMap {
             LoweredSourceCallSite::Operation(operation) => {
                 LoweredSourceCallSite::Operation(self.operation(operation))
             }
+            LoweredSourceCallSite::InvokeNoNormal(edge) => {
+                LoweredSourceCallSite::InvokeNoNormal(self.edge(edge))
+            }
             LoweredSourceCallSite::ExternalCompletion(edge) => {
                 LoweredSourceCallSite::ExternalCompletion(self.edge(edge))
             }

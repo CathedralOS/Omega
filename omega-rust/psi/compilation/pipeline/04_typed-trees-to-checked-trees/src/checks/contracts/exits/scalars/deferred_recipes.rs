@@ -184,9 +184,7 @@ fn congruent(
         let Some(name) = expressions.name_path_node(hypothesis) else {
             return false;
         };
-        if name.symbol.is_valid()
-            && name.symbol == name.head_symbol
-            && expressions.name_path_members(name.members).len() == 1
+        if expressions.name_path_is_single_member(name)
             && evaluator.returned_immutable_parameter(name.symbol)
         {
             *used_result = true;
@@ -216,12 +214,9 @@ fn congruent(
         expressions.expression(goal),
     ) {
         (ExpressionNode::Name(left), ExpressionNode::Name(right)) => {
-            left.symbol.is_valid()
-                && left.symbol == left.head_symbol
-                && right.symbol == right.head_symbol
+            expressions.name_path_is_single_member(left)
+                && expressions.name_path_is_single_member(right)
                 && left.symbol == right.symbol
-                && expressions.name_path_members(left.members).len() == 1
-                && expressions.name_path_members(right.members).len() == 1
                 && program
                     .machine_states(evaluator.machine)
                     .first()

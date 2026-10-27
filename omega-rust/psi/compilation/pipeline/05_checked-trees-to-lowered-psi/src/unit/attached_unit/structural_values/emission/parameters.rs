@@ -9,6 +9,7 @@ use super::super::super::{
     LoweringError, PlaceId, StructuralMultiplicity, lookup_type_id, unsupported,
 };
 use super::{Emission, ProjectionSource};
+use crate::unit::attached_unit::structural_values::ValueOutcome;
 use checked_trees::{CheckedStructuralValueHandle, CheckedStructuralValueKind};
 
 impl Emission<'_, '_, '_> {
@@ -124,7 +125,7 @@ impl Emission<'_, '_, '_> {
         source: CheckedStructuralValueHandle,
         path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
         logical_root_type_identity: typed_trees::type_identity::TypeIdentityId,
-    ) -> Result<ProjectionSource, LoweringError> {
+    ) -> Result<ValueOutcome<ProjectionSource>, LoweringError> {
         let node = self.structural_value_node(source);
         if super::structural_values(self.checked)
             .root_for_value(source)
@@ -143,7 +144,7 @@ impl Emission<'_, '_, '_> {
             let saved = self
                 .evaluation
                 .saved_value_binding(source, self.operations)?;
-            return Ok(ProjectionSource {
+            return Ok(ValueOutcome::Normal(ProjectionSource {
                 root: saved.argument.place,
                 root_path: Vec::new(),
                 root_type_identity: validation::stored_structural_type_identity(
@@ -154,7 +155,7 @@ impl Emission<'_, '_, '_> {
                 ),
                 path,
                 logical_root_type_identity,
-            });
+            }));
         }
         let mut root_alias_path = Vec::new();
         let (root, root_type_identity) = match node.kind {
@@ -200,12 +201,15 @@ impl Emission<'_, '_, '_> {
                 // Complete the whole producing occurrence under its own type.
                 // Its construction or call publishes the full claim frontier
                 // before this projection selects any leaf or residual path.
-                let completed = self.child_constructor_operand(
+                let ValueOutcome::Normal(completed) = self.child_constructor_operand(
                     identities,
                     root_type,
                     source,
                     node.type_reference,
-                )?;
+                )?
+                else {
+                    return Ok(ValueOutcome::NoNormal);
+                };
                 if !completed.argument.path.is_empty()
                     || completed.argument.access != StructuralAccess::Owned
                 {
@@ -228,12 +232,12 @@ impl Emission<'_, '_, '_> {
                 (completed.argument.place, root_type_identity)
             }
         };
-        Ok(ProjectionSource {
+        Ok(ValueOutcome::Normal(ProjectionSource {
             root,
             root_path: root_alias_path,
             path,
             root_type_identity,
             logical_root_type_identity,
-        })
+        }))
     }
 }

@@ -148,10 +148,17 @@ fn matching_exit_return_call<'facts>(
                     expression,
                     call: selected,
                 } => {
+                    // Source retains the invocation's machine identity; the
+                    // flow call enters that exact machine's entry state.
+                    // Rejoin those coordinates without replacing the authored
+                    // occurrence or resolving another callable by spelling.
+                    let selected_target = validation::call_target_symbol(program, selected);
                     returned.is_valid()
                         && expression == returned
                         && call.authored_expression == returned
-                        && call.target_symbol == selected.target_symbol
+                        && call.target_symbol
+                            == validation::call_target_state(program, selected_target)
+                                .map_or(selected_target, |state| state.symbol)
                 }
                 validation::CallSite::TransitionNamed { path: selected, .. }
                     if exit.transition_target.is_valid() =>

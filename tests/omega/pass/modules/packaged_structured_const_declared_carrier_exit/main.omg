@@ -1,0 +1,4 @@
+// Expected exit: 0
+// A packaged structured const keeps its exact nominal carrier through a domain application.
+use carrier_dependency::main;
+machine main() {}

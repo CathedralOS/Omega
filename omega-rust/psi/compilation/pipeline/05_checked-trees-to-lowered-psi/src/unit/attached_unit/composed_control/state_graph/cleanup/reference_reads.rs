@@ -269,6 +269,8 @@ fn remove_retirement(terminator: &mut Terminator, retirement: &TerminalAffineCle
                 retain(&mut case.cleanup_actions);
             }
         }
-        Terminator::Crash { .. } | Terminator::ExternalCompletion { .. } => {}
+        Terminator::InvokeNoNormal { .. }
+        | Terminator::Crash { .. }
+        | Terminator::ExternalCompletion { .. } => {}
     }
 }

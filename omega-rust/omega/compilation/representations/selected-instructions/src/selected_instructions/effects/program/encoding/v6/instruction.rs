@@ -65,6 +65,9 @@ pub(super) fn decode_instruction(
     let call = match cursor.byte()? {
         0 => MachineCallEffect::NoneV1,
         3 if allow_scalar_call => MachineCallEffect::SupervisorNormalReturnV1,
+        4 if allow_scalar_call => MachineCallEffect::InternalNoNormalV1 {
+            pre_call_stack_alignment: cursor.u16()?,
+        },
         1 if allow_scalar_call => MachineCallEffect::InternalNormalReturnV1 {
             pre_call_stack_alignment: cursor.u16()?,
         },
@@ -233,12 +236,11 @@ fn decode_kind(
                         } else {
                             crate::OutgoingArgumentSlotRole::ValueCopy
                         },
-                        invocation_site:
-                            semantic_vocabulary::BoundaryInvocationSite::from_tagged_identity(
-                                cursor.byte()?,
-                                cursor.u64()?,
-                            )
-                            .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+                        invocation_site: semantic_vocabulary::InvocationSite::from_tagged_identity(
+                            cursor.byte()?,
+                            cursor.u64()?,
+                        )
+                        .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
                         argument_index: cursor.u32()?,
                     })
                 }
@@ -252,6 +254,9 @@ fn decode_kind(
                 SelectedInstructionKind::FrameAddress { slot, byte_offset }
             }
         }
+        248 => SelectedInstructionKind::InvokeNoNormal {
+            target: decode_call_target(cursor)?,
+        },
         19 => SelectedInstructionKind::CallUnit {
             target: decode_call_target(cursor)?,
         },
@@ -423,6 +428,18 @@ pub fn decode_local_storage_slot(
     cursor: &mut Cursor<'_>,
 ) -> Result<crate::LocalStorageSlotId, PreAllocationMachineEffectDecodeError> {
     let tag = cursor.byte()?;
+    if tag == 8 || tag == 9 {
+        let edge = EdgeId::new(cursor.u64()?)
+            .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?;
+        return Ok(if tag == 8 {
+            crate::LocalStorageSlotId::InvocationResult { edge }
+        } else {
+            crate::LocalStorageSlotId::InvocationArgument {
+                edge,
+                argument_index: cursor.u32()?,
+            }
+        });
+    }
     if tag == 6 {
         return Ok(crate::LocalStorageSlotId::EdgeSnapshot {
             edge: semantic_vocabulary::EdgeId::new(cursor.u64()?)
@@ -623,6 +640,7 @@ fn decode_alternative_for_version(
         17 => MachineAlternativeFamily::Store64,
         18 => MachineAlternativeFamily::FrameAddress,
         232 => MachineAlternativeFamily::ImageAddress,
+        258 => MachineAlternativeFamily::InvokeNoNormal,
         19 => MachineAlternativeFamily::CallUnit,
         3 => MachineAlternativeFamily::ExactAddI64,
         51 => MachineAlternativeFamily::BitwiseAndI64,
@@ -1138,7 +1156,7 @@ mod float_result_policy_tests {
         assert_eq!(cursor.remaining(), 0);
         // Neither truncating to the low byte nor accepting an unknown high
         // family may reinterpret the event as a legacy arithmetic alternative.
-        for tag in [257_u16, u16::MAX] {
+        for tag in [259_u16, u16::MAX] {
             encoded[..2].copy_from_slice(&tag.to_le_bytes());
             assert!(decode_alternative(&mut Cursor::new(&encoded)).is_err());
         }

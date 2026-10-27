@@ -114,9 +114,7 @@ pub(crate) fn build_checked_machine_residual_parts(
     let (mut structural_parameters, scalar_parameters) =
         free_structural_scalar_signature_traced(program, shapes, state, &binders, trace)?;
     trace.phase("signature: authored result domains");
-    super::super::types::register_authored_result_domains(
-        program, shapes, machine, state, &binders,
-    )?;
+    let result = super::super::types::declared_result_plan(program, shapes, machine)?;
     trace.phase("signature: parameter storage");
     let parameter_storage =
         parameter_storage_plans(program, shapes, state, &binders, &scalar_parameters)?;
@@ -230,10 +228,14 @@ pub(crate) fn build_checked_machine_residual_parts(
         place_loans,
         ..
     } = sequence;
+    let no_normal = sequence_operations
+        .iter()
+        .any(|operation| !operation.has_normal_continuation());
     if !is_unit(program, state.return_type)
         && structural_result.is_none()
         && scalar_result.is_none()
         && scalar_control.is_none()
+        && !no_normal
         // A body ending in control (a guarded or unconditional transition)
         // produces its result at the terminator, which is composed after
         // this gate — the retained returning tail answers result ownership
@@ -267,6 +269,7 @@ pub(crate) fn build_checked_machine_residual_parts(
                 .into_iter()
                 .collect(),
             CheckedUnitEffectOperationPlan::RegisterAccess { .. }
+            | CheckedUnitEffectOperationPlan::EvaluateStructuralValue { .. }
             | CheckedUnitEffectOperationPlan::EstablishLocal(
                 checked_trees::CheckedUnitLocalBindingPlan::ScalarArray { .. },
             )
@@ -301,29 +304,35 @@ pub(crate) fn build_checked_machine_residual_parts(
     // an initializer's provisional return-discard flag cannot decide liveness.
     trace.phase("completion: parameter cleanup");
     let (trivial_affine_discards, residual_affine_discards, has_projected_parameter_moves) =
-        return_unit_affine_discards(
-            program,
-            facts,
-            prepared_calls,
-            machine.symbol,
-            state.symbol,
-            &structural_parameters,
-            program.state_parameters(state),
-            &operations,
-            &admitted_local_symbols,
-            &shapes.types,
-        )?;
-    operations.push(CheckedUnitEffectOperationPlan::Complete {
-        statement_index: u32::try_from(statements.len()).ok()?,
-        trivial_affine_local_discard_ordinals: (0..trivial_affine_locals.len())
-            .rev()
-            .map(|ordinal| u32::try_from(ordinal).ok())
-            .collect::<Option<Vec<_>>>()?
-            .into_iter()
-            .filter(|ordinal| !transferred_local_ordinals.contains(ordinal))
-            .collect(),
-        trivial_affine_discards,
-    });
+        if no_normal {
+            (Vec::new(), Vec::new(), false)
+        } else {
+            return_unit_affine_discards(
+                program,
+                facts,
+                prepared_calls,
+                machine.symbol,
+                state.symbol,
+                &structural_parameters,
+                program.state_parameters(state),
+                &operations,
+                &admitted_local_symbols,
+                &shapes.types,
+            )?
+        };
+    if !no_normal {
+        operations.push(CheckedUnitEffectOperationPlan::Complete {
+            statement_index: u32::try_from(statements.len()).ok()?,
+            trivial_affine_local_discard_ordinals: (0..trivial_affine_locals.len())
+                .rev()
+                .map(|ordinal| u32::try_from(ordinal).ok())
+                .collect::<Option<Vec<_>>>()?
+                .into_iter()
+                .filter(|ordinal| !transferred_local_ordinals.contains(ordinal))
+                .collect(),
+            trivial_affine_discards,
+        });
+    }
 
     trace.phase("contract plan");
     let contract = facts.contract_plans.for_machine(machine.symbol)?;
@@ -352,6 +361,7 @@ pub(crate) fn build_checked_machine_residual_parts(
         crate::execution::terminal_unit::types::erased_proof_parameter_plans(program, state)?;
     Some((
         CheckedUnitEffectMachinePlan {
+            result,
             normal_exit_cleanups: Default::default(),
             scalar_result,
             scalar_control,

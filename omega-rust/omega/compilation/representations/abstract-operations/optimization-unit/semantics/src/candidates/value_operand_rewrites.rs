@@ -68,6 +68,7 @@ pub(crate) fn rewrite_value_operands(operation: &mut O, mut replace: impl FnMut(
             }
         }
         O::Call { arguments, .. }
+        | O::InvokeNoNormal { arguments, .. }
         | O::ExternalCompletion { arguments, .. }
         | O::BoundaryCall { arguments, .. } => {
             for argument in arguments {

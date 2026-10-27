@@ -13,6 +13,32 @@ use crate::optimization_unit::identity::structural_encoding::{
 pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) {
     use AbstractOperation as O;
     match operation {
+        O::InvokeNoNormal {
+            psi_edge,
+            callee,
+            arguments,
+            structural_arguments,
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+        } => {
+            bytes.u8(253);
+            bytes.id(*psi_edge);
+            bytes.id(*callee);
+            encode_ids(bytes, arguments);
+            bytes.slice(structural_arguments, encode_structural_argument);
+            bytes.slice(claim_transfers, |bytes, transfer| {
+                bytes.id(transfer.claim);
+                bytes.u32(transfer.argument_index);
+                bytes.slice(&transfer.path, encode_structural_path_segment);
+            });
+            encode_ids(bytes, requirement_obligations);
+            bytes.slice(
+                crash_continuations,
+                crate::optimization_unit::identity::structural_encoding::encode_crash_route_bucket,
+            );
+        }
+
         O::Jump {
             psi_edge,
             target,

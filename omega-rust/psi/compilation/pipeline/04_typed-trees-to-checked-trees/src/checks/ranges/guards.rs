@@ -224,12 +224,7 @@ fn seed_const_binder_floor(
         let Some(path) = program.expression_table.name_path_node(subject) else {
             continue;
         };
-        if path.head_symbol != path.symbol
-            || program
-                .expression_table
-                .name_path_members(path.members)
-                .len()
-                != 1
+        if !program.expression_table.name_path_is_single_member(path)
             || !super::types::is_const_binder(program, machine, path.symbol)
         {
             continue;
@@ -306,12 +301,7 @@ fn bare_const_binder(
     expression: ExpressionHandle,
 ) -> Option<symbols::SymbolHandle> {
     let path = program.expression_table.name_path_node(expression)?;
-    if path.head_symbol != path.symbol
-        || program
-            .expression_table
-            .name_path_members(path.members)
-            .len()
-            != 1
+    if !program.expression_table.name_path_is_single_member(path)
         || !super::types::is_const_binder(program, machine, path.symbol)
     {
         return None;

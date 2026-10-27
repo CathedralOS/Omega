@@ -267,6 +267,13 @@ impl SourceContinuation {
 }
 
 impl CompletedSource {
+    /// Complete authored Product declarations before this Build's generated
+    /// extension. Selection consumers may resolve inert requests here; the
+    /// later extension retains these same arenas and cannot supply new names.
+    pub fn authored_program(&self) -> &typed_trees::TypedTrees {
+        self.typing.typed()
+    }
+
     pub fn finish(self) -> PreparedSource {
         PreparedSource {
             accounting: self.accounting,

@@ -15,6 +15,10 @@ use checked_trees::{
 };
 use typed_trees::type_identity::TypeIdentityRequest;
 
+mod declared_result;
+pub(in crate::execution::terminal_unit) use declared_result::{
+    declared_result_plan, declared_result_type,
+};
 mod domain_predicates;
 pub(super) use domain_predicates::retain_domain_predicates;
 mod scalar_fields;

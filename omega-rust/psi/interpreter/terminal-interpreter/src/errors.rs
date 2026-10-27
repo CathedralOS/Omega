@@ -28,6 +28,12 @@ pub enum TerminalInterpretError {
         boundary: BoundaryMachineId,
         edge: semantic_vocabulary::EdgeId,
     },
+    /// A module call authenticated as having no normal continuation returned.
+    /// This is malformed execution, not a guest crash or normal completion.
+    NoNormalInvocationReturned {
+        callee: MachineId,
+        edge: semantic_vocabulary::EdgeId,
+    },
     ScalarEntryQualificationUnsupported,
     UnsupportedCapability(crate::capabilities::TerminalUnsupportedCapability),
     /// A well-formed semantic case this implementation cannot yet execute.

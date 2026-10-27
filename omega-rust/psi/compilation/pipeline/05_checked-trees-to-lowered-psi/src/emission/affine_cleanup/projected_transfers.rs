@@ -320,6 +320,15 @@ pub(super) fn complete(
                 }
                 complete_actions(&mut frontier, cleanup_actions, &roots, types)?;
             }
+            Terminator::InvokeNoNormal {
+                structural_arguments,
+                ..
+            } => {
+                for argument in structural_arguments {
+                    transfer(&mut frontier, argument, &copied_roots)?;
+                }
+                // The caller remains suspended. There is no normal cleanup edge.
+            }
             Terminator::Crash { .. } | Terminator::ExternalCompletion { .. } => {}
         }
         for (target, mut outgoing) in successors {

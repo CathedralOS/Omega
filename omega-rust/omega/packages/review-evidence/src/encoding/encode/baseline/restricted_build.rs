@@ -47,12 +47,16 @@ pub(in crate::encoding::encode) fn request(
         encoder.sequence(&request.write_grants, grant)
     })?;
     encoder.field("bounds", |encoder| bounds(encoder, &request.bounds))?;
-    encoder.field("build_execution_profile", |encoder| {
-        profile(encoder, request.build_execution_profile)
-    })?;
-    encoder.field("selected_target_profile", |encoder| {
-        profile(encoder, request.selected_target_profile)
-    })
+    encoder.field_by(
+        "build_execution_profile",
+        request.build_execution_profile,
+        profile,
+    )?;
+    encoder.field_by(
+        "selected_target_profile",
+        request.selected_target_profile,
+        profile,
+    )
 }
 
 fn grant(
@@ -67,22 +71,13 @@ fn grant(
             PackagePolicyRestrictedBuildGrantRoot::StagedOutput => encoder.tag("staged_output", 1),
             PackagePolicyRestrictedBuildGrantRoot::Other(identity) => {
                 encoder.tag("other", 2);
-                encoder.field("identity", |encoder| {
-                    encoder.u32(identity);
-                    Ok(())
-                })?;
+                encoder.u32_field("identity", identity)?;
             }
         }
         Ok(())
     })?;
-    encoder.field("narrowed", |encoder| {
-        encoder.boolean(grant.narrowed);
-        Ok(())
-    })?;
-    encoder.field("captured", |encoder| {
-        encoder.boolean(grant.captured);
-        Ok(())
-    })
+    encoder.boolean_field("narrowed", grant.narrowed)?;
+    encoder.boolean_field("captured", grant.captured)
 }
 
 fn bounds(
@@ -106,28 +101,19 @@ fn bounds(
             encoder.bytes(output)
         })
     })?;
-    encoder.field("artifact_only", |encoder| {
-        encoder.boolean(bounds.artifact_only);
-        Ok(())
-    })
+    encoder.boolean_field("artifact_only", bounds.artifact_only)
 }
 
 fn filesystem_sponsor_limits(
     encoder: &mut Encoder,
     limits: &PackagePolicyFilesystemSponsorLimits,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("maximum_entries", |encoder| {
-        encoder.u64(limits.maximum_entries);
-        Ok(())
-    })?;
-    encoder.field("maximum_total_logical_bytes", |encoder| {
-        encoder.u64(limits.maximum_total_logical_bytes);
-        Ok(())
-    })?;
-    encoder.field("maximum_object_extent", |encoder| {
-        encoder.u64(limits.maximum_object_extent);
-        Ok(())
-    })
+    encoder.u64_field("maximum_entries", limits.maximum_entries)?;
+    encoder.u64_field(
+        "maximum_total_logical_bytes",
+        limits.maximum_total_logical_bytes,
+    )?;
+    encoder.u64_field("maximum_object_extent", limits.maximum_object_extent)
 }
 
 fn evaluation_sponsor_limits(

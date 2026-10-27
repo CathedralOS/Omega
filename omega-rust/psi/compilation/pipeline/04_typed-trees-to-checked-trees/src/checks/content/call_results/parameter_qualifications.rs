@@ -73,7 +73,7 @@ impl<'program> ParameterQualificationJoin<'program> {
             .find(|call| {
                 call.statement_index == statement_index
                     && call.call_ordinal == call_ordinal
-                    && call.target_symbol == target
+                    && call.target_symbol == validation::call_target_entry_symbol(program, target)
             })?;
         let operands = facts.flow.control.operands.span(call_flow.operands)?;
         let receiver = match site {

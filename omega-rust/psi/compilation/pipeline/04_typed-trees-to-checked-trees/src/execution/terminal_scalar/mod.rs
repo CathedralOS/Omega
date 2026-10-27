@@ -324,10 +324,21 @@ fn checked_branch_destination(
         TransitionTargetNode::Value(expression)
             if program.expression_table.expression_is_valid(*expression) =>
         {
-            Some(CheckedScalarBranchDestination::Return {
-                statement_ordinal,
-                is_continuation,
-            })
+            Some(
+                if validation::expression_normal_completion_possible(program, *expression)
+                    == Some(false)
+                {
+                    CheckedScalarBranchDestination::InvokeNoNormal {
+                        statement_ordinal,
+                        is_continuation,
+                    }
+                } else {
+                    CheckedScalarBranchDestination::Return {
+                        statement_ordinal,
+                        is_continuation,
+                    }
+                },
+            )
         }
         TransitionTargetNode::Named { .. } => checked_successor(
             program,

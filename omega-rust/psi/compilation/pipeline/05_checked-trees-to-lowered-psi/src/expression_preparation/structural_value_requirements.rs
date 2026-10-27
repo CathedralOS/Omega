@@ -18,17 +18,17 @@ pub(crate) fn collect_operation_requirements(
     operation: &checked_trees::CheckedUnitEffectOperationPlan,
     domains: &mut Vec<SemanticDomainId>,
 ) -> Result<bool, LoweringError> {
-    let checked_trees::CheckedUnitEffectOperationPlan::EstablishLocal(
-        checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { result, value, .. },
-    ) = operation
-    else {
+    let Some((value, _)) = operation.structural_value_evaluation() else {
         return Ok(false);
     };
+    let statement = operation
+        .source_statement_index()
+        .ok_or(LoweringError::Unsupported(
+            "structural value evaluation has no source statement",
+        ))?;
     let values = &checked.facts.values.structural_values;
     let mut roots = values.roots.iter().map(|(_, root)| root).filter(|root| {
-        root.machine == machine
-            && root.statement_ordinal == result.statement_index
-            && root.root == *value
+        root.machine == machine && root.statement_ordinal == statement && root.root == value
     });
     let reference = roots
         .next()
@@ -37,7 +37,7 @@ pub(crate) fn collect_operation_requirements(
     if roots.next().is_some() {
         return unsupported("structural domain catalog has ambiguous value roots");
     }
-    collect_domains(checked, *value, reference, domains)
+    collect_domains(checked, value, reference, domains)
 }
 
 /// Catalog the memberships a structural value tree establishes when a
@@ -93,12 +93,9 @@ fn collect_domains(
             .unwrap_or(&[])
         {
             for operation in call.operands().iter() {
-                if let checked_trees::CheckedUnitEffectOperationPlan::EstablishLocal(
-                    checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
-                ) = operation
-                {
-                    let child = plans.nodes.get(*value);
-                    pending.push((*value, child.type_reference));
+                if let Some((value, _)) = operation.structural_value_evaluation() {
+                    let child = plans.nodes.get(value);
+                    pending.push((value, child.type_reference));
                 }
             }
         }

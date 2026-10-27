@@ -146,6 +146,9 @@ pub(in crate::execution::terminal_unit) fn successor(
         shapes,
         trace,
     )?;
+    if !successor.has_normal_continuation() {
+        return Some(successor);
+    }
     trace.phase(edge.phase(SuccessorGuard::EdgeCleanup));
     trace.statement(Some(ordinal));
     let &(machine, source) = fused.get(source_index)?;
@@ -247,7 +250,9 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
     let mut transfers = target_structural
         .iter()
         .enumerate()
-        .map(|(target_index, target)| {
+        .scan(false, |stopped, (target_index, target)| {
+            if *stopped { return None; }
+            let transfer = (|| {
             mark(SuccessorGuard::StructuralArgument);
             let expression = argument_at(target.position)?;
             // Forward a whole parameter before planning any new loan. This
@@ -862,7 +867,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                 // selected-edge cleanup owns those predecessor moves.
                 let mut operand_calls = operations.to_vec();
                 let mut result_count = super::returns::next_result_ordinal(operations)?;
-                let calls = control::structural_operands::value_calls(
+                let (calls, completion) = control::structural_operands::value_calls(
                     program,
                     facts,
                     edge_calls.scalar_callees,
@@ -879,6 +884,26 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                     trace,
                     &mut crate::execution::terminal_unit::borrowed_windows::OpenWindows::default(),
                 )?;
+                if completion == checked_trees::CheckedValueCompletion::NoNormal {
+                    let evaluation = CheckedUnitEffectOperationPlan::EvaluateStructuralValue {
+                        statement_index: ordinal,
+                        value: root.root,
+                        calls,
+                        operand_source: None,
+                    };
+                    operand_calls.push(evaluation);
+                    return Some(CheckedStructuralControlTransferPlan {
+                        source: checked_trees::CheckedStructuralControlTransferSourcePlan::EvaluateNoNormal {
+                            operations: checked_trees::CheckedOperandSequence::new(
+                                operand_calls.split_off(operations.len()),
+                            ),
+                        },
+                        target_parameter_index: u32::try_from(target_index).ok()?,
+                        retained_loan_backing: None,
+                        retained_loan_parents: Vec::new(),
+                        retained_operand_parents: Vec::new(),
+                    });
+                }
                 mark(SuccessorGuard::EstablishedArgument);
                 let result = checked_trees::CheckedUnitStructuralResultBindingPlan {
                     statement_index: ordinal,
@@ -926,9 +951,20 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                 });
             }
             None
+            })();
+            *stopped = transfer.as_ref().is_some_and(|transfer| matches!(transfer.source,
+                checked_trees::CheckedStructuralControlTransferSourcePlan::EvaluateNoNormal { .. }));
+            Some(transfer)
         })
         .collect::<Option<Vec<_>>>()?;
     for (transfer, parameter) in transfers.iter_mut().zip(target_structural) {
+        if matches!(
+            transfer.source,
+            checked_trees::CheckedStructuralControlTransferSourcePlan::EvaluateNoNormal { .. }
+        ) {
+            break;
+        }
+
         trace.phase("state loan: captured backing");
         trace.statement(Some(ordinal));
         let storage = super::loan_backing::retained_storage(
@@ -960,11 +996,26 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
         transfer.retained_loan_parents = storage.parents;
         transfer.retained_operand_parents = storage.operand_parents;
     }
+    let stopped_position = transfers.last().and_then(|transfer| {
+        matches!(
+            transfer.source,
+            checked_trees::CheckedStructuralControlTransferSourcePlan::EvaluateNoNormal { .. }
+        )
+        .then(|| {
+            target_structural
+                .get(transfer.target_parameter_index as usize)
+                .map(|target| target.position)
+        })
+        .flatten()
+    });
     mark(SuccessorGuard::ScalarArguments);
     let scalar_arguments = target_scalar
         .iter()
         .enumerate()
         .filter(|(index, _)| !payload_parameters.contains(&(*index as u32)))
+        .filter(|(_, target)| {
+            stopped_position.is_none_or(|position| target.source_position < position)
+        })
         .map(|(target_index, target)| {
             let argument = argument_at(target.source_position)?;
             let role = CheckedScalarExpressionRole::TransitionArgument {

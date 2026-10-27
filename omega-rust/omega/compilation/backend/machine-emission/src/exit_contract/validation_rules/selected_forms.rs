@@ -127,36 +127,9 @@ pub(in crate::exit_contract) fn unique_encoding_rows<'a>(
     let mut encoded = encoding.rows().iter();
     for function in &selected.functions {
         for block in &function.blocks {
-            for instruction in
-                block
-                    .instructions
-                    .iter()
-                    .chain(std::iter::once(match &block.terminator {
-                    selected_instructions::SelectedTerminator::ConditionalBranch {
-                        instruction,
-                        ..
-                    }
-                    | selected_instructions::SelectedTerminator::ConditionalBranchU64LessThan {
-                        instruction,
-                        ..
-                    }
-                    | selected_instructions::SelectedTerminator::ConditionalBranchI64LessThan {
-                        instruction,
-                        ..
-                    }
-                    | selected_instructions::SelectedTerminator::Jump { instruction, .. }
-                    | selected_instructions::SelectedTerminator::Return { instruction, .. }
-                    | selected_instructions::SelectedTerminator::Crash { instruction, .. }
-                    | selected_instructions::SelectedTerminator::OperationTrap {
-                        instruction,
-                        ..
-                    }
-                    | selected_instructions::SelectedTerminator::HostedExitProcess {
-                        instruction,
-                        ..
-                    } => instruction,
-                }))
-            {
+            for instruction in block.instructions.iter().chain(std::iter::once(
+                selected_instructions::terminator_instruction(&block.terminator),
+            )) {
                 let row =
                     encoded
                         .next()

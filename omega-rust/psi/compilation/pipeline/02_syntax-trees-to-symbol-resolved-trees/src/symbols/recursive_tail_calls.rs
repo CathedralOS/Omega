@@ -201,6 +201,7 @@ fn recursive_target(
     Some(TransitionTargetNode::Named {
         operational_acknowledgement: call.operational_acknowledgement,
         path: TableNamePath {
+            receiver_symbol: Default::default(),
             members: statements.insert_name_path_members(std::slice::from_ref(&call.target)),
             head_symbol: identity.machine,
             symbol: identity.machine,

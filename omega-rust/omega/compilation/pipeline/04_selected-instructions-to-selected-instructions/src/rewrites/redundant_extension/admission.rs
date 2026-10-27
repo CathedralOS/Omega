@@ -258,25 +258,12 @@ pub(super) fn admit<'source>(
     if !identity(form, normalization) {
         return Err(RedundantExtensionError::UnsupportedProducer);
     }
-    let copy = environment
-        .constraint(environment.selected_keys().copy_i64)
-        .ok_or(RedundantExtensionError::ConstraintMismatch)?;
-    if copy.operands.len() != 2
-        || copy.operands[0].operand != 0
-        || copy.operands[0].access != RegisterOperandAccess::Use
-        || copy.operands[0].class != value_register.class
-        || copy.operands[1].operand != 1
-        || copy.operands[1].access != RegisterOperandAccess::Def
-        || copy.operands[1].class != output_register.class
-        || !copy.implicit_uses.is_empty()
-        || !copy.implicit_defs.is_empty()
-        || !copy.clobbers.is_empty()
-        || copy.operands.iter().any(|operand| {
-            operand.fixed_view.is_some() || operand.tied_to.is_some() || operand.early_clobber
-        })
-    {
-        return Err(RedundantExtensionError::ConstraintMismatch);
-    }
+    let copy = crate::rewrites::integer_copy_row(
+        environment,
+        value_register.class,
+        output_register.class,
+        || RedundantExtensionError::ConstraintMismatch,
+    )?;
     let steps = crate::rewrites::rewrite_scan(plan, function)
         .and_then(|total| {
             // A second full instruction scan locates and counts producers.

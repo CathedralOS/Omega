@@ -552,32 +552,33 @@ pub(crate) fn validate_foreign_scalar_arguments(
             ))
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let result_shape =
-        call.scalar_result
-            .as_ref()
-            .map(|result| {
-                let Some(result_type) = result.home.scalar_type.as_integer() else {
-                    return Err(invalid());
-                };
-                let expected_shape =
-                    crate::object_artifact::replay::unit::scalar_call_custody::integer_shape(
-                        result_type,
-                    )
-                    .ok_or_else(invalid)?;
-                if result.home.defining_operation
-                    != match call.owner {
-                        CallSiteOwner::Operation(operation) => operation,
-                        CallSiteOwner::CleanupAction { .. }
-                        | CallSiteOwner::ExternalCompletion(_) => return Err(invalid()),
-                    }
-                    || result.home.shape != expected_shape
-                    || !function.unit_scalar_homes.contains(&result.home)
-                {
-                    return Err(invalid());
+    let result_shape = call
+        .scalar_result
+        .as_ref()
+        .map(|result| {
+            let Some(result_type) = result.home.scalar_type.as_integer() else {
+                return Err(invalid());
+            };
+            let expected_shape =
+                crate::object_artifact::replay::unit::scalar_call_custody::integer_shape(
+                    result_type,
+                )
+                .ok_or_else(invalid)?;
+            if result.home.defining_operation
+                != match call.owner {
+                    CallSiteOwner::Operation(operation) => operation,
+                    CallSiteOwner::InvokeNoNormal(_)
+                    | CallSiteOwner::CleanupAction { .. }
+                    | CallSiteOwner::ExternalCompletion(_) => return Err(invalid()),
                 }
-                Ok(expected_shape)
-            })
-            .transpose()?;
+                || result.home.shape != expected_shape
+                || !function.unit_scalar_homes.contains(&result.home)
+            {
+                return Err(invalid());
+            }
+            Ok(expected_shape)
+        })
+        .transpose()?;
     // Only `Parameter`-destination callbacks occupy a native slot; a `Field`
     // destination writes through its root parameter's existing slot.
     let callback_ordinals = call

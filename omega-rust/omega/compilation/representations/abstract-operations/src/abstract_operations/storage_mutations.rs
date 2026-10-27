@@ -52,6 +52,10 @@ impl AbstractOperation {
                 structural_arguments,
                 ..
             }
+            | Self::InvokeNoNormal {
+                structural_arguments,
+                ..
+            }
             | Self::ExternalCompletion {
                 structural_arguments,
                 ..

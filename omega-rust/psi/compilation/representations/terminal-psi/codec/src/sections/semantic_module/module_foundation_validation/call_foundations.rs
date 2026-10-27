@@ -50,15 +50,96 @@ fn validate_call_tail(
     Ok(())
 }
 
-pub(super) fn validate_call_unit(
+/// All ordinary invocation entries share exact positional and custody checks;
+/// the operation/terminator owner separately admits its result or completion.
+pub(super) fn validate_module_invocation_entry(
     module: &TerminalModule,
     machine: &TerminalMachine,
+    invocation: terminal_psi::ModuleInvocationInputs<'_>,
+) -> Result<(), CodecError> {
+    let callee =
+        module
+            .machine(invocation.callee)
+            .ok_or(CodecError::MalformedStructuralFoundation(
+                "module invocation references an unknown callee",
+            ))?;
+    if invocation.arguments.len() != callee.parameters.len()
+        || invocation.erased_arguments.len() != callee.contract.erased_scalar_formals.len()
+        || invocation.erased_proof_arguments.len() != callee.contract.erased_proof_formals.len()
+        || invocation.structural_arguments.len() != callee.structural_parameters.len()
+        || invocation.requirement_obligations.len() != callee.contract.requires.len()
+    {
+        return malformed("module invocation has the wrong entry or obligation arity");
+    }
+    for (actual, formal) in invocation.arguments.iter().zip(&callee.parameters) {
+        let mut declarations = machine
+            .parameters
+            .iter()
+            .copied()
+            .chain(machine.block_parameters().copied())
+            .chain(
+                machine
+                    .operations()
+                    .filter_map(|operation| operation.result.scalar()),
+            )
+            .filter(|declaration| declaration.id == *actual);
+        if declarations
+            .next()
+            .is_none_or(|declaration| declaration.scalar_type != formal.scalar_type)
+            || declarations.next().is_some()
+        {
+            return malformed("module invocation argument has no exact scalar declaration");
+        }
+    }
+    for (actual, formal) in invocation
+        .erased_arguments
+        .iter()
+        .zip(&callee.contract.erased_scalar_formals)
+    {
+        if actual.scalar_type() != formal.scalar_type {
+            return malformed("module invocation erased argument has the wrong carrier");
+        }
+    }
+    if invocation
+        .requirement_obligations
+        .iter()
+        .copied()
+        .collect::<BTreeSet<_>>()
+        .len()
+        != invocation.requirement_obligations.len()
+    {
+        return malformed("module invocation repeats an entry obligation identity");
+    }
+    validate_call_tail(
+        module,
+        machine,
+        invocation.structural_arguments,
+        &callee.structural_parameters,
+        invocation.claim_transfers,
+    )
+}
+
+pub(super) fn validate_no_normal_invocation(
+    module: &TerminalModule,
+    block: &terminal_psi::Block,
+) -> Result<(), CodecError> {
+    let Terminator::InvokeNoNormal { callee, .. } = block.terminator else {
+        return Ok(());
+    };
+    match terminal_semantics::control_graph::normal_completion_possible(module, callee) {
+        Ok(false) => Ok(()),
+        Ok(true) => malformed("no-normal invocation callee has a normal return"),
+        Err(_) => malformed("no-normal invocation has no exact closed callee control graph"),
+    }
+}
+
+pub(super) fn validate_call_unit(
+    module: &TerminalModule,
     operation: &Operation,
 ) -> Result<(), CodecError> {
     let OperationKind::CallUnit {
         callee,
         structural_arguments,
-        claim_transfers,
         ..
     } = &operation.kind
     else {
@@ -75,13 +156,7 @@ pub(super) fn validate_call_unit(
     {
         return malformed("unit call has the wrong callee result or structural arity");
     }
-    validate_call_tail(
-        module,
-        machine,
-        structural_arguments,
-        &callee.structural_parameters,
-        claim_transfers,
-    )
+    Ok(())
 }
 
 /// A selector call names one interface slot. Its result and operand arity
@@ -303,14 +378,12 @@ pub(super) fn validate_call_dynamic(
 
 pub(super) fn validate_call_structural_scalar(
     module: &TerminalModule,
-    machine: &TerminalMachine,
     operation: &Operation,
 ) -> Result<(), CodecError> {
     let OperationKind::CallStructuralScalar {
         callee,
         arguments,
         structural_arguments,
-        claim_transfers,
         ..
     } = &operation.kind
     else {
@@ -329,13 +402,7 @@ pub(super) fn validate_call_structural_scalar(
             "structural scalar call has the wrong callee signature or structural arity",
         );
     }
-    validate_call_tail(
-        module,
-        machine,
-        structural_arguments,
-        &callee.structural_parameters,
-        claim_transfers,
-    )
+    Ok(())
 }
 
 /// Scalar and structural argument rosters are independent of result custody.
@@ -458,13 +525,7 @@ pub(super) fn validate_call_structural(
     if exact_payloadless {
         // The selected proof row cannot bypass ordinary actual/formal shape,
         // projection and custody checks, including a nonempty actual prefix.
-        return validate_call_tail(
-            module,
-            machine,
-            structural_arguments,
-            &callee.structural_parameters,
-            claim_transfers,
-        );
+        return Ok(());
     }
     // Input claims cross at their owned arguments; the result binds the
     // claims the callee's returning edge holds, one per result path. The
@@ -489,13 +550,7 @@ pub(super) fn validate_call_structural(
     ) {
         return malformed("structural callee return disagrees with the caller's result claims");
     }
-    validate_call_tail(
-        module,
-        machine,
-        structural_arguments,
-        &callee.structural_parameters,
-        claim_transfers,
-    )
+    Ok(())
 }
 
 /// Every structural call occurrence names its own declared producer home.

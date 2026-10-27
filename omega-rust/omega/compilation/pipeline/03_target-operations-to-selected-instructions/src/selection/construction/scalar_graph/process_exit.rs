@@ -68,7 +68,7 @@ pub(super) fn build(
                 return Err(SelectedInstructionError::custody());
             };
             if let Some(register) = super::call_arguments::scalar_argument(
-                semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(*psi_edge),
+                semantic_vocabulary::InvocationSite::ExternalCompletion(*psi_edge),
                 argument_position,
                 *source,
                 placement,

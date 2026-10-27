@@ -79,13 +79,42 @@ fn preserved_binding_matches(
     )
 }
 
-pub fn at_snapshot(
+enum SourceBoundary<'query> {
+    Stores,
+    ReadCuts(&'query std::collections::BTreeSet<(u32, u32)>),
+}
+
+/// Every predecessor must reach an admitted read of these contents. The caller
+/// establishes the same typed value at each cut; this query proves only that
+/// intervening storage history preserves it. Unknown, missing and unanchored
+/// arrivals establish nothing, and later stores cannot become read evidence.
+pub fn contents_preserved_from(
+    program: &dyn crate::CheckingInput,
+    control: &FlowControlFacts,
+    snapshot: Snapshot,
+    source: &CanonicalPlace,
+    cuts: &[Snapshot],
+) -> bool {
+    if cuts.is_empty()
+        || cuts
+            .iter()
+            .any(|cut| !control.storage_snapshots.is_valid(*cut))
+    {
+        return false;
+    }
+    let cuts = cuts.iter().map(|cut| identity(*cut)).collect();
+    matches!(resolve_snapshot(program, control, snapshot, source, StoredObservation::Contents, SourceBoundary::ReadCuts(&cuts)),
+        Some(Resolution::Sources { incoming: false, stores }) if !stores.is_empty())
+}
+
+fn resolve_snapshot(
     program: &dyn crate::CheckingInput,
     control: &FlowControlFacts,
     snapshot: Snapshot,
     source: &CanonicalPlace,
     observation: StoredObservation,
-) -> Option<StoredOperand> {
+    boundary: SourceBoundary<'_>,
+) -> Option<Resolution> {
     if !snapshot.is_valid() {
         return None;
     }
@@ -105,28 +134,40 @@ pub fn at_snapshot(
         })
         .and_then(|work| work.checked_add(1))
     else {
-        return Some(StoredOperand::Unavailable);
+        return Some(Resolution::Unavailable);
     };
     let mut annotations = BTreeMap::new();
     let mut pending = vec![(snapshot, false)];
     while let Some((current, complete)) = pending.pop() {
         let Some(next) = remaining.checked_sub(1) else {
-            return Some(StoredOperand::Unavailable);
+            return Some(Resolution::Unavailable);
         };
         remaining = next;
         if !current.is_valid() {
             continue;
         }
         if !control.storage_snapshots.is_valid(current) {
-            return Some(StoredOperand::Unavailable);
+            return Some(Resolution::Unavailable);
         }
         let event = control.storage_snapshots.get(current);
         let key = identity(current);
+        if let SourceBoundary::ReadCuts(cuts) = boundary
+            && cuts.contains(&key)
+        {
+            annotations.insert(
+                key,
+                Annotation::Complete(Resolution::Sources {
+                    incoming: false,
+                    stores: vec![current],
+                }),
+            );
+            continue;
+        }
         if complete {
             let result = match event.operation {
                 FlowStorageOperation::Join { predecessors } => {
                     let Some(predecessors) = control.storage_predecessors.span(predecessors) else {
-                        return Some(StoredOperand::Unavailable);
+                        return Some(Resolution::Unavailable);
                     };
                     let mut stores = Vec::new();
                     let mut incoming = false;
@@ -178,11 +219,21 @@ pub fn at_snapshot(
         }
         match annotations.get(&key) {
             Some(Annotation::Complete(_)) => continue,
-            Some(Annotation::Active) => return Some(StoredOperand::Unavailable),
+            Some(Annotation::Active) => return Some(Resolution::Unavailable),
             None => {}
         }
         let terminal = match event.operation {
             FlowStorageOperation::Unknown => Some(Resolution::Unavailable),
+            FlowStorageOperation::Store { destination, .. }
+                if matches!(boundary, SourceBoundary::ReadCuts(_)) =>
+            {
+                let path = control
+                    .operand_referent_segments
+                    .span(destination.segments)?;
+                (destination.root == source.root
+                    && crate::storage_path_relations::contents_overlap(program, source, path))
+                .then_some(Resolution::Unavailable)
+            }
             FlowStorageOperation::Store {
                 destination, value, ..
             } => match matches_store(program, control, source, destination) {
@@ -244,7 +295,7 @@ pub fn at_snapshot(
             pending.push((current, true));
             if let FlowStorageOperation::Join { predecessors } = event.operation {
                 let Some(predecessors) = control.storage_predecessors.span(predecessors) else {
-                    return Some(StoredOperand::Unavailable);
+                    return Some(Resolution::Unavailable);
                 };
                 pending.extend(predecessors.iter().rev().map(|handle| (*handle, false)));
             } else if let FlowStorageOperation::PreserveBinding {
@@ -260,7 +311,24 @@ pub fn at_snapshot(
             }
         }
     }
-    match resolved(&annotations, snapshot) {
+    Some(resolved(&annotations, snapshot))
+}
+
+pub fn at_snapshot(
+    program: &dyn crate::CheckingInput,
+    control: &FlowControlFacts,
+    snapshot: Snapshot,
+    source: &CanonicalPlace,
+    observation: StoredObservation,
+) -> Option<StoredOperand> {
+    match resolve_snapshot(
+        program,
+        control,
+        snapshot,
+        source,
+        observation,
+        SourceBoundary::Stores,
+    )? {
         Resolution::Incoming => None,
         Resolution::Unavailable => Some(StoredOperand::Unavailable),
         Resolution::Sources { incoming, stores } => {

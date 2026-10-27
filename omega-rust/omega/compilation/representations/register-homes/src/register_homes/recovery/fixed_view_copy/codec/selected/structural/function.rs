@@ -14,6 +14,17 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn dec
     cursor: &mut Cursor<'_>,
 ) -> Result<selected_instructions::LocalStorageSlotId, FixedViewCopyDecodeError> {
     let tag = cursor.byte()?;
+    if tag == 8 || tag == 9 {
+        let edge = decode_id(cursor, semantic_vocabulary::EdgeId::new)?;
+        return Ok(if tag == 8 {
+            selected_instructions::LocalStorageSlotId::InvocationResult { edge }
+        } else {
+            selected_instructions::LocalStorageSlotId::InvocationArgument {
+                edge,
+                argument_index: cursor.u32()?,
+            }
+        });
+    }
     if tag == 6 {
         return Ok(selected_instructions::LocalStorageSlotId::EdgeSnapshot {
             edge: decode_id(cursor, semantic_vocabulary::EdgeId::new)?,
@@ -60,10 +71,10 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn dec
 
 pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn decode_invocation_site(
     cursor: &mut Cursor<'_>,
-) -> Result<semantic_vocabulary::BoundaryInvocationSite, FixedViewCopyDecodeError> {
+) -> Result<semantic_vocabulary::InvocationSite, FixedViewCopyDecodeError> {
     let tag = cursor.byte()?;
     let identity = cursor.u64()?;
-    semantic_vocabulary::BoundaryInvocationSite::from_tagged_identity(tag, identity).ok_or_else(
+    semantic_vocabulary::InvocationSite::from_tagged_identity(tag, identity).ok_or_else(
         || match tag {
             0 | 1 => FixedViewCopyDecodeError::InvalidSemanticId(identity),
             _ => FixedViewCopyDecodeError::UnknownOption(tag),

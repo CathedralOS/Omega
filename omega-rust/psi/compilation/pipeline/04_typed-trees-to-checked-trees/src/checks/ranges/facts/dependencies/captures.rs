@@ -51,7 +51,7 @@ impl<'field> RangeFacts<'field> {
         captured: ExpressionHandle,
         symbol: SymbolHandle,
     ) {
-        if !symbol.is_valid() {
+        if !symbol.is_valid() || self.expression_dependencies.is_empty() {
             return;
         }
         let mut captured_reads = Vec::new();

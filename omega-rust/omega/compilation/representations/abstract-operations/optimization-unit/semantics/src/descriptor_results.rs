@@ -1564,6 +1564,21 @@ fn adapt(
                         );
                     }
                 }
+                O::InvokeNoNormal {
+                    structural_arguments,
+                    ..
+                } => {
+                    // Observe exact entry actuals; no output, normal descriptor
+                    // contract or post-call state exists at this transfer.
+                    step.inputs.clear();
+                    for argument in structural_arguments {
+                        step.inputs.push(
+                            location(argument.place, &argument.path, None)
+                                .unwrap_or_else(|| DescriptorLocation::whole(argument.place)),
+                        );
+                    }
+                    step.may_escape = true;
+                }
                 O::ReturnStructural { source, .. } => {
                     if let Some(returns) = &mut graph.returns {
                         if graph.place_types.get(source)

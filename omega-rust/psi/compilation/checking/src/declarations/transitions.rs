@@ -79,9 +79,31 @@ pub(crate) fn validate_transition_target_node(
     diagnostics: &mut Vec<Diagnostic>,
     formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
+    let target_node = program.statement_table.transition_target(target);
+    if let TransitionTargetNode::Value(expression) = target_node {
+        // Whole terminal invocations use the ordinary expression call route.
+        // Retain their result-agreement diagnostic after normalization; a
+        // conversion or enclosing value expression keeps its own type owner.
+        if let Some(call) = program.expression_table.call_node(*expression)
+            && let Some((owner, state)) =
+                resolved_transition_target_state(program, crate::call_target_symbol(program, call))
+            && owner.symbol != current_machine.symbol
+            && let Some(current_state) = current_state
+        {
+            terminal_results::validate(
+                program,
+                current_machine,
+                current_state,
+                owner,
+                state,
+                diagnostics,
+            );
+        }
+        return;
+    }
     let TransitionTargetNode::Named {
         path, arguments, ..
-    } = program.statement_table.transition_target(target)
+    } = target_node
     else {
         return;
     };

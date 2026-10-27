@@ -1,4 +1,4 @@
-//! Value-position expression-call scanning and bound validation.
+//! Expression-call scanning with explicit value, statement and terminal use.
 //!
 //! The parent call validator owns shared argument/type rules. This child
 //! owns recursive expression traversal, value-callee resolution, and the
@@ -142,6 +142,7 @@ struct ValueCallSite<'a> {
     call: &'a TableCallExpression,
     arguments: &'a [ExpressionHandle],
     executes: bool,
+    unit_completion: bool,
 }
 
 impl ValueCallSite<'_> {
@@ -161,6 +162,7 @@ impl ValueCallSite<'_> {
             self.current_state,
             callee.state,
             self.expression,
+            self.unit_completion,
             diagnostics,
         );
         fence_generic_value_callee(
@@ -198,6 +200,14 @@ impl ValueCallSite<'_> {
     }
 }
 
+/// Only the direct root receives its actual use; descendants are values.
+#[derive(Clone, Copy)]
+enum CallExpressionUse {
+    Value,
+    Statement,
+    TerminalResult,
+}
+
 #[allow(clippy::too_many_arguments)]
 fn validate_expression_call_bounds(
     program: &dyn crate::CheckingInput,
@@ -208,7 +218,7 @@ fn validate_expression_call_bounds(
     value_environment: &ValueEnvironment,
     expression: ExpressionHandle,
     call: &TableCallExpression,
-    statement_root: bool,
+    expression_use: CallExpressionUse,
     executes: bool,
     boundary_operator_applications: &mut Vec<crate::ValidatedBoundaryOperatorApplication>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -232,13 +242,23 @@ fn validate_expression_call_bounds(
         // The outer scanner still visits the call's argument expressions.
         return;
     }
-    let unit_statement = statement_root
-        && crate::machine_calls::calls::unit_statement_call_is_admitted(
+    let unit_completion = match expression_use {
+        CallExpressionUse::Value => false,
+        CallExpressionUse::Statement => {
+            crate::machine_calls::calls::unit_statement_call_is_admitted(
+                program,
+                current_machine,
+                current_state,
+                expression,
+            )
+        }
+        CallExpressionUse::TerminalResult => super::unit_returns::call_completes_unit_state(
             program,
             current_machine,
             current_state,
             expression,
-        );
+        ),
+    };
     crate::proof_contracts::contract_entailment::validate_const_range_call(
         program,
         current_machine,
@@ -260,7 +280,7 @@ fn validate_expression_call_bounds(
         call.target_symbol,
     ) {
         Ok(Some(requirement)) => {
-            if !unit_statement
+            if !unit_completion
                 && (!requirement.signature.return_type.is_valid()
                     || matches!(
                         program
@@ -301,7 +321,7 @@ fn validate_expression_call_bounds(
         call_arguments,
     ) {
         Ok(Some(dynamic)) => {
-            if !unit_statement
+            if !unit_completion
                 && (!dynamic.signature.return_type.is_valid()
                     || matches!(
                         program
@@ -333,7 +353,7 @@ fn validate_expression_call_bounds(
         Ok(None) => {}
     }
     if super::unit_returns::call_returns_unit(program, current_machine, expression)
-        && !unit_statement
+        && !unit_completion
     {
         diagnostics.push(Diagnostic::error(format!(
             "machine `{}` state `{}`: `{}(..)` does not return a value but is used in a VALUE position; Unit cannot supply a scalar operand or local",
@@ -539,6 +559,7 @@ fn validate_expression_call_bounds(
         call,
         arguments,
         executes,
+        unit_completion,
     };
 
     // A named implementation qualifies its requirement call
@@ -612,7 +633,7 @@ fn validate_expression_call_bounds(
         if let Some(signature) =
             program.machine_parameter_signature_in(current_machine, call.target_symbol)
         {
-            if !signature.return_type.is_valid() && !unit_statement {
+            if !signature.return_type.is_valid() && !unit_completion {
                 diagnostics.push(Diagnostic::error(format!(
                     "machine `{}` state `{}`: machine parameter `{}` does not return a value but is used in a VALUE position",
                     current_machine.name,

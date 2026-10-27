@@ -38,9 +38,7 @@ pub(crate) fn encode_dangerous_authority(
         };
         Ok(())
     })?;
-    encoder.field("service", |encoder| {
-        encode_nominal(encoder, &authority.service)
-    })
+    encoder.field_by("service", &authority.service, encode_nominal)
 }
 
 pub(crate) fn encode_dangerous_authority_slack(
@@ -66,8 +64,6 @@ pub(crate) fn encode_dangerous_authority_slack(
         };
         Ok(())
     })?;
-    encoder.field("callable", |encoder| {
-        encode_nominal(encoder, &slack.callable)
-    })?;
+    encoder.field_by("callable", &slack.callable, encode_nominal)?;
     encoder.field("service", |encoder| encode_nominal(encoder, &slack.service))
 }

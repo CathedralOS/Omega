@@ -21,6 +21,31 @@ pub(super) fn symbol_seed<'name>(
     }
 }
 
+/// The value-parameter child stream of one callable signature: every
+/// declaration kind seeds its parameter children, in order, from the same
+/// declared names.
+pub(in crate::symbols::symbol_table) fn parameter_seeds<'name>(
+    parameters: impl IntoIterator<Item = &'name symbol_resolved_trees::signature::StateParameter>,
+    has_sources: bool,
+) -> impl Iterator<Item = SymbolSeed<'name>> {
+    parameters
+        .into_iter()
+        .map(move |parameter| symbol_seed(SymbolKind::Parameter, &parameter.name, has_sources))
+}
+
+/// The type-parameter children of one declaration, in declaration order.
+/// `proposition_parameters` is true only where the declaring family admits
+/// proposition binders.
+pub(in crate::symbols::symbol_table) fn type_parameter_seeds<'name>(
+    parameters: impl IntoIterator<Item = &'name symbol_resolved_trees::data::TypeParameter>,
+    proposition_parameters: bool,
+    has_sources: bool,
+) -> impl Iterator<Item = SymbolSeed<'name>> {
+    parameters
+        .into_iter()
+        .map(move |parameter| type_parameter_seed(parameter, proposition_parameters, has_sources))
+}
+
 /// Seed a type parameter's child symbol: `Machine` binders always get their
 /// own kind; `Proposition` binders get theirs only where the declaring family
 /// admits proposition parameters.

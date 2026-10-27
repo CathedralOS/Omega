@@ -309,6 +309,39 @@ fn completed_case_subject(
     if !descriptor.segments.is_empty() {
         return Err("descriptor_is_not_whole_binding");
     }
+    // A formed borrow retains its separate source operand. Forwarding an
+    // existing reference instead retains the descriptor itself: no second
+    // backing operand is manufactured for an entry reference or stored view.
+    let forwarded = !control.operands.is_valid(formed.backing);
+    let (source_handle, formation_access, forwarded_places) = if forwarded {
+        let shell = validation::reference_shell(program, formed.type_reference)
+            .ok_or("forwarded_descriptor_has_no_reference_carrier")?;
+        if !shell.access.is_readable() {
+            return Err("forwarded_descriptor_is_not_readable");
+        }
+        let places = super::super::operand_values::captured_reference_places_with_formation(
+            program,
+            control,
+            capture,
+            formed.type_reference,
+            &[],
+        )
+        .ok_or("forwarded_descriptor_has_no_complete_referents")?;
+        if places.len() != 1 {
+            return Err("forwarded_descriptor_referent_not_unique");
+        }
+        (
+            capture,
+            checked_trees::BorrowAccessKind::from(shell.access),
+            places,
+        )
+    } else {
+        (
+            formed.backing,
+            checked_trees::BorrowAccessKind::Read,
+            Vec::new(),
+        )
+    };
     let loans = contexts
         .constraint_refs
         .span_or_empty(observation.constraints)
@@ -323,19 +356,23 @@ fn completed_case_subject(
                 loan.owner_symbol == owner
                     && loan.storage_owner == descriptor.root
                     && loan.owner_path.is_empty()
-                    && loan.kind == checked_trees::BorrowAccessKind::Read
+                    && loan.kind == formation_access
+                    && loan.lineage != checked_trees::BorrowLoanLineage::LifetimeDependency
                     && loan.statement_index == formed.statement_index
                     && loan.formation_expression == formed.expression
+                    && (!forwarded
+                        || forwarded_places.iter().any(|place| {
+                            loan.root == place.place.root
+                                && borrow.access_segments.span(loan.segments)
+                                    == Some(place.place.segments.as_slice())
+                        }))
             }
         })
         .collect::<Vec<_>>();
     if loans.is_empty() {
         return Err("no_exact_live_formation_loan");
     }
-    if !control.operands.is_valid(formed.backing) {
-        return Err("formed_descriptor_has_no_completed_backing");
-    }
-    let source = control.operands.get(formed.backing);
+    let source = control.operands.get(source_handle);
     if source.state_symbol != state.symbol || source.statement_index != formed.statement_index {
         return Err("completed_backing_occurrence_mismatch");
     }
@@ -406,7 +443,14 @@ fn completed_case_subject(
     }
     Ok(CapturedCaseSubject {
         observed: receiver.expression,
-        source: formed.backing,
+        // All formed->guard version checks above still consume the actual
+        // earlier descriptor. Its current guard read owns the payload's saved
+        // namespace only after that correspondence has been established.
+        source: if forwarded {
+            observation.receiver
+        } else {
+            source_handle
+        },
         receiver: observation.receiver,
         loans,
     })

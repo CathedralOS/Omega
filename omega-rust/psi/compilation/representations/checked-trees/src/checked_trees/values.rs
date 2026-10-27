@@ -56,7 +56,7 @@ pub use structural_values::{
     CheckedElementViewRegion, CheckedQuotientAdaptationLicense, CheckedStructuralDispatchArm,
     CheckedStructuralRecordField, CheckedStructuralRecordFieldValue, CheckedStructuralValue,
     CheckedStructuralValueHandle, CheckedStructuralValueKind, CheckedStructuralValuePlans,
-    CheckedStructuralValueRoot,
+    CheckedStructuralValueRoot, CheckedValueCompletion,
 };
 mod array_construction_source;
 pub use array_construction_source::CheckedArrayConstructionSource;

@@ -46,14 +46,8 @@ pub(crate) fn encode_representation_target(
         };
         Ok(())
     });
-    let _ = encoder.field("pointer_size", |encoder| {
-        encoder.u16(target.pointer_size());
-        Ok(())
-    });
-    let _ = encoder.field("pointer_alignment", |encoder| {
-        encoder.u16(target.pointer_alignment());
-        Ok(())
-    });
+    let _ = encoder.u16_field("pointer_size", target.pointer_size());
+    let _ = encoder.u16_field("pointer_alignment", target.pointer_alignment());
 }
 
 pub(crate) fn encode_boundary_shape_graph(
@@ -69,71 +63,41 @@ pub(crate) fn encode_boundary_shape_graph(
                     PackageReviewBoundaryShapeClass::Reference => encoder.tag("reference", 2),
                     PackageReviewBoundaryShapeClass::FixedArray { element, length } => {
                         encoder.tag("fixed_array", 3);
-                        encoder.field("element", |encoder| {
-                            encoder.u16(element);
-                            Ok(())
-                        })?;
-                        encoder.field("length", |encoder| {
-                            encoder.u16(length);
-                            Ok(())
-                        })?;
+                        encoder.u16_field("element", element)?;
+                        encoder.u16_field("length", length)?;
                     }
                     PackageReviewBoundaryShapeClass::Record {
                         first_field,
                         field_count,
                     } => {
                         encoder.tag("record", 4);
-                        encoder.field("first_field", |encoder| {
-                            encoder.u16(first_field);
-                            Ok(())
-                        })?;
-                        encoder.field("field_count", |encoder| {
-                            encoder.u16(field_count);
-                            Ok(())
-                        })?;
+                        encoder.u16_field("first_field", first_field)?;
+                        encoder.u16_field("field_count", field_count)?;
                     }
                 };
                 Ok(())
             })?;
-            encoder.field("byte_size", |encoder| {
-                encoder.u16(shape.byte_size());
-                Ok(())
-            })?;
-            encoder.field("alignment", |encoder| {
-                encoder.u16(shape.alignment());
-                Ok(())
-            })?;
+            encoder.u16_field("byte_size", shape.byte_size())?;
+            encoder.u16_field("alignment", shape.alignment())?;
             Ok(())
         })
     })?;
     encoder.field("fields", |encoder| {
         encoder.sequence(graph.fields(), |encoder, field| {
-            encoder.field("shape", |encoder| {
-                encoder.u16(field.shape());
-                Ok(())
-            })?;
-            encoder.field("byte_offset", |encoder| {
-                encoder.u16(field.byte_offset());
-                Ok(())
-            })?;
+            encoder.u16_field("shape", field.shape())?;
+            encoder.u16_field("byte_offset", field.byte_offset())?;
             Ok(())
         })
     })?;
     encoder.field("parameters", |encoder| {
         encoder.sequence(graph.parameters(), |encoder, root| {
-            encoder.field("root", |encoder| {
-                encoder.u16(*root);
-                Ok(())
-            })?;
+            encoder.u16_field("root", *root)?;
             Ok(())
         })
     })?;
     encoder.field("result", |encoder| {
         encoder.option(graph.result().as_ref(), |encoder, root| {
-            encoder.field("root", |encoder| {
-                encoder.u16(*root);
-                Ok(())
-            })?;
+            encoder.u16_field("root", *root)?;
             Ok(())
         })
     })
@@ -143,10 +107,7 @@ pub(crate) fn encode_opaque_occurrence(
     encoder: &mut Encoder,
     occurrence: &PackageReviewOpaqueRepresentationOccurrence,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("carrier_shape_root", |encoder| {
-        encoder.u16(occurrence.carrier_shape_root());
-        Ok(())
-    })?;
+    encoder.u16_field("carrier_shape_root", occurrence.carrier_shape_root())?;
     encoder.field("role", |encoder| {
         match occurrence.role() {
             PackageReviewOpaqueRepresentationMovementRole::Parameter {
@@ -154,14 +115,8 @@ pub(crate) fn encode_opaque_occurrence(
                 native_ordinal,
             } => {
                 encoder.tag("parameter", 0);
-                encoder.field("formal_ordinal", |encoder| {
-                    encoder.u32(formal_ordinal);
-                    Ok(())
-                })?;
-                encoder.field("native_ordinal", |encoder| {
-                    encoder.u32(native_ordinal);
-                    Ok(())
-                })?;
+                encoder.u32_field("formal_ordinal", formal_ordinal)?;
+                encoder.u32_field("native_ordinal", native_ordinal)?;
             }
             PackageReviewOpaqueRepresentationMovementRole::Result => encoder.tag("result", 1),
         };
@@ -176,10 +131,7 @@ pub(crate) fn encode_opaque_occurrence(
                     }
                     PackageReviewOpaqueRepresentationPathElement::RecordField { ordinal } => {
                         encoder.tag("record_field", 1);
-                        encoder.field("ordinal", |encoder| {
-                            encoder.u16(*ordinal);
-                            Ok(())
-                        })?;
+                        encoder.u16_field("ordinal", *ordinal)?;
                     }
                 };
                 Ok(())
@@ -187,7 +139,5 @@ pub(crate) fn encode_opaque_occurrence(
             Ok(())
         })
     })?;
-    encoder.field("placement", |encoder| {
-        encode_value_placement(encoder, occurrence.placement())
-    })
+    encoder.field_by("placement", occurrence.placement(), encode_value_placement)
 }

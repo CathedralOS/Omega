@@ -34,6 +34,21 @@ pub(crate) struct StateMutationSummaryCache {
     states: std::sync::OnceLock<BuiltStateMutationSummaries>,
 }
 
+impl StateMutationSummaryCache {
+    pub(crate) fn prewarm(
+        &self,
+        program: &dyn ::validation::CheckingInput,
+        borrow: &BorrowFacts,
+        call_frames: Option<&validation::CallFrameResolver<'_>>,
+    ) {
+        let _ = self.states.get_or_init(|| {
+            phase_profile::scope("05.d.3.b.flow.build_state_mutation_summaries", || {
+                build_state_mutation_summaries(program, borrow, call_frames)
+            })
+        });
+    }
+}
+
 #[derive(Debug, Clone)]
 struct BuiltStateMutationSummaries {
     summaries: Vec<StateMutationSummary>,
@@ -196,9 +211,11 @@ fn state_mutation_summary<'cache>(
     state: &typed_trees::state::State,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<&'cache StateMutationSummary> {
-    let built = cache
-        .states
-        .get_or_init(|| build_state_mutation_summaries(program, borrow, call_frames));
+    let built = cache.states.get_or_init(|| {
+        phase_profile::scope("05.d.3.b.flow.build_state_mutation_summaries", || {
+            build_state_mutation_summaries(program, borrow, call_frames)
+        })
+    });
     let &index = built.index_by_state.get(&state.symbol)?;
     built.summaries.get(index).filter(|entry| entry.complete)
 }
@@ -208,56 +225,71 @@ fn build_state_mutation_summaries(
     borrow: &BorrowFacts,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> BuiltStateMutationSummaries {
-    let mut owned_frames = None;
-    let call_frames = crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames);
-    let mut states = Vec::with_capacity(borrow.states.len());
-    let mut borrow_states_for_summaries = Vec::with_capacity(borrow.states.len());
+    validation::checking_thread_pool().install(|| {
+        use rayon::prelude::*;
+        let mut owned_frames = None;
+        let call_frames =
+            crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames);
 
-    for borrow_state in borrow.states.iter().map(|(_, state)| state) {
-        let Some(state) = program.state_by_symbol(borrow_state.state_symbol) else {
-            continue;
-        };
-        let direct_writes = collect_state_mutation_summary_places(program, state, call_frames);
-        let direct_complete = direct_writes.is_some();
-        let writes = direct_writes.unwrap_or_default();
-        let complete = direct_complete
-            && state_has_concrete_body_signature(program, state)
-            && call_frames.is_some_and(|resolver| {
-                validation::find_state(program, state.symbol).is_some_and(|(machine, _)| {
-                    resolver
-                        .inferred_state_write_frame(machine, state)
-                        .is_complete()
-                })
+        let (mut states, borrow_states_for_summaries): (Vec<_>, Vec<_>) =
+            phase_profile::scope("05.d.3.b.flow.summaries.1_direct", || {
+                let borrow_state_refs: Vec<_> =
+                    borrow.states.iter().map(|(_, state)| state).collect();
+                borrow_state_refs
+                    .into_par_iter()
+                    .filter_map(|borrow_state| {
+                        let state = program.state_by_symbol(borrow_state.state_symbol)?;
+                        let direct_writes =
+                            collect_state_mutation_summary_places(program, state, call_frames);
+                        let direct_complete = direct_writes.is_some();
+                        let writes = direct_writes.unwrap_or_default();
+                        let complete = direct_complete
+                            && state_has_concrete_body_signature(program, state)
+                            && call_frames.is_some_and(|resolver| {
+                                validation::find_state(program, state.symbol).is_some_and(
+                                    |(machine, _)| {
+                                        resolver
+                                            .inferred_state_write_frame(machine, state)
+                                            .is_complete()
+                                    },
+                                )
+                            });
+                        Some((
+                            StateMutationSummary {
+                                state_symbol: state.symbol,
+                                held_writes: held_accesses(program, state, &writes),
+                                complete,
+                                writes,
+                            },
+                            borrow_state,
+                        ))
+                    })
+                    .unzip()
             });
-        states.push(StateMutationSummary {
-            state_symbol: state.symbol,
-            held_writes: held_accesses(program, state, &writes),
-            complete,
-            writes,
+
+        // The first summary for a symbol answers lookups, as the former linear
+        // search did.
+        let mut index_by_state: symbols::SymbolKeyMap<SymbolHandle, usize> =
+            symbols::SymbolKeyMap::default();
+        for (index, summary) in states.iter().enumerate() {
+            index_by_state.entry(summary.state_symbol).or_insert(index);
+        }
+
+        phase_profile::scope("05.d.3.b.flow.summaries.2_propagate", || {
+            propagate_state_mutation_summaries(
+                program,
+                borrow,
+                &borrow_states_for_summaries,
+                &index_by_state,
+                &mut states,
+                call_frames,
+            );
         });
-        borrow_states_for_summaries.push(borrow_state);
-    }
-
-    // The first summary for a symbol answers lookups, as the former linear
-    // search did.
-    let mut index_by_state: symbols::SymbolKeyMap<SymbolHandle, usize> =
-        symbols::SymbolKeyMap::default();
-    for (index, summary) in states.iter().enumerate() {
-        index_by_state.entry(summary.state_symbol).or_insert(index);
-    }
-
-    propagate_state_mutation_summaries(
-        program,
-        borrow,
-        &borrow_states_for_summaries,
-        &index_by_state,
-        &mut states,
-        call_frames,
-    );
-    BuiltStateMutationSummaries {
-        summaries: states,
-        index_by_state,
-    }
+        BuiltStateMutationSummaries {
+            summaries: states,
+            index_by_state,
+        }
+    })
 }
 
 fn propagate_state_mutation_summaries(
@@ -268,6 +300,7 @@ fn propagate_state_mutation_summaries(
     states: &mut [StateMutationSummary],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) {
+    use rayon::prelude::*;
     let owners: Vec<_> = states
         .iter()
         .map(|summary| {
@@ -276,35 +309,96 @@ fn propagate_state_mutation_summaries(
                 .map(|state| (state, machine_symbol_for_state(program, state)))
         })
         .collect();
-    // These are invocation-local dense summary positions, not durable symbol
-    // identities. Resolve each dependency once while retaining authored call order.
-    let calls: Vec<_> = states
-        .iter()
-        .zip(borrow_states)
-        .zip(&owners)
-        .map(|((state, borrow_state), owner)| {
-            borrow
-                .calls
-                .span_or_empty(borrow_state.calls)
+    // Pre- evaluate whether each caller state's parameters are exposed so
+    // `state_summary_exposes_place` is an O(1) slice check rather than
+    // repeating `machine_symbol_for_state` and `value_is_reference_free`
+    // on every write in every round.
+    let exposed_parameters: Vec<Vec<SymbolHandle>> = owners
+        .par_iter()
+        .map(|owner| {
+            let Some((caller_state, _)) = owner else {
+                return Vec::new();
+            };
+            program
+                .state_parameters(caller_state)
                 .iter()
-                .map(|call| {
-                    let run = owner.map_or(TargetRun::Whole, |(_, machine_symbol)| {
-                        target_run(program, machine_symbol, state.state_symbol, call)
-                    });
-                    // A declaration can own a state identity without owning a body.
-                    // Its admitted frame belongs to the shared resolver, not
-                    // the (necessarily incomplete) structured body summary.
-                    let body_summary = validation::find_state(program, call.target_symbol)
-                        .filter(|(machine, _)| machine.body_is_present)
-                        .and_then(|_| index_by_state.get(&call.target_symbol).copied());
-                    (call, body_summary, run)
+                .filter(|parameter| {
+                    program
+                        .primitive_type_reference(parameter.type_reference)
+                        .is_none()
+                        && call_frames.is_none_or(|frames| {
+                            !frames.value_is_reference_free(parameter.type_reference)
+                        })
                 })
-                .collect::<Vec<_>>()
+                .map(|parameter| parameter.symbol)
+                .collect()
         })
         .collect();
+    // These are invocation-local dense summary positions, not durable symbol
+    // identities. Resolve each dependency once while retaining authored call order.
+    let mut calls: Vec<_> = phase_profile::scope("05.d.3.b.flow.summaries.2a_calls", || {
+        (0..states.len())
+            .into_par_iter()
+            .map(|caller_index| {
+                let state = &states[caller_index];
+                let borrow_state = borrow_states[caller_index];
+                let owner = &owners[caller_index];
+                borrow
+                    .calls
+                    .span_or_empty(borrow_state.calls)
+                    .iter()
+                    .map(|call| {
+                        let run = owner.map_or(TargetRun::Whole, |(_, machine_symbol)| {
+                            target_run(program, machine_symbol, state.state_symbol, call)
+                        });
+                        // A declaration can own a state identity without owning a body.
+                        // Its admitted frame belongs to the shared resolver, not
+                        // the (necessarily incomplete) structured body summary.
+                        let body_summary = validation::find_state(program, call.target_symbol)
+                            .filter(|(machine, _)| machine.body_is_present)
+                            .and_then(|_| index_by_state.get(&call.target_symbol).copied());
+                        let call_site = owner.and_then(|(_, machine_symbol)| {
+                            find_call_site(
+                                program,
+                                machine_symbol,
+                                state.state_symbol,
+                                call.statement_index,
+                                call.call_ordinal,
+                            )
+                        });
+                        let has_builtin_coordinates =
+                            match (*owner, call_site.as_ref()) {
+                                (Some((_, machine_symbol)), Some(site)) => {
+                                    super::operand_coordinates::call_operands_have_builtin_coordinates(
+                                        program,
+                                        machine_symbol,
+                                        state.state_symbol,
+                                        site,
+                                    )
+                                }
+                                _ => false,
+                            };
+                        (
+                            call,
+                            body_summary,
+                            run,
+                            call_site,
+                            has_builtin_coordinates,
+                            Vec::<(
+                                (StorageRegion, WriteDestination),
+                                Option<Vec<MutationWrite>>,
+                            )>::new(),
+                            0usize,
+                            Vec::<usize>::new(),
+                        )
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect()
+    });
     let mut callers = vec![Vec::new(); states.len()];
     for (caller_index, dependencies) in calls.iter().enumerate() {
-        for (_, target_index, _) in dependencies {
+        for (_, target_index, _, _, _, _, _, _) in dependencies {
             if let Some(target_index) = target_index
                 && !callers[*target_index].contains(&caller_index)
             {
@@ -312,139 +406,297 @@ fn propagate_state_mutation_summaries(
             }
         }
     }
-    let mut dirty: Vec<_> = (0..states.len()).collect();
-    let mut next_dirty = Vec::new();
-    let mut scheduled = vec![false; states.len()];
-    let mut updates = Vec::new();
-    while !dirty.is_empty() {
+    let _loop_guard = phase_profile::guard("05.d.3.b.flow.summaries.2b_loop");
+    let mut dirty_mask = vec![true; states.len()];
+    let mut has_dirty = !states.is_empty();
+    while has_dirty {
+        phase_profile::count("05.d.3.b.flow.summaries.2b_rounds", 1);
         // Publish after the round: later callers must not observe this round's
         // additions early, which would change first-discovery write ordering.
-        for caller_index in dirty.drain(..) {
-            if !states[caller_index].complete {
-                continue;
-            }
-            let caller_symbol = states[caller_index].state_symbol;
-            let Some((caller_state, caller_machine)) = owners[caller_index] else {
-                continue;
-            };
-            let caller = &states[caller_index];
-            let mut additions = Vec::new();
-            let mut held_additions = vec![Vec::new(); caller.held_writes.len()];
-            let mut expose = |writes: Vec<MutationWrite>, held_writes: Vec<Vec<MutationWrite>>| {
-                let retain = |existing: &[MutationWrite],
-                              pending: &mut Vec<MutationWrite>,
-                              writes: Vec<MutationWrite>| {
-                    for write in writes {
-                        if state_summary_exposes_place(
-                            program,
-                            caller_state,
-                            &write.region,
-                            call_frames,
-                        )? && !existing.contains(&write)
-                            && !pending.contains(&write)
-                        {
-                            pending.push(write);
-                        }
-                    }
-                    Some(())
-                };
-                retain(&caller.writes, &mut additions, writes)?;
-                for ((held, pending), writes) in caller
-                    .held_writes
-                    .iter()
-                    .zip(&mut held_additions)
-                    .zip(held_writes)
-                {
-                    retain(&held.accesses, pending, writes)?;
+        let updates: Vec<_> = calls
+            .par_iter_mut()
+            .enumerate()
+            .filter_map(|(caller_index, caller_calls)| {
+                if !dirty_mask[caller_index] || !states[caller_index].complete {
+                    return None;
                 }
-                Some(())
-            };
-            let mut complete = true;
-            for (call, target_index, run) in &calls[caller_index] {
-                // Propagate the target's writes, not its unused authority.
-                // Signature ceilings remain the fallback for opaque calls.
-                let Some(target_index) = target_index else {
-                    // Signature-only calls are already admitted by the shared
-                    // frame law. Import that frame in caller coordinates; an
-                    // unresolved frame/origin must not become an empty summary.
-                    // The held run includes all of it, like any call's.
-                    let Some(writes) = super::shared_call_storage_regions(
-                        program,
-                        caller_machine,
-                        caller_symbol,
-                        borrow,
-                        call,
-                        call_frames,
-                    ) else {
+                let caller_symbol = states[caller_index].state_symbol;
+                let (caller_state, caller_machine) = owners[caller_index]?;
+                let caller_exposed_params = &exposed_parameters[caller_index];
+                let caller = &states[caller_index];
+                let mut additions = Vec::new();
+                let mut held_additions = vec![Vec::new(); caller.held_writes.len()];
+                let mut expose =
+                    |writes: Vec<MutationWrite>, held_writes: Vec<Vec<MutationWrite>>| {
+                        let retain = |existing: &[MutationWrite],
+                                      pending: &mut Vec<MutationWrite>,
+                                      writes: Vec<MutationWrite>| {
+                            for write in writes {
+                                let exposed = {
+                                    let declared =
+                                        matches!(write.region, StorageRegion::Declared(_));
+                                    match write.region.anchor().root.as_symbol() {
+                                        None => {
+                                            if !declared {
+                                                return None;
+                                            }
+                                            false
+                                        }
+                                        Some(root) if root == caller_machine => true,
+                                        Some(root) => {
+                                            if program
+                                                .state_parameters(caller_state)
+                                                .iter()
+                                                .any(|parameter| parameter.symbol == root)
+                                            {
+                                                !declared || caller_exposed_params.contains(&root)
+                                            } else {
+                                                if !declared {
+                                                    return None;
+                                                }
+                                                false
+                                            }
+                                        }
+                                    }
+                                };
+                                if exposed
+                                    && !existing.contains(&write)
+                                    && !pending.contains(&write)
+                                {
+                                    pending.push(write);
+                                }
+                            }
+                            Some(())
+                        };
+                        retain(&caller.writes, &mut additions, writes)?;
+                        for ((held, pending), writes) in caller
+                            .held_writes
+                            .iter()
+                            .zip(&mut held_additions)
+                            .zip(held_writes)
+                        {
+                            retain(&held.accesses, pending, writes)?;
+                        }
+                        Some(())
+                    };
+                let mut complete = true;
+                for (
+                    call,
+                    target_index,
+                    run,
+                    call_site,
+                    has_builtin_coordinates,
+                    inst_cache,
+                    seen_writes,
+                    seen_held,
+                ) in caller_calls.iter_mut()
+                {
+                    // Propagate the target's writes, not its unused authority.
+                    // Signature ceilings remain the fallback for opaque calls.
+                    let Some(target_index) = *target_index else {
+                        if *seen_writes > 0 {
+                            continue;
+                        }
+                        // Signature-only calls are already admitted by the shared
+                        // frame law. Import that frame in caller coordinates; an
+                        // unresolved frame/origin must not become an empty summary.
+                        // The held run includes all of it, like any call's.
+                        let Some(writes) = super::shared_call_storage_regions(
+                            program,
+                            caller_machine,
+                            caller_symbol,
+                            borrow,
+                            call,
+                            call_frames,
+                        ) else {
+                            complete = false;
+                            break;
+                        };
+                        let writes: Vec<_> = writes
+                            .into_iter()
+                            .map(|region| MutationWrite {
+                                region,
+                                requires_exclusive_access: true,
+                                destination: WriteDestination::Referent,
+                            })
+                            .collect();
+                        let held = vec![writes.clone(); caller.held_writes.len()];
+                        if expose(writes, held).is_none() {
+                            complete = false;
+                            break;
+                        }
+                        *seen_writes = 1;
+                        continue;
+                    };
+                    let target = &states[target_index];
+                    if !target.complete {
+                        complete = false;
+                        break;
+                    }
+                    let Some(call_site) = call_site.as_ref() else {
                         complete = false;
                         break;
                     };
-                    let writes: Vec<_> = writes
-                        .into_iter()
-                        .map(|region| MutationWrite {
-                            region,
-                            requires_exclusive_access: true,
-                            destination: WriteDestination::Referent,
-                        })
-                        .collect();
-                    let held = vec![writes.clone(); caller.held_writes.len()];
-                    if expose(writes, held).is_none() {
+                    let Some((target_state, _)) = owners[target_index] else {
+                        complete = false;
+                        break;
+                    };
+                    let prev_writes = *seen_writes;
+                    let new_writes = &target.writes[prev_writes.min(target.writes.len())..];
+                    let is_whole_run = matches!(run, TargetRun::Whole);
+                    if !is_whole_run && seen_held.len() < target.held_writes.len() {
+                        seen_held.resize(target.held_writes.len(), 0);
+                    }
+                    if new_writes.is_empty()
+                        && (is_whole_run
+                            || seen_held
+                                .iter()
+                                .zip(&target.held_writes)
+                                .all(|(&s, h)| s >= h.accesses.len()))
+                    {
+                        continue;
+                    }
+                    let has_builtin_coords = *has_builtin_coordinates;
+                    let call_ref = *call;
+                    let mut instantiate =
+                        |writes: &[MutationWrite], use_cache: bool| -> Option<Vec<MutationWrite>> {
+                            if !writes.is_empty() && !has_builtin_coords {
+                                return None;
+                            }
+                            let mut instantiated = Vec::new();
+                            for write in writes {
+                                if !use_cache {
+                                    let contributions =
+                                        instantiate_call_relative_writes_pre_resolved(
+                                            program,
+                                            caller_machine,
+                                            caller_symbol,
+                                            call_ref,
+                                            call_site,
+                                            has_builtin_coords,
+                                            target_state,
+                                            &write.region,
+                                            write.destination,
+                                            WritePlaceNamespace::Storage,
+                                            call_frames,
+                                        )?;
+                                    for contribution in contributions {
+                                        instantiated.push(MutationWrite {
+                                            region: contribution.region,
+                                            requires_exclusive_access: write
+                                                .requires_exclusive_access,
+                                            destination: write.destination,
+                                        });
+                                    }
+                                    continue;
+                                }
+                                let cached_index = inst_cache.iter().position(|((r, d), _)| {
+                                    r == &write.region && *d == write.destination
+                                });
+                                let contributions = match cached_index {
+                                    Some(idx) => inst_cache[idx].1.as_ref()?,
+                                    None => {
+                                        let computed =
+                                            instantiate_call_relative_writes_pre_resolved(
+                                                program,
+                                                caller_machine,
+                                                caller_symbol,
+                                                call_ref,
+                                                call_site,
+                                                has_builtin_coords,
+                                                target_state,
+                                                &write.region,
+                                                write.destination,
+                                                WritePlaceNamespace::Storage,
+                                                call_frames,
+                                            )
+                                            .map(|contributions| {
+                                                contributions
+                                                    .into_iter()
+                                                    .map(|contribution| MutationWrite {
+                                                        region: contribution.region,
+                                                        requires_exclusive_access: write
+                                                            .requires_exclusive_access,
+                                                        destination: write.destination,
+                                                    })
+                                                    .collect::<Vec<_>>()
+                                            });
+                                        inst_cache.push((
+                                            (write.region.clone(), write.destination),
+                                            computed,
+                                        ));
+                                        inst_cache.last().unwrap().1.as_ref()?
+                                    }
+                                };
+                                for item in contributions {
+                                    instantiated.push(MutationWrite {
+                                        region: item.region.clone(),
+                                        requires_exclusive_access: write.requires_exclusive_access,
+                                        destination: write.destination,
+                                    });
+                                }
+                            }
+                            Some(instantiated)
+                        };
+                    let Some(whole) = instantiate(new_writes, !is_whole_run) else {
+                        complete = false;
+                        break;
+                    };
+                    let held = if is_whole_run {
+                        vec![whole.clone(); caller.held_writes.len()]
+                    } else {
+                        let Some(held) = caller
+                            .held_writes
+                            .iter()
+                            .map(|incoming| {
+                                let loan = CanonicalPlace {
+                                    root: facts::PlaceRoot::Symbol(incoming.parameter),
+                                    segments: Vec::new(),
+                                };
+                                let selected: Vec<_> = run
+                                    .new_accesses(
+                                        program,
+                                        &target.writes,
+                                        prev_writes,
+                                        &target.held_writes,
+                                        seen_held,
+                                        Some(&loan),
+                                    )
+                                    .cloned()
+                                    .collect();
+                                instantiate(&selected, true)
+                            })
+                            .collect::<Option<Vec<_>>>()
+                        else {
+                            complete = false;
+                            break;
+                        };
+                        held
+                    };
+                    if expose(whole, held).is_none() {
                         complete = false;
                         break;
                     }
-                    continue;
-                };
-                let target = &states[*target_index];
-                if !target.complete {
-                    complete = false;
-                    break;
+                    *seen_writes = target.writes.len();
+                    if !is_whole_run {
+                        for (s, h) in seen_held.iter_mut().zip(&target.held_writes) {
+                            *s = h.accesses.len();
+                        }
+                    }
                 }
-                let instantiate = |writes: &[MutationWrite]| {
-                    instantiate_target_writes(
-                        program,
-                        caller_machine,
-                        caller_symbol,
-                        call,
-                        writes,
-                        call_frames,
-                    )
-                };
-                let Some(whole) = instantiate(&target.writes) else {
-                    complete = false;
-                    break;
-                };
-                let held = caller
-                    .held_writes
-                    .iter()
-                    .map(|incoming| {
-                        let loan = CanonicalPlace {
-                            root: facts::PlaceRoot::Symbol(incoming.parameter),
-                            segments: Vec::new(),
-                        };
-                        let selected: Vec<_> = run
-                            .accesses(program, &target.writes, &target.held_writes, Some(&loan))
-                            .cloned()
-                            .collect();
-                        instantiate(&selected)
-                    })
-                    .collect::<Option<Vec<_>>>();
-                let Some(held) = held else {
-                    complete = false;
-                    break;
-                };
-                if expose(whole, held).is_none() {
-                    complete = false;
-                    break;
+                if !complete
+                    || !additions.is_empty()
+                    || held_additions.iter().any(|pending| !pending.is_empty())
+                {
+                    Some((caller_index, complete, additions, held_additions))
+                } else {
+                    None
                 }
-            }
-            if !complete
-                || !additions.is_empty()
-                || held_additions.iter().any(|pending| !pending.is_empty())
-            {
-                updates.push((caller_index, complete, additions, held_additions));
-            }
-        }
-        for (caller_index, complete, additions, held_additions) in updates.drain(..) {
+            })
+            .collect();
+        dirty_mask.fill(false);
+        has_dirty = false;
+        for (caller_index, complete, additions, held_additions) in updates {
             let summary = &mut states[caller_index];
             summary.complete = complete;
             if complete {
@@ -457,50 +709,13 @@ fn propagate_state_mutation_summaries(
                 summary.held_writes.clear();
             }
             for &dependent in &callers[caller_index] {
-                if !scheduled[dependent] {
-                    scheduled[dependent] = true;
-                    next_dirty.push(dependent);
+                if !dirty_mask[dependent] {
+                    dirty_mask[dependent] = true;
+                    has_dirty = true;
                 }
             }
         }
-        next_dirty.sort_unstable();
-        for &caller_index in &next_dirty {
-            scheduled[caller_index] = false;
-        }
-        std::mem::swap(&mut dirty, &mut next_dirty);
     }
-}
-
-/// A target summary's writes in the caller's storage coordinates at `call`,
-/// in summary order. `None` when one cannot be placed.
-fn instantiate_target_writes(
-    program: &dyn ::validation::CheckingInput,
-    caller_machine_symbol: SymbolHandle,
-    caller_state_symbol: SymbolHandle,
-    call: &BorrowCallFact,
-    writes: &[MutationWrite],
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> Option<Vec<MutationWrite>> {
-    let mut instantiated = Vec::new();
-    for write in writes {
-        for contribution in instantiate_call_relative_writes(
-            program,
-            caller_machine_symbol,
-            caller_state_symbol,
-            call,
-            &write.region,
-            write.destination,
-            WritePlaceNamespace::Storage,
-            call_frames,
-        )? {
-            instantiated.push(MutationWrite {
-                region: contribution.region,
-                requires_exclusive_access: write.requires_exclusive_access,
-                destination: write.destination,
-            });
-        }
-    }
-    Some(instantiated)
 }
 
 fn machine_symbol_for_state(
@@ -677,6 +892,49 @@ fn instantiate_call_relative_writes(
     namespace: WritePlaceNamespace,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CallMutationWrite>> {
+    let call_site = find_call_site(
+        program,
+        caller_machine_symbol,
+        caller_state_symbol,
+        borrow_call.statement_index,
+        borrow_call.call_ordinal,
+    )?;
+    let has_builtin_coordinates = !matches!(namespace, WritePlaceNamespace::Storage)
+        || super::operand_coordinates::call_operands_have_builtin_coordinates(
+            program,
+            caller_machine_symbol,
+            caller_state_symbol,
+            &call_site,
+        );
+    let target_state = program.state_by_symbol(borrow_call.target_symbol)?;
+    instantiate_call_relative_writes_pre_resolved(
+        program,
+        caller_machine_symbol,
+        caller_state_symbol,
+        borrow_call,
+        &call_site,
+        has_builtin_coordinates,
+        target_state,
+        relative_region,
+        destination,
+        namespace,
+        call_frames,
+    )
+}
+
+fn instantiate_call_relative_writes_pre_resolved(
+    program: &dyn ::validation::CheckingInput,
+    caller_machine_symbol: SymbolHandle,
+    caller_state_symbol: SymbolHandle,
+    borrow_call: &BorrowCallFact,
+    call_site: &validation::CallSite<'_>,
+    has_builtin_coordinates: bool,
+    target_state: &typed_trees::state::State,
+    relative_region: &StorageRegion,
+    destination: WriteDestination,
+    namespace: WritePlaceNamespace,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Option<Vec<CallMutationWrite>> {
     let relative_place = relative_region.anchor();
     let attributed = |regions: Vec<StorageRegion>| {
         regions
@@ -688,29 +946,14 @@ fn instantiate_call_relative_writes(
             .collect()
     };
     let parameter_symbol = relative_place.root.as_symbol()?;
-    let call_site = find_call_site(
-        program,
-        caller_machine_symbol,
-        caller_state_symbol,
-        borrow_call.statement_index,
-        borrow_call.call_ordinal,
-    )?;
-    if matches!(namespace, WritePlaceNamespace::Storage)
-        && !super::operand_coordinates::call_operands_have_builtin_coordinates(
-            program,
-            caller_machine_symbol,
-            caller_state_symbol,
-            &call_site,
-        )
-    {
+    if matches!(namespace, WritePlaceNamespace::Storage) && !has_builtin_coordinates {
         return None;
     }
-    let target_state = program.state_by_symbol(borrow_call.target_symbol)?;
     let mut argument_index = 0usize;
 
     for parameter in program.state_parameters(target_state) {
         let base_place = {
-            let argument = call_site_argument_expressions(program, &call_site)
+            let argument = call_site_argument_expressions(program, call_site)
                 .get(argument_index)
                 .copied();
             argument_index = argument_index.saturating_add(1);
@@ -741,7 +984,7 @@ fn instantiate_call_relative_writes(
                     caller_state_symbol,
                     borrow_call.statement_index,
                     borrow_call.call_ordinal,
-                    &call_site,
+                    call_site,
                     argument_index.checked_sub(1)?,
                     parameter.type_reference,
                     &relative_place.segments,

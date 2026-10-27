@@ -74,6 +74,28 @@ impl Capture {
             .map_err(|error| format!("seal corpus artifact permissions: {error}"))
     }
 
+    /// Components are execution inputs even when the fixture requests no
+    /// description-count or publication-control oracle. Capture and replay
+    /// their exact bytes independently of those optional checks.
+    pub(super) fn observe_components(
+        &self,
+        report: &compilation_products::CompileReport,
+    ) -> Result<(), String> {
+        if let Some(provisions) = report.runtime_provisions() {
+            for (ordinal, product) in provisions.component_products().iter().enumerate() {
+                self.observe(
+                    &format!("component-{ordinal}.image"),
+                    product.image().image().contents(),
+                )?;
+                self.observe(
+                    &format!("component-{ordinal}.description"),
+                    product.description(),
+                )?;
+            }
+        }
+        Ok(())
+    }
+
     fn compare(&self, name: &str, bytes: &[u8]) -> Result<(), String> {
         let path = self.directory.join(name);
         let retained = fs::read(&path).map_err(|error| {

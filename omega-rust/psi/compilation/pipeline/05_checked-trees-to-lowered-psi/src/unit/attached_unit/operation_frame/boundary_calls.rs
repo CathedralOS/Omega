@@ -30,11 +30,11 @@ impl OperationFrame<'_, '_> {
     ) -> Result<(), LoweringError> {
         let operands = self.boundary_operands(identities, call, inputs)?;
         if let semantic_vocabulary::BoundaryCompletion::External(kind) = call.completion() {
-            if self.operations.external_completion.is_some() {
+            if self.operations.invocation_completion.is_some() {
                 return unsupported("one evaluation path cannot have two external completions");
             }
-            self.operations.external_completion = Some(
-                crate::emission::operation_emission::buffer::PendingExternalCompletion {
+            self.operations.invocation_completion = Some(
+                crate::emission::operation_emission::buffer::PendingInvocationCompletion {
                     coordinate: SourceCallCoordinate {
                         state: self.state,
                         statement_index: call.coordinate.statement_index as usize,
@@ -42,11 +42,13 @@ impl OperationFrame<'_, '_> {
                     },
                     source_site: call.source_site().flatten(),
                     target: call.target.machine,
-                    boundary: operands.boundary,
-                    kind,
-                    arguments: operands.arguments,
-                    structural_arguments: operands.structural_arguments,
-                    requirement_obligations: operands.requirement_obligations,
+                    frontier: Default::default(),
+                    outcome: crate::emission::operation_emission::buffer::PendingInvocationOutcome::External {
+                        boundary: operands.boundary, kind,
+                        arguments: operands.arguments,
+                        structural_arguments: operands.structural_arguments,
+                        requirement_obligations: operands.requirement_obligations,
+                    },
                 },
             );
             return Ok(());

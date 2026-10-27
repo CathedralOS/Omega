@@ -13,6 +13,7 @@ mod scalar_instructions;
 mod storage_instructions;
 
 use crate::LegalizationError;
+use crate::legalization::accepted_fact;
 use crate::legalization::scalar_graph_input;
 use semantic_vocabulary::IntegerValue;
 pub(super) fn project<'a, 'g>(
@@ -703,20 +704,7 @@ where
                 let accepted_fact = match region {
                     terminal_psi::ElementViewRegion::WholeCollection => None,
                     terminal_psi::ElementViewRegion::RepresentationBytes { obligation, .. } => {
-                        Some(
-                            unit.accepted_obligation_facts
-                                .iter()
-                                .find(|fact| {
-                                    fact.machine == optimized.machine
-                                        && fact.owner
-                                            == optimization_unit::PsiProvenance::Operation(
-                                                *psi_operation,
-                                            )
-                                        && fact.obligation == *obligation
-                                })
-                                .ok_or(Error::custody())?
-                                .identity,
-                        )
+                        Some(accepted_fact(unit, optimized, *psi_operation, *obligation)?)
                     }
                 };
                 LegalizedScalarInstructionKind::EstablishElementView {

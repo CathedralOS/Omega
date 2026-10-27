@@ -218,7 +218,13 @@ impl<'a> FloatObservations<'a> {
                             && call.authored_expression == expression
                     });
                 let call = calls.next()?;
-                if calls.next().is_some() || call.target_symbol != authored.target_symbol {
+                if calls.next().is_some()
+                    || call.target_symbol
+                        != validation::call_target_entry_symbol(
+                            self.program,
+                            validation::call_target_symbol(self.program, authored),
+                        )
+                {
                     return None;
                 }
                 let (callee, entry) =
@@ -242,13 +248,10 @@ impl<'a> FloatObservations<'a> {
                     else {
                         return None;
                     };
-                    if path.symbol != path.head_symbol
-                        || self
-                            .program
-                            .expression_table
-                            .name_path_members(path.members)
-                            .len()
-                            != 1
+                    if !self
+                        .program
+                        .expression_table
+                        .name_path_is_single_member(path)
                         || formal.is_some_and(|known| known != path.symbol)
                     {
                         return None;

@@ -856,6 +856,13 @@ fn scan_operation(
                 pending.unsummarized = true;
             }
         }
+        O::InvokeNoNormal {
+            callee,
+            structural_arguments,
+            ..
+        } => {
+            pending.push_call(context, machines, *callee, structural_arguments);
+        }
         O::Call { callee, .. } => {
             pending.push_call(context, machines, *callee, &[]);
         }

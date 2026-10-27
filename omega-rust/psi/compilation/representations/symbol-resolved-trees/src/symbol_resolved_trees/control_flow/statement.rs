@@ -243,6 +243,7 @@ pub enum TransitionTarget {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NamedTransitionTarget {
+    pub receiver_symbol: SymbolHandle,
     pub head_symbol: SymbolHandle,
     pub symbol: SymbolHandle,
     pub storage: NamedTransitionTargetStorage,
@@ -758,6 +759,7 @@ impl StatementTable {
                     members: self.insert_name_path_members(
                         source_statement_path_members.span_or_empty(named.path),
                     ),
+                    receiver_symbol: named.receiver_symbol,
                     head_symbol: named.head_symbol,
                     symbol: named.symbol,
                 },
@@ -928,6 +930,8 @@ pub enum TransitionTargetNode {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct TableNamePath {
+    /// Exact endpoint of the qualified prefix; zero for an unqualified target.
+    pub receiver_symbol: SymbolHandle,
     pub members: HandleSpan<DiagnosticName>,
     pub head_symbol: SymbolHandle,
     pub symbol: SymbolHandle,
@@ -1056,6 +1060,7 @@ mod tests {
         let path = source_statement_path_members.insert_many([DiagnosticName::generated("next")]);
         let statement = Statement::Transition(Transition {
             target: TransitionTarget::Named(NamedTransitionTarget {
+                receiver_symbol: Default::default(),
                 head_symbol: target_symbol,
                 symbol: target_symbol,
                 storage: NamedTransitionTargetStorage {

@@ -142,7 +142,8 @@ impl NativeExecutionScope {
                     AbstractOperation::EstablishNativeCodeLayout { machine, .. } => {
                         pending.push(*machine)
                     }
-                    AbstractOperation::Call { callee, .. } => pending.push(*callee),
+                    AbstractOperation::Call { callee, .. }
+                    | AbstractOperation::InvokeNoNormal { callee, .. } => pending.push(*callee),
                     AbstractOperation::CallStructural {
                         callee: AbstractCallTarget::Machine(callee),
                         ..

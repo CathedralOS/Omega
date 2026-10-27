@@ -232,12 +232,9 @@ impl ExpressionSymbolContext<'_, '_> {
             symbol_resolved_trees::expression::ExpressionNode::Cast(cast) => {
                 self.assign_expression_table_symbols(cast.value);
                 self.reassign_type_reference(cast.target_type);
-                crate::symbols::type_references::each_type_reference_handle(
-                    cast.semantic_domain_arguments,
-                    |handle| {
-                        self.reassign_type_reference(handle);
-                    },
-                );
+                for handle in cast.semantic_domain_arguments.handles() {
+                    self.reassign_type_reference(handle);
+                }
             }
             symbol_resolved_trees::expression::ExpressionNode::Call(call) => {
                 for argument in &call.machine_arguments {

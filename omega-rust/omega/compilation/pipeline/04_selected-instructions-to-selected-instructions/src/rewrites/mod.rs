@@ -215,7 +215,8 @@ pub use runtime_rematerialization::{
 
 pub use runtime_spill::{
     RuntimeSpillError, RuntimeSpillSpanPolicy, ValidatedRuntimeSpill, spill_selected_runtime_value,
-    spill_selected_runtime_value_with_crossing_status, spill_selected_runtime_value_with_span_policy,
+    spill_selected_runtime_value_with_crossing_status,
+    spill_selected_runtime_value_with_span_policy,
 };
 pub use runtime_split::{RuntimeSplitError, ValidatedRuntimeSplit, split_selected_runtime_value};
 pub(crate) use selected_lowering::enabled_pair_rules;
@@ -248,7 +249,7 @@ use optimization_core::{
     OptimizationPhaseSelections, OptimizationSelections, OptimizationWorkBudget,
 };
 use register_environment::ValidatedTargetRegisterEnvironment;
-use register_model::RegisterInstructionConstraint;
+use register_model::{RegisterClassId, RegisterInstructionConstraint, RegisterOperandAccess};
 use selected_instructions::{
     SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
     SelectedInstructionPlan, SelectedOperand, VirtualRegisterId,
@@ -324,6 +325,41 @@ pub(crate) fn charge_steps<E>(
         return Err(exceeded());
     }
     Ok(())
+}
+
+/// The target's integer copy row in the classes a rewrite moves a value
+/// between: exactly two operands — an untied, non-early-clobber `Use` at
+/// position 0 in the value's class and its `Def` at position 1 in the
+/// output's class — carrying no implicit unit traffic and no clobber. A row
+/// that is anything else would extend a value identity or destroy state no
+/// proof retired, so every rewrite that replaces a value with a copy reads
+/// this audit from here instead of restating it beside its own admission.
+pub(crate) fn integer_copy_row<'environment, E>(
+    environment: &'environment ValidatedTargetRegisterEnvironment,
+    value_class: RegisterClassId,
+    output_class: RegisterClassId,
+    mismatch: impl Fn() -> E,
+) -> Result<&'environment RegisterInstructionConstraint, E> {
+    let Some(row) = environment.constraint(environment.selected_keys().copy_i64) else {
+        return Err(mismatch());
+    };
+    if row.operands.len() != 2
+        || row.operands[0].operand != 0
+        || row.operands[0].access != RegisterOperandAccess::Use
+        || row.operands[0].class != value_class
+        || row.operands[1].operand != 1
+        || row.operands[1].access != RegisterOperandAccess::Def
+        || row.operands[1].class != output_class
+        || !row.implicit_uses.is_empty()
+        || !row.implicit_defs.is_empty()
+        || !row.clobbers.is_empty()
+        || row.operands.iter().any(|operand| {
+            operand.fixed_view.is_some() || operand.tied_to.is_some() || operand.early_clobber
+        })
+    {
+        return Err(mismatch());
+    }
+    Ok(row)
 }
 
 /// The cone-propagation bound every walked family's measured-step contract

@@ -121,6 +121,11 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
         // descriptor or owned operand continuation to complete.
         return invocation.structural_operands().is_empty().then(Vec::new);
     };
+    if !call.has_normal_continuation() {
+        // Preserve operand custody in the suspended caller. Absence of return
+        // grants neither descriptor death nor borrowed-storage restoration.
+        return Some(Vec::new());
+    }
     completion_phase("normal completion: operand descriptors");
     let mut completions = super::temporary_descriptors::completions(
         program,

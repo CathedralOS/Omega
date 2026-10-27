@@ -1,6 +1,6 @@
 //! Terminal identities and exact call-site ownership.
 
-use semantic_vocabulary::{BoundaryInvocationSite, EdgeId, OperationId};
+use semantic_vocabulary::{EdgeId, InvocationSite, OperationId};
 
 /// Ordered terminal-Psi sources refined into one target function.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -19,6 +19,7 @@ pub struct TerminalPsiProvenance {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CallSiteOwner {
     Operation(OperationId),
+    InvokeNoNormal(EdgeId),
     ExternalCompletion(EdgeId),
     CleanupAction { edge: EdgeId, action_ordinal: u32 },
 }
@@ -27,30 +28,35 @@ impl CallSiteOwner {
     pub const fn operation(self) -> Option<OperationId> {
         match self {
             Self::Operation(operation) => Some(operation),
-            Self::ExternalCompletion(_) | Self::CleanupAction { .. } => None,
+            Self::InvokeNoNormal(_) | Self::ExternalCompletion(_) | Self::CleanupAction { .. } => {
+                None
+            }
         }
     }
 
     pub const fn edge(self) -> Option<EdgeId> {
         match self {
             Self::Operation(_) => None,
-            Self::ExternalCompletion(edge) | Self::CleanupAction { edge, .. } => Some(edge),
+            Self::InvokeNoNormal(edge)
+            | Self::ExternalCompletion(edge)
+            | Self::CleanupAction { edge, .. } => Some(edge),
         }
     }
 
     pub const fn cleanup_action_ordinal(self) -> Option<u32> {
         match self {
-            Self::Operation(_) | Self::ExternalCompletion(_) => None,
+            Self::Operation(_) | Self::InvokeNoNormal(_) | Self::ExternalCompletion(_) => None,
             Self::CleanupAction { action_ordinal, .. } => Some(action_ordinal),
         }
     }
 }
 
-impl From<BoundaryInvocationSite> for CallSiteOwner {
-    fn from(site: BoundaryInvocationSite) -> Self {
+impl From<InvocationSite> for CallSiteOwner {
+    fn from(site: InvocationSite) -> Self {
         match site {
-            BoundaryInvocationSite::Operation(operation) => Self::Operation(operation),
-            BoundaryInvocationSite::ExternalCompletion(edge) => Self::ExternalCompletion(edge),
+            InvocationSite::InvokeNoNormal(edge) => Self::InvokeNoNormal(edge),
+            InvocationSite::Operation(operation) => Self::Operation(operation),
+            InvocationSite::ExternalCompletion(edge) => Self::ExternalCompletion(edge),
         }
     }
 }

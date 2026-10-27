@@ -55,6 +55,7 @@ pub(super) fn admit(
             // result accountant below checks its exact normal disposition;
             // an automatic-return scheduling flag does not classify a producer.
             CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { .. })
+            | CheckedUnitEffectOperationPlan::EvaluateStructuralValue { .. }
             // A view-subslice local owns nothing: its shared view ends
             // with the loan, on every selected edge alike.
             | checked_trees::byte_sequence_establishment_pattern!()
@@ -142,6 +143,9 @@ pub(super) fn admit(
                     CheckedUnitEffectOperationPlan::Call(call) => match (call.route(), call.result()) {
                         (_, CheckedUnitCallResult::Structural { .. }) => {
                             "state graph: operation custody: discarded structural result"
+                        }
+                        (CheckedUnitCallRoute::Boundary, CheckedUnitCallResult::NoNormal) => {
+                            "state graph: operation custody: no-normal invocation is not an opaque boundary completion"
                         }
                         (CheckedUnitCallRoute::Boundary, CheckedUnitCallResult::Unit) => {
                             "state graph: operation custody: boundary call arguments"
