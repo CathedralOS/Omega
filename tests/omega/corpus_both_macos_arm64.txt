@@ -1244,6 +1244,15 @@ pass/facts/foreign_nested_scalar_record_result_through_other_machine_exit built 
 pass/facts/foreign_nested_scalar_record_result_through_other_state_exit built 1508ms exit:0 interpreter-exit:0 interpreter:agrees @77f259b46d0d2da38796a9f00f6a350049c10d34
 pass/facts/foreign_nested_scalar_record_result_through_parameter_exit built 1487ms exit:0 interpreter-exit:0 interpreter:agrees @77f259b46d0d2da38796a9f00f6a350049c10d34
 pass/facts/foreign_nested_scalar_record_result_through_target_body_exit built 1607ms exit:0 interpreter-exit:0 interpreter:agrees @77f259b46d0d2da38796a9f00f6a350049c10d34
+pass/facts/foreign_owned_array_record_through_call_result_exit built 4809ms exit:0 interpreter-exit:0 interpreter:agrees @7b904dca0385e7b8bad014f6bcdbb0e65b1ac647
+pass/facts/foreign_owned_array_record_through_const_name_exit built 3801ms exit:0 interpreter-exit:0 interpreter:agrees @7b904dca0385e7b8bad014f6bcdbb0e65b1ac647
+pass/facts/foreign_owned_array_record_through_field_exit built 3851ms exit:0 interpreter-exit:0 interpreter:agrees @7b904dca0385e7b8bad014f6bcdbb0e65b1ac647
+pass/facts/foreign_owned_array_record_through_local_exit built 3855ms exit:0 interpreter-exit:0 interpreter:agrees @7b904dca0385e7b8bad014f6bcdbb0e65b1ac647
+pass/facts/foreign_owned_array_record_through_match_join_exit built 3898ms exit:0 interpreter-exit:0 interpreter:agrees @7b904dca0385e7b8bad014f6bcdbb0e65b1ac647
+pass/facts/foreign_owned_array_record_through_other_machine_exit built 3732ms exit:0 interpreter-exit:0 interpreter:agrees @7b904dca0385e7b8bad014f6bcdbb0e65b1ac647
+pass/facts/foreign_owned_array_record_through_other_state_exit built 3773ms exit:0 interpreter-exit:0 interpreter:agrees @7b904dca0385e7b8bad014f6bcdbb0e65b1ac647
+pass/facts/foreign_owned_array_record_through_parameter_exit built 3774ms exit:0 interpreter-exit:0 interpreter:agrees @7b904dca0385e7b8bad014f6bcdbb0e65b1ac647
+pass/facts/foreign_owned_array_record_through_target_body_exit built 3690ms exit:0 interpreter-exit:0 interpreter:agrees @7b904dca0385e7b8bad014f6bcdbb0e65b1ac647
 pass/facts/foreign_scalar_backing_through_call_result_exit built 898ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @db430d661cf1+wt
 pass/facts/foreign_scalar_backing_through_const_name_exit built 743ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @db430d661cf1+wt
 pass/facts/foreign_scalar_backing_through_field_exit built 734ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @db430d661cf1+wt

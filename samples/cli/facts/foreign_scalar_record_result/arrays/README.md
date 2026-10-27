@@ -79,7 +79,37 @@ applications. No symbol-specific adapter or implicit C pointer decay is added.
 The governing contracts are [boundary shapes](../../../../../wiki/spec/build/boundary_shapes.md),
 [foreign storage](../../../../../wiki/spec/build/foreign_storage.md), and
 [Terminal ownership](../../../../../wiki/spec/terminal-psi/ownership.md).
-This draft has no build, engine or host qualification yet. Existing flat and
-nested-record observations do not establish this fixed-array owned-value route.
+## Measured qualification
+
+Fixed baseline `eab58bf427c48063e3fcf597e4550ca53ac7cb8c` executes the frozen
+local program natively at zero while Terminal declines its record-only ABI
+admission. Optimized actual producer `7b904dca0385e7b8bad014f6bcdbb0e65b1ac647`
+executes the root and all nine places with native exit 0 and Terminal exit 0 on
+macOS ARM64. All ten Terminal artifacts pass canonical inspection; all nine
+copy-removal twins reject with `holds no value`. The real C self-test also
+rejects changed signed words and guard bytes.
+
+The affected comparison records 51 source outcomes and
+52 native/Terminal agreements with no lost baseline outcomes.
+All authored exit and output oracles hold. It includes flat/nested integer and
+floating foreign results, float classification, standard input, atomic case
+payloads and retained nested record/array calls. The affected Rust packages
+record 83 passing tests and one preexisting skip. New controls challenge exact
+indexed rosters, missing/duplicate/out-of-range paths, primitive restrictions,
+public element counts/classes/stride and semantic/public cycles.
+
+Publication uses the ordinary constructor storage transaction. Byte-array
+subtrees receive one byte backing, while arrays of records retain exact
+containing field/index paths. No opaque host identity supplies their contents.
+Schema validation visits empty element declarations and suppresses zero-leaf
+expansion. This does not establish bounded whole-pipeline empty-array storage:
+legacy codec preparation and nested empty-byte-array materialization can still
+scale with outer dimensions and remain unqualified performance acceptance.
+
+Bindings declare all four hosted targets; these runs credit macOS ARM64 only.
+Windows and both Linux targets remain under the parent acceptance. Existing
+flat/nested observations retain their original producers. See [the run record](qualification.json).
+Raw profiles, frozen inputs, exact C resources, engine outputs, canonical
+artifacts and qualification are retained in `build/owned-array-evidence`.
 Variants, reference arrays and independently qualified descendants remain open
 outside this row.
