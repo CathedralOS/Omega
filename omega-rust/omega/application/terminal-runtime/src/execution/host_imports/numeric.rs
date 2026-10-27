@@ -159,7 +159,9 @@ impl TerminalEffectHandler for NumericImport {
                     fields: sign
                         .map(|negative| {
                             vec![(
-                                classification.fields[ordinal - 1],
+                                vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+                                    classification.fields[ordinal - 1],
+                                )],
                                 TerminalScalarValue::Boolean(negative),
                             )]
                         })

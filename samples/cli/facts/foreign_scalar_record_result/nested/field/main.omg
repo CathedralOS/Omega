@@ -1,0 +1,43 @@
+// Fact: a copyable C quotient/remainder record preserves both signed fields and independent earlier-call contents through transport and copying into the consuming operation.
+// Expected exit: 0
+use omega::language::core::external_binding;
+public data Word [copy] { value: i64; }
+public data Division [copy] { quotient: Word; remainder: Word; }
+public boundary trait IntegerDivision {
+ machine divide(numerator: i64, denominator: i64) -> Division reaches;
+}
+public macos_arm64 machine macos_arm64_division_binding() -> ForeignBinding<32, 16, 0> {
+ ForeignBinding::DllImport { import: DllImport::MachODylibSymbol { install_name: "libomega_nesteddiv_fixture.dylib", symbol: "_nesteddiv_lldiv" } }
+}
+public linux_x86_64 machine linux_x86_64_division_binding() -> ForeignBinding<29, 15, 11> {
+ ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libomega_nesteddiv_fixture.so", symbol: "nesteddiv_lldiv", version: "NESTDIV_1.0" } }
+}
+public linux_arm64 machine linux_arm64_division_binding() -> ForeignBinding<29, 15, 11> {
+ ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libomega_nesteddiv_fixture.so", symbol: "nesteddiv_lldiv", version: "NESTDIV_1.0" } }
+}
+public windows_x86_64 machine windows_x86_64_division_binding() -> ForeignBinding<27, 15, 0> {
+ ForeignBinding::DllImport { import: DllImport::PeByName { library: "omega_nesteddiv_fixture.dll", export: "nesteddiv_lldiv" } }
+}
+public macos_arm64 boundary machine divide(numerator: i64, denominator: i64) -> Division satisfies IntegerDivision::divide via macos_arm64_division_binding();
+public linux_x86_64 boundary machine divide(numerator: i64, denominator: i64) -> Division satisfies IntegerDivision::divide via linux_x86_64_division_binding();
+public linux_arm64 boundary machine divide(numerator: i64, denominator: i64) -> Division satisfies IntegerDivision::divide via linux_arm64_division_binding();
+public windows_x86_64 boundary machine divide(numerator: i64, denominator: i64) -> Division satisfies IntegerDivision::divide via windows_x86_64_division_binding();
+
+machine consume(first: Division, copied: Division) -> bool reaches IntegerDivision {
+ let second: Division = divide(70000000000, 9);
+ first.quotient.value == -23333333333 && first.remainder.value == -1
+ && copied.quotient.value == -23333333333 && copied.remainder.value == -1
+ && second.quotient.value == 7777777777 && second.remainder.value == 7
+}
+machine receive(value: Division) -> bool reaches IntegerDivision { consume(value, value) }
+data Holder { value: Division; }
+machine observe() -> bool reaches IntegerDivision {
+ let holder: Holder = Holder { value: divide(-70000000000, 3) };
+ receive(holder.value)
+}
+
+machine main() reaches IntegerDivision crashes Trap {
+ transition observe() { true -> done() _ -> failed() }
+ machine done() {}
+ machine failed() crashes Trap { crash Trap; }
+}

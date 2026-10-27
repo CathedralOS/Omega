@@ -64,7 +64,7 @@ impl TerminalScalarCaseResult {
         let mut payload = Vec::new();
         let requested_bytes = count
             .checked_mul(std::mem::size_of::<(
-                semantic_vocabulary::StructuralFieldId,
+                Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
                 TerminalScalarValue,
             )>())
             .ok_or_else(crate::errors::malformed)?;
@@ -76,7 +76,13 @@ impl TerminalScalarCaseResult {
         })?;
         let mut fields = fields.into_iter();
         for _ in 0..count {
-            payload.push(fields.next().ok_or_else(crate::errors::malformed)??);
+            let (field, scalar) = fields.next().ok_or_else(crate::errors::malformed)??;
+            payload.push((
+                vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+                    field,
+                )],
+                scalar,
+            ));
         }
         if fields.next().is_some() {
             return Err(crate::errors::malformed());
@@ -86,7 +92,7 @@ impl TerminalScalarCaseResult {
             result_case: Some(case),
             fields: payload,
         };
-        value.validate_against(declaration)?;
+        value.validate_against(declaration, |_| None)?;
         Ok(Self {
             storage: std::sync::Arc::new(ScalarCaseStorage {
                 value,

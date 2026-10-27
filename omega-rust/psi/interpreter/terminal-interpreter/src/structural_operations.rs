@@ -58,7 +58,14 @@ impl TerminalExecution<'_> {
             result_case: Some(result_case),
             fields: fields
                 .iter()
-                .map(|binding| Ok((binding.field, self.scalar_value(binding.value)?)))
+                .map(|binding| {
+                    Ok((
+                        vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+                            binding.field,
+                        )],
+                        self.scalar_value(binding.value)?,
+                    ))
+                })
                 .collect::<Result<Vec<_>, TerminalInterpretError>>()?,
         };
         self.publish_scalar_aggregate(result, value)?;
@@ -89,6 +96,7 @@ impl TerminalExecution<'_> {
                 .structural_types()
                 .get(&result.structural_type)
                 .ok_or_else(malformed)?,
+            |identity| self.program.structural_types().get(&identity),
         )?;
         let value = TerminalStructuralValue::minted(
             self.local_structural_identities.allocate()?,
@@ -100,15 +108,28 @@ impl TerminalExecution<'_> {
         if let Some(selected) = aggregate.result_case {
             storage.stage_case(root.clone(), aggregate.structural_type, selected)?;
         }
-        for (field, scalar) in aggregate.fields {
+        for (path, scalar) in aggregate.fields {
+            let Some((semantic_vocabulary::CanonicalStructuralPathSegment::Field(field), parents)) =
+                path.split_last()
+            else {
+                return Err(malformed());
+            };
+            let mut parent = root.clone();
+            parent.path.extend(
+                terminal_semantics::canonical_structural_storage_path(
+                    self.program.structural_types().values(),
+                    result.structural_type,
+                    parents,
+                )
+                .ok_or_else(malformed)?,
+            );
+            let endpoint = if aggregate.result_case.is_some() {
+                StructuralScalarRuntimeField::case_payload(parent, *field)
+            } else {
+                StructuralScalarRuntimeField::member(parent, *field)
+            };
             storage.stage_scalar_endpoint(
-                &crate::primitive_storage::PrimitiveStorageEndpoint::ScalarField(
-                    if aggregate.result_case.is_some() {
-                        StructuralScalarRuntimeField::case_payload(root.clone(), field)
-                    } else {
-                        StructuralScalarRuntimeField::member(root.clone(), field)
-                    },
-                ),
+                &crate::primitive_storage::PrimitiveStorageEndpoint::ScalarField(endpoint),
                 scalar,
             )?;
         }
