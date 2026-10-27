@@ -253,6 +253,7 @@ pub enum RelocationFreeObjectDecodeError {
     InvalidObject(RelocationFreeObjectError),
 }
 
+optimization_core::take_error_from_adapter!(RelocationFreeObjectDecodeError);
 optimization_core::truncated_from_adapter!(RelocationFreeObjectDecodeError);
 
 /// The canonical target wire identity's three failures, each keeping this
@@ -807,7 +808,7 @@ fn decode_plan_content(
         name: cursor_string(cursor)?,
         alignment: cursor.u64()?,
         byte_count: cursor.u64()?,
-        bytes: cursor_bytes(cursor)?,
+        bytes: cursor.length_prefixed()?.to_vec(),
     };
     let symbol_policy_tag = cursor.byte()?;
     if symbol_policy_tag != 1 {
@@ -815,7 +816,7 @@ fn decode_plan_content(
             symbol_policy_tag,
         ));
     }
-    let symbol_count = cursor_length(cursor)?;
+    let symbol_count = cursor.length()?;
     let mut symbols = Vec::with_capacity(symbol_count);
     for _ in 0..symbol_count {
         let symbol = ObjectLocalSymbolId::new(cursor.u64()?)
@@ -852,7 +853,7 @@ fn decode_plan_content(
         MachineId::new(cursor.u64()?).ok_or(RelocationFreeObjectDecodeError::InvalidMachine)?;
     let semantic_entry_symbol = ObjectLocalSymbolId::new(cursor.u64()?)
         .ok_or(RelocationFreeObjectDecodeError::InvalidSymbolId)?;
-    let import_count = cursor_length(cursor)?;
+    let import_count = cursor.length()?;
     let mut normalized_imports = Vec::with_capacity(import_count);
     for _ in 0..import_count {
         let symbol = ObjectLocalSymbolId::new(cursor.u64()?)
@@ -868,7 +869,7 @@ fn decode_plan_content(
             name,
         });
     }
-    let field_count = cursor_length(cursor)?;
+    let field_count = cursor.length()?;
     let mut unresolved_normalized_foreign_calls = Vec::with_capacity(field_count);
     for _ in 0..field_count {
         let symbol = ObjectLocalSymbolId::new(cursor.u64()?)
@@ -892,7 +893,7 @@ fn decode_plan_content(
     if relocation_requirements
         == RelocationFreeObjectRelocationRequirements::UnresolvedObjectSymbolFieldsV1
     {
-        let address_count = cursor_length(cursor)?;
+        let address_count = cursor.length()?;
         unresolved_image_addresses.reserve(address_count);
         for _ in 0..address_count {
             unresolved_image_addresses.push(decode_image_address(cursor)?);
@@ -1008,7 +1009,7 @@ fn decode_machine_register(
 fn decode_placed_callback_materializations(
     cursor: &mut Cursor<'_>,
 ) -> Result<Vec<PlacedCallbackAddressMaterialization>, RelocationFreeObjectDecodeError> {
-    let count = cursor_length(cursor)?;
+    let count = cursor.length()?;
     let mut materializations = Vec::with_capacity(count);
     for _ in 0..count {
         let destination = match cursor.byte()? {
@@ -1069,17 +1070,8 @@ fn encode_bytes(output: &mut Vec<u8>, value: &[u8]) -> Result<(), RelocationFree
     Ok(())
 }
 
-fn cursor_length(cursor: &mut Cursor) -> Result<usize, RelocationFreeObjectDecodeError> {
-    usize::try_from(cursor.u64()?).map_err(|_| RelocationFreeObjectDecodeError::LengthOverflow)
-}
-
-fn cursor_bytes(cursor: &mut Cursor) -> Result<Vec<u8>, RelocationFreeObjectDecodeError> {
-    let length = cursor_length(cursor)?;
-    Ok(cursor.take(length)?.to_vec())
-}
-
 fn cursor_string(cursor: &mut Cursor) -> Result<String, RelocationFreeObjectDecodeError> {
-    String::from_utf8(cursor_bytes(cursor)?)
+    String::from_utf8(cursor.length_prefixed()?.to_vec())
         .map_err(|_| RelocationFreeObjectDecodeError::InvalidUtf8)
 }
 
