@@ -229,6 +229,9 @@ impl ProgramPrivateArrivalIndex {
 
 pub(crate) struct ClosedArrivals {
     pub(super) expected: Vec<Arrival>,
+    /// Exact executable owners retained by the call graph. Ambiguous state
+    /// membership disables only the optional immediate-caller proof frontier.
+    pub(super) caller_machine_indices: Option<Vec<usize>>,
     pub(super) cycle_entries: Vec<SymbolHandle>,
     pub(super) bodies: Vec<SymbolHandle>,
 }
@@ -270,10 +273,7 @@ fn compute_closed_arrivals(
     let Some(member_indices) = index.members_by_root.get(&root.symbol) else {
         return Err("the callable is not a private member of the enclosing declaration");
     };
-    let members: Vec<_> = member_indices
-        .iter()
-        .map(|&idx| &machines[idx])
-        .collect();
+    let members: Vec<_> = member_indices.iter().map(|&idx| &machines[idx]).collect();
     let destination = members
         .iter()
         .position(|member| member.symbol == callee.symbol)
@@ -284,7 +284,8 @@ fn compute_closed_arrivals(
     {
         return Err("the private declaration group has an exposed callable");
     }
-    let mut expected = Vec::new();
+    let mut expected_owners: Vec<(Arrival, usize)> = Vec::new();
+    let mut caller_ownership_is_unique = true;
     let mut edges = vec![Vec::new(); members.len()];
     let mut outside = Vec::new();
     let mut declared_entries = Vec::new();
@@ -316,12 +317,37 @@ fn compute_closed_arrivals(
                     statement: site.statement,
                     expression: site.expression,
                 };
-                if !expected.contains(&arrival) {
-                    expected.push(arrival);
+                if expected_owners.iter().any(|(prior, owner)| {
+                    prior.caller == arrival.caller && *owner != site.caller_machine_index
+                }) {
+                    caller_ownership_is_unique = false;
+                }
+                if !expected_owners.iter().any(|(prior, _)| *prior == arrival) {
+                    expected_owners.push((arrival, site.caller_machine_index));
                 }
             }
         }
     }
+    let mut expected = Vec::with_capacity(expected_owners.len());
+    let mut caller_machine_indices = Vec::new();
+    for (arrival, owner) in expected_owners {
+        // The graph carries the owner; validate uniqueness once while forming
+        // this cached plan rather than rebuilding ownership for each query.
+        if machines.iter().enumerate().any(|(other, machine)| {
+            other != owner
+                && program
+                    .machine_states(machine)
+                    .iter()
+                    .any(|state| state.symbol == arrival.caller)
+        }) {
+            caller_ownership_is_unique = false;
+        }
+        expected.push(arrival);
+        if !caller_machine_indices.contains(&owner) {
+            caller_machine_indices.push(owner);
+        }
+    }
+    let caller_machine_indices = caller_ownership_is_unique.then_some(caller_machine_indices);
     // Close backward over actual callers of the requested entry. A callback
     // that cannot reach it is independent; an escaping ancestor still matters.
     let mut needed = vec![false; members.len()];
@@ -362,14 +388,11 @@ fn compute_closed_arrivals(
     }
     let closed = target_symbols.iter().all(|symbol| {
         !index.unclosed_symbols.contains(symbol)
-            && index
-                .callable_use_owners
-                .get(symbol)
-                .is_none_or(|owners| {
-                    owners
-                        .iter()
-                        .all(|&owner| belongs_to(program, owner, root.symbol))
-                })
+            && index.callable_use_owners.get(symbol).is_none_or(|owners| {
+                owners
+                    .iter()
+                    .all(|&owner| belongs_to(program, owner, root.symbol))
+            })
     });
     if !closed {
         return Err("a private callable has a non-direct or out-of-scope use");
@@ -383,6 +406,7 @@ fn compute_closed_arrivals(
         .collect();
     Ok(ClosedArrivals {
         expected,
+        caller_machine_indices,
         cycle_entries,
         bodies,
     })
@@ -411,7 +435,12 @@ struct ProgramPrivateUses<'program> {
     owner_scopes: Vec<Option<SymbolHandle>>,
     pending_counts: symbols::SymbolKeyMap<SymbolHandle, usize>,
     seen_expressions: Vec<Vec<(Option<SymbolHandle>, ExpressionHandle)>>,
-    seen_types: Vec<Vec<(Option<SymbolHandle>, typed_trees::types::TypeReferenceHandle)>>,
+    seen_types: Vec<
+        Vec<(
+            Option<SymbolHandle>,
+            typed_trees::types::TypeReferenceHandle,
+        )>,
+    >,
     unclosed_symbols: SymbolSet,
     callable_use_owners: symbols::SymbolKeyMap<SymbolHandle, Vec<SymbolHandle>>,
 }

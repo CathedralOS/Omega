@@ -206,7 +206,8 @@ pub(super) fn fold_completed_values<FoldState: Clone>(
         },
         expression,
         reference,
-        fold,
+        fold: &fold,
+        succeeds: &succeeds,
         state: initial.clone(),
         complete: true,
         observed: false,
@@ -239,18 +240,20 @@ pub(super) fn fold_completed_values<FoldState: Clone>(
     universal
 }
 
-struct CompletedObservation<FoldState, Fold> {
+#[derive(Clone)]
+struct CompletedObservation<FoldState, Fold, Succeeds> {
     site: StructuralPrefixSite,
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
     fold: Fold,
+    succeeds: Succeeds,
     state: FoldState,
     complete: bool,
     observed: bool,
     halted: bool,
 }
 
-impl<FoldState, Fold> CompletedObservation<FoldState, Fold>
+impl<FoldState, Fold, Succeeds> CompletedObservation<FoldState, Fold, Succeeds>
 where
     Fold: Fn(&mut FoldState, Option<(&StructuralJudge<'_>, StructuralTerm)>) -> ControlFlow<()>,
 {
@@ -262,10 +265,16 @@ where
     }
 }
 
-impl<FoldState, Fold> StructuralPrefixVisitor for CompletedObservation<FoldState, Fold>
+impl<FoldState, Fold, Succeeds> StructuralPrefixVisitor
+    for CompletedObservation<FoldState, Fold, Succeeds>
 where
     Fold: Fn(&mut FoldState, Option<(&StructuralJudge<'_>, StructuralTerm)>) -> ControlFlow<()>,
+    Succeeds: Fn(&FoldState) -> bool,
 {
+    fn has_positive_proof(&self) -> bool {
+        self.complete && self.observed && !self.halted && (self.succeeds)(&self.state)
+    }
+
     fn site(&self) -> StructuralPrefixSite {
         self.site
     }

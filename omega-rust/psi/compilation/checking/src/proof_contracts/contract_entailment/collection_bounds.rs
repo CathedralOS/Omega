@@ -101,6 +101,7 @@ impl<'program> CollectionBoundsObservations<'program> {
     }
 }
 
+#[derive(Clone)]
 struct Bounds {
     site: StructuralPrefixSite,
     expression: ExpressionHandle,
@@ -109,6 +110,10 @@ struct Bounds {
 }
 
 impl StructuralPrefixVisitor for Bounds {
+    fn has_positive_proof(&self) -> bool {
+        self.seen && self.proven
+    }
+
     fn site(&self) -> StructuralPrefixSite {
         self.site
     }

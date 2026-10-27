@@ -24,12 +24,15 @@ pub(crate) struct Arrival {
     pub(crate) expression: Option<ExpressionHandle>,
 }
 
-pub(in crate::proof_contracts::contract_entailment) fn observe_private_arrivals(
+pub(in crate::proof_contracts::contract_entailment) fn observe_private_arrivals<Request>(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
-    requirement: &mut dyn StructuralPrefixVisitor,
+    requirement: &mut Request,
     case_facts_only: bool,
-) -> Option<bool> {
+) -> Option<bool>
+where
+    Request: StructuralPrefixVisitor + Clone,
+{
     let root = scope::lexical_root(program, machine)?;
     let arrivals = match scope::closed_arrivals(program, root, machine) {
         Ok(arrivals) => arrivals,
@@ -59,15 +62,83 @@ pub(in crate::proof_contracts::contract_entailment) fn observe_private_arrivals(
                 || arrivals.cycle_entries.contains(&candidate.symbol)
         })
         .collect::<Vec<_>>();
-    let boundaries = roots.iter().map(|root| root.symbol).collect::<Vec<_>>();
+    // Each recorded caller is a stored state in an exact executable
+    // application. Do not replace that identity with its source template or
+    // choose an arbitrary machine when storage membership is ambiguous.
+    let caller_roots = immediate_callers(program, &arrivals);
+    if let Some(caller_roots) = caller_roots
+        && !same_frontier(&caller_roots, &roots)
+        // Ranked mathematical induction retains the original lexical/cycle
+        // owner. The shortcut introduces only arbitrary runtime invocations.
+        && caller_roots
+            .iter()
+            .all(|caller| !classification.is_proof_machine(program, caller))
+    {
+        let mut trial = requirement.clone();
+        if observe_frontier(
+            program,
+            machine,
+            entry.symbol,
+            &caller_roots,
+            &mut trial,
+            case_facts_only,
+            &arrivals,
+        ) && trial.has_positive_proof()
+        {
+            *requirement = trial;
+            return Some(true);
+        }
+    }
+    Some(observe_frontier(
+        program,
+        machine,
+        entry.symbol,
+        &roots,
+        requirement,
+        case_facts_only,
+        &arrivals,
+    ))
+}
 
+fn immediate_callers<'program>(
+    program: &'program dyn crate::CheckingInput,
+    arrivals: &ClosedArrivals,
+) -> Option<Vec<&'program Machine>> {
+    let machines = program.machines();
+    let roots = arrivals
+        .caller_machine_indices
+        .as_ref()?
+        .iter()
+        .map(|&index| machines.get(index))
+        .collect::<Option<Vec<_>>>()?;
+    (!roots.is_empty()).then_some(roots)
+}
+
+fn same_frontier(left: &[&Machine], right: &[&Machine]) -> bool {
+    left.len() == right.len()
+        && left
+            .iter()
+            .all(|root| right.iter().any(|other| root.symbol == other.symbol))
+}
+
+fn observe_frontier(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    entry: SymbolHandle,
+    roots: &[&Machine],
+    requirement: &mut dyn StructuralPrefixVisitor,
+    case_facts_only: bool,
+    arrivals: &std::sync::Arc<ClosedArrivals>,
+) -> bool {
+    let classification = crate::proof_only_classification(program);
+    let boundaries = roots.iter().map(|root| root.symbol).collect::<Vec<_>>();
     let mut observer = ArrivalRequirement {
         requirement,
-        entry: entry.symbol,
-        root: root.symbol,
+        entry,
+        root: SymbolHandle::invalid(),
         observed: Vec::new(),
         boundaries,
-        closed: std::sync::Arc::clone(&arrivals),
+        closed: std::sync::Arc::clone(arrivals),
     };
     let mut diagnostics = Vec::new();
     let mut recognized = true;
@@ -77,7 +148,7 @@ pub(in crate::proof_contracts::contract_entailment) fn observe_private_arrivals(
     for arrival_root in roots {
         observer.root = arrival_root.symbol;
         let Some(root_entry) = program.machine_states(arrival_root).first() else {
-            return Some(false);
+            return false;
         };
         if !super::super::structural_case_arms::prefix_site_is_reachable(
             program, root_entry, &observer,
@@ -105,24 +176,22 @@ pub(in crate::proof_contracts::contract_entailment) fn observe_private_arrivals(
     }
     if super::super::struct_trace() {
         eprintln!(
-            "PRIVATE arrivals machine={} root={} recognized={} observed={} expected={} diagnostics={}",
+            "PRIVATE arrivals machine={} roots={} recognized={} observed={} expected={} diagnostics={}",
             machine.name,
-            root.name,
+            roots.len(),
             recognized,
             observer.observed.len(),
             arrivals.expected.len(),
             diagnostics.len()
         );
     }
-    Some(
-        recognized
-            && diagnostics.is_empty()
-            && !arrivals.expected.is_empty()
-            && arrivals
-                .expected
-                .iter()
-                .all(|arrival| observer.observed.contains(arrival)),
-    )
+    recognized
+        && diagnostics.is_empty()
+        && !arrivals.expected.is_empty()
+        && arrivals
+            .expected
+            .iter()
+            .all(|arrival| observer.observed.contains(arrival))
 }
 
 struct ArrivalRequirement<'query> {

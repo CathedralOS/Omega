@@ -409,6 +409,7 @@ fn structural_requirement_at_prefix(
     false
 }
 
+#[derive(Clone)]
 pub(super) struct CallRequirement<'program> {
     pub(super) state: SymbolHandle,
     pub(super) statement_index: usize,
@@ -426,6 +427,10 @@ pub(super) struct CallRequirement<'program> {
 }
 
 impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
+    fn has_positive_proof(&self) -> bool {
+        self.seen && self.proven
+    }
+
     fn site(&self) -> super::structural_prefix::StructuralPrefixSite {
         super::structural_prefix::StructuralPrefixSite {
             state: self.state,
