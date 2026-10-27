@@ -14,11 +14,11 @@ use crate::git::executable::selection::PrimaryGitSelection;
 use crate::git::git_command::reconciliation::{
     reconcile_git_cache_operation_result, reconcile_git_command_result,
 };
-use crate::git::objects::identity::is_object_id;
+use crate::git::objects::identity::{git_object_algorithm, is_object_id};
 use crate::git::request::GitSourceRequest;
 use crate::git::workspace::GitWorkspaceProjectionError;
 use crate::limits::LocalSourceLimits;
-use crate::observations::resolved::ResolvedGitSource;
+use crate::observations::resolved::{PendingResolvedGitSource, ResolvedGitSource};
 use cap_std::fs::Dir as CapabilityDirectory;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -26,7 +26,7 @@ use std::path::{Path, PathBuf};
 use super::exact_revision::GitExactRevisionAcquisition;
 use super::issuance::finalize_git_resolution;
 use super::materialization::GitMaterializedSource;
-use super::repository::resolve_verified_git_cache_entry;
+use super::repository::inspect_verified_git_cache_entry;
 use super::selection::GitRevisionSelection;
 
 pub(super) fn resolve_git_source_from_retained_cache<Evidence, PlannerError>(
@@ -47,6 +47,62 @@ pub(super) fn resolve_git_source_from_retained_cache<Evidence, PlannerError>(
         GitWorkspaceProjectionError<PlannerError>,
     >,
 ) -> Result<(ResolvedGitSource, Evidence), GitWorkspaceProjectionError<PlannerError>> {
+    with_git_repository_from_retained_cache(
+        primary_git,
+        package_controlled_roots,
+        request,
+        cache_dir,
+        cache_directory,
+        limits,
+        selection,
+        |executor, repository, commit, tree, limits| {
+            let materialized = materialize(executor, repository, tree, limits)?;
+            let pending = PendingResolvedGitSource {
+                requested_locator: request.requested_locator().to_owned(),
+                lineage: request.lineage().clone(),
+                locator_identity: request.locator_identity().to_owned(),
+                transport_profile: request.transport_profile(),
+                requested_rev: request.requested_revision().to_owned(),
+                object_format: git_object_algorithm(commit)?,
+                commit: commit.to_owned(),
+                tree: tree.to_owned(),
+                materialized_tree: materialized.materialized_tree,
+                snapshot_root: materialized.snapshot_root,
+                local: materialized.local,
+                workspace_projection: materialized.workspace_projection,
+                source_limits: limits,
+            };
+            Ok((pending, materialized.evidence))
+        },
+        |(pending, evidence), entry_lock, entry_root| {
+            let source = finalize_git_resolution(
+                pending, request, entry_lock, cache_dir, entry_root, limits,
+            )?;
+            Ok((source, evidence))
+        },
+    )
+}
+
+/// Authenticate a repository revision before deciding which source bytes to open.
+/// Every operation runs under the same bounded executor and retained cache lock;
+/// no caller receives a live repository handle or unverified object identity.
+pub(super) fn with_git_repository_from_retained_cache<Evidence, Output, PlannerError>(
+    primary_git: &PrimaryGitSelection,
+    package_controlled_roots: &[PathBuf],
+    request: &GitSourceRequest,
+    cache_dir: &Path,
+    cache_directory: &CapabilityDirectory,
+    limits: LocalSourceLimits,
+    selection: GitRevisionSelection<'_>,
+    inspect: impl FnOnce(
+        &GitExecutor,
+        &VerifiedGitRepository,
+        &str,
+        &str,
+        LocalSourceLimits,
+    ) -> Result<Evidence, GitWorkspaceProjectionError<PlannerError>>,
+    issue: impl FnOnce(Evidence, &CacheEntryLock, &Path) -> Result<Output, SourceResolveError>,
+) -> Result<Output, GitWorkspaceProjectionError<PlannerError>> {
     selection.validate_request(request)?;
     let execution_transport = request.execution_transport();
     let executor = GitExecutor::selected(
@@ -55,7 +111,7 @@ pub(super) fn resolve_git_source_from_retained_cache<Evidence, PlannerError>(
         limits,
         package_controlled_roots,
     )?;
-    let mut materialize = Some(materialize);
+    let mut inspect = Some(inspect);
     let result = (|| {
         let requested_rev = request.requested_revision();
         let locator_identity = request.locator_identity();
@@ -176,13 +232,11 @@ pub(super) fn resolve_git_source_from_retained_cache<Evidence, PlannerError>(
         }
 
         entry_lock.verify_path_identity()?;
-        let result = resolve_verified_git_cache_entry(
+        let result = inspect_verified_git_cache_entry(
             &executor,
             entry_lock.parent(),
             &entry_name,
             &entry_root,
-            request.requested_locator(),
-            request.lineage(),
             locator_identity,
             request.fetch_locator(),
             requested_rev,
@@ -191,26 +245,22 @@ pub(super) fn resolve_git_source_from_retained_cache<Evidence, PlannerError>(
             matches!(selection, GitRevisionSelection::Ordinary(None))
                 && (!cache_entry_existed || !is_object_id(requested_rev)),
             selection,
-            materialize
-                .take()
-                .expect("one Git resolution invokes one materializer"),
+            |executor, repository, commit, tree, limits| {
+                inspect
+                    .take()
+                    .expect("one Git acquisition invokes one inspection")(
+                    executor, repository, commit, tree, limits,
+                )
+            },
         );
         let namespace_result = entry_lock
             .verify_path_identity()
             .map_err(GitWorkspaceProjectionError::Source);
         match result {
-            Ok((pending, evidence)) => {
+            Ok(evidence) => {
                 namespace_result?;
-                let source = finalize_git_resolution(
-                    pending,
-                    request,
-                    &entry_lock,
-                    cache_dir,
-                    &entry_root,
-                    limits,
-                )
-                .map_err(GitWorkspaceProjectionError::Source)?;
-                Ok((source, evidence))
+                issue(evidence, &entry_lock, &entry_root)
+                    .map_err(GitWorkspaceProjectionError::Source)
             }
             Err(GitWorkspaceProjectionError::Source(error)) => {
                 // Failed transport does not revoke previously fetched source.
