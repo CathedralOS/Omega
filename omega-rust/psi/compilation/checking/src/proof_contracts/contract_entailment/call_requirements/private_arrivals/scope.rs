@@ -54,31 +54,13 @@ pub(super) fn closed_arrivals(
             machine.symbol != root.symbol && belongs_to(program, machine.symbol, root.symbol)
         })
         .collect();
-    if !members.iter().any(|member| member.symbol == callee.symbol)
-        || members.iter().any(|member| {
-            member.is_public
-                || member.target_family_interface
-                || !program.machine_trait_conformances(member).is_empty()
-        })
-    {
-        return Err("the private declaration group has an exposed callable");
-    }
-    let mut uses = PrivateUses {
-        program,
-        root: root.symbol,
-        members: members.iter().map(|member| member.symbol).collect(),
-        scopes: Vec::new(),
-        pending: Vec::new(),
-        expressions: Vec::new(),
-        types: Vec::new(),
-        closed: true,
-    };
-    typed_trees::references::visit_program(program.typed_program(), &mut uses);
-    if !uses.closed || !uses.pending.is_empty() {
-        return Err("a private callable has a non-direct or out-of-scope use");
-    }
+    let destination = members
+        .iter()
+        .position(|member| member.symbol == callee.symbol)
+        .ok_or("the callable is not a private member of the enclosing declaration")?;
     let mut expected = Vec::new();
     let mut edges = vec![Vec::new(); members.len()];
+    let mut outside = Vec::new();
     for caller in program.machines() {
         for state in program.machine_states(caller) {
             for (index, _) in program
@@ -88,10 +70,9 @@ pub(super) fn closed_arrivals(
                 for site in crate::machine_calls::calls::collect_call_sites_in_statement(
                     program, caller, state, index,
                 ) {
-                    let Some(target) = crate::machine_calls::calls::find_machine(
-                        program,
-                        site.target_symbol(program),
-                    ) else {
+                    let Some(target) =
+                        program.machine_by_own_or_state_symbol(site.target_symbol(program))
+                    else {
                         continue;
                     };
                     let Some(destination) = members
@@ -101,9 +82,7 @@ pub(super) fn closed_arrivals(
                         continue;
                     };
                     if !belongs_to(program, caller.symbol, root.symbol) {
-                        return Err(
-                            "a private callable has an arrival from outside its lexical group",
-                        );
+                        outside.push(destination);
                     }
                     if let Some(source) = members
                         .iter()
@@ -130,31 +109,84 @@ pub(super) fn closed_arrivals(
             }
         }
     }
-    // A declared enclosing entry is a fresh arbitrary invocation. Private
-    // cycles avoiding it would require an independently established invariant;
-    // the first observed arrival cannot justify subsequent iterations.
+    // Close backward over actual callers of the requested entry. A callback
+    // that cannot reach it is independent; an escaping ancestor still matters.
+    let mut needed = vec![false; members.len()];
+    needed[destination] = true;
+    loop {
+        let mut changed = false;
+        for (source, successors) in edges.iter().enumerate() {
+            if !needed[source] && successors.iter().any(|&successor| needed[successor]) {
+                needed[source] = true;
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    if outside.iter().any(|&destination| needed[destination]) {
+        return Err("a private callable has an arrival from outside its lexical group");
+    }
+    if members.iter().enumerate().any(|(index, member)| {
+        needed[index]
+            && (member.is_public
+                || member.target_family_interface
+                || !program.machine_trait_conformances(member).is_empty())
+    }) {
+        return Err("the private declaration group has an exposed callable");
+    }
+    let mut uses = PrivateUses {
+        program,
+        root: root.symbol,
+        members: members
+            .iter()
+            .enumerate()
+            .filter_map(|(index, member)| needed[index].then_some(member.symbol))
+            .collect(),
+        scopes: Vec::new(),
+        pending: Vec::new(),
+        expressions: Vec::new(),
+        types: Vec::new(),
+        closed: true,
+    };
+    typed_trees::references::visit_program(program.typed_program(), &mut uses);
+    if !uses.closed || !uses.pending.is_empty() {
+        return Err("a private callable has a non-direct or out-of-scope use");
+    }
+    // Cycles avoiding the declared enclosing entry need their own established
+    // invariant. The first observed arrival cannot justify later iterations.
     let mut incoming = vec![0usize; members.len()];
-    for successors in &edges {
+    for (_, successors) in edges
+        .iter()
+        .enumerate()
+        .filter(|(source, _)| needed[*source])
+    {
         for &successor in successors {
-            incoming[successor] += 1;
+            if needed[successor] {
+                incoming[successor] += 1;
+            }
         }
     }
     let mut ready: Vec<_> = incoming
         .iter()
         .enumerate()
-        .filter_map(|(index, &count)| (count == 0).then_some(index))
+        .filter_map(|(index, &count)| (needed[index] && count == 0).then_some(index))
         .collect();
     let mut visited = 0;
     while let Some(index) = ready.pop() {
         visited += 1;
         for &successor in &edges[index] {
+            if !needed[successor] {
+                continue;
+            }
             incoming[successor] -= 1;
             if incoming[successor] == 0 {
                 ready.push(successor);
             }
         }
     }
-    (visited == members.len())
+    (visited == needed.iter().filter(|&&needed| needed).count())
         .then_some(expected)
         .ok_or("a private call cycle avoids the enclosing declaration entry")
 }
@@ -182,7 +214,8 @@ impl PrivateUses<'_> {
         })
     }
     fn private_target(&self, symbol: SymbolHandle) -> bool {
-        crate::machine_calls::calls::find_machine(self.program, symbol)
+        self.program
+            .machine_by_own_or_state_symbol(symbol)
             .is_some_and(|machine| self.members.contains(&machine.symbol))
     }
     fn direct(&mut self, symbol: SymbolHandle) {

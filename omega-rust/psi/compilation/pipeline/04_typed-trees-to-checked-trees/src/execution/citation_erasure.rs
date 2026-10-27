@@ -15,6 +15,13 @@
 
 use checked_trees::CheckFacts;
 
+/// Source roots remain available to checking; execution consumers exclude the
+/// complete argument computation of these independently admitted citations.
+pub(crate) struct ErasedCitationStatement {
+    pub state: symbols::SymbolHandle,
+    pub statement_index: usize,
+}
+
 pub(crate) fn is_fact_only_citation(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
@@ -31,7 +38,8 @@ pub(crate) fn is_fact_only_citation(
 pub(crate) fn retire_fact_only_citations(
     program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,
-) {
+) -> Vec<ErasedCitationStatement> {
+    let mut erased = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for (statement_index, statement) in program
@@ -39,6 +47,10 @@ pub(crate) fn retire_fact_only_citations(
                 .indexed_statements(state.statement_nodes)
             {
                 if is_fact_only_citation(program, facts, statement) {
+                    erased.push(ErasedCitationStatement {
+                        state: state.symbol,
+                        statement_index,
+                    });
                     if let Some(theorem) = statement.as_call().and_then(|call| {
                         validation::fact_only_theorem(program, call.target_symbol, &|machine| {
                             facts
@@ -70,4 +82,5 @@ pub(crate) fn retire_fact_only_citations(
             }
         }
     }
+    erased
 }
