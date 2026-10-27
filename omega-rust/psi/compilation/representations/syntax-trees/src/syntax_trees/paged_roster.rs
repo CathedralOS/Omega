@@ -9,6 +9,9 @@
 /// Declare a paged-storage roster: the table struct, its append checkpoint and
 /// the five roster walks. `arena` members are paged arenas; `roster` members
 /// are nested rosters written the same way, whose walks this table delegates.
+/// List every `arena` member before the `roster` members: macro_rules matches
+/// the two groups in order. Field-level documentation lives on the table's
+/// struct doc: two attribute groups in one matcher are a local ambiguity.
 macro_rules! paged_roster {
     (
         $(#[$table_meta:meta])*

@@ -1,6 +1,6 @@
 use crate::identifier::Identifier;
 use crate::syntax_trees::paged_roster::paged_roster;
-use arena::{Handle, HandleSpan, PagedArenaSet as Arena};
+use arena::{Handle, HandleSpan};
 use language_core::operator_spelling::OperatorSpelling;
 
 pub type ItemHandle = Handle<Item>;
@@ -195,15 +195,17 @@ pub struct PackageDeclaration {
     pub path: HandleSpan<Identifier>,
 }
 
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
-pub struct ItemTable {
-    items: Arena<Item>,
-    /// Top-level `let`/`boundary let` declarations, kept beside `items` on
-    /// their own root collection until the separately owned resolution leg
-    /// admits them into `Item` dispatch.
-    mathematical_definitions: Arena<MathematicalDefinition>,
-    state_storage: StateStorage,
-    declaration_storage: DeclarationStorage,
+paged_roster! {
+    /// The item roster: `items`, the top-level `let`/`boundary let`
+    /// `mathematical_definitions` kept beside them on their own root collection
+    /// until the separately owned resolution leg admits them into `Item`
+    /// dispatch, and the state and declaration storages they point into.
+    pub struct ItemTable => pub(crate) ItemTableAppendCheckpoint {
+        arena items: Item,
+        arena mathematical_definitions: MathematicalDefinition,
+        roster state_storage: StateStorage => StateStorageAppendCheckpoint,
+        roster declaration_storage: DeclarationStorage => DeclarationStorageAppendCheckpoint,
+    }
 }
 
 paged_roster! {
@@ -240,65 +242,9 @@ paged_roster! {
     }
 }
 
-pub(crate) struct ItemTableAppendCheckpoint {
-    items: arena::PagedArenaFrontier<Item>,
-    mathematical_definitions: arena::PagedArenaFrontier<MathematicalDefinition>,
-    state_storage: StateStorageAppendCheckpoint,
-    declaration_storage: DeclarationStorageAppendCheckpoint,
-}
-
 impl ItemTable {
-    pub(crate) fn append_checkpoint(&self) -> ItemTableAppendCheckpoint {
-        ItemTableAppendCheckpoint {
-            items: self.items.frontier(),
-            mathematical_definitions: self.mathematical_definitions.frontier(),
-            state_storage: self.state_storage.append_checkpoint(),
-            declaration_storage: self.declaration_storage.append_checkpoint(),
-        }
-    }
-
-    pub(crate) fn rewind_appended(&mut self, checkpoint: ItemTableAppendCheckpoint) {
-        self.items.rewind_appended(checkpoint.items);
-        self.mathematical_definitions
-            .rewind_appended(checkpoint.mathematical_definitions);
-        self.state_storage.rewind_appended(checkpoint.state_storage);
-        self.declaration_storage
-            .rewind_appended(checkpoint.declaration_storage);
-    }
-
-    pub(crate) fn share_pages(&mut self) {
-        self.items.share_pages();
-        self.mathematical_definitions.share_pages();
-        self.state_storage.share_pages();
-        self.declaration_storage.share_pages();
-    }
-
     pub fn new() -> Self {
         Self::new_with_generation(1)
-    }
-
-    pub fn new_with_generation(generation: u32) -> Self {
-        Self {
-            items: Arena::with_generation(generation),
-            mathematical_definitions: Arena::with_generation(generation),
-            state_storage: StateStorage::new_with_generation(generation),
-            declaration_storage: DeclarationStorage::new_with_generation(generation),
-        }
-    }
-
-    pub(crate) fn adopt(&mut self, other: Self) {
-        self.items.adopt(other.items);
-        self.mathematical_definitions
-            .adopt(other.mathematical_definitions);
-        self.state_storage.adopt(other.state_storage);
-        self.declaration_storage.adopt(other.declaration_storage);
-    }
-
-    pub(crate) fn begin_page(&mut self, generation: u32) {
-        self.items.begin_page(generation);
-        self.mathematical_definitions.begin_page(generation);
-        self.state_storage.begin_page(generation);
-        self.declaration_storage.begin_page(generation);
     }
 
     pub(crate) fn page_count(&self) -> usize {
