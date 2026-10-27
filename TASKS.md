@@ -907,7 +907,9 @@ narrows realization only.
     checks at dependency activation admission without inheriting the root's
     slots (keeping required-output path byte results refused).
   - Carry foreign-helper Product query fixtures through ordinary dependency discovery,
-    not only pre-admitted package contexts.
+    not only pre-admitted package contexts. The old direct-import fixture shape
+    is retired by explicit readiness; shared non-core interface admission before
+    the first Build needs the decision in [Q2](OWNER_QUESTIONS.md#q2-shared-interfaces-known-before-the-first-build-activation).
   - **BUILD-EVALUATES-ONCE / ONE-DRIVER-PER-STAGE:** evaluate `build.omg` once
     per compilation with no realized target observed, run Psi `00–07` once in
     `compiler.rs` to produce one canonical Terminal Psi artifact, and run Omega
