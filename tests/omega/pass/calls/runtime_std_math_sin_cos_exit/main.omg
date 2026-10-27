@@ -17,20 +17,20 @@ machine Main::main(main: &mut Main) reaches Console {
     // sin(1) = 0.841470984807896507...
     let s: f64 = sin(1.0);
     transition s > 0.84147098480 && s < 0.84147098481 { true -> a(main) _ -> bad_s(main) }
-    state a(main: &mut Main) {
+    machine a(main: &mut Main) {
         // sin(10) = -0.544021110889...; 10 > pi exercises the ladder.
         let t: f64 = sin(10.0);
         transition t > 0.0 - 0.54402111089 && t < 0.0 - 0.54402111088 { true -> b(main) _ -> bad_t(main) }
     }
-    state b(main: &mut Main) {
+    machine b(main: &mut Main) {
         // cos(1) = 0.540302305868...
         let c: f64 = cos(1.0);
         transition c > 0.54030230586 && c < 0.54030230587 { true -> good(main) _ -> bad_c(main) }
     }
-    state good(main: &mut Main)  { Console::exit_process(70); }
-    state bad_s(main: &mut Main) { Console::exit_process(72); }
-    state bad_t(main: &mut Main) { Console::exit_process(73); }
-    state bad_c(main: &mut Main) { Console::exit_process(74); }
+    machine good(main: &mut Main)  { Console::exit_process(70); }
+    machine bad_s(main: &mut Main) { Console::exit_process(72); }
+    machine bad_t(main: &mut Main) { Console::exit_process(73); }
+    machine bad_c(main: &mut Main) { Console::exit_process(74); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

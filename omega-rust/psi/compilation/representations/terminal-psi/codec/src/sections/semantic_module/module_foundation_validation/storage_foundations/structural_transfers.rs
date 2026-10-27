@@ -105,18 +105,12 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     {
         return malformed("owned value transfer loses source memberships");
     }
-    let added = result
-        .qualifications
-        .iter()
-        .filter(|domain| !contract.qualifications.contains(domain))
-        .chain(
-            result
-                .projected_qualifications
-                .iter()
-                .filter(|row| !contract.projected_qualifications.contains(row))
-                .map(|row| &row.domain),
-        );
-    validate_transfer_domain_additions(module, added)
+    validate_transfer_domain_additions(
+        module,
+        &contract.qualifications,
+        &contract.projected_qualifications,
+        result,
+    )
 }
 
 /// Both owned moves and unrestricted captures can introduce memberships that
@@ -125,11 +119,23 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
 /// need the current source contract; copying cannot manufacture their origin.
 /// Source checking owns aliases and inherited restrictions: an empty direct
 /// route roster is not an independent proof of predicate-only establishment.
-fn validate_transfer_domain_additions<'domain>(
+fn validate_transfer_domain_additions(
     module: &TerminalModule,
-    added: impl Iterator<Item = &'domain semantic_vocabulary::StructuralDomainId>,
+    source: &[semantic_vocabulary::StructuralDomainId],
+    projected: &[terminal_psi::StructuralPathQualification],
+    result: &terminal_psi::StructuralOperationResult,
 ) -> Result<(), CodecError> {
-    for domain in added {
+    let additions = result
+        .qualifications
+        .iter()
+        .map(|domain| (&[][..], domain))
+        .chain(
+            result
+                .projected_qualifications
+                .iter()
+                .map(|row| (row.path.as_slice(), &row.domain)),
+        );
+    for (path, domain) in additions {
         let declaration = module
             .structural_domains
             .iter()
@@ -137,8 +143,18 @@ fn validate_transfer_domain_additions<'domain>(
             .ok_or(CodecError::MalformedStructuralFoundation(
                 "value transfer domain is absent",
             ))?;
-        if !declaration.establishment_routes.is_empty() {
-            return malformed("value transfer cannot establish a routed domain");
+        let (supplied, _) =
+            terminal_psi::StructuralPathQualification::select(source, projected, path);
+        let missing = declaration
+            .missing_membership_requirements(&module.structural_domains, &supplied)
+            .ok_or(CodecError::MalformedStructuralFoundation(
+                "value transfer has unknown prerequisites",
+            ))?;
+        if missing
+            .iter()
+            .any(|row| !row.establishment_routes.is_empty())
+        {
+            return malformed("value transfer cannot establish unsupplied routed prerequisites");
         }
     }
     Ok(())
@@ -262,17 +278,9 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
         };
         validate_transfer_domain_additions(
             module,
-            result
-                .qualifications
-                .iter()
-                .filter(|domain| !contract.qualifications.contains(domain))
-                .chain(
-                    result
-                        .projected_qualifications
-                        .iter()
-                        .filter(|row| !contract.projected_qualifications.contains(row))
-                        .map(|row| &row.domain),
-                ),
+            &contract.qualifications,
+            &contract.projected_qualifications,
+            result,
         )
         .inspect_err(|_| {
             if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {

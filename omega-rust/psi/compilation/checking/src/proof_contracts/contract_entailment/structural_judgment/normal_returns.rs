@@ -2606,6 +2606,24 @@ impl<'program> StructuralJudge<'program> {
                 owner_symbol(&owner),
             );
         }
+        if let (Some(captured), Some(result_presentation)) = (&captured, &result_presentation)
+            && let SelectedCallContract::Concrete(callee, selected_state) = &owner
+        {
+            equations.extend(self.returned_field_equations(
+                callee,
+                selected_state,
+                parameters,
+                actuals,
+                captured,
+            ));
+        }
+        for (left, right) in equations {
+            std::sync::Arc::make_mut(&mut self.captured_result_equations)
+                .push((left.clone(), right.clone()));
+            std::sync::Arc::make_mut(&mut self.normal_guarantees)
+                .push((left.clone(), right.clone()));
+            self.intake_equation(left, right, 0);
+        }
         if let (Some(captured), Some(result_presentation)) = (captured, result_presentation) {
             let result_type = result_presentation.type_reference;
             self.intake_admitted_value_predicates(result_type, captured.clone());
@@ -2619,25 +2637,9 @@ impl<'program> StructuralJudge<'program> {
                 result_presentation.parameters,
                 &result_presentation.bindings,
             );
-            if let SelectedCallContract::Concrete(callee, selected_state) = &owner {
-                equations.extend(self.returned_field_equations(
-                    callee,
-                    selected_state,
-                    parameters,
-                    actuals,
-                    &captured,
-                ));
-            }
             // A construction describes payload, never the identity or admission of
             // this call's result. Equal field geometry cannot merge linear roots.
             std::sync::Arc::make_mut(&mut self.normal_results).push((expression, captured));
-        }
-        for (left, right) in equations {
-            std::sync::Arc::make_mut(&mut self.captured_result_equations)
-                .push((left.clone(), right.clone()));
-            std::sync::Arc::make_mut(&mut self.normal_guarantees)
-                .push((left.clone(), right.clone()));
-            self.intake_equation(left, right, 0);
         }
         for guarantee in &case_guarantees {
             self.intake_case_guarantee(guarantee);

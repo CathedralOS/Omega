@@ -7,11 +7,16 @@ use semantic_vocabulary::{
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct StructuralDomainDeclaration {
+    /// Conjunctive same-subject requirements, resolved by semantic identity and
+    /// this exact carrier within the owning module. Unknown is not empty.
+    /// Local dense structural-domain IDs and foreign module coordinates are
+    /// never portable substitutes for these module-owned semantic coordinates.
+    pub required_memberships: Option<Vec<DomainSemanticId>>,
     /// Source-owned completeness of the retained predicate/issuer theory.
-    /// False keeps independent policies (roles, cleanup, aliases/refinements)
+    /// False keeps unrepresented policies (roles, cleanup, aliases)
     /// from being mistaken for an interchangeable cross-artifact membership.
     pub complete_predicate_theory: bool,
-    /// Complete closed predicate definition with its own declared formal subject.
+    /// Complete transitive value predicate with its own declared formal subject.
     /// None is opaque; a retained Truth is an explicitly empty predicate theory.
     pub predicate: Option<StructuralDomainPredicate>,
     pub id: StructuralDomainId,

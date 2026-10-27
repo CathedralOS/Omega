@@ -10,7 +10,7 @@ use crate::proof_contracts::arithmetic_domains::{
     OccurrenceValueEnvironments, ValueEnvironment, occurrence_value_environments,
 };
 use std::collections::HashSet;
-use std::sync::OnceLock;
+use std::sync::{Mutex, OnceLock};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -21,7 +21,7 @@ pub(super) struct ConstructionObservations<'program> {
     state: &'program State,
     construction_root: ExpressionHandle,
     environments: OnceLock<OccurrenceValueEnvironments>,
-    range_obligations: Option<std::cell::RefCell<Vec<checked_trees::IntegerRangeObligation>>>,
+    range_obligations: Option<Mutex<Vec<checked_trees::IntegerRangeObligation>>>,
 }
 
 impl<'program> ConstructionObservations<'program> {
@@ -53,14 +53,14 @@ impl<'program> ConstructionObservations<'program> {
         let Some(retained) = &self.range_obligations else {
             return false;
         };
-        retained.borrow_mut().extend(obligations);
+        retained.lock().unwrap().extend(obligations);
         true
     }
 
     pub(super) fn take_range_obligations(&self) -> Vec<checked_trees::IntegerRangeObligation> {
         self.range_obligations
             .as_ref()
-            .map(|rows| rows.take())
+            .map(|rows| std::mem::take(&mut *rows.lock().unwrap()))
             .unwrap_or_default()
     }
 

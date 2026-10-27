@@ -12921,24 +12921,23 @@ fail/facts/saved_case_predicate_through_target_body_rejected rejected 2918ms exp
 	machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
 	machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
 	machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
-fail/facts/saved_observation_snapshot_through_call_result_rejected rejected 1927ms expected @a92f16431042
+fail/facts/saved_observation_snapshot_through_call_result_rejected rejected 2253ms expected @386a5e718459+wt
 	cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_observation_snapshot_through_const_name_rejected rejected 1980ms expected @a92f16431042
+fail/facts/saved_observation_snapshot_through_const_name_rejected rejected 2004ms expected @386a5e718459+wt
 	cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_observation_snapshot_through_field_rejected rejected 1983ms expected @a92f16431042
+fail/facts/saved_observation_snapshot_through_field_rejected rejected 2095ms expected @386a5e718459+wt
 	cannot prove requires contract for call agree from main: note.observed == items[0] && note.observed == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_observation_snapshot_through_local_rejected rejected 1981ms expected @a92f16431042
+fail/facts/saved_observation_snapshot_through_local_rejected rejected 1989ms expected @386a5e718459+wt
 	cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_observation_snapshot_through_match_join_rejected rejected 1985ms expected @a92f16431042
-	cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_observation_snapshot_through_other_machine_rejected rejected 1966ms expected @a92f16431042
-	cannot prove ensures contract for exit from read_kept at statement 2: result == items[0] && result == 7
-	cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_observation_snapshot_through_other_state_rejected rejected 1813ms expected @a92f16431042
+fail/facts/saved_observation_snapshot_through_match_join_rejected rejected 1996ms expected @386a5e718459+wt
+	cannot prove requires contract for call agree from probe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/saved_observation_snapshot_through_other_machine_rejected rejected 2150ms expected @386a5e718459+wt
+	cannot prove ensures contract for exit from read_kept at statement 3: result == items[0] && result == 7
+fail/facts/saved_observation_snapshot_through_other_state_rejected rejected 2000ms expected @386a5e718459+wt
 	cannot prove requires contract for call check from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_observation_snapshot_through_parameter_rejected rejected 1819ms expected @a92f16431042
+fail/facts/saved_observation_snapshot_through_parameter_rejected rejected 1987ms expected @386a5e718459+wt
 	cannot prove requires contract for call agree from hold: observed == items[0] && observed == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_observation_snapshot_through_target_body_rejected rejected 1851ms expected @a92f16431042
+fail/facts/saved_observation_snapshot_through_target_body_rejected rejected 2088ms expected @386a5e718459+wt
 	cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -27470,15 +27469,15 @@ pass/facts/saved_case_predicate_through_other_machine_exit checked 5867ms check-
 pass/facts/saved_case_predicate_through_other_state_exit checked 5636ms check-target:macos_arm64 @2f6555324361
 pass/facts/saved_case_predicate_through_parameter_exit checked 5442ms check-target:macos_arm64 @2f6555324361
 pass/facts/saved_case_predicate_through_target_body_exit checked 5654ms check-target:macos_arm64 @2f6555324361
-pass/facts/saved_observation_snapshot_through_call_result_exit checked 5728ms check-target:macos_arm64 @a92f16431042
-pass/facts/saved_observation_snapshot_through_const_name_exit checked 4328ms check-target:macos_arm64 @a92f16431042
-pass/facts/saved_observation_snapshot_through_field_exit checked 6163ms check-target:macos_arm64 @a92f16431042
-pass/facts/saved_observation_snapshot_through_local_exit checked 4126ms check-target:macos_arm64 @a92f16431042
-pass/facts/saved_observation_snapshot_through_match_join_exit checked 5723ms check-target:macos_arm64 @a92f16431042
-pass/facts/saved_observation_snapshot_through_other_machine_exit checked 6914ms check-target:macos_arm64 @a92f16431042
-pass/facts/saved_observation_snapshot_through_other_state_exit checked 6333ms check-target:macos_arm64 @a92f16431042
-pass/facts/saved_observation_snapshot_through_parameter_exit checked 6102ms check-target:macos_arm64 @a92f16431042
-pass/facts/saved_observation_snapshot_through_target_body_exit checked 5267ms check-target:macos_arm64 @a92f16431042
+pass/facts/saved_observation_snapshot_through_call_result_exit checked 2751ms check-target:macos_arm64 @386a5e718459+wt
+pass/facts/saved_observation_snapshot_through_const_name_exit checked 2752ms check-target:macos_arm64 @386a5e718459+wt
+pass/facts/saved_observation_snapshot_through_field_exit checked 2735ms check-target:macos_arm64 @386a5e718459+wt
+pass/facts/saved_observation_snapshot_through_local_exit checked 2762ms check-target:macos_arm64 @386a5e718459+wt
+pass/facts/saved_observation_snapshot_through_match_join_exit checked 2758ms check-target:macos_arm64 @386a5e718459+wt
+pass/facts/saved_observation_snapshot_through_other_machine_exit checked 2740ms check-target:macos_arm64 @386a5e718459+wt
+pass/facts/saved_observation_snapshot_through_other_state_exit checked 2771ms check-target:macos_arm64 @386a5e718459+wt
+pass/facts/saved_observation_snapshot_through_parameter_exit checked 2817ms check-target:macos_arm64 @386a5e718459+wt
+pass/facts/saved_observation_snapshot_through_target_body_exit checked 2475ms check-target:macos_arm64 @386a5e718459+wt
 pass/facts/scalar_boundary_parameter_through_call_result_exit checked 5953ms check-target:macos_arm64 @a92f16431042
 pass/facts/scalar_boundary_parameter_through_const_name_exit checked 5620ms check-target:macos_arm64 @a92f16431042
 pass/facts/scalar_boundary_parameter_through_field_exit checked 3873ms check-target:macos_arm64 @a92f16431042

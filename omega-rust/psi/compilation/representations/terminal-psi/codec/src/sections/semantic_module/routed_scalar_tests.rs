@@ -60,6 +60,7 @@ fn module() -> TerminalModule {
         .scalar_qualifications
         .domains
         .push(ScalarDomainDeclaration {
+            required_memberships: Some(Vec::new()),
             id: domain,
             semantic_domain: DomainSemanticId::new(1).unwrap(),
             identity: TerminalIdentityIndex(4),

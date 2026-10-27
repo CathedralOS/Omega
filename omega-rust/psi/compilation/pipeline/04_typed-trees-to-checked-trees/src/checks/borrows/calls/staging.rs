@@ -74,18 +74,7 @@ impl InvocationBoundary {
                 _ => false,
             }
         });
-        let identity = match site {
-            validation::CallSite::Expression { expression, .. } => {
-                InvocationIdentity::Expression(expression)
-            }
-            validation::CallSite::Statement(_) => InvocationIdentity::Statement,
-            validation::CallSite::TransitionNamed { .. } => {
-                let Some(target) = target else {
-                    return None;
-                };
-                InvocationIdentity::Transition(target)
-            }
-        };
+        let identity = InvocationIdentity::from_call_site(site, target)?;
         let occurrences = crate::checks::ownership_occurrences::statement_steps(
             program,
             machine,

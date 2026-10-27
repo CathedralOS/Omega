@@ -1,0 +1,9 @@
+// Expected native admission rejection: raw host cannot grant another issuer's result.
+use producer::main;
+machine main() reaches UncheckedFactory, AddressParts crashes Trap {
+ let address: InternetAddress in Classified::Ready = UncheckedFactory::make(10, 66051);
+ let host: u32 = AddressParts::host(address as InternetAddress);
+ transition host == 66051 { true -> done() _ -> failed() }
+ state done() {}
+ state failed() { crash Trap; }
+}

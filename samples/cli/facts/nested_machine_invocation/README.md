@@ -73,6 +73,12 @@ each admitted body, including fused callees. A value cast reading the counter
 must not be confused with embedding a reference as a mathematical integer.
 This is the control for the shared console adapters' nested-machine migration.
 
+[Copied payload](copied_payload/main.omg) passes a case's copied scalar into a
+nested helper that mutates the original case. The copied observation ends before
+the invocation; the [reject twin](copied_payload/invalid/main.omg) instead retains
+a shared reference and must still reject overlapping mutation. The source
+customer is the standard permissions adapter's nested-machine migration.
+
 The row establishes static binder identity, explicit argument composition,
 result checking, continuation, and end-to-end erasure/realization for these
 calls. All four hosted target bindings are authored; executable observations

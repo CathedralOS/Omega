@@ -52,6 +52,10 @@ pub struct ScalarFieldQualification {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScalarDomainDeclaration {
+    /// Exact conjunctive dependencies on the same scalar carrier. Each edge
+    /// resolves within this module's semantic-domain namespace, independently
+    /// of the scalar and structural catalogs' dense declaration IDs.
+    pub required_memberships: Option<Vec<DomainSemanticId>>,
     /// Complete predicate component, in a domain-local scalar namespace.
     /// It states an obligation, never an assumption establishing membership.
     pub predicate: Option<ScalarDomainPredicate>,

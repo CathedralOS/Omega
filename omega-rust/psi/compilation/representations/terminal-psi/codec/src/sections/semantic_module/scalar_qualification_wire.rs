@@ -22,6 +22,10 @@ pub(crate) fn encode(
     for domain in &catalog.domains {
         writer.id(domain.id);
         writer.id(domain.semantic_domain);
+        super::module_wire::declaration_wire::encode_required_memberships(
+            writer,
+            &domain.required_memberships,
+        )?;
         writer.u32(domain.identity.0);
         encode_scalar_type(writer, domain.carrier);
         writer.boolean(domain.predicate.is_some());
@@ -113,6 +117,8 @@ pub(crate) fn decode(reader: &mut Reader<'_>) -> Result<ScalarQualificationCatal
             Ok(ScalarDomainDeclaration {
                 id: reader.id("ScalarDomainId")?,
                 semantic_domain: reader.id("DomainSemanticId")?,
+                required_memberships:
+                    super::module_wire::declaration_wire::decode_required_memberships(reader)?,
                 identity: TerminalIdentityIndex(reader.u32()?),
                 carrier: decode_scalar_type(reader)?,
                 predicate: if reader.boolean()? {

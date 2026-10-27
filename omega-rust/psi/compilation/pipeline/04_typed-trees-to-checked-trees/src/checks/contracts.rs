@@ -198,6 +198,20 @@ pub(super) fn check_flow_call_contracts(
                 });
             }
         }
+        // Formation decides each value's qualification before return admission
+        // consumes it. The target of a cast is an obligation; only this walk's
+        // completed operand judgment can supply a qualification on its result.
+        phase_profile::scope("05.d.7.3b.3.writes", || {
+            check_domain_field_writes(
+                program,
+                facts,
+                &constructor_memberships,
+                state_flow,
+                call_frames,
+                &mut value_qualifications,
+                &mut diagnostics,
+            );
+        });
         for exit_flow in facts.flow.control.exits.span_or_empty(state_flow.exits) {
             let _s = phase_profile::guard("05.d.7.3b.2.exits");
             if has_activation_claim {
@@ -251,6 +265,7 @@ pub(super) fn check_flow_call_contracts(
                     state_flow,
                     exit_flow,
                     call_frames,
+                    &value_qualifications,
                     &mut diagnostics,
                 )
             });
@@ -277,19 +292,6 @@ pub(super) fn check_flow_call_contracts(
             }
             diagnostics.extend(reported);
         }
-        // #66 write-enforcement: every assignment into a domain-refined field must
-        // establish the value in that domain (the soundness floor for trusting the
-        // field's declared domain on read).
-        let _s = phase_profile::guard("05.d.7.3b.3.writes");
-        check_domain_field_writes(
-            program,
-            facts,
-            &constructor_memberships,
-            state_flow,
-            call_frames,
-            &mut value_qualifications,
-            &mut diagnostics,
-        );
     }
 
     if diagnostics.is_empty() {
