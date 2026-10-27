@@ -411,11 +411,6 @@ pub(super) fn validate(
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
     let (expected_blocks, expected_provenance) = expected_accounting(function, &patch.reads)?;
-    if candidate.affected_blocks() != expected_blocks
-        || candidate.provenance() != expected_provenance
-    {
-        return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
-    }
 
     let folded = patch
         .reads

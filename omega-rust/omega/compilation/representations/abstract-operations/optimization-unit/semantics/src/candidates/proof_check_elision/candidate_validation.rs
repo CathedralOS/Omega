@@ -257,11 +257,6 @@ pub(crate) fn validate_proof_certified_scalar_identity_candidate(
     let (expected_blocks, accepted_provenance) =
         reconstruct_proof_certified_scalar_identity_accounting(function, patch)
             .ok_or(OptimizationUnitValidationError::CandidateProvenanceMismatch)?;
-    if candidate.affected_blocks() != expected_blocks
-        || candidate.provenance() != accepted_provenance
-    {
-        return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
-    }
 
     accept_region_rewrite(
         input,

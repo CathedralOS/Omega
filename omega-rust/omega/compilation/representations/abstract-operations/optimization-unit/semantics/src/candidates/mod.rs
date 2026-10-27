@@ -7,7 +7,8 @@
 //! by rule before patch shape, because its rewrites reuse the scalar patch
 //! shapes of other families. Each family module owns its validator and
 //! replay; `accept_region_rewrite` owns the one acceptance tail they share —
-//! clone, land, rebuild the derived surfaces, hold the region, issue — and
+//! compare the claimed region accounting against the replayed one, clone,
+//! land, rebuild the derived surfaces, hold the region, issue — and
 //! `rewrite_accounting` reconstructs provenance and custody for all of
 //! them, `observation` the closed scalar observation boundaries, and
 //! `structural_bindings` the block-parameter bindings replays may forward
@@ -365,8 +366,9 @@ pub(crate) fn canonicalize_provenance(rows: &mut [ProvenanceRewrite]) {
     rows.sort_by_key(ProvenanceRewrite::canonical_sort_key);
 }
 
-/// Accept one family's rewrite of `machine`'s region: clone the admitted
-/// input, let the family land its nodes on the clone, replay the shared
+/// Accept one family's rewrite of `machine`'s region: hold the candidate's
+/// claimed region accounting against the replayed one it was handed, clone the
+/// admitted input, let the family land its nodes on the clone, replay the shared
 /// output tail (derived surfaces rebuilt, identity refreshed, whole unit
 /// re-validated), then hold the rewrite inside its region — every input
 /// block the family's accounting did not name stays byte-exact and every
@@ -381,6 +383,9 @@ pub(crate) fn accept_region_rewrite(
     provenance: Vec<ProvenanceRewrite>,
     rewrite: impl FnOnce(&mut PsiOptimizationUnit) -> Result<(), OptimizationUnitValidationError>,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
+    if candidate.affected_blocks() != expected_blocks || candidate.provenance() != provenance {
+        return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
+    }
     let input_function = candidate_function(input, machine)?;
     let mut output = input.clone();
     rewrite(&mut output)?;

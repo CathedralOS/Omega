@@ -310,11 +310,6 @@ pub(super) fn validate(
     expected_blocks.sort_unstable();
     expected_blocks.dedup();
     let expected_provenance = accepted_provenance(function, &patch.memberships)?;
-    if candidate.affected_blocks() != expected_blocks
-        || candidate.provenance() != expected_provenance
-    {
-        return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
-    }
 
     let folded = patch
         .memberships

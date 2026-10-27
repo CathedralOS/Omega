@@ -293,11 +293,6 @@ pub(super) fn validate_phi_translated_scalar_common_subexpression_candidate(
     let (expected_blocks, accepted_provenance) =
         reconstruct_phi_translated_cse_accounting(function, &patch)
             .ok_or(OptimizationUnitValidationError::CandidateProvenanceMismatch)?;
-    if candidate.affected_blocks() != expected_blocks
-        || candidate.provenance() != accepted_provenance
-    {
-        return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
-    }
 
     accept_region_rewrite(
         input,

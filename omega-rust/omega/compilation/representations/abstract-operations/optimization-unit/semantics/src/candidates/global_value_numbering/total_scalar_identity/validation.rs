@@ -106,9 +106,6 @@ pub(crate) fn validate_total_scalar_identity_candidate(
     let (affected_blocks, provenance) =
         reconstruct_total_scalar_identity_accounting(function, patch)
             .ok_or(OptimizationUnitValidationError::CandidateProvenanceMismatch)?;
-    if candidate.affected_blocks() != affected_blocks || candidate.provenance() != provenance {
-        return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
-    }
     independently_apply_total_scalar_identity(
         input,
         candidate,

@@ -690,11 +690,6 @@ pub(super) fn validate(
     expected_blocks.sort_unstable();
     expected_blocks.dedup();
     let expected_provenance = accepted_provenance(function, patch.machine, &patch.edges)?;
-    if candidate.affected_blocks() != expected_blocks
-        || candidate.provenance() != expected_provenance
-    {
-        return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
-    }
 
     // Rows sharing one predecessor site — both constant arms of one
     // conditional — fold into a single node reconstruction; applied

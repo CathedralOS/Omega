@@ -95,11 +95,6 @@ pub(super) fn validate(
     let (expected_blocks, accepted_provenance) =
         reconstruct_adjacent_merge_accounting(function, patch, &substitutions)
             .ok_or(OptimizationUnitValidationError::CandidateProvenanceMismatch)?;
-    if candidate.affected_blocks() != expected_blocks
-        || candidate.provenance() != accepted_provenance
-    {
-        return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
-    }
 
     accept_region_rewrite(
         input,

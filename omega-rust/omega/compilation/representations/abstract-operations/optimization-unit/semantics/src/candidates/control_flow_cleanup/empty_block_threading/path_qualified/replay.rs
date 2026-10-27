@@ -111,11 +111,6 @@ pub(super) fn validate(
     let (expected_blocks, accepted_provenance) =
         reconstruct_path_thread_accounting(function, patch.empty, &incoming_edges)
             .ok_or(OptimizationUnitValidationError::CandidateProvenanceMismatch)?;
-    if candidate.affected_blocks() != expected_blocks
-        || candidate.provenance() != accepted_provenance
-    {
-        return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
-    }
 
     let outgoing_edge = empty_node
         .edge(patch.outgoing_edge)
