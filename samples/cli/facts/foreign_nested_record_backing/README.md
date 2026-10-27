@@ -23,7 +23,7 @@ This row exercises the recursive original-backing codec. Candidate `f0c9d9694a74
 - Omega 03–06: materialized original storage and its nested scalar remain stable across registration, custody transport and completion; separate calls cannot replace that backing with independent snapshots.
 - Omega 07–09: actual matching-host native execution and Terminal execution must both exit 0 for every positive. Source reject twins and the provider's real lifecycle traps retain separate oracles. Four authored target bindings alone do not establish four-host execution.
 
-The authority is the existing [foreign storage contract](../../../../wiki/spec/build/foreign_storage.md), [original structural access](../../../../wiki/spec/terminal-psi/structural_access.md), and [loan restoration](../../../../wiki/spec/terminal-psi/loans.md). This row exercises recursive semantic field paths in a finite embedded record. Recursive pointer graphs, arrays, variants, dynamic views, independently qualified descendants and owned aggregate result publication remain separate acceptance.
+The authority is the existing [foreign storage contract](../../../../wiki/spec/build/foreign_storage.md), [original structural access](../../../../wiki/spec/terminal-psi/structural_access.md), and [loan restoration](../../../../wiki/spec/terminal-psi/loans.md). This row exercises recursive semantic field paths in a finite embedded record. [Owned arrays](arrays/README.md) and [borrowed fixed-array views](views/README.md) extend this mechanism. Recursive pointer graphs, variants, dynamic views, independently qualified descendants and owned aggregate result publication remain separate acceptance.
 
 ## Measured baseline
 

@@ -108,6 +108,10 @@ pub struct AssignmentStorageOrigins {
 pub struct CallWriteOrigins {
     pub receiver: Option<Vec<LocalWriteSource>>,
     pub arguments: Vec<Option<Vec<LocalWriteSource>>>,
+    /// Input descriptor leaves captured before this invocation's own writes.
+    /// Any operand which may replace their bindings withholds the roster.
+    /// These are reach coordinates, never permission or post-call identity.
+    pub references: Option<Vec<LocalWriteOrigin>>,
 }
 
 /// Proven referent of a local reference leaf. Coarse observer paths stay

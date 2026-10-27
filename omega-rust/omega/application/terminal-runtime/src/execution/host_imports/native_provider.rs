@@ -10,6 +10,7 @@
 mod original_homes;
 mod record_fields;
 mod record_shape;
+mod reference_outputs;
 mod values;
 pub(super) use original_homes::NativeContext;
 use original_homes::rejection;
@@ -64,6 +65,7 @@ pub(super) struct NativeImport {
     storage_arguments: Vec<usize>,
     layouts: Vec<NativeBorrowedStorageLayout>,
     result: ResultCodec,
+    references: reference_outputs::ReferenceOutputs,
 }
 
 impl NativeImport {
@@ -104,12 +106,13 @@ impl NativeImport {
             ));
         }
         if declaration.completion != terminal_psi::BoundaryCompletion::NormalReturn
-            || !declaration.reference_outputs.is_empty()
             || !declaration.program_local_root_introductions.is_empty()
             || !binding.has_valid_entry_mechanism()
             || binding.provider_plan_report_identity() == 0
         {
-            return Err(missing("native sponsor needs a normal exact call without introduced roots or reference outputs".into()));
+            return Err(missing(
+                "native sponsor needs a normal exact call without introduced roots".into(),
+            ));
         }
         let provisions = provisions
             .ok_or_else(|| missing("native adapter lost its producing provisions".into()))?;
@@ -187,6 +190,7 @@ impl NativeImport {
             .borrow_mut()
             .with(|process| process.install(product, &parameters.iter().map(|parameter| match parameter { Parameter::Structural { access: StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow, codec, .. } => NativeParameterStorage::OriginalReference { byte_size: codec.extent, alignment: codec.alignment }, _ => NativeParameterStorage::Value }).collect::<Vec<_>>()))
             .map_err(|error| missing(error.reason))?;
+        let references = reference_outputs::ReferenceOutputs::admit(program, declaration, layouts);
         Ok(Some(Self {
             signature,
             artifact: program.terminal_psi(),
@@ -197,6 +201,7 @@ impl NativeImport {
             storage_arguments: (0..declaration.structural_parameters.len()).collect(),
             layouts: layouts.to_vec(),
             result,
+            references,
         }))
     }
 }
@@ -377,7 +382,11 @@ impl TerminalEffectHandler for NativeImport {
                 "native original storage belongs to another invocation or artifact",
             ));
         }
-        self.native.prepare(requests, &self.layouts)
+        let backings = self
+            .native
+            .prepare(requests, &self.layouts, &self.references.codecs)?;
+        self.references.capture(requests);
+        Ok(backings)
     }
     fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
         Err(rejection(
@@ -465,6 +474,7 @@ impl TerminalEffectHandler for NativeImport {
             }
             Err(error) => return Err(rejection(error.to_string())),
         };
+        self.references.complete(&self.native, buffers)?;
         // Mutable captures are completion observations of the same mapped
         // homes, never a write-back copy. Core validates them and preserves its
         // ordinary qualification/provenance and claim completion joins.

@@ -146,6 +146,15 @@ fn call_storage_mutations(
         // same owner is a different place, so this footprint stays partial
         // instead of withdrawing every caller fact.
         if let crate::flow::mutation::StorageRegion::UnresolvedContent { .. } = &write.region {
+            // An output namespace identifies a performed reference, not a
+            // spatially separate allocation. Its anchor alone cannot close
+            // aliases in caller storage: retain full unknown invalidation.
+            if matches!(
+                write.region.anchor().root,
+                facts::PlaceRoot::InvocationOutput(_)
+            ) {
+                return None;
+            }
             let carrier = write.region.anchor().clone();
             result.push(ObservedCallMutation {
                 write,
@@ -157,24 +166,27 @@ fn call_storage_mutations(
         // reference local of finite candidate origins is such a state),
         // borrow exclusivity already forbids a second live alias of the
         // written storage, so the places stand without the closure.
-        let mut observations = phase_profile::scope("05.d.3.b.flow.invoke.1b_close_aliases", || {
-            close_storage_places_over_aliases(
-                program,
-                machine.symbol,
-                state.symbol,
-                borrow_call.statement_index,
-                vec![write.region.anchor().clone()],
-                build.call_frames,
-            )
-            .or_else(|| match &write.region {
-                crate::flow::mutation::StorageRegion::Declared(place) => Some(vec![place.clone()]),
-                // Do not lose content aliases when the inventory cannot be
-                // reconstructed. Unknown remains full invalidation.
-                crate::flow::mutation::StorageRegion::ResidentContent { .. } => None,
-                crate::flow::mutation::StorageRegion::NonresidentContent { .. } => None,
-                crate::flow::mutation::StorageRegion::UnresolvedContent { .. } => None,
-            })
-        })?;
+        let mut observations =
+            phase_profile::scope("05.d.3.b.flow.invoke.1b_close_aliases", || {
+                close_storage_places_over_aliases(
+                    program,
+                    machine.symbol,
+                    state.symbol,
+                    borrow_call.statement_index,
+                    vec![write.region.anchor().clone()],
+                    build.call_frames,
+                )
+                .or_else(|| match &write.region {
+                    crate::flow::mutation::StorageRegion::Declared(place) => {
+                        Some(vec![place.clone()])
+                    }
+                    // Do not lose content aliases when the inventory cannot be
+                    // reconstructed. Unknown remains full invalidation.
+                    crate::flow::mutation::StorageRegion::ResidentContent { .. } => None,
+                    crate::flow::mutation::StorageRegion::NonresidentContent { .. } => None,
+                    crate::flow::mutation::StorageRegion::UnresolvedContent { .. } => None,
+                })
+            })?;
         // Keep the current state's observation coordinates even when a
         // transported view proves that the physical store is content, not
         // descriptor replacement. Both namespaces must see invalidation.

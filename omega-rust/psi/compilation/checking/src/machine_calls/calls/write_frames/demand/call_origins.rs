@@ -1,7 +1,7 @@
 //! Typed invocation storage, using the same caller prefix as write frames.
 use super::super::caller_aliases::{
-    CallOriginContext, CallWriteOrigins, CallerWriteSite, LocalWriteSource, caller_statement_owner,
-    with_caller_origin_context,
+    CallOriginContext, CallWriteOrigins, CallerWriteSite, LocalWriteOrigin, LocalWriteSource,
+    caller_statement_owner, prefix_reference_origins, with_caller_origin_context,
 };
 use super::{CallFrameResolver, ExpressionHandle, Machine, TableCall};
 use crate::machine_calls::calls::write_frames as frames;
@@ -109,6 +109,13 @@ impl<'program> CallFrameResolver<'program> {
                     .prefix_may_change_origins(machine, statement, site, prefix);
                 Some(CallWriteOrigins {
                     receiver: Some(Vec::new()),
+                    references: self.capture_reference_origins(
+                        machine,
+                        site,
+                        prefix,
+                        &arguments,
+                        preceding_effect,
+                    ),
                     arguments: self.capture_operand_origins(
                         machine,
                         inference,
@@ -208,6 +215,7 @@ impl<'program> CallFrameResolver<'program> {
                 let mut result = CallWriteOrigins {
                     receiver: Some(Vec::new()),
                     arguments: Vec::new(),
+                    references: None,
                 };
                 // Exact callable entries carry their data in explicit operands.
                 // Named expression calls also share the typed representation's
@@ -297,8 +305,42 @@ impl<'program> CallFrameResolver<'program> {
                     &argument_types,
                     preceding_effect,
                 )?;
+                result.references = self.capture_reference_origins(
+                    machine,
+                    site,
+                    prefix,
+                    arguments,
+                    preceding_effect,
+                );
                 Some(result)
             },
+        )
+    }
+
+    /// The entire leaf roster must survive every operand before invocation.
+    /// A captured outer address does not freeze its stored inner pointers.
+    fn capture_reference_origins(
+        &self,
+        machine: &'program Machine,
+        site: CallerWriteSite<'_>,
+        prefix: &CallOriginContext<'_>,
+        arguments: &[ExpressionHandle],
+        preceding_effect: bool,
+    ) -> Option<Vec<LocalWriteOrigin>> {
+        if preceding_effect
+            || arguments
+                .iter()
+                .any(|argument| self.operand_may_change_origins(machine, *argument, prefix))
+        {
+            return None;
+        }
+        let (state, _, index) = caller_statement_owner(self.program, machine, site)?;
+        prefix_reference_origins(
+            self.program,
+            Some((state, index)),
+            prefix.stored,
+            prefix.aliases,
+            prefix.divergent,
         )
     }
 
