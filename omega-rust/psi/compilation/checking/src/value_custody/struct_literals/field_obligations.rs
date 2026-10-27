@@ -645,6 +645,12 @@ pub(crate) fn construction_application(
         .authored_selection_occurrences(expression)
     {
         if let Some(selection) = program.authored_declaration_selections().get(occurrence) {
+            // Initializer roots retain their complete dependency inventory.
+            // Only this occurrence's selection supplies its carrier; a nested
+            // constant operand cannot select the enclosing constructor's type.
+            if selection.source_span() != program.expression_table.source_span(expression) {
+                continue;
+            }
             if let Some(selected) = selection.target().as_resolved() {
                 if let Some(declaration) =
                     program.const_declaration_by_symbol(selected.selected_symbol())
