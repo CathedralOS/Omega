@@ -10,6 +10,7 @@ mod restricted_build;
 mod semantic_dependencies;
 
 use crate::capture::PackageReviewInput;
+use crate::capture::refusal;
 use crate::record::PackagePolicyBaseline;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
@@ -94,8 +95,4 @@ pub fn project_checked_package_policy<'a>(
     Ok(policy)
 }
 
-fn rejected(reason: &str) -> Vec<Diagnostic> {
-    vec![Diagnostic::error(format!(
-        "package policy rejects {reason}"
-    ))]
-}
+refusal!(reason, "package policy rejects {reason}");
