@@ -86,7 +86,41 @@ part of this row.
 The governing contracts are [boundary shapes](../../../../../wiki/spec/build/boundary_shapes.md),
 [foreign storage](../../../../../wiki/spec/build/foreign_storage.md), and
 [Terminal ownership](../../../../../wiki/spec/terminal-psi/ownership.md).
-The row is drafted, with baseline and fixed-producer execution still pending.
+## Measured qualification
+
+Fixed current-main baseline `abfac3bb8812961984f703d77e6cabbcda681ae5`
+executes the real nested-result/owned-input program natively at zero while
+Terminal declines its direct-scalar-field requirement. The initial macOS loader
+setup failure remains separate from that corrected observation.
+
+Optimized actual producer `77f259b46d0d2da38796a9f00f6a350049c10d34`
+executes the root and all nine places with native exit 0 and Terminal exit 0
+on macOS ARM64. All ten produced Terminal artifacts pass canonical inspection;
+the nine copy-removal twins reject for `holds no value`. The real C self-test
+also verifies both whole-value arguments and rejects a changed copied field.
+The containing paths remain exact even when both children share the `Word` type.
+
+The same producer supplies 43 actual native/Terminal agreements in the affected
+cohort, including existing flat integer/floating results, float classification,
+standard input, atomic outcome payloads and retained nested record/array calls.
+The 33-case source comparison and 43-case runtime comparison lose no baseline
+outcomes; authored exits and output oracles also hold. The two affected Rust
+packages record 67 passing tests and one preexisting ignored test. Earlier
+flat-row observations remain separate evidence.
+
+The code also admits owned nested inputs through the same public-shape join;
+each place checks both by-value C arguments after its six Omega observations.
+Publication uses ordinary fresh placed storage after validating the complete
+ordered scalar roster and every typed containing path. It grants no reference,
+descendant qualification, content or claim authority from equal bytes.
+
+The authored bindings cover four hosted targets; these observations establish
+macOS ARM64 execution only. Matching-host qualification on Windows and both
+Linux targets remains under the parent acceptance. See [the run record](qualification.json).
+Raw compiler profiles, C provider identities, frozen inputs, engine outputs,
+canonical artifacts and qualification are retained in
+`build/foreign-frontier-evidence`.
+
 The flat record row's earlier observations do not establish recursive owned
 result publication. Arrays, variants, references and qualified descendants
 remain separate acceptance.
