@@ -4,7 +4,7 @@ machine snapshot(rows: &[[u8; 0]; 2]) -> [u8; 0] { rows[0] }
 machine empty(row: &[u8; 0]) -> bool { let view: &[u8] = &row[..]; view.len == 0 }
 machine empty_owned(row: [u8; 0]) -> bool { empty(&row) }
 machine arrive(row: [u8; 0]) -> bool {
- transition received(row);
+ transition { _ -> received(row) }
  machine received(row: [u8; 0]) -> bool { empty(&row) }
 }
 machine main() crashes Trap {
