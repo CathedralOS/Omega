@@ -2,6 +2,39 @@
 //! representations remain legitimate dependencies; transform crates do not.
 
 #[test]
+fn constant_proof_closure_belongs_to_psi() {
+    let coordinator = include_str!("execution_settlement/constant_recipe_closure.rs");
+    assert!(coordinator.contains("psi_compiler::ConstantProofClosure::new("));
+    for forbidden in [
+        "discharge_all(",
+        "CheckedTrees::with_roots(",
+        "settle_closed_constant_execution(",
+        "closed_facts",
+        "decided_formations",
+    ] {
+        assert!(
+            !coordinator.contains(forbidden),
+            "coordinator owns {forbidden}"
+        );
+    }
+    let facade = include_str!("../../../../psi/compilation/driver/src/lib.rs");
+    assert!(!facade.contains("settle_closed_constant_execution"));
+    let proof =
+        include_str!("../../../../psi/compilation/driver/src/source_checking/constant_closure.rs");
+    for forbidden in [
+        "provider_planning::",
+        "selected_dispatch::",
+        "target::",
+        "native_production::",
+    ] {
+        assert!(
+            !proof.contains(forbidden),
+            "Psi proof closure depends on {forbidden}"
+        );
+    }
+}
+
+#[test]
 fn package_review_retains_products_not_checked_compiler_state() {
     for source in [
         include_str!(

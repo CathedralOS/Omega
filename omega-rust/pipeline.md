@@ -282,6 +282,16 @@ the same preparation without emitting an image. This does not yet remove source
 provider selection from product coordination or stage vocabulary from shared
 product representations.
 
+Retained constant proof closure belongs to Psi source checking. The product
+coordinator supplies selected value views, application membership and address
+model inputs; Psi selects the recorded obligations, discharges them in their
+existing order, requires complete coverage and publishes the closed checked
+facts. It also settles pending boundary clauses before returning that program.
+The coordinator no longer rebuilds proof facts or chooses that final checking
+step. Selected-provider evaluation and layout preparation still sit outside
+Psi, so this ownership boundary is not yet target-independent constant
+production or a completed Terminal-only provider pipeline.
+
 Independent component emission belongs to the same source-free native compiler
 entrance as root emission. Product preparation supplies each verified component,
 retained proposal, complete receiving plan and accepted package permissions.
