@@ -1,4 +1,4 @@
-//! macOS ARM64 realization of explicitly installed private entry RAM.
+//! AArch64 realization of explicitly installed private entry RAM.
 //!
 //! The loader continuation and the checked activation stack have distinct BSS
 //! residences. Every argument is a sealed recipe's original allocation. Only
@@ -8,6 +8,51 @@ use super::{HostedReceiverBinding, ReceiverStorage, install_entry_text, invalid}
 use diagnostics::Diagnostic;
 use object_file::{ObjectPlan, ObjectSymbolHandle};
 
+/// The two hosted AArch64 ABIs share pointer placement and the lending
+/// lifecycle. System calls and physical completion remain platform-owned.
+struct ReceiverForm {
+    name: &'static str,
+    surface: crate::hosted_unit_entry::EntrySurface,
+    write_call: &'static [u32],
+    failure_exit: &'static [u32],
+    normal_completion: &'static [u32],
+}
+
+fn receiver_form(target: target::NativeTarget) -> Option<ReceiverForm> {
+    use crate::hosted_unit_entry::EntrySurface;
+    if target == target::NativeTarget::macos_arm64() {
+        Some(ReceiverForm {
+            name: "omega_macos_arm64_installed_entry_ram",
+            surface: EntrySurface::DarwinReceiver,
+            // Darwin write(2) uses X16 and reports failure through carry.
+            write_call: &[0xd280_0090, 0xd400_1001, 0x5400_00a2],
+            failure_exit: &[0xd280_1900, 0xd280_0030, 0xd400_1001, 0xd420_0000],
+            normal_completion: &[0xa940_792a, 0x9100_015f, 0x5280_0000, 0xd65f_03c0],
+        })
+    } else if target == target::NativeTarget::linux_arm64() {
+        Some(ReceiverForm {
+            name: "omega_linux_arm64_installed_entry_ram",
+            surface: EntrySurface::LinuxArm64Receiver,
+            // Linux write(64) uses X8. Negative errors and partial writes
+            // both fail the exact completed-count comparison below.
+            write_call: &[0xd280_0808, 0xd400_0001],
+            failure_exit: &[0xd280_1900, 0xd280_0bc8, 0xd400_0001, 0xd420_0000],
+            // ELF entry has no returning loader caller: restore its saved
+            // stack, then complete through Linux exit_group(94), never RET.
+            normal_completion: &[
+                0xa940_792a,
+                0x9100_015f,
+                0x5280_0000,
+                0xd280_0bc8,
+                0xd400_0001,
+                0xd420_0000,
+            ],
+        })
+    } else {
+        None
+    }
+}
+
 pub(super) fn prepare(
     artifact: &crate::ObjectArtifact,
     binding: &HostedReceiverBinding,
@@ -15,6 +60,7 @@ pub(super) fn prepare(
     storage: ReceiverStorage,
 ) -> Result<crate::hosted_unit_entry::PreparedEntry, Diagnostic> {
     let invalid = || invalid(artifact.target);
+    let form = receiver_form(artifact.target).ok_or_else(invalid)?;
     let mut words = Vec::new();
     let mut addresses = Vec::new();
     address(&mut words, &mut addresses, 9, storage.scratch);
@@ -67,26 +113,21 @@ pub(super) fn prepare(
         ] {
             words.push(0xd280_0060); // FD 3, independent of guest streams.
             address(&mut words, &mut addresses, 1, symbol);
-            unsigned_count(&mut words, 2, length)?;
-            words.extend([0xd280_0090, 0xd400_1001, 0x5400_00a2]); // write; carry -> failure.
-            unsigned_count(&mut words, 9, length)?;
+            unsigned_count(&mut words, 2, length, &invalid)?;
+            words.extend_from_slice(form.write_call);
+            unsigned_count(&mut words, 9, length, &invalid)?;
             words.extend([0xeb09_001f, 0x5400_00a0]); // Exact completed byte count.
-            words.extend([0xd280_1900, 0xd280_0030, 0xd400_1001, 0xd420_0000]); // exit(200).
+            words.extend_from_slice(form.failure_exit);
         }
     }
     address(&mut words, &mut addresses, 9, storage.scratch);
-    words.extend([0xa940_792a, 0x9100_015f, 0x5280_0000, 0xd65f_03c0]);
+    words.extend_from_slice(form.normal_completion);
     use object_file::{RelocationKind, RelocationOrigin, RelocationRecord, SectionKind};
     let bytes = words
         .iter()
         .flat_map(|word| word.to_le_bytes())
         .collect::<Vec<_>>();
-    let (object, text, symbol, offset) = install_entry_text(
-        object,
-        artifact,
-        &bytes,
-        "omega_macos_arm64_installed_entry_ram",
-    )?;
+    let (object, text, symbol, offset) = install_entry_text(object, artifact, &bytes, form.name)?;
     let mut relocations = artifact.relocations.clone();
     for (instruction, destination) in addresses {
         for (relative, kind) in [
@@ -110,7 +151,7 @@ pub(super) fn prepare(
         object,
         text,
         relocations,
-        shim: crate::hosted_unit_entry::EntrySurface::DarwinReceiver.shim(symbol, offset),
+        shim: form.surface.shim(symbol, offset),
     })
 }
 
@@ -143,8 +184,13 @@ fn initialize(
     }
 }
 
-fn unsigned_count(words: &mut Vec<u32>, register: u32, count: usize) -> Result<(), Diagnostic> {
-    let count = u32::try_from(count).map_err(|_| invalid(target::NativeTarget::macos_arm64()))?;
+fn unsigned_count(
+    words: &mut Vec<u32>,
+    register: u32,
+    count: usize,
+    invalid: &dyn Fn() -> Diagnostic,
+) -> Result<(), Diagnostic> {
+    let count = u32::try_from(count).map_err(|_| invalid())?;
     words.extend([
         0xd280_0000 | ((count & 0xffff) << 5) | register,
         0xf2a0_0000 | ((count >> 16) << 5) | register,
