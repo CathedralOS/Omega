@@ -97,7 +97,7 @@ pub(super) fn scalar_fields(
                     StructuralFieldType::BoundedInteger(bounds) => {
                         ScalarType::Integer(bounds.integer_type())
                     }
-                    StructuralFieldType::RefinedScalar(refinement) => refinement.carrier(),
+                    StructuralFieldType::RefinedScalar(ref refinement) => refinement.carrier(),
                     StructuralFieldType::IeeeFloat(format) => ScalarType::IeeeFloat(format),
                     StructuralFieldType::Structural(child) => {
                         pending.push(Visit::Type(child));
