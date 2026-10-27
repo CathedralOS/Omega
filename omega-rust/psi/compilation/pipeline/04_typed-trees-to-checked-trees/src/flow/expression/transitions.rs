@@ -153,7 +153,7 @@ impl Execution<'_, '_, '_> {
             contexts,
             constraints,
         );
-        self.install_call_stores(stores);
+        self.install_call_stores(stores.stores);
         self.context.active_completed_copies = previous_copies;
     }
 }
