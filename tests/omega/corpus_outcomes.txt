@@ -11580,6 +11580,35 @@ fail/facts/nested_machine_private_arithmetic_target_body_rejected rejected 702ms
 	exact arithmetic in machine `apply` state `entry` local `result` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `apply` state `entry` local `result` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `apply` state `entry` local `result` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/nested_machine_private_bounds_alternate_arrival_rejected rejected 2487ms expected @cdcff74025ec
+	cannot prove index `index` is within unknown slice length of `items` in get::entry
+fail/facts/nested_machine_private_bounds_call_result_rejected rejected 2109ms expected @cdcff74025ec
+	cannot prove index `index` is within unknown slice length of `items` in get::entry
+fail/facts/nested_machine_private_bounds_changed_index_rejected rejected 1956ms expected @cdcff74025ec
+	cannot prove index `index` is within unknown slice length of `items` in get::entry
+fail/facts/nested_machine_private_bounds_const_name_rejected rejected 2155ms expected @cdcff74025ec
+	cannot prove index `index` is within unknown slice length of `items` in get::entry
+fail/facts/nested_machine_private_bounds_field_rejected rejected 2119ms expected @cdcff74025ec
+	cannot prove index `index` is within unknown slice length of `items` in get::entry
+fail/facts/nested_machine_private_bounds_local_rejected rejected 2118ms expected @cdcff74025ec
+	cannot prove index `index` is within unknown slice length of `items` in get::entry
+fail/facts/nested_machine_private_bounds_match_join_rejected rejected 1825ms expected @cdcff74025ec
+	cannot prove index `index` is within unknown slice length of `items` in get::entry
+fail/facts/nested_machine_private_bounds_minimum_extent_rejected rejected 1990ms expected @cdcff74025ec
+	cannot prove index `1` is within unknown slice length of `items` in get::entry
+fail/facts/nested_machine_private_bounds_other_collection_rejected rejected 1912ms expected @cdcff74025ec
+	cannot prove index `index` is within unknown slice length of `items` in get::entry
+fail/facts/nested_machine_private_bounds_other_machine_rejected rejected 1802ms expected @cdcff74025ec
+	cannot prove index `index` is within unknown slice length of `items` in get::entry
+fail/facts/nested_machine_private_bounds_other_state_rejected rejected 2057ms expected @cdcff74025ec
+	cannot prove index `index` is within unknown slice length of `items` in get::entry
+fail/facts/nested_machine_private_bounds_parameter_rejected rejected 1686ms expected @cdcff74025ec
+	cannot prove index `index` is within unknown slice length of `items` in get::entry
+fail/facts/nested_machine_private_bounds_target_body_rejected rejected 1114ms expected @cdcff74025ec
+	cannot prove index `index` is within unknown slice length of `items` in get::entry
+	cannot prove index `index` is within unknown slice length of `items` in get::entry
+	cannot prove index `index` is within unknown slice length of `items` in get::entry
+	cannot prove index `index` is within unknown slice length of `items` in get::entry
 fail/facts/nested_nine_level_record_field_bound_through_call_result_rejected rejected 879ms expected @a92f16431042
 	exact arithmetic in machine `check_bound` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/nested_nine_level_record_field_bound_through_const_name_rejected rejected 874ms expected @a92f16431042
@@ -27502,6 +27531,15 @@ pass/facts/nested_machine_private_arithmetic_parameter_exit checked 2486ms check
 pass/facts/nested_machine_private_arithmetic_public_contract_exit checked 2719ms check-target:macos_arm64 @b8ce72f09729ee24597e3255a8f48fb93e9e5add
 pass/facts/nested_machine_private_arithmetic_snapshot_exit checked 2524ms check-target:macos_arm64 @b8ce72f09729ee24597e3255a8f48fb93e9e5add
 pass/facts/nested_machine_private_arithmetic_target_body_exit checked 2392ms check-target:macos_arm64 @b8ce72f09729ee24597e3255a8f48fb93e9e5add
+pass/facts/nested_machine_private_bounds_call_result_exit checked 5110ms check-target:macos_arm64 @cdcff74025ec
+pass/facts/nested_machine_private_bounds_const_name_exit checked 5182ms check-target:macos_arm64 @cdcff74025ec
+pass/facts/nested_machine_private_bounds_field_exit checked 4609ms check-target:macos_arm64 @cdcff74025ec
+pass/facts/nested_machine_private_bounds_local_exit checked 4647ms check-target:macos_arm64 @cdcff74025ec
+pass/facts/nested_machine_private_bounds_match_join_exit checked 4500ms check-target:macos_arm64 @cdcff74025ec
+pass/facts/nested_machine_private_bounds_other_machine_exit checked 4742ms check-target:macos_arm64 @cdcff74025ec
+pass/facts/nested_machine_private_bounds_other_state_exit checked 5043ms check-target:macos_arm64 @cdcff74025ec
+pass/facts/nested_machine_private_bounds_parameter_exit checked 5240ms check-target:macos_arm64 @cdcff74025ec
+pass/facts/nested_machine_private_bounds_target_body_exit checked 4748ms check-target:macos_arm64 @cdcff74025ec
 pass/facts/nested_nine_level_record_field_bound_through_call_result_exit checked 2797ms check-target:macos_arm64 @a92f16431042
 pass/facts/nested_nine_level_record_field_bound_through_const_name_exit checked 2817ms check-target:macos_arm64 @a92f16431042
 pass/facts/nested_nine_level_record_field_bound_through_field_exit checked 1906ms check-target:macos_arm64 @a92f16431042

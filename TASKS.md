@@ -577,7 +577,8 @@ defines the complete product bar.
     declarations, elaborate static declaration context to flat machine identities
     with explicit arguments, and reject runtime capture, enclosing-local use,
     hidden context parameters, and executable code after trailing declarations.
-  - Unify ordinary-call and terminal-transfer checking around the complete callee
+  - Complete ordinary-call and terminal-transfer composition through effectful
+    normal completion and cyclic private arrivals, with the complete callee
     contract (exact actuals/snapshots, live facts and write invalidation,
     result/Unit postconditions, effects/markers, loans, invariant/hole
     restoration, cleanup, linear custody, and joint SCC ranking across
