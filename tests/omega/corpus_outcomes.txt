@@ -12826,23 +12826,25 @@ fail/facts/saved_byte_predicate_through_target_body rejected 2692ms expected @a9
 	cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_case_predicate_through_call_result_rejected rejected 1364ms expected @ec25f66f10a3
-	machine `probe` state `entry` statement 7: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
-fail/facts/saved_case_predicate_through_const_name_rejected rejected 1511ms expected @ec25f66f10a3
-	machine `probe` state `entry` statement 7: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
-fail/facts/saved_case_predicate_through_field_rejected rejected 1305ms expected @ec25f66f10a3
-	machine `probe` state `entry` statement 6: cannot prove selected case for payload access `holder.choice.amount`: captured source `holder.choice::Full.amount` has no live case evidence
-fail/facts/saved_case_predicate_through_local_rejected rejected 1284ms expected @ec25f66f10a3
-	machine `probe` state `entry` statement 7: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
-fail/facts/saved_case_predicate_through_match_join_rejected rejected 1287ms expected @ec25f66f10a3
-	machine `probe` state `entry` statement 7: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
-fail/facts/saved_case_predicate_through_other_machine_rejected rejected 1165ms expected @ec25f66f10a3
+fail/facts/saved_case_predicate_inferred_reference_rejected rejected 5186ms expected @2f6555324361
+	machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
+fail/facts/saved_case_predicate_through_call_result_rejected rejected 5028ms expected @2f6555324361
+	machine `probe` state `entry` statement 6: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
+fail/facts/saved_case_predicate_through_const_name_rejected rejected 17078ms expected @2f6555324361
+	machine `probe` state `entry` statement 6: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
+fail/facts/saved_case_predicate_through_field_rejected rejected 17076ms expected @2f6555324361
+	machine `probe` state `entry` statement 5: cannot prove selected case for payload access `holder.choice.amount`: captured source `holder.choice::Full.amount` has no live case evidence
+fail/facts/saved_case_predicate_through_local_rejected rejected 7034ms expected @2f6555324361
+	machine `probe` state `entry` statement 6: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
+fail/facts/saved_case_predicate_through_match_join_rejected rejected 16887ms expected @2f6555324361
+	machine `probe` state `entry` statement 6: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
+fail/facts/saved_case_predicate_through_other_machine_rejected rejected 16833ms expected @2f6555324361
 	machine `quotient` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
-fail/facts/saved_case_predicate_through_other_state_rejected rejected 1146ms expected @ec25f66f10a3
+fail/facts/saved_case_predicate_through_other_state_rejected rejected 2956ms expected @2f6555324361
 	machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
-fail/facts/saved_case_predicate_through_parameter_rejected rejected 1117ms expected @ec25f66f10a3
+fail/facts/saved_case_predicate_through_parameter_rejected rejected 3090ms expected @2f6555324361
 	machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
-fail/facts/saved_case_predicate_through_target_body_rejected rejected 1089ms expected @ec25f66f10a3
+fail/facts/saved_case_predicate_through_target_body_rejected rejected 2918ms expected @2f6555324361
 	machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
 	machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
 	machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
@@ -18505,6 +18507,15 @@ fail/generics/mixed_value_case_payload_wrong_carrier rejected 955ms expected @a9
 	construction of `Tagged` field `value` stores a boolean into a `u64` field, which holds a numeric value
 fail/generics/mixed_value_nullary_case_false rejected 927ms expected @a92f16431042
 	data `Tagged` case `Empty` literal violates the case constraint: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/generics/named_reference_equation_access rejected 664ms expected @2f6555324361
+	generic machine `capture` where type equation has conflicting reference access
+fail/generics/named_reference_equation_pointee rejected 534ms expected @2f6555324361
+	generic machine `capture` where type equation has conflicting element types
+fail/generics/named_reference_equation_undeclared_region rejected 460ms expected @2f6555324361
+	generic machine `capture` where type equation reference region is not a declared invocation lifetime
+fail/generics/named_reference_equation_wrong_result_source rejected 2527ms expected @2f6555324361
+	machine `capture$specialized$d77ed48b9b87917e$0` returns a view borrowing input `other`, which is not permitted by the declared result lifetime relation
+	machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
 fail/generics/named_value_parameter_mismatch rejected 656ms expected @a92f16431042
 	machine `wrong` state `finish` terminal expression expects `Output`, got `named value`
 fail/generics/nominal_binder_structural_coincidence_rejected rejected 594ms expected @a92f16431042
@@ -27360,15 +27371,16 @@ pass/facts/saved_byte_predicate_through_other_machine checked 2840ms check-targe
 pass/facts/saved_byte_predicate_through_other_state checked 2289ms check-target:macos_arm64 @a92f16431042
 pass/facts/saved_byte_predicate_through_parameter checked 2395ms check-target:macos_arm64 @a92f16431042
 pass/facts/saved_byte_predicate_through_target_body checked 3271ms check-target:macos_arm64 @a92f16431042
-pass/facts/saved_case_predicate_through_call_result_exit checked 1557ms check-target:macos_arm64 @ec25f66f10a3
-pass/facts/saved_case_predicate_through_const_name_exit checked 1557ms check-target:macos_arm64 @ec25f66f10a3
-pass/facts/saved_case_predicate_through_field_exit checked 1549ms check-target:macos_arm64 @ec25f66f10a3
-pass/facts/saved_case_predicate_through_local_exit checked 1548ms check-target:macos_arm64 @ec25f66f10a3
-pass/facts/saved_case_predicate_through_match_join_exit checked 1548ms check-target:macos_arm64 @ec25f66f10a3
-pass/facts/saved_case_predicate_through_other_machine_exit checked 1548ms check-target:macos_arm64 @ec25f66f10a3
-pass/facts/saved_case_predicate_through_other_state_exit checked 1549ms check-target:macos_arm64 @ec25f66f10a3
-pass/facts/saved_case_predicate_through_parameter_exit checked 1549ms check-target:macos_arm64 @ec25f66f10a3
-pass/facts/saved_case_predicate_through_target_body_exit checked 1551ms check-target:macos_arm64 @ec25f66f10a3
+pass/facts/saved_case_predicate_inferred_reference_exit checked 5058ms check-target:macos_arm64 @2f6555324361
+pass/facts/saved_case_predicate_through_call_result_exit checked 4539ms check-target:macos_arm64 @2f6555324361
+pass/facts/saved_case_predicate_through_const_name_exit checked 5031ms check-target:macos_arm64 @2f6555324361
+pass/facts/saved_case_predicate_through_field_exit checked 4933ms check-target:macos_arm64 @2f6555324361
+pass/facts/saved_case_predicate_through_local_exit checked 5664ms check-target:macos_arm64 @2f6555324361
+pass/facts/saved_case_predicate_through_match_join_exit checked 6161ms check-target:macos_arm64 @2f6555324361
+pass/facts/saved_case_predicate_through_other_machine_exit checked 5867ms check-target:macos_arm64 @2f6555324361
+pass/facts/saved_case_predicate_through_other_state_exit checked 5636ms check-target:macos_arm64 @2f6555324361
+pass/facts/saved_case_predicate_through_parameter_exit checked 5442ms check-target:macos_arm64 @2f6555324361
+pass/facts/saved_case_predicate_through_target_body_exit checked 5654ms check-target:macos_arm64 @2f6555324361
 pass/facts/saved_observation_snapshot_through_call_result_exit checked 5728ms check-target:macos_arm64 @a92f16431042
 pass/facts/saved_observation_snapshot_through_const_name_exit checked 4328ms check-target:macos_arm64 @a92f16431042
 pass/facts/saved_observation_snapshot_through_field_exit checked 6163ms check-target:macos_arm64 @a92f16431042
@@ -29653,6 +29665,8 @@ pass/generics/machine_indexed_stream_dispatch checked 2991ms @a92f16431042
 pass/generics/machine_type_equations checked 1358ms @a92f16431042
 pass/generics/mixed_value_case_constructor_checked checked 1994ms check-target:macos_arm64 @a92f16431042
 pass/generics/mixed_value_nullary_case_checked checked 1992ms check-target:macos_arm64 @a92f16431042
+pass/generics/named_reference_equation_reversed_telescope_order_exit checked 5940ms check-target:macos_arm64 @2f6555324361
+pass/generics/named_reference_equation_telescope_order_exit checked 4955ms check-target:macos_arm64 @2f6555324361
 pass/generics/nominal_machine_parameter_satisfaction_compile checked 1397ms @a92f16431042
 pass/generics/omitted_data_binder_range_equation checked 5964ms check-target:macos_arm64 @a92f16431042
 pass/generics/omitted_fixed_domain_array_equation checked 2092ms @a92f16431042
