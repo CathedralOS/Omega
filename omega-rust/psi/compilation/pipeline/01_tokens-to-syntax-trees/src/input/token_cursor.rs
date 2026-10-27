@@ -92,6 +92,17 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         self.stream.text(token)
     }
 
+    /// The `index`-th semantic token of the cursor, counting its own head as 0.
+    /// The head is trivia-free (`new`, `advanced` and `restarted` skip leading
+    /// trivia), but trivia between tokens is retained, so every peek past the
+    /// head continues from here instead of re-skipping by hand.
+    fn peek(&self, index: usize) -> Option<&'tokens Token> {
+        if index == 0 {
+            return self.tokens.first();
+        }
+        skip_non_semantic_tokens(self.tokens.get(1..)?).get(index - 1)
+    }
+
     pub(crate) fn depth(&self) -> u16 {
         self.depth
     }
@@ -447,49 +458,33 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         }
     }
 
-    /// True when the input leads with a bare identifier IMMEDIATELY followed by
-    /// the contextual keyword `name` -- a 2-token peek for identifier-led items
-    /// like `<target> machine Path(..)`, which have no leading keyword to
-    /// dispatch on. Consumes nothing.
     /// True when the input leads with the contextual keyword `name` IMMEDIATELY
     /// followed (past trivia) by a string literal -- the prefixed-string shape
     /// (`utf16"..."`). A bare identifier followed by a string literal is never
     /// otherwise valid, so the peek cannot shadow user code. Consumes nothing.
     pub(crate) fn at_contextual_then_string(&self, name: &str) -> bool {
-        let Some((first, rest)) = self.tokens.split_first() else {
-            return false;
-        };
-        if !(matches!(first.kind, TokenKind::Identifier) && self.text(first).as_str() == name) {
-            return false;
-        }
-        skip_non_semantic_tokens(rest)
-            .first()
-            .is_some_and(|token| token.kind == TokenKind::StringLiteral)
+        self.peek(0).is_some_and(|token| {
+            token.kind == TokenKind::Identifier && self.text(token).as_str() == name
+        }) && self.peek(1).is_some_and(Token::is_string_literal)
     }
 
+    /// True when the input leads with a bare identifier IMMEDIATELY followed by
+    /// the contextual keyword `name` -- a 2-token peek for identifier-led items
+    /// like `<target> machine Path(..)`, which have no leading keyword to
+    /// dispatch on. Consumes nothing.
     pub(crate) fn at_identifier_then_contextual(&self, name: &str) -> bool {
-        // `self.tokens[0]` is semantic (leading trivia was skipped in `new`), but
-        // trivia between it and the next token is retained, so skip past it before
-        // peeking the SECOND semantic token.
-        let Some((first, rest)) = self.tokens.split_first() else {
-            return false;
-        };
-        if first.kind != TokenKind::Identifier {
-            return false;
-        }
-        skip_non_semantic_tokens(rest).first().is_some_and(|token| {
-            matches!(token.kind, TokenKind::Identifier | TokenKind::Keyword(_))
-                && self.text(token).as_str() == name
-        })
+        self.peek(0)
+            .is_some_and(|first| first.kind == TokenKind::Identifier)
+            && self.peek(1).is_some_and(|token| {
+                matches!(token.kind, TokenKind::Identifier | TokenKind::Keyword(_))
+                    && self.text(token).as_str() == name
+            })
     }
 
     /// A contextual prefix such as `move value` applies only to a following
     /// name; `move(...)` stays an ordinary call of a declaration named `move`.
     pub(crate) fn at_contextual_then_name(&self, name: &str) -> bool {
-        self.at_contextual(name)
-            && skip_non_semantic_tokens(&self.tokens[1..])
-                .first()
-                .is_some_and(is_identifier_token_for_parser)
+        self.at_contextual(name) && self.peek(1).is_some_and(is_identifier_token_for_parser)
     }
 
     pub(crate) fn at_name_like(&self) -> bool {
@@ -513,24 +508,16 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     /// by its full shape. The peek cannot shadow user code: `stack <integer>
     /// bytes` is not otherwise a valid start of a proposition. Consumes nothing.
     pub(crate) fn at_same_stack_demand(&self) -> bool {
-        let Some((first, rest)) = self.tokens.split_first() else {
-            return false;
-        };
-        if !(matches!(first.kind, TokenKind::Identifier | TokenKind::Keyword(_))
-            && self.text(first).as_str() == "stack")
-        {
-            return false;
-        }
-        let Some((integer, rest)) = skip_non_semantic_tokens(rest).split_first() else {
-            return false;
-        };
-        if integer.integer_literal_kind().is_none() {
-            return false;
-        }
-        skip_non_semantic_tokens(rest).first().is_some_and(|token| {
-            matches!(token.kind, TokenKind::Identifier | TokenKind::Keyword(_))
-                && self.text(token).as_str() == "bytes"
-        })
+        self.peek(0).is_some_and(|first| {
+            matches!(first.kind, TokenKind::Identifier | TokenKind::Keyword(_))
+                && self.text(first).as_str() == "stack"
+        }) && self
+            .peek(1)
+            .is_some_and(|integer| integer.integer_literal_kind().is_some())
+            && self.peek(2).is_some_and(|token| {
+                matches!(token.kind, TokenKind::Identifier | TokenKind::Keyword(_))
+                    && self.text(token).as_str() == "bytes"
+            })
     }
 
     pub(crate) fn has_newline_before(self, later: Self) -> bool {
