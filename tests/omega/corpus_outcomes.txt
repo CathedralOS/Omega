@@ -8315,6 +8315,24 @@ fail/facts/foreign_nested_record_backing_repeated_child_type_live rejected 895ms
 	statement 4 reads `buffer.cell.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 6)
 fail/facts/foreign_nested_record_backing_target_body rejected 1380ms expected @f0c9d9694a74
 	statement 5 reads `buffer.cell.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/facts/foreign_nested_scalar_record_result_through_call_result_rejected rejected 598ms expected @77f259b46d0d2da38796a9f00f6a350049c10d34
+	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
+fail/facts/foreign_nested_scalar_record_result_through_const_name_rejected rejected 545ms expected @77f259b46d0d2da38796a9f00f6a350049c10d34
+	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
+fail/facts/foreign_nested_scalar_record_result_through_field_rejected rejected 588ms expected @77f259b46d0d2da38796a9f00f6a350049c10d34
+	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
+fail/facts/foreign_nested_scalar_record_result_through_local_rejected rejected 551ms expected @77f259b46d0d2da38796a9f00f6a350049c10d34
+	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
+fail/facts/foreign_nested_scalar_record_result_through_match_join_rejected rejected 558ms expected @77f259b46d0d2da38796a9f00f6a350049c10d34
+	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
+fail/facts/foreign_nested_scalar_record_result_through_other_machine_rejected rejected 557ms expected @77f259b46d0d2da38796a9f00f6a350049c10d34
+	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
+fail/facts/foreign_nested_scalar_record_result_through_other_state_rejected rejected 556ms expected @77f259b46d0d2da38796a9f00f6a350049c10d34
+	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
+fail/facts/foreign_nested_scalar_record_result_through_parameter_rejected rejected 548ms expected @77f259b46d0d2da38796a9f00f6a350049c10d34
+	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
+fail/facts/foreign_nested_scalar_record_result_through_target_body_rejected rejected 552ms expected @77f259b46d0d2da38796a9f00f6a350049c10d34
+	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
 fail/facts/foreign_retained_mutable_borrow_call_result rejected 1658ms expected @355494c10ca8
 	statement 5 reads `buffer.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
 fail/facts/foreign_retained_mutable_borrow_const_name rejected 1052ms expected @355494c10ca8
@@ -25865,6 +25883,15 @@ pass/facts/foreign_nested_record_backing_other_state checked 2065ms check-target
 pass/facts/foreign_nested_record_backing_parameter checked 2097ms check-target:macos_arm64 @f0c9d9694a74
 pass/facts/foreign_nested_record_backing_repeated_child_type checked 1242ms check-target:macos_arm64 @5bfc108bfcb0
 pass/facts/foreign_nested_record_backing_target_body checked 1908ms check-target:macos_arm64 @f0c9d9694a74
+pass/facts/foreign_nested_scalar_record_result_through_call_result_exit checked 1175ms check-target:macos_arm64 @77f259b46d0d2da38796a9f00f6a350049c10d34
+pass/facts/foreign_nested_scalar_record_result_through_const_name_exit checked 1179ms check-target:macos_arm64 @77f259b46d0d2da38796a9f00f6a350049c10d34
+pass/facts/foreign_nested_scalar_record_result_through_field_exit checked 1187ms check-target:macos_arm64 @77f259b46d0d2da38796a9f00f6a350049c10d34
+pass/facts/foreign_nested_scalar_record_result_through_local_exit checked 1172ms check-target:macos_arm64 @77f259b46d0d2da38796a9f00f6a350049c10d34
+pass/facts/foreign_nested_scalar_record_result_through_match_join_exit checked 1184ms check-target:macos_arm64 @77f259b46d0d2da38796a9f00f6a350049c10d34
+pass/facts/foreign_nested_scalar_record_result_through_other_machine_exit checked 1181ms check-target:macos_arm64 @77f259b46d0d2da38796a9f00f6a350049c10d34
+pass/facts/foreign_nested_scalar_record_result_through_other_state_exit checked 1180ms check-target:macos_arm64 @77f259b46d0d2da38796a9f00f6a350049c10d34
+pass/facts/foreign_nested_scalar_record_result_through_parameter_exit checked 1176ms check-target:macos_arm64 @77f259b46d0d2da38796a9f00f6a350049c10d34
+pass/facts/foreign_nested_scalar_record_result_through_target_body_exit checked 1186ms check-target:macos_arm64 @77f259b46d0d2da38796a9f00f6a350049c10d34
 pass/facts/foreign_retained_mutable_borrow_call_result checked 1968ms check-target:macos_arm64 @355494c10ca8
 pass/facts/foreign_retained_mutable_borrow_const_name checked 1620ms check-target:macos_arm64 @355494c10ca8
 pass/facts/foreign_retained_mutable_borrow_field checked 1624ms check-target:macos_arm64 @355494c10ca8

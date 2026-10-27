@@ -6,9 +6,7 @@ use super::super::borrowed_storage::geometry::expand_coordinates;
 use super::super::scalar_codec::{decode, encode, scalar_extent};
 use super::original_homes::{exact_layout, rejection};
 use runtime_abi::NativeBorrowedStorageLayout;
-use semantic_vocabulary::{
-    CanonicalStructuralPathSegment as Path, ScalarType, StructuralFieldId, StructuralTypeId,
-};
+use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, ScalarType, StructuralTypeId};
 use terminal_interpreter::{
     TerminalBoundaryStorageValue, TerminalEffectRejection, TerminalProgram,
     TerminalScalarAggregateValue, TerminalScalarValue, TerminalStorageContents,
@@ -207,17 +205,12 @@ impl StorageCodec {
             .decode_fields(bytes)?
             .into_iter()
             .map(|field| {
-                let [Path::Field(id)] = field.path.as_slice() else {
-                    return Err(rejection(
-                        "native result requires a non-flat aggregate publisher",
-                    ));
-                };
                 let TerminalStorageContents::Scalar { value, .. } = field.contents else {
                     return Err(rejection("native result lost its scalar payload"));
                 };
-                Ok((*id, value))
+                Ok((field.path, value))
             })
-            .collect::<Result<Vec<(StructuralFieldId, TerminalScalarValue)>, _>>()?;
+            .collect::<Result<Vec<(Vec<Path>, TerminalScalarValue)>, _>>()?;
         Ok(TerminalScalarAggregateValue {
             structural_type: self.structural_type,
             result_case: None,

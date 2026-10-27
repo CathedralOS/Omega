@@ -112,7 +112,9 @@ impl TerminalEffectHandler for AffineTransformImport {
                     .zip(values)
                     .map(|(field, value)| {
                         (
-                            field,
+                            vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+                                field,
+                            )],
                             TerminalScalarValue::IeeeFloat(IeeeFloatValue::Binary64(
                                 value.to_bits(),
                             )),

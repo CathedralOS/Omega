@@ -122,7 +122,12 @@ impl TerminalExecution<'_> {
                         })
                     };
                     match &declaration.shape {
-                        StructuralTypeShape::Record { fields, .. } => scalar_fields(fields),
+                        StructuralTypeShape::Record { .. } => crate::values::record_scalar_fields(
+                            declaration,
+                            |identity| self.program.structural_types().get(&identity),
+                            |_, _| Ok(()),
+                        )
+                        .is_ok(),
                         StructuralTypeShape::Sum { cases } => {
                             cases.iter().all(|case| scalar_fields(&case.fields))
                         }
