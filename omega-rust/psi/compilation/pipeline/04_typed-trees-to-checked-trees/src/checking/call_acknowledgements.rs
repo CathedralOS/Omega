@@ -78,6 +78,7 @@ fn validate_statement(
         StatementNode::Call(call) => {
             validate_call(
                 call.target.as_str(),
+                call.target.source_span(),
                 statement_index,
                 true,
                 operational_calls,
@@ -131,7 +132,10 @@ fn validate_statement(
             for target in transition.targets() {
                 match program.statement_table.transition_target(target) {
                     TransitionTargetNode::Named {
-                        path, arguments, ..
+                        path,
+                        arguments,
+                        source_span,
+                        ..
                     } => {
                         let target_name = program
                             .statement_table
@@ -141,6 +145,7 @@ fn validate_statement(
                         // when internal control flow has no operational call.
                         validate_call(
                             &target_name,
+                            *source_span,
                             statement_index,
                             true,
                             operational_calls,
@@ -295,6 +300,7 @@ fn validate_expression(
         ExpressionNode::Call(call) => {
             validate_call(
                 call.target.as_str(),
+                program.expression_table.source_span(expression),
                 statement_index,
                 direct_position,
                 operational_calls,
@@ -396,8 +402,10 @@ fn validate_expression(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn validate_call(
     target: &str,
+    source_span: source::SourceSpan,
     statement_index: usize,
     direct_position: bool,
     operational_calls: &[CallOperational],
@@ -426,13 +434,13 @@ fn validate_call(
                 acknowledgement.acknowledges_suspend,
                 acknowledgement.acknowledges_block,
             ),
-        )));
+        )).with_source_span(source_span));
     }
 
     if may_suspend && !direct_position {
         diagnostics.push(Diagnostic::error(format!(
             "suspending call to `{target}` is nested inside a partially evaluated expression; bind it as a complete statement, simple `let` right-hand side, transition subject, or terminal expression before continuation planning",
-        )));
+        )).with_source_span(source_span));
     }
 }
 
