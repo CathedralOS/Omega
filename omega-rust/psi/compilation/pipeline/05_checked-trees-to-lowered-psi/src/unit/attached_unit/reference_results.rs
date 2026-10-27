@@ -6,9 +6,10 @@
 use super::super::StructuralArgument;
 use super::{
     LoweringError, Operation, OperationKind, StructuralMultiplicity, StructuralPlaceDeclaration,
-    StructuralPlaceKind, StructuralTypeId, allocate_dense, lookup_type_id, place_id,
+    StructuralTypeId, allocate_dense, lookup_type_id, place_id,
 };
 use crate::emission::operation_emission::buffer::{OperationBuffer, structural_result_declaration};
+use crate::emission::operation_emission::place_declarations::operation_result_place;
 use checked_trees::CheckedUnitStructuralResultBindingPlan;
 
 /// The checked expression the reference operation actually evaluates.
@@ -395,11 +396,5 @@ pub(crate) fn emit_carrier(
         result.projected_qualifications.dedup();
     }
     operations.push(Operation::unsuspended(id, result, kind));
-    Ok(StructuralPlaceDeclaration {
-        id: place,
-        kind: StructuralPlaceKind::OperationResult {
-            producer: id,
-            structural_type,
-        },
-    })
+    Ok(operation_result_place(place, id, structural_type))
 }

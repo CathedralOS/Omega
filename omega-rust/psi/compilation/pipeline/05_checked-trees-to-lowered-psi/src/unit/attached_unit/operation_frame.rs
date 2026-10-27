@@ -1075,22 +1075,6 @@ pub(super) fn last_operation_id(
         .ok_or(LoweringError::Unsupported(context))
 }
 
-/// The `OperationResult` place declaration pairing
-/// `allocate_structural_result`.
-pub(super) fn operation_result_declaration(
-    id: PlaceId,
-    producer: OperationId,
-    structural_type: StructuralTypeId,
-) -> StructuralPlaceDeclaration {
-    StructuralPlaceDeclaration {
-        id,
-        kind: StructuralPlaceKind::OperationResult {
-            producer,
-            structural_type,
-        },
-    }
-}
-
 /// The `BlockParameter` place declaration a join's `block` reads at
 /// `position`.
 pub(super) fn block_parameter_declaration(

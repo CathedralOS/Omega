@@ -20,6 +20,7 @@ use super::super::{
 };
 use super::StateGraphEmission;
 use crate::emission::operation_emission::buffer::{OperationBuffer, StorageObservations};
+use crate::emission::operation_emission::place_declarations::operation_result_place;
 use crate::expression_preparation::bindings::ScalarBindings;
 use crate::expression_preparation::bindings::structural_fields::EstablishedCasePayload;
 use crate::terminal_identities::lookup_domain_id_for_carrier;
@@ -726,13 +727,7 @@ impl StateGraphEmission<'_, '_> {
                                 OperationKind::StructuralLeafCopy { source, path },
                             ));
                             self.catalogs.temporary_places.push(
-                                StructuralPlaceDeclaration {
-                                    id: destination,
-                                    kind: StructuralPlaceKind::OperationResult {
-                                        producer,
-                                        structural_type,
-                                    },
-                                },
+                                operation_result_place(destination, producer, structural_type),
                             );
                             destination
                             }

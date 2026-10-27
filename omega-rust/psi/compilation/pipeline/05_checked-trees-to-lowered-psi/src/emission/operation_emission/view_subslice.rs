@@ -14,11 +14,12 @@ use crate::emission::operation_emission::buffer::{OperationBuffer, structural_re
 use crate::emission::operation_emission::expressions::{
     LoweredDirectExpression, emit_byte_length, emit_direct_expression, emit_element_length,
 };
+use crate::emission::operation_emission::place_declarations::operation_result_place;
 use crate::emission::scalar_types::terminal_scalar_type;
 use crate::lowering_error::{LoweringError, unsupported};
 use crate::terminal_identities::obligation_id;
 use checked_trees::types::PrimitiveType;
-use semantic_vocabulary::{IntegerValue, PlaceId, StructuralPlaceKind, StructuralTypeId, ValueId};
+use semantic_vocabulary::{IntegerValue, PlaceId, StructuralTypeId, ValueId};
 use terminal_psi::{
     Operation, OperationKind, StructuralMultiplicity, StructuralPlaceDeclaration, ValueDeclaration,
 };
@@ -152,11 +153,9 @@ pub(crate) fn emit(
         structural_result_declaration(destination, structural_type, multiplicity),
         kind,
     ));
-    Ok(StructuralPlaceDeclaration {
-        id: destination,
-        kind: StructuralPlaceKind::OperationResult {
-            producer,
-            structural_type,
-        },
-    })
+    Ok(operation_result_place(
+        destination,
+        producer,
+        structural_type,
+    ))
 }

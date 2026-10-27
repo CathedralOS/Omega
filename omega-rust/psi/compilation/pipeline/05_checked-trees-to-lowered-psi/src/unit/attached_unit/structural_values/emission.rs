@@ -8,8 +8,7 @@ use super::super::{
     StructuralPlaceKind, StructuralTypeId, StructuralTypeShape, Terminator, ValueDeclaration,
     allocate_dense, argument_evaluation, edge_id, lookup_type_id, obligation_id,
     operation_frame::{
-        allocate_structural_result, block_parameter_declaration, operation_result_declaration,
-        structural_parameter_declaration,
+        allocate_structural_result, block_parameter_declaration, structural_parameter_declaration,
     },
     place_id, unsupported, value_id,
 };
@@ -17,6 +16,7 @@ use super::{CheckedTrees, ValueOutcome};
 use crate::emission::operation_emission::buffer::{OperationBuffer, scalar_result_declaration};
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::emit_scalar_leaf;
+use crate::emission::operation_emission::place_declarations::operation_result_place;
 use crate::expression_preparation::bindings::structural_paths::lower_static_argument_path;
 use crate::expression_preparation::bindings::{LoanAccess, ScalarBindings};
 use crate::expression_preparation::byte_literals;
@@ -1889,15 +1889,11 @@ impl Emission<'_, '_, '_> {
                     ),
                     OperationKind::EstablishNativeCodeLayout { machine },
                 ));
-                self.environment
-                    .private_places
-                    .push(StructuralPlaceDeclaration {
-                        id: place,
-                        kind: StructuralPlaceKind::OperationResult {
-                            producer: operation,
-                            structural_type: self.structural_type,
-                        },
-                    });
+                self.environment.private_places.push(operation_result_place(
+                    place,
+                    operation,
+                    self.structural_type,
+                ));
                 self.completed(identities, place, completion, continuation)
             }
 
@@ -2299,13 +2295,11 @@ impl Emission<'_, '_, '_> {
                         ],
                     },
                 )?;
-                self.environment
-                    .private_places
-                    .push(operation_result_declaration(
-                        place,
-                        operation,
-                        self.structural_type,
-                    ));
+                self.environment.private_places.push(operation_result_place(
+                    place,
+                    operation,
+                    self.structural_type,
+                ));
                 self.complete_construction(
                     identities,
                     place,
@@ -2376,13 +2370,11 @@ impl Emission<'_, '_, '_> {
                     Vec::new(),
                     OperationKind::EstablishScalarArray { elements: leaves },
                 )?;
-                self.environment
-                    .private_places
-                    .push(operation_result_declaration(
-                        place,
-                        operation,
-                        self.structural_type,
-                    ));
+                self.environment.private_places.push(operation_result_place(
+                    place,
+                    operation,
+                    self.structural_type,
+                ));
                 self.complete_construction(
                     identities,
                     place,
@@ -2819,13 +2811,11 @@ impl Emission<'_, '_, '_> {
                 path,
             },
         ));
-        self.environment
-            .private_places
-            .push(operation_result_declaration(
-                place,
-                operation,
-                self.structural_type,
-            ));
+        self.environment.private_places.push(operation_result_place(
+            place,
+            operation,
+            self.structural_type,
+        ));
         self.operations
             .register_structural_materialization(place, self.state, self.statement)?;
         // This copy is a new completed value, even when it carries no claims.

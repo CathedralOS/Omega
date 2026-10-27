@@ -9,6 +9,7 @@ use super::{
     StructuralMultiplicity, StructuralParameterDeclaration, StructuralPlaceDeclaration,
     StructuralPlaceKind, unsupported,
 };
+use crate::emission::operation_emission::place_declarations::operation_result_place;
 
 impl Emission<'_, '_, '_> {
     /// A private value edge changes storage identity, not membership.
@@ -454,13 +455,11 @@ impl Emission<'_, '_, '_> {
         ));
         self.evaluation
             .retire_structural_operation_operands(operation, self.operations)?;
-        self.environment
-            .private_places
-            .push(super::operation_result_declaration(
-                place,
-                operation,
-                self.structural_type,
-            ));
+        self.environment.private_places.push(operation_result_place(
+            place,
+            operation,
+            self.structural_type,
+        ));
         self.operations
             .register_structural_materialization(place, self.state, self.statement)?;
         // This is the exact owned transfer just emitted, not a new

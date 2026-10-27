@@ -5,6 +5,7 @@
 use super::{LoweringError, OperationFrame, StructuralArgument};
 use crate::emission::completed_place::Frontier;
 use crate::emission::operation_emission::calls::PreparedStructuralArgument;
+use crate::emission::operation_emission::place_declarations::operation_result_place;
 
 #[derive(Clone)]
 pub(crate) struct CompletedStructuralArgument {
@@ -366,11 +367,5 @@ pub(crate) fn emit_snapshot(
             path: source.path.clone(),
         },
     ));
-    Ok(terminal_psi::StructuralPlaceDeclaration {
-        id: place,
-        kind: semantic_vocabulary::StructuralPlaceKind::OperationResult {
-            producer,
-            structural_type,
-        },
-    })
+    Ok(operation_result_place(place, producer, structural_type))
 }

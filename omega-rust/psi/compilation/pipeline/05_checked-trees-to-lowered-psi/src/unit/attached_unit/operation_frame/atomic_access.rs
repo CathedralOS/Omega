@@ -13,6 +13,7 @@
 //! the root's authority, the orderings and every type.
 
 use super::OperationFrame;
+use crate::emission::operation_emission::place_declarations::operation_result_place;
 use crate::unit::{
     CheckedScalarExpressionRole, LoweringError, Operation, OperationKind, OperationResult,
     ValueDeclaration, allocate_dense, terminal_scalar_type, unsupported,
@@ -223,7 +224,7 @@ impl OperationFrame<'_, '_> {
                     "single-attempt event did not establish its outcome",
                 ))?;
             return self.register_structural_result(
-                super::operation_result_declaration(produced_place, producer, structural_type),
+                operation_result_place(produced_place, producer, structural_type),
                 result,
                 produced,
             );

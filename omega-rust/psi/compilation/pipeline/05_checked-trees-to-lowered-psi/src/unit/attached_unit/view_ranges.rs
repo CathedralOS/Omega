@@ -17,6 +17,7 @@ use crate::emission::operation_emission::expressions::{
     LoweredDirectExpression, LoweredElementPathSegment, TERMINAL_NESTED_SELECTOR_LIMIT,
     emit_prepared_path, path_with_current_bounds,
 };
+use crate::emission::operation_emission::place_declarations::operation_result_place;
 use crate::emission::operation_emission::view_subslice::{self, ViewFamily};
 use crate::expression_preparation::bindings::ScalarBindings;
 use checked_trees::expression::ExpressionHandle;
@@ -592,13 +593,7 @@ pub(crate) fn emit_view(
             }
         },
     ));
-    StructuralPlaceDeclaration {
-        id: place,
-        kind: semantic_vocabulary::StructuralPlaceKind::OperationResult {
-            producer,
-            structural_type,
-        },
-    }
+    operation_result_place(place, producer, structural_type)
 }
 
 /// The established view a range narrows, as the emitting route found it.

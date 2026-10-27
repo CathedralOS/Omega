@@ -6,10 +6,11 @@
 //! copying observes contents like a scalar field read.
 use super::super::super::{
     Operation, OperationKind, OperationResult, PlaceId, StructuralMultiplicity,
-    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId, unsupported,
+    StructuralPlaceDeclaration, StructuralTypeId, unsupported,
 };
 use super::super::LoweringError;
 use crate::emission::operation_emission::buffer::OperationBuffer;
+use crate::emission::operation_emission::place_declarations::operation_result_place;
 use crate::emission::structural_observations;
 use checked_trees::{
     CheckedMemberIdentity, CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
@@ -107,11 +108,5 @@ pub(super) fn emit(
             path: canonical,
         },
     ));
-    Ok(StructuralPlaceDeclaration {
-        id: destination,
-        kind: StructuralPlaceKind::OperationResult {
-            producer,
-            structural_type: leaf,
-        },
-    })
+    Ok(operation_result_place(destination, producer, leaf))
 }

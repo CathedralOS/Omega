@@ -32,6 +32,7 @@ use super::{
     terminal_scalar_type, unsupported,
 };
 use crate::emission::operation_emission::buffer::structural_result_declaration;
+use crate::emission::operation_emission::place_declarations::operation_result_place;
 use crate::unit::StructuralTypeDeclaration;
 
 /// One immutable module namespace for scalar-to-storage correspondence.
@@ -228,13 +229,7 @@ pub(crate) fn establish_at(
             range_obligation,
         },
     ));
-    Ok(StructuralPlaceDeclaration {
-        id: place,
-        kind: StructuralPlaceKind::OperationResult {
-            producer,
-            structural_type,
-        },
-    })
+    Ok(operation_result_place(place, producer, structural_type))
 }
 
 /// Establish each mutable scalar formal from its exact incoming value before

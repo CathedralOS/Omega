@@ -3,6 +3,7 @@
 //! and ranges use the same producers as other byte operands. A projected leaf
 //! is copied as a descriptor, never as bytes or fabricated owned capacity.
 use super::*;
+use crate::emission::operation_emission::place_declarations::operation_result_place;
 use crate::emission::structural_byte_sequence_store as byte_store;
 use checked_trees::{CheckedByteSequenceValue, CheckedUnitStructuralArgumentSourcePlan as Source};
 
@@ -177,13 +178,11 @@ impl OperationFrame<'_, '_> {
                 path,
             },
         ));
-        self.private_places.push(StructuralPlaceDeclaration {
-            id: destination,
-            kind: StructuralPlaceKind::OperationResult {
-                producer,
-                structural_type,
-            },
-        });
+        self.private_places.push(operation_result_place(
+            destination,
+            producer,
+            structural_type,
+        ));
         Ok(destination)
     }
 }

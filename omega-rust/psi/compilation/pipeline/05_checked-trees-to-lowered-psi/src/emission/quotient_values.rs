@@ -1,11 +1,12 @@
 //! Quotient adaptations lower to ordinary copies and selected direct calls.
 //! Both construction schedules supply completed operands to these emitters.
-use super::{StructuralPlaceDeclaration, StructuralPlaceKind};
+use super::StructuralPlaceDeclaration;
 use crate::direct_calls::{CallRecord, DirectCall, DirectCallResult, emit_direct_call};
 use crate::emission::operation_emission::buffer::{
     OperationBuffer, SourceCallCoordinate, scalar_result_declaration, structural_result_declaration,
 };
 use crate::emission::operation_emission::calls::CallEmissionContext;
+use crate::emission::operation_emission::place_declarations::operation_result_place;
 use crate::lowering_error::{LoweringError, unsupported};
 use checked_trees::{CheckedStructuralValueHandle, CheckedStructuralValueKind, CheckedTrees};
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
@@ -221,13 +222,7 @@ pub(crate) fn emit_call(
             None,
         )
     } else {
-        Ok(StructuralPlaceDeclaration {
-            id: place,
-            kind: StructuralPlaceKind::OperationResult {
-                producer: call,
-                structural_type,
-            },
-        })
+        Ok(operation_result_place(place, call, structural_type))
     }
 }
 
@@ -258,11 +253,5 @@ pub(crate) fn emit_adaptation(
             result_type: structural_type,
         },
     );
-    StructuralPlaceDeclaration {
-        id: place,
-        kind: StructuralPlaceKind::OperationResult {
-            producer: copy,
-            structural_type,
-        },
-    }
+    operation_result_place(place, copy, structural_type)
 }
