@@ -656,6 +656,13 @@ impl<'a, 'host> ImportDispatch<'a, 'host> {
 }
 
 impl TerminalEffectHandler for ImportDispatch<'_, '_> {
+    fn poll_host_computation(
+        &mut self,
+        effect: &TerminalEffect,
+    ) -> Result<bool, TerminalEffectRejection> {
+        self.adapter_for(effect)?.poll_host_computation(effect)
+    }
+
     fn poll_effect_readiness(
         &mut self,
         effect: &TerminalEffect,

@@ -21,6 +21,136 @@ struct ControlledImport {
     observations: Arc<Mutex<Vec<TerminalScalarValue>>>,
 }
 
+struct HostComputation(ControlledImport);
+
+impl TerminalImportAdapter for HostComputation {
+    fn implemented_signature(&self) -> TerminalImportSignature {
+        self.0.implemented_signature()
+    }
+}
+
+impl TerminalEffectHandler for HostComputation {
+    fn poll_host_computation(
+        &mut self,
+        _: &TerminalEffect,
+    ) -> Result<bool, TerminalEffectRejection> {
+        Ok(self.0.ready.load(Ordering::Relaxed))
+    }
+
+    fn handle_effect(&mut self, effect: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
+        self.0.handle_effect(effect)
+    }
+
+    fn handle_effect_result(
+        &mut self,
+        effect: &TerminalEffect,
+    ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
+        self.0.handle_effect_result(effect)
+    }
+}
+
+#[test]
+fn synchronous_host_computation_retains_the_invocation_without_guest_suspension() {
+    let root = fixture_package_inputs::repo_root()
+        .join("tests/omega/pass/concurrency/host_boundary_readiness_exit/main.omg");
+    let prepared = fixture_package_inputs::reviewed_repository_fixture_package_inputs(&root, None)
+        .expect("sealed fixture inputs");
+    let mut request = compiler::CheckedCompileRequest::new(&prepared.root_path, None);
+    request.package_inputs = prepared.package_inputs;
+    let checked = omega_build::check_source(&mut compiler::CompilationSession::default(), request)
+        .result
+        .expect("checked ordinary boundary call");
+    let produced = psi_compiler::TerminalProductionRequest::new(
+        &checked.execution().program,
+        psi_compiler::TerminalMachineSelection::Name("synchronous_entry"),
+        checked.sources().exact_toolchain_sources(),
+    )
+    .produce(Default::default(), &mut psi_compiler::UnmeasuredProduction)
+    .expect("Terminal production");
+    let artifact = produced.artifact().expect("portable product");
+    for loaded in [false, true] {
+        let program = if loaded {
+            TerminalProgram::load_envelope(&artifact.to_bytes()).expect("external admission")
+        } else {
+            TerminalProgram::borrow(artifact.view())
+        };
+        let requirements = program.execution_requirements(None).unwrap();
+        let mut host_imports = requirements.imports;
+        host_imports.extend(requirements.missing_providers);
+        let supplies = program
+            .admit_runtime_supplies(terminal_interpreter::TerminalRuntimeSupplyRequest {
+                host_imports: &host_imports,
+                installation: None,
+                entry: None,
+                x86_flags: None,
+                memory_ordering: None,
+                target_machines: None,
+                target_layouts: None,
+            })
+            .unwrap();
+        let mut instance = program
+            .instantiate(terminal_interpreter::TerminalInstantiation {
+                installation: Some(&supplies),
+                ..Default::default()
+            })
+            .unwrap();
+        let ready = Arc::new(AtomicBool::new(false));
+        let observations = Arc::new(Mutex::new(Vec::new()));
+        for boundary in instance.unbound_imports().collect::<Vec<_>>() {
+            let signature = TerminalImportSignature::from(instance.import(boundary).unwrap());
+            instance
+                .bind_import(
+                    boundary,
+                    HostComputation(ControlledImport {
+                        signature,
+                        park: false,
+                        ready: Arc::clone(&ready),
+                        observations: Arc::clone(&observations),
+                    }),
+                )
+                .unwrap();
+        }
+        let mut meter = TerminalFuelMeter::unbounded();
+        let pending = instance
+            .invoke(&mut meter)
+            .expect("executor pause, not a guest suspension");
+        assert!(matches!(
+            pending,
+            TerminalExecutionStatus::HostComputationPending(_)
+        ));
+        let charged = meter.usage().total_units();
+        for _ in 0..3 {
+            assert_eq!(instance.invoke(&mut meter).unwrap(), pending);
+            assert_eq!(meter.usage().total_units(), charged);
+            assert!(observations.lock().unwrap().is_empty());
+            assert!(instance.effects().is_empty());
+            assert!(instance.result().is_none());
+        }
+        assert_eq!(
+            instance.close(),
+            Err(terminal_interpreter::TerminalInstanceCloseError::Busy)
+        );
+        ready.store(true, Ordering::Relaxed);
+        let completed = TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit);
+        assert_eq!(instance.invoke(&mut meter).unwrap(), completed);
+        assert_eq!(instance.effects().len(), 1);
+        assert!(matches!(
+            observations.lock().unwrap().as_slice(),
+            [TerminalScalarValue::Integer {
+                value: semantic_vocabulary::IntegerValue::Signed(9),
+                ..
+            }]
+        ));
+        assert_eq!(instance.invoke(&mut meter).unwrap(), completed);
+        assert_eq!(
+            observations.lock().unwrap().len(),
+            1,
+            "completion never replays the host call"
+        );
+        instance.close().unwrap();
+    }
+}
+
 #[test]
 fn readiness_installs_exact_component_without_replaying_the_receiver() {
     let root = fixture_package_inputs::repo_root()

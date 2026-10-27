@@ -310,10 +310,8 @@ impl<'artifact> TerminalExecution<'artifact> {
         components: &mut crate::instance::ComponentBindings<'_, 'artifact>,
     ) -> Result<OperationFlow, TerminalInterpretError> {
         if let Some(pending) = self.awaiting_effect.as_ref() {
-            if !self.boundary_effect_is_ready(operation, handler, pending)? {
-                return Ok(OperationFlow::Yield(
-                    TerminalExecutionStatus::AwaitingEffect(pending.site),
-                ));
+            if let Some(status) = self.boundary_effect_wait(operation, handler, pending)? {
+                return Ok(OperationFlow::Yield(status));
             }
             let pending = self.awaiting_effect.take().ok_or_else(malformed)?;
             return self.complete_boundary_effect(operation, handler, *pending);
@@ -662,23 +660,20 @@ impl<'artifact> TerminalExecution<'artifact> {
             remaining_claims,
             effect,
         };
-        if self.boundary_effect_is_ready(operation, handler, &pending)? {
-            self.complete_boundary_effect(operation, handler, pending)
-        } else {
-            let site = pending.site;
+        if let Some(status) = self.boundary_effect_wait(operation, handler, &pending)? {
             self.awaiting_effect = Some(Box::new(pending));
-            Ok(OperationFlow::Yield(
-                TerminalExecutionStatus::AwaitingEffect(site),
-            ))
+            Ok(OperationFlow::Yield(status))
+        } else {
+            self.complete_boundary_effect(operation, handler, pending)
         }
     }
 
-    fn boundary_effect_is_ready(
+    fn boundary_effect_wait(
         &self,
         operation: &terminal_psi::Operation,
         handler: &mut impl TerminalEffectHandler,
         pending: &PendingBoundaryCall,
-    ) -> Result<bool, TerminalInterpretError> {
+    ) -> Result<Option<TerminalExecutionStatus>, TerminalInterpretError> {
         let OperationKind::BoundaryCall { boundary, .. } = &operation.kind else {
             return Err(malformed());
         };
@@ -704,7 +699,20 @@ impl<'artifact> TerminalExecution<'artifact> {
                 ),
             });
         }
-        Ok(ready)
+        if !ready {
+            return Ok(Some(TerminalExecutionStatus::AwaitingEffect(pending.site)));
+        }
+        let computed = handler
+            .poll_host_computation(&pending.effect)
+            .map_err(|rejection| TerminalInterpretError::EffectRejected {
+                operation: operation.id,
+                rejection,
+            })?;
+        Ok(
+            (!computed).then_some(TerminalExecutionStatus::HostComputationPending(
+                pending.site,
+            )),
+        )
     }
 
     fn complete_boundary_effect(

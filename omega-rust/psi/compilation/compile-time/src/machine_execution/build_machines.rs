@@ -259,6 +259,9 @@ impl PreparedBuildMachineProgram {
                     terminal_interpreter::TerminalExecutionStatus::AwaitingEffect(site) => Err(
                         format!("constant Terminal execution cannot await a host effect: {site:?}"),
                     ),
+                    terminal_interpreter::TerminalExecutionStatus::HostComputationPending(site) => Err(
+                        format!("constant Terminal execution has no host computation scheduler: {site:?}"),
+                    ),
                     terminal_interpreter::TerminalExecutionStatus::ExternalCompletion(completion) => Err(
                         format!("constant Terminal execution completed externally: {completion:?}"),
                     ),

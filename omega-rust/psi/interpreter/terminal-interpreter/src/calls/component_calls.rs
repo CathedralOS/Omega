@@ -87,7 +87,10 @@ impl<'artifact> TerminalExecution<'artifact> {
             .invoke(operation.id, arguments, structural_arguments, meter)
             .map_err(&reject)?
         {
-            Some(status @ TerminalExecutionStatus::SponsorExhausted(_)) => {
+            Some(
+                status @ (TerminalExecutionStatus::SponsorExhausted(_)
+                | TerminalExecutionStatus::HostComputationPending(_)),
+            ) => {
                 return Ok(OperationFlow::Yield(status));
             }
             Some(status @ TerminalExecutionStatus::AwaitingEffect(_)) => {
