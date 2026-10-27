@@ -102,6 +102,12 @@ pub(crate) fn filter_reassigned_borrow_loans(
         reference_spans::filter_constraint_refs(constraint_refs, source, |constraint| {
             if let FlowConstraintKind::BorrowIncomingReference { identity } = constraint.kind {
                 let incoming = borrow.incoming_references.get(identity);
+                if matches!(
+                    incoming.origin,
+                    checked_trees::IncomingReferenceOrigin::ParameterReferent { .. }
+                ) {
+                    return true;
+                }
                 return !effects.iter().any(|effect| {
                     !effect.may_select
                         && facts::PlaceRoot::Symbol(incoming.parameter_symbol())

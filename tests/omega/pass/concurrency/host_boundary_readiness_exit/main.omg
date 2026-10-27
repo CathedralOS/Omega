@@ -47,7 +47,28 @@ machine storage_entry() reaches Readiness crashes Trap {
     machine wrong() crashes Trap { crash Trap; }
 }
 
+// The same host write now crosses an incoming loan and two incomplete calls.
+machine replace_incoming(value: &mut i32) reaches Readiness suspends; {
+    initialize_incoming(value);
+    suspend Readiness::replace(value);
+}
+
+machine initialize_incoming(value: &mut i32) { value = 7; }
+
+machine incoming_storage_entry() reaches Readiness crashes Trap {
+    Readiness::observe(1);
+    let mut held: i32 = 7;
+    suspend replace_incoming(&mut held);
+    transition held == 42 {
+        true -> finished(held)
+        _ -> wrong()
+    }
+    machine finished(held: i32) reaches Readiness { Readiness::observe(held); }
+    machine wrong() crashes Trap { crash Trap; }
+}
+
 machine entry_start() reaches Readiness crashes Trap {
     suspend main();
     suspend storage_entry();
+    suspend incoming_storage_entry();
 }

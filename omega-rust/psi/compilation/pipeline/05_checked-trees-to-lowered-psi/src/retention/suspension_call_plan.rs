@@ -258,9 +258,9 @@ fn retain_loan_graph(
         SuspensionCrossingLoanBacking, SuspensionCrossingLoanSource, SuspensionValueBorrowFrontier,
     };
     use terminal_psi::{
-        StructuralAccess, StructuralPathSegment, TerminalSuspensionLoan,
-        TerminalSuspensionLoanBacking, TerminalSuspensionLoanCapture,
-        TerminalSuspensionLoanResource, TerminalSuspensionValueLoans,
+        StructuralAccess, TerminalSuspensionLoan, TerminalSuspensionLoanBacking,
+        TerminalSuspensionLoanCapture, TerminalSuspensionLoanResource,
+        TerminalSuspensionValueLoans,
     };
     let carry = &checked.facts.carry;
     let borrow = &checked.facts.borrow;
@@ -297,6 +297,33 @@ fn retain_loan_graph(
     for (source_row, source_loan, terminal) in &loan_identities {
         let row = carry.suspension_loans.get(*source_row);
         let (capture, resource, parent, suppliers, access) = match row.source {
+            SuspensionCrossingLoanSource::Incoming {
+                identity,
+                ref access,
+            } => {
+                let (position, path, _) = incoming_reference_binding(
+                    identities,
+                    checked,
+                    identity,
+                    rows,
+                    live_values,
+                    types,
+                )?;
+                (
+                    TerminalSuspensionLoanCapture::RetainedValue {
+                        live_value: u32::try_from(position).map_err(|_| {
+                            LoweringError::Unsupported(
+                                "incoming loan index exceeds Terminal vocabulary",
+                            )
+                        })?,
+                        path: graph.paths.insert_many(path),
+                    },
+                    TerminalSuspensionLoanResource::IncomingReference,
+                    Handle::invalid(),
+                    HandleSpan::empty(),
+                    access,
+                )
+            }
             SuspensionCrossingLoanSource::Stored { ref resource, .. } => {
                 if !borrow.loans.is_valid(*source_loan) {
                     return unsupported("suspension loan occurrence is unavailable");
@@ -387,7 +414,7 @@ fn retain_loan_graph(
                 let path = crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
             identities, path, root, types)?;
                 let path = graph.paths.insert_many(path);
-                let capture = TerminalSuspensionLoanCapture::CallArgument {
+                let capture = TerminalSuspensionLoanCapture::RetainedValue {
                     live_value: u32::try_from(live_value).map_err(|_| {
                         LoweringError::Unsupported(
                             "suspension actual index exceeds Terminal vocabulary",
@@ -460,22 +487,15 @@ fn retain_loan_graph(
                 }
             }
             SuspensionCrossingLoanBacking::IncomingReferent { identity } => {
-                if !borrow.incoming_references.is_valid(identity) {
-                    return unsupported("suspension incoming referent is unavailable");
-                }
-                let incoming = borrow.incoming_references.get(identity);
-                // The checked opaque identity is rooted in the parameter's
-                // referent, not in owned storage holding its descriptor.
-                let binding = live_values.iter().find(|(live, _)| matches!(live.origin, checked_trees::SuspensionCrossingValueOrigin::Parameter { symbol, .. } if symbol == incoming.parameter_symbol()));
-                if let Some((_, live)) = binding
-                    && let TerminalSuspensionPlace::Structural(argument) = &live.place
-                {
-                    let mut argument = argument.clone();
-                    argument.path.push(StructuralPathSegment::Referent);
-                    TerminalSuspensionLoanBacking::IncomingReferent { argument }
-                } else {
-                    TerminalSuspensionLoanBacking::Unresolved
-                }
+                let (_, _, argument) = incoming_reference_binding(
+                    identities,
+                    checked,
+                    identity,
+                    rows,
+                    live_values,
+                    types,
+                )?;
+                TerminalSuspensionLoanBacking::IncomingReferent { argument }
             }
         };
         *graph.occurrences.get_mut(*terminal) = TerminalSuspensionLoan {
@@ -519,6 +539,92 @@ fn retain_loan_graph(
             };
     }
     Ok(graph)
+}
+
+/// Translate the checked ingress permission into the existing parameter
+/// presentation. Root borrowed parameters already present their referents;
+/// contained descriptors require their own projection and dereference.
+fn incoming_reference_binding(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    checked: &CheckedTrees,
+    identity: Handle<checked_trees::IncomingReferenceIdentity>,
+    loans: &[checked_trees::SuspensionCrossingLoanFact],
+    live_values: &[(
+        &checked_trees::SuspensionCrossingLiveValueFact,
+        terminal_psi::TerminalSuspensionLiveValue,
+    )],
+    types: &[terminal_psi::StructuralTypeDeclaration],
+) -> Result<
+    (
+        usize,
+        Vec<terminal_psi::StructuralPathSegment>,
+        terminal_psi::StructuralArgument,
+    ),
+    LoweringError,
+> {
+    let borrow = &checked.facts.borrow;
+    if !borrow.incoming_references.is_valid(identity) {
+        return unsupported("suspension incoming referent is unavailable");
+    }
+    let incoming = borrow.incoming_references.get(identity);
+    let (position, (_, live)) = live_values.iter().enumerate().find(|(_, (source, _))| {
+        matches!(source.origin, checked_trees::SuspensionCrossingValueOrigin::Parameter { symbol, .. }
+            if symbol == incoming.parameter_symbol())
+    }).ok_or(LoweringError::Unsupported("suspension ingress parameter is not retained"))?;
+    let (
+        TerminalSuspensionPlace::Structural(argument),
+        TerminalSuspensionValueType::Structural(root),
+    ) = (&live.place, live.value_type)
+    else {
+        return unsupported("suspension ingress permission has no structural argument");
+    };
+    let owner_path =
+        borrow
+            .owner_segments
+            .span(incoming.owner_path)
+            .ok_or(LoweringError::Unsupported(
+                "suspension ingress descriptor path is unavailable",
+            ))?;
+    let path = validation::borrow_contracts::structural_owner_path(checked, owner_path).ok_or(
+        LoweringError::Unsupported("suspension ingress path has no exact declaration selectors"),
+    )?;
+    let path =
+        crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
+            identities, &path, root, types,
+        )?;
+    let mut referent = argument.clone();
+    let access = loans
+        .iter()
+        .find_map(|loan| match &loan.source {
+            checked_trees::SuspensionCrossingLoanSource::Incoming {
+                identity: permission,
+                access,
+            } if *permission == identity && loan.active_at_call && loan.retained_for_crossing => {
+                Some(access)
+            }
+            _ => None,
+        })
+        .ok_or(LoweringError::Unsupported(
+            "suspension ingress access has no retained permission",
+        ))?;
+    referent.access = match access {
+        checked_trees::BorrowAccessKind::Read => terminal_psi::StructuralAccess::SharedBorrow,
+        checked_trees::BorrowAccessKind::Mutable => terminal_psi::StructuralAccess::MutableBorrow,
+        checked_trees::BorrowAccessKind::WriteOnly => {
+            terminal_psi::StructuralAccess::WriteOnlyBorrow
+        }
+    };
+    referent.path.extend(path.iter().cloned());
+    let root_borrow = matches!(
+        incoming.origin,
+        checked_trees::IncomingReferenceOrigin::ParameterReferent { .. }
+    );
+    if !root_borrow {
+        referent
+            .path
+            .push(terminal_psi::StructuralPathSegment::Referent);
+    }
+    Ok((position, path, referent))
 }
 
 /// Source positions and Terminal lanes are different namespaces. A structural

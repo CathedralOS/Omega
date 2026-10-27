@@ -43,6 +43,13 @@ pub struct IncomingReferenceIdentity {
 /// slot and never proves spatial separation from another incoming permission.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IncomingReferenceOrigin {
+    /// The invocation's root loan parameter. Writes through it affect the
+    /// referent, not the descriptor supplied by the still-incomplete caller.
+    ParameterReferent {
+        symbol: SymbolHandle,
+    },
+    /// A descriptor stored in an input carrier. Replacement retires this
+    /// occurrence independently of any root loan permitting the write.
     Parameter {
         symbol: SymbolHandle,
     },
@@ -68,7 +75,10 @@ impl IncomingReferenceIdentity {
     /// Unequal namespaces never establish physical separation.
     pub fn place_root(&self) -> facts::PlaceRoot {
         match self.origin {
-            IncomingReferenceOrigin::Parameter { symbol } => facts::PlaceRoot::Symbol(symbol),
+            IncomingReferenceOrigin::Parameter { symbol }
+            | IncomingReferenceOrigin::ParameterReferent { symbol } => {
+                facts::PlaceRoot::Symbol(symbol)
+            }
             IncomingReferenceOrigin::Invocation { expression, .. } => {
                 facts::PlaceRoot::Expression(expression)
             }
@@ -80,7 +90,8 @@ impl IncomingReferenceIdentity {
 
     pub fn parameter_symbol(&self) -> SymbolHandle {
         match self.origin {
-            IncomingReferenceOrigin::Parameter { symbol } => symbol,
+            IncomingReferenceOrigin::Parameter { symbol }
+            | IncomingReferenceOrigin::ParameterReferent { symbol } => symbol,
             IncomingReferenceOrigin::Invocation { .. } | IncomingReferenceOrigin::Output { .. } => {
                 SymbolHandle::invalid()
             }

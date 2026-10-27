@@ -2613,6 +2613,8 @@ fail/comptime/recipe_extent_index_refused_at_closure rejected 12240ms expected @
 	index `8` of `main.slots`: requires 8 < `slot_count`, but the selected target realization closes `slot_count` to 8
 fail/comptime/recursive_accumulator_requires_coupling rejected 1323ms expected @a92f16431042
 	cannot prove requires contract for call triangle from triangle: acc + n <= 5050 (needs fact `acc <= 5050` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/concurrency/incoming_loan_forbidden_backing rejected 802ms expected @5678952fe74f
+	call to `entry` may suspend while `backing` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 fail/concurrency/suspend_explicit_parameter_field_rejected rejected 2108ms expected @a92f16431042
 	call to `park` may suspend while `message` remains live, but its effective policy is `carry(suspension: forbidden, cpu: same, thread: same, address: stable)`; consume the value before the call or use a suspension-safe carrier
 fail/concurrency/suspend_later_operand_rejected rejected 1670ms expected @a92f16431042
@@ -2622,21 +2624,16 @@ fail/concurrency/suspend_live_value_rejected rejected 1715ms expected @a92f16431
 fail/concurrency/suspend_reference_array_backing_write rejected 1614ms expected @a92f16431042
 	statement 4 mutates `backing` while local borrow `references` is still active (borrowed at statement 1; its last use is at statement 5 and it is released at state exit)
 	statement 4 mutates `backing` while local borrow `references` is still active (borrowed at statement 1; its last use is at statement 5 and it is released at state exit)
-fail/concurrency/suspend_reference_permission_without_backing rejected 1321ms expected @a92f16431042
-	call to `park` may suspend while `loan` may retain borrowed storage, but its backing lifetime, access restrictions and address preservation have no checked per-value join; carry permission on the descriptor does not establish loan preservation; missing retained-loan obligation: the stored loan-leaf frontier is incomplete
-	call to `park` may suspend while `carrier` may retain borrowed storage, but its backing lifetime, access restrictions and address preservation have no checked per-value join; carry permission on the descriptor does not establish loan preservation; missing retained-loan obligation: the stored loan-leaf frontier is incomplete
-	call to `park` may suspend while `view` may retain borrowed storage, but its backing lifetime, access restrictions and address preservation have no checked per-value join; carry permission on the descriptor does not establish loan preservation; missing retained-loan obligation: the stored loan-leaf frontier is incomplete
-	call to `park_with` may suspend while `argument` may retain borrowed storage, but its backing lifetime, access restrictions and address preservation have no checked per-value join; carry permission on the descriptor does not establish loan preservation; missing retained-loan obligation: the referent has no retained enclosing-activation lifetime
+fail/concurrency/suspend_reference_permission_without_backing rejected 803ms expected @5678952fe74f
 	call to `park` may suspend while `unknown` may retain borrowed storage, but its backing lifetime, access restrictions and address preservation have no checked per-value join; carry permission on the descriptor does not establish loan preservation; missing retained-loan obligation: the stored loan-leaf frontier is incomplete
-fail/concurrency/suspend_retained_loan_conflicting_backing_write rejected 1343ms expected @a92f16431042
+fail/concurrency/suspend_retained_loan_conflicting_backing_write rejected 842ms expected @5678952fe74f
 	statement 3 mutates `backing` while local borrow `retained` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
-fail/concurrency/suspend_with_indirect_resource_backing rejected 1659ms expected @a92f16431042
+fail/concurrency/suspend_with_indirect_resource_backing rejected 870ms expected @5678952fe74f
 	call to `park` may suspend while `owned_backing` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 	call to `park` may suspend while `direct_backing` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 	call to `park` may suspend while `current_backing` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 	call to `park` may suspend while `aggregate_backing` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 	call to `park` may suspend while `nested_backing` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
-	call to `park` may suspend while `forwarded` remains live, but its effective policy is `carry(suspension: forbidden, cpu: same, thread: same, address: stable)`; consume the value before the call or use a suspension-safe carrier; missing retained-loan obligation: the referent has no retained enclosing-activation lifetime
 	call to `inspect` may suspend while `call_only_backing` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 	call to `inspect_carrier` may suspend while `constructed_backing` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 fail/constants/affine_rational_named_constant rejected 804ms expected @a92f16431042
@@ -22027,7 +22024,7 @@ pass/borrow/mutable_selector_unchanged_exit checked 2360ms check-target:macos_ar
 pass/borrow/named_operator_disjoint_argument_preserves_bound checked 845ms @7480471d532b+wt
 pass/borrow/nested_reference_parameter_referent_assignment checked 3054ms @a92f16431042
 pass/borrow/projected_record_state_loan_split_exit checked 2212ms check-target:macos_arm64 @a92f16431042
-pass/borrow/reference_parameter_referent_copy_exit checked 3356ms check-target:macos_arm64 @a92f16431042
+pass/borrow/reference_parameter_referent_copy_exit checked 1979ms check-target:macos_arm64 @5678952fe74f
 pass/borrow/runtime_boundary_receiver_disjoint_loan_exit rejected 4465ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
 	argument `bytes` for state `publish` expects `&[u8]`, got `named value`
 pass/borrow/runtime_dispatch_call_payload_snapshot_exit checked 10908ms check-target:macos_arm64 @a92f16431042
@@ -22053,7 +22050,7 @@ pass/borrow/runtime_write_only_exclusive_reference_call_result_exit checked 2756
 pass/borrow/runtime_write_only_exclusive_reference_detached_child_exit checked 2972ms check-target:macos_arm64 @a92f16431042
 pass/borrow/runtime_write_only_exclusive_reference_forward_exit checked 2630ms check-target:macos_arm64 @a92f16431042
 pass/borrow/runtime_write_only_exclusive_reference_nested_call_operand_exit checked 2389ms check-target:macos_arm64 @a92f16431042
-pass/borrow/runtime_write_only_exclusive_reference_owned_wrapper_exit checked 3237ms check-target:macos_arm64 @a92f16431042
+pass/borrow/runtime_write_only_exclusive_reference_owned_wrapper_exit checked 1867ms check-target:macos_arm64 @5678952fe74f
 pass/borrow/runtime_write_only_exclusive_reference_projected_exit checked 3648ms check-target:macos_arm64 @a92f16431042
 pass/borrow/runtime_write_only_exclusive_reference_returned_view_exit checked 2658ms check-target:macos_arm64 @a92f16431042
 pass/borrow/runtime_write_only_indexed_record_copy_exit checked 2638ms check-target:macos_arm64 @a92f16431042
@@ -23065,6 +23062,9 @@ pass/comptime/selected_float_array_length_exit incomplete 22718ms check-target:m
 pass/comptime/selected_float_array_length_layout_query_exit incomplete 22505ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
 	`Main::main` has no executable body: this compiler does not lower a transition of it yet (state loan parents: incomplete captured storage dependencies); in state `Main::main::main`, statement 2
 pass/concurrency/boundary_suspension_inline_completion_exit checked 5190ms check-target:macos_arm64 @a92f16431042
+pass/concurrency/host_boundary_readiness_exit checked 1872ms check-target:macos_arm64 @5678952fe74f
+pass/concurrency/incoming_aggregate_loan_after_suspend checked 1866ms check-target:macos_arm64 @5678952fe74f
+pass/concurrency/incoming_loan_after_suspend checked 1867ms check-target:macos_arm64 @5678952fe74f
 pass/concurrency/ref_array_suspend checked 2713ms @a92f16431042
 pass/concurrency/runtime_array_loan_suspension_exit checked 4750ms check-target:macos_arm64 @a92f16431042
 pass/concurrency/runtime_retained_reference_boundary_exit checked 7055ms check-target:macos_arm64 @a92f16431042

@@ -518,8 +518,27 @@ fn append_incoming_reference_trackers(
                 });
             }
         }
-        // The root reference's permission is the existing borrowed parameter
-        // contract. Its referent may also contain independently carried leaves.
+        // Publish the root borrowed-parameter permission as well as the
+        // independently carried descriptors inside its referent. It is not a
+        // statement loan or a tracker for a contained descriptor. The full
+        // reference carrier distinguishes the two ingress namespaces.
+        let parameter_type =
+            validation::peel_declared_constraints(program, parameter.type_reference);
+        if validation::reference_shell(program, parameter_type).is_some() {
+            arenas.incoming_references.append_to_span(
+                &mut incoming,
+                checked_trees::IncomingReferenceIdentity {
+                    machine_symbol: machine.symbol,
+                    state_symbol: state.symbol,
+                    origin: checked_trees::IncomingReferenceOrigin::ParameterReferent {
+                        symbol: parameter.symbol,
+                    },
+                    carrier_type: parameter_type,
+                    owner_path: arena::HandleSpan::empty(),
+                },
+            );
+        }
+        // Readable referents may contain independently carried leaves.
         let Some(carrier) = validation::reference_result_custody::input_carrier_type(
             program,
             parameter.type_reference,

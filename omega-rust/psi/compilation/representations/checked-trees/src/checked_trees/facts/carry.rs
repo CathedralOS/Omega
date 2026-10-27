@@ -104,6 +104,11 @@ pub struct SuspensionCrossingLoanFact {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SuspensionCrossingLoanSource {
+    /// Current invocation-entry permission, not a loan of the parameter slot.
+    Incoming {
+        identity: Handle<crate::IncomingReferenceIdentity>,
+        access: crate::BorrowAccessKind,
+    },
     Stored {
         loan: Handle<crate::BorrowLoanFact>,
         resource: crate::CheckedParentBorrowResource,
@@ -126,7 +131,8 @@ impl SuspensionCrossingLoanFact {
     pub fn stored_loan(&self) -> Handle<crate::BorrowLoanFact> {
         match self.source {
             SuspensionCrossingLoanSource::Stored { loan, .. } => loan,
-            SuspensionCrossingLoanSource::CapturedActual { .. } => Handle::invalid(),
+            SuspensionCrossingLoanSource::CapturedActual { .. }
+            | SuspensionCrossingLoanSource::Incoming { .. } => Handle::invalid(),
         }
     }
 }

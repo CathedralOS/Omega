@@ -287,7 +287,7 @@ fn encode_loans(writer: &mut Writer, loans: &TerminalSuspensionLoans) -> Result<
                 encode_structural_access(writer, *source_access);
                 encode_span(writer, *source_path);
             }
-            TerminalSuspensionLoanCapture::CallArgument { live_value, path } => {
+            TerminalSuspensionLoanCapture::RetainedValue { live_value, path } => {
                 writer.u8(2);
                 writer.u32(*live_value);
                 encode_span(writer, *path);
@@ -310,6 +310,7 @@ fn encode_loans(writer: &mut Writer, loans: &TerminalSuspensionLoans) -> Result<
             TerminalSuspensionLoanResource::Unresolved => 0,
             TerminalSuspensionLoanResource::DirectRoot => 1,
             TerminalSuspensionLoanResource::Reborrow => 2,
+            TerminalSuspensionLoanResource::IncomingReference => 3,
         });
         encode_handle(writer, loan.parent);
         encode_span(writer, loan.suppliers);
@@ -340,7 +341,7 @@ fn decode_loans(reader: &mut Reader<'_>) -> Result<TerminalSuspensionLoans, Code
                 source_access: decode_structural_access(reader)?,
                 source_path: decode_span(reader)?,
             },
-            2 => TerminalSuspensionLoanCapture::CallArgument {
+            2 => TerminalSuspensionLoanCapture::RetainedValue {
                 live_value: reader.u32()?,
                 path: decode_span(reader)?,
             },
@@ -364,6 +365,7 @@ fn decode_loans(reader: &mut Reader<'_>) -> Result<TerminalSuspensionLoans, Code
             0 => TerminalSuspensionLoanResource::Unresolved,
             1 => TerminalSuspensionLoanResource::DirectRoot,
             2 => TerminalSuspensionLoanResource::Reborrow,
+            3 => TerminalSuspensionLoanResource::IncomingReference,
             tag => {
                 return Err(CodecError::InvalidTag(
                     "TerminalSuspensionLoanResource",
@@ -414,16 +416,35 @@ fn validate_loan_coordinates(
             {
                 return Err(CodecError::NonCanonicalEncoding);
             }
-            TerminalSuspensionLoanCapture::CallArgument { live_value, path }
+            TerminalSuspensionLoanCapture::RetainedValue { live_value, path }
                 if loans.paths.span(path).is_none()
                     || !live_values.get(live_value as usize).is_some_and(|live| {
-                        live.storage == TerminalSuspensionStorage::CallArgument
+                        live.storage
+                            == if loan.resource == TerminalSuspensionLoanResource::IncomingReference
+                            {
+                                TerminalSuspensionStorage::Parameter
+                            } else {
+                                TerminalSuspensionStorage::CallArgument
+                            }
                             && matches!(live.place, TerminalSuspensionPlace::Structural(_))
                     }) =>
             {
                 return Err(CodecError::NonCanonicalEncoding);
             }
             _ => {}
+        }
+        if loan.resource == TerminalSuspensionLoanResource::IncomingReference
+            && (!matches!(
+                loan.capture,
+                TerminalSuspensionLoanCapture::RetainedValue { .. }
+            ) || !matches!(
+                loan.backing,
+                TerminalSuspensionLoanBacking::IncomingReferent { .. }
+            ) || loan.parent.is_valid()
+                || !loan.suppliers.is_empty()
+                || !loan.active_at_call)
+        {
+            return Err(CodecError::NonCanonicalEncoding);
         }
         if let TerminalSuspensionLoanBacking::RetainedOwner { live_value } = loan.backing
             && live_value as usize >= live_values.len()
@@ -673,10 +694,48 @@ mod tests {
                 source_path: HandleSpan::empty(),
             };
         assert_ne!(suspension_frontier_commitment(&table, &changed), commitment);
+        let mut ingress = plan.clone();
+        ingress.live_values[0].storage = TerminalSuspensionStorage::Parameter;
+        let argument = StructuralArgument {
+            place: PlaceId::new(7).expect("ingress place"),
+            path: Vec::new(),
+            access: StructuralAccess::MutableBorrow,
+        };
+        ingress.live_values[0].place = TerminalSuspensionPlace::Structural(argument.clone());
+        *ingress.loans.occurrences.get_mut(child) = TerminalSuspensionLoan {
+            capture: TerminalSuspensionLoanCapture::RetainedValue {
+                live_value: 0,
+                path: HandleSpan::empty(),
+            },
+            backing: TerminalSuspensionLoanBacking::IncomingReferent { argument },
+            resource: TerminalSuspensionLoanResource::IncomingReference,
+            access: StructuralAccess::MutableBorrow,
+            active_at_call: true,
+            ..Default::default()
+        };
+        let mut writer = Writer::default();
+        encode_suspension_call_plan(&mut writer, &ingress).expect("encode ingress capture");
+        assert_eq!(
+            decode_suspension_call_plan(&mut Reader::new(&writer.finish()))
+                .expect("decode ingress capture"),
+            ingress
+        );
+        assert_ne!(suspension_frontier_commitment(&table, &ingress), commitment);
+        ingress.live_values[0].storage = TerminalSuspensionStorage::CallArgument;
+        let mut writer = Writer::default();
+        encode_suspension_call_plan(&mut writer, &ingress).expect("encode wrong ingress role");
+        assert!(decode_suspension_call_plan(&mut Reader::new(&writer.finish())).is_err());
+        ingress.live_values[0].storage = TerminalSuspensionStorage::Parameter;
+        ingress.loans.occurrences.get_mut(child).backing =
+            TerminalSuspensionLoanBacking::RetainedOwner { live_value: 0 };
+        let mut writer = Writer::default();
+        encode_suspension_call_plan(&mut writer, &ingress).expect("encode descriptor as owner");
+        assert!(decode_suspension_call_plan(&mut Reader::new(&writer.finish())).is_err());
+
         changed = plan;
         changed.live_values[0].storage = TerminalSuspensionStorage::CallArgument;
         changed.loans.occurrences.get_mut(child).capture =
-            TerminalSuspensionLoanCapture::CallArgument {
+            TerminalSuspensionLoanCapture::RetainedValue {
                 live_value: 0,
                 path: HandleSpan::empty(),
             };
@@ -687,7 +746,7 @@ mod tests {
         assert_eq!(decoded, changed);
         let actual_commitment = suspension_frontier_commitment(&table, &changed);
         changed.loans.occurrences.get_mut(child).capture =
-            TerminalSuspensionLoanCapture::CallArgument {
+            TerminalSuspensionLoanCapture::RetainedValue {
                 live_value: 1,
                 path: HandleSpan::empty(),
             };
@@ -699,7 +758,7 @@ mod tests {
         encode_suspension_call_plan(&mut writer, &changed).expect("encode absent actual");
         assert!(decode_suspension_call_plan(&mut Reader::new(&writer.finish())).is_err());
         changed.loans.occurrences.get_mut(child).capture =
-            TerminalSuspensionLoanCapture::CallArgument {
+            TerminalSuspensionLoanCapture::RetainedValue {
                 live_value: 0,
                 path,
             };
