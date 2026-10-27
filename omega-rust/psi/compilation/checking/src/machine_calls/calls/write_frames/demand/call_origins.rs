@@ -422,14 +422,7 @@ impl<'program> CallFrameResolver<'program> {
         let program = self.program;
         let members = program.statement_table.name_path_members(call.receiver);
         let root = call.receiver_root_symbol;
-        let root_reference = program
-            .state_parameter_by_symbol(state, root)
-            .map(|parameter| parameter.type_reference)
-            .or_else(|| {
-                program
-                    .state_local_declaration(state, root)
-                    .map(|(_, local)| local.type_reference)
-            })?;
+        let root_reference = crate::state_root_type(program, state, root)?;
         let (segments, _) = frames::reference_origins::retained_receiver_projection(
             program,
             root_reference,

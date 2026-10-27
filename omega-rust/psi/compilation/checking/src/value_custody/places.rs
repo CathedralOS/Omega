@@ -34,6 +34,7 @@ pub mod collection_operations;
 mod declaration_types;
 pub(crate) use declaration_types::declaration_type_equations;
 pub use declaration_types::declaration_type_reference;
+pub use declaration_types::state_root_type;
 
 use crate::value_custody::locals::WritableRoots;
 use crate::value_custody::struct_literals::data_declares_field;
