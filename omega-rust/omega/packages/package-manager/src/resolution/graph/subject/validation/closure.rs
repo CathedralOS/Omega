@@ -19,25 +19,6 @@ pub(in super::super) fn validate_subject(
     projections: &[DependencyProjections],
     edges: &[CanonicalDependencySourceSelection],
     limits: Limits,
-) -> Result<(), Error> {
-    validate_subject_with_budget(
-        root,
-        packages,
-        navigations,
-        projections,
-        edges,
-        limits,
-        &mut Budget::new(usize::MAX),
-    )
-}
-
-pub(in super::super) fn validate_subject_with_budget(
-    root: &CanonicalRootSourceSelection,
-    packages: &[ResolvedSourceIdentity],
-    navigations: &[PackageSourceNavigation],
-    projections: &[DependencyProjections],
-    edges: &[CanonicalDependencySourceSelection],
-    limits: Limits,
     budget: &mut Budget,
 ) -> Result<(), Error> {
     if packages.is_empty()

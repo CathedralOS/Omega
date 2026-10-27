@@ -171,7 +171,7 @@ pub(super) fn validate(
             budget,
         )?;
         let provider = &dependency.provider;
-        super::validation::validate_subject_with_budget(
+        super::validation::validate_subject(
             &provider.root,
             &provider.packages,
             &provider.package_navigations,
@@ -225,7 +225,7 @@ mod tests {
             .unwrap(),
         )
         .unwrap();
-        CanonicalSourceClosureSubject::finish_with_projections(
+        CanonicalSourceClosureSubject::finish(
             target::TargetProfile::from_canonical_target_name("linux_x86_64").unwrap(),
             CanonicalRootSourceSelection {
                 request: CanonicalRootSourceRequest::Git {
@@ -241,6 +241,7 @@ mod tests {
             vec![DependencyProjections::from_executed_requests(std::iter::empty()).unwrap()],
             Vec::new(),
             Limits::default(),
+            &mut Budget::new(usize::MAX),
         )
         .unwrap()
     }
