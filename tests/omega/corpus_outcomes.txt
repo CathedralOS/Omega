@@ -8380,7 +8380,7 @@ fail/facts/foreign_retained_mutable_borrow_other_machine rejected 2033ms expecte
 	statement 5 reads `buffer.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
 fail/facts/foreign_retained_mutable_borrow_other_registration_live rejected 1225ms expected @ecaaadc3df5c
 	statement 13 reads `first.value` while local borrow `routed_first` is still active (borrowed at statement 7; its last use is at statement 14)
-fail/facts/foreign_retained_mutable_borrow_other_state rejected 1587ms expected @355494c10ca8
+fail/facts/foreign_retained_mutable_borrow_other_state rejected 1151ms expected @c46cd5ee437f
 	statement 5 reads `buffer.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
 fail/facts/foreign_retained_mutable_borrow_overlapping_registration rejected 1214ms expected @ecaaadc3df5c
 	state `register` receives `buffer` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 8)
@@ -8406,7 +8406,7 @@ fail/facts/foreign_retained_shared_borrow_match_join rejected 2522ms expected @a
 	statement 4 mutates `buffer.value` while local borrow `routed` is still active (borrowed at statement 3; its last use is at statement 6)
 fail/facts/foreign_retained_shared_borrow_other_machine rejected 3362ms expected @a92f16431042
 	statement 4 mutates `buffer.value` while local borrow `routed` is still active (borrowed at statement 3; its last use is at statement 6)
-fail/facts/foreign_retained_shared_borrow_other_state rejected 2865ms expected @a92f16431042
+fail/facts/foreign_retained_shared_borrow_other_state rejected 1155ms expected @c46cd5ee437f
 	statement 4 mutates `buffer.value` while local borrow `routed` is still active (borrowed at statement 3; its last use is at statement 6)
 fail/facts/foreign_retained_shared_borrow_parameter rejected 3144ms expected @a92f16431042
 	statement 3 mutates `buffer.value` while local borrow `pending` is still active (borrowed at statement 2; its last use is at statement 5)
@@ -26048,7 +26048,7 @@ pass/facts/foreign_retained_mutable_borrow_local checked 1620ms check-target:mac
 pass/facts/foreign_retained_mutable_borrow_match_join checked 1626ms check-target:macos_arm64 @355494c10ca8
 pass/facts/foreign_retained_mutable_borrow_mixed_issuers checked 2133ms check-target:macos_arm64 @355494c10ca8
 pass/facts/foreign_retained_mutable_borrow_other_machine checked 2010ms check-target:macos_arm64 @355494c10ca8
-pass/facts/foreign_retained_mutable_borrow_other_state checked 1969ms check-target:macos_arm64 @355494c10ca8
+pass/facts/foreign_retained_mutable_borrow_other_state checked 1680ms check-target:macos_arm64 @c46cd5ee437f
 pass/facts/foreign_retained_mutable_borrow_parameter checked 1962ms check-target:macos_arm64 @355494c10ca8
 pass/facts/foreign_retained_mutable_borrow_reverse_completion checked 1979ms check-target:macos_arm64 @355494c10ca8
 pass/facts/foreign_retained_mutable_borrow_target_body checked 1427ms check-target:macos_arm64 @355494c10ca8
@@ -26058,7 +26058,7 @@ pass/facts/foreign_retained_shared_borrow_field checked 4676ms check-target:maco
 pass/facts/foreign_retained_shared_borrow_local checked 3931ms check-target:macos_arm64 @a92f16431042
 pass/facts/foreign_retained_shared_borrow_match_join checked 4389ms check-target:macos_arm64 @a92f16431042
 pass/facts/foreign_retained_shared_borrow_other_machine checked 4417ms check-target:macos_arm64 @a92f16431042
-pass/facts/foreign_retained_shared_borrow_other_state checked 4808ms check-target:macos_arm64 @a92f16431042
+pass/facts/foreign_retained_shared_borrow_other_state checked 1551ms check-target:macos_arm64 @c46cd5ee437f
 pass/facts/foreign_retained_shared_borrow_parameter checked 4548ms check-target:macos_arm64 @a92f16431042
 pass/facts/foreign_retained_shared_borrow_raw_same_carrier_borrow checked 4601ms check-target:macos_arm64 @a92f16431042
 pass/facts/foreign_retained_shared_borrow_raw_same_carrier_called checked 4574ms check-target:macos_arm64 @a92f16431042

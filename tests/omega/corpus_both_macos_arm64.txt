@@ -1257,6 +1257,8 @@ pass/facts/foreign_owned_array_record_through_other_machine_exit built 3732ms ex
 pass/facts/foreign_owned_array_record_through_other_state_exit built 3773ms exit:0 interpreter-exit:0 interpreter:agrees @7b904dca0385e7b8bad014f6bcdbb0e65b1ac647
 pass/facts/foreign_owned_array_record_through_parameter_exit built 3774ms exit:0 interpreter-exit:0 interpreter:agrees @7b904dca0385e7b8bad014f6bcdbb0e65b1ac647
 pass/facts/foreign_owned_array_record_through_target_body_exit built 3690ms exit:0 interpreter-exit:0 interpreter:agrees @7b904dca0385e7b8bad014f6bcdbb0e65b1ac647
+pass/facts/foreign_retained_mutable_borrow_other_state built 2168ms exit:0 interpreter-exit:0 interpreter:agrees @c46cd5ee437f
+pass/facts/foreign_retained_shared_borrow_other_state built 2110ms exit:0 interpreter-exit:0 interpreter:agrees @c46cd5ee437f
 pass/facts/foreign_scalar_backing_through_call_result_exit built 898ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @db430d661cf1+wt
 pass/facts/foreign_scalar_backing_through_const_name_exit built 743ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @db430d661cf1+wt
 pass/facts/foreign_scalar_backing_through_field_exit built 734ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @db430d661cf1+wt
