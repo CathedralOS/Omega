@@ -553,6 +553,34 @@ fn prepare_occurrence_contexts(
             .unwrap_or_else(|| {
                 build_evaluation::BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>())
             });
+            let inputs = if !is_root && !request.verify {
+                match custody.compiled_review_cache_dir() {
+                    Some(directory) => {
+                        let identity =
+                            compiler_input_identity().map_err(|error| failure(&key, error))?;
+                        let input_key = crate::review::compiled_review_key_with_identity(
+                            key.identity(),
+                            purpose,
+                            target,
+                            execution_profile,
+                            &entry,
+                            &inputs,
+                            &snapshot,
+                            identity,
+                        );
+                        inputs.with_native_product_retention(
+                            package_compilation::CompilerProductRetention::new(
+                                directory.to_path_buf(),
+                                input_key,
+                                identity,
+                            ),
+                        )
+                    }
+                    None => inputs,
+                }
+            } else {
+                inputs
+            };
             occurrences.push(AdmittedOccurrence {
                 key: key.clone(),
                 context,

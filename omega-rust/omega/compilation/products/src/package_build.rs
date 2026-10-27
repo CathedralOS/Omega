@@ -143,6 +143,10 @@ impl PreparedPackageBuild {
         &self.generated_sources
     }
 
+    pub fn optimization_rollback(&self) -> &optimization_core::OptimizationRollback {
+        &self.rollback
+    }
+
     pub fn root_path(&self) -> &std::path::Path {
         &self.root_path
     }

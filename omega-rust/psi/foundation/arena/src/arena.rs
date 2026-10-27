@@ -15,11 +15,25 @@ use std::ops::Range;
 
 use crate::{Handle, HandleSpan};
 
+/// Complete nonuniform slot identity, including allocation order for vacant rows.
+/// Storage recovery checks this roster before any handle can resolve against it.
 #[derive(Default)]
-struct SlotMetadata {
-    generations: Vec<u32>,
-    occupied: Vec<bool>,
-    free_indices: Vec<u32>,
+pub struct ArenaSlotStorage {
+    pub generations: Vec<u32>,
+    pub occupied: Vec<bool>,
+    pub free_indices: Vec<u32>,
+}
+
+type SlotMetadata = ArenaSlotStorage;
+
+/// Borrow the complete logical storage without copying payloads. Mutation
+/// revisions are invocation-local observations and do not travel with storage.
+pub struct ArenaStorageView<'storage, T> {
+    pub dummy: &'storage T,
+    pub items: &'storage [T],
+    pub slots: Option<&'storage ArenaSlotStorage>,
+    pub fresh_generation: u32,
+    pub fresh: bool,
 }
 
 static EMPTY_SLOT_METADATA: SlotMetadata = SlotMetadata {
@@ -73,6 +87,85 @@ pub struct Arena<T> {
 }
 
 impl<T> Arena<T> {
+    pub fn storage_view(&self) -> ArenaStorageView<'_, T> {
+        ArenaStorageView {
+            dummy: &self.dummy,
+            items: &self.items,
+            slots: (!self.implicit_slot_metadata).then(|| self.slot_metadata()),
+            fresh_generation: self.fresh_generation,
+            fresh: self.fresh,
+        }
+    }
+
+    /// Recover an owned page while preserving holes, generations and the next
+    /// reusable slot. This admits storage structure only, never the meaning of
+    /// the payload or any references between pages.
+    pub fn from_storage(
+        dummy: T,
+        items: Vec<T>,
+        slots: Option<ArenaSlotStorage>,
+        fresh_generation: u32,
+        fresh: bool,
+    ) -> Result<Self, &'static str> {
+        if fresh_generation == 0 || items.len() > u32::MAX as usize {
+            return Err("arena storage has an invalid generation or row count");
+        }
+        let active_count = if let Some(slots) = &slots {
+            if slots.generations.len() != items.len() || slots.occupied.len() != items.len() {
+                return Err("arena slot roster does not match payload storage");
+            }
+            if slots.generations.contains(&0) {
+                return Err("arena slot roster has a zero generation");
+            }
+            let mut vacant = slots
+                .occupied
+                .iter()
+                .map(|occupied| !occupied)
+                .collect::<Vec<_>>();
+            for &arena_index in &slots.free_indices {
+                let Some(unlisted) = arena_index
+                    .checked_sub(1)
+                    .and_then(|index| vacant.get_mut(index as usize))
+                else {
+                    return Err("arena free list has an out-of-range slot");
+                };
+                if !*unlisted {
+                    return Err("arena free list repeats a slot or includes an occupied slot");
+                }
+                *unlisted = false;
+            }
+            if vacant.contains(&true) {
+                return Err("arena free list omits a vacant slot");
+            }
+            if fresh
+                && (slots.occupied.contains(&false)
+                    || slots
+                        .generations
+                        .iter()
+                        .any(|generation| *generation != fresh_generation))
+            {
+                return Err("arena fresh storage disagrees with its slot roster");
+            }
+            items.len() - slots.free_indices.len()
+        } else {
+            if !fresh {
+                return Err("arena nonuniform storage is missing its slot roster");
+            }
+            items.len()
+        };
+        Ok(Self {
+            dummy,
+            items,
+            implicit_slot_metadata: slots.is_none(),
+            slot_metadata: slots.map(Box::new),
+            active_count,
+            fresh_generation,
+            fresh,
+            revision: 0,
+            rewrite_revision: 0,
+        })
+    }
+
     #[inline]
     fn slot_metadata(&self) -> &SlotMetadata {
         self.slot_metadata

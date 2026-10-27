@@ -33,7 +33,8 @@ pub(crate) mod component_verification;
 mod publication;
 pub use component_description::{
     COMPONENT_DESCRIPTION_SCHEMA_V3, ComponentDescriptionFacts, DescribeError,
-    decode_component_description, description_subject, encode_component_description,
+    decode_component_description, decode_component_description_with_artifact, description_subject,
+    encode_component_description,
 };
 pub use component_verification::{
     ComponentVerificationRejection, ComponentVerificationRequest, IndependentRealizationMismatch,

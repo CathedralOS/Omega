@@ -30,9 +30,10 @@ pub use aggregate_layout::{
     evaluate_conventional_sum_layout,
 };
 pub use boundary_application::{
-    BoundaryCallbackLayout, BoundaryCallingApplication, BoundaryNativeParameterGeometry,
-    BoundaryNativeParameterShape, BoundaryOpaqueApplication, BoundarySignatureGeometry,
-    CallbackDataGeometry, CallbackInlineFieldGeometry, CallbackSlotGeometry,
+    BoundaryCallbackLayout, BoundaryCallingApplication, BoundaryCallingApplicationCandidate,
+    BoundaryNativeParameterGeometry, BoundaryNativeParameterShape, BoundaryOpaqueApplication,
+    BoundarySignatureGeometry, CallbackDataGeometry, CallbackInlineFieldGeometry,
+    CallbackSlotGeometry,
 };
 pub use boundary_values::{
     BoundaryValueClass, BoundaryValueField, BoundaryValueGraph, BoundaryValueShape,

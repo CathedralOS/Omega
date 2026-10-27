@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+component-description = { path = "../backend/artifacts/component-description" }
 build-declarations = { path = "../../packages/build-declarations" }
 build-output = { path = "../../packages/build-output" }
 build-time-evaluation = { path = "../../../psi/compilation/compile-time" }

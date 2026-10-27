@@ -208,6 +208,18 @@ impl X86ScalarFmaDifferentialReceipt {
         self.slot
     }
 
+    pub const fn operand_bits(self) -> [u64; 3] {
+        self.operand_bits
+    }
+
+    pub const fn fused_result_bits(self) -> u64 {
+        self.fused_result_bits
+    }
+
+    pub const fn multiply_then_add_result_bits(self) -> u64 {
+        self.multiply_then_add_result_bits
+    }
+
     pub const fn identity(self) -> [u8; 32] {
         self.identity
     }

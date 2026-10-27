@@ -436,33 +436,59 @@ impl CompilationSession {
         Vec<Diagnostic>,
     > {
         super::run_on_compile_thread(|| {
-            let builds = builds
-                .into_iter()
-                .map(|(owner, build)| (owner, build.source))
-                .collect();
+            let mut completed = Vec::new();
+            let mut pending = Vec::new();
+            for (position, (owner, build)) in builds.into_iter().enumerate() {
+                let cache = super::component_cache::ComponentProductCache::for_build(&build.source);
+                if let Some(cache) = &cache {
+                    match phase_profile::scope("component.cache.recovery", || cache.load()) {
+                        Ok(Some(product)) => {
+                            phase_profile::count("component.cache.hit", 1);
+                            let description = product.description().clone();
+                            self.retain_component_product(product);
+                            completed.push((position, owner, Ok(description)));
+                            continue;
+                        }
+                        Ok(None) => phase_profile::count("component.cache.miss", 1),
+                        Err(reason) => super::component_cache::report_miss(&reason),
+                    }
+                }
+                pending.push(((position, owner, cache), build.source));
+            }
             let mut requests = Vec::new();
-            for (owner, selected) in self.select_build_batch(builds) {
+            for (owner, selected) in self.select_build_batch(pending) {
                 let request = match selected.install().result {
-                    Ok(checked) => Ok(crate::product_execution::ProductRequest::Component(checked)),
+                    Ok(checked) => Ok(crate::product_execution::ProductRequest::Component {
+                        checked,
+                        retain_native_inputs: owner.2.is_some(),
+                    }),
                     Err(failure) => Err(crate::CompilationProductError::Production(
                         failure.into_diagnostics(),
                     )),
                 };
                 requests.push((owner, request));
             }
-            let mut completed = Vec::new();
-            for (owner, product) in crate::compiler::produce_products(requests) {
+            for ((position, owner, cache), product) in crate::compiler::produce_products(requests) {
                 let description = match product.and_then(crate::CompilationOutput::into_component) {
                     Ok(product) => {
+                        if let Some(cache) = cache
+                            && let Err(reason) = cache.store(&product)
+                        {
+                            super::component_cache::report_miss(&reason);
+                        }
                         let description = product.description().clone();
                         self.retain_component_product(product);
                         Ok(description)
                     }
                     Err(error) => Err(error.into_diagnostics()),
                 };
-                completed.push((owner, description));
+                completed.push((position, owner, description));
             }
-            Ok(completed)
+            completed.sort_unstable_by_key(|(position, _, _)| *position);
+            Ok(completed
+                .into_iter()
+                .map(|(_, owner, result)| (owner, result))
+                .collect())
         })
     }
 

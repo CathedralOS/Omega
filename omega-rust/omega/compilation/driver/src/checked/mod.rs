@@ -14,6 +14,7 @@
 
 pub(crate) mod checking;
 mod compilation_session;
+mod component_cache;
 pub use compilation_session::CompilationSession;
 mod package_compilation;
 mod package_review;

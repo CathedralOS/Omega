@@ -71,6 +71,15 @@ pub struct ProgramEntryPhysicalContractPackageSourceDigest {
 }
 
 impl ProgramEntryPhysicalContractPackageSourceDigest {
+    /// Recover a digest claim, without authenticating the package bytes. Native
+    /// entry admission still compares it with the independently selected source.
+    pub const fn from_retained_digest(
+        package: target::ProgramEntryPhysicalContractPackage,
+        bytes: [u8; 32],
+    ) -> Self {
+        Self { package, bytes }
+    }
+
     pub fn from_package_source(
         package: target::ProgramEntryPhysicalContractPackage,
         source: &[u8],

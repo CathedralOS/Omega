@@ -14,6 +14,8 @@ pub(crate) mod component_eras;
 pub(crate) use optimization_core::digest_encoder;
 pub(crate) mod executable_scopes;
 mod external_requirements;
+mod retention;
+pub use retention::SelectedProviderPlanCandidate;
 pub(crate) mod providers;
 pub use external_requirements::SelectedExternalRequirementApplication;
 
@@ -89,8 +91,6 @@ pub struct SelectedProviderPlanFacts {
     /// Compact report coordinate. Authority retains `plans` and is exposed by
     /// `identity_digest()`.
     report_fingerprint: u64,
-    execution_scope: crate::ExecutionScope,
-    opaque_executable_admissions: Vec<crate::ValidatedOpaqueExecutableAdmission>,
     installation_reach_resolutions: Vec<InstallationReachResolution>,
     /// Template-keyed selected rows rebound to their exact closed requirement
     /// instances once specialization evidence exists.
@@ -114,8 +114,6 @@ impl Default for SelectedProviderPlanFacts {
             plans: Vec::new(),
             assumed_bindings: Vec::new(),
             report_fingerprint: selected_plans_report_fingerprint(&[]),
-            execution_scope: crate::ExecutionScope::CallerAddressSpace,
-            opaque_executable_admissions: Vec::new(),
             installation_reach_resolutions: Vec::new(),
             specialized_requirement_rows: Vec::new(),
             external_requirement_applications: Vec::new(),
@@ -248,8 +246,6 @@ impl SelectedProviderPlanFacts {
             plans,
             assumed_bindings: Vec::new(),
             report_fingerprint,
-            execution_scope: crate::ExecutionScope::CallerAddressSpace,
-            opaque_executable_admissions: Vec::new(),
             installation_reach_resolutions: Vec::new(),
             specialized_requirement_rows: Vec::new(),
             external_requirement_applications: Vec::new(),
@@ -439,12 +435,10 @@ impl SelectedProviderPlanFacts {
             encoder.string(&row.required);
             encoder.string(&row.supplied);
         }
-        encoder.execution_scope(self.execution_scope);
-
-        encoder.len(self.opaque_executable_admissions.len());
-        for admission in &self.opaque_executable_admissions {
-            encoder.opaque_executable_admission(admission.candidate());
-        }
+        // This owner has no isolated-scope/opaque-executable admission route.
+        // Preserve the existing digest vocabulary for the actual closure.
+        encoder.byte(0); // CallerAddressSpace
+        encoder.len(0); // no opaque executable admissions
 
         encoder.len(self.installation_reach_resolutions.len());
         for resolution in &self.installation_reach_resolutions {
@@ -521,7 +515,7 @@ impl SelectedProviderPlanFacts {
     }
 
     pub const fn execution_scope(&self) -> crate::ExecutionScope {
-        self.execution_scope
+        crate::ExecutionScope::CallerAddressSpace
     }
 
     /// The closure-local terminal identity table every retained `*identity`
@@ -1440,108 +1434,6 @@ impl SelectedProviderClosureDigestEncoder {
         self.len(values.len());
         for value in values {
             self.string(value);
-        }
-    }
-
-    fn optional_string(&mut self, value: Option<&str>) {
-        match value {
-            Some(value) => {
-                self.byte(1);
-                self.string(value);
-            }
-            None => self.byte(0),
-        }
-    }
-
-    fn execution_scope(&mut self, scope: crate::ExecutionScope) {
-        match scope {
-            crate::ExecutionScope::CallerAddressSpace => self.byte(0),
-            crate::ExecutionScope::IsolatedProvider(identity) => {
-                self.byte(1);
-                self.u64(identity);
-            }
-        }
-    }
-
-    fn opaque_executable_admission(
-        &mut self,
-        admission: &crate::OpaqueExecutableAdmissionCandidate,
-    ) {
-        self.u64(admission.provider_plan_report_identity);
-        self.bytes(admission.provider_plan_digest.as_bytes());
-        self.string(&admission.method);
-        self.string(&admission.requirement);
-        self.opaque_binding(&admission.binding);
-        self.string(&admission.executable);
-        self.string(&admission.implementation_evidence);
-        self.execution_scope(admission.execution_scope);
-        self.len(admission.containment.len());
-        for evidence in &admission.containment {
-            self.byte(match evidence.guarantee {
-                crate::ContainmentGuarantee::MemoryIsolation => 0,
-                crate::ContainmentGuarantee::ForcibleTermination => 1,
-                crate::ContainmentGuarantee::FaultContainment => 2,
-                crate::ContainmentGuarantee::BoundedResources => 3,
-            });
-            self.string(&evidence.evidence);
-        }
-        self.optional_string(admission.executable_closure_evidence.as_deref());
-    }
-
-    fn opaque_binding(&mut self, binding: &crate::OpaqueInProcessBinding) {
-        match binding {
-            crate::OpaqueInProcessBinding::Import { evaluated } => {
-                let locator = evaluated.locator();
-                self.byte(0);
-                self.string(locator.target().target_name());
-                match locator.locator() {
-                    crate::ForeignLocatorCandidate::PeByName { library, export } => {
-                        self.byte(0);
-                        self.bytes(&library);
-                        self.bytes(&export);
-                    }
-                    crate::ForeignLocatorCandidate::PeByOrdinal { library, ordinal } => {
-                        self.byte(1);
-                        self.bytes(&library);
-                        self.0.u16(*ordinal);
-                    }
-                    crate::ForeignLocatorCandidate::ElfVersioned {
-                        object,
-                        symbol,
-                        version,
-                    } => {
-                        self.byte(2);
-                        self.bytes(&object);
-                        self.bytes(&symbol);
-                        self.bytes(&version);
-                    }
-                    crate::ForeignLocatorCandidate::MachODylibSymbol {
-                        install_name,
-                        symbol,
-                    } => {
-                        self.byte(3);
-                        self.bytes(install_name);
-                        self.bytes(&symbol);
-                    }
-                }
-                self.bytes(&evaluated.receipt().identity_digest());
-            }
-            // Tag byte 1 belonged to the retired string-backed import
-            // bootstrap and stays unassigned.
-            crate::OpaqueInProcessBinding::VtableSlot { index } => {
-                self.byte(2);
-                self.i64(*index);
-            }
-            crate::OpaqueInProcessBinding::VtableField { table, field } => {
-                self.byte(3);
-                self.string(table);
-                self.string(field);
-            }
-            crate::OpaqueInProcessBinding::TableFunction { table, field } => {
-                self.byte(4);
-                self.string(table);
-                self.string(field);
-            }
         }
     }
 }

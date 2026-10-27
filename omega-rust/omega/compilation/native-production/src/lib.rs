@@ -32,4 +32,6 @@ pub use request::NativeCompileRequest;
 pub use terminal_psi_to_abstract_operations::provider_admission::{
     SourceEvaluatedImportSettlement, TerminalAuthorityPermissionPolicy,
 };
-pub use terminal_psi_to_abstract_operations::{ComponentExportInput, ComponentNativeInputs};
+pub use terminal_psi_to_abstract_operations::{
+    ComponentExportInput, ComponentNativeInputs, retain_native_derivation_inputs,
+};
