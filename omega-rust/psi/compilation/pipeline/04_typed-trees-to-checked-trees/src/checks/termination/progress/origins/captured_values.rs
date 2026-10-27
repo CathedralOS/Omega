@@ -96,9 +96,7 @@ pub(super) fn at_call(
                     return CapturedOrigins::Unavailable;
                 };
                 for subject in subjects {
-                    if !joined.contains(&subject) {
-                        joined.push(subject);
-                    }
+                    crate::collections::push_unique(&mut joined, subject);
                 }
             }
             CapturedOrigins::Exact(joined)
@@ -306,9 +304,7 @@ fn resolve_captures(
             live,
             frames,
         )? {
-            if !subjects.contains(&subject) {
-                subjects.push(subject);
-            }
+            crate::collections::push_unique(&mut subjects, subject);
         }
     }
     (!subjects.is_empty()).then_some(subjects)
@@ -384,9 +380,7 @@ fn resolve_leaf(
             if let Some(subject) = frozen_references::entry_subject(
                 program, flow, machine, state, call, capture, &source, frames,
             ) {
-                if !subjects.contains(&subject) {
-                    subjects.push(subject);
-                }
+                crate::collections::push_unique(&mut subjects, subject);
                 continue;
             }
             if !bindings_preserved(program, flow, state, call, capture, &source) {
@@ -395,9 +389,7 @@ fn resolve_leaf(
             for subject in
                 super::direct_at_place(program, flow, machine, state, call, source, Some(frames))?
             {
-                if !subjects.contains(&subject) {
-                    subjects.push(subject);
-                }
+                crate::collections::push_unique(&mut subjects, subject);
             }
         } else {
             let source = flow::trace_value_origin_before_statement(
@@ -420,9 +412,7 @@ fn resolve_leaf(
                 source.root,
                 &source.segments,
             )?;
-            if !subjects.contains(&subject) {
-                subjects.push(subject);
-            }
+            crate::collections::push_unique(&mut subjects, subject);
         }
     }
     (!subjects.is_empty()).then_some(subjects)

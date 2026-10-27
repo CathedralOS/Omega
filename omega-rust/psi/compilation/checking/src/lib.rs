@@ -13,6 +13,7 @@
 
 pub use declarations::traits::conformance_applications;
 pub mod execution_projection;
+pub mod product_queries;
 pub use declarations::operators::{
     OperatorApplicationScope, ScopedOperatorApplication, ScopedOperatorResolution,
     build_operator_facts, derive_checked_operator_crash_contracts,

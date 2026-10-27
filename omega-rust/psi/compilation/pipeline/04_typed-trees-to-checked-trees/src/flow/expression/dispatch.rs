@@ -84,9 +84,7 @@ impl Execution<'_, '_, '_> {
                 )
                 && validation::structural_match_pattern_is_total(self.program, arm.pattern)
             {
-                if !case_coverage.contains(&case) {
-                    case_coverage.push(case);
-                }
+                crate::collections::push_unique(&mut case_coverage, case);
                 covered |= validation::structural_match_cases_are_covered(
                     self.program,
                     reference,
@@ -424,9 +422,7 @@ impl Execution<'_, '_, '_> {
             if !crate::flow::canonical_places_agree(self.program, &source, &fact_place) {
                 continue;
             }
-            if !predicates.contains(&predicate) {
-                predicates.push(predicate);
-            }
+            crate::collections::push_unique(&mut predicates, predicate);
         }
         predicates
     }

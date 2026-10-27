@@ -50,6 +50,11 @@ impl CallOccurrenceLedger {
     fn push(&mut self, call: arena::Handle<checked_trees::FlowCallFact>) {
         self.calls.push(call);
     }
+    /// Record one call occurrence once: a walk that reaches the same authored
+    /// call twice records it at its first position and drops the repeat.
+    fn record_once(&mut self, call: arena::Handle<checked_trees::FlowCallFact>) {
+        crate::collections::push_unique(&mut self.calls, call);
+    }
     fn iter(&self) -> std::slice::Iter<'_, arena::Handle<checked_trees::FlowCallFact>> {
         self.calls.iter()
     }

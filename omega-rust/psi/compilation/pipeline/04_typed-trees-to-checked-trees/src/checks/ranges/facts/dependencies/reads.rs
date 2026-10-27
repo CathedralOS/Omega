@@ -145,9 +145,7 @@ impl ReadWalk<'_, '_, '_> {
                     if self.validate_place_read(&mut place).is_none() {
                         return false;
                     }
-                    if !self.reads.contains(&place) {
-                        self.reads.push(place);
-                    }
+                    crate::collections::push_unique(&mut self.reads, place);
                 }
                 // Named calls may target the machine symbol rather than a state
                 // symbol; the contract lookup resolves both forms to the exact

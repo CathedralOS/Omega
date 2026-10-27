@@ -205,9 +205,7 @@ fn retain_captured_lineage(
             aliases::retained_lineage(&facts.borrow, borrow_state, candidate.local_loan)
         {
             for alternative in alternatives {
-                if !lineage.contains(&alternative) {
-                    lineage.push(alternative);
-                }
+                crate::collections::push_unique(&mut lineage, alternative);
             }
             resolved.push(ResolvedAlias {
                 place: candidate.place,
@@ -248,9 +246,7 @@ fn retain_captured_lineage(
                 source.place.segments.extend_from_slice(&place.segments);
                 if source.place == candidate.place {
                     for ancestor in source.lineage {
-                        if !lineage.contains(&ancestor) {
-                            lineage.push(ancestor);
-                        }
+                        crate::collections::push_unique(&mut lineage, ancestor);
                     }
                 }
             }

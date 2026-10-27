@@ -356,6 +356,8 @@ impl ExpressionWalk<'_> {
         decisions: &mut ArithmeticDecisions,
     ) -> Analysis {
         let node = self.program.expression_table.expression(expression);
+        let before_children_diagnostics = diagnostics.len();
+        let before_children_values = decisions.expression_values.len();
         if !matches!(
             node,
             ExpressionNode::Binary(_)
@@ -416,7 +418,14 @@ impl ExpressionWalk<'_> {
                 );
             }
         }
-        let analysis = self.analyze_value(expression, node, diagnostics, decisions);
+        let analysis = self.analyze_value(
+            expression,
+            node,
+            diagnostics,
+            decisions,
+            before_children_diagnostics,
+            before_children_values,
+        );
         decisions.expression_values.push(CheckedIntegerValue {
             expression,
             interval: analysis.interval,
@@ -460,6 +469,8 @@ impl ExpressionWalk<'_> {
         node: &ExpressionNode,
         diagnostics: &mut Vec<Diagnostic>,
         decisions: &mut ArithmeticDecisions,
+        before_children_diagnostics: usize,
+        before_children_values: usize,
     ) -> Analysis {
         if let Some(folded) = folded_values::analyze(self, expression, diagnostics) {
             return folded;
@@ -473,7 +484,11 @@ impl ExpressionWalk<'_> {
                 cast::analyze(self, expression, cast, diagnostics, decisions)
             }
             ExpressionNode::Atomic(_) => self.atomic_load(expression),
-            ExpressionNode::Call(call) => call::analyze(self, expression, call),
+            ExpressionNode::Call(call) => {
+                let child_values = (diagnostics.len() == before_children_diagnostics)
+                    .then(|| &decisions.expression_values[before_children_values..]);
+                call::analyze(self, expression, call, child_values)
+            }
             ExpressionNode::Match(dispatch) => {
                 dispatch::analyze(self, expression, dispatch, diagnostics, decisions)
             }

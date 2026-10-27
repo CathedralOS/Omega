@@ -43,9 +43,7 @@ impl StateParameterLineage {
             for transfer in &mut incoming {
                 if let Some(source) = &transfer.source {
                     if let Some(partition) = places::partition(program, machine, source) {
-                        if !subjects.contains(&partition) {
-                            subjects.push(partition);
-                        }
+                        crate::collections::push_unique(&mut subjects, partition);
                     } else {
                         transfer.source = None;
                     }
@@ -199,9 +197,7 @@ fn merge_parameter_lineage(
                 unreachable!()
             };
             for subject in right {
-                if !retained.contains(&subject) {
-                    retained.push(subject);
-                }
+                crate::collections::push_unique(&mut *retained, subject);
             }
         }
         (ParameterLineage::Exact(_), ParameterLineage::Ambiguous) => {

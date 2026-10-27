@@ -80,7 +80,7 @@ pub(super) fn capture(
     Ok(calls
         .into_iter()
         .map(
-            |(operation, boundary, action)| TerminalBuildFilesystemCall {
+            |(operation, boundary, action, _)| TerminalBuildFilesystemCall {
                 operation,
                 boundary,
                 action,

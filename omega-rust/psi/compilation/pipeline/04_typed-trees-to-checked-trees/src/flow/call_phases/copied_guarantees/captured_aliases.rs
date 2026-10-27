@@ -63,9 +63,7 @@ impl ArgumentSources<'_, '_> {
                 ) {
                     projected.segments.extend(suffix);
                 }
-                if !aliases.contains(&projected) {
-                    aliases.push(projected);
-                }
+                crate::collections::push_unique(&mut aliases, projected);
             }
         }
         // A callee-relative write also retains the path through an input's
@@ -142,9 +140,7 @@ impl ArgumentSources<'_, '_> {
                     {
                         alias = projected;
                     }
-                    if !aliases.contains(&alias) {
-                        aliases.push(alias);
-                    }
+                    crate::collections::push_unique(&mut aliases, alias);
                 }
             }
         }

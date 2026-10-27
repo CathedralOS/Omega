@@ -257,6 +257,17 @@ Build return joins all requests before product completion. Product bindings are
 inert during Build. Generated source cannot change admitted authored meaning.
 Ordinary Build helpers need Psi execution, not native product compilation.
 
+Demanded Product-entry descriptions pause that same activation while the
+application acquires and settles its issued Product dependencies. The compiler's
+opaque query context shares the captured source prefix, loads authored Product
+declarations through the source-assembly owner and answers under the query
+author's lexical scope. It neither assigns an unfinished root its final package
+identity nor executes Product bodies. Final binding rejoins the selected source
+declaration rather than reusing an old arena handle or looking up its name.
+Query dependencies join the same demanded-source ledger as executed helpers,
+including purpose-qualified workspace-catalog records. Schema/provider queries
+and their inspection remain migration work; this route does not claim them.
+
 Execution preparation and Product completion carry different inputs. Source
 inventories, named inputs, required outputs, resource sponsors and restricted
 grants must join the activation before its effects. A returned Build does not

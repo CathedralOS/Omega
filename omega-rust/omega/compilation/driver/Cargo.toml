@@ -117,6 +117,10 @@ path = "tests/terminal_behavior_exclusions.rs"
 name = "terminal_effect_readiness"
 path = "tests/terminal_effect_readiness.rs"
 
+[[test]]
+name = "product_query_suspension"
+path = "tests/product_query_suspension.rs"
+
 # Loose roots intentionally have no fixture-supplied package owner. This
 # boundary test derives that owner, reloads its artifact and runs consumers
 # against the exact supplied identity; ordinary corpus setup masks this path.

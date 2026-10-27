@@ -187,9 +187,7 @@ fn call_parents(
             if inputs.next().is_some() {
                 return Err("callee result lineage has ambiguous conserved actual inputs");
             }
-            if !candidate.contains(&input.claim_identity) {
-                candidate.push(input.claim_identity);
-            }
+            crate::collections::push_unique(&mut candidate, input.claim_identity);
         }
         if candidate.is_empty()
             || parents
@@ -308,9 +306,7 @@ fn qualified_roots(
                     qualified_roots(facts, parent, projection, traversal)?
                 };
                 for ancestor in ancestors {
-                    if !candidate.contains(&ancestor) {
-                        candidate.push(ancestor);
-                    }
+                    crate::collections::push_unique(&mut candidate, ancestor);
                 }
             }
             if roots

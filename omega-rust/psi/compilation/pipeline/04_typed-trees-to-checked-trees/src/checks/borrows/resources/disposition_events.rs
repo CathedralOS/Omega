@@ -37,9 +37,7 @@ pub(crate) fn plan_reborrow_disposition_events(
                 .map(|resource| (resource.machine_symbol, resource.state_symbol)),
         )
     {
-        if !states.contains(&(machine, state)) {
-            states.push((machine, state));
-        }
+        crate::collections::push_unique(&mut states, (machine, state));
     }
 
     let mut statuses = EphemeralStatuses::new(direct.len(), reborrows.len());

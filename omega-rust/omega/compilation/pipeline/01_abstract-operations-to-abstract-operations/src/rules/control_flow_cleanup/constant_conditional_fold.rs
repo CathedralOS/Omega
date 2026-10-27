@@ -4,8 +4,7 @@ use std::collections::BTreeSet;
 
 use abstract_operations::AbstractOperation as O;
 use optimization_core::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationRuleContract,
-    OptimizationSafetyClass,
+    AnalysisKind, AnalysisSet, OptimizationRuleContract, OptimizationSafetyClass,
 };
 use optimization_unit::{
     ConstantConditionalRewrite, NodeLocation, ProvenanceRewrite, PsiOptimizationFunction,
@@ -14,7 +13,6 @@ use optimization_unit::{
 };
 use semantic_vocabulary::{BlockId, EdgeId};
 
-use crate::rules::CONTROL_FLOW_CLEANUP_PASS_NAME;
 use crate::rules::control_flow_cleanup::{
     provenance_proven_unreachable_at, provenance_realized_at, record_block_effect_drift,
 };
@@ -22,21 +20,14 @@ use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposal
 
 psi_rule_contract!(
     ConstantConditionalFoldRule,
-    crate::rules::standard_rule_contract(
+    crate::rules::control_flow_cleanup::call_graph_control_flow_cleanup_rule_contract(
         b"omega.psi-rule.constant-conditional-fold.v5",
-        CONTROL_FLOW_CLEANUP_PASS_NAME,
         5,
         AnalysisSet::new([
             AnalysisKind::ControlFlowGraph,
             AnalysisKind::ScalarConstants,
         ]),
-        AnalysisInvalidationSet::new([
-            AnalysisKind::ControlFlowGraph,
-            AnalysisKind::CallGraph,
-            AnalysisKind::UseDefinition,
-            AnalysisKind::EffectSummaries,
-        ]),
-        OptimizationSafetyClass::ExactOperationSemantics
+        OptimizationSafetyClass::ExactOperationSemantics,
     ),
 );
 

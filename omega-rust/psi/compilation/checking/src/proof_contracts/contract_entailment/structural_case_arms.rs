@@ -512,17 +512,7 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
 
     for (execution_position, statement_index) in execution.iter().copied().enumerate() {
         let statement = &statements[statement_index];
-        let dead_local = match statement {
-            StatementNode::LocalData(local) => local_symbol_is_dead_in_remaining_prefix(
-                program,
-                statements,
-                &execution,
-                execution_position + 1,
-                local.symbol,
-                !any_visitor_at_transition,
-            ),
-            _ => false,
-        };
+        let mut dead_local = None;
         if is_arm_pattern_marker(statement) {
             continue;
         }
@@ -685,7 +675,17 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                             outcome_judge.has_no_new_effects_or_guarantees_since(&path.judge)
                         })
                     {
-                        if dead_local {
+                        let is_dead_local = *dead_local.get_or_insert_with(|| {
+                            local_symbol_is_dead_in_remaining_prefix(
+                                program,
+                                statements,
+                                &execution,
+                                execution_position + 1,
+                                local.symbol,
+                                !any_visitor_at_transition,
+                            )
+                        });
+                        if is_dead_local {
                             let judge_refs: Vec<_> =
                                 outcomes.iter().map(|(_, judge)| judge).collect();
                             let rejoined = path
@@ -1204,24 +1204,6 @@ fn recognize_structural_state_leaves_from<'a>(
             }
             match statement {
                 StatementNode::LocalData(local) if !saw_transition => {
-                    let dead_local = requirement
-                        .as_deref()
-                        .is_some_and(|observer| observer.site().state == state.symbol)
-                        && local_symbol_is_dead_in_remaining_prefix(
-                            program,
-                            statements,
-                            &execution,
-                            execution_position + 1,
-                            local.symbol,
-                            requirement.as_deref().is_some_and(|observer| {
-                                !observer.site().in_transition_target
-                                    && observer.site().statement_index < statements.len()
-                                    && !matches!(
-                                        statements[observer.site().statement_index],
-                                        StatementNode::Transition(_)
-                                    )
-                            }),
-                        );
                     let mut outcomes =
                         phase_profile::scope("05.d.7.3b.1.cap.2d.local_init", || {
                             if local.initial_value.is_valid() {
@@ -1252,11 +1234,30 @@ fn recognize_structural_state_leaves_from<'a>(
                                 )])
                             }
                         })?;
+
                     if outcomes.len() > 1
                         && outcomes.iter().all(|(_, outcome_judge)| {
                             outcome_judge.has_no_new_effects_or_guarantees_since(&judge)
                         })
                     {
+                        let dead_local = requirement
+                            .as_deref()
+                            .is_some_and(|observer| observer.site().state == state.symbol)
+                            && local_symbol_is_dead_in_remaining_prefix(
+                                program,
+                                statements,
+                                &execution,
+                                execution_position + 1,
+                                local.symbol,
+                                requirement.as_deref().is_some_and(|observer| {
+                                    !observer.site().in_transition_target
+                                        && observer.site().statement_index < statements.len()
+                                        && !matches!(
+                                            statements[observer.site().statement_index],
+                                            StatementNode::Transition(_)
+                                        )
+                                }),
+                            );
                         if dead_local {
                             let judge_refs: Vec<_> = outcomes
                                 .iter()

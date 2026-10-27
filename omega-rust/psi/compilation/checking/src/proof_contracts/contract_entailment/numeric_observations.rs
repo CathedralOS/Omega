@@ -216,8 +216,60 @@ fn collect_state_numeric_observations_batch(
     let mut statement_results = vec![Vec::new(); statements.len()];
     let mut state_candidates = Vec::new();
 
+    let mut statement_has_integer_read = vec![false; statements.len()];
     for (index, statement) in statements.iter().enumerate() {
-        if demand.scalar_associations {
+        if !demand.scalar_values && !needs_relations {
+            continue;
+        }
+        for (_, root) in program.tables.expression_roots(statement) {
+            let mut expressions = Vec::new();
+            crate::expression_traversal::collect_expression_tree(program, root, &mut expressions);
+            for expression in expressions {
+                if super::observed_projections::integer_storage_read(
+                    program, machine, state, expression,
+                )
+                .is_some()
+                {
+                    statement_has_integer_read[index] = true;
+                    if demand.scalar_values && !state_candidates.contains(&expression) {
+                        state_candidates.push(expression);
+                    }
+                    if !demand.scalar_values
+                        && needs_relations
+                        && !statement_candidates[index].contains(&expression)
+                    {
+                        statement_candidates[index].push(expression);
+                    }
+                }
+                if demand.integer_operations
+                    && integer_subtraction(program, machine, state, expression).is_some()
+                    && !statement_operations[index].contains(&expression)
+                {
+                    statement_operations[index].push(expression);
+                }
+            }
+        }
+    }
+
+    if demand.scalar_associations && statement_has_integer_read.iter().any(|&has_read| has_read) {
+        let mut can_have_prior_read = vec![true; statements.len()];
+        if let Ok(Some(execution)) = program
+            .statement_table
+            .finite_execution_order(state.statement_nodes)
+        {
+            can_have_prior_read.fill(false);
+            let mut seen_read = false;
+            for statement_index in execution {
+                if statement_has_integer_read[statement_index] {
+                    seen_read = true;
+                }
+                can_have_prior_read[statement_index] = seen_read;
+            }
+        }
+        for (index, statement) in statements.iter().enumerate() {
+            if !can_have_prior_read[index] {
+                continue;
+            }
             let delivered = match statement {
                 typed_trees::statement::StatementNode::LocalData(local) => {
                     Some(local.initial_value)
@@ -237,36 +289,6 @@ fn collect_state_numeric_observations_batch(
                         statement_results[index].push(expression);
                     }
                 });
-            }
-        }
-        if !demand.scalar_values && !needs_relations {
-            continue;
-        }
-        for (_, root) in program.tables.expression_roots(statement) {
-            let mut expressions = Vec::new();
-            crate::expression_traversal::collect_expression_tree(program, root, &mut expressions);
-            for expression in expressions {
-                if super::observed_projections::integer_storage_read(
-                    program, machine, state, expression,
-                )
-                .is_some()
-                {
-                    if demand.scalar_values && !state_candidates.contains(&expression) {
-                        state_candidates.push(expression);
-                    }
-                    if !demand.scalar_values
-                        && needs_relations
-                        && !statement_candidates[index].contains(&expression)
-                    {
-                        statement_candidates[index].push(expression);
-                    }
-                }
-                if demand.integer_operations
-                    && integer_subtraction(program, machine, state, expression).is_some()
-                    && !statement_operations[index].contains(&expression)
-                {
-                    statement_operations[index].push(expression);
-                }
             }
         }
     }
@@ -582,15 +604,53 @@ impl Observations {
         expressions: &[ExpressionHandle],
         judge: &StructuralJudge<'_>,
     ) {
-        if judge.hypotheses_contradictory {
+        if judge.hypotheses_contradictory
+            || !expressions.iter().any(|expression| {
+                self.results.contains(expression)
+                    && !self
+                        .associations
+                        .iter()
+                        .any(|(source, previous)| source == expression && previous.is_empty())
+            })
+        {
+            return;
+        }
+        let mut current_reads = Vec::new();
+        for (read, value) in judge.current_scalar_reads() {
+            let Some(carrier) =
+                super::observed_projections::integer_storage_read(program, machine, state, read)
+            else {
+                continue;
+            };
+            let Some(place) =
+                scalar_operand(program, machine, state, read, judge.frame_resolver())
+            else {
+                continue;
+            };
+            let entry = (place, value, carrier.reference);
+            if !current_reads.contains(&entry) {
+                current_reads.push(entry);
+            }
+        }
+        if current_reads.is_empty() {
+            for &expression in expressions {
+                self.intersect_associations(expression, Vec::new());
+            }
             return;
         }
         let mut current = vec![Vec::new(); expressions.len()];
         let mut predicates = Vec::new();
         let mut destinations = Vec::new();
-        let mut current_reads = None;
         for (position, expression) in expressions.iter().enumerate() {
             if !self.results.contains(expression) {
+                continue;
+            }
+            let prior = self
+                .associations
+                .iter()
+                .find(|(source, _)| source == expression)
+                .map(|(_, previous)| previous);
+            if matches!(prior, Some(previous) if previous.is_empty()) {
                 continue;
             }
             let Some((_, result)) = judge
@@ -605,21 +665,10 @@ impl Observations {
             else {
                 continue;
             };
-            // Every result in this immutable judge sees the same authenticated
-            // current reads and declared carriers. Prepare them once, after a
-            // real result was found, without changing the Cartesian query order.
-            let current_reads = current_reads.get_or_insert_with(|| {
-                judge
-                    .current_scalar_reads()
-                    .filter_map(|(read, value)| {
-                        let carrier = super::observed_projections::integer_storage_read(
-                            program, machine, state, read,
-                        )?;
-                        Some((read, value, carrier.reference))
-                    })
-                    .collect::<Vec<_>>()
-            });
-            for &(read, value, reference) in current_reads.iter() {
+            for (read_index, (place, value, reference)) in current_reads.iter().enumerate() {
+                if prior.is_some_and(|previous| !previous.contains(place)) {
+                    continue;
+                }
                 predicates.push(StructuralTerm::MathematicalBinary {
                     operator: BinaryOperator::Equal,
                     left: Box::new(StructuralTerm::IntegerEmbedding {
@@ -627,23 +676,22 @@ impl Observations {
                         value: Box::new(result.clone()),
                     }),
                     right: Box::new(StructuralTerm::IntegerEmbedding {
-                        reference,
-                        value: Box::new(value.clone()),
+                        reference: *reference,
+                        value: Box::new((*value).clone()),
                     }),
                 });
-                destinations.push((position, read));
+                destinations.push((position, read_index));
             }
         }
-        for ((position, read), proven) in destinations
-            .into_iter()
-            .zip(judge.prove_observed_predicates(&predicates, 0))
-        {
-            if proven
-                && let Some(place) =
-                    scalar_operand(program, machine, state, read, judge.frame_resolver())
-                && !current[position].contains(&place)
+        if !predicates.is_empty() {
+            for ((position, read_index), proven) in destinations
+                .into_iter()
+                .zip(judge.prove_observed_predicates(&predicates, 0))
             {
-                current[position].push(place);
+                let place = &current_reads[read_index].0;
+                if proven && !current[position].contains(place) {
+                    current[position].push(place.clone());
+                }
             }
         }
         // A reachable path with no authenticated current read contributes the
@@ -788,6 +836,36 @@ impl StructuralPrefixVisitor for Observations {
         else {
             return;
         };
+        if !self.wants_scalar_values
+            && self.operations.iter().all(|operation| {
+                self.orderings.iter().any(|(source, minimum, preserved)| {
+                    source == operation && minimum.is_none() && !*preserved
+                })
+            })
+            && self.results.iter().all(|expression| {
+                self.associations
+                    .iter()
+                    .any(|(source, previous)| source == expression && previous.is_empty())
+            })
+        {
+            return;
+        }
+        if !self.wants_scalar_values
+            && self.operations.is_empty()
+            && self.candidates.is_empty()
+            && !judge.current_scalar_reads().any(|(read, _)| {
+                super::observed_projections::integer_storage_read(program, machine, state, read)
+                    .is_some()
+                    && scalar_operand(program, machine, state, read, judge.frame_resolver())
+                        .is_some()
+            })
+        {
+            for index in 0..self.results.len() {
+                let expression = self.results[index];
+                self.intersect_associations(expression, Vec::new());
+            }
+            return;
+        }
         // Requested identities do not change when an unknown root invalidates
         // its captures. Keep this exact roster for every root in the visit.
         let mut requested = self.candidates.clone();

@@ -208,24 +208,20 @@ pub(super) fn entry_claim_identity<'event>(
     input_path: &[facts::PlaceSegment],
     events: impl Iterator<Item = &'event checked_trees::FlowPermissionEventFact>,
 ) -> Option<PermissionClaimIdentity> {
-    let identities = events
-        .filter(|event| {
-            event.state_symbol == state_symbol
-                && event.source == PermissionEventSource::StateEntry
-                && event.kind == PermissionEventKind::Establish
-                && event.access == PermissionAccess::Owned
-                && event.obligation_live
-                && event.root == facts::PlaceRoot::Symbol(parameter_symbol)
-                && facts.flow.ownership.segments.span_or_empty(event.segments) == input_path
-                && event.claim_identity != PermissionClaimIdentity::Unknown
-        })
-        .map(|event| event.claim_identity)
-        .fold(Vec::new(), |mut identities, identity| {
-            if !identities.contains(&identity) {
-                identities.push(identity);
-            }
-            identities
-        });
+    let identities = crate::collections::unique_in_order(
+        events
+            .filter(|event| {
+                event.state_symbol == state_symbol
+                    && event.source == PermissionEventSource::StateEntry
+                    && event.kind == PermissionEventKind::Establish
+                    && event.access == PermissionAccess::Owned
+                    && event.obligation_live
+                    && event.root == facts::PlaceRoot::Symbol(parameter_symbol)
+                    && facts.flow.ownership.segments.span_or_empty(event.segments) == input_path
+                    && event.claim_identity != PermissionClaimIdentity::Unknown
+            })
+            .map(|event| event.claim_identity),
+    );
     let [identity] = identities.as_slice() else {
         return None;
     };
@@ -494,9 +490,7 @@ pub(crate) fn projection_observations(
                             })
                     })
                     .collect::<Option<Vec<_>>>()?;
-                if !paths.contains(&path) {
-                    paths.push(path);
-                }
+                crate::collections::push_unique(&mut *paths, path);
             }
             ContentScalarExpression::Natural(_) => {}
             ContentScalarExpression::Successor(inner) => scalar(inner, paths)?,

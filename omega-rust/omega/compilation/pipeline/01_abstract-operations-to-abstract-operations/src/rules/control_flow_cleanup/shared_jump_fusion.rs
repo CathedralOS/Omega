@@ -1,17 +1,13 @@
 //! Fusion of jumps that share one terminal successor.
 
 use abstract_operations::AbstractOperation as O;
-use optimization_core::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationRuleContract,
-    OptimizationSafetyClass,
-};
+use optimization_core::{AnalysisKind, AnalysisSet, OptimizationRuleContract};
 use optimization_unit::{
     NodeLocation, ProvenanceRewrite, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
     PsiRealizationSite, PsiRewriteCandidate, ScalarSubstitution, SharedJumpFusionRewrite,
 };
 use semantic_vocabulary::{BlockId, EdgeId};
 
-use crate::rules::CONTROL_FLOW_CLEANUP_PASS_NAME;
 use crate::rules::control_flow_cleanup::descriptor_telescope_free;
 use crate::rules::control_flow_cleanup::merge_boundary_ownership::merge_boundary_ownership_is_identity;
 use crate::rules::control_flow_cleanup::provenance_realized_at;
@@ -19,21 +15,14 @@ use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposal
 
 psi_rule_contract!(
     SharedJumpFusionRule,
-    crate::rules::standard_rule_contract(
+    crate::rules::control_flow_cleanup::control_flow_cleanup_rule_contract(
         b"omega.psi-rule.shared-terminal-jump-fusion.v2",
-        CONTROL_FLOW_CLEANUP_PASS_NAME,
         2,
         AnalysisSet::new([
             AnalysisKind::ControlFlowGraph,
             AnalysisKind::OwnershipFrontiers,
             AnalysisKind::PostDominators,
         ]),
-        AnalysisInvalidationSet::new([
-            AnalysisKind::ControlFlowGraph,
-            AnalysisKind::UseDefinition,
-            AnalysisKind::EffectSummaries,
-        ]),
-        OptimizationSafetyClass::StructuralIdentity
     ),
 );
 

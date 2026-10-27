@@ -86,6 +86,12 @@ public data BuildProduct {
 // the exact selected identity.
 public data ProductEntryRef [copy] {
 }
+// Ordinary host calls carry the original Product facet and evaluated locators.
+// The source producer retains each query's lexical occurrence beside its call;
+// the activation mints descriptions only after that exact query is answered.
+public boundary trait BuildProductOperations {
+    machine entry(product: &BuildProduct, path: &[u8], slot: &[u8]) -> ProductEntryRef reaches;
+}
 // Execution protocol for the designated Build::bind syntax. Typing supplies
 // the exact product-selection occurrence beside the ordinary boundary call.
 // Calling this requirement directly supplies no selection or host authority.
@@ -383,10 +389,10 @@ public machine BuildLog::write_line(log: &mut BuildLog, text: &[u8]) reaches Bui
 }
 // Fallible logical query: select the exact product machine `path` declares in
 // this call occurrence's own package for root slot `slot`. The evaluator
-// intercepts the call and returns the restricted description marker; this
-// declared body is only a statically well-typed stand-in.
-public machine BuildProduct::entry(product: &BuildProduct, path: &[u8], slot: &[u8]) -> ProductEntryRef {
-    ProductEntryRef {}
+// normalizer preserves the authored lexical occurrence on the host operation.
+// The wrapper also carries the real effect; no pure stand-in can erase a query.
+public machine BuildProduct::entry(product: &BuildProduct, path: &[u8], slot: &[u8]) -> ProductEntryRef reaches BuildProductOperations invokes BuildProductOperations; {
+    BuildProductOperations::entry(product, path, slot)
 }
 // Fallible logical query: select the exact product data declaration `path`
 // names in this call occurrence's own package. The evaluator intercepts the

@@ -589,6 +589,7 @@ fn build_settings_use_the_existing_validator_after_terminal_execution() {
                 artifact.view().into(),
                 produced.build_bindings(),
                 arguments[0].clone(),
+                None,
             )
             .unwrap();
             let mut instance = program
@@ -763,6 +764,7 @@ fn full_build_pays_its_shared_sponsor_before_each_semantic_site() {
             artifact.view().into(),
             produced.build_bindings(),
             original.clone(),
+            None,
         )
         .unwrap();
         let arguments = [original];
@@ -894,6 +896,7 @@ fn full_build_reserves_owned_storage_and_retains_storage_faults() {
             artifact.view().into(),
             produced.build_bindings(),
             original.clone(),
+            None,
         )
         .unwrap();
         let arguments = [original];
