@@ -7,7 +7,8 @@
 //! Data construction alone does not grant execution or publication authority.
 
 mod codec_bytes;
-pub(crate) mod cursor;
+/// The bounded byte cursor every wire decoder reads through.
+pub(crate) use optimization_core::cursor;
 
 pub(crate) use optimization_core::digest_encoder;
 pub mod machine_code;
