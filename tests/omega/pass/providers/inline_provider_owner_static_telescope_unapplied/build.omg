@@ -1,6 +1,14 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "inline_member_provider_selection_exit");
-    Build::select_provider<Reading, ReadingProvider>(builder);
+    Build::select_provider<Reading, ReadingProvider>(builder, linux_arm64);
+    Build::select_provider<Reading, ReadingProvider>(builder, linux_x86_64);
+    Build::select_provider<Reading, ReadingProvider>(builder, macos_arm64);
+    Build::select_provider<Reading, ReadingProvider>(builder, macos_x86_64);
+    Build::select_provider<Reading, ReadingProvider>(builder, windows_x86_64);
+    Build::select_provider<Reading, ReadingProvider>(builder, uefi_x86_64);
+    Build::select_provider<Reading, ReadingProvider>(builder, cross_platform_cli);
+    Build::select_provider<Reading, ReadingProvider>(builder, local_unchecked);
+    Build::select_provider<Reading, ReadingProvider>(builder, alpha_bootstrap);
     Build::bind(builder, windows_x86_64::ProgramEntry, Main::main);
     Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
     Build::bind(builder, linux_arm64::ProgramEntry, Main::main);

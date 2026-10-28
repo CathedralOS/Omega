@@ -1,0 +1,11 @@
+use omega::language::core::external_binding;
+machine build(builder: &mut Build) {
+ Build::package(builder, "native_bindings_inactive_external_locator_target_rejected");
+
+ Build::bind<ForeignCall::perform>(builder, windows_x86_64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "libSystem.B.dylib",
+            symbol: "_exit",
+        },
+    });
+}

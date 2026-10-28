@@ -1,0 +1,17 @@
+use omega::language::core::external_binding;
+machine build(builder: &mut Build) {
+ Build::package(builder, "native_bindings_per_target_import_satisfies");
+
+ Build::bind<WindowsConsoleIo::write>(builder, windows_x86_64, ForeignBinding::DllImport {
+        import: DllImport::PeByName {
+            library: "msvcrt.dll",
+            export: "_write",
+        },
+    });
+ Build::bind<Console::exit_process>(builder, windows_x86_64, ForeignBinding::DllImport {
+        import: DllImport::PeByName {
+            library: "kernel32.dll",
+            export: "ExitProcess",
+        },
+    });
+}

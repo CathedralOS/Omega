@@ -53,13 +53,8 @@ data PortableByte [copy] { value: i64; }
 data RawView { value: SignedByte<PortableByte>; }
 use omega::language::core::external_binding;
 public boundary trait Compare { machine compare(left: &i64, right: &i64, count: u64) -> i32 reaches; }
-linux_x86_64 machine compare_binding() -> ForeignBinding<9, 6, 11> {
-    ForeignBinding::DllImport { import: DllImport::ElfVersioned {
-        object: "libc.so.6", symbol: "memcmp", version: "GLIBC_2.2.5",
-    } }
-}
-linux_x86_64 machine compare(left: &i64, right: &i64, count: u64) -> i32
-satisfies Compare::compare via compare_binding();
+
+
 data Main where index < 2 { bytes: [u8; 2]; index: u64; }
 machine Main::main(main: &mut Main) reaches Compare {
     let view: &RawView = &main.bytes[0] as &RawView;

@@ -10,29 +10,6 @@ public boundary trait Magnitude {
     machine absolute(value: i32) -> i32 reaches;
 }
 
-macos_arm64 machine absolute_binding() -> ForeignBinding<26, 4, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "/usr/lib/libSystem.B.dylib",
-            symbol: "_abs",
-        },
-    }
-}
-
-linux_x86_64 machine linux_x86_64_absolute_binding() -> ForeignBinding<9, 3, 11> {
-    ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libc.so.6",
-            symbol: "abs", version: "GLIBC_2.2.5",
-        },
-    }
-}
-
-macos_arm64 machine external_absolute(value: i32) -> i32
-    satisfies Magnitude::absolute via absolute_binding();
-
-linux_x86_64 machine external_absolute(value: i32) -> i32
-    satisfies Magnitude::absolute via linux_x86_64_absolute_binding();
 
 data Big {
     bytes: [u8; 65536] in Trapping;
@@ -50,7 +27,7 @@ crashes Trap
 {
     let mut big: Big;
     Big::fill(&mut big, 70);
-    let magnitude: i32 = external_absolute(0 - (big.bytes[65535] as i32));
+    let magnitude: i32 = Magnitude::absolute(0 - (big.bytes[65535] as i32));
     Console::exit_process(magnitude);
 }
 

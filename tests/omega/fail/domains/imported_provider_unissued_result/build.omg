@@ -1,5 +1,18 @@
+use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
     Build::application(builder, "imported_provider_unissued_result");
-    Build::select_provider<Source, ImportedSource>(builder);
+    Build::select_provider<Source, ImportedSource>(builder, linux_arm64);
+    Build::select_provider<Source, ImportedSource>(builder, linux_x86_64);
+    Build::select_provider<Source, ImportedSource>(builder, macos_arm64);
+    Build::select_provider<Source, ImportedSource>(builder, macos_x86_64);
+    Build::select_provider<Source, ImportedSource>(builder, windows_x86_64);
+    Build::select_provider<Source, ImportedSource>(builder, uefi_x86_64);
+    Build::select_provider<Source, ImportedSource>(builder, cross_platform_cli);
+    Build::select_provider<Source, ImportedSource>(builder, local_unchecked);
+    Build::select_provider<Source, ImportedSource>(builder, alpha_bootstrap);
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
+
+ Build::bind<Source::open>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "/usr/lib/libSystem.B.dylib", symbol: "_getpid",
+    } });
 }

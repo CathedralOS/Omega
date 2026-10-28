@@ -16,71 +16,6 @@ public boundary trait ClockProbe {
 }
 data ClockImports {}
 
-macos_arm64 machine timespec_binding() -> ForeignBinding<26, 14, 0> {
-    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
-        install_name: "/usr/lib/libSystem.B.dylib", symbol: "_clock_gettime"
-    } }
-}
-
-linux_x86_64 machine linux_timespec_binding() -> ForeignBinding<9, 13, 10> {
-    ForeignBinding::DllImport { import: DllImport::ElfVersioned {
-        object: "libc.so.6", symbol: "clock_gettime", version: "GLIBC_2.17"
-    } }
-}
-macos_arm64 machine nanoseconds_binding() -> ForeignBinding<26, 22, 0> {
-    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
-        install_name: "/usr/lib/libSystem.B.dylib", symbol: "_clock_gettime_nsec_np"
-    } }
-}
-macos_arm64 machine poll_binding() -> ForeignBinding<26, 5, 0> {
-    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
-        install_name: "/usr/lib/libSystem.B.dylib", symbol: "_poll"
-    } }
-}
-
-linux_x86_64 machine linux_poll_binding() -> ForeignBinding<9, 4, 11> {
-    ForeignBinding::DllImport { import: DllImport::ElfVersioned {
-        object: "libc.so.6", symbol: "poll", version: "GLIBC_2.2.5"
-    } }
-}
-macos_arm64 machine nanosleep_binding() -> ForeignBinding<26, 10, 0> {
-    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
-        install_name: "/usr/lib/libSystem.B.dylib", symbol: "_nanosleep"
-    } }
-}
-
-linux_x86_64 machine linux_nanosleep_binding() -> ForeignBinding<9, 9, 11> {
-    ForeignBinding::DllImport { import: DllImport::ElfVersioned {
-        object: "libc.so.6", symbol: "nanosleep", version: "GLIBC_2.2.5"
-    } }
-}
-macos_arm64 machine ClockImports::read(selector: i32, instant: &mut Instant) -> i32
-    satisfies ClockProbe::read via timespec_binding();
-
-linux_x86_64 machine ClockImports::read(selector: i32, instant: &mut Instant) -> i32
-    satisfies ClockProbe::read via linux_timespec_binding();
-macos_arm64 machine ClockImports::read_pair(selector: u32, pair: &mut [i64; 2]) -> i32
-    satisfies ClockProbe::read_pair via timespec_binding();
-
-linux_x86_64 machine ClockImports::read_pair(selector: u32, pair: &mut [i64; 2]) -> i32
-    satisfies ClockProbe::read_pair via linux_timespec_binding();
-macos_arm64 machine ClockImports::nanoseconds(selector: i32) -> u64
-    satisfies ClockProbe::nanoseconds via nanoseconds_binding();
-macos_arm64 machine ClockImports::wait(pointer: u64, count: u32, milliseconds: i32) -> i32
-    satisfies ClockProbe::wait via poll_binding();
-
-linux_x86_64 machine ClockImports::wait(pointer: u64, count: u32, milliseconds: i32) -> i32
-    satisfies ClockProbe::wait via linux_poll_binding();
-macos_arm64 machine ClockImports::sleep(request: &Instant, remainder: u64) -> i32
-    satisfies ClockProbe::sleep via nanosleep_binding();
-
-linux_x86_64 machine ClockImports::sleep(request: &Instant, remainder: u64) -> i32
-    satisfies ClockProbe::sleep via linux_nanosleep_binding();
-macos_arm64 machine ClockImports::sleep_unit(request: &Instant, remainder: u64)
-    satisfies ClockProbe::sleep_unit via nanosleep_binding();
-
-linux_x86_64 machine ClockImports::sleep_unit(request: &Instant, remainder: u64)
-    satisfies ClockProbe::sleep_unit via linux_nanosleep_binding();
 
 machine read(selector: i32, instant: &mut Instant) -> i32
     reaches ClockProbe { ClockProbe::read(selector, instant) }
@@ -138,7 +73,7 @@ machine Main::main(main: &mut Main) reaches ClockProbe crashes Trap {
 linux_x86_64 machine ClockImports::nanoseconds(selector: i32) -> u64
     satisfies ClockProbe::nanoseconds {
     let mut instant: Instant = Instant { seconds: 0, nanoseconds: 0, marker: 0 };
-    let status: i32 = ClockImports::read(1, &mut instant);
+    let status: i32 = ClockProbe::read(1, &mut instant);
     transition status == 0 {
         true -> measured(instant.seconds, instant.nanoseconds)
         false -> failed()

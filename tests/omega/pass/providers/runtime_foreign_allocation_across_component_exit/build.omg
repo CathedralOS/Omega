@@ -1,6 +1,25 @@
+use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
     Build::application(builder, "allocation_across_component");
     Build::depend_as(builder, "producer", Source::Path { location: "producer" });
-    Build::select_provider<producer::RawAllocation, producer::RawAllocationProvider>(builder, CompositionMode::Independent);
+    Build::select_provider<producer::RawAllocation, producer::RawAllocationProvider>(builder, linux_arm64, CompositionMode::Independent);
+    Build::select_provider<producer::RawAllocation, producer::RawAllocationProvider>(builder, linux_x86_64, CompositionMode::Independent);
+    Build::select_provider<producer::RawAllocation, producer::RawAllocationProvider>(builder, macos_arm64, CompositionMode::Independent);
+    Build::select_provider<producer::RawAllocation, producer::RawAllocationProvider>(builder, macos_x86_64, CompositionMode::Independent);
+    Build::select_provider<producer::RawAllocation, producer::RawAllocationProvider>(builder, windows_x86_64, CompositionMode::Independent);
+    Build::select_provider<producer::RawAllocation, producer::RawAllocationProvider>(builder, uefi_x86_64, CompositionMode::Independent);
+    Build::select_provider<producer::RawAllocation, producer::RawAllocationProvider>(builder, cross_platform_cli, CompositionMode::Independent);
+    Build::select_provider<producer::RawAllocation, producer::RawAllocationProvider>(builder, local_unchecked, CompositionMode::Independent);
+    Build::select_provider<producer::RawAllocation, producer::RawAllocationProvider>(builder, alpha_bootstrap, CompositionMode::Independent);
     Build::bind(builder, macos_arm64::ProgramEntry, main);
+
+ Build::bind<NativeRelease::release>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "libSystem.B.dylib", symbol: "_free",
+    } });
+ Build::bind<producer::NativeBytes::allocate>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "libSystem.B.dylib", symbol: "_calloc",
+    } });
+ Build::bind<producer::NativeBytes::release>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "libSystem.B.dylib", symbol: "_free",
+    } });
 }

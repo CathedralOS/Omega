@@ -6,24 +6,7 @@ public data AllocationProbe {}
 public boundary requirement AllocationProbe::statistics(numerator: i64, denominator: i64) -> DivisionResult;
 public boundary requirement AllocationProbe::exit_with(code: i32);
 data AllocationProvider {}
-linux_x86_64 machine statistics_binding() -> ForeignBinding<9, 4, 11> {
-    ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libc.so.6", symbol: "ldiv", version: "GLIBC_2.2.5",
-        },
-    }
-}
-linux_x86_64 machine exit_binding() -> ForeignBinding<9, 4, 11> {
-    ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libc.so.6", symbol: "exit", version: "GLIBC_2.2.5",
-        },
-    }
-}
-linux_x86_64 machine AllocationProvider::statistics(numerator: i64, denominator: i64) -> DivisionResult
-satisfies AllocationProbe::statistics via statistics_binding();
-linux_x86_64 machine AllocationProvider::exit_with(code: i32)
-satisfies AllocationProbe::exit_with via exit_binding();
+
 
 machine relay(result: DivisionResult) -> DivisionResult { result }
 machine collect(numerator: i64, denominator: i64) -> DivisionResult {

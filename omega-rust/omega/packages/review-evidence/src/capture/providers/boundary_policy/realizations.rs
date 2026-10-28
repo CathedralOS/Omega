@@ -92,11 +92,14 @@ pub(super) fn project(
             ));
         }
         let operator_symbol = requirement.symbol;
-        let selected_symbol = *retained
+        let selected_symbol = retained
             .provider
             .row_realizations
             .get(*row_index)
-            .ok_or_else(|| rejected("a selected application row without a realization"))?;
+            .and_then(|origin| origin.machine())
+            .ok_or_else(|| {
+                rejected("a checked application row without an authored realization machine")
+            })?;
         let declaration = nominal_identity(compilation, selected_symbol)?;
         let realization = match checked.realization {
             PackageReviewBoundaryApplicationRealization::NongenericCheckedBody {

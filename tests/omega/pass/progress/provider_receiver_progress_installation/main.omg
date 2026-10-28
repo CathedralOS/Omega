@@ -23,29 +23,7 @@ public data SchedulerProvider { grant: addr; notify: addr; }
 // requirement into canonical ProcessExit or establish its progress premise.
 // The provider covers every catalogued host: a fixture compiled under the
 // corpus's host-selected target finds a complete candidate wherever it runs.
-linux_x86_64 machine SchedulerProvider::notify(provider: &SchedulerProvider, handle: SchedulerHandle, value: i32)
-satisfies Scheduler::notify
-via ForeignBinding::Syscall(1);
 
-linux_arm64 machine SchedulerProvider::notify(provider: &SchedulerProvider, handle: SchedulerHandle, value: i32)
-satisfies Scheduler::notify
-via ForeignBinding::VtableField(notify);
-
-macos_arm64 machine SchedulerProvider::notify(provider: &SchedulerProvider, handle: SchedulerHandle, value: i32)
-satisfies Scheduler::notify
-via ForeignBinding::VtableField(notify);
-
-macos_x86_64 machine SchedulerProvider::notify(provider: &SchedulerProvider, handle: SchedulerHandle, value: i32)
-satisfies Scheduler::notify
-via ForeignBinding::VtableField(notify);
-
-windows_x86_64 machine SchedulerProvider::notify(provider: &SchedulerProvider, handle: SchedulerHandle, value: i32)
-satisfies Scheduler::notify
-via ForeignBinding::VtableField(notify);
-
-machine SchedulerProvider::grant(provider: &SchedulerProvider, handle: SchedulerHandle) -> SchedulerHandle in WeakFair
-satisfies Scheduler::grant
-via ForeignBinding::VtableField(grant);
 
 data Main {
     provider: SchedulerProvider;

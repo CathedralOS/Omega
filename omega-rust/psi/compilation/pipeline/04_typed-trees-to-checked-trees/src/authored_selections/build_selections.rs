@@ -137,6 +137,23 @@ pub(super) fn validate(
                     "select_provider" if binding.operation == BuildOperation::ProviderSelection => {
                         3
                     }
+                    "bind_native" if binding.operation == BuildOperation::NativeBinding => 3,
+                    "same_stack_demand"
+                        if binding.operation == BuildOperation::NativeSameStackDemand =>
+                    {
+                        3
+                    }
+                    "bind_table_function"
+                        if binding.operation == BuildOperation::NativeTableFunction =>
+                    {
+                        2
+                    }
+                    "bind_vtable_field"
+                        if binding.operation == BuildOperation::NativeVtableField =>
+                    {
+                        2
+                    }
+
                     _ => {
                         return Err(Diagnostic::error(
                             "Product selection commit disagrees with its declaration operation",
@@ -198,6 +215,21 @@ pub(super) fn validate(
                     )
                     .with_source_span(span));
                 }
+            } else if operation == "bind_native" {
+                let reference = argument_type(arguments[2]).ok_or_else(|| {
+                    Diagnostic::error("native binding locator has no exact selected type")
+                        .with_source_span(span)
+                })?;
+                validation::compiler_operations::native_binding_widths(
+                    program.typed_program(),
+                    reference,
+                )
+                .map_err(|errors| {
+                    errors
+                        .into_iter()
+                        .next()
+                        .unwrap_or_else(|| Diagnostic::error("invalid native locator type"))
+                })?;
             } else if operation == "bind_description"
                 && !argument_type(arguments[1]).is_some_and(|reference| {
                     validation::compiler_operations::type_reference_names_exact_prelude_data(

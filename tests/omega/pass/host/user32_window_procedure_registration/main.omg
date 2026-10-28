@@ -169,55 +169,7 @@ windows_x86_64 machine Imports::register<machine Selected>(specification: &Nativ
 where machine Selected satisfies WindowProcedure::call;
 satisfies ClassApi::register
 via register_binding();
-windows_x86_64 machine unregister_binding() -> ForeignBinding<10, 16, 0> {
- ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "UnregisterClassA" } }
-}
-windows_x86_64 machine Imports::unregister(atom: u64, instance: u64) -> i32
-satisfies ClassApi::unregister
-via unregister_binding();
-windows_x86_64 machine create_binding() -> ForeignBinding<10, 15, 0> {
- ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "CreateWindowExA" } }
-}
-windows_x86_64 machine Imports::create(extended_style: u32, atom: u64, title: &[u8; 13], style: u32, x: i32, y: i32, width: i32, height: i32, parent: u64, menu: u64, instance: u64, parameter: u64) -> u64
-satisfies ClassApi::create
-via create_binding();
-windows_x86_64 machine dispatch_binding() -> ForeignBinding<10, 16, 0> {
- ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "DispatchMessageA" } }
-}
-windows_x86_64 machine Imports::dispatch(message: &[u64; 6]) -> i64
-satisfies ClassApi::dispatch
-via dispatch_binding();
-windows_x86_64 machine is_window_binding() -> ForeignBinding<10, 8, 0> {
- ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "IsWindow" } }
-}
-windows_x86_64 machine Imports::is_window(window: u64) -> i32 satisfies ClassApi::is_window via is_window_binding();
-windows_x86_64 machine destroy_binding() -> ForeignBinding<10, 13, 0> {
- ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "DestroyWindow" } }
-}
-windows_x86_64 machine Imports::destroy(window: u64) -> i32
-satisfies ClassApi::destroy
-via destroy_binding();
-windows_x86_64 machine set_context_binding() -> ForeignBinding<10, 17, 0> {
- ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "SetWindowLongPtrA" } }
-}
-windows_x86_64 machine Imports::set_context(window: u64, index: i32, context: i64) -> i64
-satisfies ContextApi::set_context
-via set_context_binding();
-windows_x86_64 machine get_context_binding() -> ForeignBinding<10, 17, 0> {
- ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "GetWindowLongPtrA" } }
-}
-windows_x86_64 machine Imports::get_context(window: u64, index: i32) -> i64
-satisfies ContextApi::get_context
-via get_context_binding();
 
-windows_x86_64 machine acquire_binding() -> ForeignBinding<12, 18, 0> {
- ForeignBinding::DllImport { import: DllImport::PeByName { library: "kernel32.dll", export: "GetModuleHandleExA" } }
-}
-windows_x86_64 machine Imports::acquire(flags: u32, name: u64, module: &mut u64) -> i32 satisfies ModuleApi::acquire via acquire_binding();
-windows_x86_64 machine release_binding() -> ForeignBinding<12, 11, 0> {
- ForeignBinding::DllImport { import: DllImport::PeByName { library: "kernel32.dll", export: "FreeLibrary" } }
-}
-windows_x86_64 machine Imports::release(module: u64) -> i32 satisfies ModuleApi::release via release_binding();
 
 // One occurrence owns both the live-registration capacity and one loader pin.
 // Activation changes its state; it never reconstructs an equal authority value.

@@ -1,5 +1,13 @@
+use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
     Build::application(builder, "runtime_kernel_clock_wait_loans_exit");
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_arm64::ProgramEntry, entry_start);
+
+ Build::bind<ClockProbe::read>(builder, linux_x86_64, ForeignBinding::Syscall { number: 228 });
+ Build::bind<ClockProbe::read>(builder, linux_arm64, ForeignBinding::Syscall { number: 113 });
+ Build::bind<ClockProbe::sleep>(builder, linux_x86_64, ForeignBinding::Syscall { number: 35 });
+ Build::bind<ClockProbe::sleep>(builder, linux_arm64, ForeignBinding::Syscall { number: 101 });
+ Build::bind<ClockProbe::sleep_unit>(builder, linux_x86_64, ForeignBinding::Syscall { number: 35 });
+ Build::bind<ClockProbe::sleep_unit>(builder, linux_arm64, ForeignBinding::Syscall { number: 101 });
 }

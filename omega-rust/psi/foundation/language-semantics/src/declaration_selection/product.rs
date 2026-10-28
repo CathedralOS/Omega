@@ -35,7 +35,11 @@ impl<Requirement> BuildSelectionRequest<Requirement> {
             Self::Exclusion(_) => true,
             Self::Declaration(request) => matches!(
                 request.operation,
-                super::BuildOperation::ServiceExclusion
+                super::BuildOperation::NativeBinding
+                    | super::BuildOperation::NativeTableFunction
+                    | super::BuildOperation::NativeVtableField
+                    | super::BuildOperation::NativeSameStackDemand
+                    | super::BuildOperation::ServiceExclusion
                     | super::BuildOperation::BoundaryAcceptance
                     | super::BuildOperation::ServiceAudit
                     | super::BuildOperation::AssumedBindingContract
@@ -165,6 +169,7 @@ pub enum ProductOperandRole {
     BoundarySubject,
     Provider,
     Requirement,
+    TableField,
     Data,
     Representation,
     WireCompatibilityFact,
@@ -179,7 +184,15 @@ impl BuildOperation {
                 Some(Role::BoundarySubject)
             }
             (Self::ProviderSelection, 1) => Some(Role::Provider),
-            (Self::AssumedBindingContract, 0 | 1) => Some(Role::Requirement),
+            (
+                Self::NativeBinding
+                | Self::NativeTableFunction
+                | Self::NativeVtableField
+                | Self::NativeSameStackDemand,
+                0,
+            )
+            | (Self::AssumedBindingContract, 0 | 1) => Some(Role::Requirement),
+            (Self::NativeTableFunction | Self::NativeVtableField, 1) => Some(Role::TableField),
             (Self::RepresentationSelection, 0) | (Self::WireCompatibilityRequest, 0..=3) => {
                 Some(Role::Data)
             }
@@ -191,10 +204,16 @@ impl BuildOperation {
 
     pub const fn product_operand_count_valid(self, count: usize) -> bool {
         match self {
-            Self::ProviderSelection
+            Self::NativeTableFunction
+            | Self::NativeVtableField
+            | Self::ProviderSelection
             | Self::RepresentationSelection
             | Self::AssumedBindingContract => count == 2,
-            Self::ServiceExclusion | Self::ServiceAudit | Self::BoundaryAcceptance => count == 1,
+            Self::NativeSameStackDemand
+            | Self::NativeBinding
+            | Self::ServiceExclusion
+            | Self::ServiceAudit
+            | Self::BoundaryAcceptance => count == 1,
             Self::WireCompatibilityRequest => count >= 5,
             _ => false,
         }
@@ -269,6 +288,7 @@ pub enum CompositionMode {
 /// Capturing a potential call does not mint an execution event.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExecutedBuildSelection {
+    Native(super::ExecutedNativeBinding),
     Entry(ExecutedRootBinding),
     Declaration(ExecutedProductSelection),
     Exclusion(ExecutedEnumExclusion),

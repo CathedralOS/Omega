@@ -1,6 +1,14 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "runtime_linear_provider_results_exit");
-    Build::select_provider<Relay, Adapter>(builder);
+    Build::select_provider<Relay, Adapter>(builder, linux_arm64);
+    Build::select_provider<Relay, Adapter>(builder, linux_x86_64);
+    Build::select_provider<Relay, Adapter>(builder, macos_arm64);
+    Build::select_provider<Relay, Adapter>(builder, macos_x86_64);
+    Build::select_provider<Relay, Adapter>(builder, windows_x86_64);
+    Build::select_provider<Relay, Adapter>(builder, uefi_x86_64);
+    Build::select_provider<Relay, Adapter>(builder, cross_platform_cli);
+    Build::select_provider<Relay, Adapter>(builder, local_unchecked);
+    Build::select_provider<Relay, Adapter>(builder, alpha_bootstrap);
     Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_arm64::ProgramEntry, entry_start);

@@ -73,10 +73,16 @@ pub(super) fn derive(
                     "selected Import template identity disagrees with its provenance".into(),
                 );
             }
-            let realization = typed
-                .machine(retained.provider.row_realizations[index])
-                .ok_or("selected Import provenance lost its realization declaration")?;
-            let scope = if let Some(declaration) = retained
+            let native = matches!(
+                retained.provider.row_realizations[index],
+                crate::ProviderRowOrigin::BuildNative { .. }
+            );
+            let realization = retained.provider.row_realizations[index]
+                .machine()
+                .and_then(|symbol| typed.machine(symbol));
+            let scope = if native {
+                Some(AppliedTraitScope::abstract_scope(owner))
+            } else if let Some(declaration) = retained
                 .provider
                 .provider_type
                 .and_then(|symbol| typed.conformances().iter().find(|map| map.symbol == symbol))
@@ -95,7 +101,10 @@ pub(super) fn derive(
                                 entry.realization_machine,
                                 Some(&plan.target),
                             )
-                            .is_some_and(|machine| machine.symbol == realization.symbol)
+                            .is_some_and(|machine| {
+                                Some(machine.symbol)
+                                    == realization.map(|realization| realization.symbol)
+                            })
                     })
                     .count()
                     != 1
@@ -104,18 +113,23 @@ pub(super) fn derive(
                 }
                 AppliedTraitScope::from_conformance(typed, declaration)
             } else {
-                let mut edges =
-                    typed
-                        .machine_trait_conformances(realization)
-                        .iter()
-                        .filter(|edge| {
-                            edge.requirement_symbol == template && edge.symbol == owner.symbol
-                        });
+                let mut edges = typed
+                    .machine_trait_conformances(
+                        realization.ok_or("selected Import lost its realization declaration")?,
+                    )
+                    .iter()
+                    .filter(|edge| {
+                        edge.requirement_symbol == template && edge.symbol == owner.symbol
+                    });
                 let edge = edges
                     .next()
                     .filter(|_| edges.next().is_none())
                     .ok_or("selected Import lost its unique external satisfaction")?;
-                AppliedTraitScope::from_machine_conformance(typed, realization, edge)
+                AppliedTraitScope::from_machine_conformance(
+                    typed,
+                    realization.ok_or("selected Import lost its realization declaration")?,
+                    edge,
+                )
             }
             .ok_or("selected Import lost its complete declaring application")?;
             // Source checking admitted the complete generic conformance and all
@@ -125,19 +139,23 @@ pub(super) fn derive(
                 .closed_requirement_applications()
                 .filter(|application| {
                     application.template == template
-                        && typed.requirement_application_matches_scope(
-                            application.signature.symbol,
-                            &scope,
-                        )
+                        && (native
+                            || typed.requirement_application_matches_scope(
+                                application.signature.symbol,
+                                &scope,
+                            ))
                 })
             {
                 let required = typed.state_signature_type_parameters(signature);
-                let actual = typed.machine_type_parameters(realization);
-                if required.len() != actual.len()
-                    || application.local_arguments.len() != required.len()
-                    || required.iter().zip(actual).any(|(required, actual)| {
-                        std::mem::discriminant(&required.kind)
-                            != std::mem::discriminant(&actual.kind)
+                let actual =
+                    realization.map(|realization| typed.machine_type_parameters(realization));
+                if application.local_arguments.len() != required.len()
+                    || actual.is_some_and(|actual| {
+                        required.len() != actual.len()
+                            || required.iter().zip(actual).any(|(required, actual)| {
+                                std::mem::discriminant(&required.kind)
+                                    != std::mem::discriminant(&actual.kind)
+                            })
                     })
                 {
                     return Err("selected Import closed application lost its complete declaration telescope".into());

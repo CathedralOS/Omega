@@ -86,6 +86,7 @@ impl PreparedPackageBuild {
             && build.config == other_build.config
             && build.root_binding_requests == other_build.root_binding_requests
             && build.declared_product_selections == other_build.declared_product_selections
+            && build.native_binding_requests == other_build.native_binding_requests
             && build.product_selection_requests == other_build.product_selection_requests
             && build.selected_build_machine_symbol == other_build.selected_build_machine_symbol
             && build.generated_sources == other_build.generated_sources

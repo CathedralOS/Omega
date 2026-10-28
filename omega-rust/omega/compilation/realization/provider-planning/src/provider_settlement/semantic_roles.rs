@@ -46,7 +46,9 @@ pub(super) fn validate_proposed(
                         .row_realizations
                         .get(*index)
                         .is_some_and(|realization| {
-                            typed.symbols.symbol_package_identity(*realization) == Some(package)
+                            realization.machine().is_some_and(|machine| {
+                                typed.symbols.symbol_package_identity(machine) == Some(package)
+                            })
                         })
             })
             .count();

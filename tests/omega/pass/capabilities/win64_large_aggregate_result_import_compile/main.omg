@@ -12,16 +12,6 @@ public boundary trait LargeAggregateResultImport {
     machine receive(seed: u64) -> Triple reaches;
 }
 
-windows_x86_64 machine large_aggregate_result_binding() -> ForeignBinding<19, 30, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::PeByName {
-            library: "omega_abi_probe.dll",
-            export: "omega_win64_large_result_probe",
-        },
-    }
-}
-
-windows_x86_64 machine large_aggregate_result_import(seed: u64) -> Triple satisfies LargeAggregateResultImport::receive via large_aggregate_result_binding();
 
 data Main {
     seed: u64;

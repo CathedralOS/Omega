@@ -3,6 +3,7 @@
 
 mod additional_declarations;
 mod exclusions;
+mod native_bindings;
 
 use compilation_products::ComputedBuildConfig;
 use diagnostics::Diagnostic;
@@ -38,6 +39,7 @@ pub(super) fn admit(
     computed.config.opaque_representation_selections = representations;
     computed.config.provider_selections = providers;
     additional_declarations::admit(typed, computed)?;
+    native_bindings::admit(typed, computed)?;
     computed.config.behavior_exclusions = exclusions::resolve(
         typed,
         computed.selected_build_machine_symbol,

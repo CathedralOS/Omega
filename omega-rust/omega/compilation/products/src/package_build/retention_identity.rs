@@ -27,7 +27,7 @@ impl PreparedPackageBuild {
     pub fn native_product_input_identity(&self) -> Result<[u8; 32], String> {
         let mut identity = BuildOutputIdentity {
             program: self.prepared.built.source.typed(),
-            digest: DomainDigestEncoder::new(b"omega-native-product-build-outputs-v2\0"),
+            digest: DomainDigestEncoder::new(b"omega-native-product-build-outputs-v3\0"),
             source_contents: HashMap::new(),
         };
         identity.computed(&self.prepared.built.computed_build_config)?;
@@ -52,6 +52,7 @@ impl BuildOutputIdentity<'_> {
             root_binding_requests,
             declared_product_selections,
             product_selection_requests,
+            native_binding_requests,
             behavior_exclusion_requests,
             project_declaration,
             optimization_report_request,
@@ -121,6 +122,16 @@ impl BuildOutputIdentity<'_> {
                 self.composition(*mode);
             }
         }
+        self.digest.len(native_binding_requests.len());
+        for event in native_binding_requests {
+            self.product_request(&event.request)?;
+            self.occurrence(event.selecting_machine)?;
+            self.product_target(Some(event.target));
+            for width in event.widths {
+                self.digest.u64(width);
+            }
+            self.native_locator(&event.locator);
+        }
         self.digest.len(behavior_exclusion_requests.len());
         for request in behavior_exclusion_requests {
             let language_semantics::declaration_selection::ExecutedEnumExclusion {
@@ -164,6 +175,7 @@ impl BuildOutputIdentity<'_> {
             settings,
             grants,
             provider_selections,
+            admitted_native_bindings,
             assumed_bindings,
             opaque_representation_selections,
             wire_compatibility_demands,
@@ -221,6 +233,15 @@ impl BuildOutputIdentity<'_> {
             self.composition(*composition_mode);
             self.symbol(*selecting_machine)?;
             self.occurrence(*source_span)?;
+        }
+        self.digest.len(admitted_native_bindings.len());
+        for row in admitted_native_bindings {
+            self.symbol(row.requirement)?;
+            self.symbol(row.selecting_machine)?;
+            self.occurrence(row.source_span)?;
+            self.digest.len(row.event_ordinal);
+            self.digest.string(row.target.target_name());
+            self.digest.raw(&row.receipt().identity_digest());
         }
         self.digest.len(assumed_bindings.len());
         for binding in assumed_bindings {
@@ -480,6 +501,10 @@ impl BuildOutputIdentity<'_> {
             BuildOperation::WireCompatibilityRequest => 9,
             BuildOperation::IncludedSourceHandoff => 10,
             BuildOperation::LogWriteLine => 11,
+            BuildOperation::NativeBinding => 12,
+            BuildOperation::NativeTableFunction => 13,
+            BuildOperation::NativeVtableField => 14,
+            BuildOperation::NativeSameStackDemand => 15,
         });
         self.digest.len(operands.len());
         for operand in operands {
@@ -491,6 +516,53 @@ impl BuildOutputIdentity<'_> {
             self.occurrence(*source_span)?;
         }
         Ok(())
+    }
+
+    fn native_locator(
+        &mut self,
+        value: &language_semantics::declaration_selection::NativeBindingValue,
+    ) {
+        use language_semantics::declaration_selection::NativeBindingValue as V;
+        match value {
+            V::PeByName { library, export } => {
+                self.digest.byte(0);
+                self.digest.bytes(library);
+                self.digest.bytes(export);
+            }
+            V::PeByOrdinal { library, ordinal } => {
+                self.digest.byte(1);
+                self.digest.bytes(library);
+                self.digest.u64(u64::from(*ordinal));
+            }
+            V::ElfVersioned {
+                object,
+                symbol,
+                version,
+            } => {
+                self.digest.byte(2);
+                self.digest.bytes(object);
+                self.digest.bytes(symbol);
+                self.digest.bytes(version);
+            }
+            V::MachODylibSymbol {
+                install_name,
+                symbol,
+            } => {
+                self.digest.byte(3);
+                self.digest.bytes(install_name);
+                self.digest.bytes(symbol);
+            }
+            V::Syscall { number } => {
+                self.digest.byte(4);
+                self.digest.u64(*number);
+            }
+            V::TableFunction => self.digest.byte(5),
+            V::VtableField => self.digest.byte(6),
+            V::SameStackDemand { bytes } => {
+                self.digest.byte(7);
+                self.digest.u64(*bytes);
+            }
+        }
     }
 
     fn provider_identity(&mut self, identity: &ProviderSelectionIdentity) -> Result<(), String> {

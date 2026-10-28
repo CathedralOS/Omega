@@ -121,38 +121,10 @@ macos_arm64 machine FilesystemProviderDefaults::provider_defaults(defaults: &mut
     FilesystemProviderDefaults::select_provider<FilesystemService, FilesystemPosixProvider>(defaults);
 }
 
-macos_arm64 machine darwin_realpath_binding() -> ForeignBinding<26, 9, 0> {
-    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
-        install_name: "/usr/lib/libSystem.B.dylib", symbol: "_realpath",
-    } }
-}
 
 macos_arm64 machine PosixCanonicalImports::provider_defaults(defaults: &mut PosixCanonicalImports) {
-    PosixCanonicalImports::select_provider<PosixCanonicalLibc::resolve, PosixCanonicalImports>(defaults);
-    PosixCanonicalImports::select_provider<PosixCanonicalLibc::error_location, PosixCanonicalImports>(defaults);
-    PosixCanonicalImports::select_provider<PosixCanonicalLibc::copy_error, PosixCanonicalImports>(defaults);
 }
 
-macos_arm64 machine darwin_errno_location_binding() -> ForeignBinding<26, 8, 0> {
-    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
-        install_name: "/usr/lib/libSystem.B.dylib", symbol: "___error",
-    } }
-}
-
-macos_arm64 machine darwin_errno_copy_binding() -> ForeignBinding<26, 7, 0> {
-    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
-        install_name: "/usr/lib/libSystem.B.dylib", symbol: "_memcpy",
-    } }
-}
-
-macos_arm64 machine PosixCanonicalImports::resolve(path: &[u8; 4096], output: &mut [u8; 4096]) -> u64
-satisfies PosixCanonicalLibc::resolve via darwin_realpath_binding();
-
-macos_arm64 machine PosixCanonicalImports::error_location() -> u64
-satisfies PosixCanonicalLibc::error_location via darwin_errno_location_binding();
-
-macos_arm64 machine PosixCanonicalImports::copy_error(destination: &mut [u8; 4], source: u64, count: u64) -> u64
-satisfies PosixCanonicalLibc::copy_error via darwin_errno_copy_binding();
 
 // Error numbers belong to this OS, not to a synthetic shared POSIX catalog.
 macos_arm64 machine posix_filesystem_kind_of_stored_error_code(filesystem: &mut PosixFilesystem) -> ErrorKind {

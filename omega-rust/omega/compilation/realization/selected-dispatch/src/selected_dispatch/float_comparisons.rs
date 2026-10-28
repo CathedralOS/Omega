@@ -65,7 +65,9 @@ pub(crate) fn selected_executions(
         if matches.next().is_some()
             || provider.provider.row_requirements.as_slice() != [requirement]
             || provider.provider.row_realizations.len() != 1
-            || !context.contains(provider.provider.row_realizations[0])
+            || !provider.provider.row_realizations[0]
+                .machine()
+                .is_some_and(|machine| context.contains(machine))
         {
             return Err(fail(
                 "selected provider lost its exact requirement or realization custody",

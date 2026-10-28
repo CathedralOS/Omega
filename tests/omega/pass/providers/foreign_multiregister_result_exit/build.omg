@@ -1,6 +1,20 @@
+use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
     Build::application(builder, "foreign_multiregister_result_exit");
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
+
+ Build::bind<IntegerDivision::divide>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_lldiv",
+        },
+    });
+ Build::bind<IntegerDivision::divide>(builder, linux_x86_64, ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6",
+            symbol: "lldiv", version: "GLIBC_2.2.5",
+        },
+    });
 }

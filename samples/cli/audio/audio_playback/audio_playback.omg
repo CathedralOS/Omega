@@ -43,17 +43,6 @@ boundary requirement WindowsAudioPlaybackIo::c_play_sound(image: &u8, hmod: u64,
 reaches AudioPlayback
 blocks;
 
-windows_x86_64 machine windows_play_sound_binding() -> ForeignBinding<9, 10, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::PeByName {
-            library: "winmm.dll",
-            export: "PlaySoundW",
-        },
-    }
-}
-windows_x86_64 machine WindowsAudioPlaybackImports::c_play_sound(image: &u8, hmod: u64, flags: u32) -> i32
-    satisfies WindowsAudioPlaybackIo::c_play_sound
-    via windows_play_sound_binding();
 
 windows_x86_64 machine WindowsAudioPlayback::play(image: &u8, image_length: u32, pcm: &u8, frames: u32) -> i32
     satisfies AudioPlayback::play
@@ -87,51 +76,6 @@ blocks;
 boundary requirement LinuxAudioPlaybackIo::c_close(pcm: u64) -> i32
 reaches AudioPlayback;
 
-linux_x86_64 machine linux_open_binding() -> ForeignBinding<14, 12, 8> {
-    ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libasound.so.2", symbol: "snd_pcm_open", version: "ALSA_0.9",
-        },
-    }
-}
-linux_x86_64 machine linux_set_params_binding() -> ForeignBinding<14, 18, 8> {
-    ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libasound.so.2", symbol: "snd_pcm_set_params", version: "ALSA_0.9",
-        },
-    }
-}
-linux_x86_64 machine linux_writei_binding() -> ForeignBinding<14, 14, 8> {
-    ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libasound.so.2", symbol: "snd_pcm_writei", version: "ALSA_0.9",
-        },
-    }
-}
-linux_x86_64 machine linux_drain_binding() -> ForeignBinding<14, 13, 8> {
-    ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libasound.so.2", symbol: "snd_pcm_drain", version: "ALSA_0.9",
-        },
-    }
-}
-linux_x86_64 machine linux_close_binding() -> ForeignBinding<14, 13, 8> {
-    ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libasound.so.2", symbol: "snd_pcm_close", version: "ALSA_0.9",
-        },
-    }
-}
-linux_x86_64 machine LinuxAudioPlaybackImports::c_open(pcm: &mut u64, name: &u8, stream: i32, mode: i32) -> i32
-    satisfies LinuxAudioPlaybackIo::c_open via linux_open_binding();
-linux_x86_64 machine LinuxAudioPlaybackImports::c_set_params(pcm: u64, format: i32, access: i32, channels: u32, rate: u32, soft_resample: i32, latency_us: u32) -> i32
-    satisfies LinuxAudioPlaybackIo::c_set_params via linux_set_params_binding();
-linux_x86_64 machine LinuxAudioPlaybackImports::c_writei(pcm: u64, buffer: &u8, frames: u64) -> i64
-    satisfies LinuxAudioPlaybackIo::c_writei via linux_writei_binding();
-linux_x86_64 machine LinuxAudioPlaybackImports::c_drain(pcm: u64) -> i32
-    satisfies LinuxAudioPlaybackIo::c_drain via linux_drain_binding();
-linux_x86_64 machine LinuxAudioPlaybackImports::c_close(pcm: u64) -> i32
-    satisfies LinuxAudioPlaybackIo::c_close via linux_close_binding();
 
 linux_x86_64 machine LinuxAudioPlayback::play(image: &u8, image_length: u32, pcm: &u8, frames: u32) -> i32
     satisfies AudioPlayback::play
@@ -176,51 +120,6 @@ linux_x86_64 machine LinuxAudioPlayback::provider_defaults(defaults: &mut LinuxA
     LinuxAudioPlayback::select_provider<AudioPlayback, LinuxAudioPlayback>(defaults);
 }
 
-linux_arm64 machine linux_arm64_open_binding() -> ForeignBinding<14, 12, 8> {
-    ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libasound.so.2", symbol: "snd_pcm_open", version: "ALSA_0.9",
-        },
-    }
-}
-linux_arm64 machine linux_arm64_set_params_binding() -> ForeignBinding<14, 18, 8> {
-    ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libasound.so.2", symbol: "snd_pcm_set_params", version: "ALSA_0.9",
-        },
-    }
-}
-linux_arm64 machine linux_arm64_writei_binding() -> ForeignBinding<14, 14, 8> {
-    ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libasound.so.2", symbol: "snd_pcm_writei", version: "ALSA_0.9",
-        },
-    }
-}
-linux_arm64 machine linux_arm64_drain_binding() -> ForeignBinding<14, 13, 8> {
-    ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libasound.so.2", symbol: "snd_pcm_drain", version: "ALSA_0.9",
-        },
-    }
-}
-linux_arm64 machine linux_arm64_close_binding() -> ForeignBinding<14, 13, 8> {
-    ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libasound.so.2", symbol: "snd_pcm_close", version: "ALSA_0.9",
-        },
-    }
-}
-linux_arm64 machine LinuxArm64AudioPlaybackImports::c_open(pcm: &mut u64, name: &u8, stream: i32, mode: i32) -> i32
-    satisfies LinuxAudioPlaybackIo::c_open via linux_arm64_open_binding();
-linux_arm64 machine LinuxArm64AudioPlaybackImports::c_set_params(pcm: u64, format: i32, access: i32, channels: u32, rate: u32, soft_resample: i32, latency_us: u32) -> i32
-    satisfies LinuxAudioPlaybackIo::c_set_params via linux_arm64_set_params_binding();
-linux_arm64 machine LinuxArm64AudioPlaybackImports::c_writei(pcm: u64, buffer: &u8, frames: u64) -> i64
-    satisfies LinuxAudioPlaybackIo::c_writei via linux_arm64_writei_binding();
-linux_arm64 machine LinuxArm64AudioPlaybackImports::c_drain(pcm: u64) -> i32
-    satisfies LinuxAudioPlaybackIo::c_drain via linux_arm64_drain_binding();
-linux_arm64 machine LinuxArm64AudioPlaybackImports::c_close(pcm: u64) -> i32
-    satisfies LinuxAudioPlaybackIo::c_close via linux_arm64_close_binding();
 
 linux_arm64 machine LinuxAudioPlayback::play(image: &u8, image_length: u32, pcm: &u8, frames: u32) -> i32
     satisfies AudioPlayback::play
@@ -316,107 +215,6 @@ boundary requirement MacosAudioPlaybackIo::c_usleep(microseconds: u32) -> i32
 reaches AudioPlayback
 blocks;
 
-macos_arm64 machine macos_dlsym_binding() -> ForeignBinding<26, 6, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "/usr/lib/libSystem.B.dylib",
-            symbol: "_dlsym",
-        },
-    }
-}
-macos_arm64 machine macos_memmove_binding() -> ForeignBinding<26, 8, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "/usr/lib/libSystem.B.dylib",
-            symbol: "_memmove",
-        },
-    }
-}
-macos_arm64 machine macos_bcopy_binding() -> ForeignBinding<26, 6, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "/usr/lib/libSystem.B.dylib",
-            symbol: "_bcopy",
-        },
-    }
-}
-macos_arm64 machine macos_usleep_binding() -> ForeignBinding<26, 7, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "/usr/lib/libSystem.B.dylib",
-            symbol: "_usleep",
-        },
-    }
-}
-macos_arm64 machine macos_queue_new_output_binding() -> ForeignBinding<62, 20, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "/System/Library/Frameworks/AudioToolbox.framework/AudioToolbox",
-            symbol: "_AudioQueueNewOutput",
-        },
-    }
-}
-macos_arm64 machine macos_queue_allocate_buffer_binding() -> ForeignBinding<62, 25, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "/System/Library/Frameworks/AudioToolbox.framework/AudioToolbox",
-            symbol: "_AudioQueueAllocateBuffer",
-        },
-    }
-}
-macos_arm64 machine macos_queue_enqueue_buffer_binding() -> ForeignBinding<62, 24, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "/System/Library/Frameworks/AudioToolbox.framework/AudioToolbox",
-            symbol: "_AudioQueueEnqueueBuffer",
-        },
-    }
-}
-macos_arm64 machine macos_queue_start_binding() -> ForeignBinding<62, 16, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "/System/Library/Frameworks/AudioToolbox.framework/AudioToolbox",
-            symbol: "_AudioQueueStart",
-        },
-    }
-}
-macos_arm64 machine macos_queue_stop_binding() -> ForeignBinding<62, 15, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "/System/Library/Frameworks/AudioToolbox.framework/AudioToolbox",
-            symbol: "_AudioQueueStop",
-        },
-    }
-}
-macos_arm64 machine macos_queue_dispose_binding() -> ForeignBinding<62, 18, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "/System/Library/Frameworks/AudioToolbox.framework/AudioToolbox",
-            symbol: "_AudioQueueDispose",
-        },
-    }
-}
-macos_arm64 machine MacosAudioPlaybackImports::c_dlsym(handle: u64, name: &u8) -> u64
-    satisfies MacosAudioPlaybackIo::c_dlsym via macos_dlsym_binding();
-macos_arm64 machine MacosAudioPlaybackImports::c_new_output(format: &u8, callback: u64, user_data: u64, callback_run_loop: u64, callback_mode: u64, flags: u32, queue: &mut u64) -> i32
-    satisfies MacosAudioPlaybackIo::c_new_output via macos_queue_new_output_binding();
-macos_arm64 machine MacosAudioPlaybackImports::c_allocate_buffer(queue: u64, byte_size: u32, buffer: &mut u64) -> i32
-    satisfies MacosAudioPlaybackIo::c_allocate_buffer via macos_queue_allocate_buffer_binding();
-macos_arm64 machine MacosAudioPlaybackImports::c_enqueue_buffer(queue: u64, buffer: u64, packet_count: u32, packet_descriptions: u64) -> i32
-    satisfies MacosAudioPlaybackIo::c_enqueue_buffer via macos_queue_enqueue_buffer_binding();
-macos_arm64 machine MacosAudioPlaybackImports::c_start(queue: u64, start_time: u64) -> i32
-    satisfies MacosAudioPlaybackIo::c_start via macos_queue_start_binding();
-macos_arm64 machine MacosAudioPlaybackImports::c_stop(queue: u64, immediate: u32) -> i32
-    satisfies MacosAudioPlaybackIo::c_stop via macos_queue_stop_binding();
-macos_arm64 machine MacosAudioPlaybackImports::c_dispose(queue: u64, immediate: u32) -> i32
-    satisfies MacosAudioPlaybackIo::c_dispose via macos_queue_dispose_binding();
-macos_arm64 machine MacosAudioPlaybackImports::c_copy_to_address(destination: u64, source: &u8, count: u64) -> u64
-    satisfies MacosAudioPlaybackIo::c_copy_to_address via macos_memmove_binding();
-macos_arm64 machine MacosAudioPlaybackImports::c_load_pointer(source: u64, destination: &mut u64, count: u64)
-    satisfies MacosAudioPlaybackIo::c_load_pointer via macos_bcopy_binding();
-macos_arm64 machine MacosAudioPlaybackImports::c_usleep(microseconds: u32) -> i32
-    satisfies MacosAudioPlaybackIo::c_usleep via macos_usleep_binding()
-    blocks;
 
 // A nonzero OSStatus becomes the provider's failure code within the samples'
 // three-digit printer: negatives pass through to magnitude 999, larger
@@ -529,14 +327,4 @@ reaches AudioPlayback
 }
 macos_arm64 machine MacosAudioPlayback::provider_defaults(defaults: &mut MacosAudioPlayback) {
     MacosAudioPlayback::select_provider<AudioPlayback, MacosAudioPlayback>(defaults);
-    MacosAudioPlayback::select_provider<MacosAudioPlaybackIo::c_dlsym, MacosAudioPlaybackImports>(defaults);
-    MacosAudioPlayback::select_provider<MacosAudioPlaybackIo::c_new_output, MacosAudioPlaybackImports>(defaults);
-    MacosAudioPlayback::select_provider<MacosAudioPlaybackIo::c_allocate_buffer, MacosAudioPlaybackImports>(defaults);
-    MacosAudioPlayback::select_provider<MacosAudioPlaybackIo::c_enqueue_buffer, MacosAudioPlaybackImports>(defaults);
-    MacosAudioPlayback::select_provider<MacosAudioPlaybackIo::c_start, MacosAudioPlaybackImports>(defaults);
-    MacosAudioPlayback::select_provider<MacosAudioPlaybackIo::c_stop, MacosAudioPlaybackImports>(defaults);
-    MacosAudioPlayback::select_provider<MacosAudioPlaybackIo::c_dispose, MacosAudioPlaybackImports>(defaults);
-    MacosAudioPlayback::select_provider<MacosAudioPlaybackIo::c_copy_to_address, MacosAudioPlaybackImports>(defaults);
-    MacosAudioPlayback::select_provider<MacosAudioPlaybackIo::c_load_pointer, MacosAudioPlaybackImports>(defaults);
-    MacosAudioPlayback::select_provider<MacosAudioPlaybackIo::c_usleep, MacosAudioPlaybackImports>(defaults);
 }

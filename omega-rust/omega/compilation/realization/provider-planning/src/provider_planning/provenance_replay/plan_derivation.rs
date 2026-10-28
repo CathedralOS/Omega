@@ -190,7 +190,7 @@ pub(crate) fn derive_provider_plans(
                 plans[position]
                     .provenance
                     .row_realizations
-                    .push(machine.symbol);
+                    .push(super::ProviderRowOrigin::Machine(machine.symbol));
                 plans[position]
                     .provenance
                     .row_target_machine_origins
@@ -219,11 +219,11 @@ pub(crate) fn derive_provider_plans(
     // separate obligations on the candidates that selection actually chooses.
     let absent = crate::target_machines::DirectTargetBodyAbsences::derive(context, selected_target);
     plans.retain(|candidate| {
-        !candidate
-            .provenance
-            .row_realizations
-            .iter()
-            .any(|machine| absent.contains(typed, *machine))
+        !candidate.provenance.row_realizations.iter().any(|machine| {
+            machine
+                .machine()
+                .is_some_and(|machine| absent.contains(typed, machine))
+        })
     });
     Ok(plans)
 }
@@ -345,7 +345,7 @@ fn derive_named_provider_plans(
                             if candidate.provenance.row_requirements.get(index)
                                 == Some(&row.requirement)
                                 && candidate.provenance.row_realizations.get(index)
-                                    == Some(&machine.symbol)
+                                    == Some(&super::ProviderRowOrigin::Machine(machine.symbol))
                                 && candidate.plan.identities.text(binding.requirement_identity)
                                     == identity.as_str()
                             {
@@ -391,7 +391,9 @@ fn derive_named_provider_plans(
                     binding,
                 });
                 provenance.row_requirements.push(row.requirement);
-                provenance.row_realizations.push(machine.symbol);
+                provenance
+                    .row_realizations
+                    .push(super::ProviderRowOrigin::Machine(machine.symbol));
                 provenance.row_target_machine_origins.push(origin);
                 provenance.row_placed_accessors.push(None);
             }
@@ -543,7 +545,7 @@ fn derive_top_level_requirement_plans(
             plans[position]
                 .provenance
                 .row_realizations
-                .push(machine.symbol);
+                .push(super::ProviderRowOrigin::Machine(machine.symbol));
             plans[position]
                 .provenance
                 .row_target_machine_origins
@@ -702,7 +704,7 @@ fn derive_boundary_operator_plans(
             plans[position]
                 .provenance
                 .row_realizations
-                .push(machine.symbol);
+                .push(super::ProviderRowOrigin::Machine(machine.symbol));
             plans[position]
                 .provenance
                 .row_target_machine_origins
@@ -919,7 +921,9 @@ fn derive_placed_accessor_plans(
                 });
                 let provenance = &mut plans[position].provenance;
                 provenance.row_requirements.push(machine.symbol);
-                provenance.row_realizations.push(machine.symbol);
+                provenance
+                    .row_realizations
+                    .push(super::ProviderRowOrigin::Machine(machine.symbol));
                 provenance.row_target_machine_origins.push(None);
                 provenance.row_placed_accessors.push(Some(accessor));
             }

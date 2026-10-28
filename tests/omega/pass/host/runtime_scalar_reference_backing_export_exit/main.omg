@@ -3,15 +3,8 @@ use omega::language::core::external_binding;
 public boundary trait Compare {
     machine compare(left: &u64, right: &u64, count: u64) -> i32 reaches;
 }
-linux_x86_64 machine compare_binding() -> ForeignBinding<9, 6, 11> {
-    ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libc.so.6", symbol: "memcmp", version: "GLIBC_2.2.5",
-        },
-    }
-}
-linux_x86_64 machine compare(left: &u64, right: &u64, count: u64) -> i32
-satisfies Compare::compare via compare_binding();
+
+
 data Value { padding: u64; value: u64; }
 data Holder [copy] { reference: &u64; }
 data Main { left: Value; right: Value; }

@@ -1,6 +1,21 @@
+use omega::language::core::external_binding;
 
 machine build(builder: &mut Build) {
     Build::application(builder, "provider_receiver_progress_installation");
-    Build::select_provider<Scheduler, SchedulerProvider>(builder);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
+
+ Build::bind_vtable_field<Scheduler::notify, SchedulerProvider::notify>(builder, linux_arm64);
+ Build::bind_vtable_field<Scheduler::notify, SchedulerProvider::notify>(builder, macos_arm64);
+ Build::bind_vtable_field<Scheduler::notify, SchedulerProvider::notify>(builder, macos_x86_64);
+ Build::bind_vtable_field<Scheduler::notify, SchedulerProvider::notify>(builder, windows_x86_64);
+ Build::bind_vtable_field<Scheduler::grant, SchedulerProvider::grant>(builder, windows_x86_64);
+ Build::bind_vtable_field<Scheduler::grant, SchedulerProvider::grant>(builder, linux_x86_64);
+ Build::bind_vtable_field<Scheduler::grant, SchedulerProvider::grant>(builder, macos_arm64);
+ Build::bind_vtable_field<Scheduler::grant, SchedulerProvider::grant>(builder, linux_arm64);
+ Build::bind_vtable_field<Scheduler::grant, SchedulerProvider::grant>(builder, macos_x86_64);
+ Build::bind_vtable_field<Scheduler::grant, SchedulerProvider::grant>(builder, uefi_x86_64);
+ Build::bind_vtable_field<Scheduler::grant, SchedulerProvider::grant>(builder, cross_platform_cli);
+ Build::bind_vtable_field<Scheduler::grant, SchedulerProvider::grant>(builder, local_unchecked);
+ Build::bind_vtable_field<Scheduler::grant, SchedulerProvider::grant>(builder, alpha_bootstrap);
+ Build::bind<Scheduler::notify>(builder, linux_x86_64, ForeignBinding::Syscall { number: 1 });
 }

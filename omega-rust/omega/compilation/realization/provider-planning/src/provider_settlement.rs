@@ -252,6 +252,7 @@ pub struct ProviderSettlement {
     /// selected for this executable. Backend lowering reads only the imports
     /// installed in provider plans.
     pub evaluated_via_bindings: EvaluatedViaBindingTable,
+    pub admitted_native_bindings: Vec<crate::AdmittedNativeBinding>,
     /// Selected normalized-import bindings and their evaluated calling plans,
     /// the only normalized foreign-locator custody in native realization.
     pub external_binding_rows: Vec<calling_conventions::ExternalBindingRow>,
@@ -268,6 +269,14 @@ pub struct ProviderSettlement {
 }
 
 impl ProviderSettlement {
+    /// The exact common namespace used by source-issued binding receipts.
+    pub fn binding_identities(&self) -> &terminal_psi::TerminalIdentityTable {
+        self.admitted_native_bindings.first().map_or_else(
+            || self.evaluated_via_bindings.identities(),
+            |row| &row.identities,
+        )
+    }
+
     /// Publish the complete calling catalog from its producing owners. Explicit
     /// policy rows can also own an external import; retain that same application
     /// once. Default native policies retain their materialized geometry here too.
@@ -333,6 +342,31 @@ fn demanded_provider_plans(
     defaults: &[ProviderSelection],
     requested: &[ProviderSelection],
 ) -> Vec<crate::DerivedProviderPlan> {
+    let uses = demanded_requirement_uses(checked);
+    candidates
+        .iter()
+        .filter(|candidate| {
+            candidate
+                .provenance
+                .row_requirements
+                .iter()
+                .any(|requirement| uses.contains(requirement))
+                || defaults.iter().chain(requested).any(|selection| {
+                    candidate.plan.rows.iter().any(|row| {
+                        selection.subject.selects_schema(
+                            candidate.provenance.schema.symbol(),
+                            candidate.plan.identity_text(row.requirement_identity),
+                        )
+                    })
+                })
+        })
+        .cloned()
+        .collect()
+}
+
+fn demanded_requirement_uses(
+    checked: &checked_trees::CheckedTrees,
+) -> std::collections::HashSet<symbols::SymbolHandle> {
     // Satisfaction declares a candidate, not a request to install it. Use the
     // source owner's callable-use inventory, not all nominal references: a
     // conformance row necessarily mentions its requirement without calling it.
@@ -380,25 +414,64 @@ fn demanded_provider_plans(
             .iter()
             .map(|row| row.template),
     );
-    candidates
+    uses
+}
+
+fn validate_native_binding_demand(
+    checked: &checked_trees::CheckedTrees,
+    bindings: &[crate::AdmittedNativeBinding],
+    target: Option<&str>,
+    defaults: &[ProviderSelection],
+    requested: &[ProviderSelection],
+) -> Result<(), Vec<Diagnostic>> {
+    let uses = demanded_requirement_uses(checked);
+    let typed = &checked.typed;
+    for binding in bindings
         .iter()
-        .filter(|candidate| {
-            candidate
-                .provenance
-                .row_requirements
-                .iter()
-                .any(|requirement| uses.contains(requirement))
-                || defaults.iter().chain(requested).any(|selection| {
-                    candidate.plan.rows.iter().any(|row| {
-                        selection.subject.selects_schema(
-                            candidate.provenance.schema.symbol(),
-                            candidate.plan.identity_text(row.requirement_identity),
-                        )
-                    })
-                })
-        })
-        .cloned()
-        .collect()
+        .filter(|binding| target == Some(binding.target.target_name()))
+    {
+        let crate::AdmittedNativeLocator::Unavailable { reason, .. } = &binding.locator else {
+            continue;
+        };
+        let (schema, identity, used) =
+            if let Some((owner, signature)) = typed.trait_machine_signature(binding.requirement) {
+                (
+                    owner.symbol,
+                    typed.trait_requirement_callable_identity_text(owner, signature),
+                    uses.iter().any(|symbol| {
+                        typed
+                            .trait_machine_signature(*symbol)
+                            .is_some_and(|(actual_owner, _)| actual_owner.symbol == owner.symbol)
+                    }),
+                )
+            } else {
+                (
+                    binding.requirement,
+                    typed
+                        .machine(binding.requirement)
+                        .and_then(|machine| typed.machine_callable_identity_text(machine))
+                        .unwrap_or_default(),
+                    uses.contains(&binding.requirement),
+                )
+            };
+        // A named override/default selects an authored provider, so free
+        // native candidate intents at this slot are unselected. Without that
+        // choice, every competing native supplier remains at automatic
+        // precedence; an unavailable one cannot silently disappear.
+        if defaults
+            .iter()
+            .chain(requested)
+            .any(|selection| selection.subject.selects_schema(schema, &identity))
+        {
+            continue;
+        }
+        if used {
+            return Err(vec![
+                Diagnostic::error(reason.clone()).with_source_span(binding.source_span),
+            ]);
+        }
+    }
+    Ok(())
 }
 
 /// Derive every candidate, selecting whole maps only for demanded or authored
@@ -409,6 +482,7 @@ pub fn settle_checked_providers(
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
     build_provider_selections: &[ProviderSelection],
+    admitted_native_bindings: &[crate::AdmittedNativeBinding],
     assumed_bindings: &[build_time_evaluation::assumed_bindings::AssumedBindingContract],
     accepted_component_assumptions: &std::collections::BTreeSet<[u8; 32]>,
     boundary_calling_plan_realizations: Vec<BoundaryCallingPlanRealization>,
@@ -434,13 +508,23 @@ pub fn settle_checked_providers(
         planning_target,
         package_inputs,
     )?;
-    let derived_provider_plans = derive_satisfies_plans(crate::ProviderPlanDerivation::evaluated(
-        context,
-        &boundary_calling_plan_realizations,
+    validate_native_binding_demand(
+        checked,
+        admitted_native_bindings,
         target_name,
-        &evaluated_via_bindings,
-        &settled_target_machines.origins,
-    ))?;
+        &target_provider_defaults,
+        build_provider_selections,
+    )?;
+    let derived_provider_plans = derive_satisfies_plans(
+        crate::ProviderPlanDerivation::evaluated(
+            context,
+            &boundary_calling_plan_realizations,
+            target_name,
+            &evaluated_via_bindings,
+            &settled_target_machines.origins,
+        )
+        .with_native_bindings(admitted_native_bindings),
+    )?;
     let selected_provider_plans = crate::select_derived_provider_plans(
         &demanded_provider_plans(
             checked,
@@ -562,7 +646,7 @@ pub fn settle_checked_providers(
                     provider_type: None,
                     row_requirements: minted.requirement_symbols,
                     row_realizations: vec![
-                        symbols::SymbolHandle::invalid();
+                        crate::ProviderRowOrigin::Toolchain;
                         minted.plan.rows.len()
                     ],
                     row_target_machine_origins: vec![None; minted.plan.rows.len()],
@@ -772,6 +856,7 @@ pub fn settle_checked_providers(
             component_calling_applications,
             provider_plans,
             evaluated_via_bindings,
+            admitted_native_bindings: admitted_native_bindings.to_vec(),
             external_binding_rows,
             verified_independent_components: independent_components
                 .into_iter()

@@ -56,60 +56,9 @@ boundary trait WindowsFilesystemMetadataIo {
     reaches FilesystemMetadataQuery blocks;
 }
 
-windows_x86_64 machine windows_metadata_binding() -> ForeignBinding<12, 28, 0> {
-    ForeignBinding::DllImport { import: DllImport::PeByName {
-        library: "kernel32.dll", export: "GetFileInformationByHandleEx"
-    } }
-}
-windows_x86_64 machine windows_metadata_type_binding() -> ForeignBinding<12, 11, 0> {
-    ForeignBinding::DllImport { import: DllImport::PeByName {
-        library: "kernel32.dll", export: "GetFileType"
-    } }
-}
-windows_x86_64 machine WindowsFilesystemMetadataImports::file_type(handle: i64) -> u32
-satisfies WindowsFilesystemMetadataIo::file_type via windows_metadata_type_binding()
-blocks;
+
 // A separate applied contract for the same CreateFileW mechanism: exact
 // read-attributes access, OPEN_EXISTING, shared delete, synchronous directory
 // support, anonymous SQOS, and optional final-component reparse inspection.
 // General create retains its conservative mutation row; a portable query
 // cannot call it.
-windows_x86_64 machine WindowsFilesystemMetadataImports::open_attributes(path: &[u16; 4096] in WindowsNativePath, desired_access: u32, sharing: u32, security: u64, disposition: u32, flags: u32, template: u64) -> i64
-satisfies WindowsFilesystemMetadataIo::open_attributes via windows_create_file_binding()
-requires desired_access == 128 && sharing == 7 && security == 0 && disposition == 3
-    && (flags == 34603008 || flags == 36700160) && template == 0
-blocks;
-windows_x86_64 machine WindowsFilesystemMetadataImports::basic(handle: i64 in WindowsDiskFileOrAbsent, information_class: u32, output: &mut WindowsNativeFileBasicInfo, size: u32) -> i32
-satisfies WindowsFilesystemMetadataIo::basic via windows_metadata_binding()
-requires handle != 0 && information_class == 0 && size == 40
-blocks;
-windows_x86_64 machine WindowsFilesystemMetadataImports::standard(handle: i64 in WindowsDiskFileOrAbsent, information_class: u32, output: &mut WindowsNativeFileStandardInfo, size: u32) -> i32
-satisfies WindowsFilesystemMetadataIo::standard via windows_metadata_binding()
-requires handle != 0 && information_class == 1 && size == 24
-blocks;
-windows_x86_64 machine WindowsFilesystemMetadataImports::attribute_tag(handle: i64 in WindowsDiskFileOrAbsent, information_class: u32, output: &mut WindowsNativeFileAttributeTagInfo, size: u32) -> i32
-satisfies WindowsFilesystemMetadataIo::attribute_tag via windows_metadata_binding()
-requires handle != 0 && information_class == 9 && size == 8
-blocks;
-
-NativeWindowsFilesystemMetadataImports satisfies WindowsFilesystemMetadataIo {
-    machine file_type(handle: i64) -> u32 reaches FilesystemMetadataQuery blocks;
-    { block WindowsFilesystemMetadataImports::file_type(handle) }
-    machine open_attributes(path: &[u16; 4096] in WindowsNativePath, desired_access: u32, sharing: u32, security: u64, disposition: u32, flags: u32, template: u64) -> i64
-    requires desired_access == 128 && sharing == 7 && security == 0 && disposition == 3
-        && (flags == 34603008 || flags == 36700160) && template == 0
-    reaches FilesystemMetadataQuery blocks;
-    { block WindowsFilesystemMetadataImports::open_attributes(path, desired_access, sharing, security, disposition, flags, template) }
-    machine basic(handle: i64 in WindowsDiskFileOrAbsent, information_class: u32, output: &mut WindowsNativeFileBasicInfo, size: u32) -> i32
-    requires handle != 0 && information_class == 0 && size == 40
-    reaches FilesystemMetadataQuery blocks;
-    { block WindowsFilesystemMetadataImports::basic(handle, information_class, output, size) }
-    machine standard(handle: i64 in WindowsDiskFileOrAbsent, information_class: u32, output: &mut WindowsNativeFileStandardInfo, size: u32) -> i32
-    requires handle != 0 && information_class == 1 && size == 24
-    reaches FilesystemMetadataQuery blocks;
-    { block WindowsFilesystemMetadataImports::standard(handle, information_class, output, size) }
-    machine attribute_tag(handle: i64 in WindowsDiskFileOrAbsent, information_class: u32, output: &mut WindowsNativeFileAttributeTagInfo, size: u32) -> i32
-    requires handle != 0 && information_class == 9 && size == 8
-    reaches FilesystemMetadataQuery blocks;
-    { block WindowsFilesystemMetadataImports::attribute_tag(handle, information_class, output, size) }
-}

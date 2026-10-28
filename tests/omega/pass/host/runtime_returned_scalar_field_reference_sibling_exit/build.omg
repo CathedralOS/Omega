@@ -1,7 +1,24 @@
+use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
     Build::application(builder, "runtime_returned_scalar_field_reference_sibling_exit");
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);
     Build::bind(builder, macos_arm64::ProgramEntry, main);
+
+ Build::bind<Words::write>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "/usr/lib/libSystem.B.dylib", symbol: "_write"
+    } });
+ Build::bind<Words::write>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+        object: "libc.so.6", symbol: "write", version: "GLIBC_2.2.5"
+    } });
+ Build::bind<Words::write>(builder, linux_arm64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+        object: "libc.so.6", symbol: "write", version: "GLIBC_2.17"
+    } });
+ Build::bind<WindowsDescriptorMode::set_mode>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName {
+        library: "msvcrt.dll", export: "_setmode"
+    } });
+ Build::bind<WindowsWords::write>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName {
+        library: "msvcrt.dll", export: "_write"
+    } });
 }

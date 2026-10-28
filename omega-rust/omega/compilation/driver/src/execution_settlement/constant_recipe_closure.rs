@@ -96,6 +96,9 @@ pub(crate) fn close_constant_recipes(
                     .iter()
                     .copied()
                     .zip(selected.provider.row_realizations.iter().copied())
+                    .filter_map(|(requirement, origin)| {
+                        origin.machine().map(|machine| (requirement, machine))
+                    })
             })
             .collect();
         let Some(application) = proof_closure.application(target.target_name(), &provider_edges)

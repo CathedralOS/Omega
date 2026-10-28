@@ -70,17 +70,23 @@ pub(crate) fn request(
     };
     if !operand_count_valid
         || evidence_count != 0
-        || if operation == BuildOperation::ProviderSelection {
-            !(2..=3).contains(&ordinary_count)
-        } else {
-            ordinary_count != 1
+        || match operation {
+            BuildOperation::ProviderSelection => !(2..=3).contains(&ordinary_count),
+            BuildOperation::NativeBinding | BuildOperation::NativeSameStackDemand => {
+                ordinary_count != 3
+            }
+            BuildOperation::NativeTableFunction | BuildOperation::NativeVtableField => {
+                ordinary_count != 2
+            }
+            _ => ordinary_count != 1,
         }
     {
         return Err(Diagnostic::error(format!(
             "{} requires {} and its explicit mutable Build argument",
             operation.authored_spelling(),
             match operation {
-                BuildOperation::ServiceExclusion
+                BuildOperation::NativeBinding
+                | BuildOperation::ServiceExclusion
                 | BuildOperation::ServiceAudit
                 | BuildOperation::BoundaryAcceptance => "one bare declaration operand",
                 BuildOperation::WireCompatibilityRequest =>

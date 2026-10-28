@@ -14,7 +14,7 @@ fn boundary_operator_plan_singletons<'plan>(
         &'plan effects::provider_plan::ServiceMethod,
         &'plan effects::provider_plan::ProviderPlanRow,
         &'plan symbols::SymbolHandle,
-        &'plan symbols::SymbolHandle,
+        &'plan provider_planning::ProviderRowOrigin,
     ),
     Vec<Diagnostic>,
 > {
@@ -152,7 +152,7 @@ pub(super) fn validate_selected_boundary_operator_checked_adapter(
     };
     if retained.plan != **plan
         || *requirement_symbol != operator.symbol
-        || *realization_symbol != machine.symbol
+        || realization_symbol.machine() != Some(machine.symbol)
         || method.requirement_owner != slot
         || plan.schema.identity_text(method.requirement_identity) != slot
         || plan.identities.text(row.requirement_identity) != slot
@@ -193,7 +193,9 @@ pub(super) fn validate_selected_boundary_operator_external_supply(
                     == provider_planning::ProviderSchemaDeclaration::BoundaryOperator(
                         operator.symbol,
                     )
-                && retained.provider.row_realizations.contains(&machine.symbol)
+                && retained.provider.row_realizations.contains(
+                    &provider_planning::ProviderRowOrigin::Machine(machine.symbol),
+                )
         })
         .collect::<Vec<_>>();
     if matches.is_empty() {
@@ -214,7 +216,7 @@ pub(super) fn validate_selected_boundary_operator_external_supply(
         .symbol_package_identity(machine.symbol);
     if retained.plan != **plan
         || *requirement_symbol != operator.symbol
-        || *realization_symbol != machine.symbol
+        || realization_symbol.machine() != Some(machine.symbol)
         || plan.origin_package_identity != expected_package
         || method.requirement_owner != slot
         || plan.schema.identity_text(method.requirement_identity) != slot

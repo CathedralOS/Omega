@@ -1,4 +1,9 @@
+use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
     Build::application(builder, "boundary_primitive_loan_mutable_from_shared");
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
+
+ Build::bind<ScalarInput::read>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "/usr/lib/libSystem.B.dylib", symbol: "_read"
+    } });
 }

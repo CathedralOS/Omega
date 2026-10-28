@@ -46,12 +46,33 @@ impl ProviderSchemaDeclaration {
     }
 }
 
+/// Exact producer class; Build-native bindings have no realization machine.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProviderRowOrigin {
+    Machine(symbols::SymbolHandle),
+    BuildNative {
+        selecting_machine: symbols::SymbolHandle,
+        source_span: source::SourceSpan,
+        event_ordinal: usize,
+        table_field: Option<crate::NativeFieldIdentity>,
+    },
+    Toolchain,
+}
+impl ProviderRowOrigin {
+    pub const fn machine(self) -> Option<symbols::SymbolHandle> {
+        match self {
+            Self::Machine(symbol) => Some(symbol),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderPlanProvenance {
     pub schema: ProviderSchemaDeclaration,
     pub provider_type: Option<symbols::SymbolHandle>,
     pub row_requirements: Vec<symbols::SymbolHandle>,
-    pub row_realizations: Vec<symbols::SymbolHandle>,
+    pub row_realizations: Vec<ProviderRowOrigin>,
     /// Exact pre-resolution target-scoped declaration custody for catalog-
     /// inferred rows. `None` is mandatory for ordinary checked, legacy
     /// external, and evaluated-payload rows.
@@ -84,6 +105,7 @@ pub struct ProviderPlanDerivation<'a> {
     selected_target: Option<&'a str>,
     evaluated_bindings: Option<&'a crate::evaluated_via_bindings::EvaluatedViaBindingTable>,
     target_machine_origins: &'a [SelectedTargetMachineOrigin],
+    native_bindings: &'a [crate::AdmittedNativeBinding],
 }
 
 impl<'a> ProviderPlanDerivation<'a> {
@@ -100,6 +122,7 @@ impl<'a> ProviderPlanDerivation<'a> {
             selected_target,
             evaluated_bindings: None,
             target_machine_origins: &[],
+            native_bindings: &[],
         }
     }
 
@@ -119,7 +142,15 @@ impl<'a> ProviderPlanDerivation<'a> {
             selected_target,
             evaluated_bindings: Some(evaluated_bindings),
             target_machine_origins,
+            native_bindings: &[],
         }
+    }
+    pub const fn with_native_bindings(
+        mut self,
+        bindings: &'a [crate::AdmittedNativeBinding],
+    ) -> Self {
+        self.native_bindings = bindings;
+        self
     }
 }
 
@@ -128,11 +159,19 @@ impl<'a> ProviderPlanDerivation<'a> {
 pub fn derive_satisfies_plans(
     derivation: ProviderPlanDerivation<'_>,
 ) -> Result<Vec<DerivedProviderPlan>, Vec<diagnostics::Diagnostic>> {
-    derive_provider_plans(
+    let mut plans = derive_provider_plans(
         derivation.context,
         derivation.calling_plans,
         derivation.selected_target,
         derivation.evaluated_bindings,
         derivation.target_machine_origins,
-    )
+    )?;
+    super::native_plan_derivation::append(
+        derivation.context,
+        derivation.calling_plans,
+        derivation.selected_target,
+        derivation.native_bindings,
+        &mut plans,
+    )?;
+    Ok(plans)
 }

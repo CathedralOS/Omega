@@ -94,6 +94,18 @@ impl<'base> ConstantSelection<'base> {
         self.symbols.same_source_package(left, right)
     }
 
+    /// Compiler-owned locator case constraints belong to the exact SDK source,
+    /// not to a same-named user declaration. This exposes source custody only;
+    /// the constructor inference owner still validates the selected telescope.
+    pub(super) fn is_native_locator_source(&self, declaration: source::SourceSpan) -> bool {
+        self.symbols.source_file(declaration).is_some_and(|file| {
+            file.origin == source::SourceOrigin::Toolchain
+                && file
+                    .path
+                    .ends_with(std::path::Path::new("core/external_binding.omg"))
+        })
+    }
+
     pub(crate) fn new(
         syntax: &SyntaxTrees,
         sources: Option<Arc<SourceMap>>,

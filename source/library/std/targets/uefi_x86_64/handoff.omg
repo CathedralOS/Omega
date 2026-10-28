@@ -93,39 +93,6 @@ public data EfiBootServicesTable {
     exit_boot_services: addr;
 }
 
-uefi_x86_64 machine EfiBootServicesTable::allocate_pages_leaf(
-    this: &EfiBootServicesTable,
-    allocate_type: u32,
-    memory_type: u32,
-    pages: u64,
-    memory: &mut u64
-) -> u64
-    satisfies UefiBootServices::allocate_pages
-    via ForeignBinding::TableFunction(allocate_pages);
-uefi_x86_64 machine EfiBootServicesTable::free_pages_leaf(
-    this: &EfiBootServicesTable,
-    memory: u64,
-    pages: u64
-) -> u64
-    satisfies UefiBootServices::free_pages
-    via ForeignBinding::TableFunction(free_pages);
-uefi_x86_64 machine EfiBootServicesTable::get_memory_map_leaf(
-    this: &EfiBootServicesTable,
-    map_size: &mut u64,
-    map: u64,
-    key: &mut u64,
-    descriptor_size: &mut u64,
-    descriptor_version: &mut u32
-) -> u64
-    satisfies UefiBootServices::get_memory_map
-    via ForeignBinding::TableFunction(get_memory_map);
-uefi_x86_64 machine EfiBootServicesTable::exit_boot_services_leaf(
-    this: &EfiBootServicesTable,
-    image: u64,
-    map_key: u64
-) -> u64
-    satisfies UefiBootServices::exit_boot_services
-    via ForeignBinding::TableFunction(exit_boot_services);
 
 // The compiler-owned terminal edges of the handoff invocation. `transfer`
 // consumes the bound image custody into the nonreturning entry/stack

@@ -1,6 +1,14 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "static_boundary_terminal_arguments");
-    Build::select_provider<Character, CharacterImplementation>(builder);
+    Build::select_provider<Character, CharacterImplementation>(builder, linux_arm64);
+    Build::select_provider<Character, CharacterImplementation>(builder, linux_x86_64);
+    Build::select_provider<Character, CharacterImplementation>(builder, macos_arm64);
+    Build::select_provider<Character, CharacterImplementation>(builder, macos_x86_64);
+    Build::select_provider<Character, CharacterImplementation>(builder, windows_x86_64);
+    Build::select_provider<Character, CharacterImplementation>(builder, uefi_x86_64);
+    Build::select_provider<Character, CharacterImplementation>(builder, cross_platform_cli);
+    Build::select_provider<Character, CharacterImplementation>(builder, local_unchecked);
+    Build::select_provider<Character, CharacterImplementation>(builder, alpha_bootstrap);
     Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_arm64::ProgramEntry, entry_start);

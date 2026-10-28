@@ -54,53 +54,6 @@ reaches TimeHost;
 
 data WindowsTimeImports { }
 
-windows_x86_64 machine time_host_counter_binding_windows_x86_64() -> ForeignBinding<12, 23, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::PeByName {
-            library: "kernel32.dll",
-            export: "QueryPerformanceCounter",
-        },
-    }
-}
-
-windows_x86_64 machine time_host_frequency_binding_windows_x86_64() -> ForeignBinding<12, 25, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::PeByName {
-            library: "kernel32.dll",
-            export: "QueryPerformanceFrequency",
-        },
-    }
-}
-
-windows_x86_64 machine time_host_file_time_binding_windows_x86_64() -> ForeignBinding<12, 30, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::PeByName {
-            library: "kernel32.dll",
-            export: "GetSystemTimePreciseAsFileTime",
-        },
-    }
-}
-
-windows_x86_64 machine time_host_sleep_binding_windows_x86_64() -> ForeignBinding<12, 5, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::PeByName {
-            library: "kernel32.dll",
-            export: "Sleep",
-        },
-    }
-}
-
-windows_x86_64 machine WindowsTimeImports::query_performance_counter(counter: &mut i64) -> i32
-    satisfies WindowsTimeRead::query_performance_counter
-    via time_host_counter_binding_windows_x86_64();
-
-windows_x86_64 machine WindowsTimeImports::query_performance_frequency(frequency: &mut i64) -> i32
-    satisfies WindowsTimeRead::query_performance_frequency
-    via time_host_frequency_binding_windows_x86_64();
-
-windows_x86_64 machine WindowsTimeImports::system_time_as_file_time(file_time: &mut u64)
-    satisfies WindowsTimeRead::system_time_as_file_time
-    via time_host_file_time_binding_windows_x86_64();
 
 // A failed read reports zero rather than a fabricated tick count: `Time::now`
 // treats zero as a degraded clock and never faults on it. A zero frequency
@@ -164,14 +117,8 @@ windows_x86_64 machine TimeHostNativeProvider::wall_clock_epoch_offset_seconds()
 
 // `Sleep` takes the millisecond count as its single argument, so the leaf
 // signature IS the requirement signature and no adapter body is needed.
-windows_x86_64 machine TimeHostNativeProvider::sleep(milliseconds: u32)
-    satisfies TimeHost::sleep
-    via time_host_sleep_binding_windows_x86_64()
-    blocks;
+
 
 windows_x86_64 machine TimeHostNativeProvider::provider_defaults(defaults: &mut TimeHostNativeProvider) {
     TimeHostNativeProvider::select_provider<TimeHost, NativeTimeHost>(defaults);
-    TimeHostNativeProvider::select_provider<WindowsTimeRead::query_performance_counter, WindowsTimeImports>(defaults);
-    TimeHostNativeProvider::select_provider<WindowsTimeRead::query_performance_frequency, WindowsTimeImports>(defaults);
-    TimeHostNativeProvider::select_provider<WindowsTimeRead::system_time_as_file_time, WindowsTimeImports>(defaults);
 }

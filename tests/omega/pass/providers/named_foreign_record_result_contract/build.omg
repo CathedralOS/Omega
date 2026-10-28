@@ -1,10 +1,28 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "named_foreign_record_result_contract");
     Build::depend_as(builder, "std", Source::Path { location: "../../../../../source/library/std" });
-    Build::select_provider<std::UefiPhysicalEntry, FirmwareBootstrap>(builder);
+    Build::select_provider<std::UefiPhysicalEntry, FirmwareBootstrap>(builder, linux_arm64);
+    Build::select_provider<std::UefiPhysicalEntry, FirmwareBootstrap>(builder, linux_x86_64);
+    Build::select_provider<std::UefiPhysicalEntry, FirmwareBootstrap>(builder, macos_arm64);
+    Build::select_provider<std::UefiPhysicalEntry, FirmwareBootstrap>(builder, macos_x86_64);
+    Build::select_provider<std::UefiPhysicalEntry, FirmwareBootstrap>(builder, windows_x86_64);
+    Build::select_provider<std::UefiPhysicalEntry, FirmwareBootstrap>(builder, uefi_x86_64);
+    Build::select_provider<std::UefiPhysicalEntry, FirmwareBootstrap>(builder, cross_platform_cli);
+    Build::select_provider<std::UefiPhysicalEntry, FirmwareBootstrap>(builder, local_unchecked);
+    Build::select_provider<std::UefiPhysicalEntry, FirmwareBootstrap>(builder, alpha_bootstrap);
     Build::select_representation<std::EfiSystemTable, SystemTableRepresentation>(builder);
-    Build::select_provider<ForeignReports, FirmwareReports>(builder);
+    Build::select_provider<ForeignReports, FirmwareReports>(builder, linux_arm64);
+    Build::select_provider<ForeignReports, FirmwareReports>(builder, linux_x86_64);
+    Build::select_provider<ForeignReports, FirmwareReports>(builder, macos_arm64);
+    Build::select_provider<ForeignReports, FirmwareReports>(builder, macos_x86_64);
+    Build::select_provider<ForeignReports, FirmwareReports>(builder, windows_x86_64);
+    Build::select_provider<ForeignReports, FirmwareReports>(builder, uefi_x86_64);
+    Build::select_provider<ForeignReports, FirmwareReports>(builder, cross_platform_cli);
+    Build::select_provider<ForeignReports, FirmwareReports>(builder, local_unchecked);
+    Build::select_provider<ForeignReports, FirmwareReports>(builder, alpha_bootstrap);
     Build::bind(builder, uefi_x86_64::ProgramEntry, reports_entry);
     builder.subsystem = Subsystem::EfiApplication;
     builder.freestanding = true;
+
+ Build::bind_table_function<RawNativeForeignReports::read, Table::read>(builder, uefi_x86_64);
 }

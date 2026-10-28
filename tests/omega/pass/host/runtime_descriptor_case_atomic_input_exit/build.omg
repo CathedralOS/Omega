@@ -1,5 +1,25 @@
+use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
     Build::application(builder, "runtime_descriptor_case_atomic_input_exit");
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
+
+ Build::bind<DescriptorIo::read>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "/usr/lib/libSystem.B.dylib", symbol: "_read"
+    } });
+ Build::bind<DescriptorIo::read>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+        object: "libc.so.6", symbol: "read", version: "GLIBC_2.2.5"
+    } });
+ Build::bind<DescriptorIo::write>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "/usr/lib/libSystem.B.dylib", symbol: "_write"
+    } });
+ Build::bind<DescriptorIo::write>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+        object: "libc.so.6", symbol: "write", version: "GLIBC_2.2.5"
+    } });
+ Build::bind<DescriptorIo::write_tag>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "/usr/lib/libSystem.B.dylib", symbol: "_write"
+    } });
+ Build::bind<DescriptorIo::write_tag>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+        object: "libc.so.6", symbol: "write", version: "GLIBC_2.2.5"
+    } });
 }

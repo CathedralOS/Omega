@@ -13,13 +13,8 @@ boundary requirement PosixConsoleIo::write(descriptor: i32, buffer: &mut i32, co
 terminates;
 reaches Console;
 data PosixConsoleImports {}
-macos_arm64 machine macos_arm64_write_binding() -> ForeignBinding<26, 6, 0> {
-    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
-        install_name: "/usr/lib/libSystem.B.dylib", symbol: "_write"
-    } }
-}
-macos_arm64 machine PosixConsoleImports::write(descriptor: i32, buffer: &mut i32, count: u64) -> i64
-    satisfies PosixConsoleIo::write via macos_arm64_write_binding();
+
+
 macos_arm64 machine ConsoleNativeProvider::write_byte(byte: i32)
     satisfies Console::write_byte
 reaches Console
@@ -27,8 +22,7 @@ reaches Console
     let mut cell: i32 = byte;
     let written: i64 = PosixConsoleIo::write(1, &mut cell, 1);
 }
-linux_x86_64 machine PosixConsoleImports::write(descriptor: i32, buffer: &mut i32, count: u64) -> i64
-    satisfies PosixConsoleIo::write via ForeignBinding::Syscall(1);
+
 linux_x86_64 machine ConsoleNativeProvider::write_byte(byte: i32)
     satisfies Console::write_byte
 reaches Console
@@ -36,8 +30,7 @@ reaches Console
     let mut cell: i32 = byte;
     let written: i64 = PosixConsoleIo::write(1, &mut cell, 1);
 }
-linux_arm64 machine PosixConsoleImports::write(descriptor: i32, buffer: &mut i32, count: u64) -> i64
-    satisfies PosixConsoleIo::write via ForeignBinding::Syscall(64);
+
 linux_arm64 machine ConsoleNativeProvider::write_byte(byte: i32)
     satisfies Console::write_byte
 reaches Console
@@ -51,13 +44,8 @@ boundary requirement WindowsConsoleIo::write(descriptor: i32, buffer: &mut i32, 
 terminates;
 reaches Console;
 data WindowsConsoleImports {}
-windows_x86_64 machine windows_x86_64_write_binding() -> ForeignBinding<10, 6, 0> {
-    ForeignBinding::DllImport { import: DllImport::PeByName {
-        library: "msvcrt.dll", export: "_write"
-    } }
-}
-windows_x86_64 machine WindowsConsoleImports::write(descriptor: i32, buffer: &mut i32, count: u32) -> i32
-    satisfies WindowsConsoleIo::write via windows_x86_64_write_binding();
+
+
 windows_x86_64 machine ConsoleNativeProvider::write_byte(byte: i32)
     satisfies Console::write_byte
 reaches Console

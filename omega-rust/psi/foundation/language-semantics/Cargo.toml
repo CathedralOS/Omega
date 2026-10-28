@@ -15,3 +15,4 @@ language-core = { path = "../language-core" }
 numerics = { path = "../numerics" }
 source = { path = "../source" }
 symbols = { path = "../symbols" }
+build-time-values = { path = "../build-time-values" }

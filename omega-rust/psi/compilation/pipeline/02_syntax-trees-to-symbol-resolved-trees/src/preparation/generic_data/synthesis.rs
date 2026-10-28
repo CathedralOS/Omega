@@ -8,7 +8,7 @@ use crate::preparation::generic_data::PendingRewrite;
 use crate::preparation::generic_data::canonicalize_closed_domain_indices;
 use crate::preparation::generic_data::capture_machine_runtime_template_names;
 use crate::preparation::generic_data::uses::{
-    closed_constructor_carrier, relabel_closed_data_uses_in_constants,
+    closed_constructor_carrier, infer_constructor_types, relabel_closed_data_uses_in_constants,
     relabel_closed_data_uses_in_exact_assignments,
     relabel_closed_data_uses_in_exact_calls_and_returns,
     relabel_closed_sum_memberships_from_local_types,
@@ -324,6 +324,14 @@ pub(crate) fn desugar_generic_data_instances_in(
     if generic_data.is_empty() {
         return Ok(());
     }
+    let inferred_constructors = infer_constructor_types(
+        syntax,
+        &generic_data,
+        &const_values,
+        selection,
+        warnings,
+        &work.declarations(syntax),
+    );
     // FIXPOINT. Each round scans every type-reference position for a
     // `Base<Args..>` spelling, synthesizes one concrete record per new distinct
     // spelling, and rewrites the spellings to the instances' plain names. A
@@ -385,11 +393,27 @@ pub(crate) fn desugar_generic_data_instances_in(
             canonicalize_closed_domain_indices(syntax, &const_values, selection, warnings, &work)
                 .map_err(|diagnostic| vec![diagnostic])?;
         }
-        let storage_positions =
+        let mut storage_positions =
             work.type_positions(syntax, TypePositionPurpose::Materialization, false);
+        let mut identity_positions =
+            work.type_positions(syntax, TypePositionPurpose::Identity, false);
+        for constructor in &inferred_constructors {
+            super::collect_type_positions(
+                syntax,
+                constructor.reference,
+                &mut storage_positions,
+                false,
+            );
+            super::collect_type_positions(
+                syntax,
+                constructor.reference,
+                &mut identity_positions,
+                false,
+            );
+        }
         let mut rewrites: Vec<PendingRewrite> = Vec::new();
         let mut instantiations: Vec<Instantiation> = Vec::new();
-        for position in work.type_positions(syntax, TypePositionPurpose::Identity, false) {
+        for position in identity_positions {
             let Some(application) = prepare_closed_application(
                 syntax,
                 &generic_data,
@@ -521,6 +545,9 @@ pub(crate) fn desugar_generic_data_instances_in(
     }
 
     let declarations = work.declarations(syntax);
+    for constructor in &inferred_constructors {
+        constructor.relabel(syntax, &synthesized, selection);
+    }
     relabel_closed_data_uses_in_constants(syntax, &synthesized, selection, &declarations);
     relabel_closed_data_uses_in_exact_assignments(syntax, &synthesized, selection, &declarations);
     relabel_closed_data_uses_in_exact_calls_and_returns(

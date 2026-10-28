@@ -217,6 +217,13 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
                 rows.push(None);
                 continue;
             }
+            let Some(machine_symbol) = realization_symbol.machine() else {
+                diagnostics.push(Diagnostic::error(
+                    "compiler intrinsic row has no authored realization machine",
+                ));
+                rows.push(None);
+                continue;
+            };
             let unresolved = |accepted| crate::compiler_intrinsic::AcceptedRowBinding {
                 accepted,
                 declaration_symbol: None,
@@ -228,7 +235,7 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
                 retained.provider.schema,
                 row,
                 *requirement_symbol,
-                *realization_symbol,
+                machine_symbol,
                 selected_target,
                 accepted_console_binding.map(unresolved),
                 accepted_process_exit_binding.map(unresolved),
@@ -367,7 +374,13 @@ pub(crate) fn close_direct_boundary_candidates(
             source.provenance.schema,
             row,
             source.provenance.row_requirements[0],
-            source.provenance.row_realizations[0],
+            source.provenance.row_realizations[0]
+                .machine()
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "direct compiler intrinsic lost its authored realization machine",
+                    )]
+                })?,
             target,
             accepted(package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32),
             accepted(package_compilation::AcceptedSemanticBindingRole::ProcessExitExitProcessI32),
@@ -391,7 +404,7 @@ fn accumulate_accepted_row_match(
     row: &effects::provider_plan::ProviderPlanRow,
     schema_symbol: SymbolHandle,
     requirement_symbol: SymbolHandle,
-    realization_symbol: SymbolHandle,
+    realization_origin: provider_planning::ProviderRowOrigin,
     checked_external_completion: bool,
     accepted_console_binding: Option<&package_compilation::AcceptedSemanticBinding>,
     accepted_process_exit_binding: Option<&package_compilation::AcceptedSemanticBinding>,
@@ -399,33 +412,44 @@ fn accumulate_accepted_row_match(
     process_exit_matches: &mut Vec<SymbolHandle>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let matches = |service, binding| match realization_origin {
+        provider_planning::ProviderRowOrigin::Machine(realization_symbol) => {
+            crate::compiler_intrinsic::accepted_binding_matches_exit_process_row(
+                service,
+                checked,
+                plan,
+                row,
+                schema_symbol,
+                requirement_symbol,
+                realization_symbol,
+                checked_external_completion,
+                binding,
+            )
+        }
+        provider_planning::ProviderRowOrigin::BuildNative { .. } => Ok(
+            crate::compiler_intrinsic::accepted_native_binding_matches_exit_process_row(
+                service,
+                checked,
+                plan,
+                row,
+                schema_symbol,
+                requirement_symbol,
+                checked_external_completion,
+                binding,
+            ),
+        ),
+        provider_planning::ProviderRowOrigin::Toolchain => Ok(false),
+    };
     if let Some(binding) = accepted_console_binding {
-        match crate::compiler_intrinsic::accepted_binding_matches_exit_process_row(
-            crate::compiler_intrinsic::HostedService::Console,
-            checked,
-            plan,
-            row,
-            schema_symbol,
-            requirement_symbol,
-            realization_symbol,
-            checked_external_completion,
-            binding,
-        ) {
+        match matches(crate::compiler_intrinsic::HostedService::Console, binding) {
             Ok(true) => console_matches.push(schema_symbol),
             Ok(false) => {}
             Err(diagnostic) => diagnostics.push(diagnostic),
         }
     }
     if let Some(binding) = accepted_process_exit_binding {
-        match crate::compiler_intrinsic::accepted_binding_matches_exit_process_row(
+        match matches(
             crate::compiler_intrinsic::HostedService::ProcessExit,
-            checked,
-            plan,
-            row,
-            schema_symbol,
-            requirement_symbol,
-            realization_symbol,
-            checked_external_completion,
             binding,
         ) {
             Ok(true) => process_exit_matches.push(schema_symbol),

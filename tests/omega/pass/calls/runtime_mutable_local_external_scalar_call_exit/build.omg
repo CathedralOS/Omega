@@ -1,7 +1,33 @@
+use omega::language::core::external_binding;
 // Each host executes its selected libc binding.
 machine build(builder: &mut Build) {
     Build::application(builder, "runtime_mutable_local_external_scalar_call_exit");
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
+
+ Build::bind<Magnitude::absolute>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_abs",
+        },
+    });
+ Build::bind<Magnitude::absolute>(builder, linux_x86_64, ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6",
+            symbol: "abs", version: "GLIBC_2.2.5",
+        },
+    });
+ Build::bind<CText::length>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_strlen",
+        },
+    });
+ Build::bind<CText::length>(builder, linux_x86_64, ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6",
+            symbol: "strlen", version: "GLIBC_2.2.5",
+        },
+    });
 }

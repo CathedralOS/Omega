@@ -21,6 +21,10 @@ pub type TerminalBuildSelectionRequest = BuildSelectionRequest<TerminalBuildProv
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminalBuildBindingOperation {
     AwaitProvider,
+    BindNative,
+    BindTableFunction,
+    BindVtableField,
+    SameStackDemand,
     Prepare,
     Bind,
     Select,
@@ -35,6 +39,7 @@ pub struct TerminalBuildBindingCall {
     pub action: TerminalBuildBindingOperation,
     pub request: TerminalBuildSelectionRequest,
     pub selecting_machine: Option<source::SourceSpan>,
+    pub locator_widths: Option<[u64; 3]>,
 }
 
 /// Source-issued context bound to exact Terminal semantics and, for private
@@ -119,6 +124,10 @@ pub(super) fn capture(
         let action = match call.target.as_str() {
             "await_provider" => TerminalBuildBindingOperation::AwaitProvider,
             "prepare" => TerminalBuildBindingOperation::Prepare,
+            "bind_native" => TerminalBuildBindingOperation::BindNative,
+            "bind_table_function" => TerminalBuildBindingOperation::BindTableFunction,
+            "bind_vtable_field" => TerminalBuildBindingOperation::BindVtableField,
+            "same_stack_demand" => TerminalBuildBindingOperation::SameStackDemand,
             "bind" | "bind_description" => TerminalBuildBindingOperation::Bind,
             "select" => TerminalBuildBindingOperation::Select,
             "select_provider" => TerminalBuildBindingOperation::SelectProvider,
@@ -151,6 +160,31 @@ pub(super) fn capture(
         } else {
             None
         };
+        let locator_widths = if action == TerminalBuildBindingOperation::BindNative {
+            let arguments = checked.expression_table.expression_handles(call.arguments);
+            let locator = arguments.get(2).ok_or_else(|| {
+                diagnostics::Diagnostic::error("native binding lost its locator actual")
+            })?;
+            let reference = validation::expression_type_reference_in_state(
+                checked,
+                occurrence.source_state,
+                occurrence.statement_index,
+                *locator,
+            )
+            .ok_or_else(|| {
+                diagnostics::Diagnostic::error("native binding lost its closed locator type")
+            })?;
+            Some(
+                validation::compiler_operations::native_binding_widths(&checked.typed, reference)
+                    .map_err(|errors| {
+                    errors.into_iter().next().unwrap_or_else(|| {
+                        diagnostics::Diagnostic::error("invalid native locator schema")
+                    })
+                })?,
+            )
+        } else {
+            None
+        };
         calls.push(TerminalBuildBindingCall {
             operation,
             boundary,
@@ -175,6 +209,7 @@ pub(super) fn capture(
                 })
             })?,
             selecting_machine,
+            locator_widths,
         });
     }
     Ok(calls)

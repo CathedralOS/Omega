@@ -1,8 +1,41 @@
+use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
     Build::application(builder, "named_target_foreign_provider_exit");
-    Build::select_provider<ProcessProbe, ProcessProvider>(builder);
-    Build::select_provider<TableProbe, TableProvider>(builder);
+    Build::select_provider<ProcessProbe, ProcessProvider>(builder, linux_arm64);
+    Build::select_provider<ProcessProbe, ProcessProvider>(builder, linux_x86_64);
+    Build::select_provider<ProcessProbe, ProcessProvider>(builder, macos_arm64);
+    Build::select_provider<ProcessProbe, ProcessProvider>(builder, macos_x86_64);
+    Build::select_provider<ProcessProbe, ProcessProvider>(builder, windows_x86_64);
+    Build::select_provider<ProcessProbe, ProcessProvider>(builder, uefi_x86_64);
+    Build::select_provider<ProcessProbe, ProcessProvider>(builder, cross_platform_cli);
+    Build::select_provider<ProcessProbe, ProcessProvider>(builder, local_unchecked);
+    Build::select_provider<ProcessProbe, ProcessProvider>(builder, alpha_bootstrap);
+    Build::select_provider<TableProbe, TableProvider>(builder, linux_arm64);
+    Build::select_provider<TableProbe, TableProvider>(builder, linux_x86_64);
+    Build::select_provider<TableProbe, TableProvider>(builder, macos_arm64);
+    Build::select_provider<TableProbe, TableProvider>(builder, macos_x86_64);
+    Build::select_provider<TableProbe, TableProvider>(builder, windows_x86_64);
+    Build::select_provider<TableProbe, TableProvider>(builder, uefi_x86_64);
+    Build::select_provider<TableProbe, TableProvider>(builder, cross_platform_cli);
+    Build::select_provider<TableProbe, TableProvider>(builder, local_unchecked);
+    Build::select_provider<TableProbe, TableProvider>(builder, alpha_bootstrap);
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, macos_arm64::ProgramEntry, main);
+
+ Build::bind<ProcessProbe::identity>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName {
+        library: "kernel32.dll", export: "GetCurrentProcessId"
+    } });
+ Build::bind<ProcessProbe::identity>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "/usr/lib/libSystem.B.dylib", symbol: "_getpid"
+    } });
+
+ Build::bind<ProcessProbe::identity>(builder, linux_x86_64, ForeignBinding::Syscall { number: 39 });
+
+ Build::bind_table_function<RawNativeTableProbe::direct, FunctionTable::direct>(builder, windows_x86_64);
+ Build::bind_vtable_field<RawNativeTableProbe::virtual_call, OtherTable::virtual_call>(builder, windows_x86_64);
+ Build::bind_table_function<RawNativeTableProbe::direct, FunctionTable::direct>(builder, linux_x86_64);
+ Build::bind_vtable_field<RawNativeTableProbe::virtual_call, OtherTable::virtual_call>(builder, linux_x86_64);
+ Build::bind_table_function<RawNativeTableProbe::direct, FunctionTable::direct>(builder, macos_arm64);
+ Build::bind_vtable_field<RawNativeTableProbe::virtual_call, OtherTable::virtual_call>(builder, macos_arm64);
 }

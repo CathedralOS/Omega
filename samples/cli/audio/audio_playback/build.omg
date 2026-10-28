@@ -1,3 +1,4 @@
+use omega::language::core::external_binding;
 // audio_playback: the portable play-a-WAV-buffer-on-the-host boundary shared
 // by the audio samples.
 
@@ -5,5 +6,123 @@ machine build(builder: &mut Build) {
     Build::package(builder, "audio_playback");
     Build::depend(builder, Source::Path {
         location: "../../../../source/library/std"
+    });
+
+ Build::bind<audio_playback::WindowsAudioPlaybackIo::c_play_sound>(builder, windows_x86_64, ForeignBinding::DllImport {
+        import: DllImport::PeByName {
+            library: "winmm.dll",
+            export: "PlaySoundW",
+        },
+    });
+ Build::bind<audio_playback::LinuxAudioPlaybackIo::c_open>(builder, linux_x86_64, ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libasound.so.2", symbol: "snd_pcm_open", version: "ALSA_0.9",
+        },
+    });
+ Build::bind<audio_playback::LinuxAudioPlaybackIo::c_set_params>(builder, linux_x86_64, ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libasound.so.2", symbol: "snd_pcm_set_params", version: "ALSA_0.9",
+        },
+    });
+ Build::bind<audio_playback::LinuxAudioPlaybackIo::c_writei>(builder, linux_x86_64, ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libasound.so.2", symbol: "snd_pcm_writei", version: "ALSA_0.9",
+        },
+    });
+ Build::bind<audio_playback::LinuxAudioPlaybackIo::c_drain>(builder, linux_x86_64, ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libasound.so.2", symbol: "snd_pcm_drain", version: "ALSA_0.9",
+        },
+    });
+ Build::bind<audio_playback::LinuxAudioPlaybackIo::c_close>(builder, linux_x86_64, ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libasound.so.2", symbol: "snd_pcm_close", version: "ALSA_0.9",
+        },
+    });
+ Build::bind<audio_playback::LinuxAudioPlaybackIo::c_open>(builder, linux_arm64, ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libasound.so.2", symbol: "snd_pcm_open", version: "ALSA_0.9",
+        },
+    });
+ Build::bind<audio_playback::LinuxAudioPlaybackIo::c_set_params>(builder, linux_arm64, ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libasound.so.2", symbol: "snd_pcm_set_params", version: "ALSA_0.9",
+        },
+    });
+ Build::bind<audio_playback::LinuxAudioPlaybackIo::c_writei>(builder, linux_arm64, ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libasound.so.2", symbol: "snd_pcm_writei", version: "ALSA_0.9",
+        },
+    });
+ Build::bind<audio_playback::LinuxAudioPlaybackIo::c_drain>(builder, linux_arm64, ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libasound.so.2", symbol: "snd_pcm_drain", version: "ALSA_0.9",
+        },
+    });
+ Build::bind<audio_playback::LinuxAudioPlaybackIo::c_close>(builder, linux_arm64, ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libasound.so.2", symbol: "snd_pcm_close", version: "ALSA_0.9",
+        },
+    });
+ Build::bind<audio_playback::MacosAudioPlaybackIo::c_dlsym>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_dlsym",
+        },
+    });
+ Build::bind<audio_playback::MacosAudioPlaybackIo::c_new_output>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/System/Library/Frameworks/AudioToolbox.framework/AudioToolbox",
+            symbol: "_AudioQueueNewOutput",
+        },
+    });
+ Build::bind<audio_playback::MacosAudioPlaybackIo::c_allocate_buffer>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/System/Library/Frameworks/AudioToolbox.framework/AudioToolbox",
+            symbol: "_AudioQueueAllocateBuffer",
+        },
+    });
+ Build::bind<audio_playback::MacosAudioPlaybackIo::c_enqueue_buffer>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/System/Library/Frameworks/AudioToolbox.framework/AudioToolbox",
+            symbol: "_AudioQueueEnqueueBuffer",
+        },
+    });
+ Build::bind<audio_playback::MacosAudioPlaybackIo::c_start>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/System/Library/Frameworks/AudioToolbox.framework/AudioToolbox",
+            symbol: "_AudioQueueStart",
+        },
+    });
+ Build::bind<audio_playback::MacosAudioPlaybackIo::c_stop>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/System/Library/Frameworks/AudioToolbox.framework/AudioToolbox",
+            symbol: "_AudioQueueStop",
+        },
+    });
+ Build::bind<audio_playback::MacosAudioPlaybackIo::c_dispose>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/System/Library/Frameworks/AudioToolbox.framework/AudioToolbox",
+            symbol: "_AudioQueueDispose",
+        },
+    });
+ Build::bind<audio_playback::MacosAudioPlaybackIo::c_copy_to_address>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_memmove",
+        },
+    });
+ Build::bind<audio_playback::MacosAudioPlaybackIo::c_load_pointer>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_bcopy",
+        },
+    });
+
+ Build::bind<audio_playback::MacosAudioPlaybackIo::c_usleep>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_usleep",
+        },
     });
 }

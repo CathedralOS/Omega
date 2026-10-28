@@ -12,14 +12,10 @@ public boundary trait ForeignReports {
 public FirmwareReports satisfies ForeignReports {
     machine read<'scope>(table: &'scope Table, output: &mut Output<'scope>) -> Status
     ensures result.code == 0; {
-        Table::read(table, output)
+        RawNativeForeignReports::read(table, output)
     }
 }
-uefi_x86_64 machine Table::read<'scope>(
-    table: &'scope Table, output: &mut Output<'scope>
-) -> Status
-satisfies ForeignReports::read via ForeignBinding::TableFunction(read)
-ensures result.code == 0;
+
 
 // The demand. The selection above named a slot nothing required, so the build
 // refused it as unknown; a bound target entry whose reach row requires
@@ -58,4 +54,10 @@ reaches ForeignReports {
     machine retain(image: Extent, storage: Extent, status: Status) {
         transition { _ -> retain(image, storage, status) }
     }
+}
+
+boundary trait RawNativeForeignReports {
+    machine read<'scope>(table: &'scope Table, output: &mut Output<'scope>) -> Status
+    reaches
+    ensures result.code == 0;
 }

@@ -53,13 +53,9 @@ data PortableByte [copy] { value: i64; }
 data RawView { value: SignedByte<PortableByte>; }
 use omega::language::core::external_binding;
 boundary trait Version { machine locate() -> &RawView reaches; }
-linux_x86_64 machine binding() -> ForeignBinding<9, 20, 11> {
- ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "gnu_get_libc_version", version: "GLIBC_2.2.5" } }
-}
-linux_x86_64 machine locate_native() -> &RawView satisfies Version::locate via binding();
-NativeVersion satisfies Version {
- machine locate() -> &RawView { locate_native() }
-}
+
+
+
 boundary trait WideVersion { machine locate() -> &i64 reaches Version; }
 WideProvider satisfies WideVersion {
  machine locate() -> &i64 reaches Version {

@@ -47,6 +47,9 @@ pub fn resolve_product_path(
     let program = typed.product_declarations();
     let candidates = match kind {
         ProductOperandKind::WireCompatibilityFact => return None,
+        ProductOperandKind::TableField => {
+            return resolve_native_table_field(typed, path, occurrence).map(|(_, field)| field);
+        }
         ProductOperandKind::BoundarySubject => program
             .traits()
             .iter()
@@ -94,6 +97,16 @@ pub fn resolve_product_path(
                     .iter()
                     .map(move |requirement| (requirement.symbol, definition.is_public))
             })
+            .chain(
+                program
+                    .machines()
+                    .iter()
+                    .filter(|machine| {
+                        machine.supply_mode
+                            == language_semantics::MachineSupplyMode::TopLevelRequirement
+                    })
+                    .map(|machine| (machine.symbol, machine.is_public)),
+            )
             .collect(),
         ProductOperandKind::Data => program
             .data_definitions()
@@ -122,6 +135,42 @@ pub fn resolve_product_path(
         candidates,
         &token_bound_machines,
     )
+}
+
+/// Resolve the complete typed dispatch field designation through the same
+/// source/package visibility query as all other inert Product operands.
+/// A field is never recovered by its final spelling or by a numeric slot.
+pub fn resolve_native_table_field(
+    typed: &TypedTrees,
+    path: &str,
+    occurrence: source::SourceSpan,
+) -> Option<(SymbolHandle, SymbolHandle)> {
+    use crate::data::DataMember;
+    if !path.contains("::") {
+        return None;
+    }
+    let program = typed.product_declarations();
+    let candidates = program.data_definitions().iter().flat_map(|definition| {
+        program
+            .data_members(definition)
+            .iter()
+            .filter_map(move |member| match member {
+                DataMember::Field(field) => Some((field.symbol, definition.is_public)),
+                _ => None,
+            })
+    });
+    let field = program.symbols.find_build_subject_declaration_from_source(
+        path,
+        occurrence,
+        candidates,
+        &[],
+    )?;
+    let owner = program.data_definitions().iter().find(|definition| {
+        program.data_members(definition).iter().any(
+            |member| matches!(member, DataMember::Field(candidate) if candidate.symbol == field),
+        )
+    })?;
+    Some((owner.symbol, field))
 }
 
 /// Source-signature compatibility for the narrowly designated product-entry

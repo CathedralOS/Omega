@@ -7,19 +7,19 @@ use omega::language::core::task;
 // concrete activation target; no runtime callable or inferred capture exists.
 data CanaryTaskRuntime { }
 
-machine CanaryTaskRuntime::start<T, Arguments, machine Target>(
+boundary machine CanaryTaskRuntime::start<T, Arguments, machine Target>(
     arguments: Arguments
 ) -> Task<T>
 where machine Target(arguments: Arguments) -> T suspends; blocks;
 satisfies TaskRuntime::start
-via ForeignBinding::CompilerIntrinsic;
+;
 
-machine CanaryTaskRuntime::try_start<T, Arguments, machine Target>(
+boundary machine CanaryTaskRuntime::try_start<T, Arguments, machine Target>(
     arguments: Arguments
 ) -> StartOutcome<T, Arguments>
 where machine Target(arguments: Arguments) -> T suspends; blocks;
 satisfies TaskRuntime::try_start
-via ForeignBinding::CompilerIntrinsic;
+;
 
 CanaryTaskRuntimeProvider satisfies TaskRuntime {
     TaskRuntime::start = CanaryTaskRuntime::start;

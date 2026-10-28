@@ -306,7 +306,7 @@ pub(super) fn project(
             row,
             retained.provider.schema,
             **requirement_symbol,
-            **realization_symbol,
+            realization_symbol.machine().ok_or_else(|| vec![Diagnostic::error("compiler intrinsic has no authored realization machine")])?,
             compilation
                 .custody.providers().planning_target_profile
                 .map(target::TargetProfile::target_name),

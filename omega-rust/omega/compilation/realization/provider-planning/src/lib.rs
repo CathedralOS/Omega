@@ -25,6 +25,11 @@ pub(crate) use optimization_core::digest_encoder;
 pub mod evaluated_via_bindings;
 mod fnv1a;
 mod intrinsic_requirements;
+mod native_bindings;
+pub use native_bindings::{
+    AdmittedNativeBinding, AdmittedNativeLocator, NativeFieldIdentity, NativeSameStackDemand,
+    admit_native_binding,
+};
 mod native_provider_sources;
 pub use native_provider_sources::prepare_native_provider_sources;
 mod sealed_placed_accessors;
@@ -58,8 +63,8 @@ pub use intrinsic_requirements::{
 pub use provider_planning::direct_boundary_leaves::DirectBoundaryCandidate;
 pub use provider_planning::{
     CompilerIntrinsicExecutionIdentity, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
-    CompilerPrimitiveIntegerComparisonOperation, ProviderPlanDerivation, ProviderSchemaDeclaration,
-    ProviderSelectionProvenance, SelectedProviderReviewProvenance,
+    CompilerPrimitiveIntegerComparisonOperation, ProviderPlanDerivation, ProviderRowOrigin,
+    ProviderSchemaDeclaration, ProviderSelectionProvenance, SelectedProviderReviewProvenance,
     bind_selected_provider_plan_facts, derive_satisfies_plans, exact_checked_adapter,
     same_semantic_name, satisfies_plan_name, select_derived_provider_plans,
     selected_provider_plan_facts, selected_requirement_checked_adapter, selected_requirement_plan,

@@ -1,4 +1,12 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "independent_issuance_predicates");
-    Build::select_provider<Issuer, Known>(builder);
+    Build::select_provider<Issuer, Known>(builder, linux_arm64);
+    Build::select_provider<Issuer, Known>(builder, linux_x86_64);
+    Build::select_provider<Issuer, Known>(builder, macos_arm64);
+    Build::select_provider<Issuer, Known>(builder, macos_x86_64);
+    Build::select_provider<Issuer, Known>(builder, windows_x86_64);
+    Build::select_provider<Issuer, Known>(builder, uefi_x86_64);
+    Build::select_provider<Issuer, Known>(builder, cross_platform_cli);
+    Build::select_provider<Issuer, Known>(builder, local_unchecked);
+    Build::select_provider<Issuer, Known>(builder, alpha_bootstrap);
 }

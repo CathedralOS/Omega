@@ -5,10 +5,12 @@
 //! authority by spelling; Build execution still checks the original activation cell.
 
 mod build_declarations;
+mod native_bindings;
 pub use build_declarations::{
     build_operation, build_product_request_intrinsic, is_build_declaration_selection,
     resolve_build_static_operand,
 };
+pub use native_bindings::native_binding_widths;
 
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionIntrinsic, BuildOperation,
@@ -28,6 +30,7 @@ pub fn static_argument_role(
     match static_call_intrinsic(program, call) {
         Some(
             Intrinsic::BuildProviderSelection
+            | Intrinsic::BuildNativeBinding
             | Intrinsic::BuildBoundaryAcceptance
             | Intrinsic::BuildWireCompatibilityRequest
             | Intrinsic::BuildRepresentationSelection

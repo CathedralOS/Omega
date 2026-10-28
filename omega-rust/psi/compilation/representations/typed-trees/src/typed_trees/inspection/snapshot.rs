@@ -189,6 +189,7 @@ fn authored_declaration_selection_intrinsic_name(
         ),
         Intrinsic::BuildProviderReadiness => ("build_provider_readiness", None),
         Intrinsic::BuildProviderSelection => ("build_provider_selection", None),
+        Intrinsic::BuildNativeBinding => ("build_native_binding", None),
         Intrinsic::BuildAssumedBindingContract => ("build_assumed_binding_contract", None),
         Intrinsic::BuildRepresentationSelection => ("build_representation_selection", None),
         Intrinsic::BuildServiceExclusion => ("build_service_exclusion", None),

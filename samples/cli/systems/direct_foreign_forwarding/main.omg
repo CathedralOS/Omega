@@ -8,8 +8,7 @@ data NativeUnused {}
 // record-layout envelope when no executed call demands its realization.
 data UnusedWideTable { padding: [u8; 65536]; invoke: addr; }
 boundary trait UnusedWideCall { machine invoke(table: &UnusedWideTable) -> u32 reaches; }
-windows_x86_64 machine UnusedWideTable::invoke(table: &UnusedWideTable) -> u32
-satisfies UnusedWideCall::invoke via ForeignBinding::TableFunction(invoke);
+
 UnusedWideProvider satisfies UnusedWideCall {
     machine invoke(table: &UnusedWideTable) -> u32 { 0 }
 }
@@ -52,4 +51,8 @@ machine main() reaches ProcessProbe crashes Trap {
     }
     machine accepted() {}
     machine rejected() { crash Trap; }
+}
+
+boundary trait RawNativeUnusedWideCall {
+    machine invoke(table: &UnusedWideTable) -> u32 reaches;
 }

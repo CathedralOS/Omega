@@ -6,4 +6,6 @@ machine build(builder: &mut Build) {
     Build::application(builder, "uefi_hello");
     builder.subsystem = Subsystem::EfiApplication;
     builder.freestanding = true;
+
+ Build::bind_vtable_field<TextOutput::output_string, EfiTextOutputProtocol::output_string>(builder, uefi_x86_64);
 }

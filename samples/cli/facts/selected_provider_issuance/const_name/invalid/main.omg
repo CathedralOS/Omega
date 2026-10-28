@@ -42,46 +42,8 @@ public boundary trait NativeBytes {
     machine release(buffer: Buffer in Buffer::Owned) reaches;
 }
 public data HostedBytes {}
-public macos_arm64 machine macos_arm64_allocate_binding() -> ForeignBinding<17, 7, 0> {
-    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol { install_name: "libSystem.B.dylib", symbol: "_calloc", } }
-}
-macos_arm64 boundary machine HostedBytes::allocate(count: u64, width: u64) -> addr
-satisfies NativeBytes::allocate via macos_arm64_allocate_binding();
-public macos_arm64 machine macos_arm64_release_binding() -> ForeignBinding<17, 5, 0> {
-    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol { install_name: "libSystem.B.dylib", symbol: "_free", } }
-}
-macos_arm64 boundary machine HostedBytes::release(buffer: Buffer in Buffer::Owned)
-satisfies NativeBytes::release via macos_arm64_release_binding();
-public linux_x86_64 machine linux_x86_64_allocate_binding() -> ForeignBinding<9, 6, 11> {
-    ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "calloc", version: "GLIBC_2.2.5", } }
-}
-linux_x86_64 boundary machine HostedBytes::allocate(count: u64, width: u64) -> addr
-satisfies NativeBytes::allocate via linux_x86_64_allocate_binding();
-public linux_x86_64 machine linux_x86_64_release_binding() -> ForeignBinding<9, 4, 11> {
-    ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "free", version: "GLIBC_2.2.5", } }
-}
-linux_x86_64 boundary machine HostedBytes::release(buffer: Buffer in Buffer::Owned)
-satisfies NativeBytes::release via linux_x86_64_release_binding();
-public linux_arm64 machine linux_arm64_allocate_binding() -> ForeignBinding<9, 6, 10> {
-    ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "calloc", version: "GLIBC_2.17", } }
-}
-linux_arm64 boundary machine HostedBytes::allocate(count: u64, width: u64) -> addr
-satisfies NativeBytes::allocate via linux_arm64_allocate_binding();
-public linux_arm64 machine linux_arm64_release_binding() -> ForeignBinding<9, 4, 10> {
-    ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "free", version: "GLIBC_2.17", } }
-}
-linux_arm64 boundary machine HostedBytes::release(buffer: Buffer in Buffer::Owned)
-satisfies NativeBytes::release via linux_arm64_release_binding();
-public windows_x86_64 machine windows_x86_64_allocate_binding() -> ForeignBinding<10, 6, 0> {
-    ForeignBinding::DllImport { import: DllImport::PeByName { library: "msvcrt.dll", export: "calloc", } }
-}
-windows_x86_64 boundary machine HostedBytes::allocate(count: u64, width: u64) -> addr
-satisfies NativeBytes::allocate via windows_x86_64_allocate_binding();
-public windows_x86_64 machine windows_x86_64_release_binding() -> ForeignBinding<10, 4, 0> {
-    ForeignBinding::DllImport { import: DllImport::PeByName { library: "msvcrt.dll", export: "free", } }
-}
-windows_x86_64 boundary machine HostedBytes::release(buffer: Buffer in Buffer::Owned)
-satisfies NativeBytes::release via windows_x86_64_release_binding();
+
+
 InitialSupplyProvider satisfies InitialSupply {
     machine acquire() -> Buffer reaches NativeBytes crashes Trap
     ensures result.pointer != 0; {

@@ -1,3 +1,4 @@
+use omega::language::core::external_binding;
 // Darwin-only: the host that can actually execute the lent-storage write.
 
 machine build(builder: &mut Build) {
@@ -7,4 +8,17 @@ machine build(builder: &mut Build) {
     });
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
+
+ Build::bind<ForeignOutParameter::clock_gettime>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_clock_gettime",
+        },
+    });
+ Build::bind<ForeignOutParameter::clock_gettime>(builder, linux_x86_64, ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6",
+            symbol: "clock_gettime", version: "GLIBC_2.17",
+        },
+    });
 }

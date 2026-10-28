@@ -17,9 +17,6 @@ reaches
 
 data LinuxArmClockNanosleep { }
 
-linux_arm64 machine LinuxArmClockNanosleep::nanosleep(request: &LinuxArmClockSleepRequest, remainder: u64)
-    satisfies LinuxArmClockWait::nanosleep
-    via ForeignBinding::Syscall(101);
 
 // Splitting before widening preserves every u32 duration and keeps the
 // fractional field below one billion. A null remainder asks the kernel not
@@ -39,5 +36,4 @@ reaches
 
 linux_arm64 machine ClockNativeProvider::provider_defaults(defaults: &mut ClockNativeProvider) {
     ClockNativeProvider::select_provider<Clock, NativeClock>(defaults);
-    ClockNativeProvider::select_provider<LinuxArmClockWait::nanosleep, LinuxArmClockNanosleep>(defaults);
 }

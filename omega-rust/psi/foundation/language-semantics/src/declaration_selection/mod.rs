@@ -1,3 +1,5 @@
+mod native_binding;
+pub use native_binding::{ExecutedNativeBinding, NativeBindingValue, decode_native_binding_value};
 use source::SourceSpan;
 use symbols::SymbolHandle;
 
@@ -190,6 +192,11 @@ impl CollectionMeasure {
 /// is a different vocabulary and stays with Omega's build declarations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BuildOperation {
+    /// Package-local native backing of one exact designated requirement.
+    NativeBinding,
+    NativeTableFunction,
+    NativeVtableField,
+    NativeSameStackDemand,
     /// Prepare the explicitly named Build dependency backing for a known requirement.
     ProviderReadiness,
     /// `Build::select_provider<Subject, Product>(b)` on the mutable root `Build`.
@@ -245,6 +252,10 @@ impl BuildOperation {
         matches!(
             self,
             Self::ProviderSelection
+                | Self::NativeBinding
+                | Self::NativeTableFunction
+                | Self::NativeVtableField
+                | Self::NativeSameStackDemand
                 | Self::ServiceExclusion
                 | Self::ServiceAudit
                 | Self::BoundaryAcceptance
@@ -257,8 +268,12 @@ impl BuildOperation {
     /// Every toolchain-owned build operation. Adding a variant without its
     /// spelling stops compiling here rather than silently dropping out of
     /// the map.
-    pub const ALL: [Self; 12] = [
+    pub const ALL: [Self; 16] = [
         Self::ProviderReadiness,
+        Self::NativeBinding,
+        Self::NativeTableFunction,
+        Self::NativeVtableField,
+        Self::NativeSameStackDemand,
         Self::ProviderSelection,
         Self::AssumedBindingContract,
         Self::RepresentationSelection,
@@ -276,6 +291,10 @@ impl BuildOperation {
     pub const fn authored_spelling(self) -> &'static str {
         match self {
             Self::ProviderReadiness => "await_provider",
+            Self::NativeBinding => "bind",
+            Self::NativeTableFunction => "bind_table_function",
+            Self::NativeVtableField => "bind_vtable_field",
+            Self::NativeSameStackDemand => "same_stack_demand",
             Self::ProviderSelection => "select_provider",
             Self::AssumedBindingContract => "assume_binding_contract",
             Self::RepresentationSelection => "select_representation",
@@ -303,6 +322,12 @@ impl BuildOperation {
         match self {
             Self::ProviderReadiness => {
                 AuthoredDeclarationSelectionIntrinsic::BuildProviderReadiness
+            }
+            Self::NativeBinding
+            | Self::NativeTableFunction
+            | Self::NativeVtableField
+            | Self::NativeSameStackDemand => {
+                AuthoredDeclarationSelectionIntrinsic::BuildNativeBinding
             }
             Self::ProviderSelection => {
                 AuthoredDeclarationSelectionIntrinsic::BuildProviderSelection
@@ -369,6 +394,7 @@ pub enum AuthoredDeclarationSelectionIntrinsic {
         role: ProductOperandRole,
     },
     BuildProviderSelection,
+    BuildNativeBinding,
     /// `Build::assume_binding_contract<Required::operation, Supplied::operation>(b)`:
     /// the consuming root's runtime-only authorization of one boundary
     /// requirement's link to another requirement's selected implementation

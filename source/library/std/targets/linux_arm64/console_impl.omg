@@ -5,9 +5,9 @@ use console;
 // Unmigrated sibling leaves retain transitional payload-free `via` syntax. The
 // exit leaf's compiler supply is inferred from its exact realization symbol,
 // normalized signature, package custody, and selected target.
-linux_arm64 machine ConsoleNativeProvider::read_byte() -> ByteRead
+linux_arm64 boundary machine ConsoleNativeProvider::read_byte() -> ByteRead
     satisfies Console::read_byte
-    via ForeignBinding::CompilerIntrinsic
+
     crashes Trap
     blocks;
 linux_arm64 boundary machine ConsoleNativeProvider::write_byte(byte: i32)

@@ -77,7 +77,17 @@ pub fn resolve_build_static_operand(
             0,
         ) => ProductOperandKind::BoundarySubject,
         (BuildOperation::ProviderSelection, 1) => ProductOperandKind::Provider,
-        (BuildOperation::AssumedBindingContract, 0 | 1) => ProductOperandKind::Requirement,
+        (
+            BuildOperation::NativeBinding
+            | BuildOperation::NativeTableFunction
+            | BuildOperation::NativeVtableField
+            | BuildOperation::NativeSameStackDemand,
+            0,
+        )
+        | (BuildOperation::AssumedBindingContract, 0 | 1) => ProductOperandKind::Requirement,
+        (BuildOperation::NativeTableFunction | BuildOperation::NativeVtableField, 1) => {
+            ProductOperandKind::TableField
+        }
         (BuildOperation::WireCompatibilityRequest, 0..=3)
         | (BuildOperation::RepresentationSelection, 0) => ProductOperandKind::Data,
         (BuildOperation::RepresentationSelection, 1) => ProductOperandKind::Representation,
@@ -218,7 +228,13 @@ pub fn build_product_request_intrinsic(
                         signature.symbol == call.target_symbol
                             && matches!(
                                 signature.name.as_str(),
-                                "prepare" | "select" | "select_provider"
+                                "prepare"
+                                    | "select"
+                                    | "select_provider"
+                                    | "bind_native"
+                                    | "bind_table_function"
+                                    | "bind_vtable_field"
+                                    | "same_stack_demand"
                             )
                     })
         })

@@ -161,17 +161,7 @@ public boundary trait ProcessId: Calling<ProcessIdCalling> {
 
 // Darwin declares getpid(void) -> pid_t, a signed 32-bit result. This import
 // is used only in the callback, never by the application entry.
-macos_arm64 machine process_id_binding() -> ForeignBinding<26, 7, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "/usr/lib/libSystem.B.dylib",
-            symbol: "_getpid",
-        },
-    }
-}
-macos_arm64 machine process_id_leaf() -> i32
-satisfies ProcessId::current
-via process_id_binding();
+
 
 // Darwin's public pthread_once_t is a long signature followed by eight opaque
 // bytes on LP64. This package owns the foreign control representation.
@@ -366,18 +356,6 @@ linux_x86_64 machine CallbackPolicies::once(signature: BoundarySignature) -> Bou
         }
     }
 }
-
-linux_x86_64 machine linux_process_id_binding() -> ForeignBinding<9, 6, 11> {
-    ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libc.so.6", symbol: "getpid", version: "GLIBC_2.2.5",
-        },
-    }
-}
-
-linux_x86_64 machine process_id_leaf() -> i32
-satisfies ProcessId::current
-via linux_process_id_binding();
 
 
 linux_x86_64 machine linux_once_binding() -> ForeignBinding<9, 12, 10> {

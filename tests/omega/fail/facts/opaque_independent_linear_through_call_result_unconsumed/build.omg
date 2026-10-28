@@ -1,10 +1,48 @@
+use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
  Build::application(builder, "independent_linear_opaque_call_result");
  Build::depend_as(builder, "producer", Source::Path { location: "producer" });
  Build::select_representation<producer::InternetAddress, producer::AddressRepresentation>(builder);
- Build::select_provider<producer::AddressBridge, producer::AddressBridgeProvider>(builder, CompositionMode::Independent);
+ Build::select_provider<producer::AddressBridge, producer::AddressBridgeProvider>(builder, linux_arm64, CompositionMode::Independent);
+ Build::select_provider<producer::AddressBridge, producer::AddressBridgeProvider>(builder, linux_x86_64, CompositionMode::Independent);
+ Build::select_provider<producer::AddressBridge, producer::AddressBridgeProvider>(builder, macos_arm64, CompositionMode::Independent);
+ Build::select_provider<producer::AddressBridge, producer::AddressBridgeProvider>(builder, macos_x86_64, CompositionMode::Independent);
+ Build::select_provider<producer::AddressBridge, producer::AddressBridgeProvider>(builder, windows_x86_64, CompositionMode::Independent);
+ Build::select_provider<producer::AddressBridge, producer::AddressBridgeProvider>(builder, uefi_x86_64, CompositionMode::Independent);
+ Build::select_provider<producer::AddressBridge, producer::AddressBridgeProvider>(builder, cross_platform_cli, CompositionMode::Independent);
+ Build::select_provider<producer::AddressBridge, producer::AddressBridgeProvider>(builder, local_unchecked, CompositionMode::Independent);
+ Build::select_provider<producer::AddressBridge, producer::AddressBridgeProvider>(builder, alpha_bootstrap, CompositionMode::Independent);
  Build::bind(builder, linux_x86_64::ProgramEntry, main);
  Build::bind(builder, linux_arm64::ProgramEntry, main);
  Build::bind(builder, macos_arm64::ProgramEntry, main);
  Build::bind(builder, windows_x86_64::ProgramEntry, main);
+
+ Build::bind<producer::AddressParts::make>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_inet_makeaddr",
+        },
+    });
+ Build::bind<producer::AddressParts::make>(builder, linux_x86_64, ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6",
+            symbol: "inet_makeaddr", version: "GLIBC_2.2.5",
+        },
+    });
+ Build::bind<producer::AddressParts::host>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_inet_lnaof",
+        },
+    });
+ Build::bind<producer::AddressParts::host>(builder, linux_x86_64, ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6",
+            symbol: "inet_lnaof", version: "GLIBC_2.2.5",
+        },
+    });
+ Build::bind<producer::AddressParts::make>(builder, linux_arm64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "inet_makeaddr", version: "GLIBC_2.17" } });
+ Build::bind<producer::AddressParts::host>(builder, linux_arm64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "inet_lnaof", version: "GLIBC_2.17" } });
+ Build::bind<producer::AddressParts::make>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "omega_host.dll", export: "inet_makeaddr" } });
+ Build::bind<producer::AddressParts::host>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "omega_host.dll", export: "inet_lnaof" } });
 }

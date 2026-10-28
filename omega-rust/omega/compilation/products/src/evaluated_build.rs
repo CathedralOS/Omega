@@ -37,6 +37,8 @@ pub struct BuildConfig {
     /// authoritative build machine. Provider settlement validates them against
     /// derived candidates before selection grants anything.
     pub provider_selections: Vec<ProviderSelection>,
+    /// Package-local native intent admitted against exact Product requirements.
+    pub admitted_native_bindings: Vec<provider_planning::AdmittedNativeBinding>,
     /// Runtime-only root relationships; registration supplies no Build evidence.
     pub assumed_bindings: Vec<build_time_evaluation::assumed_bindings::AssumedBindingContract>,
     /// Exact named conformances activated as physical carriers for
@@ -131,6 +133,8 @@ pub struct ComputedBuildConfig {
     /// Only reached, activation-authenticated choices activate Product rows.
     pub product_selection_requests:
         Vec<language_semantics::declaration_selection::ExecutedProductSelection>,
+    pub native_binding_requests:
+        Vec<language_semantics::declaration_selection::ExecutedNativeBinding>,
     pub behavior_exclusion_requests:
         Vec<language_semantics::declaration_selection::ExecutedEnumExclusion>,
     pub project_declaration: Option<build_declarations::BuildDeclaration>,

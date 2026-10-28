@@ -1,4 +1,13 @@
+use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
     Build::application(builder, "authored_same_stack_import");
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
+
+ Build::bind<AggregateImport::call>(builder, linux_x86_64, ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libomega-probes.so",
+            symbol: "omega_sysv_small_aggregate_probe",
+            version: "OMEGA_1",
+        },
+    });
 }

@@ -39,32 +39,6 @@ blocks;
 
 data DarwinX64TimeImports { }
 
-macos_x86_64 machine time_host_clock_binding_macos_x86_64() -> ForeignBinding<26, 22, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "/usr/lib/libSystem.B.dylib",
-            symbol: "_clock_gettime_nsec_np",
-        },
-    }
-}
-
-macos_x86_64 machine time_host_poll_binding_macos_x86_64() -> ForeignBinding<26, 5, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "/usr/lib/libSystem.B.dylib",
-            symbol: "_poll",
-        },
-    }
-}
-
-macos_x86_64 machine DarwinX64TimeImports::clock_nanoseconds(clock_id: u32) -> u64
-    satisfies DarwinX64TimeRead::clock_nanoseconds
-    via time_host_clock_binding_macos_x86_64();
-
-macos_x86_64 machine DarwinX64TimeImports::poll(descriptors: u64, descriptor_count: u32, timeout_milliseconds: i32) -> i32
-    satisfies DarwinX64TimeRead::poll
-    via time_host_poll_binding_macos_x86_64()
-    blocks;
 
 macos_x86_64 machine TimeHostNativeProvider::monotonic_ticks() -> u64
     satisfies TimeHost::monotonic_ticks
@@ -146,6 +120,4 @@ blocks;
 
 macos_x86_64 machine TimeHostNativeProvider::provider_defaults(defaults: &mut TimeHostNativeProvider) {
     TimeHostNativeProvider::select_provider<TimeHost, NativeTimeHost>(defaults);
-    TimeHostNativeProvider::select_provider<DarwinX64TimeRead::clock_nanoseconds, DarwinX64TimeImports>(defaults);
-    TimeHostNativeProvider::select_provider<DarwinX64TimeRead::poll, DarwinX64TimeImports>(defaults);
 }

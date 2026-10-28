@@ -1,4 +1,9 @@
+use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
     Build::application(builder, "foreign_indirect_float_record_result_through_target_body_exit");
     Build::bind(builder, macos_arm64::ProgramEntry, main);
+
+ Build::bind<AffineTransforms::make>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "/System/Library/Frameworks/CoreGraphics.framework/Versions/A/CoreGraphics", symbol: "_CGAffineTransformMake"
+    } });
 }

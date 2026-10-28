@@ -1,8 +1,32 @@
+use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
     Build::application(builder, "content_retained_custody_round_trip_supply_probe");
     Build::accept_boundary<InitialSupply>(builder);
-    Build::select_provider<InitialSupply, InitialSupplyProvider>(builder);
+    Build::select_provider<InitialSupply, InitialSupplyProvider>(builder, linux_arm64);
+    Build::select_provider<InitialSupply, InitialSupplyProvider>(builder, linux_x86_64);
+    Build::select_provider<InitialSupply, InitialSupplyProvider>(builder, macos_arm64);
+    Build::select_provider<InitialSupply, InitialSupplyProvider>(builder, macos_x86_64);
+    Build::select_provider<InitialSupply, InitialSupplyProvider>(builder, windows_x86_64);
+    Build::select_provider<InitialSupply, InitialSupplyProvider>(builder, uefi_x86_64);
+    Build::select_provider<InitialSupply, InitialSupplyProvider>(builder, cross_platform_cli);
+    Build::select_provider<InitialSupply, InitialSupplyProvider>(builder, local_unchecked);
+    Build::select_provider<InitialSupply, InitialSupplyProvider>(builder, alpha_bootstrap);
     Build::accept_boundary<NativeBytes>(builder);
-    Build::select_provider<NativeBytes, LibSystemBytes>(builder);
+    Build::select_provider<NativeBytes, LibSystemBytes>(builder, linux_arm64);
+    Build::select_provider<NativeBytes, LibSystemBytes>(builder, linux_x86_64);
+    Build::select_provider<NativeBytes, LibSystemBytes>(builder, macos_arm64);
+    Build::select_provider<NativeBytes, LibSystemBytes>(builder, macos_x86_64);
+    Build::select_provider<NativeBytes, LibSystemBytes>(builder, windows_x86_64);
+    Build::select_provider<NativeBytes, LibSystemBytes>(builder, uefi_x86_64);
+    Build::select_provider<NativeBytes, LibSystemBytes>(builder, cross_platform_cli);
+    Build::select_provider<NativeBytes, LibSystemBytes>(builder, local_unchecked);
+    Build::select_provider<NativeBytes, LibSystemBytes>(builder, alpha_bootstrap);
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
+
+ Build::bind<NativeBytes::allocate>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "libSystem.B.dylib", symbol: "_calloc",
+    } });
+ Build::bind<NativeBytes::release>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "libSystem.B.dylib", symbol: "_free",
+    } });
 }

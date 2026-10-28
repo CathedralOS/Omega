@@ -1,6 +1,24 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "direct_foreign_forwarding");
-    Build::select_provider<ProcessProbe, ProcessProvider>(builder);
-    Build::select_provider<UnusedWideCall, UnusedWideProvider>(builder);
+    Build::select_provider<ProcessProbe, ProcessProvider>(builder, linux_arm64);
+    Build::select_provider<ProcessProbe, ProcessProvider>(builder, linux_x86_64);
+    Build::select_provider<ProcessProbe, ProcessProvider>(builder, macos_arm64);
+    Build::select_provider<ProcessProbe, ProcessProvider>(builder, macos_x86_64);
+    Build::select_provider<ProcessProbe, ProcessProvider>(builder, windows_x86_64);
+    Build::select_provider<ProcessProbe, ProcessProvider>(builder, uefi_x86_64);
+    Build::select_provider<ProcessProbe, ProcessProvider>(builder, cross_platform_cli);
+    Build::select_provider<ProcessProbe, ProcessProvider>(builder, local_unchecked);
+    Build::select_provider<ProcessProbe, ProcessProvider>(builder, alpha_bootstrap);
+    Build::select_provider<UnusedWideCall, UnusedWideProvider>(builder, linux_arm64);
+    Build::select_provider<UnusedWideCall, UnusedWideProvider>(builder, linux_x86_64);
+    Build::select_provider<UnusedWideCall, UnusedWideProvider>(builder, macos_arm64);
+    Build::select_provider<UnusedWideCall, UnusedWideProvider>(builder, macos_x86_64);
+    Build::select_provider<UnusedWideCall, UnusedWideProvider>(builder, windows_x86_64);
+    Build::select_provider<UnusedWideCall, UnusedWideProvider>(builder, uefi_x86_64);
+    Build::select_provider<UnusedWideCall, UnusedWideProvider>(builder, cross_platform_cli);
+    Build::select_provider<UnusedWideCall, UnusedWideProvider>(builder, local_unchecked);
+    Build::select_provider<UnusedWideCall, UnusedWideProvider>(builder, alpha_bootstrap);
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
+
+ Build::bind_table_function<RawNativeUnusedWideCall::invoke, UnusedWideTable::invoke>(builder, windows_x86_64);
 }

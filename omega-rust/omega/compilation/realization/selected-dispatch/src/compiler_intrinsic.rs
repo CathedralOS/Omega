@@ -568,6 +568,50 @@ fn accepted_binding_matches_process_exit_row_identity(
         && binding.selected_provider_plan_digest() == Some(plan.identity_digest())
 }
 
+/// Native rows consume the same accepted requirement role without inventing an
+/// authored provider machine. Their supplier and exact selected plan are bound
+/// by Build custody; the full requirement schema remains the contract.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn accepted_native_binding_matches_exit_process_row(
+    service: HostedService,
+    checked: &CheckedTrees,
+    plan: &ProviderPlan,
+    row: &ProviderPlanRow,
+    trait_symbol: SymbolHandle,
+    requirement_symbol: SymbolHandle,
+    external_completion: bool,
+    binding: &package_compilation::AcceptedSemanticBinding,
+) -> bool {
+    let role = match service {
+        HostedService::Console => {
+            package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32
+        }
+        HostedService::ProcessExit => {
+            package_compilation::AcceptedSemanticBindingRole::ProcessExitExitProcessI32
+        }
+    };
+    binding.role() == role
+        && binding.selected_provider_plan_digest() == Some(plan.identity_digest())
+        && binding.normalized_schema_digest() == plan.schema.identity_digest()
+        && plan.origin_package_identity == Some(binding.package())
+        && checked.symbols.display_path(trait_symbol, "::") == binding.declaration_path()
+        && matches!(
+            row.binding,
+            effects::provider_plan::ProviderBinding::Import { .. }
+                | effects::provider_plan::ProviderBinding::Syscall { .. }
+        )
+        && external_completion
+        && matches!(
+            checked_trees::typed_trees::boundary_completions::boundary_requirement_completion(
+                checked,
+                requirement_symbol
+            ),
+            semantic_vocabulary::BoundaryCompletion::External(
+                semantic_vocabulary::ExternalCompletionKind::ProcessExit
+            )
+        )
+}
+
 /// Rejoin one service's exit-process semantic role to one exact package-owned
 /// selected row. For Console this recognizes Process authority; the
 /// toolchain-owned ProcessExit trait carries no package identity and the

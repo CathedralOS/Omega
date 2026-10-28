@@ -32,16 +32,6 @@ data WindowsFilesystemNativeProvider { }
 
 windows_x86_64 machine WindowsFilesystemNativeProvider::provider_defaults(defaults: &mut WindowsFilesystemNativeProvider) {
     WindowsFilesystemNativeProvider::select_provider<WindowsFilesystemHost, NativeWindowsFilesystem>(defaults);
-    WindowsFilesystemNativeProvider::select_provider<WindowsFilesystemIo, NativeWindowsFilesystemImports>(defaults);
-    WindowsFilesystemNativeProvider::select_provider<WindowsFilesystemTransferIo, NativeWindowsFilesystemTransfers>(defaults);
-    WindowsFilesystemNativeProvider::select_provider<WindowsFilesystemMetadataIo, NativeWindowsFilesystemMetadataImports>(defaults);
-    WindowsFilesystemNativeProvider::select_provider<WindowsFilesystemFileControlIo, NativeWindowsFilesystemFileControlImports>(defaults);
-    WindowsFilesystemNativeProvider::select_provider<WindowsFilesystemPositionIo, NativeWindowsFilesystemPositionImports>(defaults);
-    WindowsFilesystemNativeProvider::select_provider<WindowsFilesystemDirectoryIo, NativeWindowsFilesystemDirectoryImports>(defaults);
-    WindowsFilesystemNativeProvider::select_provider<WindowsFilesystemPathIo, NativeWindowsFilesystemPathImports>(defaults);
-    WindowsFilesystemNativeProvider::select_provider<WindowsFilesystemLockIo, NativeWindowsFilesystemLockImports>(defaults);
-    WindowsFilesystemNativeProvider::select_provider<WindowsFilesystemReparseIo, NativeWindowsFilesystemReparseImports>(defaults);
-    WindowsFilesystemNativeProvider::select_provider<WindowsFilesystemRemovalIo, NativeWindowsFilesystemRemovalImports>(defaults);
 }
 
 // Inline members bind the complete implementation to its existing target-owned

@@ -1,6 +1,14 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "nested_binding_borrowed_call_exit");
-    Build::select_provider<Reading, ReadingMap>(builder);
+    Build::select_provider<Reading, ReadingMap>(builder, linux_arm64);
+    Build::select_provider<Reading, ReadingMap>(builder, linux_x86_64);
+    Build::select_provider<Reading, ReadingMap>(builder, macos_arm64);
+    Build::select_provider<Reading, ReadingMap>(builder, macos_x86_64);
+    Build::select_provider<Reading, ReadingMap>(builder, windows_x86_64);
+    Build::select_provider<Reading, ReadingMap>(builder, uefi_x86_64);
+    Build::select_provider<Reading, ReadingMap>(builder, cross_platform_cli);
+    Build::select_provider<Reading, ReadingMap>(builder, local_unchecked);
+    Build::select_provider<Reading, ReadingMap>(builder, alpha_bootstrap);
     Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_arm64::ProgramEntry, entry_start);

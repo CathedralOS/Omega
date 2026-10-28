@@ -2,6 +2,7 @@
 
 mod assignments;
 mod calls;
+mod constructor_inference;
 mod constructors;
 mod expressions;
 mod patterns;
@@ -13,6 +14,7 @@ pub(super) use assignments::{
     relabel_closed_data_uses_in_constants, relabel_closed_data_uses_in_exact_assignments,
 };
 pub(super) use calls::relabel_closed_data_uses_in_exact_calls_and_returns;
+pub(super) use constructor_inference::infer_constructor_types;
 pub(super) use constructors::{
     closed_constructor_carrier, constructor_carrier_span, constructor_path_name, expected_instance,
     relabel_data_literal_for_expected_type, selected_constructor,

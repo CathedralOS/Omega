@@ -126,32 +126,10 @@ linux_arm64 machine FilesystemProviderDefaults::provider_defaults(defaults: &mut
     FilesystemProviderDefaults::select_provider<FilesystemService, FilesystemPosixProvider>(defaults);
 }
 
-linux_arm64 machine linux_arm64_realpath_binding() -> ForeignBinding<9, 8, 10> {
-    ForeignBinding::DllImport { import: DllImport::ElfVersioned {
-        object: "libc.so.6", symbol: "realpath", version: "GLIBC_2.17",
-    } }
-}
-linux_arm64 machine linux_arm64_errno_location_binding() -> ForeignBinding<9, 16, 10> {
-    ForeignBinding::DllImport { import: DllImport::ElfVersioned {
-        object: "libc.so.6", symbol: "__errno_location", version: "GLIBC_2.17",
-    } }
-}
-linux_arm64 machine linux_arm64_errno_copy_binding() -> ForeignBinding<9, 6, 10> {
-    ForeignBinding::DllImport { import: DllImport::ElfVersioned {
-        object: "libc.so.6", symbol: "memcpy", version: "GLIBC_2.17",
-    } }
-}
+
 linux_arm64 machine PosixCanonicalImports::provider_defaults(defaults: &mut PosixCanonicalImports) {
-    PosixCanonicalImports::select_provider<PosixCanonicalLibc::resolve, PosixCanonicalImports>(defaults);
-    PosixCanonicalImports::select_provider<PosixCanonicalLibc::error_location, PosixCanonicalImports>(defaults);
-    PosixCanonicalImports::select_provider<PosixCanonicalLibc::copy_error, PosixCanonicalImports>(defaults);
 }
-linux_arm64 machine PosixCanonicalImports::resolve(path: &[u8; 4096], output: &mut [u8; 4096]) -> u64
-satisfies PosixCanonicalLibc::resolve via linux_arm64_realpath_binding();
-linux_arm64 machine PosixCanonicalImports::error_location() -> u64
-satisfies PosixCanonicalLibc::error_location via linux_arm64_errno_location_binding();
-linux_arm64 machine PosixCanonicalImports::copy_error(destination: &mut [u8; 4], source: u64, count: u64) -> u64
-satisfies PosixCanonicalLibc::copy_error via linux_arm64_errno_copy_binding();
+
 
 linux_arm64 machine posix_filesystem_kind_of_stored_error_code(filesystem: &mut PosixFilesystem) -> ErrorKind {
     filesystem.err_kind = match filesystem.err_code {
