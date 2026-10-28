@@ -224,7 +224,7 @@ impl TypedTrees {
         let target = self.machine_authored_target(machine)?;
         language_semantics::declaration_selection::ProductTarget::from_canonical_name(target)?;
         let namespace = format!("core::targets::{target}::float_impl");
-        let expected_source = std::path::PathBuf::from("core/targets")
+        let expected_source = std::path::PathBuf::from("targets")
             .join(target)
             .join("float_impl.omg");
         if self.symbol_toolchain_relative_path(machine.symbol)? != expected_source
@@ -258,7 +258,7 @@ impl TypedTrees {
                 crate::machine::SatisfiedDeclaration::Operator(operator) => {
                     if !crate::operator::is_sealed_toolchain_float_operator(self, operator)
                         && (self.symbol_toolchain_relative_path(operator.symbol)?
-                            != std::path::Path::new("core/float_operations.omg")
+                            != std::path::Path::new("float_operations.omg")
                             || !self
                                 .normalized_hermetic_symbol_identity(operator.symbol)
                                 .ok()?
@@ -279,7 +279,7 @@ impl TypedTrees {
                 }
                 crate::machine::SatisfiedDeclaration::TopLevelRequirement(requirement) => {
                     if self.symbol_toolchain_relative_path(requirement.symbol)?
-                        != std::path::Path::new("core/float_operations.omg")
+                        != std::path::Path::new("float_operations.omg")
                     {
                         return None;
                     }
