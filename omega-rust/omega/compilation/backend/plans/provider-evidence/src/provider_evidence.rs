@@ -24,6 +24,9 @@ use crate::provider_evidence::providers::provider_plan::DigestFeed;
 use crate::provider_plan::ProviderPlan;
 use std::collections::BTreeSet;
 
+#[cfg(test)]
+mod installation_tests;
+
 /// Strong `[u8; 32]` evidence digests: `from_digest` constructs at the
 /// visibility the caller's contract needs, `as_bytes` hands back the bytes.
 macro_rules! evidence_digest {
@@ -1088,36 +1091,49 @@ impl SelectedProviderPlanFacts {
     ) -> Result<Vec<String>, String> {
         let mut resolved = concrete_reach.to_vec();
         for requirement_identity in requirement_identities {
-            let selected_identity = self.selected_requirement_identity(requirement_identity);
-            if let Some(row) = self.installation_reach_resolution_for_plan(
-                provider_plan_report_identity,
+            let row = self.resolve_installation_requirement(
                 requirement_identity,
-            ) {
-                resolved.extend(row.resolved_row.iter().cloned());
-                continue;
-            }
-            if let Some(row) = self.installation_reach_resolution(requirement_identity) {
-                resolved.extend(row.resolved_row.iter().cloned());
-                continue;
-            }
-            if self
-                .installation_reach_resolutions
-                .iter()
-                .any(|resolution| {
-                    self.identities.text(resolution.requirement_identity) == Some(selected_identity)
-                })
-            {
-                return Err(format!(
-                    "installation reach requirement `{requirement_identity}` is realized by more than one selected provider plan, none under provider plan {provider_plan_report_identity:#018x}"
-                ));
-            }
-            return Err(format!(
-                "installation reach requirement `{requirement_identity}` remains unresolved at final admission"
-            ));
+                provider_plan_report_identity,
+            )?;
+            resolved.extend(row.resolved_row.iter().cloned());
         }
         resolved.sort();
         resolved.dedup();
         Ok(resolved)
+    }
+
+    /// Select the exact dependency row for both reach substitution and review
+    /// grounding. Preserve family selection before falling back to an unscoped
+    /// unique row; normalizing the requirement alone loses that plan custody.
+    pub fn resolve_installation_requirement(
+        &self,
+        requirement_identity: &str,
+        provider_plan_report_identity: u64,
+    ) -> Result<&InstallationReachResolution, String> {
+        if let Some(row) = self.installation_reach_resolution_for_plan(
+            provider_plan_report_identity,
+            requirement_identity,
+        ) {
+            return Ok(row);
+        }
+        if let Some(row) = self.installation_reach_resolution(requirement_identity) {
+            return Ok(row);
+        }
+        let selected_identity = self.selected_requirement_identity(requirement_identity);
+        if self
+            .installation_reach_resolutions
+            .iter()
+            .any(|resolution| {
+                self.identities.text(resolution.requirement_identity) == Some(selected_identity)
+            })
+        {
+            return Err(format!(
+                "installation reach requirement `{requirement_identity}` is realized by more than one selected provider plan, none under provider plan {provider_plan_report_identity:#018x}"
+            ));
+        }
+        Err(format!(
+            "installation reach requirement `{requirement_identity}` remains unresolved at final admission"
+        ))
     }
 }
 

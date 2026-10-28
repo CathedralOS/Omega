@@ -1,12 +1,15 @@
 use crate::capture::PackageReviewInput;
-use crate::capture::behavior::project_service_row;
-use crate::capture::semantics::declarations::provider_requirement_schema;
+use crate::capture::behavior::{project_installation_reaches, project_service_row};
+use crate::capture::semantics::declarations::{nominal_identity, provider_requirement_schema};
 use crate::record::{PackageReviewNominalIdentity, PackageReviewSelectedInstallationReach};
 use diagnostics::Diagnostic;
 use effects::provider_plan::ProviderPlan;
 use language_semantics::ServiceReachRowId;
 use provider_planning::ProviderSchemaDeclaration;
 use symbols::SymbolHandle;
+
+mod dependencies;
+pub(super) use dependencies::validate_installation_dependency_order;
 
 pub(crate) fn project_selected_installation_reach(
     compilation: &PackageReviewInput<'_>,
@@ -153,8 +156,33 @@ pub(crate) fn project_selected_installation_reach(
             envelopes.len(),
         ))]);
     };
-    let resolved_names = exact_service_names(compilation, reach_fact.effective)?;
-    if envelope.effective_service_reach != resolved_names || retained.resolved_row != resolved_names
+    let effective_names = exact_service_names(compilation, reach_fact.effective)?;
+    let concrete_names = exact_service_names(compilation, reach_fact.concrete_effective)?;
+    let dependencies =
+        project_installation_reaches(compilation, &reach_fact.unresolved_installation_reaches)?;
+    // The published effective row includes unresolved upper bounds. Review
+    // substitutes the checked dependencies under this exact plan, independently
+    // of the producer's pending-row iteration. A broad bound is not the selected
+    // child's concrete contribution, and cannot replace it in the projection.
+    let resolved_names = compilation
+        .custody
+        .execution()
+        .selected_provider_plan_facts
+        .resolve_installation_reach_for_plan(
+            &concrete_names,
+            &dependencies
+                .iter()
+                .map(|row| row.requirement().path().to_owned())
+                .collect::<Vec<_>>(),
+            plan.report_fingerprint(),
+        )
+        .map_err(|reason| {
+            vec![Diagnostic::error(format!(
+                "selected provider installation reach: {reason}"
+            ))]
+        })?;
+    if envelope.effective_service_reach != effective_names
+        || retained.resolved_row != resolved_names
     {
         return Err(vec![Diagnostic::error(format!(
             "selected provider plan `{}` installation-bound requirement `{}` has a resolved reach that disagrees with its exact checked realization",
@@ -165,8 +193,32 @@ pub(crate) fn project_selected_installation_reach(
 
     Ok(Some(PackageReviewSelectedInstallationReach {
         upper_bound: project_service_row(compilation, requirement_reach)?,
-        resolved: project_service_row(compilation, reach_fact.effective)?,
+        resolved: project_service_names(compilation, &resolved_names)?,
     }))
+}
+
+fn project_service_names(
+    compilation: &PackageReviewInput<'_>,
+    names: &[String],
+) -> Result<Vec<PackageReviewNominalIdentity>, Vec<Diagnostic>> {
+    let services = &compilation.facts.service_reaches.services;
+    let mut projected = names
+        .iter()
+        .map(|name| {
+            let definition = services
+                .id_for_name(name)
+                .and_then(|identity| services.definition(identity))
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "selected installation reach names an unknown exact service",
+                    )]
+                })?;
+            nominal_identity(compilation, definition.symbol)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    projected.sort();
+    projected.dedup();
+    Ok(projected)
 }
 
 fn exact_service_names(
