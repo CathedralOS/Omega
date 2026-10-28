@@ -435,7 +435,6 @@ fn join_generated_inputs(
 ) -> Result<package_compilation::PackageCompilationInputs, CompileFailure> {
     let required = inputs.required_dependency_source_instances();
     let mut generated = Vec::with_capacity(required.len());
-    let mut native = Vec::with_capacity(required.len());
     for (dependency, dependency_purpose) in required {
         let product = products
             .iter()
@@ -446,7 +445,6 @@ fn join_generated_inputs(
                 )]
             })?;
         generated.push(product.generated.clone());
-        native.push(product.native.clone());
     }
     inputs
         .with_complete_dependency_build_handoffs(generated)
