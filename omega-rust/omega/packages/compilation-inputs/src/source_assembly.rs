@@ -40,7 +40,7 @@ pub struct AssembledSyntax {
     pub sources: Arc<source::SourceMap>,
     /// Anonymous ownership inputs. Initial Build leaves these unbound; the
     /// joined Product context establishes ownership before resolution/typing.
-    pub anonymous_owner: Option<crate::AnonymousSourceCapture>,
+    pub captured_source: Option<crate::CapturedBuildSource>,
     /// Product roots remain unopened until the authored Build has returned and
     /// its dependencies have joined. Both phases retain the same captured bytes.
     pub product_sources: Option<DeferredProductSources>,
@@ -188,7 +188,7 @@ impl DeferredProductSources {
             source_items,
             syntax_trees: storage.syntax_trees,
             sources: Arc::new(storage.sources),
-            anonymous_owner: None,
+            captured_source: None,
             product_sources: None,
             build_source_id,
             source_scoped_top_level_bindings: bindings,
@@ -704,9 +704,16 @@ impl ImmutableSourceParseCheckpoint {
         // sealed its source owner before parsing, after the dependency join.
         // Supplied graph owners remain authoritative in either case.
         let capture = source_storage.retain_anonymous_owner(&generated_source_custody)?;
-        let (sources, anonymous_owner) = match capture {
-            Some(capture) => (capture.sources().clone(), Some(capture)),
-            None => (Arc::new(source_storage.sources), None),
+        let captured_source = match &capture {
+            Some(capture) => Some(
+                crate::CapturedBuildSource::anonymous(capture)
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?,
+            ),
+            None => source_storage.build_source_custody.clone(),
+        };
+        let sources = match capture {
+            Some(capture) => capture.sources().clone(),
+            None => Arc::new(source_storage.sources),
         };
         let syntax = AssembledSyntax {
             root_sources,
@@ -717,7 +724,7 @@ impl ImmutableSourceParseCheckpoint {
                 .collect(),
             syntax_trees: source_storage.syntax_trees,
             sources,
-            anonymous_owner,
+            captured_source,
             product_sources,
             build_source_id: self.build_source_id,
             source_scoped_top_level_bindings,

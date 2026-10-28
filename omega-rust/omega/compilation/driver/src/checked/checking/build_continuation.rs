@@ -50,7 +50,7 @@ pub(super) fn prepare_build_invocation(
     let TypedCompilationFrontier {
         preparation,
         mut source,
-        anonymous_source,
+        captured_source,
         product_sources,
         build_source_id,
         source_file_count,
@@ -67,7 +67,7 @@ pub(super) fn prepare_build_invocation(
             build_source_id,
             sources: &base_sources,
             package_inputs,
-            anonymous_source: anonymous_source.as_ref(),
+            captured_source: captured_source.as_ref(),
             generated_source_custody: &generated_source_custody,
             execution: build,
             artifact_only: false,
@@ -88,7 +88,7 @@ pub(super) fn prepare_build_invocation(
         frontier: TypedCompilationFrontier {
             preparation,
             source,
-            anonymous_source,
+            captured_source,
             product_sources,
             build_source_id,
             source_file_count,
@@ -293,7 +293,7 @@ fn complete_build_source(
     let TypedCompilationFrontier {
         preparation,
         mut source,
-        anonymous_source: _,
+        captured_source: _,
         product_sources,
         build_source_id: _,
         mut source_file_count,
@@ -437,7 +437,7 @@ pub(super) fn lower_typed_frontier(
     Ok(TypedCompilationFrontier {
         preparation,
         source,
-        anonymous_source: syntax.anonymous_owner,
+        captured_source: syntax.captured_source,
         product_sources: syntax
             .product_sources
             .map(compilation_products::DeferredProductCompilation::new),

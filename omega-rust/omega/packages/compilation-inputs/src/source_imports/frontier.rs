@@ -25,6 +25,7 @@ pub(crate) struct SourceStorage {
     toolchain_root: Option<PathBuf>,
     // Import reconciliation borrows custody independently of its mutable results.
     pub toolchain_contract_custody: ToolchainContractCustody,
+    pub(crate) build_source_custody: Option<crate::CapturedBuildSource>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -118,7 +119,7 @@ impl SourceStorage {
                 storage
                     .sources
                     .retain_product_dependency_scope(package_inputs.dependencies());
-                Ok(storage)
+                Ok::<_, Vec<Diagnostic>>(storage)
             }
             None => {
                 let root_package = if root_path.is_dir() {
@@ -162,11 +163,11 @@ impl SourceStorage {
                     })?;
                 storage.sources = catalogue.begin_selection();
                 storage.anonymous_capture = Some(captured.tree().clone());
-                Ok(storage)
+                Ok::<_, Vec<Diagnostic>>(storage)
             }
         }?;
         storage.capture_core()?;
-        Ok(storage)
+        Ok::<_, Vec<Diagnostic>>(storage)
     }
 
     fn capture_core(&mut self) -> Result<(), Vec<Diagnostic>> {
@@ -230,6 +231,14 @@ impl SourceStorage {
             })?;
         storage.sources = catalogue.begin_selection();
         storage.core_capture = Some((input.root().to_path_buf(), input.tree().clone()));
+        storage.build_source_custody = Some(
+            crate::CapturedBuildSource::new(
+                input.root().to_path_buf(),
+                input.tree(),
+                storage.filesystem.clone(),
+            )
+            .map_err(|reason| vec![Diagnostic::error(reason)])?,
+        );
         Ok(storage)
     }
 

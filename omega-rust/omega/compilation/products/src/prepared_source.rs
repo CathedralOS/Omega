@@ -42,7 +42,7 @@ pub struct TypedCompilationFrontier {
     pub source: psi_compiler::SourceContinuation,
     /// Acquired source custody survives frontend preparation. Build uses the
     /// same inventory before its executed declaration has a package owner.
-    pub anonymous_source: Option<package_compilation::AnonymousSourceCapture>,
+    pub captured_source: Option<package_compilation::CapturedBuildSource>,
     /// Product imports and declarations are prepared only after Build's join.
     /// No checked identity or initial name-resolution context is rewritten.
     pub product_sources: Option<DeferredProductCompilation>,
