@@ -1,0 +1,14 @@
+// A target-keyed provider call establishes total >= 1000, so exact subtraction total - 1000 preserves the selected provider result.
+// Expected exit: 0
+use reading_implementations::main::Reading;
+use reading_implementations::main::Marker;
+
+machine journey(expected: u64) reaches Reading + Marker crashes Trap {
+    let marker: u64 = Marker::read();
+    let total: u64 = Reading::total();
+    let difference: u64 = total - 1000u64;
+    transition marker == 17u64 && difference == expected { true -> done() false -> bad() }
+    machine done() {} machine bad() { crash Trap; }
+}
+machine first_entry() reaches Reading + Marker crashes Trap { journey(100u64); }
+machine second_entry() reaches Reading + Marker crashes Trap { journey(1100u64); }

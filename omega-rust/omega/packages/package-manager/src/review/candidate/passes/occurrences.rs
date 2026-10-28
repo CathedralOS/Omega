@@ -482,11 +482,10 @@ impl<'pass> PackageReviewRound<'pass> {
                         self.review_positions[position][purpose_slot(dependency_purpose)]
                     })
                     .and_then(|position| self.reviews.get(position));
-                let review = dependency_review.ok_or(
-                    PackageCompilationInputError::MissingGeneratedSourceBundle {
+                let review =
+                    dependency_review.ok_or(PackageCompilationInputError::MissingBuildHandoff {
                         package: dependency.identity(),
-                    },
-                );
+                    });
                 let review = review.map_err(|error| {
                     CompileResolvedPackageReviewsError::CompilationInputs {
                         package: key.clone(),
@@ -495,7 +494,7 @@ impl<'pass> PackageReviewRound<'pass> {
                 })?;
                 let custody = closure
                     .custody(dependency)
-                    .ok_or(PackageCompilationInputError::ForeignGeneratedSourceBundle {
+                    .ok_or(PackageCompilationInputError::ForeignBuildHandoff {
                         package: dependency.identity(),
                     })
                     .map_err(
@@ -504,7 +503,7 @@ impl<'pass> PackageReviewRound<'pass> {
                             errors: vec![error],
                         },
                     )?;
-                let bundle = review.generated_source_bundle();
+                let bundle = review.build_handoff();
                 if review.resolution() != custody.resolution()
                     || bundle.package() != dependency.identity()
                     || bundle.source_consumption_commitment()
@@ -512,18 +511,16 @@ impl<'pass> PackageReviewRound<'pass> {
                 {
                     return Err(CompileResolvedPackageReviewsError::CompilationInputs {
                         package: key.clone(),
-                        errors: vec![
-                            PackageCompilationInputError::GeneratedSourceBundleCustodyMismatch {
-                                package: dependency.identity(),
-                            },
-                        ],
+                        errors: vec![PackageCompilationInputError::BuildHandoffCustodyMismatch {
+                            package: dependency.identity(),
+                        }],
                     });
                 }
                 dependency_bundles.push(bundle.clone());
             }
         }
         let inputs = inputs
-            .with_complete_dependency_generated_sources(dependency_bundles)
+            .with_complete_dependency_build_handoffs(dependency_bundles)
             .map_err(
                 |errors| CompileResolvedPackageReviewsError::CompilationInputs {
                     package: key.clone(),
@@ -822,13 +819,11 @@ impl<'pass> PackageReviewRound<'pass> {
             semantic_bindings,
             service_binding_candidates,
             hosted_exit_binding_candidates,
-            generated_source_bundle,
+            build_handoff,
             policy,
             policy_canonical_bytes,
         } = evidence;
-        if generated_source_bundle.package() != key.identity()
-            || generated_source_bundle.target() != checked_target
-        {
+        if build_handoff.package() != key.identity() || build_handoff.target() != checked_target {
             return Err(CompileResolvedPackageReviewsError::IdentityMismatch {
                 package: key.clone(),
             });
@@ -883,7 +878,7 @@ impl<'pass> PackageReviewRound<'pass> {
             restricted_build_requests,
             semantic_bindings,
             semantic_binding_candidates,
-            generated_source_bundle: generated_source_bundle.clone(),
+            build_handoff: build_handoff.clone(),
             policy,
             policy_rows,
             policy_commitment,
@@ -955,9 +950,7 @@ impl<'pass> PackageReviewRound<'pass> {
         let services = self
             .reviews
             .iter()
-            .find(|review| {
-                &review.key == root && review.generated_source_bundle.purpose().is_product()
-            })
+            .find(|review| &review.key == root && review.build_handoff.purpose().is_product())
             .ok_or_else(|| CompileResolvedPackageReviewsError::IdentityMismatch {
                 package: root.clone(),
             })?

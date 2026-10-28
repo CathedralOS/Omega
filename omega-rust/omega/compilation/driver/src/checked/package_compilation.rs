@@ -234,8 +234,8 @@ impl PackageBuild {
         self.source.package_inputs()
     }
 
-    pub fn generated_source_bundle(&self) -> &package_compilation::PackageGeneratedSourceBundle {
-        self.source.generated_source_bundle()
+    pub fn build_handoff(&self) -> &package_compilation::PackageBuildHandoff {
+        self.source.build_handoff()
     }
 
     pub fn required_component_packages(&self) -> Vec<semantic_vocabulary::PackageKeyIdentity> {

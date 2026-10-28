@@ -52,13 +52,13 @@ pub use compilation_reuse::{ProductSourceInputs, SourceAssemblyInputs};
 #[doc(hidden)]
 pub use package_compilation::provider_selection_codec;
 pub use package_compilation::{
-    CompilerProductRetention, IndependentComponentDescription, PackageCompilationInputError,
-    PackageCompilationInputs, PackageCompilationSourceInputs, PackageCompilationTargetInputs,
-    PackageDependencyAcquisition, PackageDependencyBinding, PackageDependencyClosure,
-    PackageGeneratedSourceBundle, PackageSourceBinding,
+    CompilerProductRetention, IndependentComponentDescription, PackageBuildHandoff,
+    PackageCompilationInputError, PackageCompilationInputs, PackageCompilationSourceInputs,
+    PackageCompilationTargetInputs, PackageDependencyAcquisition, PackageDependencyBinding,
+    PackageDependencyClosure, PackageSourceBinding,
 };
 pub use review_cache_digests::{
-    generated_source_bundle_digest, review_cache_inputs_digest, review_cache_snapshot_digest,
+    package_build_handoff_digest, review_cache_inputs_digest, review_cache_snapshot_digest,
 };
 pub use semantic_bindings::{
     AcceptedSemanticBinding, AcceptedSemanticBindingRole, accepted_service_schema_digest,

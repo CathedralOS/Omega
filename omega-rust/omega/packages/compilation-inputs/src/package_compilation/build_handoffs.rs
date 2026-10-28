@@ -1,7 +1,10 @@
-//! Generated Omega source handed off by checked dependency builds: the
-//! immutable bundle, the per-purpose instance roster a complete handoff
-//! must cover, target and execution-profile checks, and import routing
-//! into a bundle's logical source paths.
+//! Complete per-purpose output handoffs from admitted dependency Builds.
+//!
+//! The existing package/target/source-custody roster carries generated Omega
+//! source and executed Product choices together. Each activation exports only
+//! its own outputs. Receiving admission validates their source, declaration
+//! roles and precedence; this carrier grants no private nameability, host
+//! backing or execution authority.
 
 use super::{PackageCompilationInputError, PackageCompilationInputs, PackageDependencyClosure};
 use crate::PackageSourceConsumptionCommitment;
@@ -12,7 +15,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-/// Exact generated Omega source handed off by one admitted package Build.
+/// Immutable generated source and Product intent from one admitted package Build.
 /// Construction remains compiler-private: carrying this value proves source
 /// and output custody, not final checking of the generated program or package
 /// admission. Every consumer checks the generated declarations it incorporates.
@@ -21,12 +24,12 @@ use std::sync::Arc;
 /// target, and build execution profile. Equal product bytes do not establish that the
 /// generator ran under the consumer's admitted build context.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PackageGeneratedSourceBundle {
-    contents: Arc<PackageGeneratedSourceBundleContents>,
+pub struct PackageBuildHandoff {
+    contents: Arc<PackageBuildHandoffContents>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct PackageGeneratedSourceBundleContents {
+struct PackageBuildHandoffContents {
     package: PackageKeyIdentity,
     purpose: DependencyPurpose,
     target: target::TargetProfile,
@@ -39,7 +42,7 @@ struct PackageGeneratedSourceBundleContents {
     selection_observation: Option<[u8; 32]>,
 }
 
-impl PackageGeneratedSourceBundle {
+impl PackageBuildHandoff {
     #[doc(hidden)]
     pub fn from_checked(
         package: PackageKeyIdentity,
@@ -71,7 +74,7 @@ impl PackageGeneratedSourceBundle {
         sources: Vec<PackageGeneratedSource>,
     ) -> Self {
         Self {
-            contents: Arc::new(PackageGeneratedSourceBundleContents {
+            contents: Arc::new(PackageBuildHandoffContents {
                 package,
                 purpose,
                 target,
@@ -119,6 +122,28 @@ impl PackageGeneratedSourceBundle {
         &self.contents.sources
     }
 
+    /// The one generated unit selected by exact relative paths. Source imports
+    /// and retained declaration admission share path decoding and ambiguity.
+    pub(crate) fn generated_source(
+        &self,
+        relative_candidates: &[PathBuf],
+    ) -> Result<Option<&PackageGeneratedSource>, &'static str> {
+        let mut matched = None;
+        for source in self.sources() {
+            let relative = generated_source_relative_path(source)?;
+            if relative_candidates
+                .iter()
+                .any(|candidate| candidate == &relative)
+            {
+                if matched.is_some() {
+                    return Err("generated-source import resolves to more than one handoff");
+                }
+                matched = Some(source);
+            }
+        }
+        Ok(matched)
+    }
+
     /// Own-package executed choices. Inherited rows already have their own
     /// package/purpose handoff and must not be exported a second time.
     pub fn provider_selections(
@@ -147,6 +172,13 @@ impl PackageGeneratedSourceBundle {
             return Err(
                 "package provider choices do not belong to this handoff's Build activation",
             );
+        }
+        if let Some(first) = selections.first()
+            && selections
+                .iter()
+                .any(|selection| selection.origin.activation() != first.origin.activation())
+        {
+            return Err("package provider choices mix different original Build activations");
         }
         let mut contents = Arc::unwrap_or_clone(self.contents);
         contents.provider_selections = selections.into();
@@ -232,9 +264,9 @@ impl PackageCompilationInputs {
     /// omitted dependency build cannot be confused with a build that handed
     /// off no generated source. Coverage is per checked purpose, not package:
     /// identical target profiles or bytes never let one role satisfy another.
-    pub fn with_complete_dependency_generated_sources(
+    pub fn with_complete_dependency_build_handoffs(
         mut self,
-        bundles: Vec<PackageGeneratedSourceBundle>,
+        bundles: Vec<PackageBuildHandoff>,
     ) -> Result<Self, Vec<PackageCompilationInputError>> {
         let mut errors = Vec::new();
         let required = self.required_dependency_source_instances();
@@ -243,39 +275,34 @@ impl PackageCompilationInputs {
             let package = bundle.package();
             let purpose = bundle.purpose();
             if package == self.source.root {
-                errors.push(PackageCompilationInputError::RootGeneratedSourceBundle { package });
+                errors.push(PackageCompilationInputError::RootBuildHandoff { package });
                 continue;
             }
             if !self.source.packages.contains_key(&package) {
-                errors.push(PackageCompilationInputError::ForeignGeneratedSourceBundle { package });
+                errors.push(PackageCompilationInputError::ForeignBuildHandoff { package });
                 continue;
             }
             if !required.contains(&(package, purpose)) {
-                errors.push(
-                    PackageCompilationInputError::GeneratedSourceBundlePurposeMismatch {
-                        package,
-                        purpose,
-                    },
-                );
+                errors.push(PackageCompilationInputError::BuildHandoffPurposeMismatch {
+                    package,
+                    purpose,
+                });
                 continue;
             }
             if bundle.dependency_closure() != &self.dependency_closure_for(package) {
-                errors.push(
-                    PackageCompilationInputError::GeneratedSourceBundleClosureMismatch { package },
-                );
+                errors.push(PackageCompilationInputError::BuildHandoffClosureMismatch { package });
             }
             if generated.insert((package, purpose), bundle).is_some() {
-                errors
-                    .push(PackageCompilationInputError::DuplicateGeneratedSourceBundle { package });
+                errors.push(PackageCompilationInputError::DuplicateBuildHandoff { package });
             }
         }
         for (package, purpose) in required {
             if !generated.contains_key(&(package, purpose)) {
-                errors.push(PackageCompilationInputError::MissingGeneratedSourceBundle { package });
+                errors.push(PackageCompilationInputError::MissingBuildHandoff { package });
             }
         }
         if errors.is_empty() {
-            self.target.dependency_generated_sources = generated;
+            self.target.dependency_build_handoffs = generated;
             Ok(self)
         } else {
             Err(errors)
@@ -283,36 +310,34 @@ impl PackageCompilationInputs {
     }
 
     #[doc(hidden)]
-    pub(crate) fn dependency_generated_source_bundles(
-        &self,
-    ) -> impl Iterator<Item = &PackageGeneratedSourceBundle> {
-        self.target.dependency_generated_sources.values()
+    pub(crate) fn dependency_build_handoffs(&self) -> impl Iterator<Item = &PackageBuildHandoff> {
+        self.target.dependency_build_handoffs.values()
     }
 
     /// Each retained handoff together with the relative source scope in which
     /// it is consumed. The same build instance can serve both relative scopes
     /// inside a build helper, but never serves a product activation.
-    pub fn dependency_generated_source_instances(
+    pub fn dependency_build_handoff_instances(
         &self,
-    ) -> impl Iterator<Item = (DependencyPurpose, &PackageGeneratedSourceBundle)> {
+    ) -> impl Iterator<Item = (DependencyPurpose, &PackageBuildHandoff)> {
         self.dependency_source_instances()
             .into_iter()
             .filter_map(|(package, scope)| {
                 self.target
-                    .dependency_generated_sources
+                    .dependency_build_handoffs
                     .get(&(package, self.instance_purpose(scope)))
                     .map(|bundle| (scope, bundle))
             })
     }
 
     #[doc(hidden)]
-    pub fn validate_dependency_generated_source_target(
+    pub fn validate_dependency_build_handoff_target(
         &self,
         selected_target: Option<target::TargetProfile>,
     ) -> Result<(), Vec<PackageCompilationInputError>> {
         let errors = self
             .target
-            .dependency_generated_sources
+            .dependency_build_handoffs
             .values()
             .filter_map(|bundle| {
                 let expected_target = match bundle.purpose() {
@@ -320,7 +345,7 @@ impl PackageCompilationInputs {
                     DependencyPurpose::Build => bundle.build_execution_profile(),
                 };
                 (Some(bundle.target()) != expected_target).then_some(
-                    PackageCompilationInputError::GeneratedSourceBundleTargetMismatch {
+                    PackageCompilationInputError::BuildHandoffTargetMismatch {
                         package: bundle.package(),
                         bundle_target: bundle.target(),
                         selected_target: expected_target,
@@ -337,22 +362,22 @@ impl PackageCompilationInputs {
 
     /// Generated bytes retain the build context that produced them even when
     /// their product target and source bytes equal another activation's output.
-    pub fn validate_dependency_generated_source_execution_profile(
+    pub fn validate_dependency_build_handoff_execution_profile(
         &self,
         execution_profile: Option<target::TargetProfile>,
     ) -> Result<(), Vec<PackageCompilationInputError>> {
         let errors = self
             .target
-            .dependency_generated_sources
+            .dependency_build_handoffs
             .values()
             .filter(|bundle| bundle.build_execution_profile() != execution_profile)
-            .map(|bundle| {
-                PackageCompilationInputError::GeneratedSourceBundleExecutionProfileMismatch {
+            .map(
+                |bundle| PackageCompilationInputError::BuildHandoffExecutionProfileMismatch {
                     package: bundle.package(),
                     bundle_profile: bundle.build_execution_profile(),
                     execution_profile,
-                }
-            })
+                },
+            )
             .collect::<Vec<_>>();
         if errors.is_empty() {
             Ok(())
@@ -370,29 +395,19 @@ impl PackageCompilationInputs {
     ) -> Result<Option<PathBuf>, &'static str> {
         let Some(bundle) = self
             .target
-            .dependency_generated_sources
+            .dependency_build_handoffs
             .get(&(package, self.instance_purpose(import_scope)))
         else {
             return Ok(None);
         };
-        let mut matched = None;
-        for source in bundle.sources() {
-            let relative = generated_source_relative_path(source)?;
-            if relative_candidates
-                .iter()
-                .any(|candidate| candidate == &relative)
-            {
-                if matched.is_some() {
-                    return Err("generated-source import resolves to more than one handoff");
-                }
-                matched = Some(generated_source_logical_path(
-                    self.package_root(package)
-                        .expect("validated bundle package retains its source root"),
-                    &relative,
-                ));
-            }
-        }
-        Ok(matched)
+        let Some(source) = bundle.generated_source(relative_candidates)? else {
+            return Ok(None);
+        };
+        Ok(Some(generated_source_logical_path(
+            self.package_root(package)
+                .ok_or("generated-source handoff lost its source supplier")?,
+            &generated_source_relative_path(source)?,
+        )))
     }
 }
 

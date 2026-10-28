@@ -4,25 +4,25 @@
 //!
 //! The carriers a caller binds live in `bindings`; `construction` builds
 //! and revalidates the reconciled graph; `dependency_graph` answers edge,
-//! closure, and cycle questions over it; `generated_sources` attaches the
-//! checked generated-source handoffs of dependency builds; `errors` names
+//! closure, and cycle questions over it; `build_handoffs` attaches the
+//! complete source and Product-selection handoffs of dependency builds; `errors` names
 //! every construction and attachment rejection.
 
 mod bindings;
+mod build_handoffs;
 mod construction;
 mod dependency_graph;
 mod errors;
-mod generated_sources;
 pub mod provider_selection_codec;
 mod provider_selections;
 
 pub use bindings::{
     IndependentComponentDescription, PackageDependencyBinding, PackageSourceBinding,
 };
+pub use build_handoffs::PackageBuildHandoff;
 pub(crate) use construction::canonical_source_root;
 pub use dependency_graph::PackageDependencyClosure;
 pub use errors::PackageCompilationInputError;
-pub use generated_sources::PackageGeneratedSourceBundle;
 
 use crate::{AcceptedSemanticBinding, AcceptedSemanticBindingRole, BuildDeclarationKind};
 use build_declarations::DependencyPurpose;
@@ -48,8 +48,8 @@ pub struct PackageCompilationInputs {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageCompilationTargetInputs {
     purpose: DependencyPurpose,
-    dependency_generated_sources:
-        BTreeMap<(PackageKeyIdentity, DependencyPurpose), PackageGeneratedSourceBundle>,
+    dependency_build_handoffs:
+        BTreeMap<(PackageKeyIdentity, DependencyPurpose), PackageBuildHandoff>,
     accepted_semantic_bindings: BTreeMap<AcceptedSemanticBindingRole, AcceptedSemanticBinding>,
     semantic_role_discovery: bool,
     independent_component_descriptions:
@@ -90,7 +90,7 @@ impl Default for PackageCompilationTargetInputs {
     fn default() -> Self {
         Self {
             purpose: DependencyPurpose::Product,
-            dependency_generated_sources: BTreeMap::new(),
+            dependency_build_handoffs: BTreeMap::new(),
             accepted_semantic_bindings: BTreeMap::new(),
             semantic_role_discovery: false,
             independent_component_descriptions: BTreeMap::new(),
@@ -258,9 +258,9 @@ impl PackageCompilationInputs {
                 .map(|error| Diagnostic::error(error.to_string()))
                 .collect::<Vec<_>>()
         };
-        self.validate_dependency_generated_source_execution_profile(build_profile)
+        self.validate_dependency_build_handoff_execution_profile(build_profile)
             .map_err(diagnostics)?;
-        self.validate_dependency_generated_source_target(selected_target)
+        self.validate_dependency_build_handoff_target(selected_target)
             .map_err(diagnostics)
     }
 
@@ -362,7 +362,7 @@ impl PackageCompilationInputs {
     ) -> Result<Self, Vec<PackageCompilationInputError>> {
         let PackageCompilationTargetInputs {
             purpose,
-            dependency_generated_sources,
+            dependency_build_handoffs,
             accepted_semantic_bindings,
             semantic_role_discovery,
             independent_component_descriptions,
@@ -379,9 +379,9 @@ impl PackageCompilationInputs {
         };
         inputs = inputs
             .with_accepted_semantic_bindings(accepted_semantic_bindings.into_values().collect())?;
-        if !dependency_generated_sources.is_empty() {
-            inputs = inputs.with_complete_dependency_generated_sources(
-                dependency_generated_sources.into_values().collect(),
+        if !dependency_build_handoffs.is_empty() {
+            inputs = inputs.with_complete_dependency_build_handoffs(
+                dependency_build_handoffs.into_values().collect(),
             )?;
         }
         inputs = inputs.with_independent_component_descriptions(

@@ -32,8 +32,8 @@ impl ComponentProductCache {
         digest.raw(&package_compilation::review_cache_inputs_digest(
             build.package_inputs(),
         ));
-        digest.raw(&package_compilation::generated_source_bundle_digest(
-            build.generated_source_bundle(),
+        digest.raw(&package_compilation::package_build_handoff_digest(
+            build.build_handoff(),
         ));
         digest.bytes(&build.optimization_rollback().requested_disabled().encode());
         digest.bytes(&build.build().config.settings.optimizations.encode());

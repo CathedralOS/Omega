@@ -10,8 +10,8 @@ mod retention_identity;
 use diagnostics::Diagnostic;
 use optimization_core::OptimizationRollback;
 use package_compilation::{
-    IndependentComponentDescription, PackageCompilationInputError, PackageCompilationInputs,
-    PackageGeneratedSourceBundle,
+    IndependentComponentDescription, PackageBuildHandoff, PackageCompilationInputError,
+    PackageCompilationInputs,
 };
 use std::path::PathBuf;
 use target::TargetProfile;
@@ -23,7 +23,7 @@ pub struct PreparedPackageBuild {
     inputs: PackageCompilationInputs,
     rollback: OptimizationRollback,
     prepared: PreparedBuild,
-    generated_sources: PackageGeneratedSourceBundle,
+    build_handoff: PackageBuildHandoff,
 }
 
 impl PreparedPackageBuild {
@@ -120,9 +120,9 @@ impl PreparedPackageBuild {
         rollback: OptimizationRollback,
         prepared: PreparedBuild,
     ) -> Result<Self, Vec<Diagnostic>> {
-        let generated_sources = prepared
+        let build_handoff = prepared
             .build_sources
-            .package_generated_source_bundle(
+            .package_build_handoff(
                 prepared.built.source.typed(),
                 &inputs,
                 target,
@@ -152,12 +152,12 @@ impl PreparedPackageBuild {
             inputs,
             rollback,
             prepared,
-            generated_sources,
+            build_handoff,
         })
     }
 
-    pub fn generated_source_bundle(&self) -> &PackageGeneratedSourceBundle {
-        &self.generated_sources
+    pub fn build_handoff(&self) -> &PackageBuildHandoff {
+        &self.build_handoff
     }
 
     pub fn optimization_rollback(&self) -> &optimization_core::OptimizationRollback {
