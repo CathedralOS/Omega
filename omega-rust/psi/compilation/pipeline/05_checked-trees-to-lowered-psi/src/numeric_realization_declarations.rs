@@ -15,6 +15,17 @@ pub struct NumericRealizationDeclarations {
 }
 
 impl NumericRealizationDeclarations {
+    /// Exact retained numeric schema; absence grants no alternative execution.
+    pub fn has_requirement_schema(&self, symbol: SymbolHandle) -> bool {
+        let Some(nominal) = self.nominal(symbol) else {
+            return false;
+        };
+        self.conformances.iter().any(|candidate| {
+            self.identities.text(candidate.requirement.identity()) == Some(nominal)
+                && candidate.requirement_schema.is_some()
+        })
+    }
+
     /// Resolve a source coordinate in this exact checked owner's namespace.
     pub fn nominal(&self, symbol: SymbolHandle) -> Option<&str> {
         let (_, declaration) = self
