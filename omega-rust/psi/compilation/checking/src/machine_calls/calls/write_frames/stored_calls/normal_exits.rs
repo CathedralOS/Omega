@@ -52,9 +52,25 @@ fn solve_state_effects<'program>(
     let mut index = 0;
     while index < states.len() {
         let (machine, state) = states[index];
-        let inventory = destination_inventory(program, state)?;
-        let (last, prefixes) =
-            stored_reference_transfer(program, machine, state, symbols, inference)?;
+        let refusal = |phase| {
+            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                eprintln!(
+                    "CHECKSITE slot-exit-equation-refusal machine={} state={} phase={}",
+                    machine.name, state.name, phase
+                );
+            }
+        };
+        let inventory = destination_inventory(program, state).or_else(|| {
+            refusal("inventory");
+            None
+        })?;
+        let (last, prefixes) = stored_reference_transfer(
+            program, machine, state, symbols, inference,
+        )
+        .or_else(|| {
+            refusal("prefix");
+            None
+        })?;
         let mut exits = Vec::new();
         let mut has_transition = false;
         for (ordinal, statement) in program
@@ -71,7 +87,11 @@ fn solve_state_effects<'program>(
             let prefix = prefixes.get(ordinal)?.as_ref()?;
             let completed = expression_effects::prepare_normal_exits(
                 program, machine, state, statement, prefix, symbols, inference,
-            )?;
+            )
+            .or_else(|| {
+                refusal("outgoing-entries");
+                None
+            })?;
             for completed in completed {
                 if let Some((target_machine, target)) = completed.arrival {
                     let target_index = if let Some(index) = states
@@ -132,13 +152,25 @@ fn solve_state_effects<'program>(
                             relative,
                             prefix,
                             symbols,
-                        )?;
+                        )
+                        .or_else(|| {
+                            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                                eprintln!(
+                                    "CHECKSITE slot-exit-solve-refusal state={} phase=instantiate",
+                                    equation.state.name
+                                );
+                            }
+                            None
+                        })?;
                         retain_demanded_substitutions(
                             equation.state,
                             equations[*target].state,
                             &instantiated.substitutions,
                             &mut substitutions,
-                        )?;
+                        ).or_else(|| {
+                            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() { eprintln!("CHECKSITE slot-exit-solve-refusal state={} phase=finite-substitution", equation.state.name); }
+                            None
+                        })?;
                         let mut stored = prefix.stored.clone();
                         apply(program, &mut stored, &instantiated.effects);
                         stored
@@ -194,7 +226,17 @@ fn solve_state_effects<'program>(
                 }
             }
             for stored in &returned {
-                collect_exit(program, equation.state, &inventory, stored, &mut candidate)?;
+                collect_exit(program, equation.state, &inventory, stored, &mut candidate).or_else(
+                    || {
+                        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                            eprintln!(
+                                "CHECKSITE slot-exit-solve-refusal state={} phase=exit-inventory",
+                                equation.state.name
+                            );
+                        }
+                        None
+                    },
+                )?;
             }
             if known[index].is_none() {
                 known[index] = Some(Vec::new());
