@@ -206,6 +206,14 @@ fn state_equation<'program>(
     inference: &mut FrameInference,
     include_shared: bool,
 ) -> Option<state_equations::Equation<'program>> {
+    let trace_refusal = |phase: &str| {
+        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            eprintln!(
+                "CHECKSITE result-state-refusal machine={} state={} phase={}",
+                machine.name, state.name, phase
+            );
+        }
+    };
     input_moves::validate_frozen_inputs(
         program,
         machine,
@@ -243,6 +251,7 @@ fn state_equation<'program>(
                 )
             })
     }) {
+        trace_refusal("unresolved-exclusive-operand");
         return None;
     }
     for statement in statements {
@@ -269,7 +278,12 @@ fn state_equation<'program>(
                 super::ExpressionNode::Borrow(borrow) => borrow.target,
                 _ => source,
             };
-            super::reference_origins::declared_origin_root(program, machine, source)?;
+            super::reference_origins::declared_origin_root(program, machine, source).or_else(
+                || {
+                    trace_refusal("unresolved-source-root");
+                    None
+                },
+            )?;
         }
     }
     let already_active = inference.active_states.contains(&state.symbol);
@@ -783,6 +797,14 @@ fn merge_named_edge<'program>(
     edges: &mut Vec<state_equations::Edge<'program>>,
     boundary_prefix: Option<&CollectedStatementPrefix>,
 ) -> Option<()> {
+    let trace_refusal = |phase: &str| {
+        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            eprintln!(
+                "CHECKSITE result-edge-refusal machine={} state={} phase={}",
+                machine.name, source_state.name, phase
+            );
+        }
+    };
     let TransitionTargetNode::Named { .. } = program.statement_table.transition_target(edge) else {
         return None;
     };
@@ -801,6 +823,22 @@ fn merge_named_edge<'program>(
                 expected_result,
             )
         {
+            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                eprintln!(
+                    "CHECKSITE result-edge-callee machine={} callee={} checked={} body={} generics={} storage-match={}",
+                    machine.name,
+                    callee.name,
+                    callee.supply_mode == language_semantics::MachineSupplyMode::CheckedBody,
+                    callee.body_is_present,
+                    program.machine_type_parameters(callee).len(),
+                    super::isolation::aggregate_storage_types_match(
+                        program,
+                        state.return_type,
+                        expected_result
+                    )
+                );
+            }
+            trace_refusal("callee-formation");
             return None;
         }
         state
@@ -810,6 +848,7 @@ fn merge_named_edge<'program>(
     let arguments = program.statement_table.expression_handles(edge_arguments);
     let parameters = program.state_parameters(target_state);
     if arguments.len() != parameters.iter().count() {
+        trace_refusal("parameter-or-result-correspondence");
         return None;
     }
     // A named state may omit its own `-> T` annotation; one that declares it
@@ -822,6 +861,7 @@ fn merge_named_edge<'program>(
             expected_result,
         )
     {
+        trace_refusal("parameter-or-result-correspondence");
         return None;
     }
     let context = boundary_prefix?;
