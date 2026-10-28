@@ -29,7 +29,9 @@ and [proof contracts](../../../../wiki/spec/proofs/contracts.md).
 `FirstReading` returns 1100 and `SecondReading` returns 2100. The same portable
 `Reading::total()` call has explicit Build rows selecting the first implementation
 for Windows, Linux x86-64 and macOS x86-64, and the second for macOS ARM64
-and Linux ARM64. The owning package records those rows; applications do not
+and Linux ARM64. Every owning package records those rows through an ordinary generic Build
+helper; its generated invocation retains the exact authored declaration and
+original activation. Applications do not
 repeat its private provider names. Both
 implementations are checked, and their stronger private result values do not
 become a caller premise. Each reject twin weakens only the public lower bound
