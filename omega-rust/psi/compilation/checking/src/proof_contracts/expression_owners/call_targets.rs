@@ -98,6 +98,7 @@ pub fn checked_machine_call_target_from_exact_owner(
         call,
         owner_index,
     )
+    .ok()?
     .or_else(|| {
         checked_machine_call_target_from_executable_owner(
             program,
@@ -109,19 +110,30 @@ pub fn checked_machine_call_target_from_exact_owner(
     })
 }
 
-pub(super) fn checked_machine_call_target_from_type_owners(
+fn checked_machine_call_target_from_type_owners(
     program: &dyn crate::CheckingInput,
     contract_facts: &arena::Arena<checked_trees::ContractProofFact>,
     expression: ExpressionHandle,
     call: &typed_trees::expression::TableCallExpression,
     owner_index: Option<&OwnerEnvironmentIndex>,
-) -> Option<SymbolHandle> {
+) -> Result<Option<SymbolHandle>, ()> {
+    let Some(environments) =
+        exact_owner_environments(program, contract_facts, expression, owner_index)
+    else {
+        return Ok(None);
+    };
     let mut target = None;
-    for environment in exact_owner_environments(program, contract_facts, expression, owner_index)? {
-        let candidate = call_target_in_environment(program, call, &environment)?;
-        retain_consistent(&mut target, candidate)?;
+    let mut complete = true;
+    for environment in environments {
+        let Some(candidate) = call_target_in_environment(program, call, &environment) else {
+            complete = false;
+            continue;
+        };
+        // A missing answer permits the existing executable-site query, but
+        // contradictory exact owners must never be hidden by that fallback.
+        retain_consistent(&mut target, candidate).ok_or(())?;
     }
-    target
+    Ok(complete.then_some(target).flatten())
 }
 
 pub(super) fn checked_machine_call_target_from_executable_owner(

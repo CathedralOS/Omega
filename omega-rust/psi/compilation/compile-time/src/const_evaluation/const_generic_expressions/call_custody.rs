@@ -594,6 +594,10 @@ impl<'program> Collector<'program> {
         // Local alpha copies already name their exact executable declaration.
         // Ordinary retargeting instead retains the resolver's source target.
         // Do not project both applications: different tuples can share a template.
+        // A source selection made before body completion can name the machine
+        // itself. Once its body exists, that same declaration enters its first
+        // state; this correspondence does not erase a specialization's tuple.
+        let selected = call_selections::callable_entry(self.program, selected)?;
         Ok(selected == target || selected == self.authored_target(target, initializer)?)
     }
 
