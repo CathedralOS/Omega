@@ -29,7 +29,10 @@ exposes another refusal: the second completed call compares its new descriptor
 against the generation retired by that call. A zero formation expression
 already records statement-call completion; checking now consumes the existing
 post-call, pre-store cut and requires that exact loan to be present there.
-It grants no new access or pointer geometry.
+It grants no new access or pointer geometry. Completing calls retain an
+unchanged static telescope by exact resolved binder identity; changed static
+applications still require their ordinary specialization. The existing copied
+computed indexed-view snapshot row supplies the const-dependent comparison.
 
 ## Requirements and evidence
 
@@ -58,8 +61,8 @@ It grants no new access or pointer geometry.
   signal 5 and Terminal `Trap`. The counter and backing observations therefore
   discriminate omitted, repeated and misplaced effects.
 
-Measured producer: `8b8da0f2bb0` (opt-level 1, pinned nightly, macOS ARM64),
-CLI SHA-256 `969366ae3b32519d5cc1bf6c3ccec309aca900c4a8ac86bc68dff7eb44f8b1c1`.
+Measured producer: `2b42461073a` (opt-level 1, pinned nightly, macOS ARM64),
+CLI SHA-256 `97ce9cd1ef7af32a52d2b8993d42da7ee159bfc9dc238d6319181b96751ad42e`.
 Raw receipts, locks and observations remain in the owning qualification/claim
 record (`build/nested-loans/`). Initial invalid-tail and missing-ceiling setup
 logs remain separate from the valid baseline refusals. Other-host native
