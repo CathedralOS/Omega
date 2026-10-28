@@ -1,0 +1,35 @@
+// The recorded count is below 4, so its exact increment preserves the buffer count <= 4 default domain.
+// Expected exit: 0
+data Window where count <= 4 { bytes: [u8; 4]; count: u64; canary: u64; }
+machine probe(window: &mut Window, enabled: bool, value: u8) {
+    let ready: bool = window.count < 4;
+    transition enabled && ready { true -> read(window, value) false -> {} }
+    machine read(window: &mut Window, value: u8) {
+        window.bytes[0] = value;
+        window.count = window.count + 1;
+    }
+}
+machine main() crashes Trap {
+    let mut window: Window;
+    window.canary = 33;
+    window.count = 3;
+    window.bytes[0] = 7;
+    probe(&mut window, true, 37);
+    let first_count: u64 = window.count;
+    let first_byte: u8 = window.bytes[0];
+    probe(&mut window, true, 19);
+    let full_count: u64 = window.count;
+    let full_byte: u8 = window.bytes[0];
+    window.count = 0;
+    probe(&mut window, true, 11);
+    let second_count: u64 = window.count;
+    let second_byte: u8 = window.bytes[0];
+    window.count = 2;
+    probe(&mut window, false, 23);
+    transition first_count == 3 && first_byte == 37 && full_count == 4 && full_byte == 37
+        && second_count == 1 && second_byte == 11 && window.count == 2
+        && window.bytes[0] == 11 && window.canary == 33 {
+        true -> {} false -> bad()
+    }
+    machine bad() crashes Trap { crash Trap; }
+}

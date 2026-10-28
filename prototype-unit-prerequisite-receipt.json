@@ -1,0 +1,45 @@
+{
+  "revision": "c3d0af5c9cb3d9e965a1a8a10f5559bda21fdbcc",
+  "base": "f79ca742d1c024ccc65ef6359bbb81a77484604b",
+  "commands": [
+    [
+      "cargo",
+      "build",
+      "--locked",
+      "-p",
+      "omega",
+      "--bin",
+      "omega",
+      "--message-format=json"
+    ],
+    [
+      "cargo",
+      "build",
+      "--locked",
+      "-p",
+      "compiler",
+      "--test",
+      "corpus_runner",
+      "--message-format=json"
+    ]
+  ],
+  "executables": {
+    "omega": {
+      "binary": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/joint-rank/build/statement-completion/producer-independent-premises/omega",
+      "sha256": "7fbe61454c97eb7272c9c098a100b4d2bea4a617a009e3edeec3fe43345d6a82",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    },
+    "corpus_runner": {
+      "binary": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/joint-rank/build/statement-completion/producer-independent-premises/corpus_runner",
+      "sha256": "cd35540fac42456408a0b589350fd2c327ca3247841c16f478fc041bcbb1dc47",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    }
+  },
+  "toolchain": "rustc 1.100.0-nightly (a69a63265 2026-09-03)\nbinary: rustc\ncommit-hash: a69a63265cfd9e006d43137f98301b8d274ad4c9\ncommit-date: 2026-09-03\nhost: aarch64-apple-darwin\nrelease: 1.100.0-nightly\nLLVM version: 23.1.1\n"
+}

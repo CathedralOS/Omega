@@ -1,0 +1,53 @@
+{
+  "parent": "NESTED-MACHINE-UNIFICATION",
+  "parent_fixed_base": "baf1b6ea0633681bcc2cf34d563d748a47fadb36",
+  "fixed_author_base": "05e1922eb7b4d554a7d5ee84e47f99ebb3304827",
+  "submitted_source": "5a92d9be95a2b909fbbfe47a2c278acf4b9e6d49",
+  "producer": "5792c1685e9e7ba6bdd976d0bafb4ca514acaef9",
+  "runner": "860b169d5798c3ad0b8e94ed8fb634d9d3db7ff3",
+  "target": "macos_arm64",
+  "nine_positive_places": true,
+  "nine_fact_sensitive_twins": true,
+  "positive_controls": 2,
+  "negative_controls": 5,
+  "pinned_source_outcomes": 25,
+  "pinned_native_terminal_zero_agreements": 11,
+  "counterfactual": "Native signal5 and Terminal Trap agree",
+  "focused": {
+    "source": {
+      "observations": 287,
+      "inherited": [
+        "pass/dependent/data_where_call_frame_preserves_disjoint_valuation_compile",
+        "pass/domains/unit_membership_postcondition_exit",
+        "fail/dependent/data_where_live_borrow_pins_witness_rejected"
+      ],
+      "statuses": {
+        "checked": 153,
+        "rejected": 134
+      }
+    },
+    "both": {
+      "observations": 155,
+      "inherited": [
+        "pass/control_flow/unconditional_unit_completion_exit",
+        "pass/dependent/data_where_call_frame_preserves_disjoint_valuation_compile",
+        "pass/domains/unit_membership_postcondition_exit",
+        "pass/generics/const_index_gated_default_domain_exit",
+        "pass/generics/const_index_nested_default_domain_exit"
+      ],
+      "statuses": {
+        "built": 111,
+        "checked": 42,
+        "rejected": 2
+      }
+    }
+  },
+  "runtime": {
+    "native_terminal_exit_agreements": 108,
+    "declaration_only": 42,
+    "terminal_only_foreign_native_unmeasured": 3,
+    "refusals": 2
+  },
+  "remaining": "Full product declaration-model migration remains unfinished. Full parser replay timed out90s on both compilers and is unverified; unused SourceUnit module checks pass on both and are coverage only. Other-host native execution remains unverified. Raw corpus gates remain3 for exact inherited outcomes; no unrelated rows repinned."
+}
+

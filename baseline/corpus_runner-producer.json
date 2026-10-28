@@ -1,0 +1,37 @@
+{
+  "revision": "05e1922eb7b4d554a7d5ee84e47f99ebb3304827",
+  "sha256": "2a0023dd67c3aae3b913870dfd8df78457857d9dadb760bc36f11a7a28951106",
+  "profile": "{\"schema\":\"omega-compiler-build-profile-v1\",\"opt_level\":\"1\"}\n",
+  "cargo_artifact": {
+    "reason": "compiler-artifact",
+    "package_id": "path+file:///Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/omega/compilation/driver#compiler@0.1.0",
+    "manifest_path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/omega/compilation/driver/Cargo.toml",
+    "target": {
+      "kind": [
+        "test"
+      ],
+      "crate_types": [
+        "bin"
+      ],
+      "name": "corpus_runner",
+      "src_path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/omega/compilation/driver/tests/corpus_runner.rs",
+      "edition": "2024",
+      "doc": false,
+      "doctest": false,
+      "test": true
+    },
+    "profile": {
+      "opt_level": "1",
+      "debuginfo": 0,
+      "debug_assertions": true,
+      "overflow_checks": true,
+      "test": true
+    },
+    "features": [],
+    "filenames": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/target/debug/build/compiler/8086dd3fcbc9c402/out/corpus_runner-8086dd3fcbc9c402"
+    ],
+    "executable": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/target/debug/build/compiler/8086dd3fcbc9c402/out/corpus_runner-8086dd3fcbc9c402",
+    "fresh": false
+  }
+}

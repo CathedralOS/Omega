@@ -1,0 +1,19 @@
+// A guarded count remains bounded when an unrelated indexed byte is written before incrementing it.
+// Expected exit: 0
+ data Tokens where count <= 4 { bytes: [u8; 4]; count: u64; }
+ machine append(tokens: &mut Tokens, value: u8) {
+    transition tokens.count < 4 { true -> retain(tokens, value) false -> {} }
+    machine retain(tokens: &mut Tokens, value: u8) {
+        tokens.bytes[tokens.count] = value;
+        tokens.count = tokens.count + 1;
+ transition { _ -> {} }
+    }
+ }
+ machine main() crashes Trap {
+    let mut tokens: Tokens;
+    tokens.count = 0;
+    append(&mut tokens, 37);
+    append(&mut tokens, 11);
+    transition tokens.count == 2 && tokens.bytes[0] == 37 && tokens.bytes[1] == 11 { true -> {} false -> bad() }
+    machine bad() crashes Trap { crash Trap; }
+ }
