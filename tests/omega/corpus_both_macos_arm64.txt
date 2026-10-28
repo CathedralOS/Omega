@@ -346,13 +346,14 @@ pass/calls/runtime_copied_argument_live_mutable_ensures_exit built 3758ms exit:0
 pass/calls/runtime_copied_record_call_results_reused_exit built 6722ms exit:0 interpreter-exit:0 interpreter:agrees @46f0869e8a22
 pass/calls/runtime_cyclic_state_reference_result_exit built 8642ms exit:0 interpreter-exit:0 interpreter:agrees @8ed3ee405530
 pass/calls/runtime_explicit_reference_alias_argument_exit built 800ms exit:0 interpreter-exit:0 interpreter:agrees @bf12cd0f89bb+wt
+pass/calls/runtime_fused_child_computed_borrow_exit built 1056ms exit:0 interpreter-exit:0 interpreter:agrees @df81b50e7efd
 pass/calls/runtime_guarded_boundary_tail_call_exit built 1559ms exit:70 interpreter-exit:70 interpreter:agrees @107e79a608d59bd9eb5a38b5570d124edf1e1114+wt
 pass/calls/runtime_guarded_reference_return_before_crash_exit built 1303ms exit:0 interpreter-exit:0 interpreter:agrees @73ef9378f1a6
 pass/calls/runtime_guarded_terminal_array_operands_exit built 1322ms exit:0 interpreter-exit:0 interpreter:agrees @db3378f05a303f15e6de9c2597a21c18e3d9fa78
 pass/calls/runtime_guarded_terminal_guard_order_exit built 1144ms exit:0 interpreter-exit:0 interpreter:agrees @9384bb69f1d480980ed1e7a4d01c0f9327e873ad
 pass/calls/runtime_guarded_terminal_mutable_reference_result_exit built 2048ms exit:0 interpreter-exit:0 interpreter:agrees @23ad5028e896
 pass/calls/runtime_guarded_terminal_operand_order_exit built 842ms exit:0 interpreter-exit:0 interpreter:agrees @e2a12bf7c056aa30aa020384afcb304e80173f68
-pass/calls/runtime_guarded_terminal_record_field_exit built 1242ms exit:0 interpreter-exit:0 interpreter:agrees @0b82225a93b4
+pass/calls/runtime_guarded_terminal_record_field_exit built 1140ms exit:0 interpreter-exit:0 interpreter:agrees @df81b50e7efd
 pass/calls/runtime_guarded_terminal_reference_result_exit built 2336ms exit:0 interpreter-exit:0 interpreter:agrees @3214ae815320
 pass/calls/runtime_guarded_terminal_reference_write_exit built 1443ms exit:0 interpreter-exit:0 interpreter:agrees @23ad5028e896
 pass/calls/runtime_guarded_terminal_structural_result_exit built 1267ms exit:0 interpreter-exit:0 interpreter:agrees @4f20c0c110be
@@ -511,7 +512,7 @@ pass/control_flow/runtime_ranked_state_cycle_owned_record_exit built 2205ms exit
 pass/control_flow/runtime_returned_nested_case_payload_capture_exit built 11883ms exit:0 interpreter-exit:0 interpreter:agrees @eea776ff9546+wt
 pass/control_flow/runtime_root_float_case_payload_exit built 4076ms exit:70 interpreter-exit:70 interpreter:agrees @a800cc9ab970
 pass/control_flow/runtime_scalar_case_arm_evaluation_exit built 38663ms exit:0 interpreter-exit:0 interpreter:agrees @e03f48653b6a
-pass/control_flow/runtime_terminal_unit_local_cleanup_exit built 1152ms exit:0 interpreter-exit:0 interpreter:agrees @0b82225a93b4
+pass/control_flow/runtime_terminal_unit_local_cleanup_exit built 992ms exit:0 interpreter-exit:0 interpreter:agrees @df81b50e7efd
 pass/control_flow/saved_case_predicate_disjoint_effects_exit built 791ms exit:0 interpreter-exit:0 interpreter:agrees @3d64278a43eb
 pass/control_flow/saved_case_predicate_receiver_writes_before_read_exit built 1943ms exit:0 interpreter-exit:0 interpreter:agrees @ec25f66f10a3
 pass/control_flow/self_case_payload_both_arms_exit built 2333ms exit:70 interpreter-exit:70 interpreter:agrees @6a3a2f5cba58
@@ -4380,7 +4381,7 @@ pass/slices/runtime_machine_entry_view_requires_index_exit built 1976ms exit:70 
 pass/slices/runtime_matched_window_coordinate_capture_exit built 3361ms exit:0 interpreter-exit:0 interpreter:agrees @3384eccdf464
 pass/slices/runtime_mutable_byte_view_loop_write_exit built 7114ms exit:70 interpreter-exit:70 interpreter:agrees @3fa817733300+wt
 pass/slices/runtime_nested_descriptor_scalar_store_exit built 3203ms exit:0 interpreter-exit:0 interpreter:agrees @7ba26861e79c+wt
-pass/slices/runtime_nested_machine_field_window_exit built 1289ms exit:0 interpreter-exit:0 interpreter:agrees @8ed577b2a049
+pass/slices/runtime_nested_machine_field_window_exit built 999ms exit:0 interpreter-exit:0 interpreter:agrees @df81b50e7efd
 pass/slices/runtime_nested_stored_view_element_replacement_exit built 3131ms exit:0 interpreter-exit:0 interpreter:agrees @f48a7c9556ec+wt
 pass/slices/runtime_nonzero_window_result_snapshot_exit built 2243ms exit:0 interpreter-exit:0 interpreter:agrees @daf76df20a9d+wt
 pass/slices/runtime_observed_window_extents_exit built 1425ms exit:0 interpreter-exit:0 interpreter:agrees @daf76df20a9d+wt
