@@ -7932,6 +7932,36 @@ fail/facts/erased_reference_contract_through_target_body_rejected rejected 1362m
 	cannot prove requires contract for call keep from selected: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/erased_reference_foreign_body_rejected rejected 1334ms expected @a92f16431042
 	cannot prove requires contract for call keep from selected: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/exact_integer_narrowing_computed_source_rejected rejected 633ms expected @4588a029b629
+	Exact integer cast in machine `emit` state `entry` from `u32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/facts/exact_integer_narrowing_guarded_trapping_result_rejected rejected 817ms expected @4588a029b629
+	Exact integer cast in machine `narrow` state `entry` from `u32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/facts/exact_integer_narrowing_selected_operations_rejected rejected 637ms expected @4588a029b629
+	Exact integer cast in machine `apply` state `entry` from `u32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+	Exact integer cast in machine `apply` state `entry` from `u32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/facts/exact_integer_narrowing_through_call_result_rejected rejected 860ms expected @4588a029b629
+	Exact integer cast in machine `apply` state `entry` from `i32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/facts/exact_integer_narrowing_through_const_name_rejected rejected 768ms expected @4588a029b629
+	Exact integer cast in machine `apply` state `entry` from `i32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/facts/exact_integer_narrowing_through_field_rejected rejected 807ms expected @4588a029b629
+	Exact integer cast in machine `apply` state `entry` from `i32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/facts/exact_integer_narrowing_through_local_rejected rejected 696ms expected @4588a029b629
+	Exact integer cast in machine `apply` state `entry` from `i32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/facts/exact_integer_narrowing_through_match_join_rejected rejected 495ms expected @4588a029b629
+	Exact integer cast in machine `apply` state `entry` from `i32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/facts/exact_integer_narrowing_through_other_machine_rejected rejected 829ms expected @4588a029b629
+	Exact integer cast in machine `apply` state `entry` from `i32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/facts/exact_integer_narrowing_through_other_state_rejected rejected 691ms expected @4588a029b629
+	Exact integer cast in machine `apply` state `entry` from `i32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/facts/exact_integer_narrowing_through_parameter_rejected rejected 557ms expected @4588a029b629
+	Exact integer cast in machine `apply` state `entry` from `i32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/facts/exact_integer_narrowing_through_target_body_rejected rejected 683ms expected @4588a029b629
+	Exact integer cast in machine `apply` state `entry` from `i32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+	Exact integer cast in machine `apply` state `entry` from `i32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+	Exact integer cast in machine `apply` state `entry` from `i32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+	Exact integer cast in machine `apply` state `entry` from `i32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/facts/exact_integer_narrowing_unsafe_exact_intermediate_rejected rejected 601ms expected @4588a029b629
+	exact arithmetic in machine `apply` state `entry` local `overflowed` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/exact_sub_guard_through_call_result_rejected rejected 436ms expected @a92f16431042
 	exact arithmetic in machine `walk` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `supply(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
 fail/facts/exact_sub_guard_through_const_name_rejected rejected 431ms expected @a92f16431042
@@ -17485,6 +17515,8 @@ fail/facts/unsigned_32bit_division_remainder_bound_through_target_body_rejected 
 	exact arithmetic in machine `remainder_target` state `entry` local `headroom` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `remainder_target` state `entry` local `headroom` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `remainder_target` state `entry` local `headroom` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/unsigned_32bit_division_remainder_bound_wrapping_local_result_rejected rejected 5925ms expected @4588a029b629
+	remainder by zero in machine `bounded_remainder` state `entry` local `remainder`: the divisor is provably zero, which always traps at runtime. Remove the operation or use a nonzero divisor.
 fail/facts/unsigned_32bit_exact_arithmetic_bound_through_call_result_rejected rejected 849ms expected @a92f16431042
 	exact arithmetic in machine `evaluate` state `entry` local `headroom` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/unsigned_32bit_exact_arithmetic_bound_through_const_name_rejected rejected 848ms expected @a92f16431042
@@ -26246,6 +26278,18 @@ pass/facts/erased_reference_contract_through_other_machine_exit checked 3026ms c
 pass/facts/erased_reference_contract_through_other_state_exit checked 3022ms check-target:macos_arm64 @a92f16431042
 pass/facts/erased_reference_contract_through_parameter_exit checked 2210ms check-target:macos_arm64 @a92f16431042
 pass/facts/erased_reference_contract_through_target_body_exit checked 2108ms check-target:macos_arm64 @a92f16431042
+pass/facts/exact_integer_narrowing_computed_source_exit checked 3755ms check-target:macos_arm64 @4588a029b629
+pass/facts/exact_integer_narrowing_guarded_trapping_result_exit checked 4080ms check-target:macos_arm64 @4588a029b629
+pass/facts/exact_integer_narrowing_selected_operations_exit checked 4015ms check-target:macos_arm64 @4588a029b629
+pass/facts/exact_integer_narrowing_through_call_result_exit checked 3643ms check-target:macos_arm64 @4588a029b629
+pass/facts/exact_integer_narrowing_through_const_name_exit checked 3976ms check-target:macos_arm64 @4588a029b629
+pass/facts/exact_integer_narrowing_through_field_exit checked 3655ms check-target:macos_arm64 @4588a029b629
+pass/facts/exact_integer_narrowing_through_local_exit checked 3653ms check-target:macos_arm64 @4588a029b629
+pass/facts/exact_integer_narrowing_through_match_join_exit checked 4096ms check-target:macos_arm64 @4588a029b629
+pass/facts/exact_integer_narrowing_through_other_machine_exit checked 4031ms check-target:macos_arm64 @4588a029b629
+pass/facts/exact_integer_narrowing_through_other_state_exit checked 4023ms check-target:macos_arm64 @4588a029b629
+pass/facts/exact_integer_narrowing_through_parameter_exit checked 2758ms check-target:macos_arm64 @4588a029b629
+pass/facts/exact_integer_narrowing_through_target_body_exit checked 2759ms check-target:macos_arm64 @4588a029b629
 pass/facts/exact_sub_guard_through_call_result_exit checked 2047ms check-target:macos_arm64 @a92f16431042
 pass/facts/exact_sub_guard_through_const_name_exit checked 2631ms check-target:macos_arm64 @a92f16431042
 pass/facts/exact_sub_guard_through_field_exit checked 2741ms check-target:macos_arm64 @a92f16431042
@@ -30163,6 +30207,7 @@ pass/facts/unsigned_32bit_division_remainder_bound_through_other_machine_exit ch
 pass/facts/unsigned_32bit_division_remainder_bound_through_other_state_exit checked 2415ms check-target:macos_arm64 @a92f16431042
 pass/facts/unsigned_32bit_division_remainder_bound_through_parameter_exit checked 2373ms check-target:macos_arm64 @a92f16431042
 pass/facts/unsigned_32bit_division_remainder_bound_through_target_body_exit checked 2378ms check-target:macos_arm64 @a92f16431042
+pass/facts/unsigned_32bit_division_remainder_bound_wrapping_local_result_exit checked 8852ms check-target:macos_arm64 @4588a029b629
 pass/facts/unsigned_32bit_exact_arithmetic_bound_through_call_result_exit checked 2410ms check-target:macos_arm64 @a92f16431042
 pass/facts/unsigned_32bit_exact_arithmetic_bound_through_const_name_exit checked 2387ms check-target:macos_arm64 @a92f16431042
 pass/facts/unsigned_32bit_exact_arithmetic_bound_through_field_exit checked 2343ms check-target:macos_arm64 @a92f16431042
