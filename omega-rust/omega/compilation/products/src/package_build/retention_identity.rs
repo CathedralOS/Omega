@@ -31,9 +31,18 @@ impl PreparedPackageBuild {
             source_contents: HashMap::new(),
         };
         identity.computed(&self.prepared.built.computed_build_config)?;
-        for bundle in self.inputs.dependency_build_handoffs() {
+        identity
+            .digest
+            .len(self.inputs.dependency_build_handoff_instances().count());
+        for (scope, bundle) in self.inputs.dependency_build_handoff_instances() {
+            identity.digest.byte(match scope {
+                build_declarations::DependencyPurpose::Product => 1,
+                build_declarations::DependencyPurpose::Build => 2,
+            });
             identity.package(Some(bundle.package()));
-            identity.digest.raw(&package_compilation::native_output_codec::digest(bundle));
+            identity
+                .digest
+                .raw(&package_compilation::native_output_codec::digest(bundle));
         }
         identity.admission(&self.prepared.built.admission);
         Ok(identity.digest.finish())
@@ -262,7 +271,9 @@ impl BuildOutputIdentity<'_> {
             }
         }
         self.digest.bool(native_binding_evaluation.is_some());
-        if let Some(evaluation) = native_binding_evaluation { self.digest.raw(&evaluation.identity_digest()); }
+        if let Some(evaluation) = native_binding_evaluation {
+            self.digest.raw(&evaluation.identity_digest());
+        }
         self.digest.len(admitted_native_bindings.len());
         for row in admitted_native_bindings {
             self.symbol(row.requirement)?;
