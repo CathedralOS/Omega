@@ -15,7 +15,8 @@ machine consume(first: Division, copied: Division) -> bool reaches IntegerDivisi
 }
 machine receive(value: Division) -> bool reaches IntegerDivision { consume(value, value) }
 trait Observation {
- machine observe(expected_tag: u64) -> bool reaches IntegerDivision;
+ machine observe(expected_tag: u64) -> bool reaches IntegerDivision
+ invokes IntegerDivision;
 }
 MacObservation satisfies Observation {
  machine observe(expected_tag: u64) -> bool reaches IntegerDivision {
