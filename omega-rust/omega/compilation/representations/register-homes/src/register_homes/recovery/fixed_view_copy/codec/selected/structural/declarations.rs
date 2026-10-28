@@ -26,6 +26,7 @@ use crate::register_homes::recovery::fixed_view_copy::codec::{
     },
     values::{decode_bool, decode_scalar, encode_scalar},
 };
+pub(super) use legalized_operations::identity::encode_structural_place as encode_place;
 use legalized_operations::{encode_placement, encode_shape};
 
 mod bounded_integer;
@@ -602,64 +603,6 @@ pub(super) fn decode_target_argument(
         source: decode_argument_source(cursor)?,
         destination: decode_placement(cursor)?,
     })
-}
-
-pub(super) fn encode_place(bytes: &mut Vec<u8>, place: StructuralPlaceDeclaration) {
-    crate::codec_bytes::push_encoded(bytes, place.id.get().to_le_bytes());
-    match place.kind {
-        StructuralPlaceKind::Parameter { position } => {
-            bytes.push(1);
-            crate::codec_bytes::push_encoded(bytes, position.to_le_bytes());
-        }
-        StructuralPlaceKind::BlockParameter { block, position } => {
-            bytes.push(8);
-            crate::codec_bytes::push_encoded(bytes, block.get().to_le_bytes());
-            crate::codec_bytes::push_encoded(bytes, position.to_le_bytes());
-        }
-        StructuralPlaceKind::Result => bytes.push(2),
-        StructuralPlaceKind::OperationResult {
-            producer,
-            structural_type,
-        } => {
-            bytes.push(3);
-            crate::codec_bytes::push_encoded(bytes, producer.get().to_le_bytes());
-            crate::codec_bytes::push_encoded(bytes, structural_type.get().to_le_bytes());
-        }
-        StructuralPlaceKind::ByteSequenceLiteral {
-            declaration_ordinal,
-            structural_type,
-        } => {
-            bytes.push(4);
-            crate::codec_bytes::push_encoded(bytes, declaration_ordinal.to_le_bytes());
-            crate::codec_bytes::push_encoded(bytes, structural_type.get().to_le_bytes());
-        }
-        StructuralPlaceKind::ProviderAttachment {
-            attachment,
-            field,
-            boundary,
-        } => {
-            bytes.push(5);
-            crate::codec_bytes::push_encoded(bytes, attachment.get().to_le_bytes());
-            crate::codec_bytes::push_encoded(bytes, field.get().to_le_bytes());
-            crate::codec_bytes::push_encoded(bytes, boundary.get().to_le_bytes());
-        }
-        StructuralPlaceKind::TrivialAffineLocal {
-            declaration_ordinal,
-            structural_type,
-            construction,
-        } => {
-            bytes.push(if construction.is_some() { 7 } else { 6 });
-            crate::codec_bytes::push_encoded(bytes, declaration_ordinal.to_le_bytes());
-            crate::codec_bytes::push_encoded(bytes, structural_type.get().to_le_bytes());
-            if let Some(construction) = construction {
-                crate::codec_bytes::push_encoded(
-                    bytes,
-                    construction.root_structural_type.get().to_le_bytes(),
-                );
-                crate::codec_bytes::push_encoded(bytes, construction.index.to_le_bytes());
-            }
-        }
-    }
 }
 
 pub(super) fn decode_place(

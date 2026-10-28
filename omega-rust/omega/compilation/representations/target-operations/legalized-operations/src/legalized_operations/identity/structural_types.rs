@@ -295,7 +295,10 @@ fn encode_structural_projection(bytes: &mut Vec<u8>, segment: &StructuralPathSeg
     }
 }
 
-pub(super) fn encode_structural_place(bytes: &mut Vec<u8>, place: StructuralPlaceDeclaration) {
+/// One structural place declaration: the place identity, then the tag and
+/// payload of the kind that declared it. The plan identity and the recovery
+/// codec publish the same row, so its spelling lives beside the type it reads.
+pub fn encode_structural_place(bytes: &mut Vec<u8>, place: StructuralPlaceDeclaration) {
     crate::codec_bytes::push_encoded(bytes, place.id.get().to_le_bytes());
     match place.kind {
         StructuralPlaceKind::BlockParameter { block, position } => {
