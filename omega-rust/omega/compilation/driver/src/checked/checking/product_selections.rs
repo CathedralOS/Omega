@@ -12,6 +12,10 @@ pub(super) fn admit(
     computed: &mut ComputedBuildConfig,
     package_inputs: Option<&package_compilation::PackageCompilationInputs>,
 ) -> Result<(), Vec<Diagnostic>> {
+    let package_providers = package_inputs
+        .map(|inputs| inputs.rejoin_package_provider_selections(source))
+        .transpose()?
+        .unwrap_or_default();
     prepare_provider_applications(source, computed)?;
     let typed = source.typed();
     let representations = representation_planning::collect_opaque_representation_selections(
@@ -45,10 +49,7 @@ pub(super) fn admit(
     computed.config.grants = grants;
     computed.config.opaque_representation_selections = representations;
     computed.config.provider_selections = providers;
-    computed.config.package_provider_selections = package_inputs
-        .map(|inputs| inputs.rejoin_package_provider_selections(typed))
-        .transpose()?
-        .unwrap_or_default();
+    computed.config.package_provider_selections = package_providers;
     computed.config.native_bindings = native
         .into_iter()
         .map(|selection| {

@@ -108,6 +108,25 @@ impl TypedTrees {
             })
     }
 
+    /// The package input owner admitted the original executed choice and its
+    /// immutable source payload. Rooting it demands ordinary receiving-world
+    /// checking and capture; it supplies neither provider installation nor code
+    /// from the producing Build activation.
+    pub fn retain_dependency_product_application(
+        &mut self,
+        handle: Handle<ProductOperandApplication>,
+    ) {
+        if !self
+            .retained_product_application_handles
+            .span_or_empty(self.roots.retained_product_applications)
+            .contains(&handle)
+        {
+            self.tables
+                .retained_product_application_handles
+                .append_to_span(&mut self.roots.retained_product_applications, handle);
+        }
+    }
+
     /// Preparation has already independently formed every supplied actual.
     /// Retaining the selected application adds a real source demand; it grants
     /// no provider installation, execution authority, or checking judgment.

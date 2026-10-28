@@ -376,6 +376,19 @@ impl SourceContinuation {
         )
     }
 
+    /// Rejoin one admitted dependency's executed Product choice without
+    /// importing its Build code or resolving private names in the consumer.
+    pub fn rejoin_product_provider_selection(
+        &mut self,
+        selection: &build_time_evaluation::provider_declarations::RetainedProviderSelection,
+    ) -> Result<build_time_evaluation::provider_declarations::ProviderSelection, Diagnostic> {
+        selection.rejoin(
+            Arc::make_mut(&mut self.input).typing.typed_mut(),
+            source::DependencyScope::Product,
+            &[],
+        )
+    }
+
     pub fn build_input(&mut self) -> BuildSourceInput<'_> {
         let input = Arc::make_mut(&mut self.input);
         BuildSourceInput {

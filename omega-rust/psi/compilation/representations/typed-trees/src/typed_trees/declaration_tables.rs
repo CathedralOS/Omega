@@ -52,7 +52,8 @@ impl TypedTrees {
             return Vec::new();
         }
         let occurrences = crate::product_operand::collect_product_selection_occurrences(self);
-        self.product_operand_applications
+        let mut live = self
+            .product_operand_applications
             .iter()
             .filter_map(|(handle, selected)| {
                 let role = selected.role?;
@@ -72,7 +73,16 @@ impl TypedTrees {
                     })
                     .then_some(handle)
             })
-            .collect()
+            .collect::<Vec<_>>();
+        for handle in self
+            .retained_product_application_handles
+            .span_or_empty(self.roots.retained_product_applications)
+        {
+            if self.product_operand_applications.is_valid(*handle) && !live.contains(handle) {
+                live.push(*handle);
+            }
+        }
+        live
     }
 
     /// Census of occurrence/evidence selections, preserving each source anchor.

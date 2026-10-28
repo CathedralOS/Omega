@@ -177,6 +177,31 @@ pub fn capture_static_environment(
     Ok(Some(Arc::new(capture.environment)))
 }
 
+/// Capture one already formed whole static operand into independent owned
+/// arenas. Its source coordinates remain under the caller's retained map;
+/// no current-program type, symbol, expression or member handle escapes.
+pub fn capture_closed_operand(
+    program: &TypedTrees,
+    argument: &expr::StaticMachineArgument,
+    lexical_owner: SymbolHandle,
+) -> Result<ProductStaticOperandGraph, String> {
+    let owner = program
+        .symbols
+        .symbol_provenance_source_span(lexical_owner)
+        .ok_or("closed Product application lost its original lexical scope")?;
+    let mut capture = Capture {
+        program,
+        environment: ProductStaticEnvironment::default(),
+        owner,
+        types: Vec::new(),
+        active_types: Vec::new(),
+        expressions: Vec::new(),
+        active_expressions: Vec::new(),
+    };
+    capture.environment.graph.root = capture.operand(argument)?;
+    Ok(capture.environment.graph)
+}
+
 struct Capture<'a> {
     program: &'a TypedTrees,
     environment: ProductStaticEnvironment,
