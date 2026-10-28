@@ -69,66 +69,30 @@ fn solve_state_effects<'program>(
                 continue;
             }
             let prefix = prefixes.get(ordinal)?.as_ref()?;
-            let completed = expression_effects::completed_targets(
+            let completed = expression_effects::prepare_normal_exits(
                 program, machine, state, statement, prefix, symbols, inference,
             )?;
-            for edge in transition.targets() {
-                let completed = completed
-                    .iter()
-                    .find(|completed| completed.target == edge)?;
-                match program.statement_table.transition_target(edge) {
-                    TransitionTargetNode::Named { arguments, .. } => {
-                        let invoked = frames::terminal_calls::target(program, machine, edge);
-                        let (target_machine, target) = if invoked.is_valid() {
-                            let (owner, target) =
-                                frames::machine_state_by_symbol(program, invoked)?;
-                            if !owner.supply_mode.is_checked_body()
-                                || !owner.body_is_present
-                                || !program.machine_type_parameters(owner).is_empty()
-                            {
-                                return None;
-                            }
-                            (owner, target)
-                        } else {
-                            (
-                                machine,
-                                frames::transition_topology::named_transition_target_state(
-                                    program, machine, state, edge,
-                                )?,
-                            )
-                        };
-                        let target_index = if let Some(index) = states
-                            .iter()
-                            .position(|(_, candidate)| candidate.symbol == target.symbol)
-                        {
-                            index
-                        } else {
-                            states.push((target_machine, target));
-                            states.len() - 1
-                        };
-                        let arguments = program.statement_table.expression_handles(*arguments);
-                        let parameters = program.state_parameters(target);
-                        if parameters.len() != arguments.len() {
-                            return None;
-                        }
-                        if completed.arguments.len() != arguments.len()
-                            || completed
-                                .arguments
-                                .iter()
-                                .zip(arguments)
-                                .any(|(captured, expression)| captured.expression != *expression)
-                        {
-                            return None;
-                        }
-                        exits.push(SlotExit::Edge {
-                            target: target_index,
-                            arguments: completed.arguments.clone(),
-                            prefix: completed.context.clone(),
-                        });
+            for completed in completed {
+                if let Some((target_machine, target)) = completed.arrival {
+                    let target_index = if let Some(index) = states
+                        .iter()
+                        .position(|(_, candidate)| candidate.symbol == target.symbol)
+                    {
+                        index
+                    } else {
+                        states.push((target_machine, target));
+                        states.len() - 1
+                    };
+                    if program.state_parameters(target).len() != completed.arguments.len() {
+                        return None;
                     }
-                    TransitionTargetNode::Terminal | TransitionTargetNode::Value(_) => {
-                        exits.push(SlotExit::Return(completed.context.stored.clone()))
-                    }
+                    exits.push(SlotExit::Edge {
+                        target: target_index,
+                        arguments: completed.arguments,
+                        prefix: completed.context,
+                    });
+                } else {
+                    exits.push(SlotExit::Return(completed.context.stored));
                 }
             }
         }
