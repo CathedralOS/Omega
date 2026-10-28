@@ -213,15 +213,15 @@ pub(crate) struct OperationEnvironment<'f> {
 /// Active emission is distinct from the resources it may recursively borrow.
 /// Splitting the ordinary frame keeps those mutable borrows disjoint instead
 /// of reconstructing a second caller around a nested scalar computation.
-pub(super) struct OperationEmission<'f, 'c> {
-    pub(super) source_value_count: usize,
-    pub(super) evaluation: &'f mut Evaluation,
-    pub(super) values: &'f mut Vec<ValueDeclaration>,
-    pub(super) next_value: &'f mut u64,
-    pub(super) next_block: &'f mut u64,
-    pub(super) next_edge: &'f mut u64,
-    pub(super) calls: &'f mut CallEmissionContext<'c>,
-    pub(super) operations: &'f mut OperationBuffer,
+pub(crate) struct OperationEmission<'f, 'c> {
+    pub(crate) source_value_count: usize,
+    pub(crate) evaluation: &'f mut Evaluation,
+    pub(crate) values: &'f mut Vec<ValueDeclaration>,
+    pub(crate) next_value: &'f mut u64,
+    pub(crate) next_block: &'f mut u64,
+    pub(crate) next_edge: &'f mut u64,
+    pub(crate) calls: &'f mut CallEmissionContext<'c>,
+    pub(crate) operations: &'f mut OperationBuffer,
 }
 
 impl<'f, 'c> OperationFrame<'f, 'c> {
@@ -553,27 +553,14 @@ impl OperationFrame<'_, '_> {
                 destination_expression,
                 destination,
             } => {
-                let (mut environment, emission) = self.split();
-                let mut evaluation = crate::emission::borrowed_window::WindowEvaluation {
-                    checked: environment.checked,
-                    machine: environment.machine,
-                    state: environment.state,
-                    statement_index: *statement_index,
-                    evaluation: emission.evaluation,
-                    source_value_count: emission.source_value_count,
-                    calls: emission.calls,
-                };
+                let (mut environment, mut emission) = self.split();
                 BorrowedWindowLedger::capture_assignment_destination(
                     &mut environment,
                     identities,
                     destination,
                     *destination_expression,
-                    &mut evaluation,
-                    emission.values,
-                    emission.next_value,
-                    emission.next_block,
-                    emission.next_edge,
-                    emission.operations,
+                    &mut emission,
+                    *statement_index,
                 )
             }
             CheckedUnitEffectOperationPlan::RegisterAccess {

@@ -76,7 +76,6 @@ use super::{
     StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeId, allocate_dense, place_id,
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
-use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::runtime_elements::{self, ProjectionStep};
 use crate::emission::structural_scalar_store::{WindowLeaf, lower_window_path};
 use crate::lowering_error::unsupported;
@@ -287,12 +286,8 @@ impl BorrowedWindowLedger {
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         destination: &CheckedUnitStructuralArgumentPlan,
         destination_expression: typed_trees::expression::ExpressionHandle,
-        evaluation: &mut WindowEvaluation<'_, '_>,
-        values: &mut Vec<terminal_psi::ValueDeclaration>,
-        next_value: &mut u64,
-        next_block: &mut u64,
-        next_edge: &mut u64,
-        operations: &mut OperationBuffer,
+        emission: &mut crate::unit::attached_unit::OperationEmission<'_, '_>,
+        statement_index: u32,
     ) -> Result<(), LoweringError> {
         let structural_types = environment.structural_types;
         let place = resolve_storage_address(
@@ -300,29 +295,23 @@ impl BorrowedWindowLedger {
             destination,
             StructuralAccess::WriteOnlyBorrow,
             &environment.parameters,
-            evaluation.evaluation,
-            operations,
+            emission.evaluation,
+            emission.operations,
             structural_types,
         )?;
         let indexes = runtime_elements::evaluate_selectors(
             identities,
             &place.steps,
-            evaluation.checked,
-            evaluation.machine,
-            evaluation.state,
-            evaluation.statement_index,
-            evaluation.evaluation,
-            evaluation.source_value_count,
-            values,
-            next_value,
-            next_block,
-            next_edge,
-            operations,
-            evaluation.calls,
+            statement_index,
+            emission,
             environment,
         )?;
-        let mut path =
-            runtime_elements::complete_path(place.steps, indexes, evaluation.calls, operations)?;
+        let mut path = runtime_elements::complete_path(
+            place.steps,
+            indexes,
+            emission.calls,
+            emission.operations,
+        )?;
         if place.field.is_some() {
             let Some(CheckedUnitStructuralPathSegment::Field(identity)) = destination.path.last()
             else {
@@ -417,14 +406,14 @@ impl BorrowedWindowLedger {
                 access,
                 qualifications,
                 projected_qualifications,
-                evaluation.evaluation,
-                values,
-                next_value,
-                next_block,
-                next_edge,
+                emission.evaluation,
+                emission.values,
+                emission.next_value,
+                emission.next_block,
+                emission.next_edge,
                 environment.next_place,
                 environment.private_places,
-                operations,
+                emission.operations,
             )?;
             (source, capture_type, retained_path)
         } else {
@@ -435,7 +424,7 @@ impl BorrowedWindowLedger {
         // same normalized coordinate, or an implicit root crossing is appended
         // a second time below the captured referent.
         environment.windows.assignment = Some(CapturedAssignmentDestination {
-            statement_index: evaluation.statement_index,
+            statement_index: statement_index,
             destination_expression,
             destination: destination.clone(),
             normalized_path: place.checked_path,
@@ -596,12 +585,8 @@ impl BorrowedWindowLedger {
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         plan: &CheckedUnitStructuralArgumentPlan,
         place: &ResolvedStorageAddress,
-        evaluation: &mut WindowEvaluation<'_, '_>,
-        values: &mut Vec<terminal_psi::ValueDeclaration>,
-        next_value: &mut u64,
-        next_block: &mut u64,
-        next_edge: &mut u64,
-        operations: &mut OperationBuffer,
+        emission: &mut crate::unit::attached_unit::OperationEmission<'_, '_>,
+        statement_index: u32,
         environment: &mut crate::unit::attached_unit::OperationEnvironment<'_>,
     ) -> Result<EvaluatedStoragePlace, LoweringError> {
         if let Some(capture) = capture {
@@ -635,25 +620,15 @@ impl BorrowedWindowLedger {
         let indexes = runtime_elements::evaluate_selectors(
             identities,
             &place.steps,
-            evaluation.checked,
-            evaluation.machine,
-            evaluation.state,
-            evaluation.statement_index,
-            evaluation.evaluation,
-            evaluation.source_value_count,
-            values,
-            next_value,
-            next_block,
-            next_edge,
-            operations,
-            evaluation.calls,
+            statement_index,
+            emission,
             environment,
         )?;
         let path = runtime_elements::complete_path(
             place.steps.clone(),
             indexes,
-            evaluation.calls,
-            operations,
+            emission.calls,
+            emission.operations,
         )?;
         Ok(EvaluatedStoragePlace {
             source: place.source,
@@ -675,12 +650,8 @@ impl BorrowedWindowLedger {
         expression: typed_trees::expression::ExpressionHandle,
         result: &CheckedUnitStructuralResultBindingPlan,
         prepared_claims: &[crate::emission::claim_bindings::PreparedClaim],
-        evaluation: &mut WindowEvaluation<'_, '_>,
-        values: &mut Vec<terminal_psi::ValueDeclaration>,
-        next_value: &mut u64,
-        next_block: &mut u64,
-        next_edge: &mut u64,
-        operations: &mut OperationBuffer,
+        emission: &mut crate::unit::attached_unit::OperationEmission<'_, '_>,
+        statement_index: u32,
     ) -> Result<PlaceId, LoweringError> {
         let structural_types = environment.structural_types;
         let type_ids = environment.type_ids;
@@ -689,8 +660,8 @@ impl BorrowedWindowLedger {
             moved,
             StructuralAccess::MutableBorrow,
             &environment.parameters,
-            evaluation.evaluation,
-            operations,
+            emission.evaluation,
+            emission.operations,
             structural_types,
             type_ids,
         )?;
@@ -711,7 +682,7 @@ impl BorrowedWindowLedger {
         // its own later source, even when it spells that same storage route.
         let capture = environment
             .windows
-            .assignment_destination(evaluation.statement_index, &moved.source, &moved.path)
+            .assignment_destination(statement_index, &moved.source, &moved.path)
             .filter(|capture| expression.is_valid() && capture.destination_expression == expression)
             .cloned();
         let evaluated = Self::evaluated_place(
@@ -719,12 +690,8 @@ impl BorrowedWindowLedger {
             identities,
             moved,
             &place,
-            evaluation,
-            values,
-            next_value,
-            next_block,
-            next_edge,
-            operations,
+            emission,
+            statement_index,
             environment,
         )?;
         let source = evaluated.source;
@@ -734,7 +701,7 @@ impl BorrowedWindowLedger {
             evaluated.original_source,
             &evaluated.original_path,
             place.field.as_ref().map(|field| field.identity),
-            operations,
+            emission.operations,
         );
         let (qualifications, projected_qualifications) =
             place.selected_memberships(identities, &evaluated.original_path)?;
@@ -745,7 +712,7 @@ impl BorrowedWindowLedger {
                     absent.field_path_identity,
                     &storage_path,
                     storage_field,
-                    &operations.scalar_index_coordinates,
+                    &emission.operations.scalar_index_coordinates,
                 )
         }) {
             return Err(unpinned(
@@ -762,8 +729,8 @@ impl BorrowedWindowLedger {
             evaluated.root_type,
             &path,
             structural_types,
-            next_value,
-            operations,
+            emission.next_value,
+            emission.operations,
         )?;
         let selected_path = terminal_semantics::structural_window_projection(
             structural_types.iter(),
@@ -780,7 +747,7 @@ impl BorrowedWindowLedger {
             // the caller's resource is not an owned source in this frame.
             crate::emission::claim_bindings::emit_establishment_claims(
                 prepared_claims,
-                &mut evaluation.calls.claims,
+                &mut emission.calls.claims,
             )?
         } else {
             let argument = StructuralArgument {
@@ -788,24 +755,24 @@ impl BorrowedWindowLedger {
                 path: selected_path.clone(),
                 access: StructuralAccess::Owned,
             };
-            let completed = evaluation.evaluation.current_claims.source(&argument)?;
+            let completed = emission.evaluation.current_claims.source(&argument)?;
             crate::emission::claim_bindings::lower_owned_operand_claims(
                 identities,
-                evaluation.checked,
-                evaluation.machine,
-                evaluation.state,
-                evaluation.statement_index,
+                environment.checked,
+                environment.machine,
+                environment.state,
+                statement_index,
                 expression,
                 None,
                 None,
-                evaluation.calls.claims.bindings(),
+                emission.calls.claims.bindings(),
                 completed.as_deref(),
                 hole_type,
                 structural_types,
             )?
         };
         if !place.restoration_required {
-            evaluation
+            emission
                 .evaluation
                 .current_claims
                 .replace(source, &selected_path, &[])?;
@@ -814,10 +781,13 @@ impl BorrowedWindowLedger {
         // The RHS can observe storage again after capture cleared the cache.
         // Both spellings now denote the modified subtree; neither retains a
         // live descriptor observation across its extraction or replacement.
-        operations
+        emission
+            .operations
             .invalidate_field_lengths_under(evaluated.original_source, &evaluated.original_path);
-        operations.invalidate_field_lengths_under(source, &path);
-        operations.push_leaf(
+        emission
+            .operations
+            .invalidate_field_lengths_under(source, &path);
+        emission.operations.push_leaf(
             OperationResult::Structural(StructuralOperationResult {
                 qualification_establishments: Vec::new(),
                 place: moved_place,
@@ -833,7 +803,8 @@ impl BorrowedWindowLedger {
                 field,
             },
         );
-        let produced_claims = operations
+        let produced_claims = emission
+            .operations
             .operations
             .last()
             .and_then(|operation| operation.result.structural())
@@ -842,16 +813,16 @@ impl BorrowedWindowLedger {
             ))?
             .claims
             .clone();
-        evaluation
+        emission
             .evaluation
             .current_claims
             .publish(moved_place, produced_claims)?;
         if place.restoration_required {
             crate::emission::claim_bindings::record_prepared_introductions(
-                operations,
+                emission.operations,
                 moved_place,
                 prepared_claims,
-                &evaluation.calls.claims,
+                &emission.calls.claims,
                 crate::emission::claim_bindings::ClaimEstablishmentKind::DetachedValue,
             )?;
         }
@@ -877,12 +848,8 @@ impl BorrowedWindowLedger {
         destination: &CheckedUnitStructuralArgumentPlan,
         opening: Option<PlaceId>,
         value: BorrowedWindowRepairValue,
-        evaluation: &mut WindowEvaluation<'_, '_>,
-        values: &mut Vec<terminal_psi::ValueDeclaration>,
-        next_value: &mut u64,
-        next_block: &mut u64,
-        next_edge: &mut u64,
-        operations: &mut OperationBuffer,
+        emission: &mut crate::unit::attached_unit::OperationEmission<'_, '_>,
+        statement_index: u32,
     ) -> Result<(), LoweringError> {
         let structural_types = environment.structural_types;
         let type_ids = environment.type_ids;
@@ -891,30 +858,22 @@ impl BorrowedWindowLedger {
             destination,
             StructuralAccess::WriteOnlyBorrow,
             &environment.parameters,
-            evaluation.evaluation,
-            operations,
+            emission.evaluation,
+            emission.operations,
             structural_types,
             type_ids,
         )?;
         let capture = environment
             .windows
-            .assignment_destination(
-                evaluation.statement_index,
-                &destination.source,
-                &destination.path,
-            )
+            .assignment_destination(statement_index, &destination.source, &destination.path)
             .cloned();
         let evaluated = Self::evaluated_place(
             capture.as_ref(),
             identities,
             destination,
             &place,
-            evaluation,
-            values,
-            next_value,
-            next_block,
-            next_edge,
-            operations,
+            emission,
+            statement_index,
             environment,
         )?;
         let source = evaluated.source;
@@ -924,7 +883,7 @@ impl BorrowedWindowLedger {
             evaluated.original_source,
             &evaluated.original_path,
             place.field.as_ref().map(|field| field.identity),
-            operations,
+            emission.operations,
         );
         let index = opening.and_then(|opening| {
             environment
@@ -957,7 +916,7 @@ impl BorrowedWindowLedger {
             .find(|parameter| parameter.place == value.place)
             .map(|parameter| parameter.multiplicity)
             .or_else(|| {
-                operations.operations.iter().find_map(|operation| {
+                emission.operations.operations.iter().find_map(|operation| {
                     operation
                         .result
                         .structural()
@@ -969,7 +928,8 @@ impl BorrowedWindowLedger {
                 // A selection or dispatch completes at a join's block
                 // parameter, not at an operation result: the completed
                 // binding's registry still names that place's custody.
-                operations
+                emission
+                    .operations
                     .structural_values
                     .iter()
                     .find_map(|(_, binding)| {
@@ -995,7 +955,7 @@ impl BorrowedWindowLedger {
                             absent.field_path_identity,
                             &storage_path,
                             storage_field,
-                            &operations.scalar_index_coordinates,
+                            &emission.operations.scalar_index_coordinates,
                         )
                 }))
         {
@@ -1006,7 +966,7 @@ impl BorrowedWindowLedger {
                         absent.field_path_identity,
                         &storage_path,
                         storage_field,
-                        &operations.scalar_index_coordinates,
+                        &emission.operations.scalar_index_coordinates,
                     )
             }) {
                 "the store overlaps an open window without naming its exact place"
@@ -1033,15 +993,24 @@ impl BorrowedWindowLedger {
                     &parameter.projected_qualifications,
                 )
             })
-            .chain(operations.operations.iter().filter_map(|operation| {
-                operation
-                    .result
-                    .structural()
-                    .filter(|result| result.place == value.place)
-                    .map(|result| (&result.qualifications, &result.projected_qualifications))
-            }))
             .chain(
-                operations
+                emission
+                    .operations
+                    .operations
+                    .iter()
+                    .filter_map(|operation| {
+                        operation
+                            .result
+                            .structural()
+                            .filter(|result| result.place == value.place)
+                            .map(|result| {
+                                (&result.qualifications, &result.projected_qualifications)
+                            })
+                    }),
+            )
+            .chain(
+                emission
+                    .operations
                     .structural_values
                     .iter()
                     .filter_map(|(_, binding)| {
@@ -1069,12 +1038,15 @@ impl BorrowedWindowLedger {
             evaluated.root_type,
             &path,
             structural_types,
-            next_value,
-            operations,
+            emission.next_value,
+            emission.operations,
         )?;
-        operations
+        emission
+            .operations
             .invalidate_field_lengths_under(evaluated.original_source, &evaluated.original_path);
-        operations.invalidate_field_lengths_under(source, &path);
+        emission
+            .operations
+            .invalidate_field_lengths_under(source, &path);
         if !place.restoration_required {
             let selected_path = terminal_semantics::structural_window_projection(
                 structural_types.iter(),
@@ -1091,19 +1063,19 @@ impl BorrowedWindowLedger {
                 path: Vec::new(),
                 access: StructuralAccess::Owned,
             };
-            let claims = evaluation
+            let claims = emission
                 .evaluation
                 .current_claims
                 .source(&argument)?
                 .ok_or(LoweringError::Unsupported(
                     "stored operand has no completed custody namespace",
                 ))?;
-            evaluation
+            emission
                 .evaluation
                 .current_claims
                 .replace(source, &selected_path, &claims)?;
         }
-        let operation = operations.push_leaf(
+        let operation = emission.operations.push_leaf(
             OperationResult::Unit,
             OperationKind::StoreStructuralField {
                 disposition: if index.is_none() && place.restoration_required {
@@ -1121,9 +1093,9 @@ impl BorrowedWindowLedger {
                 },
             },
         );
-        evaluation
+        emission
             .evaluation
-            .retire_structural_operation_operands(operation, operations)?;
+            .retire_structural_operation_operands(operation, emission.operations)?;
         if let Some(index) = index {
             environment.windows.open.remove(index);
         }
@@ -1208,20 +1180,6 @@ fn paths_overlap(
     // Runtime selectors can alias. Only the common conservative geometry
     // judgment may establish disjointness, including through captured aliases.
     terminal_semantics::structural_paths_may_overlap(&first, &second)
-}
-
-/// The frame pieces a window with runtime elements evaluates its selectors
-/// through: the checked facts that retained each `AssignmentIndex`
-/// coordinate, and the same scalar evaluation surface the store's own value
-/// completes on.
-pub(crate) struct WindowEvaluation<'a, 'calls> {
-    pub(crate) checked: &'a checked_trees::CheckedTrees,
-    pub(crate) machine: symbols::SymbolHandle,
-    pub(crate) state: symbols::SymbolHandle,
-    pub(crate) statement_index: u32,
-    pub(crate) evaluation: &'a mut crate::unit::attached_unit::argument_evaluation::Evaluation,
-    pub(crate) source_value_count: usize,
-    pub(crate) calls: &'a mut CallEmissionContext<'calls>,
 }
 
 fn resolve_window_place(

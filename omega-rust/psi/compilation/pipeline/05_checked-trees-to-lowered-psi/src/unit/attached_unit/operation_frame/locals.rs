@@ -7,7 +7,7 @@
 
 use super::super::view_ranges::ViewRangeSite;
 use super::{OperationFrame, StructuralResults, StructuralTypeRoster, allocate_structural_result};
-use crate::emission::borrowed_window::{BorrowedWindowRepairValue, WindowEvaluation};
+use crate::emission::borrowed_window::BorrowedWindowRepairValue;
 use crate::emission::operation_emission::buffer::StructuralBinding;
 use crate::emission::operation_emission::place_declarations::operation_result_place;
 use crate::unit::{
@@ -371,16 +371,7 @@ impl OperationFrame<'_, '_> {
             Vec::new()
         };
         let place = {
-            let (mut environment, emission) = self.reborrow().split();
-            let mut evaluation = WindowEvaluation {
-                checked: environment.checked,
-                machine: environment.machine,
-                state: environment.state,
-                statement_index,
-                evaluation: emission.evaluation,
-                source_value_count: emission.source_value_count,
-                calls: emission.calls,
-            };
+            let (mut environment, mut emission) = self.reborrow().split();
             crate::emission::borrowed_window::BorrowedWindowLedger::emit_move(
                 &mut environment,
                 identities,
@@ -388,12 +379,8 @@ impl OperationFrame<'_, '_> {
                 expression,
                 result,
                 &prepared_claims,
-                &mut evaluation,
-                emission.values,
-                emission.next_value,
-                emission.next_block,
-                emission.next_edge,
-                emission.operations,
+                &mut emission,
+                statement_index,
             )
         }?;
         Ok(place)
@@ -408,28 +395,15 @@ impl OperationFrame<'_, '_> {
         opening: Option<PlaceId>,
         value: BorrowedWindowRepairValue,
     ) -> Result<(), LoweringError> {
-        let (mut environment, emission) = self.reborrow().split();
-        let mut evaluation = WindowEvaluation {
-            checked: environment.checked,
-            machine: environment.machine,
-            state: environment.state,
-            statement_index,
-            evaluation: emission.evaluation,
-            source_value_count: emission.source_value_count,
-            calls: emission.calls,
-        };
+        let (mut environment, mut emission) = self.reborrow().split();
         crate::emission::borrowed_window::BorrowedWindowLedger::emit_store(
             &mut environment,
             identities,
             destination,
             opening,
             value,
-            &mut evaluation,
-            emission.values,
-            emission.next_value,
-            emission.next_block,
-            emission.next_edge,
-            emission.operations,
+            &mut emission,
+            statement_index,
         )
     }
 

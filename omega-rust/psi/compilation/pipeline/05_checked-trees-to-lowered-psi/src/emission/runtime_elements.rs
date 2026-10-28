@@ -23,7 +23,7 @@
 //! assignment occurrence, so their bounds stay searched.
 use super::{
     CheckedScalarExpressionRole, CheckedTrees, LoweringError, ScalarType, StructuralPathSegment,
-    ValueDeclaration, ValueId, unsupported,
+    ValueId, unsupported,
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
@@ -124,25 +124,19 @@ pub(crate) struct EvaluatedSelector {
 
 /// Evaluate every runtime element's selector in path order -- the authored
 /// left-to-right order of the target's selectors -- and convert each to the
-/// `u64` coordinate.
-#[allow(clippy::too_many_arguments)]
+/// `u64` coordinate. The caller hands over the frame the body is already
+/// emitting into, so selector evaluation reads the same value namespace,
+/// counters and call context as the store's own value.
 pub(crate) fn evaluate_selectors(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     steps: &[ProjectionStep],
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-    state: symbols::SymbolHandle,
     statement_index: u32,
-    evaluation: &mut crate::unit::attached_unit::argument_evaluation::Evaluation,
-    source_value_count: usize,
-    values: &mut Vec<ValueDeclaration>,
-    next_value: &mut u64,
-    next_block: &mut u64,
-    next_edge: &mut u64,
-    operations: &mut OperationBuffer,
-    calls: &mut CallEmissionContext<'_>,
+    emission: &mut crate::unit::attached_unit::OperationEmission<'_, '_>,
     environment: &mut crate::unit::attached_unit::OperationEnvironment<'_>,
 ) -> Result<Vec<EvaluatedSelector>, LoweringError> {
+    let checked = environment.checked;
+    let machine = environment.machine;
+    let state = environment.state;
     let mut indexes = Vec::new();
     for step in steps {
         let mut decided = false;
@@ -159,7 +153,7 @@ pub(crate) fn evaluate_selectors(
                     .facts
                     .assignment_index_is_proven(state, statement_index, *depth);
 
-                let index = evaluation.source_value(
+                let index = emission.evaluation.source_value(
                     identities,
                     checked,
                     machine,
@@ -167,13 +161,13 @@ pub(crate) fn evaluate_selectors(
                     statement_index,
                     role,
                     &source,
-                    source_value_count,
-                    values,
-                    next_value,
-                    next_block,
-                    next_edge,
-                    operations,
-                    calls,
+                    emission.source_value_count,
+                    emission.values,
+                    emission.next_value,
+                    emission.next_block,
+                    emission.next_edge,
+                    emission.operations,
+                    emission.calls,
                     environment,
                 )?;
                 (index.id, index.scalar_type)
@@ -184,7 +178,7 @@ pub(crate) fn evaluate_selectors(
                 // source value of the calling state: the dense source prefix
                 // holds it, in the same order the checker numbers
                 // `RuntimeIndex` positions.
-                let Some(index) = values.get(*position as usize) else {
+                let Some(index) = emission.values.get(*position as usize) else {
                     return unsupported(
                         "store runtime index position exceeds the scalar source frame",
                     );
@@ -203,26 +197,31 @@ pub(crate) fn evaluate_selectors(
                         value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(*index)),
                         scalar_type,
                     },
-                    values,
-                    next_value,
-                    operations,
+                    emission.values,
+                    emission.next_value,
+                    emission.operations,
                 );
                 (value, scalar_type)
             }
             ProjectionStep::RuntimeIndexStorage { symbol } => {
-                let observation = evaluation
+                let observation = emission
+                    .evaluation
                     .contextual_bindings()
                     .runtime_index_storage(*symbol)?;
                 let scalar_type = observation.scalar_type();
-                let index =
-                    super::emit_direct_expression(&observation, values, next_value, operations);
+                let index = super::emit_direct_expression(
+                    &observation,
+                    emission.values,
+                    emission.next_value,
+                    emission.operations,
+                );
                 (index, scalar_type)
             }
             ProjectionStep::RuntimeIndexField(field) => {
                 let observation =
                     crate::expression_preparation::bindings::structural_fields::resolve_typed(
                         identities,
-                        &evaluation.structural_fields,
+                        &emission.evaluation.structural_fields,
                         field.parameter_position,
                         &field.path,
                     )?;
@@ -232,8 +231,12 @@ pub(crate) fn evaluate_selectors(
                         "store runtime index field selector is not an integer read",
                     );
                 }
-                let index =
-                    super::emit_direct_expression(&observation, values, next_value, operations);
+                let index = super::emit_direct_expression(
+                    &observation,
+                    emission.values,
+                    emission.next_value,
+                    emission.operations,
+                );
                 (index, scalar_type)
             }
             _ => continue,
@@ -242,9 +245,9 @@ pub(crate) fn evaluate_selectors(
             index,
             scalar_type,
             decided,
-            next_value,
-            &mut calls.next_obligation_identity,
-            operations,
+            emission.next_value,
+            &mut emission.calls.next_obligation_identity,
+            emission.operations,
         )?;
         indexes.push(EvaluatedSelector {
             index,

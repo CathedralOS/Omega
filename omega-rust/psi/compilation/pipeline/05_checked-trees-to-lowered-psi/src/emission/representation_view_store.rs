@@ -19,10 +19,10 @@
 //!   selects `index + j` — the folded literal offset or an exact add that
 //!   owes its own bound obligation — and carries the `value >> 8j` low byte.
 use super::{
-    CheckedTrees, CheckedUnitStructuralPathSegment, LoweringError, OperationKind, PrimitiveType,
-    ScalarType, StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration,
-    StructuralTypeId, StructuralTypeShape, ValueDeclaration, ValueId, allocate_dense,
-    emit_direct_expression, obligation_id, terminal_scalar_type, unsupported,
+    CheckedUnitStructuralPathSegment, LoweringError, OperationKind, PrimitiveType, ScalarType,
+    StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeId,
+    StructuralTypeShape, ValueDeclaration, ValueId, allocate_dense, emit_direct_expression,
+    obligation_id, terminal_scalar_type, unsupported,
 };
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::buffer::OperationBuffer;
@@ -36,7 +36,6 @@ use crate::expression_preparation::integer_bit_image::integer_bit_image;
 use crate::structural_types::unique_declaration;
 use checked_trees::{CheckedRuntimeIndex, CheckedStorePlan, CheckedStoreRoot};
 use semantic_vocabulary::IntegerValue;
-use symbols::SymbolHandle;
 use terminal_psi::ByteSequenceCarrier;
 
 /// Emit the store's operations: the whole value lowered at the view carrier,
@@ -50,29 +49,23 @@ pub(crate) fn emit(
     store: &CheckedStorePlan,
     view: PrimitiveType,
     captured: Option<super::primitive_store::PhysicalDestination>,
-    checked: &CheckedTrees,
-    machine: SymbolHandle,
-    state: SymbolHandle,
-    evaluation: &mut crate::unit::attached_unit::argument_evaluation::Evaluation,
-    source_value_count: usize,
-    values: &mut Vec<ValueDeclaration>,
-    next_value: &mut u64,
-    next_block: &mut u64,
-    next_edge: &mut u64,
-    operations: &mut OperationBuffer,
-    calls: &mut CallEmissionContext<'_>,
-    structural_types: &[StructuralTypeDeclaration],
+    emission: &mut crate::unit::attached_unit::OperationEmission<'_, '_>,
     environment: &mut crate::unit::attached_unit::OperationEnvironment<'_>,
 ) -> Result<Vec<OperationKind>, LoweringError> {
+    let checked = environment.checked;
+    let machine = environment.machine;
+    let state = environment.state;
+    let structural_types = environment.structural_types;
     // The value rejoin and any field selector read run inside the body's
     // scalar namespace, with the resolved observations a byte leaf's
     // structural-field selector lowers against.
-    let bindings = evaluation
+    let bindings = emission
+        .evaluation
         .scalar_bindings
         .clone()
         .with_resolved_structural_observations(
-            &evaluation.structural_fields,
-            &evaluation.structural_cases,
+            &emission.evaluation.structural_fields,
+            &emission.evaluation.structural_cases,
         );
     let CheckedStoreRoot::Parameter { position } = store.destination.root else {
         return unsupported("representation view store has no parameter root");
@@ -80,7 +73,8 @@ pub(crate) fn emit(
     let Some((role, value)) = store.value.scalar() else {
         return unsupported("representation view store stores no scalar value");
     };
-    let parameter = evaluation
+    let parameter = emission
+        .evaluation
         .structural_parameters
         .iter()
         .find(|(authored, _)| authored == &position)
@@ -109,21 +103,16 @@ pub(crate) fn emit(
                 let indexes = runtime_elements::evaluate_selectors(
                     identities,
                     &steps,
-                    checked,
-                    machine,
-                    state,
                     store.statement_index,
-                    evaluation,
-                    source_value_count,
-                    values,
-                    next_value,
-                    next_block,
-                    next_edge,
-                    operations,
-                    calls,
+                    emission,
                     environment,
                 )?;
-                let mut path = runtime_elements::complete_path(steps, indexes, calls, operations)?;
+                let mut path = runtime_elements::complete_path(
+                    steps,
+                    indexes,
+                    emission.calls,
+                    emission.operations,
+                )?;
                 path.push(StructuralPathSegment::Field(
                     identities.intern(&identity.spelling()),
                 ));
@@ -153,10 +142,15 @@ pub(crate) fn emit(
                 value,
                 view_scalar,
                 &bindings,
-                values,
+                emission.values,
             )?;
             let casted = view_leaf_image(operand, view_scalar, leaf_scalar)?;
-            let value = emit_direct_expression(&casted, values, next_value, operations);
+            let value = emit_direct_expression(
+                &casted,
+                emission.values,
+                emission.next_value,
+                emission.operations,
+            );
             kinds.push(super::primitive_store::emit_completed_assignment(
                 machine,
                 state,
@@ -170,9 +164,9 @@ pub(crate) fn emit(
                 },
                 None,
                 structural_types,
-                next_value,
-                operations,
-                calls,
+                emission.next_value,
+                emission.operations,
+                emission.calls,
             )?);
         }
         CheckedUnitStructuralPathSegment::FixedIndex(_)
@@ -204,19 +198,8 @@ pub(crate) fn emit(
                     &store.destination.path,
                     None,
                     false,
-                    checked,
-                    machine,
-                    state,
                     store.statement_index,
-                    evaluation,
-                    source_value_count,
-                    values,
-                    next_value,
-                    next_block,
-                    next_edge,
-                    operations,
-                    calls,
-                    structural_types,
+                    emission,
                     environment,
                 )?;
                 (destination, physical)
@@ -229,9 +212,14 @@ pub(crate) fn emit(
             }
             let byte_count = u64::from(integer.bits()) / 8;
             physical.path = destination.prefix_path.clone();
-            require_unrestricted_byte_region(&physical, &destination.index, byte_count, calls)?;
+            require_unrestricted_byte_region(
+                &physical,
+                &destination.index,
+                byte_count,
+                emission.calls,
+            )?;
             if let Some(logical) = logical_receiving {
-                require_unrestricted_logical_footprint(logical, byte_count, calls)?;
+                require_unrestricted_logical_footprint(logical, byte_count, emission.calls)?;
             }
             let operand = crate::emission::structural_scalar_store_source::direct_value(
                 identities,
@@ -242,14 +230,26 @@ pub(crate) fn emit(
                 value,
                 view_scalar,
                 &bindings,
-                values,
+                emission.values,
             )?;
             let value = ValueDeclaration {
                 qualifications: Default::default(),
-                id: emit_direct_expression(&operand, values, next_value, operations),
+                id: emit_direct_expression(
+                    &operand,
+                    emission.values,
+                    emission.next_value,
+                    emission.operations,
+                ),
                 scalar_type: view_scalar,
             };
-            kinds.extend(destination.emit(value, view_scalar, 0, next_value, operations, calls)?);
+            kinds.extend(destination.emit(
+                value,
+                view_scalar,
+                0,
+                emission.next_value,
+                emission.operations,
+                emission.calls,
+            )?);
         }
         _ => {
             return unsupported("representation view store leaf path is incompatible");
@@ -597,21 +597,11 @@ pub(crate) fn prepare_byte_destination(
     path: &[CheckedUnitStructuralPathSegment],
     captured_index: Option<ValueId>,
     decided: bool,
-    checked: &CheckedTrees,
-    machine: SymbolHandle,
-    state: SymbolHandle,
     statement_index: u32,
-    evaluation: &mut crate::unit::attached_unit::argument_evaluation::Evaluation,
-    source_value_count: usize,
-    values: &mut Vec<ValueDeclaration>,
-    next_value: &mut u64,
-    next_block: &mut u64,
-    next_edge: &mut u64,
-    operations: &mut OperationBuffer,
-    calls: &mut CallEmissionContext<'_>,
-    structural_types: &[StructuralTypeDeclaration],
+    emission: &mut crate::unit::attached_unit::OperationEmission<'_, '_>,
     environment: &mut crate::unit::attached_unit::OperationEnvironment<'_>,
 ) -> Result<ByteStoreDestination, LoweringError> {
+    let structural_types = environment.structural_types;
     let Some((leaf, prefix)) = path.split_last() else {
         return unsupported("byte representation store has no backing coordinate");
     };
@@ -630,18 +620,8 @@ pub(crate) fn prepare_byte_destination(
     let mut indexes = runtime_elements::evaluate_selectors(
         identities,
         &steps,
-        checked,
-        machine,
-        state,
         statement_index,
-        evaluation,
-        source_value_count,
-        values,
-        next_value,
-        next_block,
-        next_edge,
-        operations,
-        calls,
+        emission,
         environment,
     )?;
     if captured_index.is_some()
@@ -664,7 +644,8 @@ pub(crate) fn prepare_byte_destination(
     } else {
         None
     };
-    let prefix_path = runtime_elements::complete_path(steps, indexes, calls, operations)?;
+    let prefix_path =
+        runtime_elements::complete_path(steps, indexes, emission.calls, emission.operations)?;
     Ok(ByteStoreDestination {
         destination,
         prefix_path,

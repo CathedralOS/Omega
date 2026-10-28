@@ -2,8 +2,8 @@
 //! A runtime element's bound travels from range checking through the shared
 //! destination path (`runtime_elements.rs`), as for every other store route.
 use super::{
-    CheckedScalarExpressionRole, CheckedTrees, CheckedUnitStructuralPathSegment, LoweringError,
-    OperationKind, PlaceId, PrimitiveType, ScalarType, StructuralFieldType, StructuralMultiplicity,
+    CheckedScalarExpressionRole, CheckedUnitStructuralPathSegment, LoweringError, OperationKind,
+    PlaceId, PrimitiveType, ScalarType, StructuralFieldType, StructuralMultiplicity,
     StructuralParameterDeclaration, StructuralTypeDeclaration, StructuralTypeId,
     StructuralTypeShape, ValueDeclaration, terminal_scalar_type, unsupported,
 };
@@ -62,30 +62,25 @@ pub(crate) fn parameter_destination(
     })
 }
 
+/// The frame the store's own value completes on; selectors and the receiving
+/// judgment read the same one.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn emit_assignment(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-    state: symbols::SymbolHandle,
     statement_index: u32,
     destination: Destination,
-    structural_types: &[StructuralTypeDeclaration],
     preserves_byte_memberships: bool,
     receiving_range: Option<&checked_trees::CheckedPrimitiveReceivingRange>,
     role: CheckedScalarExpressionRole,
     value: &checked_trees::CheckedScalarStoreValue,
-    evaluation: &mut crate::unit::attached_unit::argument_evaluation::Evaluation,
-    source_value_count: usize,
-    values: &mut Vec<ValueDeclaration>,
-    next_value: &mut u64,
-    next_block: &mut u64,
-    next_edge: &mut u64,
-    operations: &mut OperationBuffer,
-    calls: &mut CallEmissionContext<'_>,
+    emission: &mut crate::unit::attached_unit::OperationEmission<'_, '_>,
     environment: &mut crate::unit::attached_unit::OperationEnvironment<'_>,
 ) -> Result<OperationKind, LoweringError> {
-    // Capture the exact call-result slot before selector evaluation creates
+    let checked = environment.checked;
+    let machine = environment.machine;
+    let state = environment.state;
+    let structural_types = environment.structural_types;
+    // Capture the exact call-result slot before selector emission.evaluation creates
     // private staging slots. Selector continuations preserve this scalar
     // prefix; read its rebound declaration after the destination is captured.
     let call_result =
@@ -93,8 +88,8 @@ pub(crate) fn emit_assignment(
             let position = usize::try_from(*position).map_err(|_| {
                 LoweringError::Unsupported("primitive store call-result position exceeds usize")
             })?;
-            if position.checked_add(1) != Some(values.len())
-                || values[position].scalar_type != destination.scalar_type
+            if position.checked_add(1) != Some(emission.values.len())
+                || emission.values[position].scalar_type != destination.scalar_type
             {
                 return unsupported("primitive store lost its exact established call result");
             }
@@ -106,27 +101,20 @@ pub(crate) fn emit_assignment(
     let indexes = super::runtime_elements::evaluate_selectors(
         identities,
         &destination.path,
-        checked,
-        machine,
-        state,
         statement_index,
-        evaluation,
-        source_value_count,
-        values,
-        next_value,
-        next_block,
-        next_edge,
-        operations,
-        calls,
+        emission,
         environment,
     )?;
     let value = if let Some(position) = call_result {
-        let value = *values.get(position).ok_or(LoweringError::Unsupported(
-            "primitive store lost its call-result slot after selector evaluation",
-        ))?;
+        let value = *emission
+            .values
+            .get(position)
+            .ok_or(LoweringError::Unsupported(
+                "primitive store lost its call-result slot after selector emission.evaluation",
+            ))?;
         if value.scalar_type != destination.scalar_type {
             return unsupported(
-                "primitive store call-result carrier changed after selector evaluation",
+                "primitive store call-result carrier changed after selector emission.evaluation",
             );
         }
         value
@@ -142,7 +130,7 @@ pub(crate) fn emit_assignment(
                 unreachable!("captured call result")
             }
         };
-        evaluation.source_value(
+        emission.evaluation.source_value(
             identities,
             checked,
             machine,
@@ -150,18 +138,22 @@ pub(crate) fn emit_assignment(
             statement_index,
             role,
             &value,
-            source_value_count,
-            values,
-            next_value,
-            next_block,
-            next_edge,
-            operations,
-            calls,
+            emission.source_value_count,
+            emission.values,
+            emission.next_value,
+            emission.next_block,
+            emission.next_edge,
+            emission.operations,
+            emission.calls,
             environment,
         )?
     };
-    let path =
-        super::runtime_elements::complete_path(destination.path, indexes, calls, operations)?;
+    let path = super::runtime_elements::complete_path(
+        destination.path,
+        indexes,
+        emission.calls,
+        emission.operations,
+    )?;
     let logical_receiving = destination.logical_receiving;
     let physical = ReceivingPlace {
         root_type: destination.root_type,
@@ -176,7 +168,8 @@ pub(crate) fn emit_assignment(
         &logical.path,
     )
     .and_then(|field| {
-        evaluation
+        emission
+            .evaluation
             .shared_qualifications
             .catalog()
             .fields
@@ -185,26 +178,26 @@ pub(crate) fn emit_assignment(
             .map(|row| row.value_type)
     });
     let value = if let Some(receiving_type) = receiving_type {
-        evaluation.receiving_value(
+        emission.evaluation.receiving_value(
             identities,
             value,
             receiving_type,
-            values,
-            next_value,
-            next_block,
-            next_edge,
-            operations,
-            calls,
+            emission.values,
+            emission.next_value,
+            emission.next_block,
+            emission.next_edge,
+            emission.operations,
+            emission.calls,
             environment,
         )?
     } else {
         value
     };
     let logical_scalar = declared_restriction(logical, structural_types);
-    let logical_restriction = receiving_restriction(logical, calls)?;
+    let logical_restriction = receiving_restriction(logical, emission.calls)?;
     let byte_predicates = terminal_semantics::primitive_store_byte_predicates(
-        calls.structural_types.iter(),
-        calls.domain_declarations.iter(),
+        emission.calls.structural_types.iter(),
+        emission.calls.domain_declarations.iter(),
         logical.root_type,
         &logical.qualifications,
         &logical.projected_qualifications,
@@ -254,9 +247,9 @@ pub(crate) fn emit_assignment(
         value,
         logical_proven.as_ref(),
         structural_types,
-        next_value,
-        operations,
-        calls,
+        emission.next_value,
+        emission.operations,
+        emission.calls,
     )
 }
 
