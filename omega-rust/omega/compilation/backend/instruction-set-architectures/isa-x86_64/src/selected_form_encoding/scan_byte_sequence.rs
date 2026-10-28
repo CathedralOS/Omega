@@ -80,6 +80,21 @@ enum Instruction {
     },
 }
 
+/// A byte compare and the conditional jump that consumes its flags.
+/// Every UTF-8 class test is this pair; the label marks the compare when a
+/// later jump enters at that test.
+fn emit_compare_immediate_branch(
+    emit: &mut (impl FnMut(Option<Label>, Instruction) + ?Sized),
+    label: Option<Label>,
+    register: u8,
+    immediate: u8,
+    condition: u8,
+    target: Label,
+) {
+    emit(label, Instruction::CompareImmediate8(register, immediate));
+    emit(None, Instruction::JumpConditional { condition, target });
+}
+
 fn layout(
     predicate: ByteSequencePredicate,
     base: u8,
@@ -134,85 +149,29 @@ fn layout(
                 offset: 0,
             },
         );
-        emit(None, CompareImmediate8(byte, 0x80));
-        emit(
-            None,
-            JumpConditional {
-                condition: CC_B,
-                target: Label::Advance1,
-            },
-        );
+        emit_compare_immediate_branch(&mut emit, None, byte, 0x80, CC_B, Label::Advance1);
         // 0x80..0xC2 are stray continuations or the overlong leads C0/C1.
-        emit(None, CompareImmediate8(byte, 0xC2));
-        emit(
-            None,
-            JumpConditional {
-                condition: CC_B,
-                target: Label::Fail,
-            },
-        );
-        emit(None, CompareImmediate8(byte, 0xE0));
-        emit(
-            None,
-            JumpConditional {
-                condition: CC_B,
-                target: Label::Cont1,
-            },
-        );
-        emit(None, CompareImmediate8(byte, 0xF0));
-        emit(
-            None,
-            JumpConditional {
-                condition: CC_AE,
-                target: Label::Lead3,
-            },
-        );
-        emit(None, CompareImmediate8(byte, 0xE0));
-        emit(
-            None,
-            JumpConditional {
-                condition: CC_E,
-                target: Label::E0Path,
-            },
-        );
-        emit(None, CompareImmediate8(byte, 0xED));
-        emit(
-            None,
-            JumpConditional {
-                condition: CC_E,
-                target: Label::EdPath,
-            },
-        );
+        emit_compare_immediate_branch(&mut emit, None, byte, 0xC2, CC_B, Label::Fail);
+        emit_compare_immediate_branch(&mut emit, None, byte, 0xE0, CC_B, Label::Cont1);
+        emit_compare_immediate_branch(&mut emit, None, byte, 0xF0, CC_AE, Label::Lead3);
+        emit_compare_immediate_branch(&mut emit, None, byte, 0xE0, CC_E, Label::E0Path);
+        emit_compare_immediate_branch(&mut emit, None, byte, 0xED, CC_E, Label::EdPath);
         emit(
             None,
             Jump {
                 target: Label::Cont2Any,
             },
         );
-        emit(Some(Label::Lead3), CompareImmediate8(byte, 0xF5));
-        emit(
-            None,
-            JumpConditional {
-                condition: CC_AE,
-                target: Label::Fail,
-            },
+        emit_compare_immediate_branch(
+            &mut emit,
+            Some(Label::Lead3),
+            byte,
+            0xF5,
+            CC_AE,
+            Label::Fail,
         );
-        emit(None, CompareImmediate8(byte, 0xF0));
-        emit(
-            None,
-            JumpConditional {
-                condition: CC_E,
-                target: Label::F0Path,
-            },
-        );
-        emit(None, CompareImmediate8(byte, 0xF4));
-        emit(
-            None,
-            JumpConditional {
-                condition: CC_E,
-                target: Label::F4Path,
-            },
-        );
+        emit_compare_immediate_branch(&mut emit, None, byte, 0xF0, CC_E, Label::F0Path);
+        emit_compare_immediate_branch(&mut emit, None, byte, 0xF4, CC_E, Label::F4Path);
         emit(
             None,
             Jump {
@@ -423,22 +382,8 @@ fn emit_cont_tail(
         } else {
             (0x80, 0xBF)
         };
-        emit(None, CompareImmediate8(byte, cont_lower));
-        emit(
-            None,
-            JumpConditional {
-                condition: CC_B,
-                target: Label::Fail,
-            },
-        );
-        emit(None, CompareImmediate8(byte, cont_upper));
-        emit(
-            None,
-            JumpConditional {
-                condition: CC_A,
-                target: Label::Fail,
-            },
-        );
+        emit_compare_immediate_branch(emit, None, byte, cont_lower, CC_B, Label::Fail);
+        emit_compare_immediate_branch(emit, None, byte, cont_upper, CC_A, Label::Fail);
     }
     emit(None, AddImmediate(cursor, continuations + 1));
     emit(
