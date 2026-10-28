@@ -65,8 +65,15 @@ computed indexed-view snapshot row supplies the const-dependent comparison.
   signal 5 and Terminal `Trap`. The counter and backing observations therefore
   discriminate omitted, repeated and misplaced effects.
 
-Measured producer: `12e835480a7` (opt-level 1, pinned nightly, macOS ARM64),
+Initial measured producer: `12e835480a7` (opt-level 1, pinned nightly, macOS ARM64),
 CLI SHA-256 `11e029c9f9a46400648d2cd1919c6fa7cdba601c58646dda20ad6765f0fc101a`.
+The integrated producer is `72e8affcbac` (same optimized profile/toolchain),
+CLI SHA-256 `50d938d6f5802e93720dab3e67227d3ed762980a5722848ebdb7a1e6275de0c7`.
+Its Build rows explicitly select the same implementation for all four authored
+hosted targets. The executable sources, fact, bounds and contracts retain their
+frozen meaning. The original baseline uses its then-valid Build surface; the
+old producer's refusal of the later catalog-target syntax is setup evidence.
+
 Raw receipts, locks and observations remain in the owning qualification/claim
 record (`build/nested-loans/`). Initial invalid-tail and missing-ceiling setup
 logs remain separate from the valid baseline refusals. Other-host native
