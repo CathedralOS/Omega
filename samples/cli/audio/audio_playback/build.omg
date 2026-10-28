@@ -8,125 +8,125 @@ machine build(builder: &mut Build) {
         location: "../../../../source/library/std"
     });
 
- Build::bind<WindowsAudioPlaybackIo::c_play_sound>(builder, windows_x86_64, ForeignBinding::DllImport {
+ Build::bind<audio_playback::WindowsAudioPlaybackIo::c_play_sound>(builder, windows_x86_64, ForeignBinding::DllImport {
         import: DllImport::PeByName {
             library: "winmm.dll",
             export: "PlaySoundW",
         },
     });
- Build::bind<LinuxAudioPlaybackIo::c_open>(builder, linux_x86_64, ForeignBinding::DllImport {
+ Build::bind<audio_playback::LinuxAudioPlaybackIo::c_open>(builder, linux_x86_64, ForeignBinding::DllImport {
         import: DllImport::ElfVersioned {
             object: "libasound.so.2", symbol: "snd_pcm_open", version: "ALSA_0.9",
         },
     });
- Build::bind<LinuxAudioPlaybackIo::c_set_params>(builder, linux_x86_64, ForeignBinding::DllImport {
+ Build::bind<audio_playback::LinuxAudioPlaybackIo::c_set_params>(builder, linux_x86_64, ForeignBinding::DllImport {
         import: DllImport::ElfVersioned {
             object: "libasound.so.2", symbol: "snd_pcm_set_params", version: "ALSA_0.9",
         },
     });
- Build::bind<LinuxAudioPlaybackIo::c_writei>(builder, linux_x86_64, ForeignBinding::DllImport {
+ Build::bind<audio_playback::LinuxAudioPlaybackIo::c_writei>(builder, linux_x86_64, ForeignBinding::DllImport {
         import: DllImport::ElfVersioned {
             object: "libasound.so.2", symbol: "snd_pcm_writei", version: "ALSA_0.9",
         },
     });
- Build::bind<LinuxAudioPlaybackIo::c_drain>(builder, linux_x86_64, ForeignBinding::DllImport {
+ Build::bind<audio_playback::LinuxAudioPlaybackIo::c_drain>(builder, linux_x86_64, ForeignBinding::DllImport {
         import: DllImport::ElfVersioned {
             object: "libasound.so.2", symbol: "snd_pcm_drain", version: "ALSA_0.9",
         },
     });
- Build::bind<LinuxAudioPlaybackIo::c_close>(builder, linux_x86_64, ForeignBinding::DllImport {
+ Build::bind<audio_playback::LinuxAudioPlaybackIo::c_close>(builder, linux_x86_64, ForeignBinding::DllImport {
         import: DllImport::ElfVersioned {
             object: "libasound.so.2", symbol: "snd_pcm_close", version: "ALSA_0.9",
         },
     });
- Build::bind<LinuxAudioPlaybackIo::c_open>(builder, linux_arm64, ForeignBinding::DllImport {
+ Build::bind<audio_playback::LinuxAudioPlaybackIo::c_open>(builder, linux_arm64, ForeignBinding::DllImport {
         import: DllImport::ElfVersioned {
             object: "libasound.so.2", symbol: "snd_pcm_open", version: "ALSA_0.9",
         },
     });
- Build::bind<LinuxAudioPlaybackIo::c_set_params>(builder, linux_arm64, ForeignBinding::DllImport {
+ Build::bind<audio_playback::LinuxAudioPlaybackIo::c_set_params>(builder, linux_arm64, ForeignBinding::DllImport {
         import: DllImport::ElfVersioned {
             object: "libasound.so.2", symbol: "snd_pcm_set_params", version: "ALSA_0.9",
         },
     });
- Build::bind<LinuxAudioPlaybackIo::c_writei>(builder, linux_arm64, ForeignBinding::DllImport {
+ Build::bind<audio_playback::LinuxAudioPlaybackIo::c_writei>(builder, linux_arm64, ForeignBinding::DllImport {
         import: DllImport::ElfVersioned {
             object: "libasound.so.2", symbol: "snd_pcm_writei", version: "ALSA_0.9",
         },
     });
- Build::bind<LinuxAudioPlaybackIo::c_drain>(builder, linux_arm64, ForeignBinding::DllImport {
+ Build::bind<audio_playback::LinuxAudioPlaybackIo::c_drain>(builder, linux_arm64, ForeignBinding::DllImport {
         import: DllImport::ElfVersioned {
             object: "libasound.so.2", symbol: "snd_pcm_drain", version: "ALSA_0.9",
         },
     });
- Build::bind<LinuxAudioPlaybackIo::c_close>(builder, linux_arm64, ForeignBinding::DllImport {
+ Build::bind<audio_playback::LinuxAudioPlaybackIo::c_close>(builder, linux_arm64, ForeignBinding::DllImport {
         import: DllImport::ElfVersioned {
             object: "libasound.so.2", symbol: "snd_pcm_close", version: "ALSA_0.9",
         },
     });
- Build::bind<MacosAudioPlaybackIo::c_dlsym>(builder, macos_arm64, ForeignBinding::DllImport {
+ Build::bind<audio_playback::MacosAudioPlaybackIo::c_dlsym>(builder, macos_arm64, ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib",
             symbol: "_dlsym",
         },
     });
- Build::bind<MacosAudioPlaybackIo::c_new_output>(builder, macos_arm64, ForeignBinding::DllImport {
+ Build::bind<audio_playback::MacosAudioPlaybackIo::c_new_output>(builder, macos_arm64, ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/System/Library/Frameworks/AudioToolbox.framework/AudioToolbox",
             symbol: "_AudioQueueNewOutput",
         },
     });
- Build::bind<MacosAudioPlaybackIo::c_allocate_buffer>(builder, macos_arm64, ForeignBinding::DllImport {
+ Build::bind<audio_playback::MacosAudioPlaybackIo::c_allocate_buffer>(builder, macos_arm64, ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/System/Library/Frameworks/AudioToolbox.framework/AudioToolbox",
             symbol: "_AudioQueueAllocateBuffer",
         },
     });
- Build::bind<MacosAudioPlaybackIo::c_enqueue_buffer>(builder, macos_arm64, ForeignBinding::DllImport {
+ Build::bind<audio_playback::MacosAudioPlaybackIo::c_enqueue_buffer>(builder, macos_arm64, ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/System/Library/Frameworks/AudioToolbox.framework/AudioToolbox",
             symbol: "_AudioQueueEnqueueBuffer",
         },
     });
- Build::bind<MacosAudioPlaybackIo::c_start>(builder, macos_arm64, ForeignBinding::DllImport {
+ Build::bind<audio_playback::MacosAudioPlaybackIo::c_start>(builder, macos_arm64, ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/System/Library/Frameworks/AudioToolbox.framework/AudioToolbox",
             symbol: "_AudioQueueStart",
         },
     });
- Build::bind<MacosAudioPlaybackIo::c_stop>(builder, macos_arm64, ForeignBinding::DllImport {
+ Build::bind<audio_playback::MacosAudioPlaybackIo::c_stop>(builder, macos_arm64, ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/System/Library/Frameworks/AudioToolbox.framework/AudioToolbox",
             symbol: "_AudioQueueStop",
         },
     });
- Build::bind<MacosAudioPlaybackIo::c_dispose>(builder, macos_arm64, ForeignBinding::DllImport {
+ Build::bind<audio_playback::MacosAudioPlaybackIo::c_dispose>(builder, macos_arm64, ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/System/Library/Frameworks/AudioToolbox.framework/AudioToolbox",
             symbol: "_AudioQueueDispose",
         },
     });
- Build::bind<MacosAudioPlaybackIo::c_copy_to_address>(builder, macos_arm64, ForeignBinding::DllImport {
+ Build::bind<audio_playback::MacosAudioPlaybackIo::c_copy_to_address>(builder, macos_arm64, ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib",
             symbol: "_memmove",
         },
     });
- Build::bind<MacosAudioPlaybackIo::c_load_pointer>(builder, macos_arm64, ForeignBinding::DllImport {
+ Build::bind<audio_playback::MacosAudioPlaybackIo::c_load_pointer>(builder, macos_arm64, ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib",
             symbol: "_bcopy",
         },
     });
 
- Build::bind<MacosAudioPlaybackIo::c_usleep>(builder, macos_arm64, ForeignBinding::DllImport {
+ Build::bind<audio_playback::MacosAudioPlaybackIo::c_usleep>(builder, macos_arm64, ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib",
             symbol: "_usleep",
         },
     });
-    Build::select_provider<AudioPlayback, WindowsAudioPlayback>(builder, windows_x86_64);
-    Build::select_provider<AudioPlayback, LinuxX86AudioPlayback>(builder, linux_x86_64);
-    Build::select_provider<AudioPlayback, LinuxArm64AudioPlayback>(builder, linux_arm64);
-    Build::select_provider<AudioPlayback, MacosAudioPlayback>(builder, macos_arm64);
+    Build::select_provider<audio_playback::AudioPlayback, audio_playback::WindowsAudioPlayback>(builder, windows_x86_64);
+    Build::select_provider<audio_playback::AudioPlayback, audio_playback::LinuxX86AudioPlayback>(builder, linux_x86_64);
+    Build::select_provider<audio_playback::AudioPlayback, audio_playback::LinuxArm64AudioPlayback>(builder, linux_arm64);
+    Build::select_provider<audio_playback::AudioPlayback, audio_playback::MacosAudioPlayback>(builder, macos_arm64);
 }

@@ -76,6 +76,12 @@ impl NativeBindingReceiptRecipe {
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     ) -> Result<EvaluatedBindingReceipt, String> {
         self.producer_recipe.validate()?;
+        if !matches!(
+            usage.measurement,
+            evaluation_accounting::EvaluationMeasurementIdentity::TerminalPsi { .. }
+        ) {
+            return Err("native receipt requires its actual Terminal Build measurement".into());
+        }
         usage.validate().map_err(|error| {
             format!("native binding Build accounting is inconsistent: {error:?}")
         })?;

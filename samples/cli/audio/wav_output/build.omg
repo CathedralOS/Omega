@@ -6,8 +6,8 @@ machine build(builder: &mut Build) {
     Build::depend(builder, Source::Path {
         location: "../../../../source/library/std"
     });
-    Build::select_provider<WavOutput, WindowsWavOutput>(builder, windows_x86_64);
-    Build::select_provider<WavOutput, PosixWavOutput>(builder, linux_x86_64);
-    Build::select_provider<WavOutput, PosixWavOutput>(builder, linux_arm64);
-    Build::select_provider<WavOutput, PosixWavOutput>(builder, macos_arm64);
+    Build::select_provider<wav_output::WavOutput, wav_output::WindowsWavOutput>(builder, windows_x86_64);
+    Build::select_provider<wav_output::WavOutput, wav_output::PosixWavOutput>(builder, linux_x86_64);
+    Build::select_provider<wav_output::WavOutput, wav_output::PosixWavOutput>(builder, linux_arm64);
+    Build::select_provider<wav_output::WavOutput, wav_output::PosixWavOutput>(builder, macos_arm64);
 }
