@@ -403,6 +403,8 @@ pub struct DesignatedStaticTypeArgument {
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TypedTreeTables {
     pub designated_static_type_arguments: Arena<DesignatedStaticTypeArgument>,
+    pub retained_product_application_handles:
+        Arena<Handle<crate::product_operand::ProductOperandApplication>>,
     pub product_input_selections: Arena<crate::product_operand::ProductInputSelection>,
     pub product_input_argument_steps: Arena<crate::product_operand::ProductArgumentStep>,
     pub product_operand_applications: Arena<crate::product_operand::ProductOperandApplication>,
@@ -464,6 +466,10 @@ pub struct TypedTreeTables {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TypedTreeRoots {
+    /// Closed choices admitted through dependency Build output custody.
+    /// These explicit roots are independent of authored body occurrences.
+    pub retained_product_applications:
+        HandleSpan<Handle<crate::product_operand::ProductOperandApplication>>,
     pub const_declarations: HandleSpan<crate::constant::ConstDeclaration>,
     pub data_definitions: HandleSpan<data::DataDefinition>,
     pub domain_definitions: HandleSpan<domain::DomainDefinition>,
@@ -496,6 +502,7 @@ impl TypedTreeRoots {
         traits: HandleSpan<trait_definition::TraitDefinition>,
     ) -> Self {
         Self {
+            retained_product_applications: HandleSpan::default(),
             const_declarations: HandleSpan::default(),
             data_definitions,
             domain_definitions,

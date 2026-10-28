@@ -14,7 +14,7 @@ mod occurrences;
 pub use occurrences::{ProductSelectionOccurrence, collect_product_selection_occurrences};
 
 mod static_environment;
-pub use static_environment::capture_static_environment;
+pub use static_environment::{capture_closed_operand, capture_static_environment};
 
 use crate::expression::StaticMachineArgument;
 use crate::typed_trees::TypedTrees;

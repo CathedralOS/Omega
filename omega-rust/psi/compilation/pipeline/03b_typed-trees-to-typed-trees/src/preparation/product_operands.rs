@@ -16,7 +16,7 @@ use typed_trees::{
 };
 
 mod nominal;
-pub use nominal::prepare_product_operand_application;
+pub use nominal::{prepare_product_operand_application, prepare_retained_product_application};
 
 mod environment;
 mod expressions;
@@ -276,11 +276,18 @@ pub fn prepare_product_requirement_operand(
     })
 }
 
+#[derive(Clone, Copy)]
+enum OperandNaming {
+    AuthoredScope,
+    RetainedDeclarations,
+}
+
 struct Lower<'a> {
     program: &'a mut TypedTrees,
     graph: &'a ProductStaticOperandGraph,
     author: SymbolHandle,
     static_environment: Option<&'a ProductStaticEnvironment>,
+    naming: OperandNaming,
     active_bindings: Vec<source::SourceSpan>,
     input_path: Vec<typed_trees::product_operand::ProductArgumentStep>,
     input_selections: Vec<typed_trees::product_operand::ProductInputSelection>,
@@ -306,6 +313,7 @@ impl<'a> Lower<'a> {
             graph,
             author,
             static_environment,
+            naming: OperandNaming::AuthoredScope,
             active_bindings: Vec::new(),
             input_path: Vec::new(),
             input_selections: Vec::new(),
@@ -437,6 +445,25 @@ impl Lower<'_> {
                 .ok_or_else(|| {
                     self.error("designated expression lost its certified builtin function")
                 });
+        }
+        if matches!(self.naming, OperandNaming::RetainedDeclarations) {
+            let declaration = name.declaration.ok_or_else(|| self.error("retained static input has no exact declaration anchor or certified compiler atom"))?;
+            let mut matching = self
+                .candidates()
+                .into_iter()
+                .map(|(symbol, _)| symbol)
+                .filter(|symbol| {
+                    self.program.symbols.symbol_provenance_source_span(*symbol) == Some(declaration)
+                });
+            let selected = matching.next().ok_or_else(|| {
+                self.error(
+                    "retained static input declaration is outside the admitted Product closure",
+                )
+            })?;
+            if matching.any(|other| other != selected) {
+                return Err(self.error("retained static input declaration anchor is ambiguous"));
+            }
+            return Ok(selected);
         }
         // Inert Product operands may intentionally precede ordinary name
         // resolution. Rejoin compiler atoms with the ordinary source-scoped

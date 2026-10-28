@@ -12,7 +12,7 @@ mod identities;
 mod product_requests;
 mod retained_selections;
 mod selection;
-pub use retained_selections::RetainedProviderSelection;
+pub use retained_selections::{RetainedProviderApplication, RetainedProviderSelection};
 
 use crate::is_exact_toolchain_build_prelude_data;
 use checked_trees::typed_trees::TypedTrees;

@@ -5,6 +5,36 @@ use typed_trees::data::TypeParameterKind;
 use typed_trees::product_operand::{ProductApplicationDemand, ProductOperandApplication};
 use typed_trees::trait_definition::TraitApplicationArguments;
 
+#[derive(Clone, Copy)]
+enum NominalDeclaration {
+    Authored,
+    Retained(SymbolHandle),
+}
+
+pub fn prepare_retained_product_application(
+    program: &mut TypedTrees,
+    operand: &ProductDeclarationOperand,
+    role: ProductOperandRole,
+    declaration: SymbolHandle,
+) -> Result<Handle<ProductOperandApplication>, Vec<Diagnostic>> {
+    let handle = prepare(
+        program,
+        operand,
+        role,
+        declaration,
+        None,
+        ProductApplicationDemand::Selected,
+        NominalDeclaration::Retained(declaration),
+    )?
+    .ok_or_else(|| {
+        vec![Diagnostic::error(
+            "retained Product choice lost its closed application",
+        )]
+    })?;
+    program.retain_dependency_product_application(handle);
+    Ok(handle)
+}
+
 pub fn prepare_product_operand_application(
     program: &mut TypedTrees,
     operand: &ProductDeclarationOperand,
@@ -12,6 +42,26 @@ pub fn prepare_product_operand_application(
     author: SymbolHandle,
     static_environment: Option<&ProductStaticEnvironment>,
     demand: ProductApplicationDemand,
+) -> Result<Option<Handle<ProductOperandApplication>>, Vec<Diagnostic>> {
+    prepare(
+        program,
+        operand,
+        role,
+        author,
+        static_environment,
+        demand,
+        NominalDeclaration::Authored,
+    )
+}
+
+fn prepare(
+    program: &mut TypedTrees,
+    operand: &ProductDeclarationOperand,
+    role: ProductOperandRole,
+    author: SymbolHandle,
+    static_environment: Option<&ProductStaticEnvironment>,
+    demand: ProductApplicationDemand,
+    binding: NominalDeclaration,
 ) -> Result<Option<Handle<ProductOperandApplication>>, Vec<Diagnostic>> {
     let Some(graph) = operand.application.as_deref() else {
         return Ok(None);
@@ -37,6 +87,9 @@ pub fn prepare_product_operand_application(
     }
     let lexical_owner = environment::supplier_owner(program, static_environment, author)?;
     let mut lower = Lower::new(program, graph, lexical_owner, static_environment);
+    if matches!(binding, NominalDeclaration::Retained(_)) {
+        lower.naming = OperandNaming::RetainedDeclarations;
+    }
     if !graph.operands.is_valid(graph.root) {
         return Err(refuse("Product application lost its owned root"));
     }
@@ -55,7 +108,9 @@ pub fn prepare_product_operand_application(
             "Product application changed its source-issued declaration path",
         ));
     }
-    let declaration = typed_trees::product_operand::resolve_product_path(
+    let declaration = match binding {
+        NominalDeclaration::Retained(declaration) => declaration,
+        NominalDeclaration::Authored => typed_trees::product_operand::resolve_product_path(
         lower.program,
         &path,
         operand.source_span,
@@ -65,7 +120,8 @@ pub fn prepare_product_operand_application(
         refuse(
             "Product application does not name one exact visible declaration of its required role",
         )
-    })?;
+    })?,
+    };
     let source_argument = expr::StaticMachineArgument {
         symbol: declaration,
         path: Box::from([Identifier::generated(path)]),
@@ -110,7 +166,9 @@ pub fn prepare_product_operand_application(
         // Only Type actuals are runtime type formation roots. Const recipes
         // remain unfurled in the retained application and are independently
         // judged by the ordinary static-argument and arithmetic checkers.
-        if matches!(parameter.kind, TypeParameterKind::Type) {
+        if matches!(binding, NominalDeclaration::Authored)
+            && matches!(parameter.kind, TypeParameterKind::Type)
+        {
             let reference = lower
                 .program
                 .static_operand_type_reference_in_scope(argument, lexical_owner)
