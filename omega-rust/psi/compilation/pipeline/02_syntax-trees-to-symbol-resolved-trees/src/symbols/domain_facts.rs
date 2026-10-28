@@ -836,6 +836,7 @@ impl ProofExpressionContext<'_> {
             | symbol_resolved_trees::expression::ExpressionNode::UndeterminedNaN(_)
             | symbol_resolved_trees::expression::ExpressionNode::Integer(_)
             | symbol_resolved_trees::expression::ExpressionNode::String(_)
+            | symbol_resolved_trees::expression::ExpressionNode::TypeExpression(_)
             | symbol_resolved_trees::expression::ExpressionNode::ZeroValue(_) => {}
         }
     }

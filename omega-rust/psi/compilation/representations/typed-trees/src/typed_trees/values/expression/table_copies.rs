@@ -414,7 +414,7 @@ impl ExpressionTable {
             ExpressionNode::Unary(unary) => {
                 self.remap_symbols_in_inner(unary.operand, symbols, visited)
             }
-            crate::spelled_literal_expression_pattern!() => {}
+            ExpressionNode::TypeExpression(_) | crate::spelled_literal_expression_pattern!() => {}
         }
     }
 
@@ -678,6 +678,7 @@ impl ExpressionTable {
                         call.static_requirement_dispatch,
                     );
                 self.insert(ExpressionNode::Call(TableCallExpression {
+                    authored_call_selection: call.authored_call_selection,
                     authored_call_binding: call.authored_call_binding,
                     authored_machine_application,
                     requirement_application: call.requirement_application,
@@ -769,6 +770,9 @@ impl ExpressionTable {
                     operator: unary.operator,
                     operand,
                 }))
+            }
+            ExpressionNode::TypeExpression(type_reference) => {
+                self.insert(ExpressionNode::TypeExpression(type_reference))
             }
             ExpressionNode::ZeroValue(type_reference) => {
                 self.insert(ExpressionNode::ZeroValue(type_reference))

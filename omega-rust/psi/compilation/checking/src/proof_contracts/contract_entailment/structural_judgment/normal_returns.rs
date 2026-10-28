@@ -896,6 +896,21 @@ impl<'program> StructuralJudge<'program> {
         }
         let program = self.program;
         let node = program.expression_table.expression(expression);
+        if let Some(value) = program.static_boolean_value(expression) {
+            return Some(vec![
+                NormalReturnPath::observed(boolean_term(value), self)
+                    .at_expression(expression, demand),
+            ]);
+        }
+        if program.static_type_predicate_operands(expression).is_some() {
+            // Type operands have no runtime read/effect schedule. Their Boolean
+            // proposition is observed here; a concrete executable must still
+            // close it in preparation before either execution engine accepts it.
+            let value = self.declaration_term(expression)?;
+            return Some(vec![
+                NormalReturnPath::observed(value, self).at_expression(expression, demand),
+            ]);
+        }
         if let ExpressionNode::SavedSubject(saved) = node
             && program
                 .expression_table
@@ -2882,6 +2897,7 @@ fn discarded_value_has_no_own_effects(
         | ExpressionNode::String(_) => true,
         ExpressionNode::SavedSubject(_)
         | ExpressionNode::UndeterminedNaN(_)
+        | ExpressionNode::TypeExpression(_)
         | ExpressionNode::ZeroValue(_) => false,
     }
 }

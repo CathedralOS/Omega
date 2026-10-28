@@ -955,6 +955,17 @@ impl ContractPredicates<'_, '_> {
         expression: ExpressionHandle,
         depth: usize,
     ) -> Option<CheckedBooleanExpression> {
+        let expression = self.program.static_boolean_normal_form(expression);
+        if self
+            .program
+            .static_type_predicate_operands(expression)
+            .is_some()
+        {
+            return self
+                .program
+                .static_type_predicate_value(expression)
+                .map(CheckedBooleanExpression::Constant);
+        }
         if depth >= 64
             || self.remaining.get() == 0
             || !self

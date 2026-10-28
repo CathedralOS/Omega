@@ -1068,6 +1068,7 @@ pub(crate) fn expression_type_name_handle(
             typed_trees::expression::UnaryOperator::BitwiseNot => "integer",
             typed_trees::expression::UnaryOperator::LogicalNot => "bool",
         },
+        ExpressionNode::TypeExpression(_) => "static type operand",
         ExpressionNode::ZeroValue(_) => "zero-value representation observation",
     }
 }

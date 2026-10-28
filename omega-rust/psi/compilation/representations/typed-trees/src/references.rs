@@ -1841,7 +1841,8 @@ pub fn visit_expression(
         ExpressionNode::Unary(unary) => {
             visit_expression(program, retained, unary.operand);
         }
-        ExpressionNode::ZeroValue(type_reference) => {
+        ExpressionNode::TypeExpression(type_reference)
+        | ExpressionNode::ZeroValue(type_reference) => {
             visit_type_reference(program, retained, *type_reference);
         }
     }
@@ -2240,6 +2241,12 @@ fn visit_machine_with_sidecars(
         visit_type_reference(program, retained, equation.parameter);
         visit_type_reference(program, retained, equation.definition);
     }
+    for &predicate in program
+        .expression_table
+        .expression_handles(machine.declared_type_predicates)
+    {
+        visit_expression(program, retained, predicate);
+    }
     visit_type_reference(program, retained, machine.attached_data_application);
     for contract in program
         .tables
@@ -2361,6 +2368,7 @@ mod conformance_occurrence_tests {
             program
                 .expression_table
                 .insert(ExpressionNode::Call(TableCallExpression {
+                    authored_call_selection: None,
                     authored_call_binding: None,
                     authored_machine_application: application,
                     requirement_application: Default::default(),

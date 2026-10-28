@@ -892,7 +892,7 @@ pub(super) fn boolean_term(value: bool) -> StructuralTerm {
     }
 }
 
-fn boolean_value(value: &StructuralTerm) -> Option<bool> {
+pub(super) fn boolean_value(value: &StructuralTerm) -> Option<bool> {
     let StructuralTerm::Constructor { data, case, fields } = value.semantic_value() else {
         return None;
     };

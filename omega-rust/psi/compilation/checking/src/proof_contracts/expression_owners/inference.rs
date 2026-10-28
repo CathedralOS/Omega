@@ -284,6 +284,7 @@ pub(super) fn infer_expression_type(
         ExpressionNode::ArrayLiteral(_)
         | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Range(_)
+        | ExpressionNode::TypeExpression(_)
         | ExpressionNode::ZeroValue(_) => None,
     }
 }

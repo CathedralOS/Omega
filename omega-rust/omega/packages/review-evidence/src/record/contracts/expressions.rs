@@ -238,6 +238,13 @@ impl PackageReviewContractCallTarget {}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewContractExpression {
+    /// Static equality over complete normalized types in the signature's
+    /// generic telescope. This is neither RTTI nor a scalar comparison.
+    TypeEquality {
+        left: PackageReviewTypeIdentity,
+        right: PackageReviewTypeIdentity,
+        negated: bool,
+    },
     Boolean(bool),
     Integer(String),
     /// One width-landed IEEE literal. Exact checked bits, including signed

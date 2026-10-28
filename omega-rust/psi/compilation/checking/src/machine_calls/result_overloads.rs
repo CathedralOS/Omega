@@ -276,6 +276,7 @@ pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Ve
             program
                 .expression_table
                 .insert(ExpressionNode::Call(TableCallExpression {
+                    authored_call_selection,
                     authored_call_binding: None,
                     authored_machine_application: call.authored_machine_application,
                     requirement_application: Default::default(),
@@ -1042,6 +1043,7 @@ fn push_expected_call(
         | ExpressionNode::StructLiteral(_)
         | ExpressionNode::String(_)
         | ExpressionNode::Unary(_)
+        | ExpressionNode::TypeExpression(_)
         | ExpressionNode::ZeroValue(_) => {}
     }
 }

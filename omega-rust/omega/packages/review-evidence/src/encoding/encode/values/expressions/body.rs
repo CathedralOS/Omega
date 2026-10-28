@@ -22,6 +22,16 @@ pub(super) fn encode_contract_expression_body(
     expression: &PackageReviewContractExpression,
 ) -> Result<(), PackageReviewEncodingError> {
     match expression {
+        PackageReviewContractExpression::TypeEquality {
+            left,
+            right,
+            negated,
+        } => {
+            encoder.tag("type_equality", 26);
+            encoder.field_by("left", left, encode_type_identity)?;
+            encoder.field_by("right", right, encode_type_identity)?;
+            encoder.boolean_field("negated", *negated)?;
+        }
         PackageReviewContractExpression::Boolean(value) => {
             encoder.tag("boolean", 0);
             encoder.boolean_field("value", *value)?;

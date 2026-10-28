@@ -76,6 +76,9 @@ pub fn evaluate_for_atoms(
     if !program.expression_table.expression_is_valid(expression) {
         return None;
     }
+    if let Some(value) = program.static_boolean_value(expression) {
+        return Some(ScalarValue::Boolean(value));
+    }
     match program.expression_table.expression(expression) {
         ExpressionNode::Integer(value) => return value.value_bignum().map(ScalarValue::Integer),
         ExpressionNode::Boolean(value) => return Some(ScalarValue::Boolean(*value)),

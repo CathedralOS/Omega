@@ -498,6 +498,7 @@ fn validate_package_index_expression(
         | ExpressionNode::Range(_)
         | ExpressionNode::String(_)
         | ExpressionNode::StructLiteral(_)
+        | ExpressionNode::TypeExpression(_)
         | ExpressionNode::ZeroValue(_) => Err(vec![Diagnostic::error(
             "package review rejects an unsupported structural index expression",
         )]),

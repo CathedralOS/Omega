@@ -1,0 +1,18 @@
+// Exact static type refinement returns the endpoint in its declared carrier.
+// Expected exit: 0
+public machine choose_endpoint<T>() -> T
+where T == u32 || T == u64
+ensures (T == u32 && result == 0xFFFF_FFFFu32) || (T == u64 && result == 0xFFFF_FFFF_FFFF_FFFFu64)
+{
+    transition T == u32 {
+        true -> (0xFFFF_FFFFu32)
+        _ -> (0xFFFF_FFFF_FFFF_FFFFu64)
+    }
+}
+machine main() crashes Trap {
+    let chosen: u32 = choose_endpoint<u32>();
+    let headroom: u32 = chosen - 0xFFFF_FFFFu32;
+    transition headroom == 0u32 { true -> done() _ -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

@@ -141,9 +141,20 @@ fn lower_nonbinary_expression_node_into_table(
     expression: &syntax::expression::ExpressionNode,
 ) -> Result<ExpressionHandle, Diagnostic> {
     match expression {
-        syntax::expression::ExpressionNode::TypeExpression(_) => Err(Diagnostic::error(
-            "a type expression must be resolved by a static type equation; it is not a runtime value",
-        )),
+        syntax::expression::ExpressionNode::TypeExpression(reference) => {
+            let reference = crate::lowering::type_reference::lower_type_reference_handle(
+                lowerer,
+                syntax_trees,
+                *reference,
+            )?;
+            let reference = lowerer
+                .symbol_resolved_trees
+                .tables
+                .declarations
+                .child_type_references
+                .append(reference);
+            Ok(expression_table(lowerer).insert(ExpressionNode::TypeExpression(reference)))
+        }
         syntax::expression::ExpressionNode::Match(dispatch) => {
             match_dispatch::lower_match(lowerer, syntax_trees, *dispatch)
         }

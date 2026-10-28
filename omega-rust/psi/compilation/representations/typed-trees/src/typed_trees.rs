@@ -407,6 +407,7 @@ pub struct TypedTreeTables {
     pub data_application_definitions: Arena<DataApplicationView>,
     pub data_type_parameters: Arena<data::TypeParameter>,
     pub declared_type_equations: Arena<machine::DeclaredTypeEquation>,
+    pub static_type_contexts: crate::typed_trees::type_system::type_predicates::StaticTypeContexts,
     pub data_members: Arena<data::DataMember>,
     pub data_payload_fields: Arena<data::DataField>,
     pub domain_definitions: Arena<domain::DomainDefinition>,

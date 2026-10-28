@@ -1797,7 +1797,7 @@ fn validate_expression(
         ExpressionNode::Unary(unary) => {
             validate_expression(program, machine, state, unary.operand, roots, diagnostics)
         }
-        typed_trees::spelled_literal_expression_pattern!() => {}
+        ExpressionNode::TypeExpression(_) | typed_trees::spelled_literal_expression_pattern!() => {}
     }
 }
 
@@ -2167,6 +2167,8 @@ fn expression_mentions_root(
             .iter()
             .any(|field| expression_mentions_root(program, field.value, root)),
         ExpressionNode::Unary(unary) => expression_mentions_root(program, unary.operand, root),
-        typed_trees::spelled_literal_expression_pattern!() => false,
+        ExpressionNode::TypeExpression(_) | typed_trees::spelled_literal_expression_pattern!() => {
+            false
+        }
     }
 }

@@ -186,7 +186,8 @@ impl EvaluationTraversal<'_, '_> {
                 }
             }
             ExpressionNode::Unary(unary) => self.visit_expression(unary.operand),
-            typed_trees::spelled_literal_expression_pattern!() => {}
+            ExpressionNode::TypeExpression(_)
+            | typed_trees::spelled_literal_expression_pattern!() => {}
         }
     }
 

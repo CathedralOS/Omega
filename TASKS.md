@@ -1785,6 +1785,11 @@ defines the complete product bar.
     all nine places, with obligation-sensitive reject twins. Cover all admitted
     carrier endpoints/formats with focused exact vectors rather than duplicate
     width-only fact rows; retain hexadecimal literal value and suffix behavior.
+  Integer milestone: ordinary `core::integer` extrema, width and signedness,
+  exact type refinement and static-call custody are exercised by
+  [the endpoint row](samples/cli/facts/core_integer_endpoint/README.md) and eight
+  carrier vectors. The floating API/representation row and its full acceptance
+  remain owned and open; the integer milestone does not close this task.
   Acceptance: integer/float APIs pass `omega run --both` with exact authored
   values and bit round trips on matching hosts. IEEE boundary and canonical-NaN
   vectors agree; invalid payloads, wrong kinds, unsupported/qualified carriers,

@@ -654,6 +654,16 @@ fn settle_resolution(lowerer: &mut Lowerer, syntax: &SyntaxTrees) -> Result<(), 
     lowering::machine::mark_token_bound_domain_homes(&mut lowerer.symbol_resolved_trees);
     constant::finalize(lowerer)?;
     selection::finalize_authored_selections(lowerer)?;
+    let expressions = lowerer
+        .pending_authored_expressions
+        .iter()
+        .map(|pending| pending.expression)
+        .collect::<Vec<_>>();
+    crate::symbols::type_predicates::retain_operands(
+        &mut lowerer.symbol_resolved_trees,
+        &expressions,
+    )?;
+
     constant::finalize_operator_obligations(lowerer)?;
     selection::finalize(lowerer)?;
     lowering::machine::reject_duplicate_direct_token_bindings(&lowerer.symbol_resolved_trees)?;

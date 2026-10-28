@@ -243,7 +243,8 @@ fn analyzed_return_interval_and_narrowing(
         diagnostics,
         decisions,
     );
-    if diagnostics.len() == before {
+    if diagnostics.len() == before && !program.static_type_context_is_unreachable(return_expression)
+    {
         let (source, source_domain) = stored_value_carrier(
             program,
             machine,

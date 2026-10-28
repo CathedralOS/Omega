@@ -105,6 +105,8 @@ fn reaches(
             .iter()
             .any(|field| reaches(program, field.value, target, visited)),
         ExpressionNode::Unary(unary) => reaches(program, unary.operand, target, visited),
-        ExpressionNode::SavedSubject(_) | typed_trees::literal_expression_pattern!() => false,
+        ExpressionNode::TypeExpression(_)
+        | ExpressionNode::SavedSubject(_)
+        | typed_trees::literal_expression_pattern!() => false,
     }
 }

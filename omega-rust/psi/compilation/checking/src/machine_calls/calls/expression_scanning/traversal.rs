@@ -622,6 +622,8 @@ impl ScanContext<'_> {
                     self.scan(*argument, value_environment, executes);
                 }
             }
+            ExpressionNode::Binary(_)
+                if program.static_type_predicate_operands(expression).is_some() => {}
             ExpressionNode::Binary(binary) => {
                 // Every binary-operand TYPE check (operator applied to operands it is
                 // not defined for) lives behind one dispatcher.
@@ -746,6 +748,9 @@ impl ScanContext<'_> {
                 self.scan(range.start, value_environment, executes);
                 self.scan(range.end, value_environment, executes);
             }
+            ExpressionNode::TypeExpression(_) => self.diagnostics.push(Diagnostic::error(
+                "a type operand is valid only in a static type predicate",
+            )),
             typed_trees::executable_leaf_expression_pattern!() => {}
             ExpressionNode::ZeroValue(type_reference) => {
                 self.diagnostics.push(Diagnostic::error(format!(

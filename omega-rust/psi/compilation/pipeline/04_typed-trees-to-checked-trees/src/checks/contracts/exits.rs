@@ -141,6 +141,16 @@ pub(super) fn check_exit_ensures(
     integer_range_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    // The type-refinement owner forms the complete body and derives each
+    // branch environment from its declared domain and preceding guards.
+    // An empty environment establishes that this exact value exit cannot
+    // occur; its postconditions are vacuous, just as for contradictory live
+    // scalar premises. The requested guarantee contributes no assumption.
+    if program.static_type_context_is_unreachable(super::return_values::exit_return_expression(
+        program, exit_flow,
+    )) {
+        return;
+    }
     let entry_contexts: Vec<_> = facts
         .flow
         .contexts

@@ -109,6 +109,16 @@ impl<'a> BooleanLowering<'a> {
 
 impl BooleanLowering<'_> {
     fn expression(&self, expression: ExpressionHandle) -> Option<CheckedBooleanExpression> {
+        if self
+            .program
+            .static_type_predicate_operands(expression)
+            .is_some()
+        {
+            return self
+                .program
+                .static_type_predicate_value(expression)
+                .map(CheckedBooleanExpression::Constant);
+        }
         if let Some(CheckedScalarExpression::Boolean(read)) = primitive_reference_read::lower(
             self.program,
             self.authored_parameters,

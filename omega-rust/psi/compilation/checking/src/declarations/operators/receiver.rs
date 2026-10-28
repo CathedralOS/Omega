@@ -169,6 +169,7 @@ fn expression_type_reference_in_state(
         ExpressionNode::Float(literal) => literal
             .landing()
             .and_then(|format| float_type_reference(program, format)),
+        ExpressionNode::TypeExpression(_) => None,
         ExpressionNode::ZeroValue(type_reference) => Some(*type_reference),
         // Construction denotes its resolved nominal type, independently of
         // its fields and the destination of an enclosing operation. Retain
