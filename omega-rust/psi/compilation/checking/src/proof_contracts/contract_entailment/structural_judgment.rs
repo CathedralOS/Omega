@@ -442,12 +442,19 @@ struct CompletedNominalCapture {
     anchor: ExpressionHandle,
     reference: TypeReferenceHandle,
     value: StructuralTerm,
+    observed_value: StructuralTerm,
 }
 
 impl CompletedNominalCapture {
     fn same_admission(&self, other: &Self) -> bool {
         self.anchor == other.anchor
             && self.reference == other.reference
+            && self
+                .observed_value
+                .observation_identity_key()
+                .is_some_and(|key| {
+                    other.observed_value.observation_identity_key().as_ref() == Some(&key)
+                })
             && self
                 .value
                 .observation_identity_key()
@@ -1590,6 +1597,12 @@ impl<'program> StructuralJudge<'program> {
                         .into_iter()
                         .map(|argument| self.resolve_at(argument, depth + 1))
                         .collect();
+                    let result_type =
+                        super::structural_terms::selected_application_result_reference(
+                            self.program,
+                            target,
+                            result_type,
+                        );
                     let resolved = StructuralTerm::Application {
                         result_type,
                         target,
@@ -2493,6 +2506,12 @@ impl<'program> StructuralJudge<'program> {
             return Some(value);
         }
         let program = self.program;
+        if program.static_type_predicate_operands(expression).is_some() {
+            // Types have no runtime storage observation. Read the same
+            // declaration-owned proposition as contract term construction;
+            // an open proposition remains symbolic until a path establishes it.
+            return super::structural_terms::static_type_predicate_term(program, expression, &[]);
+        }
         // A selected collection measure observes the completed descriptor, not
         // its retired referent. Resolve the receiver through the ordinary value
         // owner first: only an exact completed value or a separately proved
@@ -2565,6 +2584,14 @@ impl<'program> StructuralJudge<'program> {
             );
         }
         match program.expression_table.expression(expression) {
+            ExpressionNode::Match(dispatch) => self.specification_match_term(
+                expression,
+                dispatch,
+                environment,
+                static_observations,
+                scope?,
+                depth + 1,
+            ),
             ExpressionNode::Name(path) => {
                 // Static values use the resolved declaration, not the runtime
                 // environment's spelling. A local may shadow a const binder;

@@ -1,0 +1,41 @@
+// Expected exit: 0
+// Contract Match operands preserve ordered selection and exact captured cases.
+data Direction { case Low; case High; }
+
+machine bits(direction: Direction, payload: u32) -> u32
+ensures result == ((match direction { Direction::Low -> 0u32, Direction::High -> 0x80000000u32 }) | 0x00400000u32 | payload)
+{
+    let selected: u32 = match direction { Direction::Low -> 0u32, Direction::High -> 0x80000000u32 };
+    selected | 0x00400000u32 | payload
+}
+
+machine boolean_bits(choice: bool, payload: u32) -> u32
+ensures result == ((match choice { true -> 0x20u32, false -> 0x40u32 }) | payload)
+{
+    let selected: u32 = match choice { true -> 0x20u32, false -> 0x40u32 };
+    selected | payload
+}
+
+machine common(choice: bool) -> u32
+ensures result == ((match choice { true -> 7u32, false -> 7u32 }) | 0x10u32)
+{ 23u32 }
+
+machine ordered(value: u32) -> u32
+requires value == 1u32
+ensures result == (match value { 1u32 -> 11u32, _ -> 22u32 })
+{ 11u32 }
+
+machine main() crashes Trap {
+    let low: u32 = bits(Direction::Low, 3);
+    let high: u32 = bits(Direction::High, 5);
+    let first: u32 = boolean_bits(true, 1);
+    let second: u32 = boolean_bits(false, 2);
+    let shared: u32 = common(false);
+    let earlier: u32 = ordered(1);
+    transition low == 0x00400003u32 && high == 0x80400005u32 && first == 33u32 && second == 66u32 && shared == 23u32 && earlier == 11u32 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

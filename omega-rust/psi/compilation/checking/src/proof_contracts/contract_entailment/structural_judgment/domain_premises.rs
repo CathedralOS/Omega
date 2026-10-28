@@ -677,6 +677,7 @@ impl StructuralJudge<'_> {
                                 parameters,
                                 callable,
                                 bindings,
+                                &[],
                                 Some(value),
                                 0,
                             )

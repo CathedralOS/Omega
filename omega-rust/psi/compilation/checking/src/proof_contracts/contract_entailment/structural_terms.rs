@@ -446,6 +446,48 @@ pub(crate) fn source_operations_have_same_meaning(
     }
 }
 
+/// The same exact type proposition is retained in declaration and applied
+/// contract scopes. Type actuals stay separate from runtime value substitutions.
+pub(super) fn static_type_predicate_term(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    substitutions: &[(
+        symbols::SymbolHandle,
+        typed_trees::types::TypeReferenceHandle,
+    )],
+) -> Option<StructuralTerm> {
+    let (left, right, negate) = program.static_type_predicate_operands(expression)?;
+    let value = if substitutions.is_empty() {
+        program.static_type_predicate_value(expression)
+    } else {
+        program.applied_static_type_predicate_value(expression, substitutions)
+    };
+    if let Some(value) = value {
+        return Some(StructuralTerm::Constructor {
+            data: "bool".to_owned(),
+            case: value.to_string(),
+            fields: Vec::new(),
+        });
+    }
+    let identity = |reference| {
+        program.type_identity_text(program.type_identity_with_simultaneous_substitutions(
+            typed_trees::type_identity::TypeIdentityRequest {
+                substitutions,
+                ..typed_trees::type_identity::TypeIdentityRequest::package_qualified(reference)
+            },
+        ))
+    };
+    let mut operands = [identity(left)?, identity(right)?];
+    operands.sort_unstable();
+    Some(StructuralTerm::Variable(format!(
+        "$static-type-predicate:{}:{}:{}:{}:{negate}",
+        operands[0].len(),
+        operands[0],
+        operands[1].len(),
+        operands[1],
+    )))
+}
+
 pub(super) fn structural_term(
     program: &dyn crate::CheckingInput,
     scope: Option<(
@@ -460,26 +502,8 @@ pub(super) fn structural_term(
     expression: ExpressionHandle,
     bindings: Option<&dyn Fn(ExpressionHandle) -> Option<StructuralTerm>>,
 ) -> Option<StructuralTerm> {
-    if let Some((left, right, negate)) = program.static_type_predicate_operands(expression) {
-        if let Some(value) = program.static_type_predicate_value(expression) {
-            return Some(StructuralTerm::Constructor {
-                data: "bool".to_owned(),
-                case: value.to_string(),
-                fields: Vec::new(),
-            });
-        }
-        let mut operands = [
-            program.package_qualified_type_identity_text(left),
-            program.package_qualified_type_identity_text(right),
-        ];
-        operands.sort_unstable();
-        return Some(StructuralTerm::Variable(format!(
-            "$static-type-predicate:{}:{}:{}:{}:{negate}",
-            operands[0].len(),
-            operands[0],
-            operands[1].len(),
-            operands[1]
-        )));
+    if program.static_type_predicate_operands(expression).is_some() {
+        return static_type_predicate_term(program, expression, &[]);
     }
     if let Some(term) = bindings.and_then(|bindings| bindings(expression)) {
         return Some(term);
@@ -900,6 +924,39 @@ fn call_projection_field_symbol(
     program
         .data_field_named(data, field_name)
         .map(|field| field.symbol)
+}
+
+/// Equivalent result recipes may have separate occurrence handles. Use the
+/// exact selected declaration's handle only when the complete normalized type
+/// agrees, including qualifications, policies and dependent indices. Generic
+/// applications whose result differs from that declaration keep their applied
+/// reference; no carrier-only equivalence can erase a result contract.
+pub(super) fn selected_application_result_reference(
+    program: &dyn crate::CheckingInput,
+    target: symbols::SymbolHandle,
+    reference: typed_trees::types::TypeReferenceHandle,
+) -> typed_trees::types::TypeReferenceHandle {
+    use typed_trees::type_identity::{IndexIdentityArgument, try_normalized_index_identity};
+    let Some(owner) = super::specification_calls::selected_contract_by_symbol(program, target)
+    else {
+        return reference;
+    };
+    let declared = super::specification_calls::owner_return_type(&owner);
+    let identity = |value| {
+        try_normalized_index_identity(
+            program,
+            IndexIdentityArgument::TypeArgument(value),
+            &[],
+            &[],
+        )
+    };
+    if reference.is_valid()
+        && identity(reference).is_some_and(|value| Some(value) == identity(declared))
+    {
+        declared
+    } else {
+        reference
+    }
 }
 
 /// Rejoin the exact selected entry. Names never recover an absent selection.
