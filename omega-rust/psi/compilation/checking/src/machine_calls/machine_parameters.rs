@@ -20,7 +20,7 @@ pub use closed_types::closed_static_call_type_bindings;
 pub(crate) mod contract_facts;
 mod nominal_admission;
 mod type_refinement;
-pub(super) use type_refinement::infer_call_type_arguments;
+pub use type_refinement::infer_call_type_arguments;
 
 use callable_shape::validate_selected_callable_effects;
 use callable_shape::validate_selected_callable_shape;

@@ -30,7 +30,7 @@ pub(super) fn validate(
                         && file.path == std::path::Path::new("<build-prelude>")
                 })
         })
-        .flat_map(|definition| program.trait_machine_signatures(definition))
+        .flat_map(|definition| program.trait_machine_instances(definition))
         .map(|signature| (signature.symbol, signature.name.as_str()))
         .collect();
     for machine in program.machines() {

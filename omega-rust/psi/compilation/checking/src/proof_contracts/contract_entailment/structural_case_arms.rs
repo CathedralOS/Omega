@@ -2016,9 +2016,9 @@ fn state_prefix_reachability_destinations(
         .statement_table
         .indexed_statements(state.statement_nodes)
     {
-        for site in
-            crate::machine_calls::calls::collect_call_sites_in_statement(program, owner, state, index)
-        {
+        for site in crate::machine_calls::calls::collect_call_sites_in_statement(
+            program, owner, state, index,
+        ) {
             let selected = site.target_symbol(program);
             if selected.is_valid()
                 && matches!(

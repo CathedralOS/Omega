@@ -372,17 +372,6 @@ pub(super) fn assign_machine_symbols(
                 symbols, child_type_references, &local_type_parameters,
                 conformance.symbol, conformance.arguments,
             );
-            if conformance.via_expression.is_valid() {
-                assign_expression_table_symbols(
-                    symbols,
-&expression_scope,
-                    &[],
-                    SymbolHandle::invalid(),
-                    expression_table,
-                    child_type_references,
-                    conformance.via_expression,
-                );
-            }
             if target_is_trait
                 && let Some((_, proposition_slots)) = trait_proposition_slots
                     .iter()

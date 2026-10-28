@@ -32,8 +32,6 @@ pub(crate) struct MachineClauses {
     pub contracts: HandleSpan<CapabilityContract>,
     pub return_type: syntax_trees::types::TypeReferenceHandle,
     pub where_facts: HandleSpan<syntax_trees::item::ProofFact>,
-    pub admitted_same_stack_bytes: u64,
-    pub same_stack_clause_span: Option<source::SourceSpan>,
 }
 
 type RankedSubjects = (
@@ -66,8 +64,6 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
     let mut public_selectors = Vec::<String>::new();
     let mut return_type = syntax_trees::types::TypeReferenceHandle::invalid();
     let mut where_facts = Vec::new();
-    let mut admitted_same_stack_bytes = 0u64;
-    let mut same_stack_clause_span = None;
 
     while !input.at_punctuation(PunctuationKind::LeftBrace)
         // CH10 bodyless machines end at `;` in body position -- the clause
@@ -174,25 +170,9 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
         }
 
         if input.at_same_stack_demand() {
-            if admitted_same_stack_bytes != 0 {
-                return Err(input.error_here("duplicate `stack N bytes` clause"));
-            }
-            same_stack_clause_span = Some(input.current_source_span());
-            input = input.take_contextual("stack")?;
-            let number = input;
-            let (bytes, after_number) = input.take_integer()?;
-            if bytes <= 0 {
-                return Err(number.error_here(
-                    "`stack` demand must be a positive byte count; zero does not admit a foreign leaf",
-                ));
-            }
-            if !after_number.at_contextual("bytes") {
-                return Err(after_number.error_here("expected `bytes` after the same-stack demand"));
-            }
-            input = after_number.take_contextual("bytes")?;
-            input = take_invokes_clause_terminator(input)?;
-            admitted_same_stack_bytes = u64::try_from(bytes).expect("positive i64 fits in u64");
-            continue;
+            return Err(input.error_here(
+                "`stack N bytes` clauses are retired; use `Build::same_stack_demand<Requirement>(builder, target, bytes)` with the exact native binding",
+            ));
         }
 
         if input.at_contextual("crashes") {
@@ -233,7 +213,7 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
 
         if input.at_contextual("boundary") {
             return Err(input.error_here(
-                "trailing `boundary host` and `boundary Name` contract clauses are retired; use a leading `boundary trait`, `boundary machine`, or `boundary operator` declaration and realize exact requirements with `satisfies Trait::requirement via Binding::...`",
+                "trailing `boundary host` and `boundary Name` contract clauses are retired; use a leading `boundary trait`, `boundary machine`, or `boundary operator` declaration and realize exact requirements with `Build::bind<Requirement>(builder, target, locator)`",
             ));
         }
 
@@ -414,8 +394,6 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
             contracts: contracts.finish(),
             return_type,
             where_facts: where_facts_span.finish(),
-            admitted_same_stack_bytes,
-            same_stack_clause_span,
         },
         input,
     ))

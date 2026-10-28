@@ -195,20 +195,6 @@ satisfies Transform::transform
 }
 
 
-macos_arm64 machine invoke_binding() -> ForeignBinding<21, 9, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "/usr/lib/libffi.dylib", symbol: "_ffi_call",
-        },
-    }
-}
-macos_arm64 machine invoke_leaf<machine Selected>(
-    interface: &PreparedInterface, result: &mut FloatPair32, arguments: &ArgumentValues
-)
-where machine Selected satisfies Transform::transform;
-satisfies Invoke::invoke
-via invoke_binding();
-
 data Main {
     interface: ForeignInterface;
     input: FloatPair32; result: FloatPair32;
@@ -366,21 +352,6 @@ machine LinuxPolicies::returned() -> ValuePlacement {
     placement
 }
 
-
-linux_x86_64 machine linux_invoke_binding() -> ForeignBinding<11, 8, 15> {
-    ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libffi.so.8", symbol: "ffi_call", version: "LIBFFI_BASE_8.0",
-        },
-    }
-}
-
-linux_x86_64 machine invoke_leaf<machine Selected>(
-    interface: &PreparedInterface, result: &mut FloatPair32, arguments: &ArgumentValues
-)
-where machine Selected satisfies Transform::transform;
-satisfies Invoke::invoke
-via linux_invoke_binding();
 
 // libffi target ABI discriminants from the platform ffi headers.
 macos_arm64 machine ffi_abi() -> u32 { 1 }

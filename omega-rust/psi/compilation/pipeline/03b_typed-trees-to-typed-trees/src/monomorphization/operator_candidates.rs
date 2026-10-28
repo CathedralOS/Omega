@@ -39,9 +39,6 @@ impl OperatorCandidateTemplates {
                 continue;
             }
             for conformance in program.machine_trait_conformances(machine) {
-                if conformance.external_binding.is_some() || conformance.via_expression.is_valid() {
-                    continue;
-                }
                 let Some(operator) =
                     typed_trees::operator::resolve_satisfied_checked_operator_for_conformance(
                         program,

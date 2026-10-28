@@ -49,4 +49,6 @@ machine build(builder: &mut Build) {
  Build::bind<ContextApi::get_context>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "GetWindowLongPtrA" } });
  Build::bind<ModuleApi::acquire>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "kernel32.dll", export: "GetModuleHandleExA" } });
  Build::bind<ModuleApi::release>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "kernel32.dll", export: "FreeLibrary" } });
+
+ Build::bind<ClassApi::register>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "RegisterClassExA" } });
 }

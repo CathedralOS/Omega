@@ -138,20 +138,6 @@ public boundary trait OnceRegistrar: Calling<OnceCalling> {
 public data Initialization { }
 public machine Initialization::call() satisfies Initializer::call { }
 
-linux_x86_64 machine once_binding() -> ForeignBinding<9, 12, 10> {
-    ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libc.so.6",
-            symbol: "pthread_once",
-            version: "GLIBC_2.34",
-        },
-    }
-}
-
-linux_x86_64 machine once_leaf<machine Handler>(word: &mut i32) -> i32
-where machine Handler satisfies Initializer::call;
-satisfies OnceRegistrar::execute
-via once_binding();
 
 data Main { word: i32; status: i32; }
 

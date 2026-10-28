@@ -236,7 +236,6 @@ fn single_state_machine(state: arena::Handle<StateHandle>) -> Machine {
         blocks_keyword_source_spans: Vec::new(),
         suspends: false,
         blocks: false,
-        admitted_same_stack_bytes: 0,
         contracts: HandleSpan::empty(),
         states: HandleSpan::from_parts(state, 1),
     }
@@ -1090,7 +1089,6 @@ fn syntax_trees_extend_from_preserves_root_payload_handles() {
         blocks_keyword_source_spans: vec![blocks_keyword_source_span],
         suspends: true,
         blocks: true,
-        admitted_same_stack_bytes: 0,
         contracts: HandleSpan::empty(),
         states: HandleSpan::from_parts(state, 1),
     }));

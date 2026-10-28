@@ -1,4 +1,9 @@
+use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
     Build::application(builder, "foreign_callback_requires_selected_entry_plan");
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
+
+ Build::bind<Registrar::install>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+        object: "libc.so.6", symbol: "atexit", version: "GLIBC_2.2.5"
+    } });
 }

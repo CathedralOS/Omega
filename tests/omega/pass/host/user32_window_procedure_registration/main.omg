@@ -162,13 +162,6 @@ boundary trait ModuleApi {
  machine release(module: u64) -> i32 reaches;
 }
 data Imports { }
-windows_x86_64 machine register_binding() -> ForeignBinding<10, 16, 0> {
- ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "RegisterClassExA" } }
-}
-windows_x86_64 machine Imports::register<machine Selected>(specification: &NativeClass) -> u16
-where machine Selected satisfies WindowProcedure::call;
-satisfies ClassApi::register
-via register_binding();
 
 
 // One occurrence owns both the live-registration capacity and one loader pin.

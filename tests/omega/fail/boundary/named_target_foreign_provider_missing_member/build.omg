@@ -1,3 +1,4 @@
+use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
     Build::application(builder, "named_target_foreign_provider_missing_member");
     Build::select_provider<Probe, ProbeProvider>(builder, linux_arm64);
@@ -12,4 +13,6 @@ machine build(builder: &mut Build) {
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, macos_arm64::ProgramEntry, main);
+
+ Build::bind<Probe::read>(builder, uefi_x86_64, ForeignBinding::Syscall { number: 39 });
 }

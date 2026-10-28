@@ -27,11 +27,15 @@ struct PreparedInvocation {
 
 fn occurrence(
     program: &TypedTrees,
-    owner: SymbolHandle,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    position: usize,
     call: StaticArgumentCall<'_>,
 ) -> InvocationTuple {
+    let owner = machine.symbol;
     let application = call.application();
     let arguments = invocation_binding_views::complete_arguments(program, owner, call)
+        .or_else(|| inferred_method_arguments(program, machine, state, position, call))
         .unwrap_or_else(|| call.arguments(program).to_vec());
     if application.is_valid() {
         InvocationTuple {
@@ -52,6 +56,102 @@ fn occurrence(
             lifetimes: Vec::new(),
         }
     }
+}
+
+/// Infer omitted method type operands from this exact invocation's runtime
+/// actuals. This is tuple formation only: ordinary immutable call admission
+/// still validates every substituted carrier, restriction and argument.
+fn inferred_method_arguments(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    position: usize,
+    call: StaticArgumentCall<'_>,
+) -> Option<Vec<StaticMachineArgument>> {
+    let (target, runtime_arguments) = match call {
+        StaticArgumentCall::Expression(_, call) => (
+            call.target_symbol,
+            program.expression_table.expression_handles(call.arguments),
+        ),
+        StaticArgumentCall::Statement(call) => (
+            call.target_symbol,
+            program.statement_table.expression_handles(call.arguments),
+        ),
+    };
+    let (_, signature) = program.trait_machine_signature(target)?;
+    let parameters = program.state_signature_type_parameters(signature);
+    let explicit = call.arguments(program);
+    if explicit.len() >= parameters.len() {
+        return None;
+    }
+    let mut bindings = Vec::new();
+    for (parameter, argument) in parameters.iter().zip(explicit) {
+        if !matches!(
+            parameter.kind,
+            typed_trees::data::TypeParameterKind::Type
+                | typed_trees::data::TypeParameterKind::Const { .. }
+        ) {
+            return None;
+        }
+        bindings.push((
+            parameter.symbol,
+            if argument.type_reference.is_valid() {
+                argument.type_reference
+            } else if argument.application.is_none()
+                && argument.const_literal.is_none()
+                && argument.evidence_projection.is_none()
+            {
+                program
+                    .type_reference_table
+                    .find_named_type_reference(argument.symbol)?
+            } else {
+                return None;
+            },
+        ));
+    }
+    for (formal, actual) in program
+        .state_signature_parameters(signature)
+        .iter()
+        .zip(runtime_arguments)
+    {
+        let actual = validation::expression_type_reference_in_state(
+            program,
+            state.symbol,
+            position,
+            *actual,
+        )?;
+        validation::infer_call_type_arguments(
+            program,
+            parameters,
+            program.machine_type_parameters(machine),
+            formal.type_reference,
+            actual,
+            &mut bindings,
+        );
+    }
+    let mut complete = explicit.to_vec();
+    for parameter in &parameters[explicit.len()..] {
+        if !matches!(
+            parameter.kind,
+            typed_trees::data::TypeParameterKind::Type
+                | typed_trees::data::TypeParameterKind::Const { .. }
+        ) {
+            return None;
+        }
+        let mut matches = bindings
+            .iter()
+            .filter(|(symbol, _)| *symbol == parameter.symbol);
+        let (_, reference) = matches.next()?;
+        if matches.next().is_some() {
+            return None;
+        }
+        complete.push(
+            program
+                .static_operand_from_type_reference(*reference)
+                .ok()?,
+        );
+    }
+    Some(complete)
 }
 
 fn instance(
@@ -255,7 +355,9 @@ fn prepare_invocations(
                         target: call.target_symbol,
                         tuple: occurrence(
                             program,
-                            machine.symbol,
+                            machine,
+                            state,
+                            position,
                             StaticArgumentCall::Statement(call),
                         ),
                     });
@@ -274,7 +376,9 @@ fn prepare_invocations(
                             target: call.target_symbol,
                             tuple: occurrence(
                                 program,
-                                machine.symbol,
+                                machine,
+                                state,
+                                position,
                                 StaticArgumentCall::Expression(expression, call),
                             ),
                         });
@@ -379,7 +483,13 @@ pub(super) fn invocation_tuples(
                         ),
                         TypeReferenceHandle::invalid(),
                         call.static_requirement_dispatch.as_ref(),
-                        occurrence(program, machine.symbol, StaticArgumentCall::Statement(call)),
+                        occurrence(
+                            program,
+                            machine,
+                            state,
+                            position,
+                            StaticArgumentCall::Statement(call),
+                        ),
                     )?;
                 }
                 let expressions = source_expression_roster(
@@ -412,7 +522,9 @@ pub(super) fn invocation_tuples(
                             call.static_requirement_dispatch.as_ref(),
                             occurrence(
                                 program,
-                                machine.symbol,
+                                machine,
+                                state,
+                                position,
                                 StaticArgumentCall::Expression(expression, call),
                             ),
                         )?;

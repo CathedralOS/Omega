@@ -307,7 +307,6 @@ impl super::TypedTrees {
             .wrapping_add(self.service_reach_rows.len() as u64)
             .wrapping_add(self.authored_service_reach_rows.len() as u64)
             .wrapping_add(self.semantic_domains.len() as u64)
-            .wrapping_add(self.external_bindings.identities().len() as u64)
             .wrapping_add(self.plan_laid_layouts.len() as u64)
             .wrapping_add(self.placed_view_plans.len() as u64)
             .wrapping_add(self.placement_lifecycle_plans.revision())

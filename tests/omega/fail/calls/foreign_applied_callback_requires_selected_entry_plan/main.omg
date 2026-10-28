@@ -1,15 +1,8 @@
 use omega::language::core::external_binding;
 
-linux_x86_64 machine binding() -> ForeignBinding<9, 6, 11> {
-    ForeignBinding::DllImport { import: DllImport::ElfVersioned {
-        object: "libc.so.6", symbol: "atexit", version: "GLIBC_2.2.5"
-    } }
-}
 
 data RegistrarImports {}
-linux_x86_64 machine RegistrarImports::install<machine Callback>() -> i32
-where machine Callback satisfies Handler::notify;
-satisfies Registrar<u64>::install via binding();
+
 
 public boundary trait Handler { machine notify() reaches; }
 public boundary trait Registrar<Value> {

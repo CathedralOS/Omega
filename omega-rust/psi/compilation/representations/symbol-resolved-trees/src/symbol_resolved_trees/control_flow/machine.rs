@@ -103,9 +103,6 @@ pub struct Machine {
     /// The published row is an installation-selected upper bound rather than
     /// a fixed callable ceiling.
     pub service_reach_is_installation_bound: bool,
-    /// Authored same-stack demand of a bodyless external realization, in bytes.
-    /// Zero means the source wrote no `stack N bytes` clause.
-    pub admitted_same_stack_bytes: u64,
     /// Exact authored operational-clause keyword occurrences. These explain
     /// the semantic booleans below without making source coordinates part of
     /// contract identity.
@@ -223,17 +220,6 @@ pub struct TraitConformance {
     /// (`as Name`) for plural algebras / signature collisions.
     pub requirement: Option<DiagnosticName>,
     pub alias: Option<DiagnosticName>,
-    /// Exact interned identity of the external leaf's structured `via`
-    /// bootstrap binding. New source instead retains `via_expression` until
-    /// hermetic evaluation produces the normalized Omega-owned binding.
-    pub external_binding: Option<language_semantics::ExternalBindingId>,
-    /// Ordinary authored expression after `via`, lowered through the same
-    /// name-resolution table as every other expression. Invalid for the
-    /// segregated bootstrap binding and for ordinary checked satisfiers.
-    pub via_expression: ExpressionHandle,
-    /// Exact authored `via` keyword occurrence retained separately from the
-    /// semantic binding identity for package-review source custody.
-    pub external_binding_source_span: Option<source::SourceSpan>,
 }
 
 #[cfg(test)]
@@ -302,7 +288,6 @@ pub(crate) fn test_machine(states: HandleSpan<Handle<State>>) -> Machine {
         termination_plan: Default::default(),
         service_reach_row: Default::default(),
         service_reach_is_installation_bound: false,
-        admitted_same_stack_bytes: 0,
         suspends_keyword_source_spans: Vec::new(),
         blocks_keyword_source_spans: Vec::new(),
         compiler_selection_partition: None,

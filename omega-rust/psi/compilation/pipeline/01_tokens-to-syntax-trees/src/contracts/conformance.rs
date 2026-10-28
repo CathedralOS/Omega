@@ -1,5 +1,3 @@
-//! `satisfies` conformance clauses (`parse_conformance`) and the external
-//! provider binding a conformance may name (`external_binding`).
+//! Exact machine requirement-satisfaction clauses. Native bindings belong to Build.
 
-mod external_binding;
 pub(crate) mod parse_conformance;

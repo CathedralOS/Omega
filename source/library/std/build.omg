@@ -665,4 +665,11 @@ machine build(builder: &mut Build) {
  Build::bind_table_function<targets::uefi_x86_64::handoff::UefiBootServices::free_pages, targets::uefi_x86_64::handoff::EfiBootServicesTable::free_pages>(builder, uefi_x86_64);
  Build::bind_table_function<targets::uefi_x86_64::handoff::UefiBootServices::get_memory_map, targets::uefi_x86_64::handoff::EfiBootServicesTable::get_memory_map>(builder, uefi_x86_64);
  Build::bind_table_function<targets::uefi_x86_64::handoff::UefiBootServices::exit_boot_services, targets::uefi_x86_64::handoff::EfiBootServicesTable::exit_boot_services>(builder, uefi_x86_64);
+
+ Build::bind<omega::language::core::process_exit::ProcessExit::exit_process>(builder, windows_x86_64, ForeignBinding::DllImport {
+        import: DllImport::PeByName {
+            library: "kernel32.dll",
+            export: "ExitProcess",
+        },
+    });
 }

@@ -1,0 +1,8 @@
+use omega::language::core::external_binding;
+machine build(builder: &mut Build) {
+ Build::package(builder, "native_binding_opaque_generic_shared_stored_writeonly_provider");
+
+ Build::bind<Sink::consume>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "libSystem.B.dylib", symbol: "_exit",
+    } });
+}

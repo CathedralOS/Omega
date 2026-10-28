@@ -161,8 +161,7 @@ pub(super) fn resolve_checked_adapter_for_operator(
         .machine_trait_conformances(provider)
         .iter()
         .filter(|conformance| {
-            conformance.external_binding.is_none()
-                && conformance.name.as_str() == namespace.as_str()
+            conformance.name.as_str() == namespace.as_str()
                 && conformance.requirement.as_ref().map(|name| name.as_str())
                     == Some(requirement.as_str())
                 && (typed_trees::operator::resolve_satisfied_checked_operator_for_conformance(

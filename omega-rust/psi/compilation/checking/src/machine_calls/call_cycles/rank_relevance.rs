@@ -181,7 +181,6 @@ fn boundary_excludes_synchronous_entry(
             machine.supply_mode,
             language_semantics::MachineSupplyMode::Boundary
                 | language_semantics::MachineSupplyMode::TopLevelRequirement
-                | language_semantics::MachineSupplyMode::ExternalRealization { .. }
         )
         || !machine.invokes.is_empty()
     {
@@ -190,27 +189,23 @@ fn boundary_excludes_synchronous_entry(
     // A directly named external satisfier retains every pinned requirement's
     // ceiling; a narrower declaration cannot erase an inherited callback edge.
     let requirements = program.machine_trait_conformances(machine);
-    (!matches!(
-        machine.supply_mode,
-        language_semantics::MachineSupplyMode::ExternalRealization { .. }
-    ) || !requirements.is_empty())
-        && requirements.iter().all(|conformance| {
-            match typed_trees::machine::resolve_satisfied_declaration(
-                program.typed_program(),
-                machine,
-                conformance,
-            ) {
-                Some(typed_trees::machine::SatisfiedDeclaration::Trait {
-                    definition,
-                    requirement,
-                }) => definition.is_boundary && requirement.invokes.is_empty(),
-                Some(typed_trees::machine::SatisfiedDeclaration::TopLevelRequirement(
-                    requirement,
-                )) => requirement.invokes.is_empty(),
-                Some(typed_trees::machine::SatisfiedDeclaration::Operator(operator)) => {
-                    operator.is_boundary
-                }
-                _ => false,
+    requirements.iter().all(
+        |conformance| match typed_trees::machine::resolve_satisfied_declaration(
+            program.typed_program(),
+            machine,
+            conformance,
+        ) {
+            Some(typed_trees::machine::SatisfiedDeclaration::Trait {
+                definition,
+                requirement,
+            }) => definition.is_boundary && requirement.invokes.is_empty(),
+            Some(typed_trees::machine::SatisfiedDeclaration::TopLevelRequirement(requirement)) => {
+                requirement.invokes.is_empty()
             }
-        })
+            Some(typed_trees::machine::SatisfiedDeclaration::Operator(operator)) => {
+                operator.is_boundary
+            }
+            _ => false,
+        },
+    )
 }

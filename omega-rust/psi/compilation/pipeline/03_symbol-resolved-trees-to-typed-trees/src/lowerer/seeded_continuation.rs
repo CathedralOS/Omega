@@ -610,12 +610,8 @@ fn resolved_completion_retains_declarations(
         if old_conformances.len() != new_conformances.len() {
             return false;
         }
-        for (old, new) in old_conformances.iter().zip(new_conformances) {
-            let mut header = new.clone();
-            header.via_expression = old.via_expression;
-            if header != *old {
-                return false;
-            }
+        if old_conformances != new_conformances {
+            return false;
         }
     }
     // Non-machine roots can append through ordinary body-driven synthesis,
@@ -681,21 +677,6 @@ fn join_resolved_semantics(
         ));
     }
     if !source
-        .external_bindings
-        .identities()
-        .take(base.external_bindings.identities().len())
-        .eq(base.external_bindings.identities())
-        || !source
-            .external_bindings
-            .identities()
-            .take(candidate.external_bindings.identities().len())
-            .eq(candidate.external_bindings.identities())
-    {
-        return Err(Diagnostic::error(
-            "source continuation changed retained external-binding identities",
-        ));
-    }
-    if !source
         .evidence_forwardings
         .starts_with(&base.evidence_forwardings)
     {
@@ -731,7 +712,6 @@ fn join_resolved_semantics(
     candidate.symbols = source.symbols.clone();
     candidate.service_reaches = source.service_reaches.clone();
     candidate.service_reach_rows = source.service_reach_rows.clone();
-    candidate.external_bindings = source.external_bindings.clone();
     candidate
         .retain_authored_declaration_selections(source.authored_declaration_selections().clone());
     append_authored_service_reach_rows(candidate, source, &base.authored_service_reach_rows);

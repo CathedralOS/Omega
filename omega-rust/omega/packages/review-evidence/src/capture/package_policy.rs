@@ -5,7 +5,6 @@
 
 mod assumed_bindings;
 mod authority;
-mod external;
 mod restricted_build;
 mod semantic_dependencies;
 
@@ -64,7 +63,9 @@ pub fn project_checked_package_policy<'a>(
     let terminal_permissions =
         super::project_checked_terminal_permission_policy(compilation, target, package)?;
     let representation = super::project_checked_representation_policy(compilation, package)?;
-    let external_supplies = external::project(compilation, package)?;
+    // Historical callable-supply rows stay empty: native supply belongs to
+    // source-issued Build provider records, without forwarding declarations.
+    let external_supplies = Vec::new();
     let (dangerous_capabilities, slack_uses) = authority::project(compilation, &callables)?;
     let semantic_dependencies = semantic_dependencies::project(compilation, package, &callables)?;
     let boundary_applications = super::providers::project_checked_boundary_application_policy(

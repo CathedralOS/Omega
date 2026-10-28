@@ -272,7 +272,6 @@ fn valid_header<'a>(
         || machine.purpose != typed_trees::machine::MachinePurpose::Runtime
         || !machine.owned_data.is_empty()
         || machine.service_reach_is_installation_bound
-        || machine.admitted_same_stack_bytes != 0
     {
         return None;
     }
@@ -469,7 +468,6 @@ fn common_boundary_state<'a>(
         || machine.purpose != typed_trees::machine::MachinePurpose::Runtime
         || !machine.owned_data.is_empty()
         || machine.service_reach_is_installation_bound
-        || machine.admitted_same_stack_bytes != 0
     {
         return None;
     }

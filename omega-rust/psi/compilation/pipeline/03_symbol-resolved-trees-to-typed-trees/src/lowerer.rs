@@ -110,7 +110,6 @@ pub fn lower_symbol_resolved_trees(
         .map(lower_authored_service_reach_row)
         .collect();
     lowerer.typed_trees.semantic_domains = symbol_resolved_trees.semantic_domains.clone();
-    lowerer.typed_trees.external_bindings = symbol_resolved_trees.external_bindings.clone();
     lowerer.typed_trees.retain_authored_declaration_selections(
         symbol_resolved_trees
             .authored_declaration_selections()
@@ -672,7 +671,6 @@ fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) ->
         // Applied domain theories are derived after authored typing, alongside
         // specialization; the fresh source entrance regenerates them later.
         applied_domain_applications: _,
-        external_bindings,
         plan_laid_layouts: _,
         plan_laid_target_layouts: _,
         plan_laid_schema_fields: _,
@@ -716,7 +714,6 @@ fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) ->
     trees.service_reach_rows = service_reach_rows;
     trees.authored_service_reach_rows = authored_service_reach_rows;
     trees.semantic_domains = semantic_domains;
-    trees.external_bindings = external_bindings;
     trees.evidence_forwardings = source
         .evidence_forwardings
         .iter()

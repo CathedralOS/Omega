@@ -73,11 +73,17 @@ fn candidates_for_application(
             if !demand.arguments.is_empty() {
                 continue;
             }
-            let satisfies = typed.machine_trait_conformances(machine).iter().any(|conformance| {
-                conformance.external_binding.is_none()
-                    && typed_trees::operator::resolve_satisfied_checked_operator_for_conformance(typed, machine, conformance)
-                        .is_some_and(|operator| operator.symbol == demand.requirement_symbol)
-            });
+            let satisfies = typed
+                .machine_trait_conformances(machine)
+                .iter()
+                .any(|conformance| {
+                    typed_trees::operator::resolve_satisfied_checked_operator_for_conformance(
+                        typed,
+                        machine,
+                        conformance,
+                    )
+                    .is_some_and(|operator| operator.symbol == demand.requirement_symbol)
+                });
             if !satisfies {
                 continue;
             }

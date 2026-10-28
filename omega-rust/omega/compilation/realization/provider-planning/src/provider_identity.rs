@@ -121,12 +121,11 @@ pub fn provider_trait_requirement_matches(
     declaring_trait: SymbolHandle,
     requirement: SymbolHandle,
 ) -> bool {
-    provider_row_matches(context, plan, row, machine)
+    machine.supply_mode.is_checked_body()
+        && machine.body_is_present
+        && provider_row_matches(context, plan, row, machine)
         && provider_trait_application(context, plan, row, machine, declaring_trait, requirement)
-            .is_some_and(|application| match application {
-                ProviderTraitApplication::Named { .. } => true,
-                ProviderTraitApplication::Machine(edge) => edge.external_binding.is_none(),
-            })
+            .is_some()
 }
 
 /// The one row of a named provider's map that a plan row installs, joined by

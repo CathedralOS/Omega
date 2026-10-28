@@ -26,7 +26,7 @@ fn retired_capability_entry_names_the_boundary_provider_migration() {
             && error.message.contains("`boundary trait`")
             && error
                 .message
-                .contains("satisfies Trait::requirement via Binding::..."),
+                .contains("Build::bind<Requirement>(builder, target, locator)"),
         "got: {}",
         error.message
     );
@@ -120,7 +120,7 @@ fn retired_trailing_boundary_contracts_name_current_boundary_surfaces() {
                 && error.message.contains("`boundary operator`")
                 && error
                     .message
-                    .contains("`satisfies Trait::requirement via Binding::...`"),
+                    .contains("`Build::bind<Requirement>(builder, target, locator)`"),
             "got for {retired:?}: {}",
             error.message
         );
@@ -832,7 +832,7 @@ fn rejects_malformed_operator_tokens_on_machine_declarations() {
         ),
         (
             "machine + add(left: i32, right: i32) -> i32 satisfies Math::add via ForeignBinding::CompilerIntrinsic;",
-            "cannot declare an operator token",
+            "`via` binding clauses are retired",
         ),
         // `boundary requirement` is the tokenless requirement form; a
         // token-bearing requirement is spelled bodyless `boundary machine +`.
@@ -1516,7 +1516,7 @@ fn parses_unguarded_crash_bucket_on_a_bodyless_machine_head() {
 }
 
 #[test]
-fn bare_bodyless_machine_signature_parses_and_bodyless_satisfies_without_via_rejects() {
+fn bare_bodyless_signature_parses_and_ordinary_bodyless_satisfaction_rejects() {
     // The grammar admits a bare bodyless signature; whether a source may own
     // it as a compiler-catalog primitive is symbol resolution's decision.
     let tokens = Lexer::new("machine Float::meaning32(value: f32) -> FloatMeaning;")
@@ -1530,10 +1530,11 @@ fn bare_bodyless_machine_signature_parses_and_bodyless_satisfies_without_via_rej
     let tokens = Lexer::new("machine realize(value: f32) -> f32 satisfies Math::identity;")
         .tokenize()
         .expect("tokenize should succeed");
-    let error = parse_syntax_trees(&tokens).expect_err("a bodyless realization needs `via`");
+    let error = parse_syntax_trees(&tokens)
+        .expect_err("a bodyless satisfaction needs an explicit boundary declaration");
     super::expect_error(
         &error,
-        "a machine without a body is the ACCEPTED boundary form",
+        "a machine without a body must use the accepted `boundary machine ...;` form",
     );
 }
 

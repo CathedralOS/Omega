@@ -754,8 +754,7 @@ fn parses_target_scoped_bodyless_boundary_machine() {
     let [conformance] = parsed.items.satisfies_clauses(machine.satisfies) else {
         panic!("one exact satisfies edge")
     };
-    assert!(conformance.via.is_none());
-    assert!(!conformance.via_expression.is_valid());
+    assert!(conformance.requirement.is_some());
 }
 
 #[test]

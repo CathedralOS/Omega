@@ -4,10 +4,6 @@ public boundary trait Reading { machine read() -> i32 reaches NativeAbsolute; }
 public Reader satisfies Reading {
     machine read() -> i32 reaches NativeAbsolute { NativeAbsolute::absolute(-42) }
 }
-machine absolute_binding() -> ForeignBinding<26, 4, 0> {
-    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
-        install_name: "/usr/lib/libSystem.B.dylib", symbol: "_abs",
-    } }
-}
-machine native_absolute(value: i32) -> i32 satisfies NativeAbsolute::absolute via absolute_binding();
+
+
 machine component_entry() {}

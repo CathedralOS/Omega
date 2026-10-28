@@ -354,8 +354,7 @@ fn selected_operator_provider_evidence(
                 .machine_trait_conformances(checked_provider)
                 .iter()
                 .any(|conformance| {
-                    conformance.external_binding.is_none()
-                        && (checked_trees::typed_trees::operator::resolve_satisfied_checked_operator_for_conformance(
+                    (checked_trees::typed_trees::operator::resolve_satisfied_checked_operator_for_conformance(
                             typed,
                             checked_provider,
                             conformance,

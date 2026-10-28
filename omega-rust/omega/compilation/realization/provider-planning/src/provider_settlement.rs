@@ -33,7 +33,6 @@ use crate::ProviderSelection;
 use crate::SelectedProviderReviewProvenance;
 use crate::calling_policy_plans::BoundaryCallingPlanRealization;
 use crate::derive_satisfies_plans;
-use crate::evaluated_via_bindings::EvaluatedViaBindingTable;
 use checked_trees::typed_trees::TypedTrees;
 use diagnostics::Diagnostic;
 use effects::SelectedProviderPlanFacts;
@@ -248,10 +247,9 @@ pub struct ProviderSettlement {
     /// Every derived candidate plan plus toolchain-settled plans; trust
     /// replays each selected plan against exactly one of these.
     pub provider_plans: Vec<ProviderPlan>,
-    /// Complete ordinary-`via` evaluation population, including leaves not
-    /// selected for this executable. Backend lowering reads only the imports
-    /// installed in provider plans.
-    pub evaluated_via_bindings: EvaluatedViaBindingTable,
+    /// Exact common producer namespace for every native receipt. No source
+    /// evaluator or former forwarding declaration participates in recovery.
+    binding_identities: terminal_psi::TerminalIdentityTable,
     pub admitted_native_bindings: Vec<crate::AdmittedNativeBinding>,
     /// Selected normalized-import bindings and their evaluated calling plans,
     /// the only normalized foreign-locator custody in native realization.
@@ -270,11 +268,8 @@ pub struct ProviderSettlement {
 
 impl ProviderSettlement {
     /// The exact common namespace used by source-issued binding receipts.
-    pub fn binding_identities(&self) -> &terminal_psi::TerminalIdentityTable {
-        self.admitted_native_bindings.first().map_or_else(
-            || self.evaluated_via_bindings.identities(),
-            |row| &row.identities,
-        )
+    pub const fn binding_identities(&self) -> &terminal_psi::TerminalIdentityTable {
+        &self.binding_identities
     }
 
     /// Publish the complete calling catalog from its producing owners. Explicit
@@ -502,12 +497,6 @@ pub fn settle_checked_providers(
     // PRV4 provider selection mirrors the native pipeline: candidates remain
     // separate by provider type and only the uniquely covering candidate may
     // rewrite adapter calls in the interpreter program.
-    let evaluated_via_bindings = crate::evaluated_via_bindings::evaluate_checked_via_bindings(
-        checked,
-        source::DependencyScope::Product,
-        planning_target,
-        package_inputs,
-    )?;
     validate_native_binding_demand(
         checked,
         admitted_native_bindings,
@@ -516,11 +505,10 @@ pub fn settle_checked_providers(
         build_provider_selections,
     )?;
     let derived_provider_plans = derive_satisfies_plans(
-        crate::ProviderPlanDerivation::evaluated(
+        crate::ProviderPlanDerivation::new(
             context,
             &boundary_calling_plan_realizations,
             target_name,
-            &evaluated_via_bindings,
             &settled_target_machines.origins,
         )
         .with_native_bindings(admitted_native_bindings),
@@ -855,7 +843,10 @@ pub fn settle_checked_providers(
             boundary_calling_plan_realizations,
             component_calling_applications,
             provider_plans,
-            evaluated_via_bindings,
+            binding_identities: admitted_native_bindings
+                .first()
+                .map(|binding| binding.identities.clone())
+                .unwrap_or_default(),
             admitted_native_bindings: admitted_native_bindings.to_vec(),
             external_binding_rows,
             verified_independent_components: independent_components

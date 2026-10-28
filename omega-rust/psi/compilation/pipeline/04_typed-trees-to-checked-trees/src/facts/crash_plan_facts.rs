@@ -126,7 +126,6 @@ pub(crate) fn build_crash_contract_capsules(
             let identity = program.type_identities.with(|table| {
                 checked_trees::contract_identity(
                     language_semantics::MachineSupplyMode::Requirement,
-                    None,
                     &published_service_names,
                     language_semantics::SynchronousInvocationInterface::PublishedCeiling,
                     &published_invocations,
@@ -219,7 +218,6 @@ fn build_operator_crash_contract_capsule(
     let identity = program.type_identities.with(|table| {
         checked_trees::contract_identity(
             language_semantics::MachineSupplyMode::Requirement,
-            None,
             &[],
             language_semantics::SynchronousInvocationInterface::PublishedCeiling,
             &[],

@@ -42,4 +42,17 @@ machine build(builder: &mut Build) {
  Build::bind<Writer::release>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName {
         library: "omega_mutretain_fixture.dll", export: "mutretain_release",
     } });
+
+ Build::bind<Writer::register>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+        object: "libomega_mutretain_fixture.so", symbol: "mutretain_register", version: "RETAIN_1.0",
+    } });
+ Build::bind<Writer::register>(builder, linux_arm64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+        object: "libomega_mutretain_fixture.so", symbol: "mutretain_register", version: "RETAIN_1.0",
+    } });
+ Build::bind<Writer::register>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "libomega_mutretain_fixture.dylib", symbol: "_mutretain_register",
+    } });
+ Build::bind<Writer::register>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName {
+        library: "omega_mutretain_fixture.dll", export: "mutretain_register",
+    } });
 }

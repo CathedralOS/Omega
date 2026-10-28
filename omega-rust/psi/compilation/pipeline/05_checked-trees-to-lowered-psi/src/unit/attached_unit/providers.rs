@@ -75,35 +75,31 @@ fn provider_identities(
         .typed
         .machine_trait_conformances(machine)
         .iter()
-        .any(|conformance| {
-            if conformance.external_binding.is_some() {
-                return false;
+        .any(|conformance| match requirement {
+            CatalogRequirement::TopLevel(declaration) => {
+                (conformance.symbol == declaration.symbol
+                    && conformance.requirement_symbol == declaration.symbol)
+                    || checked
+                        .facts
+                        .provider_closed_requirements
+                        .iter()
+                        .any(|row| {
+                            row.provider == machine.symbol
+                                && row.selecting_declaration == machine.symbol
+                                && row.template == conformance.symbol
+                                && row.closed_requirement == declaration.symbol
+                        })
             }
-            match requirement {
-                CatalogRequirement::TopLevel(declaration) => {
-                    (conformance.symbol == declaration.symbol
-                        && conformance.requirement_symbol == declaration.symbol)
-                        || checked
-                            .facts
-                            .provider_closed_requirements
-                            .iter()
-                            .any(|row| {
-                                row.provider == machine.symbol
-                                    && row.selecting_declaration == machine.symbol
-                                    && row.template == conformance.symbol
-                                    && row.closed_requirement == declaration.symbol
-                            })
-                }
-                CatalogRequirement::Operator(operator) => conformance.requirement_symbol
-                    == operator.symbol
+            CatalogRequirement::Operator(operator) => {
+                conformance.requirement_symbol == operator.symbol
                     && typed_trees::operator::resolve_satisfied_boundary_operator_for_conformance(
                         &checked.typed,
                         machine,
                         conformance,
                     )
-                    .is_some_and(|resolved| resolved.symbol == operator.symbol),
-                CatalogRequirement::Trait { .. } => unreachable!(),
+                    .is_some_and(|resolved| resolved.symbol == operator.symbol)
             }
+            CatalogRequirement::Trait { .. } => unreachable!(),
         });
     if !supplies {
         return Ok(Vec::new());

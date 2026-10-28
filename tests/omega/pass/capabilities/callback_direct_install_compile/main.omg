@@ -252,20 +252,6 @@ satisfies HookProcedure::call
     message
 }
 
-public linux_x86_64 machine install_binding() -> ForeignBinding<9, 19, 7> {
-    ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libc.so.6",
-            symbol: "omega_probe_install",
-            version: "OMEGA_1",
-        },
-    }
-}
-
-linux_x86_64 machine install_leaf<machine Handler>(kind: u64, module: u64)
-where machine Handler satisfies HookProcedure::call;
-satisfies HookRegistrar::install
-via install_binding();
 
 machine main() reaches HookRegistrar {
     HookRegistrar::install<HookProvider::call>(1u64, 2u64);

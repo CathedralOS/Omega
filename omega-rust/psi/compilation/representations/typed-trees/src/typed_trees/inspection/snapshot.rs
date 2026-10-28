@@ -57,8 +57,6 @@ pub struct TypedTreesSnapshot {
     pub roots: TypedRootsSnapshot,
     pub tables: TypedTableSnapshot,
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub external_bindings: Vec<ExternalBindingSnapshot>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub authored_declaration_selections: Vec<AuthoredDeclarationSelectionSnapshot>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub evidence_forwardings: Vec<EvidenceForwardingSnapshot>,
@@ -436,7 +434,6 @@ impl TypedTreesSnapshot {
                 symbol_count: program.symbols.symbols().len(),
                 service_reach_definition_count: program.service_reaches.definitions().len(),
                 authored_service_reach_row_count: program.authored_service_reach_rows.len(),
-                external_binding_count: program.external_bindings.identities().len(),
                 plan_laid_layout_count: program.plan_laid_layouts.len(),
                 placed_view_plan_count: program.placed_view_plans.len(),
                 wire_placement_count: program.wire_placements.len(),
@@ -471,34 +468,6 @@ impl TypedTreesSnapshot {
                         .compiler_partition()
                         .map(|partition| partition.ordinal()),
                     target: authored_declaration_selection_target_snapshot(selection.target()),
-                })
-                .collect(),
-            external_bindings: program
-                .external_bindings
-                .identities()
-                .map(|(identity, binding)| ExternalBindingSnapshot {
-                    identity: identity.0,
-                    binding: match binding {
-                        language_semantics::ExternalBindingIdentity::Syscall { number } => {
-                            ExternalBindingValueSnapshot::Syscall { number: *number }
-                        }
-                        language_semantics::ExternalBindingIdentity::CompilerIntrinsic => {
-                            ExternalBindingValueSnapshot::CompilerIntrinsic
-                        }
-                        language_semantics::ExternalBindingIdentity::VtableSlot { index } => {
-                            ExternalBindingValueSnapshot::VtableSlot { index: *index }
-                        }
-                        language_semantics::ExternalBindingIdentity::VtableField { field } => {
-                            ExternalBindingValueSnapshot::VtableField {
-                                field: field.clone(),
-                            }
-                        }
-                        language_semantics::ExternalBindingIdentity::TableFunction { field } => {
-                            ExternalBindingValueSnapshot::TableFunction {
-                                field: field.clone(),
-                            }
-                        }
-                    },
                 })
                 .collect(),
             evidence_forwardings: program
@@ -648,23 +617,6 @@ impl TypedTreesSnapshot {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct ExternalBindingSnapshot {
-    pub identity: u32,
-    #[serde(flatten)]
-    pub binding: ExternalBindingValueSnapshot,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-pub enum ExternalBindingValueSnapshot {
-    Syscall { number: i64 },
-    CompilerIntrinsic,
-    VtableSlot { index: i64 },
-    VtableField { field: String },
-    TableFunction { field: String },
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct TypedRootsSnapshot {
     pub const_declarations: Vec<ConstDeclarationSnapshot>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -728,7 +680,6 @@ pub struct TypedTableSnapshot {
     pub symbol_count: usize,
     pub service_reach_definition_count: usize,
     pub authored_service_reach_row_count: usize,
-    pub external_binding_count: usize,
     pub plan_laid_layout_count: usize,
     pub placed_view_plan_count: usize,
     pub wire_placement_count: usize,

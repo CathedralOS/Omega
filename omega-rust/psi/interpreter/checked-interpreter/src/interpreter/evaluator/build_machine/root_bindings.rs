@@ -57,7 +57,7 @@ impl<'program> Evaluator<'program> {
             .filter(|definition| {
                 definition.is_boundary && definition.name.as_str() == "BuildBindingOperations"
             })
-            .flat_map(|definition| self.program.trait_machine_signatures(definition))
+            .flat_map(|definition| self.program.trait_machine_instances(definition))
             .find(|signature| signature.symbol == target)
             .map(|signature| signature.name.as_str())
     }

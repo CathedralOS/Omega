@@ -299,17 +299,6 @@ fn validate_machine_service_reaches(
         }
     }
 
-    if matches!(
-        machine.supply_mode,
-        language_semantics::MachineSupplyMode::ExternalRealization { .. }
-    ) && is_authored
-    {
-        return Err(Diagnostic::error(format!(
-            "external leaf `{}` repeats an authored `reaches` row, but `via` derives behavior from the satisfied requirement and admitted binding; remove the leaf's `reaches` clause",
-            machine.name,
-        )));
-    }
-
     Ok(())
 }
 

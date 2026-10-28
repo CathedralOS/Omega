@@ -45,33 +45,10 @@ pub(crate) fn parse_satisfies_traits<'tokens, 'source>(
             alias = Some(name);
             rest = next;
         }
-        // The external-leaf suffix is an ordinary expression in the durable
-        // language. Keep the old `Binding::Case(...)` bootstrap spelling on
-        // its segregated parser until source migration is complete; it must
-        // never be confused with an evaluated locator value.
-        let mut via = None;
-        let mut via_expression = syntax_trees::expression::ExpressionHandle::invalid();
-        let mut via_keyword_source_span = None;
         if rest.at_contextual("via") {
-            via_keyword_source_span = Some(rest.current_source_span());
-            let next = rest.take_contextual("via")?;
-            let is_bootstrap_binding = next
-                .take_identifier()
-                .is_ok_and(|(root, _)| root.as_str(syntax_trees) == "ForeignBinding");
-            if is_bootstrap_binding {
-                let (binding, next) =
-                    super::external_binding::parse_external_provider_binding(next)?;
-                via = Some(binding);
-                rest = next;
-            } else {
-                let (expression, next) =
-                    crate::expressions::parse_expression::parse_expression_handle(
-                        syntax_trees,
-                        next,
-                    )?;
-                via_expression = expression;
-                rest = next;
-            }
+            return Err(rest.error_here(
+                "`via` binding clauses are retired; bind the exact foreign requirement in the owning package Build with `Build::bind<Requirement>(builder, target, locator)` or a typed table binding operation",
+            ));
         }
 
         let handle = syntax_trees.items.append_satisfies_clause(SatisfiesClause {
@@ -80,9 +57,6 @@ pub(crate) fn parse_satisfies_traits<'tokens, 'source>(
             arguments,
             requirement,
             alias,
-            via,
-            via_expression,
-            via_keyword_source_span,
         });
         clauses.push(handle);
         input = rest;

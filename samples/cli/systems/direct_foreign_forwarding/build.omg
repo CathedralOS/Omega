@@ -1,3 +1,4 @@
+use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
     Build::application(builder, "direct_foreign_forwarding");
     Build::select_provider<ProcessProbe, ProcessProvider>(builder, linux_arm64);
@@ -21,4 +22,11 @@ machine build(builder: &mut Build) {
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
 
  Build::bind_table_function<RawNativeUnusedWideCall::invoke, UnusedWideTable::invoke>(builder, windows_x86_64);
+
+ Build::bind<RawNativeNativeProcess::identity>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName {
+        library: "kernel32.dll", export: "GetCurrentProcessId"
+    } });
+ Build::bind<RawNativeNativeUnused::identity>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName {
+        library: "kernel32.dll", export: "OmegaMissingLeaf"
+    } });
 }

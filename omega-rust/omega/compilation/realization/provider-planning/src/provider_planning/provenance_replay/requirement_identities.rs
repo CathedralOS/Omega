@@ -30,48 +30,6 @@ pub(crate) fn exact_satisfied_requirement_identity(
         .unwrap_or_default()
 }
 
-fn exact_external_binding_identity<'typed>(
-    typed: &'typed TypedTrees,
-    machine: &checked_trees::typed_trees::machine::Machine,
-    trait_name: &str,
-    requirement_name: &str,
-) -> Option<&'typed language_semantics::ExternalBindingIdentity> {
-    let mut matching = typed
-        .machine_trait_conformances(machine)
-        .iter()
-        .filter(|conformance| same_semantic_name(conformance.name.as_str(), trait_name))
-        .filter(|conformance| {
-            conformance.requirement.as_ref().map(|name| name.as_str()) == Some(requirement_name)
-        })
-        .filter_map(|conformance| conformance.external_binding);
-    let binding = matching.next()?;
-    if matching.next().is_some() {
-        return None;
-    }
-    typed.external_bindings.identity(binding)
-}
-
-pub(crate) fn exact_installed_external_binding_identity<'typed>(
-    typed: &'typed TypedTrees,
-    machine: &checked_trees::typed_trees::machine::Machine,
-    conformance_binding: language_semantics::ExternalBindingId,
-    trait_name: &str,
-    requirement_name: &str,
-) -> Option<&'typed language_semantics::ExternalBindingIdentity> {
-    let language_semantics::MachineSupplyMode::ExternalRealization {
-        binding: Some(supply_binding),
-        mechanism: Some(supply_mechanism),
-    } = machine.supply_mode
-    else {
-        return None;
-    };
-    if supply_binding != conformance_binding {
-        return None;
-    }
-    let binding = exact_external_binding_identity(typed, machine, trait_name, requirement_name)?;
-    (binding.mechanism() == supply_mechanism).then_some(binding)
-}
-
 /// Exact hosted catalog leaf identity: (provider nominal, boundary trait,
 /// requirement) for one source-inferred compiler intrinsic. Every listed
 /// leaf is realized on each hosted target (`linux_x86_64`, `linux_arm64`,
@@ -115,9 +73,6 @@ pub(crate) fn inferred_hosted_console_compiler_intrinsic(
         || !typed.machine_type_parameters(machine).is_empty()
         || conformance.name.as_str() != trait_name
         || conformance.requirement.as_ref().map(|name| name.as_str()) != Some(requirement_name)
-        || conformance.external_binding.is_some()
-        || conformance.via_expression.is_valid()
-        || conformance.external_binding_source_span.is_some()
     {
         return None;
     }
@@ -201,9 +156,6 @@ pub(crate) fn inferred_selected_target_compiler_leaf(
         || machine.attached_data.is_none()
         || !machine.lifetime_parameters.is_empty()
         || !typed.machine_type_parameters(machine).is_empty()
-        || conformance.external_binding.is_some()
-        || conformance.via_expression.is_valid()
-        || conformance.external_binding_source_span.is_some()
     {
         return None;
     }
@@ -237,9 +189,9 @@ pub(crate) fn inferred_selected_target_compiler_leaf(
     ))
 }
 
-/// Source-inferred compiler-leaf authority: the hosted catalog's stricter
-/// admission first, then any other target-owned boundary leaf the selected
-/// target-machine origins claim.
+/// Source catalog candidates still require an exact selected target origin.
+/// Numeric source sealing and hosted catalog membership never substitute for
+/// receiving realization admission.
 pub(crate) fn inferred_compiler_leaf_binding(
     typed: &TypedTrees,
     machine: &checked_trees::typed_trees::machine::Machine,
@@ -247,13 +199,22 @@ pub(crate) fn inferred_compiler_leaf_binding(
     selected_target: Option<&str>,
     target_machine_origins: &[SelectedTargetMachineOrigin],
 ) -> Option<(ProviderBinding, SelectedTargetMachineOrigin)> {
-    inferred_hosted_console_compiler_intrinsic(
+    inferred_numeric_compiler_leaf(
         typed,
         machine,
         conformance,
         selected_target,
         target_machine_origins,
     )
+    .or_else(|| {
+        inferred_hosted_console_compiler_intrinsic(
+            typed,
+            machine,
+            conformance,
+            selected_target,
+            target_machine_origins,
+        )
+    })
     .or_else(|| {
         inferred_selected_target_compiler_leaf(
             typed,
@@ -263,6 +224,25 @@ pub(crate) fn inferred_compiler_leaf_binding(
             target_machine_origins,
         )
     })
+}
+
+fn inferred_numeric_compiler_leaf(
+    typed: &TypedTrees,
+    machine: &checked_trees::typed_trees::machine::Machine,
+    conformance: &checked_trees::typed_trees::machine::TraitConformance,
+    selected_target: Option<&str>,
+    target_machine_origins: &[SelectedTargetMachineOrigin],
+) -> Option<(ProviderBinding, SelectedTargetMachineOrigin)> {
+    typed.sealed_numeric_realization(machine.symbol, conformance.requirement_symbol)?;
+    let target = selected_target?;
+    let origin = sole_machine_origin(target_machine_origins, machine.symbol, |origin| {
+        origin.target == target
+    })?;
+    let machine = typed.machine_callable_identity_text(machine)?;
+    Some((
+        ProviderBinding::CompilerIntrinsic { machine },
+        origin.clone(),
+    ))
 }
 
 fn exact_catalog_i32_to_unit_signature(
@@ -281,36 +261,6 @@ fn exact_catalog_i32_to_unit_signature(
             typed.type_reference_table.type_reference(return_type),
             checked_trees::typed_trees::types::TypeReferenceNode::Unit
         )
-}
-
-/// Map one retained typed external-binding identity to its provider-plan
-/// binding. Every closed identity has exactly one, so this mapping is total:
-/// the string-backed import spelling that used to be rejected here no longer
-/// exists to construct.
-pub(crate) fn external_provider_binding(
-    binding: &language_semantics::ExternalBindingIdentity,
-    provider_type: &str,
-    intrinsic_machine_identity: &str,
-) -> ProviderBinding {
-    use language_semantics::ExternalBindingIdentity;
-
-    match binding {
-        ExternalBindingIdentity::Syscall { number } => ProviderBinding::Syscall { number: *number },
-        ExternalBindingIdentity::CompilerIntrinsic => ProviderBinding::CompilerIntrinsic {
-            machine: intrinsic_machine_identity.to_owned(),
-        },
-        ExternalBindingIdentity::VtableSlot { index } => {
-            ProviderBinding::VtableSlot { index: *index }
-        }
-        ExternalBindingIdentity::VtableField { field } => ProviderBinding::VtableField {
-            table: provider_type.to_owned(),
-            field: field.clone(),
-        },
-        ExternalBindingIdentity::TableFunction { field } => ProviderBinding::TableFunction {
-            table: provider_type.to_owned(),
-            field: field.clone(),
-        },
-    }
 }
 
 pub(crate) fn realization_machine_identity(

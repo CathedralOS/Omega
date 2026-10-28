@@ -1841,7 +1841,6 @@ fn visit_call_expression(
 /// Retain the exact declaration and requirement of each machine satisfaction.
 /// A projection may admit a declaration without admitting all of its children:
 /// the requirement edge alone cannot stand in for its declaring trait edge.
-/// `via` expressions remain ordinary call dependencies.
 fn visit_conformance(
     program: &TypedTrees,
     retained: &mut impl TypedReferences,
@@ -1849,7 +1848,6 @@ fn visit_conformance(
 ) {
     visit_symbol(retained, conformance.symbol);
     visit_symbol(retained, conformance.requirement_symbol);
-    visit_expression(program, retained, conformance.via_expression);
     for argument in program
         .type_reference_table
         .type_reference_handles(conformance.arguments)

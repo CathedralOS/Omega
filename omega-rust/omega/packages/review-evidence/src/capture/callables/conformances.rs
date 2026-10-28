@@ -13,8 +13,7 @@ use language_semantics::MachineSupplyMode;
 use symbols::SymbolHandle;
 
 /// Project the trait, operator and top-level requirement realizations of one
-/// non-external callable. External callables are projected by
-/// `project_checked_external_supply_policy`.
+/// checked callable. Build-native supply is retained on provider rows.
 
 pub(super) fn callable_conformance(
     compilation: &PackageReviewInput<'_>,

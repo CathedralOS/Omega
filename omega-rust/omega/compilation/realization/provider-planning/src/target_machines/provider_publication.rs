@@ -118,11 +118,10 @@ impl TargetProviderPublicationRequest<'_> {
         })?;
         let declarations = super::settle_provider_defaults(self.context, self.defaults, profile);
         let candidates = crate::derive_satisfies_plans(
-            crate::ProviderPlanDerivation::evaluated(
+            crate::ProviderPlanDerivation::new(
                 self.context,
                 &self.settlement.boundary_calling_plan_realizations,
                 Some(target),
-                &self.settlement.evaluated_via_bindings,
                 &declarations.origins,
             )
             .with_native_bindings(&self.settlement.admitted_native_bindings),

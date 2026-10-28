@@ -74,8 +74,7 @@ pub struct ProviderPlanProvenance {
     pub row_requirements: Vec<symbols::SymbolHandle>,
     pub row_realizations: Vec<ProviderRowOrigin>,
     /// Exact pre-resolution target-scoped declaration custody for catalog-
-    /// inferred rows. `None` is mandatory for ordinary checked, legacy
-    /// external, and evaluated-payload rows.
+    /// inferred rows. `None` is mandatory for checked and Build-native rows.
     pub row_target_machine_origins: Vec<Option<SelectedTargetMachineOrigin>>,
     /// Compiler-catalog custody is distinct from authored target-machine origins.
     pub row_placed_accessors: Vec<Option<crate::SealedPlacedAccessor>>,
@@ -93,54 +92,28 @@ pub struct DerivedProviderPlan {
     pub provenance: ProviderPlanProvenance,
 }
 
-/// One provider-plan derivation request: the selected target, and when the
-/// program's `via` bindings were evaluated, that table with the target-machine
-/// origins it selected. Build the evaluated form through
-/// [`ProviderPlanDerivation::evaluated`] with the table this compile just
-/// evaluated for the same typed program and target.
+/// One derivation of source-owned candidate intent. The caller lends exact
+/// target declaration origins and admitted Build-native rows; this operation
+/// neither evaluates source nor reconstructs a forwarding machine.
 #[derive(Clone, Copy)]
 pub struct ProviderPlanDerivation<'a> {
     context: ProviderPlanningContext<'a>,
     calling_plans: &'a [crate::calling_policy_plans::BoundaryCallingPlanRealization],
     selected_target: Option<&'a str>,
-    evaluated_bindings: Option<&'a crate::evaluated_via_bindings::EvaluatedViaBindingTable>,
     target_machine_origins: &'a [SelectedTargetMachineOrigin],
     native_bindings: &'a [crate::AdmittedNativeBinding],
 }
-
 impl<'a> ProviderPlanDerivation<'a> {
-    /// Derive from retained conformance alone, before `via` bindings are
-    /// evaluated.
-    pub const fn unevaluated(
+    pub const fn new(
         context: ProviderPlanningContext<'a>,
         calling_plans: &'a [crate::calling_policy_plans::BoundaryCallingPlanRealization],
         selected_target: Option<&'a str>,
-    ) -> Self {
-        Self {
-            context,
-            calling_plans,
-            selected_target,
-            evaluated_bindings: None,
-            target_machine_origins: &[],
-            native_bindings: &[],
-        }
-    }
-
-    /// Derive with the evaluated `via` binding table this compile produced for
-    /// the same typed program and target. The table is not replayed against
-    /// the program it was just evaluated from.
-    pub fn evaluated(
-        context: ProviderPlanningContext<'a>,
-        calling_plans: &'a [crate::calling_policy_plans::BoundaryCallingPlanRealization],
-        selected_target: Option<&'a str>,
-        evaluated_bindings: &'a crate::evaluated_via_bindings::EvaluatedViaBindingTable,
         target_machine_origins: &'a [SelectedTargetMachineOrigin],
     ) -> Self {
         Self {
             context,
             calling_plans,
             selected_target,
-            evaluated_bindings: Some(evaluated_bindings),
             target_machine_origins,
             native_bindings: &[],
         }
@@ -163,7 +136,6 @@ pub fn derive_satisfies_plans(
         derivation.context,
         derivation.calling_plans,
         derivation.selected_target,
-        derivation.evaluated_bindings,
         derivation.target_machine_origins,
     )?;
     super::native_plan_derivation::append(

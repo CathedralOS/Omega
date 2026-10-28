@@ -471,7 +471,6 @@ impl Lowerer {
             service_reach_rows,
             authored_service_reach_rows,
             semantic_domains,
-            external_bindings,
             evidence_forwardings,
             // Derived lookup state does not travel with the fields; the
             // rebuilt program's indexes fill lazily from its own tables.
@@ -482,7 +481,6 @@ impl Lowerer {
         trees.service_reach_rows = service_reach_rows;
         trees.authored_service_reach_rows = authored_service_reach_rows;
         trees.semantic_domains = semantic_domains;
-        trees.external_bindings = external_bindings;
         trees.evidence_forwardings = evidence_forwardings;
         trees
     }

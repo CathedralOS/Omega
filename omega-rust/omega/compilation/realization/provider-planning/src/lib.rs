@@ -22,7 +22,6 @@
 pub mod calling_policy_plans;
 pub mod data_layout_queries;
 pub(crate) use optimization_core::digest_encoder;
-pub mod evaluated_via_bindings;
 mod fnv1a;
 mod intrinsic_requirements;
 mod native_bindings;

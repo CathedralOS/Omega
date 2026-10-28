@@ -16,4 +16,16 @@ machine build(builder: &mut Build) {
             object: "libc.so.6", symbol: "getpid", version: "GLIBC_2.2.5",
         },
     });
+
+ Build::bind<OnceRegistrar::execute>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_pthread_once",
+        },
+    });
+ Build::bind<OnceRegistrar::execute>(builder, linux_x86_64, ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6", symbol: "pthread_once", version: "GLIBC_2.34",
+        },
+    });
 }

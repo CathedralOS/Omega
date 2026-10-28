@@ -173,7 +173,6 @@ pub(crate) fn row_execution_identity(
             requirement_symbol,
             realization_symbol,
             "ProgramStorageEntry",
-            true,
             "enter",
             "ProgramStorageEntryNativeProvider::enter",
             BoundaryIntrinsicShape::ProgramStorageToUnit,
@@ -207,7 +206,6 @@ pub(crate) fn row_execution_identity(
             requirement_symbol,
             realization_symbol,
             "ProgramImage",
-            true,
             "retained_suffix_start",
             "ProgramImageNativeProvider::retained_suffix_start",
             BoundaryIntrinsicShape::UnitToAddress,
@@ -445,7 +443,6 @@ impl HostedIntrinsicRow {
             requirement_symbol,
             realization_symbol,
             self.service.trait_name(),
-            self.shape == BoundaryIntrinsicShape::I32ToUnit,
             self.requirement,
             self.realization,
             self.shape,
@@ -664,7 +661,6 @@ pub(crate) fn accepted_binding_matches_exit_process_row(
         requirement_symbol,
         realization_symbol,
         service.trait_name(),
-        false,
         hosted.requirement,
         hosted.realization,
         hosted.shape,
@@ -680,7 +676,6 @@ fn boundary_row_shape(
     requirement_symbol: SymbolHandle,
     realization_symbol: SymbolHandle,
     trait_name: &str,
-    require_inferred_supply: bool,
     requirement_name: &str,
     realization_name: &str,
     shape: BoundaryIntrinsicShape,
@@ -766,7 +761,6 @@ fn boundary_row_shape(
     // linkage, an evaluated import the realization reaches through `via`.
     let intrinsic_machine = match &row.binding {
         ProviderBinding::CompilerIntrinsic { machine } => Some(machine),
-        ProviderBinding::Import { .. } => None,
         _ => return Ok(false),
     };
     // The realization's published envelope must spell the same honest shape
@@ -788,27 +782,7 @@ fn boundary_row_shape(
     {
         return Ok(false);
     }
-    let inferred_supply = realization.supply_mode == MachineSupplyMode::Boundary;
-    let legacy_binding = match realization.supply_mode {
-        MachineSupplyMode::ExternalRealization {
-            binding: Some(binding),
-            mechanism: Some(language_semantics::ExternalBindingMechanism::CompilerIntrinsic),
-        } if typed.external_bindings.identity(binding)
-            == Some(&language_semantics::ExternalBindingIdentity::CompilerIntrinsic) =>
-        {
-            Some(binding)
-        }
-        _ => None,
-    };
-    let evaluated_import = intrinsic_machine.is_none()
-        && matches!(
-            realization.supply_mode,
-            MachineSupplyMode::ExternalRealization { .. }
-        );
-    if require_inferred_supply && !inferred_supply {
-        return Ok(false);
-    }
-    if !inferred_supply && legacy_binding.is_none() && !evaluated_import {
+    if realization.supply_mode != MachineSupplyMode::Boundary {
         return Ok(false);
     }
     let [entry] = typed.machine_states(realization) else {
@@ -825,17 +799,6 @@ fn boundary_row_shape(
                 && conformance.requirement_symbol == requirement_symbol
                 && conformance.requirement.as_ref().map(|name| name.as_str())
                     == Some(requirement_name)
-                && ((inferred_supply
-                    && conformance.external_binding.is_none()
-                    && !conformance.via_expression.is_valid()
-                    && conformance.external_binding_source_span.is_none())
-                    || (!require_inferred_supply
-                        && conformance.external_binding == legacy_binding
-                        && !conformance.via_expression.is_valid()
-                        && conformance.external_binding_source_span.is_some())
-                    || (evaluated_import
-                        && conformance.external_binding.is_none()
-                        && conformance.via_expression.is_valid()))
                 && typed_trees::machine::resolve_satisfied_declaration(
                     typed,
                     realization,

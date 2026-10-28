@@ -1,12 +1,10 @@
-//! Callable review, checked realization, and external supply.
+//! Callable review and checked realization. Build-native supply is reviewed
+//! with the exact provider rows, never a synthetic callable.
 
 mod boundary_operators;
 mod boundary_requirements;
 mod conformance_order;
 mod conformances;
-mod external_policy;
-mod external_supply;
-pub(crate) use external_policy::project_checked_external_supply_policy;
 mod policy;
 mod policy_parameters;
 mod reach_dependency;
