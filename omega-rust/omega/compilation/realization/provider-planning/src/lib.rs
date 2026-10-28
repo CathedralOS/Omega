@@ -56,7 +56,9 @@ pub use build_time_evaluation::provider_declarations::{
 pub use intrinsic_requirements::{
     IntrinsicRequirement, IntrinsicRequirementKind, primitive_numeric_type,
 };
-pub use provider_planning::direct_boundary_leaves::DirectBoundaryCandidate;
+pub use provider_planning::direct_boundary_inputs::{
+    DirectBoundaryInput, DirectBoundaryMechanism, DirectBoundarySource, ProviderPlanCandidate,
+};
 pub use provider_planning::{
     CompilerIntrinsicExecutionIdentity, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
     CompilerPrimitiveIntegerComparisonOperation, ProviderPlanDerivation, ProviderSchemaDeclaration,

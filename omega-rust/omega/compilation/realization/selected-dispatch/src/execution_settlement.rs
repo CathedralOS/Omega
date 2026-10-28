@@ -15,6 +15,9 @@ use std::sync::Arc;
 /// provenance alongside every checked-phase sidecar.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedExecution {
+    /// Complete direct-call supplies, constructed after host bindings resolve.
+    /// Native demand and receiving authority still decide which may execute.
+    pub direct_boundary_leaves: Vec<backend_plan::DirectBoundaryLeaf>,
     pub program: Arc<CheckedProgram>,
     pub external_providers: Arc<psi_terminal_production::ExternalProviderDeclarations>,
     pub native_provider_sources: Result<Arc<backend_plan::NativeProviderSources>, Vec<Diagnostic>>,
@@ -156,7 +159,7 @@ impl SelectedExecution {
 /// second asserted component root. This remains a checked-tree realization
 /// boundary; it does not claim the intended Terminal-only provider handoff.
 pub struct SelectedExecutionRequest<'a> {
-    pub direct_boundary_candidates: &'a mut [provider_planning::DirectBoundaryCandidate],
+    pub provider_candidates: &'a [provider_planning::ProviderPlanCandidate],
     /// Provider derivation target, distinct from executable deployment selection.
     pub provider_planning_target_profile: Option<target::TargetProfile>,
     pub calling_plans:
@@ -212,11 +215,11 @@ pub fn settle_selected_execution(
         accepted_binding(AcceptedSemanticBindingRole::ConsoleExitProcessI32),
         accepted_binding(AcceptedSemanticBindingRole::ProcessExitExitProcessI32),
     )?;
-    crate::intrinsic_review::close_direct_boundary_candidates(
+    let direct_boundary_leaves = crate::intrinsic_review::produce_direct_boundary_leaves(
         &checked.program,
         &checked.external_providers,
         &settlement.selected_provider_provenance,
-        settlement.direct_boundary_candidates,
+        settlement.provider_candidates,
         settlement
             .provider_planning_target_profile
             .map(target::TargetProfile::target_name),
@@ -239,6 +242,7 @@ pub fn settle_selected_execution(
             .and_then(accepted_binding),
     )?;
     Ok(SelectedExecution {
+        direct_boundary_leaves,
         external_providers: checked.external_providers,
         native_provider_sources: checked.native_provider_sources,
         program: checked.program,

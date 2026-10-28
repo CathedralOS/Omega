@@ -326,8 +326,15 @@ Numeric settlement checks these against the selected whole plan through the
 same source-free join; early typed Build planning adapts the source-owned view
 to that shared check. Eligibility is retained independently of numeric meaning,
 so absent meaning cannot fall through into another execution category.
+Direct-call preparation retains original plans and provenance once, with foreign
+ABI results or deferred refusals attached to their original row coordinates.
+Selected execution resolves accepted host bindings and constructs complete
+target-companion leaves from those borrowed rows. There is no placeholder-leaf
+mutation pass or per-leaf source-plan copy. The projected callable contract stays
+distinct from the original satisfied schema and accepted public-plan identity;
+native demand and receiving authority still decide which supplies may execute.
 Earlier typed constant/comparison evaluation, general review call coordinates
-and direct-leaf execution records remain migration work; this does not claim
+and source-dependent direct-call preparation remain migration work; this does not claim
 that selected dispatch as a whole is source-free. Retaining current declarations
 does not reinstate retired standalone boundary requirements or source `via`
 bindings; their language migration remains separately owned.

@@ -7,7 +7,12 @@ derives and checks every authored generic operator candidate and finite boundary
 family without provider selection.
 
 [execution_settlement.rs](src/execution_settlement.rs) is the post-checking
-entrance. It rejoins accepted host bindings. Task activation instead consumes
+entrance. It rejoins accepted host bindings and produces complete direct-call
+leaves from the original provider rows. Provider planning retains those source
+owners once and prepares foreign ABI results at their original row coordinates;
+selected execution does not mutate incomplete leaves or reconstruct truncated
+source plans. The leaves are target-companion supplies, not permission to execute.
+Task activation instead consumes
 portable demands in the source-free native proposal join. The compiler supplies inputs and
 consumes the result; it does not implement these decisions.
 The optional checked-tree interpreter calls
