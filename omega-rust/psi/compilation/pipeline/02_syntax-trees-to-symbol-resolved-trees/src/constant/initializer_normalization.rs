@@ -683,19 +683,48 @@ fn attach_custody(
                 "realized call has ambiguous source declaration custody",
             ));
         }
-        // The authored recipe and its materialized value retain the same
-        // transitive call roster. They share its original occurrences; a
-        // second row would give an explicit-discard statement and its
-        // expression copy competing identities for one source token.
-        let occurrence = if let Some(occurrence) = program
+        // The checked receipt completes the original source occurrence. A new
+        // row would leave the original obligation unresolved after replacing
+        // its initializer expression with the materialized value.
+        let mut retained = program
             .authored_declaration_selections()
-            .resolved_occurrence(
+            .iter()
+            .filter(|row| {
+                row.source_span() == *reference
+                    && row.exposure() == Exposure::PrivateImplementation
+                    && row.kind() == Kind::Call
+                    && row.compiler_partition().is_none()
+            });
+        let original = retained.next().copied();
+        if retained.next().is_some() {
+            return Err(error(
                 *reference,
-                Exposure::PrivateImplementation,
-                Kind::Call,
-                candidate.target,
-            ) {
-            occurrence
+                "initializer call has duplicate source occurrences",
+            ));
+        }
+        let occurrence = if let Some(original) = original {
+            match original.target() {
+                Target::LateBound(LateBinding::CheckedCall) => program
+                    .finalize_authored_declaration_selection(
+                        original.occurrence_id(),
+                        LateBinding::CheckedCall,
+                        candidate.target,
+                    )
+                    .map_err(|reason| {
+                        error(
+                            *reference,
+                            &format!("initializer call selection finalization failed: {reason:?}"),
+                        )
+                    })?,
+                Target::Resolved(selected) if selected.selected_symbol() == candidate.target => {}
+                _ => {
+                    return Err(error(
+                        *reference,
+                        "initializer call conflicts with its retained source selection",
+                    ));
+                }
+            }
+            original.occurrence_id()
         } else {
             program
                 .record_resolved_authored_declaration_selection(
