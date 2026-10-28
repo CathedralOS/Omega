@@ -1,2 +1,2 @@
-violates required fact
-65535 == 4294967295
+cannot prove requires contract
+needs fact `value == 0xffffffff`
