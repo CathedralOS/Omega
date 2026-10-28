@@ -274,3 +274,45 @@ fn outer_storage_cannot_hide_an_unsupported_payload_predicate() {
         "an unrelated Envelope marker store must not bypass the nested complete-domain fence"
     );
 }
+
+#[test]
+fn unresolved_nested_array_extents_cannot_hide_payload_requirements() {
+    let (mut program, _, envelope, _) = fixture();
+    let definition = program.unique_data_definition_by_symbol(envelope).unwrap();
+    let payload = program
+        .data_members(definition)
+        .iter()
+        .filter_map(|member| member.as_variant())
+        .find(|case| !case.payload.is_empty())
+        .unwrap()
+        .payload;
+    let pair_type = program.data_payload_fields.span_or_empty(payload)[0].type_reference;
+    // This is a pending owned extent, not permission for the roster to run a
+    // source evaluator or silently treat an array as empty. The inner array's
+    // unresolved extent must not hide Pair's equality from the outer query.
+    let extent = program.expression_table.insert(ExpressionNode::Integer(
+        numerics::literals::IntegerLiteral::from_value(2),
+    ));
+    let extent = program
+        .type_reference_table
+        .insert(TypeReferenceNode::ConstExpression(extent));
+    let inner = program
+        .type_reference_table
+        .insert(TypeReferenceNode::FixedArray {
+            element_type: pair_type,
+            length: FixedArrayLength::Expression(extent),
+        });
+    let outer = program
+        .type_reference_table
+        .insert(TypeReferenceNode::FixedArray {
+            element_type: inner,
+            length: FixedArrayLength::Expression(extent),
+        });
+    program.data_payload_fields.span_mut_or_empty(payload)[0].type_reference = outer;
+    let definition = program.unique_data_definition_by_symbol(envelope).unwrap();
+    assert!(!declaration_facts_carried(
+        &program,
+        &CheckedOperatorFacts::default(),
+        definition
+    ));
+}

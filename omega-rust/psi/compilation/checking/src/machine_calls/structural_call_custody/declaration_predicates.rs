@@ -605,9 +605,15 @@ fn storage_carries_rows(
         .unconstrained_type_reference(type_reference);
     match program.type_reference_table.type_reference(carrier) {
         TypeReferenceNode::FixedArray {
-            element_type,
-            length: FixedArrayLength::Literal(length),
-        } => *length > 0 && storage_carries_rows(program, *element_type, visited),
+            length: FixedArrayLength::Literal(0),
+            ..
+        } => false,
+        TypeReferenceNode::FixedArray { element_type, .. } => {
+            // An unresolved extent may still own elements. Detection must
+            // retain their requirements even though emission cannot enumerate
+            // them yet; recursive eligibility then refuses that partial roster.
+            storage_carries_rows(program, *element_type, visited)
+        }
         _ => {
             let Some(definition) = owned_data_definition(program, carrier) else {
                 return false;
