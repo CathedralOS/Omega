@@ -95,6 +95,12 @@ impl PackageSourceContent {
                     scope,
                     package: bundle.package(),
                     sources: bundle.sources().to_vec(),
+                    selected_product_sources: bundle
+                        .provider_selections()
+                        .iter()
+                        .flat_map(|selection| [&selection.subject, &selection.provider])
+                        .map(|anchor| anchor.source().path.clone())
+                        .collect(),
                 })
                 .collect(),
         }
@@ -106,4 +112,5 @@ struct GeneratedSourceContent {
     scope: DependencyPurpose,
     package: PackageKeyIdentity,
     sources: Vec<PackageGeneratedSource>,
+    selected_product_sources: Vec<std::path::PathBuf>,
 }

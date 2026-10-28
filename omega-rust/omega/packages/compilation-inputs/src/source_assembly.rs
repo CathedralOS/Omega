@@ -232,6 +232,11 @@ impl DeferredProductSources {
         for root in roots.iter() {
             imports.seed(root.clone(), source::DependencyScope::Product);
         }
+        if let Some(inputs) = package_inputs {
+            for source in inputs.provider_selection_source_seeds()? {
+                imports.seed(source, source::DependencyScope::Product);
+            }
+        }
         let mut package_imports = checkpoint.package_imports.to_vec();
         package_imports.extend(load_imports(
             &mut storage,

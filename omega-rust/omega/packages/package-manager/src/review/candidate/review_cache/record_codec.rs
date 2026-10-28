@@ -29,7 +29,7 @@ use semantic_vocabulary::PackageKeyIdentity;
 const RECORD_MAGIC: &[u8; 8] = b"OMGCREV\x01";
 // Entry-field tolerance is retired. Older records may describe provisional
 // reviews and must miss, never acquire complete admission by dropping their flag.
-const RECORD_VERSION: u16 = 11;
+const RECORD_VERSION: u16 = 12;
 const RECORD_SEQUENCES_LIMIT: u64 = 1 << 20;
 
 fn cursor_bool(cursor: &mut ObservationCursor<'_>) -> Option<bool> {
@@ -601,6 +601,13 @@ fn encode_generated_source_bundle(bundle: &PackageGeneratedSourceBundle, out: &m
         push_framed(out, source.relative_path());
         push_framed(out, source.bytes());
     }
+    push_framed(
+        out,
+        &package_compilation::provider_selection_codec::encode_package_provider_selections(
+            bundle.provider_selections(),
+            bundle.selection_observation(),
+        ),
+    );
 }
 
 fn recover_generated_source_bundle(
@@ -627,7 +634,11 @@ fn recover_generated_source_bundle(
             bytes.into(),
         ))
     })?;
-    Some(PackageGeneratedSourceBundle::from_checked(
+    let (selections, observation) =
+        package_compilation::provider_selection_codec::decode_package_provider_selections(
+            cursor.framed()?,
+        )?;
+    PackageGeneratedSourceBundle::from_checked(
         package,
         purpose,
         target,
@@ -635,7 +646,9 @@ fn recover_generated_source_bundle(
         dependency_closure,
         commitment,
         sources,
-    ))
+    )
+    .with_retained_provider_selections(selections, observation)
+    .ok()
 }
 
 fn encode_consumed_unit(unit: &ConsumedSourceUnit, out: &mut Vec<u8>) {

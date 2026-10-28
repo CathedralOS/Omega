@@ -120,16 +120,32 @@ impl PreparedPackageBuild {
         rollback: OptimizationRollback,
         prepared: PreparedBuild,
     ) -> Result<Self, Vec<Diagnostic>> {
-        let generated_sources = prepared.build_sources.package_generated_source_bundle(
-            prepared.built.source.typed(),
-            &inputs,
-            target,
-            prepared
-                .built
-                .computed_build_config
-                .generated_sources
-                .clone(),
-        )?;
+        let generated_sources = prepared
+            .build_sources
+            .package_generated_source_bundle(
+                prepared.built.source.typed(),
+                &inputs,
+                target,
+                prepared
+                    .built
+                    .computed_build_config
+                    .generated_sources
+                    .clone(),
+            )?
+            .with_checked_provider_selections(
+                prepared.built.source.typed(),
+                &prepared
+                    .built
+                    .computed_build_config
+                    .config
+                    .provider_selections,
+                prepared
+                    .built
+                    .computed_build_config
+                    .observation_summary
+                    .as_ref(),
+            )
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
         Ok(Self {
             root_path,
             target,

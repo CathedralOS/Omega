@@ -27,7 +27,7 @@ impl PreparedPackageBuild {
     pub fn native_product_input_identity(&self) -> Result<[u8; 32], String> {
         let mut identity = BuildOutputIdentity {
             program: self.prepared.built.source.typed(),
-            digest: DomainDigestEncoder::new(b"omega-native-product-build-outputs-v2\0"),
+            digest: DomainDigestEncoder::new(b"omega-native-product-build-outputs-v3\0"),
             source_contents: HashMap::new(),
         };
         identity.computed(&self.prepared.built.computed_build_config)?;
@@ -164,6 +164,7 @@ impl BuildOutputIdentity<'_> {
             settings,
             grants,
             provider_selections,
+            package_provider_selections,
             assumed_bindings,
             opaque_representation_selections,
             wire_compatibility_demands,
@@ -184,43 +185,52 @@ impl BuildOutputIdentity<'_> {
             self.symbol(*selecting_machine)?;
             self.occurrence(*source_span)?;
         }
-        self.digest.len(provider_selections.len());
-        for selection in provider_selections {
-            let provider_planning::ProviderSelection {
-                subject,
-                provider_type,
-                composition_mode,
-                target,
-                selecting_machine,
-                source_span,
-            } = selection;
-            match subject {
-                ProviderSelectionSubject::BoundaryTrait(identity) => {
-                    self.digest.byte(0);
-                    self.provider_identity(identity)?;
-                }
-                ProviderSelectionSubject::BoundaryRequirement(identity) => {
-                    self.digest.byte(1);
-                    self.provider_identity(identity)?;
-                }
-                ProviderSelectionSubject::BoundaryOperatorFamily(family) => {
-                    self.digest.byte(2);
-                    self.package(family.package);
-                    self.digest.string(&family.canonical_path);
-                    self.digest.string(&family.authored_path);
-                    self.digest.len(family.coordinates().len());
-                    for coordinate in family.coordinates() {
-                        self.symbol(coordinate.symbol)?;
-                        self.digest.string(&coordinate.requirement_identity);
-                        self.digest.len(coordinate.static_parameter_count);
+        for selections in [provider_selections, package_provider_selections] {
+            self.digest.len(selections.len());
+            for selection in selections {
+                let provider_planning::ProviderSelection {
+                    subject,
+                    provider_type,
+                    composition_mode,
+                    target,
+                    origin,
+                } = selection;
+                match subject {
+                    ProviderSelectionSubject::BoundaryTrait(identity) => {
+                        self.digest.byte(0);
+                        self.provider_identity(identity)?;
+                    }
+                    ProviderSelectionSubject::BoundaryRequirement(identity) => {
+                        self.digest.byte(1);
+                        self.provider_identity(identity)?;
+                    }
+                    ProviderSelectionSubject::BoundaryOperatorFamily(family) => {
+                        self.digest.byte(2);
+                        self.package(family.package);
+                        self.digest.string(&family.canonical_path);
+                        self.digest.string(&family.authored_path);
+                        self.digest.len(family.coordinates().len());
+                        for coordinate in family.coordinates() {
+                            self.symbol(coordinate.symbol)?;
+                            self.digest.string(&coordinate.requirement_identity);
+                            self.digest.len(coordinate.static_parameter_count);
+                        }
                     }
                 }
+                self.provider_identity(provider_type)?;
+                self.product_target(*target);
+                self.composition(*composition_mode);
+                for declaration in [origin.activation(), origin.author()] {
+                    self.digest.byte(symbol_kind_tag(declaration.kind()));
+                    self.source_coordinate(declaration.source(), declaration.span())?;
+                }
+                self.digest.len(origin.occurrence().start);
+                self.digest.len(origin.occurrence().end);
+                self.digest.bool(origin.event_ordinal().is_some());
+                if let Some(ordinal) = origin.event_ordinal() {
+                    self.digest.u64(ordinal);
+                }
             }
-            self.provider_identity(provider_type)?;
-            self.product_target(*target);
-            self.composition(*composition_mode);
-            self.symbol(*selecting_machine)?;
-            self.occurrence(*source_span)?;
         }
         self.digest.len(assumed_bindings.len());
         for binding in assumed_bindings {
