@@ -880,12 +880,11 @@ fn place_store_value(
     let row_constraint = environment
         .constraint(instruction.constraint)
         .ok_or(StoredLoadForwardingError::ConstraintMismatch)?;
-    if row_constraint.operands.len() != 2
-        || row_constraint.operands[0].operand != 0
-        || row_constraint.operands[0].access != RegisterOperandAccess::Use
-        || row_constraint.operands[1].operand != 1
-        || row_constraint.operands[1].access != RegisterOperandAccess::Use
-    {
+    if !crate::rewrites::declares_pair(
+        row_constraint,
+        RegisterOperandAccess::Use,
+        RegisterOperandAccess::Use,
+    ) {
         return Err(StoredLoadForwardingError::ConstraintMismatch);
     }
     let mut uses = instruction
