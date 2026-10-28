@@ -213,7 +213,16 @@ fn state_equation<'program>(
         include_shared,
         symbols,
         inference,
-    )?;
+    )
+    .or_else(|| {
+        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            eprintln!(
+                "CHECKSITE result-state-refusal machine={} state={} phase=frozen-inputs",
+                machine.name, state.name
+            );
+        }
+        None
+    })?;
     let statements = program.statement_table.statements(state.statement_nodes);
     // Every borrowed origin must retain its declaration. The shared transfer
     // below decides whether a reborrow exposes an unresolved binding or writes
@@ -297,7 +306,16 @@ fn state_equation<'program>(
                 }
                 _ => false,
             },
-        )?;
+        )
+        .or_else(|| {
+            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                eprintln!(
+                    "CHECKSITE result-state-refusal machine={} state={} phase=statement-prefix",
+                    machine.name, state.name
+                );
+            }
+            None
+        })?;
         for local in &context.stored {
             inference.record_local(local);
         }

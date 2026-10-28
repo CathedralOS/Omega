@@ -53,7 +53,16 @@ pub(super) fn solve<'program>(
             symbols,
             inference,
             include_shared,
-        )?;
+        )
+        .or_else(|| {
+            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                eprintln!(
+                    "CHECKSITE result-equation-refusal machine={} state={} phase=state-formation",
+                    owner.name, state.name
+                );
+            }
+            None
+        })?;
         for edge in &equation.edges {
             if !states
                 .iter()
@@ -86,7 +95,16 @@ pub(super) fn solve<'program>(
         symbols,
         inference,
         include_shared,
-    )?;
+    )
+    .or_else(|| {
+        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            eprintln!(
+                "CHECKSITE result-equation-refusal state={} phase=finite-substitution",
+                entry.name
+            );
+        }
+        None
+    })?;
 
     // A whole moved subtree masks the destination's symbolic reference/case
     // rows. Solve that finite monotone relation first; its actuals and captured
@@ -146,7 +164,16 @@ pub(super) fn solve<'program>(
             output.cases.clear();
             Some(output)
         },
-    )?;
+    )
+    .or_else(|| {
+        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            eprintln!(
+                "CHECKSITE result-equation-refusal state={} phase=move-substitution",
+                entry.name
+            );
+        }
+        None
+    })?;
     // Start references and cases afresh under the stable move masks. Otherwise
     // a leaf discovered before its mask could circulate through a positive
     // cycle after the original seed is suppressed, yielding a larger fixed point.
