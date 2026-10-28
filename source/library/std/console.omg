@@ -76,9 +76,37 @@ public NativeConsole satisfies Console {
     machine write(text: &[u8]) reaches Console {
         console_write_bytes(text, false);
     }
+    // Check capacity before reading: Full consumes no lookahead. LF in the
+    // final slot completes the line; waiting for host input remains blocking.
     machine read_line(out_line: &mut [u8]) -> LineReadResult
     reaches Console blocks; crashes Trap {
-        block ConsoleNativeProvider::read_line(out_line)
+        transition { _ -> block scan(out_line, 0) }
+        machine scan(out_line: &mut [u8], position: u64) -> LineReadResult {
+            transition position < out_line.len {
+                true -> block read(out_line, position, position + 1)
+                false -> full(position)
+            }
+        }
+        machine read(out_line: &mut [u8], position: u64, next: u64) -> LineReadResult
+        requires position < out_line.len {
+            let observed: ByteRead = block ConsoleNativeProvider::read_byte();
+            transition observed {
+                ByteRead::Byte { value } -> block store(out_line, position, next, value)
+                ByteRead::Eof -> end(position)
+            }
+        }
+        machine store(out_line: &mut [u8], position: u64, next: u64, value: i32) -> LineReadResult
+        requires position < out_line.len && value >= 0 && value <= 255
+        {
+            out_line[position] = value as u8;
+            transition value == 10 {
+                true -> complete(next)
+                false -> block scan(out_line, next)
+            }
+        }
+        machine full(count: u64) -> LineReadResult { LineReadResult::Full { count: count } }
+        machine end(count: u64) -> LineReadResult { LineReadResult::EndOfInput { count: count } }
+        machine complete(count: u64) -> LineReadResult { LineReadResult::LineComplete { count: count } }
     }
     machine read_byte() -> ByteRead
     reaches Console blocks; crashes Trap {
@@ -90,42 +118,6 @@ public NativeConsole satisfies Console {
     machine exit_process(return_code: i32) reaches Console {
         ConsoleNativeProvider::exit_process(return_code);
     }
-}
-
-// Shared bounded input uses this exact provider's byte leaf, not recursive
-// service redispatch. Check capacity before reading: Full consumes no lookahead
-// and an empty destination returns Full(0). LF in the last slot still completes
-// the line. Finite storage does not promise a bound on waiting for host input.
-machine ConsoleNativeProvider::read_line(out_line: &mut [u8]) -> LineReadResult
-satisfies Console::read_line
-reaches Console {
-    transition { _ -> block scan(out_line, 0) }
-    machine scan(out_line: &mut [u8], position: u64) -> LineReadResult {
-        transition position < out_line.len {
-            true -> block read(out_line, position, position + 1)
-            false -> full(position)
-        }
-    }
-    machine read(out_line: &mut [u8], position: u64, next: u64) -> LineReadResult
-    requires position < out_line.len {
-        let observed: ByteRead = block ConsoleNativeProvider::read_byte();
-        transition observed {
-            ByteRead::Byte { value } -> block store(out_line, position, next, value)
-            ByteRead::Eof -> end(position)
-        }
-    }
-    machine store(out_line: &mut [u8], position: u64, next: u64, value: i32) -> LineReadResult
-    requires position < out_line.len && value >= 0 && value <= 255
-    {
-        out_line[position] = value as u8;
-        transition value == 10 {
-            true -> complete(next)
-            false -> block scan(out_line, next)
-        }
-    }
-    machine full(count: u64) -> LineReadResult { LineReadResult::Full { count: count } }
-    machine end(count: u64) -> LineReadResult { LineReadResult::EndOfInput { count: count } }
-    machine complete(count: u64) -> LineReadResult { LineReadResult::LineComplete { count: count } }
 }
 
 // Friendly output is checked Omega code over the byte-level boundary leaf.

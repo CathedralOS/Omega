@@ -175,6 +175,9 @@ reaches
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
     ProcessOutput + ProcessExit
+invokes AppKit;
+invokes ObjectiveC;
+invokes CoreGraphics;
 {
     let loaded: bool = AppKit::load();
     let rx: f64 = F64::from_i32(x);
@@ -304,6 +307,8 @@ reaches
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
     ProcessOutput + ProcessExit
+invokes ObjectiveC;
+invokes CoreGraphics;
 {
     let close_name: [u8; 6] = "close\0";
     let close_selector: u64 = ObjectiveC::register_selector(&close_name[0]);
@@ -327,6 +332,7 @@ reaches
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
     ProcessOutput + ProcessExit
+invokes ObjectiveC;
 {
     // Cycle the rolling autorelease pool opened at window_create: the pop
     // drains the PREVIOUS peek's autoreleased NSEvent (already dispatched by
@@ -354,6 +360,7 @@ reaches
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
     ProcessOutput + ProcessExit
+invokes ObjectiveC;
 {
     let rc: u64 = ObjectiveC::send_scalar(window_state.app, window_state.dsel, window_state.evt);
     rc
@@ -366,6 +373,7 @@ reaches
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
     ProcessOutput + ProcessExit
+invokes ObjectiveC;
 {
     let rc: u64 = ObjectiveC::send(window, window_state.vsel);
     let r32: u32 = narrow_u64_to_u32_wrapping(rc);
@@ -391,6 +399,8 @@ reaches
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
     ProcessOutput + ProcessExit
+invokes ObjectiveC;
+invokes CoreGraphics;
 {
     let count: u64 = (source_width as u64) * (source_height as u64);
     transition source_width > 0 && source_width <= 8192 && source_height > 0 && source_height <= 8192 && pixels.len == count && pixels.len > 0 {
@@ -440,6 +450,7 @@ reaches
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
     ProcessOutput + ProcessExit
+invokes ObjectiveC;
 {
     let current: u64 = ObjectiveC::send(window_state.app, window_state.ksel);
     current
@@ -513,6 +524,7 @@ public macos_arm64 machine macos_map_keycode(virtual_key: u32) -> u64 {
 
 public macos_arm64 machine macos_key_state(virtual_key: u32) -> u64
 reaches GlobalInputObservation
+invokes CoreGraphics;
 {
     let keycode: u64 = macos_map_keycode(virtual_key);
     let result: u64 = CoreGraphics::event_source_key_state(1, keycode);
@@ -533,6 +545,7 @@ public boundary trait DarwinClock {
 // the former u32-to-i32 wrapping contract.
 public macos_arm64 machine macos_sleep(milliseconds: u32)
 reaches ExecutionDelay
+invokes DarwinClock;
 {
     let timeout: i32 = narrow_u32_to_i32_wrapping(milliseconds);
     let result: i32 = DarwinClock::poll(0, 0, timeout);
@@ -541,6 +554,7 @@ reaches ExecutionDelay
 // CLOCK_MONOTONIC milliseconds since boot, retaining the low 32 bits.
 public macos_arm64 machine macos_get_tick_count() -> u32
 reaches ClockObservation
+invokes DarwinClock;
 {
     let nanoseconds: u64 = DarwinClock::clock_ns(6);
     let milliseconds: u64 = nanoseconds / 1000000;
@@ -549,6 +563,7 @@ reaches ClockObservation
 
 public macos_arm64 machine macos_perf_counter() -> u64
 reaches ClockObservation
+invokes DarwinClock;
 {
     DarwinClock::clock_ns(6)
 }
