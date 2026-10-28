@@ -328,6 +328,17 @@ def nested_machine_cases(program: str) -> None:
     source = b"machine f(ready: bool) -> u8 { transition ready { true -> 7 false -> {} } }"
     rejected(program, "unit-arm-cannot-complete-scalar-result", source, "TerminalResultMismatch", b"false -> {}")
 
+    source = b'data Cell { value:u64; } machine observe(cell:&Cell)->u64{cell.value} machine update(cell:&mut Cell,before:u64)->u64{cell.value=73;before} machine forward(cell:&mut Cell)->u64{transition{_->update(cell,observe(cell))}}'
+    accepted(program, 'shared-reborrow-shared_call', source, (), adaptations=((b'cell!7', "lent"),))
+    source = b'data Cell { value:u64; } machine read(cell:&mut Cell)->u64 { let shared:&Cell=cell; shared.value }'
+    accepted(program, 'shared-reborrow-shared_local', source, (), adaptations=((b'cell!2', "lent"),))
+    source = b'data Cell { value:u64; } machine choose(shared:&Cell, exclusive:&mut Cell, flag:bool)->&Cell { match flag { true->shared false->exclusive } }'
+    accepted(program, 'shared-reborrow-shared_join', source, (), adaptations=((b'exclusive!2', "lent"),))
+    source = b'machine observe(bytes:&[u8])->u64{bytes.len} machine read(bytes:&write [u8;4])->u64 { observe(bytes) }'
+    rejected(program, "write-only-array-view-cannot-acquire-read-authority", source, "MismatchedTypes", b"bytes!4")
+    source = b'data Cell { value:u64; } machine read(cell:&mut Cell) { let descriptor:& &mut Cell=cell; }'
+    rejected(program, "shared-reborrow-does-not-insert-a-fresh-descriptor-borrow", source, "MismatchedTypes", b"cell!2")
+
 
 def main() -> None:
     if len(sys.argv) != 2:

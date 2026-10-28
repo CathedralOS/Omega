@@ -485,7 +485,10 @@ overlapping assignment captures its completed RHS before forgetting destination
 storage, preserving old-subject equality without changing write authority.
 Scalar reads through
 references carry typing's `Read` adaptation; a reference passed as a
-reference keeps its live storage identity. An assignment follows the
+reference keeps its live storage identity. An admitted shared reborrow records
+shared access even when its existing descriptor has mutable type. Joins and
+ordinary expression roots retain that adaptation; a write-only reference cannot
+obtain read authority through an array-to-slice view. An assignment follows the
 [destination-first schedule](../../wiki/spec/language/expressions.md#evaluation-schedule):
 its target is evaluated first, proving its bounds and fixing its place with
 the selectors as they are, then its value, then the value is stored at that

@@ -88,7 +88,7 @@ public data Selection [copy] {
 
 // How an expression meets its destination. `Landed` marks the root of an
 // anonymous integer tree that took its destination's carrier; `SharedLend`
-// an argument a shared-reference parameter lends implicitly.
+// an implicit shared loan of a value or shared reborrow of an existing reference.
 public data Adaptation [copy] {
     case None;
     case Landed;
