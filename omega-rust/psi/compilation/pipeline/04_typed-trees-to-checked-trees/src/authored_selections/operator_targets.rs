@@ -190,48 +190,6 @@ fn checked_operator_target(
             }
         });
 
-    if std::env::var_os("OMEGA_OPERATOR_SELECTION_TRACE").is_some()
-        && let ExpressionNode::Binary(binary) = node
-        && [binary.left, binary.right].iter().any(|operand| {
-            contract_resolution::checked_operand_type(
-                program,
-                facts,
-                expression,
-                *operand,
-                owner_index,
-            )
-            .and_then(|reference| program.primitive_type_reference(reference))
-            .is_some_and(|primitive| {
-                matches!(
-                    primitive,
-                    typed_trees::types::PrimitiveType::F32 | typed_trees::types::PrimitiveType::F64
-                )
-            })
-        })
-    {
-        let retained = program
-            .expression_table
-            .authored_selection_occurrences(expression)
-            .map(|occurrence| {
-                (
-                    occurrence,
-                    program
-                        .authored_declaration_selections()
-                        .get(occurrence)
-                        .map(|selection| selection.target()),
-                )
-            })
-            .collect::<Vec<_>>();
-        let statuses = uses
-            .iter()
-            .map(|value| (value.status, value.selected_operator_symbol))
-            .collect::<Vec<_>>();
-        eprintln!(
-            "OPERATOR checked-finalization expression={} traits={} uses={statuses:?} retained={retained:?}",
-            program.expression_table.display_name(expression),
-            program.traits().len()
-        );
-    }
     let executable = uses
         .iter()
         .find_map(|operator_use| {

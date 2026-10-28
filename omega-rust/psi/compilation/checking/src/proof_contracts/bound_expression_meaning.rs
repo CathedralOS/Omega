@@ -509,26 +509,6 @@ pub(super) fn sealed_float_comparison_declaration_for_operands(
                 _ => false,
             }
         });
-    if !retained && std::env::var_os("OMEGA_OPERATOR_SELECTION_TRACE").is_some() {
-        let original = program
-            .expression_table
-            .authored_selection_occurrences(expression)
-            .map(|occurrence| {
-                (
-                    occurrence,
-                    program
-                        .authored_declaration_selections()
-                        .get(occurrence)
-                        .map(|selection| selection.target()),
-                )
-            })
-            .collect::<Vec<_>>();
-        eprintln!(
-            "OPERATOR proof-reader owner={owner:?} expression={} traits={} selected={selected:?} retained={original:?}",
-            program.expression_table.display_name(expression),
-            program.traits().len()
-        );
-    }
     retained.then_some(selected)
 }
 
