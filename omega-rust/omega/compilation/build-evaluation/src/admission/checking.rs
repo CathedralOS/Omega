@@ -18,6 +18,7 @@ use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
 
 pub(crate) fn prepare_checked_build(
+    handoffs: &package_compilation::BuildHandoffInventory,
     typed: &mut typed_trees::TypedTrees,
     pre_checks: &mut Vec<build_time_evaluation::PreCheckEvaluation>,
     entry: symbols::SymbolHandle,
@@ -65,7 +66,24 @@ pub(crate) fn prepare_checked_build(
         &provisional,
         source::DependencyScope::Build,
     );
-    let defaults = build_time_evaluation::provider_declarations::retain_provider_defaults(context)?;
+    let mut defaults =
+        build_time_evaluation::provider_declarations::retain_provider_defaults(context)?;
+    let inherited = handoffs.rejoin_provider_selections(
+        &provisional,
+        packages,
+        source::DependencyScope::Build,
+    )?;
+    for selection in inherited {
+        defaults.push(
+            build_time_evaluation::provider_declarations::TargetProviderDefaults {
+                target: selection
+                    .target
+                    .map(|target| target.canonical_name().to_owned()),
+                machines: Vec::new(),
+                selections: vec![selection],
+            },
+        );
+    }
     let declarations = provider_planning::target_machines::settle_provider_defaults(
         context,
         &defaults,

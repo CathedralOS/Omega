@@ -7,69 +7,11 @@
 
 use super::{PackageBuildHandoff, PackageCompilationInputs};
 use build_declarations::DependencyPurpose;
-use build_time_evaluation::provider_declarations::{ProviderPlanningContext, ProviderSelection};
 use diagnostics::Diagnostic;
 use source::{SourceOrigin, SourceResolutionStratum};
-use std::path::PathBuf;
 use symbols::RetainedDeclaration;
 
 impl PackageCompilationInputs {
-    pub(crate) fn product_selection_source_seeds(&self) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
-        let mut paths = Vec::new();
-        for (scope, bundle) in self.dependency_build_handoff_instances() {
-            if scope != DependencyPurpose::Product {
-                continue;
-            }
-            self.admit_provider_activation(bundle)?;
-            for selection in bundle.provider_selections() {
-                for anchor in [&selection.subject, &selection.provider] {
-                    let anchor = self.admit_retained_product_declaration(bundle, anchor)?;
-                    if anchor.source().resolution_stratum == SourceResolutionStratum::Base {
-                        paths.push(anchor.source().path.clone());
-                    }
-                }
-            }
-            for row in bundle.native_bindings() {
-                for anchor in row.anchors() {
-                    let anchor = self.admit_retained_product_declaration(bundle, anchor)?;
-                    if anchor.source().resolution_stratum == SourceResolutionStratum::Base {
-                        paths.push(anchor.source().path.clone());
-                    }
-                }
-            }
-        }
-        paths.sort();
-        paths.dedup();
-        Ok(paths)
-    }
-
-    /// Reconstruct default choices on this Product's exact declaration handles.
-    /// This neither grants authority nor installs Build-host service backing.
-    pub fn rejoin_package_provider_selections(
-        &self,
-        typed: &typed_trees::TypedTrees,
-    ) -> Result<Vec<ProviderSelection>, Vec<Diagnostic>> {
-        let context = ProviderPlanningContext::new(typed, source::DependencyScope::Product);
-        let mut selections = Vec::new();
-        for (scope, bundle) in self.dependency_build_handoff_instances() {
-            if scope != DependencyPurpose::Product {
-                continue;
-            }
-            self.admit_provider_activation(bundle)?;
-            for selection in bundle.provider_selections() {
-                let mut selected = selection.clone();
-                selected.subject =
-                    self.admit_retained_product_declaration(bundle, &selected.subject)?;
-                selected.provider =
-                    self.admit_retained_product_declaration(bundle, &selected.provider)?;
-                // Duplicate/default arbitration belongs to provider settlement,
-                // where authoritative root overrides have their proper tier.
-                selections.push(selected.rejoin(context, &[]).map_err(|error| vec![error])?);
-            }
-        }
-        Ok(selections)
-    }
-
     /// Admit the supplier bytes of checked native intent before the receiving
     /// provider planner rejoins its declaration and application identities.
     pub fn retained_package_native_bindings(
@@ -101,7 +43,7 @@ impl PackageCompilationInputs {
         Ok(rows)
     }
 
-    fn admit_provider_activation(
+    pub(crate) fn admit_provider_activation(
         &self,
         bundle: &PackageBuildHandoff,
     ) -> Result<(), Vec<Diagnostic>> {

@@ -15,7 +15,11 @@ use package_compilation::PackageCompilationInputs;
 use std::path::Path;
 use std::sync::Arc;
 
-pub(super) struct BuildSourceInvocation {
+mod prerequisites;
+pub use prerequisites::BuildExecutionProgress;
+pub(crate) use prerequisites::{BuildCompilationContext, BuildSourceInvocation};
+
+pub(super) struct PreparedBuildSourceInvocation {
     execution_contract: package_compilation::build_execution::BuildExecutionContract,
     parsed: compilation_products::PreparedCheckedSource,
     frontier: TypedCompilationFrontier,
@@ -29,14 +33,14 @@ pub(super) struct BuildSourceInvocation {
 
 /// Consume a prepared typed program. Source preparation owns any reuse;
 /// declaration authority and Build effects are admitted for this activation.
-pub(super) fn prepare_build_invocation(
+pub(super) fn prepare_admitted_build_invocation(
     root_path: &Path,
     child: CheckedExecutionRequest<'_>,
     parsed: compilation_products::PreparedCheckedSource,
     frontier: TypedCompilationFrontier,
     mut timings: CompileTimings,
     pure_build_compilation: Option<&build_evaluation::PureBuildCompilation>,
-) -> Result<BuildSourceInvocation, CompileFailure> {
+) -> Result<PreparedBuildSourceInvocation, CompileFailure> {
     let started = std::time::Instant::now();
     let CheckedExecutionRequest {
         selected_target_profile,
@@ -48,6 +52,7 @@ pub(super) fn prepare_build_invocation(
     let build_execution_profile = build.profile;
     let execution_contract = build.contract();
     let TypedCompilationFrontier {
+        build_handoffs,
         preparation,
         mut source,
         captured_source,
@@ -68,6 +73,7 @@ pub(super) fn prepare_build_invocation(
             sources: &base_sources,
             package_inputs,
             captured_source: captured_source.as_ref(),
+            build_handoffs: &build_handoffs,
             generated_source_custody: &generated_source_custody,
             execution: build,
             artifact_only: false,
@@ -82,10 +88,11 @@ pub(super) fn prepare_build_invocation(
         },
         &mut timings,
     )?;
-    Ok(BuildSourceInvocation {
+    Ok(PreparedBuildSourceInvocation {
         execution_contract,
         parsed,
         frontier: TypedCompilationFrontier {
+            build_handoffs,
             preparation,
             source,
             captured_source,
@@ -104,7 +111,7 @@ pub(super) fn prepare_build_invocation(
     })
 }
 
-impl BuildSourceInvocation {
+impl PreparedBuildSourceInvocation {
     pub(super) fn product_queries(&self) -> super::ProductQueries {
         super::ProductQueries::new(
             &self.frontier,
@@ -291,6 +298,7 @@ fn complete_build_source(
     timings: &mut CompileTimings,
 ) -> Result<(BuiltTypedProgram, BuildSourceCustody), CompileFailure> {
     let TypedCompilationFrontier {
+        build_handoffs,
         preparation,
         mut source,
         captured_source: _,
@@ -358,6 +366,7 @@ fn complete_build_source(
         &mut source,
         Arc::make_mut(&mut computed_build_config),
         package_inputs,
+        &build_handoffs,
     )?;
     let sources = BuildSourceCustody {
         source_file_count,
@@ -435,6 +444,7 @@ pub(super) fn lower_typed_frontier(
     };
     let source = request.prepare(&mut crate::observations::PsiStageTimings::new(timings))?;
     Ok(TypedCompilationFrontier {
+        build_handoffs: syntax.build_handoffs,
         preparation,
         source,
         captured_source: syntax.captured_source,

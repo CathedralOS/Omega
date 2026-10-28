@@ -213,6 +213,15 @@ impl PackageBuildInvocation {
     pub fn execution(&mut self) -> Option<&mut build_evaluation::PreparedBuildExecution> {
         self.source.execution()
     }
+    pub fn advance_build(
+        &mut self,
+        returned: Result<Option<build_evaluation::ReturnedBuild>, CompileFailure>,
+    ) -> super::BuildExecutionProgress {
+        super::run_on_compile_thread(|| {
+            Ok::<_, CompileFailure>(self.source.advance_build(returned))
+        })
+        .unwrap_or_else(|failure| super::BuildExecutionProgress::Complete(Err(failure)))
+    }
 }
 
 impl PackageBuild {

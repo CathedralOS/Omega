@@ -32,6 +32,7 @@ use syntax_trees::SyntaxTrees;
 
 #[derive(Clone)]
 pub struct AssembledSyntax {
+    pub build_handoffs: crate::BuildHandoffInventory,
     pub root_sources: Vec<source::SourceId>,
     pub syntax_trees: SyntaxTrees,
     /// Parser-issued source ownership for authored item roots. Later synthesis
@@ -184,6 +185,7 @@ impl DeferredProductSources {
             .map(|file| file.source_id)
             .collect();
         Ok(AssembledSyntax {
+            build_handoffs: storage.build_handoffs,
             root_sources,
             source_items,
             syntax_trees: storage.syntax_trees,
@@ -233,9 +235,13 @@ impl DeferredProductSources {
             imports.seed(root.clone(), source::DependencyScope::Product);
         }
         if let Some(inputs) = package_inputs {
-            for source in inputs.product_selection_source_seeds()? {
-                imports.seed(source, source::DependencyScope::Product);
-            }
+            storage.build_handoffs.extend_packages(inputs)?;
+        }
+        for path in storage
+            .build_handoffs
+            .selection_source_seeds(package_inputs, source::DependencyScope::Product)?
+        {
+            imports.seed(path, source::DependencyScope::Product);
         }
         let mut package_imports = checkpoint.package_imports.to_vec();
         package_imports.extend(load_imports(
@@ -339,6 +345,21 @@ impl ImmutableSourceParseCheckpoint {
 
     pub fn root_path(&self) -> &Path {
         &self.root_path
+    }
+
+    pub fn with_build_handoffs(
+        mut self,
+        handoffs: crate::BuildHandoffInventory,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        handoffs.admit_core(&self.captured_core_source()?)?;
+        let storage = Arc::make_mut(&mut self.source_storage);
+        for (scope, handoff) in handoffs.handoffs() {
+            storage
+                .build_handoffs
+                .insert(scope, handoff.clone())
+                .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        }
+        Ok(self)
     }
 
     pub fn captured_core_source(&self) -> Result<crate::CapturedCoreSource, Vec<Diagnostic>> {
@@ -462,6 +483,15 @@ impl ImmutableSourceParseCheckpoint {
         let mut imports = ImportQueue::default();
         for source in source_storage.sources.selected_files() {
             imports.mark_loaded(&source.path, source.dependency_scope);
+        }
+        if let Some(inputs) = package_inputs {
+            source_storage.build_handoffs.extend_packages(inputs)?;
+        }
+        for path in source_storage
+            .build_handoffs
+            .selection_source_seeds(package_inputs, source_scope)?
+        {
+            imports.seed(path, source_scope);
         }
         let mut generated_source_custody = match package_inputs {
             Some(package_inputs) => append_dependency_build_handoffs_to_storage(
@@ -716,6 +746,7 @@ impl ImmutableSourceParseCheckpoint {
             None => Arc::new(source_storage.sources),
         };
         let syntax = AssembledSyntax {
+            build_handoffs: source_storage.build_handoffs,
             root_sources,
             source_items: source_storage
                 .source_roots

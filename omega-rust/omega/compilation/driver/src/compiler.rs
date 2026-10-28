@@ -41,6 +41,15 @@ impl PreparedCompilation {
             _ => None,
         }
     }
+    pub fn advance_build(
+        &mut self,
+        returned: Result<Option<build_evaluation::ReturnedBuild>, crate::CompileFailure>,
+    ) -> crate::BuildExecutionProgress {
+        match &mut self.source {
+            Some(Ok(source)) => source.advance_build(returned),
+            _ => crate::BuildExecutionProgress::Complete(returned),
+        }
+    }
 }
 
 impl crate::CompilationSession {

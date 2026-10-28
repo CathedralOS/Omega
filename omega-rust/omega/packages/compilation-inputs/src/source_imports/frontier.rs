@@ -13,6 +13,7 @@ use syntax_trees::SyntaxTrees;
 #[derive(Clone, Default)]
 pub(crate) struct SourceStorage {
     pub filesystem: source::SourceFileSystem,
+    pub build_handoffs: crate::BuildHandoffInventory,
     pub source_roots: Arena<SourceRoots>,
     pub sources: SourceMap,
     pub syntax_trees: SyntaxTrees,

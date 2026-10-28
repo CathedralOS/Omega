@@ -9,7 +9,9 @@
 //! compiles that root through its own product request, stops after joining the
 //! dependencies' generated source into the root request.
 
+mod continuation;
 pub(crate) mod source_resolution;
+pub(crate) use continuation::execute_builds;
 
 use build_declarations::DependencyPurpose;
 use compiler::{CheckedCompileRequest, CompileFailure, PackageBuild};
@@ -121,8 +123,7 @@ pub(crate) fn execute_returned_build(
     request: CheckedCompileRequest,
 ) -> Result<ReturnedPackageBuild, CompileFailure> {
     let mut invocation = compiler.begin_package_build(request)?;
-    let mut queries = invocation.product_queries();
-    let returned = execute_build(invocation.execution(), Some(&mut queries))?;
+    let returned = execute_builds(&mut invocation)?;
     Ok(ReturnedPackageBuild {
         invocation,
         returned,

@@ -38,6 +38,7 @@ impl SourcePreparation {
 /// This is a reusable compilation checkpoint, not a portable program form.
 #[derive(Clone)]
 pub struct TypedCompilationFrontier {
+    pub build_handoffs: package_compilation::BuildHandoffInventory,
     pub preparation: SourcePreparation,
     pub source: psi_compiler::SourceContinuation,
     /// Acquired source custody survives frontend preparation. Build uses the
@@ -142,6 +143,15 @@ pub struct TypedFrontierRetention {
 }
 
 impl PreparedCheckedSource {
+    pub fn with_build_handoffs(
+        mut self,
+        handoffs: package_compilation::BuildHandoffInventory,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        self.source_checkpoint = self.source_checkpoint.with_build_handoffs(handoffs)?;
+        self.frontiers = Arc::new(Mutex::new(Vec::new()));
+        Ok(self)
+    }
+
     pub fn preparation(&self) -> SourcePreparation {
         self.preparation.clone()
     }

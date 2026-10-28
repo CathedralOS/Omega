@@ -28,6 +28,7 @@ pub struct BuildEvaluationRequest<'request> {
     pub sources: &'request source::SourceMap,
     pub package_inputs: Option<&'request PackageCompilationInputs>,
     pub captured_source: Option<&'request package_compilation::CapturedBuildSource>,
+    pub build_handoffs: &'request package_compilation::BuildHandoffInventory,
     pub generated_source_custody:
         &'request [(source::SourceId, build_output::PackageGeneratedSource)],
     pub execution: BuildExecutionInputs,
@@ -146,6 +147,7 @@ pub fn prepare_build_evaluation(
         sources,
         package_inputs,
         captured_source,
+        build_handoffs,
         generated_source_custody,
         execution,
         artifact_only,
@@ -219,6 +221,7 @@ pub fn prepare_build_evaluation(
     // Package authority adds to that semantic floor; standalone source cannot
     // bypass it. Admission below consumes this exact checked program.
     let (prepared, retained_check) = crate::admission::checking::prepare_checked_build(
+        build_handoffs,
         typed,
         pre_checks,
         selected_machine,
