@@ -412,13 +412,13 @@ impl Record for std::ffi::OsString {
             0u8.write(output)?;
             let bytes = self.as_os_str().as_bytes();
             output.sequence(bytes.len())?;
-            return output.extend(bytes);
+            output.extend(bytes)
         }
         #[cfg(windows)]
         {
             use std::os::windows::ffi::OsStrExt;
             1u8.write(output)?;
-            return self.encode_wide().collect::<Vec<_>>().write(output);
+            self.encode_wide().collect::<Vec<_>>().write(output)
         }
         #[cfg(not(any(unix, windows)))]
         {
@@ -433,7 +433,7 @@ impl Record for std::ffi::OsString {
             if tag != 0 {
                 return Err(input.error("foreign host path encoding"));
             }
-            return Vec::<u8>::read(input).map(Self::from_vec);
+            Vec::<u8>::read(input).map(Self::from_vec)
         }
         #[cfg(windows)]
         {
@@ -441,7 +441,7 @@ impl Record for std::ffi::OsString {
             if tag != 1 {
                 return Err(input.error("foreign host path encoding"));
             }
-            return Vec::<u16>::read(input).map(|words| Self::from_wide(&words));
+            Vec::<u16>::read(input).map(|words| Self::from_wide(&words))
         }
         #[cfg(not(any(unix, windows)))]
         {

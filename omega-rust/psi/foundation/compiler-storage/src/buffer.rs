@@ -87,6 +87,10 @@ impl RecordWriter {
         self.bytes
     }
 
+    pub fn bytes_written(&self) -> usize {
+        self.bytes.len()
+    }
+
     pub fn error(&self, reason: impl Into<Cow<'static, str>>) -> RecordError {
         RecordError {
             position: self.bytes.len(),

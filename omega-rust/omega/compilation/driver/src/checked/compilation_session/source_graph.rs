@@ -14,7 +14,7 @@ use std::io::{Read, Write};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 const MAGIC: &[u8; 8] = b"OMGSG01\0";
-const MAX_BYTES: usize = 128 * 1024 * 1024;
+const MAX_BYTES: usize = 512 * 1024 * 1024;
 const HEADER_BYTES: usize = 80;
 static NEXT_WRITE: AtomicU64 = AtomicU64::new(0);
 
@@ -157,6 +157,8 @@ impl SourceGraphCache {
         output
             .record(|output| {
                 preparation.write(output)?;
+                let preparation_bytes = output.bytes_written();
+                phase_profile::count("source.graph.preparation.bytes", preparation_bytes as u64);
                 output.record(|output| {
                     output.sequence(sources.len())?;
                     for source in sources {
@@ -164,7 +166,17 @@ impl SourceGraphCache {
                     }
                     Ok(())
                 })?;
-                checks.write(output)
+                let source_bytes = output.bytes_written();
+                phase_profile::count(
+                    "source.graph.sources.bytes",
+                    (source_bytes - preparation_bytes) as u64,
+                );
+                checks.write(output)?;
+                phase_profile::count(
+                    "source.graph.checks.bytes",
+                    (output.bytes_written() - source_bytes) as u64,
+                );
+                Ok(())
             })
             .map_err(|reason| format!("encode retained source graph: {reason}"))?;
         let payload = output.finish();
@@ -216,8 +228,8 @@ impl SourceGraphCache {
 fn limits() -> RecordLimits {
     RecordLimits {
         bytes: MAX_BYTES,
-        allocation: 1024 * 1024 * 1024,
-        elements: 16 * 1024 * 1024,
+        allocation: 4 * 1024 * 1024 * 1024,
+        elements: 64 * 1024 * 1024,
         depth: 256,
     }
 }

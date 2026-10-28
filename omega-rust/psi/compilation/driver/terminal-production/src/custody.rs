@@ -37,7 +37,6 @@ impl compiler_storage::Record for ProducedTerminalProgram {
         &self,
         output: &mut compiler_storage::RecordWriter,
     ) -> Result<(), compiler_storage::RecordError> {
-        use compiler_storage::Record;
         output.record(|output| {
             self.artifact()
                 .map_err(|error| output.error(error.to_string()))?
