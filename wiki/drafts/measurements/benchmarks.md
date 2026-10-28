@@ -1,5 +1,9 @@
 # Benchmark records
 
+[Cathedral composition, 2026-10-28](cathedral_2026_10_28/README.md): frozen
+eight-entry customer workload, partial native compilation measurements and
+the compatibility failures preventing a full-build baseline.
+
 Versioned compile-time, peak-memory, code-size, and runtime
 measurements of the reference compiler, one JSON record per (subject,
 target, exact rule selection) row. The harness and schema live in

@@ -17,6 +17,19 @@ status rather than disappearing when a host cannot provide them (see
 
 ## Measuring
 
+The fixed Cathedral composition is in [cathedral.json](cathedral.json).
+Run `python tools/benchmark/cathedral.py --compiler <optimized-omega>
+--snapshot <frozen-Cathedral> --source-manifest <file-hashes.json>
+--output <new-results-directory>` after ordinary dependency preparation.
+The source manifest maps snapshot-relative names to `sha256` and `bytes`.
+Use the preparation ceremony below when the snapshot needs package acceptance.
+The runner verifies input and compiler hashes, uses fresh output directories,
+and emits a full compile metric only when all eight entries compile and their
+expected artifacts pass structural checks. Runtime validation is separate.
+Preparation is excluded; persistent caches are retained, so this is not a
+cache-empty build measurement. The [first Cathedral investigation](../../wiki/drafts/measurements/cathedral_2026_10_28/README.md)
+records its exact scope, source migrations and remaining failures.
+
 ```text
 python3 tools/benchmark/benchmark.py measure \
     --root samples/cli/arithmetic/prime_counter/main.omg \
