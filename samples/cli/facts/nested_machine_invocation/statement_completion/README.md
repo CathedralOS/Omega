@@ -36,10 +36,13 @@ Additional controls retain [a load-bearing namespaced theorem](controls/namespac
 [its missing premise](controls/missing_theorem_premise/main.omg),
 [its missing citation](controls/missing_theorem_citation/main.omg),
 [the missing Unit theorem citation](controls/missing_unit_theorem_citation/main.omg),
+[an unlicensed self citation](controls/self_theorem_citation/main.omg),
 [a namespaced tag contract](controls/namespaced_tag/main.omg),
 [a wrong tag](controls/wrong_tag/main.omg),
 [an invalidated storage guard](controls/overwritten_guard/main.omg), and
 [a stronger private guarantee unavailable through the public requirement](controls/private_guarantee/main.omg).
+The theorem and tag namespaces are ordinary named implementations with inline
+members; their selected public requirement telescopes supply the contracts.
 These are pinned beside the row under `tests/omega/{pass,fail}/facts/nested_machine_statement_completion_*`.
 
 The accepted meaning comes from [invocation contracts](../../../../../wiki/spec/language/state_contracts.md)

@@ -1,8 +1,10 @@
 // A namespaced ordinary call cannot revive a guard invalidated by a write.
 use omega_language_std::console;
 data Storage { value: i64; canary: u64; }
-data Writes {}
-machine Writes::replace(output: &mut Storage) { output.value = -1; }
+trait StoreContract { machine replace(output: &mut Storage); }
+Writes satisfies StoreContract {
+    machine replace(output: &mut Storage) { output.value = -1; }
+}
 machine probe(output: &mut Storage, value: i64) -> i64 ensures result != -1; reaches Console {
  output.value = value;
  transition output.value != -1 { true -> overwrite(output) false -> 0 }

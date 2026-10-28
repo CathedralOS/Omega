@@ -1,10 +1,16 @@
 // A namespaced Unit call transports its checked case contract, not scalar equations.
 // Expected exit: 0
 data Choice { case Cell(value: u64); case Empty; }
-data Tags {}
-machine Tags::observe(choice: &Choice)
-requires choice in Choice::Cell
-ensures choice in Choice::Cell {}
+trait TagContract {
+    machine observe(choice: &Choice)
+    requires choice in Choice::Cell
+    ensures choice in Choice::Cell;
+}
+Tags satisfies TagContract {
+    machine observe(choice: &Choice)
+    requires choice in Choice::Cell
+    ensures choice in Choice::Cell {}
+}
 machine probe(choice: &Choice) -> u64 requires choice in Choice::Cell {
  transition { _ -> check(choice) }
  machine check(choice: &Choice) -> u64 requires choice in Choice::Cell {
