@@ -1020,8 +1020,8 @@ dependencies = [
 name = "language-semantics"
 version = "0.1.0"
 dependencies = [
- "compiler-storage",
  "build-time-values",
+ "compiler-storage",
  "language-core",
  "numerics",
  "optimization",
