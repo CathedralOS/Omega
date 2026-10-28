@@ -1,4 +1,4 @@
-//! Close execution dispatch, accepted host bindings, task activation and entry
+//! Close accepted host bindings, task activation and entry
 //! establishment for one selected realization. Target/entry custody leaves with
 //! the selected program; native provider admission checks optional ISA features
 //! against actual Terminal demand. The compiler neither projects service roles
@@ -17,8 +17,6 @@ use std::sync::Arc;
 pub struct SelectedExecution {
     pub program: Arc<CheckedProgram>,
     pub native_provider_sources: Result<Arc<backend_plan::NativeProviderSources>, Vec<Diagnostic>>,
-    /// Target execution associations, never written into portable checked facts.
-    pub dispatch: crate::selected_dispatch::SelectedExecutionDispatch,
     pub selected_target_profile: Option<target::TargetProfile>,
     pub selected_program_entry:
         Option<provider_planning::program_entry::SelectedCompilerProgramEntry>,
@@ -186,12 +184,6 @@ pub fn settle_selected_execution(
             "selected deployment target differs from retained provider planning target",
         )]);
     }
-    let dispatch = crate::settle_selected_execution_dispatch(
-        &checked.program,
-        settlement.calling_plans,
-        &checked.selected_provider_plan_facts,
-        &settlement.selected_provider_provenance,
-    )?;
     let accepted_binding = |role| {
         settlement
             .package_inputs
@@ -260,7 +252,6 @@ pub fn settle_selected_execution(
     Ok(SelectedExecution {
         native_provider_sources: checked.native_provider_sources,
         program: checked.program,
-        dispatch,
         selected_target_profile: settlement.selected_target_profile,
         selected_program_entry: settlement.selected_program_entry,
         x86_scalar_fma_provider: settlement.x86_scalar_fma_provider,
