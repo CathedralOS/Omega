@@ -1437,7 +1437,7 @@ fn application_source_resolution(project: &str, private_call: bool) {
     let child = child
         .complete(session.compiler(), product_target, inputs.clone())
         .unwrap();
-    assert_eq!(child.build_handoff().target(), product_target);
+    assert_eq!(child.build_handoff().target(), Some(product_target));
     let host_child = child.select_target(profile, inputs).unwrap();
     let root = builds.pop().unwrap();
     let inputs = root
@@ -1924,7 +1924,7 @@ fn completed_build_target_fanout() {
     let mut products = Vec::new();
     for profile in [windows, linux, unbound_target] {
         let selected = build.select_target(profile, inputs.clone()).unwrap();
-        assert_eq!(selected.build_handoff().target(), profile);
+        assert_eq!(selected.build_handoff().target(), Some(profile));
         products.push((
             (profile, false),
             compiler::PreparedPackageProduct {

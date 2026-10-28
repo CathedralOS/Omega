@@ -192,9 +192,13 @@ fn hash_generated_bundle(digest: &mut DomainDigestEncoder, bundle: &PackageBuild
         }
     }
     digest.byte(purpose_tag(bundle.purpose()));
-    digest.byte(crate::target_profile_tags::target_profile_tag(
-        bundle.target(),
-    ));
+    match bundle.target() {
+        Some(target) => {
+            digest.byte(1);
+            digest.byte(crate::target_profile_tags::target_profile_tag(target));
+        }
+        None => digest.byte(0),
+    }
     match bundle.build_execution_profile() {
         Some(profile) => {
             digest.byte(1);

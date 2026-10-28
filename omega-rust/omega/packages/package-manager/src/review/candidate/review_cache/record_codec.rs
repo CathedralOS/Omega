@@ -552,7 +552,7 @@ fn encode_build_handoff(bundle: &PackageBuildHandoff, out: &mut Vec<u8>) {
         .expect("a validated package review retains an ordinary package source subject");
     encode_identity(subject.package, out);
     out.push(purpose_tag(bundle.purpose()));
-    encode_target(bundle.target(), out);
+    encode_target(subject.target, out);
     encode_optional(
         bundle.build_execution_profile().as_ref(),
         out,

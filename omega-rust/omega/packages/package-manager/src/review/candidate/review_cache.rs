@@ -308,7 +308,7 @@ pub(crate) fn record_compiled_review(
         lineage: lineage_digest(review.key().source_lineage()),
         resolution: resolution_digest(review.resolution()),
         purpose: review.checked_context().purpose(),
-        target: review.build_handoff().target(),
+        target: review.build_handoff().target()?,
         build_execution_profile: review.build_handoff().build_execution_profile(),
         selected_build_machine_identity: review.selected_build_machine_identity().to_owned(),
         build_evaluation_usage: review.build_evaluation_usage(),

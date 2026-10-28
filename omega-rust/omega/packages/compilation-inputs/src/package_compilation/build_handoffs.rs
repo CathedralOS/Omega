@@ -32,7 +32,6 @@ pub struct PackageBuildHandoff {
 struct PackageBuildHandoffContents {
     subject: BuildSourceSubject,
     purpose: DependencyPurpose,
-    target: target::TargetProfile,
     build_execution_profile: Option<target::TargetProfile>,
     sources: Vec<PackageGeneratedSource>,
     provider_selections:
@@ -45,6 +44,7 @@ struct PackageBuildHandoffContents {
 enum BuildSourceSubject {
     Package {
         package: PackageKeyIdentity,
+        target: target::TargetProfile,
         dependency_closure: PackageDependencyClosure,
         source_consumption_commitment: PackageSourceConsumptionCommitment,
     },
@@ -53,6 +53,7 @@ enum BuildSourceSubject {
 
 pub struct PackageBuildSource<'handoff> {
     pub package: PackageKeyIdentity,
+    pub target: target::TargetProfile,
     pub dependency_closure: &'handoff PackageDependencyClosure,
     pub source_consumption_commitment: PackageSourceConsumptionCommitment,
 }
@@ -92,11 +93,11 @@ impl PackageBuildHandoff {
             contents: Arc::new(PackageBuildHandoffContents {
                 subject: BuildSourceSubject::Package {
                     package,
+                    target,
                     dependency_closure,
                     source_consumption_commitment,
                 },
                 purpose,
-                target,
                 build_execution_profile,
                 sources,
                 provider_selections: Arc::from([]),
@@ -121,10 +122,12 @@ impl PackageBuildHandoff {
         match &self.contents.subject {
             BuildSourceSubject::Package {
                 package,
+                target,
                 dependency_closure,
                 source_consumption_commitment,
             } => Some(PackageBuildSource {
                 package: *package,
+                target: *target,
                 dependency_closure,
                 source_consumption_commitment: *source_consumption_commitment,
             }),
@@ -149,14 +152,12 @@ impl PackageBuildHandoff {
     pub fn from_toolchain_core(
         input: crate::CapturedCoreSource,
         purpose: DependencyPurpose,
-        target: target::TargetProfile,
         build_execution_profile: Option<target::TargetProfile>,
     ) -> Self {
         Self {
             contents: Arc::new(PackageBuildHandoffContents {
                 subject: BuildSourceSubject::ToolchainCore(input),
                 purpose,
-                target,
                 build_execution_profile,
                 sources: Vec::new(),
                 provider_selections: Arc::from([]),
@@ -182,8 +183,8 @@ impl PackageBuildHandoff {
         self.contents.purpose
     }
 
-    pub fn target(&self) -> target::TargetProfile {
-        self.contents.target
+    pub fn target(&self) -> Option<target::TargetProfile> {
+        self.package_source().map(|subject| subject.target)
     }
 
     /// The admitted profile that checked and executed the producer's build.
@@ -499,14 +500,19 @@ impl PackageCompilationInputs {
                         PackageCompilationInputError::ToolchainBuildHandoffRequiresSourceContext,
                     );
                 };
+                let Some(bundle_target) = bundle.target() else {
+                    return Some(
+                        PackageCompilationInputError::ToolchainBuildHandoffRequiresSourceContext,
+                    );
+                };
                 let expected_target = match bundle.purpose() {
                     DependencyPurpose::Product => selected_target,
                     DependencyPurpose::Build => bundle.build_execution_profile(),
                 };
-                (Some(bundle.target()) != expected_target).then_some(
+                (Some(bundle_target) != expected_target).then_some(
                     PackageCompilationInputError::BuildHandoffTargetMismatch {
                         package,
-                        bundle_target: bundle.target(),
+                        bundle_target,
                         selected_target: expected_target,
                     },
                 )

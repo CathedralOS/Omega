@@ -10,11 +10,15 @@ pub struct BuildHandoffInventory {
     handoffs: Vec<PackageBuildHandoff>,
 }
 
-fn key(handoff: &PackageBuildHandoff) -> (BuildSourceOwner, DependencyPurpose, u8, Option<u8>) {
+fn key(
+    handoff: &PackageBuildHandoff,
+) -> (BuildSourceOwner, DependencyPurpose, Option<u8>, Option<u8>) {
     (
         handoff.source_owner(),
         handoff.purpose(),
-        crate::target_profile_tags::target_profile_tag(handoff.target()),
+        handoff
+            .target()
+            .map(crate::target_profile_tags::target_profile_tag),
         handoff
             .build_execution_profile()
             .map(crate::target_profile_tags::target_profile_tag),
@@ -44,13 +48,13 @@ impl BuildHandoffInventory {
         &self,
         owner: BuildSourceOwner,
         purpose: DependencyPurpose,
-        target: target::TargetProfile,
+        target: Option<target::TargetProfile>,
         execution: Option<target::TargetProfile>,
     ) -> Option<&PackageBuildHandoff> {
         let key = (
             owner,
             purpose,
-            crate::target_profile_tags::target_profile_tag(target),
+            target.map(crate::target_profile_tags::target_profile_tag),
             execution.map(crate::target_profile_tags::target_profile_tag),
         );
         self.handoffs
