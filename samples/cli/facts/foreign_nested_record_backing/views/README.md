@@ -3,132 +3,83 @@
 Parent: [NORMALIZED-ABI-LOWERING](../../../../../TASKS.md). This extends
 [retained nested backing](../README.md) to an explicitly borrowed array.
 
-A mutable foreign registration retains the original fixed-array view in Buffer until Pending completes; the restored middle Cell satisfies ResidentValue for observed_gap, while completion writes 73 and preserves both neighbors, marker 91 and the earlier copy 37.
+A mutable foreign registration retains the original fixed-array view in Buffer until Pending completes; completion restores the original Cell::Issued memberships and ResidentValue for observed_gap, writes 73, and preserves both neighbors, marker 91 and the earlier copy 37.
 
 `Cell.value` carries `ResidentValue`: `0..=2147483647`, excluding 42.
-After completion, `observed_gap` requires that complete declared predicate and
-subtracts the field from 2147483647; the caller checks the resulting 2147483574
-alongside the original canaries. No caller guard re-establishes membership.
-The compact [missing field predicate control](controls/missing_leaf_predicate/main.omg)
-keeps an unqualified public Cell input and must reject the same consuming call.
-The nine exclusive-loan twins remain separate guards on the retained window.
+`mint_cell` establishes each exact `Cell::Issued`; the stored reference is
+`&mut [Cell in Cell::Issued; 3]`. After completion, `observe_cell` consumes that
+membership before any runtime guard, and `observed_gap` consumes the complete
+field predicate. After retiring Buffer, another qualified observation reaches
+the original caller array. The captured scalar must still equal 37 while
+completion's observed value and original middle slot equal 73.
 
-The compact [generic borrowed-root control](controls/generic_borrowed_root/main.omg)
-passes `Wrapper<Cell>` through ordinary mutable calls, consumes the same predicate,
-and checks the original backing after retiring its view. It protects the shared
-call-publication path independently of foreign registration.
+The C counterpart stores `struct cell (*cells)[3]`, an explicit pointer to a
+fixed array. Registration writes 41 and retains the original Buffer address;
+completion writes 73 through that pointer. Both neighbors (305419896 and
+1515863100) and marker 91 must survive. A private copied array cannot satisfy
+both the Buffer and original caller observations. The C source and existing
+native binding declarations are unchanged. Those legacy declarations remain
+migration inputs; this row does not establish Build-owned native binding syntax.
 
-The logical-subject migration now covers `ResidentValue` in all nine places,
-their pins and both focused controls: its three predicate references use `self`
-without changing the bound, excluded value, runtime operations or loan twins.
-At main `e92e8dfe666f5a858ce22b338075e5aee0b8167c`, the old binders stopped all
-20 source fixtures at the retirement diagnostic, including the intended rejects.
-With the renamed sources, that same optimized producer records ten checked
-positives, ten intended rejects, ten corpus native/Terminal zero agreements and
-ten public zero agreements on macOS ARM64. Public products pass canonical
-Terminal inspection. Receipts `2c13682be12743269fdea422e93071a2`,
-`ef91ddd173434e0bbafc1eda3f8959ec` and `c2115d65d72743708b2f0c7c44e69b62`
-retain the producer, matching-host C fixture, replay locks and raw observations.
-Other-host execution is not claimed by this migration. The broader
-**DOMAIN-DEFAULT-PREDICATE-UNIFICATION** acceptance remains on the task board.
+| Place | Positive | Live-loan reject twin |
+| --- | --- | --- |
+| Local | [program](local/main.omg) | [read before completion](local/invalid/main.omg) |
+| Field | [program](field/main.omg) | [read before completion](field/invalid/main.omg) |
+| Parameter | [program](parameter/main.omg) | [read before completion](parameter/invalid/main.omg) |
+| Call result | [program](call_result/main.omg) | [read before completion](call_result/invalid/main.omg) |
+| Match join | [program](match_join/main.omg) | [read before completion](match_join/invalid/main.omg) |
+| Const name | [program](const_name/main.omg) | [read before completion](const_name/invalid/main.omg) |
+| Nested machine | [program](other_state/main.omg) | [read before completion](other_state/invalid/main.omg) |
+| Other machine | [program](other_machine/main.omg) | [read before completion](other_machine/invalid/main.omg) |
+| Target body | [program](target_body/main.omg) | [read before completion](target_body/invalid/main.omg) |
 
-Optimized producer `1d92ab9b09e` executes all nine qualified view places and that
-composition control with native/Terminal zero agreement on macOS ARM64. All ten
-intended source rejects hold; the scoped corpus observes ten checked positives,
-ten rejects and ten native/Terminal agreements. The 43 earlier retained-pointer
-programs also agree. Independent source and runtime reviews, exact producers,
-source snapshots and native/Psi products are retained under
-`/Users/zcanann/Omega-build/qualified-borrowed-array-view-2026-10-27/`.
-The failed first aggregate driver remains failed: it required package review for
-an intentionally invalid loan read after all ten positives had completed. Only
-the unrun source controls were executed separately.
+Every positive binds ProgramEntry on all four hosted targets. The match place
+executes both alternatives with distinct route tags. Const names seed ordinary
+values; the array and Pending are runtime occurrences. Each twin adds exactly
+one read while Pending retains the exclusive loan. Matching corpus sources and
+oracles live under `tests/omega/{pass,fail}/facts/foreign_borrowed_array_view_*`.
 
-The frozen `f5e853ea1f2` baseline source-checks all nine strengthened positives
-but fails lowering with `structural result custody cannot manufacture an owned
-reference`; the unqualified predecessor still executes successfully. A generic
-borrowed-root regression exposed by the initial repair is fixed without weakening
-its complete predicate or exact nominal carrier lookup. Baselines remain under
-`/Users/zcanann/Omega-build/qualified-borrowed-array-view-probe-2026-10-27/`.
-The same optimized source also passes on matching Linux x86-64, Linux ARM64
-and Windows x86-64 hosts: ten corpus and ten public native/Terminal agreements,
-with all ten intended rejects on each host
-([Linux x86-64](https://github.com/CathedralOS/Omega/actions/runs/40581713175),
-[Linux ARM64](https://github.com/CathedralOS/Omega/actions/runs/40581713402),
-[Windows x86-64](https://github.com/CathedralOS/Omega/actions/runs/40581713496)).
-All three complete workflow jobs succeeded. Their exact producer bytes, source
-snapshots, C libraries and native/Psi products retain the original `1d92ab9b09e`
-identity in the same evidence directory; independent host reviews authenticate
-those observations. This qualifies the bounded row across four hosted targets,
-not the remaining parent capability or full release.
+The [missing-mint control](controls/unissued/main.omg) rejects absent original
+issuer provenance. The [missing field predicate control](controls/missing_leaf_predicate/main.omg)
+rejects the complete `ResidentValue` obligation. The existing
+[generic borrowed-root composition](controls/generic_borrowed_root/main.omg)
+protects ordinary mutable handback independently of foreign registration.
+Live-loan twins alone do not establish issuer preservation: stale/mixed completion,
+other live registrations and uncovered extra qualifications remain separate
+regressions of the shared retention operation.
 
-`Buffer<'cells>` contains `&'cells mut [Cell; 3]`. The C counterpart stores
-`struct cell (*cells)[3]`: one explicit pointer to a fixed array, with no C
-array decay or inferred extent. Registration writes 41 and retains the original
-Buffer address; completion writes 73 through that same stored pointer.
-After completion the program reads through Buffer, retires it, and independently
-reads the original caller array. A private copied array cannot satisfy both
-observations. Nonzero neighbors and marker detect wrong offsets; the earlier
-scalar copy must retain 37.
-
-The nine places carry the same Pending and retained loan:
-[local](local/main.omg), [field](field/main.omg),
-[parameter](parameter/main.omg), [call result](call_result/main.omg),
-[match join](match_join/main.omg), [const name](const_name/main.omg),
-[nested machine](other_state/main.omg), [another machine](other_machine/main.omg),
-and [target body](target_body/main.omg). Every positive binds all four hosted
-ProgramEntry targets. The match calls both branches with distinct route tags
-and checks the selected tag. The constant is an ordinary initial Cell array;
-the mutable runtime array and Pending remain runtime occurrences.
-Each `invalid/main.omg` adds exactly one read while Pending still holds the
-exclusive loan, and must reject for that read. The complete row and twins are
-pinned as `tests/omega/{pass,fail}/facts/foreign_borrowed_array_view_*`.
+| Requirement layer | Witness and remaining scope |
+| --- | --- |
+| Establishment | Exact `mint_cell` results supply Issued; receiving declarations do not mint it. Normal completion must restore the declared duties from the original supplied membership. |
+| Identity and lifetime | Original captured input, applied lifetime, consumed Pending holder and complete overlapping cohort must identify the same loan. Caller-array observation checks its original backing. |
+| Composition | The same Pending crosses all nine places; branch alternatives must each carry justified supply. The generic borrowed-root control retains the predicate-only composition. |
+| Soundness boundaries | Missing mint and live-loan controls reject. Additional input-only root qualifications and stale scalar facts cannot be restored from the declared child contract. |
+| Psi 05–07 | Current completion facts must become loan-completion qualifications and Terminal access on the actual restored storage. Old scalar 37 remains distinct from new value 73. |
+| Omega 00–02 | The C pointer-to-array ABI, exact record/array geometry, admitted provider and ordinary call plans remain unchanged; routed supply is semantic preservation, not C byte equality. |
+| Omega 03–06 | Guards check original pointer writes, values surviving calls, selected routing and untouched neighbors. Actual native execution is required after the repair. |
+| Omega 07–09 and emission | All nine authored zero exits require actual native/Terminal agreement on matching hosts. Current strengthened-row runtime acceptance is pending. |
 
 The [foreign-storage contract](../../../../../wiki/spec/build/foreign_storage.md#outbound-custody),
-[explicit boundary references](../../../../../wiki/spec/build/boundary_shapes.md),
-and [structural reference storage](../../../../../wiki/spec/terminal-psi/structural_access.md)
-authorize this existing operation. Entry establishes Buffer::Owned and acquired
-Capacity::Available; the checked registration publishes Pending::Retained.
-Completion consumes that claim, restores the caller's loan window, and returns
-the capacity for release. Neither geometry nor lexical lifetime equality proves
-an opaque call preserved a pointer. Mutable reference outputs remain unknown
-content for static alias invalidation; they never reacquire a declared owner.
+[mutable declared-field duties](../../../../../wiki/spec/language/dependent_values.md#mutable-receivers-and-declared-field-domains)
+and [structural access contract](../../../../../wiki/spec/terminal-psi/structural_access.md)
+authorize preservation through the exact completed loan. The provider's admitted
+behavior remains a trust premise; completion is not a new Issued establishment route.
 
-Terminal captures a finite typed descriptor graph through live checked
-projection, gives each original allocation one persistent native home, and asks
-the isolated provider worker to link its own mapping addresses. Actual C pointer
-outputs select a typed endpoint from the current captured graph; Core still
-checks capture identity, access and every lifetime anchor before transactional
-restoration. Unmodeled pointer changes refuse rather than leaving stale Core
-references. The provider's admitted contract remains a trust premise.
+At fixed published baseline `2ef45342f25`, the original local predicate-only
+witness source-checks, but all nine strengthened routed positives refuse after
+completion. The local case loses three Buffer child memberships and the qualified
+Buffer/caller observations. All nine live-loan twins still reject for their
+intended read. Baseline compiler, sources, diagnostics and independent preflight
+are retained under `/Users/zcanann/Omega-build/retained-routed-handback-2026-10-28/`.
+No repaired execution is claimed yet.
 
-The immutable optimized baseline at afb0c236efd wrongly refuses the original
-local witness at registration for missing caller-storage authority. The source
-repair captures descriptor-leaf origins at actual operand evaluation, without
-weakening the whole-statement mutation fence; opaque returned references stay
-unresolved content with conservative invalidation. Initial repaired native
-execution returned zero while Terminal declined its missing reference codec.
-The repaired row now has actual native and Terminal zero exits at all nine
-places on macOS ARM64, with nine intended source rejections. Raw baselines,
-producers, profiles and engine observations are retained in
+Historical predicate-only acceptance remains separate: producer `1d92ab9b09e`
+passed ten corpus and ten public native/Terminal pairs plus ten intended rejects
+on macOS and matching [Linux x64](https://github.com/CathedralOS/Omega/actions/runs/40581713175),
+[Linux arm64](https://github.com/CathedralOS/Omega/actions/runs/40581713402) and
+[Windows x64](https://github.com/CathedralOS/Omega/actions/runs/40581713496).
+Its immutable producers, raw source/engine observations and reviews remain in
+`/Users/zcanann/Omega-build/qualified-borrowed-array-view-2026-10-27/`;
+the earlier descriptor codec baseline and repair remain in
 `/Users/zcanann/Omega-build/retained-borrowed-array-view-2026-10-27/`.
-Matching-host Windows x86-64 execution at `258918eb09a` also records nine
-corpus and nine public CLI native/Terminal zero agreements, with nine intended
-loan rejections ([run 40554860652](https://github.com/CathedralOS/Omega/actions/runs/40554860652)).
-After exporting `nestlease_register_view` under `RETAIN_1.0`, Linux x86-64 and
-Linux ARM64 at `3e1d8468dfb` record the same view-row outcomes
-([x86-64](https://github.com/CathedralOS/Omega/actions/runs/40560630817),
-[ARM64](https://github.com/CathedralOS/Omega/actions/runs/40560630630)).
-Their producers, C libraries, native/Psi products and raw reports retain those
-original source identities under
-`/Users/zcanann/Omega-build/retained-view-elf-export-2026-10-27/` and
-`/Users/zcanann/Omega-build/native-provider-test-codec-2026-10-27/`.
-Those older broader runs were red for the array diagnostic pin and a Windows
-mutable-borrow call-result native timeout. The newer exact-source jobs above
-completed successfully; the old timeout did not recur, and its cause has not
-been isolated. Historical failures remain preserved under their original source
-identities.
-
-This row establishes the finite borrowed fixed-array descriptor and its original
-backing. Recursive/dynamic pointer graphs, newly introduced provider-owned
-roots, opaque owned reference value/results, tagged carriers and nominal/routed
-descendant memberships remain outside this evidence and keep the parent open.
+Those observations do not qualify the new routed requirement or close the parent.

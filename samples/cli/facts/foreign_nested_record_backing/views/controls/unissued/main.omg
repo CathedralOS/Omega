@@ -1,0 +1,7 @@
+// Reject: a receiving annotation cannot supply the missing original Issued mint.
+public domain u64::ResidentValue requires self >= 0 && self <= 2147483647 && self != 42;
+public data Cell { value: u64 in ResidentValue; }
+public domain Cell::Issued established by mint_cell;
+machine mint_cell(value: u64 in ResidentValue) -> Cell ensures result in Cell::Issued { Cell { value: value } }
+machine observe_cell(cell: &Cell in Cell::Issued) -> u64 { cell.value }
+machine entry_start() { let bare: Cell = Cell { value: 37 }; let forbidden: u64 = observe_cell(&bare); }
