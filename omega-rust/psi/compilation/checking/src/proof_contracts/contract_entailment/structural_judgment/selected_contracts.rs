@@ -1116,6 +1116,13 @@ pub(super) fn selected_requirement_judgment(
         None,
         depth + 1,
     ) else {
+        if super::super::struct_trace() {
+            eprintln!(
+                "STRUCT selected-requirement term-refused owner={callable:?} expression={} node={:?}",
+                program.expression_table.display_name(expression),
+                program.expression_table.expression(expression),
+            );
+        }
         return StructuralJudgment::Unknown;
     };
     let judgment = judge.judge_observed_predicate(required.clone(), depth);
