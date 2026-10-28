@@ -1,7 +1,8 @@
 //! Close execution dispatch, accepted host bindings, task activation and entry
-//! establishment for one selected realization. Target/entry custody and x86
-//! FMA associations leave with the program they were settled against. The
-//! compiler neither projects service roles nor completes this result afterward.
+//! establishment for one selected realization. Target/entry custody leaves with
+//! the selected program; native provider admission checks optional ISA features
+//! against actual Terminal demand. The compiler neither projects service roles
+//! nor completes this result afterward.
 
 use crate::provider_binding::CheckedProviderProgram;
 use checked_trees::CheckedTrees as CheckedProgram;
@@ -23,9 +24,6 @@ pub struct SelectedExecution {
         Option<provider_planning::program_entry::SelectedCompilerProgramEntry>,
     /// Exact admitted deployment provider; absence retains the SSE2 baseline.
     pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
-    /// Exact source demands joined to that provider, never fabricated by admission.
-    pub x86_scalar_fma_plan_associations:
-        Vec<provider_planning::x86_fma_plan_association::CheckedX86ScalarFmaPlanAssociation>,
     pub selected_provider_plan_facts: effects::SelectedProviderPlanFacts,
     /// Authored Build grants resolved to the exact selected plans.
     pub selected_provider_grants: Vec<trust_model::ResolvedAuthoredSelectedProviderGrant>,
@@ -259,15 +257,6 @@ pub fn settle_selected_execution(
         settlement.opaque_representation_selections,
     )?;
 
-    let x86_scalar_fma_plan_associations =
-        provider_planning::x86_fma_plan_association::bind_checked_x86_scalar_fma_plan_associations(
-            &checked.program,
-            &checked.program.facts,
-            &checked.selected_provider_plan_facts,
-            &settlement.selected_provider_provenance,
-            settlement.x86_scalar_fma_provider,
-            settlement.selected_target_profile,
-        )?;
     Ok(SelectedExecution {
         native_provider_sources: checked.native_provider_sources,
         program: checked.program,
@@ -275,7 +264,6 @@ pub fn settle_selected_execution(
         selected_target_profile: settlement.selected_target_profile,
         selected_program_entry: settlement.selected_program_entry,
         x86_scalar_fma_provider: settlement.x86_scalar_fma_provider,
-        x86_scalar_fma_plan_associations,
         selected_provider_plan_facts: checked.selected_provider_plan_facts,
         selected_provider_grants: checked.selected_provider_grants,
         callback_placements: checked.callback_placements,
