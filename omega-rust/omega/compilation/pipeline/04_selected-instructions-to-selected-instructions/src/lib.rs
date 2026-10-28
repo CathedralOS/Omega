@@ -58,6 +58,9 @@ macro_rules! receipt_accessor_rows {
     ($name:ident { $( $(#[$meta:meta])* $field:ident : $ty:ty ),* $(,)? }) => {
         $( $(#[$meta])* pub const fn $field(self) -> $ty { self.$field } )*
     };
+    (nested $name:ident, $row:ident { $( $(#[$meta:meta])* $field:ident : $ty:ty ),* $(,)? }) => {
+        $( $(#[$meta])* pub const fn $field(self) -> $ty { self.$row.$field() } )*
+    };
 }
 
 /// The producer rows a staged shell re-serves unchanged: one internal rule per
