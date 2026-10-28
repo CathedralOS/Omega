@@ -264,3 +264,5 @@ compatibility controls also agreed; malformed element and width controls retaine
 their Source refusals. These are intermediate exact-source observations.
 Migrated-library/audio execution, current-main integration, final qualification
 and independent review remain required for the parent outcome.
+
+The [Named callback forwarding control](controls/named_callback_forwarding/main.omg) retains an explicit machine callback through an ordinary Named wrapper, with two distinct callback outcomes. The invocation roster controls independently reject a missing body or requirement ceiling.
