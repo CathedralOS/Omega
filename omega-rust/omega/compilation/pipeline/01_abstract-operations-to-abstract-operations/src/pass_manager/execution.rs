@@ -148,25 +148,13 @@ fn run_registries_inner(
             ExternalDecisionReplayError::ReconstructedLogMismatch,
         ));
     }
-    let transformation_ledger = PsiTransformationLedger::new(
+    let transformation_ledger = recorded_transformation_ledger(
         psi,
         fuel_schedule,
         initial_identity,
         unit.identity,
-        commits
-            .iter()
-            .map(|commit| PsiTransformationRecord {
-                rule: commit.rule,
-                candidate: commit.candidate,
-                validator: commit.validator,
-                input: commit.input,
-                output: commit.output,
-                pruned_machines: commit.pruned_machines.clone(),
-                provenance: commit.provenance.clone(),
-            })
-            .collect(),
-    )
-    .map_err(OptimizationRunError::InvalidTransformationLedger)?;
+        &commits,
+    )?;
     let identity_bundle = OptimizationIdentityBundle::new(
         selections.identity(),
         ordered_rule_set,
@@ -343,25 +331,13 @@ fn run_unit_inner_with_retention(
                 &candidate_decisions,
                 usage,
             )?;
-            let transformation_ledger = PsiTransformationLedger::new(
+            let transformation_ledger = recorded_transformation_ledger(
                 psi,
                 fuel_schedule,
                 initial_identity,
                 unit.identity,
-                commits
-                    .iter()
-                    .map(|commit| PsiTransformationRecord {
-                        rule: commit.rule,
-                        candidate: commit.candidate,
-                        validator: commit.validator,
-                        input: commit.input,
-                        output: commit.output,
-                        pruned_machines: commit.pruned_machines.clone(),
-                        provenance: commit.provenance.clone(),
-                    })
-                    .collect(),
-            )
-            .map_err(OptimizationRunError::InvalidTransformationLedger)?;
+                &commits,
+            )?;
             return Ok((
                 unit,
                 commits,
@@ -589,6 +565,34 @@ fn run_loop_invariant_scalar_motion_step(
     }
 }
 
+fn recorded_transformation_ledger(
+    psi: terminal_psi::TerminalPsiIdentity,
+    fuel_schedule: semantic_vocabulary::FuelScheduleIdentity,
+    initial_identity: OptimizationUnitIdentity,
+    output_identity: OptimizationUnitIdentity,
+    commits: &[PsiOptimizationCommit],
+) -> Result<PsiTransformationLedger, OptimizationRunError> {
+    PsiTransformationLedger::new(
+        psi,
+        fuel_schedule,
+        initial_identity,
+        output_identity,
+        commits
+            .iter()
+            .map(|commit| PsiTransformationRecord {
+                rule: commit.rule,
+                candidate: commit.candidate,
+                validator: commit.validator,
+                input: commit.input,
+                output: commit.output,
+                pruned_machines: commit.pruned_machines.clone(),
+                provenance: commit.provenance.clone(),
+            })
+            .collect(),
+    )
+    .map_err(OptimizationRunError::InvalidTransformationLedger)
+}
+
 /// Seal the relocation step: finish the baseline decision log, build the
 /// pass manifest, chain the step-local transformation ledger, and release
 /// the session back to the caller's unit custody.
@@ -612,25 +616,13 @@ fn finish_loop_invariant_scalar_motion_step(
         &candidate_decisions,
         usage,
     )?;
-    let transformation_ledger = PsiTransformationLedger::new(
+    let transformation_ledger = recorded_transformation_ledger(
         psi,
         fuel_schedule,
         initial_identity,
         session.unit().identity,
-        commits
-            .iter()
-            .map(|commit| PsiTransformationRecord {
-                rule: commit.rule,
-                candidate: commit.candidate,
-                validator: commit.validator,
-                input: commit.input,
-                output: commit.output,
-                pruned_machines: commit.pruned_machines.clone(),
-                provenance: commit.provenance.clone(),
-            })
-            .collect(),
-    )
-    .map_err(OptimizationRunError::InvalidTransformationLedger)?;
+        &commits,
+    )?;
     let (_, unit) = session.into_parts();
     Ok((
         unit,
