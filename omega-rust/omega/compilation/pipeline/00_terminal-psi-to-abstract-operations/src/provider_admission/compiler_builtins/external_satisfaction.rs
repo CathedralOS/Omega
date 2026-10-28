@@ -1,6 +1,8 @@
 //! Join selected external realizations to canonical satisfaction and exact owners.
 
 use effects::CompilerIntrinsicExecutionIdentity;
+use effects::external_providers::matches_external_selection;
+pub(super) use effects::external_providers::reconcile_numeric_meaning;
 use effects::provider_plan::ProviderPlan;
 
 /// Join the selected external leaf to Psi's exact satisfaction edge. Numeric
@@ -14,20 +16,17 @@ pub(crate) fn selected_execution(
     row: &effects::provider_plan::ProviderPlanRow,
     retained: Option<CompilerIntrinsicExecutionIdentity>,
 ) -> Result<Option<CompilerIntrinsicExecutionIdentity>, &'static str> {
-    let effects::provider_plan::ProviderBinding::CompilerIntrinsic { machine } = &row.binding
-    else {
-        return Err("numeric provider does not select an external compiler intrinsic");
-    };
-    let mut candidates = external_providers.iter().filter(|candidate| {
-        candidate.requirement == *requirement
-            && matches_external_selection(candidate, identities, plan, row, machine)
-    });
-    let candidate = candidates.next();
-    if candidates.next().is_some() {
-        return Err(
-            "selected numeric provider does not rejoin one canonical external satisfaction",
-        );
-    }
+    let requirement = identities
+        .text(requirement.identity())
+        .ok_or("numeric provider requirement has no nominal identity")?;
+    let candidate = effects::external_providers::selected_numeric_provider(
+        external_providers,
+        identities,
+        requirement,
+        None,
+        plan,
+        row,
+    )?;
     let Some(candidate) = candidate else {
         reconcile_numeric_meaning(None, retained)?;
         return Ok(retained);
@@ -43,33 +42,6 @@ pub(crate) fn selected_execution(
         reconcile_numeric_meaning(Some(meaning), retained)?;
     }
     Ok(Some(execution))
-}
-
-fn matches_external_selection(
-    candidate: &terminal_psi::ExternalProviderConformance,
-    identities: &terminal_psi::TerminalIdentityTable,
-    plan: &ProviderPlan,
-    row: &effects::provider_plan::ProviderPlanRow,
-    machine: &str,
-) -> bool {
-    candidate.numeric_intrinsic.is_some()
-        && identities.text(candidate.requirement_identity)
-            == Some(plan.identities.text(row.requirement_identity))
-        && candidate.requirement_package == plan.schema.trait_package_identity
-        && candidate
-            .target
-            .as_ref()
-            .is_none_or(|target| *target == plan.target)
-        && candidate.binding == language_semantics::ExternalBindingIdentity::CompilerIntrinsic
-        && identities.text(candidate.realization.callable) == Some(machine)
-        && candidate.realization_package == plan.origin_package_identity
-        && match &candidate.provider {
-            Some(provider) => {
-                identities.text(provider.identity) == Some(plan.provider_type.as_str())
-                    && provider.package == plan.provider_type_package_identity
-            }
-            None => plan.provider_type.is_empty() && plan.provider_type_package_identity.is_none(),
-        }
 }
 
 /// Rejoin exact selecting owners at native proposal ingress, including private
@@ -101,26 +73,6 @@ pub(crate) fn validate_external_provider_owners(
         }
     }
     Ok(())
-}
-
-/// Portable meaning never replaces selected-provider custody. In particular,
-/// a forged numeric boundary cannot turn an unsupported selected row into an
-/// executable provider, and a numeric provider cannot omit its portable meaning.
-pub(super) fn reconcile_numeric_meaning(
-    meaning: Option<language_semantics::numeric_intrinsics::NumericIntrinsic>,
-    selected: Option<CompilerIntrinsicExecutionIdentity>,
-) -> Result<(), &'static str> {
-    use CompilerIntrinsicExecutionIdentity as Execution;
-    let selected_numeric = selected.is_some_and(Execution::is_numeric);
-    match (meaning, selected, selected_numeric) {
-        (Some(meaning), Some(execution), _)
-            if meaning.signature().is_some() && Execution::from(meaning) == execution =>
-        {
-            Ok(())
-        }
-        (None, _, false) => Ok(()),
-        _ => Err("numeric meaning disagrees with selected provider custody"),
-    }
 }
 
 #[cfg(test)]

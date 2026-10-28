@@ -1,0 +1,7 @@
+machine build(builder: &mut Build) {
+    Build::package(builder, "rootless_numeric_provider_review");
+    Build::select_provider<F32::negate, UnusedNumericProvider>(builder, macos_arm64);
+    Build::select_provider<F32::negate, UnusedNumericProvider>(builder, linux_arm64);
+    Build::select_provider<F32::negate, UnusedNumericProvider>(builder, linux_x86_64);
+    Build::select_provider<F32::negate, UnusedNumericProvider>(builder, windows_x86_64);
+}

@@ -18,7 +18,16 @@ pub(crate) fn project_checked_boundary_application_policy<'a>(
     package: PackageKeyIdentity,
     original_indices: &[usize],
 ) -> Result<PackagePolicyBoundaryApplications, Vec<Diagnostic>> {
-    let compilation = &input.into();
+    let input = input.into();
+    let projected = input
+        .external_providers
+        .is_none()
+        .then(|| input.project_external_providers())
+        .transpose()?;
+    let compilation = &PackageReviewInput {
+        external_providers: input.external_providers.or(projected.as_ref()),
+        ..input
+    };
     let policy = PackagePolicyBoundaryApplications {
         demands: demands::project(compilation, package)?,
         realizations: realizations::project(compilation, package, original_indices)?,

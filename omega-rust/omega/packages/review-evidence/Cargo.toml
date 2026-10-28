@@ -15,6 +15,7 @@ calling-conventions = { path = "../../compilation/backend/calling-conventions" }
 layout = { path = "../../compilation/backend/layout" }
 representation-planning = { path = "../../../psi/compilation/checking/representation-planning" }
 selected-dispatch = { path = "../../compilation/realization/selected-dispatch" }
+psi-terminal-production = { path = "../../../psi/compilation/driver/terminal-production" }
 effects = { path = "../../compilation/backend/plans/provider-evidence" }
 terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }
 target = { path = "../../compilation/backend/target" }

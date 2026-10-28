@@ -1,0 +1,20 @@
+// Expected exit: 0
+// A rootless dependency's reviewed numeric declarations remain usable without
+// selecting its unused negate implementation or inventing a library entry.
+use numeric_library::main;
+
+machine main() {
+    transition is_nan(0.0f32) {
+        false -> check_nan()
+        _ -> fail()
+    }
+    machine check_nan() {
+        let zero: f32 = 0.0f32;
+        transition is_nan(zero / zero) {
+            true -> done()
+            _ -> fail()
+        }
+    }
+    machine done() {}
+    machine fail() { crash Trap; }
+}

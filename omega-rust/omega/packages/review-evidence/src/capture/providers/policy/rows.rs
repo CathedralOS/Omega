@@ -95,7 +95,7 @@ pub(super) fn project(
                 None => None,
             };
             let compiler_intrinsic_execution = match realization_symbol {
-                Some(realization) => project_compiler_intrinsic_execution(compilation, plan, row, retained.provider.schema,
+                Some(realization) => project_compiler_intrinsic_execution(compilation, plan, row, retained.provider.schema, retained.provider.provider_type,
                     requirement_symbol, realization, Some(target.target_name()), retained.row_compiler_intrinsic_executions[index])?,
                 None if retained.row_compiler_intrinsic_executions[index].is_none() => None,
                 None => return Err(rejected("native row carries an authored intrinsic execution")),

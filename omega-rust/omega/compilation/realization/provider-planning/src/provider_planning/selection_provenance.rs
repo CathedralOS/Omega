@@ -103,7 +103,8 @@ pub struct SelectedProviderReviewProvenance {
     pub plan: ProviderPlan,
     pub provider: ProviderPlanProvenance,
     pub selected_by: ProviderSelectionProvenance,
-    /// Closed compiler-owned execution identity for each provider row.
+    /// Host and placement execution identity for each provider row. Numeric
+    /// rows carry None: their meaning lives in Psi's external declarations.
     ///
     /// Selection initially leaves this empty because exact execution is not
     /// settled until after checking. The compiler must replace it with one

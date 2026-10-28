@@ -17764,6 +17764,8 @@ fail/facts/nested_machine_statement_completion_target_body_rejected rejected 125
 	cannot prove ensures contract for exit from HostedProbeBody::apply at statement 0: result != -1
 fail/facts/nested_machine_statement_completion_wrong_tag_rejected rejected 3078ms expected @b0d06a168a00+wt
 	cannot prove requires contract for call probe from main: choice == constructor:80:package:0ababaff7be122379295755579dfe2fa5efa40c446ce2a4d4011f916f57fb1af::Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/packages/rootless_numeric_provider_missing_satisfaction rejected 3781ms expected @2b9f8a09c701
+	build selects provider `UnusedNumericProvider` for slot `operator::F32::negate(named(name(f32)))->named(name(f32))`, but no candidate exists in the loaded dependency closure
 fail/slices/nested_machine_field_window_out_of_bounds rejected 673ms expected @bc368540ef79
 	cannot prove subslice range end bound `0..wide.length` is within slice length 2
 pass/arithmetic/sparse_captured_utf_path_exit checked 59503ms check-target:macos_arm64 @b0d06a168a00+wt
@@ -32138,6 +32140,8 @@ pass/ownership/zero_case_generic_inventory checked 1457ms @a92f16431042
 pass/ownership/zero_case_qualified_inventory checked 1999ms @a92f16431042
 pass/packages/implementation_parent_review checked 2153ms @a92f16431042
 pass/packages/indexed_contract_field_review checked 2069ms check-target:macos_arm64 @a92f16431042
+pass/packages/rootless_numeric_provider_consumer checked 3407ms check-target:macos_arm64 @2b9f8a09c701
+pass/packages/rootless_numeric_provider_review checked 3954ms @2b9f8a09c701
 pass/parameters/byte_store_root_after_scalar_formal_exit checked 6467ms check-target:macos_arm64 @a92f16431042
 pass/parameters/shared_and_mut_borrow_params_compile checked 1424ms @a92f16431042
 pass/parser/deep_nesting_within_limit checked 1364ms @a92f16431042
