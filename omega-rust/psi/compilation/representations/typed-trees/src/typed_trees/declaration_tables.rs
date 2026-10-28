@@ -17,19 +17,34 @@ impl TypedTrees {
         if !owner.is_valid() {
             return owner;
         }
-        let enclosing = self.symbols.get(owner).declaration_owner;
-        if enclosing.is_valid()
-            && self
-                .conformance_by_symbol(enclosing)
-                .is_some_and(|conformance| {
-                    conformance.rows.iter().any(|row| {
-                        row.source.owns_realization() && row.realization_machine == owner
-                    })
-                })
-        {
-            return enclosing;
+        if let Some((implementation, _)) = self.owned_conformance_realization(owner) {
+            return implementation.symbol;
         }
         self.symbols.get(owner).parent
+    }
+
+    /// Exact authored ownership of an inline/default/synthesized map member.
+    /// Execution projection may remove the map from type-work roots while
+    /// retaining its member bodies. Its immutable declaration metadata still
+    /// owns their captures and requirement slots; referenced callees do not.
+    pub fn owned_conformance_realization(
+        &self,
+        machine: symbols::SymbolHandle,
+    ) -> Option<(
+        &crate::trait_definition::Conformance,
+        &crate::trait_definition::ConformanceRow,
+    )> {
+        if !machine.is_valid() {
+            return None;
+        }
+        let owner = self.symbols.get(machine).declaration_owner;
+        let implementation = self.product_declarations().conformance_by_symbol(owner)?;
+        let mut rows = implementation
+            .rows
+            .iter()
+            .filter(|row| row.source.owns_realization() && row.realization_machine == machine);
+        let row = rows.next()?;
+        rows.next().is_none().then_some((implementation, row))
     }
 
     /// Authored applications still joined to retained source calls. Arena rows
@@ -357,13 +372,15 @@ impl TypedTrees {
     /// Closed executable copies are not authored rows in that map.
     pub fn callable_body_has_open_parameters(&self, machine: &crate::machine::Machine) -> bool {
         machine.has_specialization_parameters()
-            || self.conformances().iter().any(|conformance| {
-                (!self.conformance_type_parameters(conformance).is_empty()
-                    || !conformance.lifetime_parameters.is_empty())
-                    && conformance.rows.iter().any(|row| {
-                        row.source.owns_realization() && row.realization_machine == machine.symbol
-                    })
-            })
+            || self
+                .owned_conformance_realization(machine.symbol)
+                .is_some_and(|(conformance, _)| {
+                    !self
+                        .product_declarations()
+                        .conformance_type_parameters(conformance)
+                        .is_empty()
+                        || !conformance.lifetime_parameters.is_empty()
+                })
     }
 
     /// The unique authored template relation for an executable application.
