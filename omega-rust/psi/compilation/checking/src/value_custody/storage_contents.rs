@@ -595,6 +595,17 @@ fn resolve(
             base_type,
             constraints,
         } => {
+            // Descriptor cleanup classifies the owned carrier, never a
+            // borrowed referee. A selected hook on this exact qualified
+            // occurrence is executable work, including beneath an owner.
+            if requirement == ContentsRequirement::DescriptorCleanup
+                && !matches!(
+                    super::cleanup_selection::selected_application(program, reference),
+                    Ok(None)
+                )
+            {
+                return None;
+            }
             let rows = program.type_reference_table.constraints(*constraints);
             if requirement == ContentsRequirement::PlainOwned
                 || rows.len() != constraints.count() as usize
@@ -837,15 +848,16 @@ fn check_contents(
     // operations and structural construction retain its finite carrier.
     // Lending established storage in place likewise grants no copy, transfer
     // or cleanup authority; the exact loan retains all owner obligations.
-    if (data.properties.multiplicity == Multiplicity::Linear
-        && !matches!(
-            requirement,
-            ContentsRequirement::LinearOwned
-                | ContentsRequirement::StoredValue
-                | ContentsRequirement::BorrowFree
-                | ContentsRequirement::StructuralConstruction
-                | ContentsRequirement::BorrowedStorage
-        ))
+    if (requirement == ContentsRequirement::DescriptorCleanup && data.cleanup_selection.is_some())
+        || (data.properties.multiplicity == Multiplicity::Linear
+            && !matches!(
+                requirement,
+                ContentsRequirement::LinearOwned
+                    | ContentsRequirement::StoredValue
+                    | ContentsRequirement::BorrowFree
+                    | ContentsRequirement::StructuralConstruction
+                    | ContentsRequirement::BorrowedStorage
+            ))
         || active.iter().any(|ancestor| {
             matches!(ancestor, ContentType::Data { symbol: owner, .. }
             if owner == symbol && resolved.size() >= ancestor.size())

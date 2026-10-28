@@ -102,7 +102,7 @@ fn validate(
     // a normal-return judgment; references and executable cleanup keep their
     // independently selected disposition below.
     if no_code_completion_owner
-        && validation::has_plain_contents_without_nominal_cleanup(program, reference)
+        && validation::has_no_code_cleanup_contents(program, reference)
         && validation::has_contents(
             program,
             reference,
