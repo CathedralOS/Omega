@@ -22,11 +22,11 @@ use typed_trees::types::{
 /// Return an existing result reference, never an expected-type guess. An
 /// unresolved result does not establish anonymous numeric meaning. Builtin
 /// computed results retain their carrier and policy, not input predicates.
-/// Direct operators retain closed builtin carrier/policy result references.
-/// Casts retain their normalized semantic-domain result separately from the
-/// authored membership target. Operator results needing instantiated semantic
-/// domains, predicates or selected traits remain unresolved rather than losing
-/// their meaning.
+/// Free and trait-selected operators retain closed builtin carrier/policy
+/// result references. Casts retain their normalized semantic-domain result
+/// separately from the authored membership target. Operator results needing
+/// instantiated semantic domains, predicates or composite trait substitutions
+/// remain unresolved rather than losing their meaning.
 pub fn expression_result_type_reference(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
