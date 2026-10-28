@@ -48,6 +48,7 @@ impl TypedTrees {
                     symbol: *base_symbol,
                     path: Box::from([base_name.clone()]),
                     application: Some(Box::new(StaticSymbolApplication {
+                        member: arena::Handle::invalid(),
                         lifetime_arguments: lifetime_arguments.clone().into_boxed_slice(),
                         arguments: arguments.into_boxed_slice(),
                     })),
@@ -302,6 +303,15 @@ impl CallableApplication {
         program: &mut TypedTrees,
         selected: &expression::StaticMachineArgument,
     ) -> Result<types::TypeReferenceHandle, &'static str> {
+        if selected
+            .application
+            .as_ref()
+            .is_some_and(|application| application.member.is_valid())
+        {
+            return Err(
+                "qualified static member must resolve in its exact applied owner before type materialization",
+            );
+        }
         if selected.type_reference.is_valid() {
             return Ok(selected.type_reference);
         }

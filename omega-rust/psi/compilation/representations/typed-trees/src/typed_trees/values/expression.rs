@@ -27,6 +27,7 @@ use symbols::SymbolHandle;
 mod display;
 mod index_authority;
 mod shape;
+mod static_members;
 mod table_copies;
 mod tree_conversion;
 
@@ -172,6 +173,33 @@ macro_rules! expression_node_accessors {
 }
 
 impl ExpressionTable {
+    pub fn insert_static_member(
+        &mut self,
+        member: StaticMachineArgument,
+    ) -> Handle<StaticMachineArgument> {
+        self.static_machine_arguments.insert(member)
+    }
+
+    pub fn static_member(
+        &self,
+        member: Handle<StaticMachineArgument>,
+    ) -> Option<&StaticMachineArgument> {
+        self.static_machine_arguments
+            .is_valid(member)
+            .then(|| self.static_machine_arguments.get(member))
+    }
+
+    pub fn static_member_mut(
+        &mut self,
+        member: Handle<StaticMachineArgument>,
+    ) -> Option<&mut StaticMachineArgument> {
+        if self.static_machine_arguments.is_valid(member) {
+            Some(self.static_machine_arguments.get_mut(member))
+        } else {
+            None
+        }
+    }
+
     pub fn insert_match_arms(
         &mut self,
         arms: impl IntoIterator<Item = TableMatchArm>,
@@ -1712,23 +1740,13 @@ impl StaticMachineArgument {
                 symbols::SymbolKind::Conformance | symbols::SymbolKind::ConformanceParameter
             )
     }
-
-    /// Remap every nested lexical operand. The generic declaration governing
-    /// an enclosing retained application is not part of this operand map.
-    pub fn remap_symbols(&mut self, symbols: &[(SymbolHandle, SymbolHandle)]) {
-        if let Some((_, replacement)) = symbols.iter().find(|(source, _)| *source == self.symbol) {
-            self.symbol = *replacement;
-        }
-        if let Some(application) = &mut self.application {
-            for argument in application.arguments.iter_mut() {
-                argument.remap_symbols(symbols);
-            }
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct StaticSymbolApplication {
+    /// Continuation selected after this exact applied owner, as in
+    /// `Owner<T>::member<U>`. Zero denotes no qualified continuation.
+    pub member: Handle<StaticMachineArgument>,
     pub lifetime_arguments: Box<[Identifier]>,
     pub arguments: Box<[StaticMachineArgument]>,
 }

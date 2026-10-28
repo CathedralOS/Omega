@@ -216,10 +216,12 @@ pub struct ProductDeclarationRequest {
     pub operands: Box<[ProductDeclarationOperand]>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProductDeclarationOperand {
     pub path: String,
     pub source_span: source::SourceSpan,
+    /// Complete inert authored application; None denotes a bare declaration.
+    pub application: Option<std::sync::Arc<super::product_operands::ProductStaticOperandGraph>>,
 }
 
 impl ProductDeclarationRequest {
@@ -283,6 +285,10 @@ pub enum ExecutedBuildSelection {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExecutedProductSelection {
+    /// Actuals belong to the exact reached helper specialization, independently
+    /// of the original source recipe and its lexical author.
+    pub static_environment:
+        Option<std::sync::Arc<super::product_operands::ProductStaticEnvironment>>,
     /// Exact evaluated deployment key; only provider choices carry a target.
     pub target: Option<super::ProductTarget>,
     pub request: std::sync::Arc<ProductDeclarationRequest>,

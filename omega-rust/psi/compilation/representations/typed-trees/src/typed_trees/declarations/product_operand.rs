@@ -1,6 +1,15 @@
 //! Resolve a Build operation's static operand path to its declaration symbol
 //! over the typed program.
 
+mod applications;
+pub use applications::{ProductApplicationDemand, ProductOperandApplication};
+
+mod occurrences;
+pub use occurrences::{ProductSelectionOccurrence, collect_product_selection_occurrences};
+
+mod static_environment;
+pub use static_environment::capture_static_environment;
+
 use crate::expression::StaticMachineArgument;
 use crate::typed_trees::TypedTrees;
 use symbols::{JoinedPath, SymbolHandle};
@@ -118,10 +127,6 @@ fn product_candidates(
                 program
                     .conformances()
                     .iter()
-                    .filter(|definition| {
-                        definition.type_parameters.is_empty()
-                            && definition.lifetime_parameters.is_empty()
-                    })
                     .map(|definition| (definition.symbol, definition.is_public)),
             )
             .collect(),

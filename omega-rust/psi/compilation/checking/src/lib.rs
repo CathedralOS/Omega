@@ -327,6 +327,7 @@ pub use machine_calls::effect_inference::{
 pub use machine_calls::effects::{
     AsmAuthorityAdmission, validate_asm_discharge, validate_behavior_plan,
 };
+pub use machine_calls::machine_parameters::infer_call_type_arguments;
 pub use machine_calls::machine_parameters::{
     PreparedStaticMachineSelections, StaticMachineContractObligation, ValidatedNominalMachineUse,
     ValidatedNominalMachineUseSite, ValidatedRequirementCallMachineSelection,

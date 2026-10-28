@@ -332,6 +332,50 @@ impl SourceContinuation {
             .map_err(refuse)
     }
 
+    /// Form a reached designated application in this exact joined Product.
+    /// Mutable preparation forks the whole continuation input, so retained
+    /// authored completion can only match the same prepared typed source.
+    pub fn prepare_product_requirement_operand(
+        &mut self,
+        operand: &language_semantics::declaration_selection::ProductDeclarationOperand,
+        author: symbols::SymbolHandle,
+        static_environment: Option<
+            &language_semantics::declaration_selection::product_operands::ProductStaticEnvironment,
+        >,
+    ) -> Result<typed_trees_to_typed_trees::PreparedProductRequirement, Vec<Diagnostic>> {
+        typed_trees_to_typed_trees::prepare_product_requirement_operand(
+            Arc::make_mut(&mut self.input).typing.typed_mut(),
+            operand,
+            author,
+            static_environment,
+        )
+    }
+
+    /// Prepare an inert nominal application in the same ordinary typing owner.
+    /// The demand records reached selection separately from source formation.
+    pub fn prepare_product_operand_application(
+        &mut self,
+        operand: &language_semantics::declaration_selection::ProductDeclarationOperand,
+        role: language_semantics::declaration_selection::ProductOperandRole,
+        author: symbols::SymbolHandle,
+        static_environment: Option<
+            &language_semantics::declaration_selection::product_operands::ProductStaticEnvironment,
+        >,
+        demand: typed_trees::product_operand::ProductApplicationDemand,
+    ) -> Result<
+        Option<arena::Handle<typed_trees::product_operand::ProductOperandApplication>>,
+        Vec<Diagnostic>,
+    > {
+        typed_trees_to_typed_trees::prepare_product_operand_application(
+            Arc::make_mut(&mut self.input).typing.typed_mut(),
+            operand,
+            role,
+            author,
+            static_environment,
+            demand,
+        )
+    }
+
     pub fn build_input(&mut self) -> BuildSourceInput<'_> {
         let input = Arc::make_mut(&mut self.input);
         BuildSourceInput {

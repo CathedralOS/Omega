@@ -227,6 +227,7 @@ fn validate_retained_application(
                 .map(Identifier::generated)
                 .collect(),
             arguments: application.arguments.clone(),
+            member: Default::default(),
         })),
         type_reference: Default::default(),
         const_literal: None,
