@@ -302,23 +302,22 @@ pub(crate) fn handle_assignment<'program>(
     // Obligation: a field participating in either an authored `where` fact or
     // an implicit range/containment gate must help re-establish the whole
     // value. Unrelated writes preserve the current establishment state.
-    let field_type =
-        program
-            .data_members(place.definition)
-            .iter()
-            .find_map(|member| match member {
-                typed_trees::data::DataMember::Field(field)
-                    if field.name.as_str() == field_name =>
-                {
-                    Some(field.type_reference)
-                }
-                _ => None,
-            });
-    if let Some(field) = program
-        .data_members(place.definition)
-        .iter()
-        .filter_map(|member| member.as_field())
-        .find(|field| field.name.as_str() == field_name)
+    let selected_symbol =
+        crate::value_custody::places::effective_member_symbol(program, member.receiver, member);
+    let selected_field = crate::value_custody::places::exact_data_member_field(
+        program,
+        place.definition,
+        selected_symbol,
+        &field_name,
+        member.case_variant.as_ref().map(|case| case.as_str()),
+    )
+    .filter(|field| {
+        let parent = program.symbols.get(field.symbol).parent;
+        program.symbols.get(parent).kind != symbols::SymbolKind::Variant
+            || place.active_case.is_none_or(|active| active == parent)
+    });
+    let field_type = selected_field.map(|field| field.type_reference);
+    if let Some(field) = selected_field
         && !place.spelling.contains("[*]")
         && !place.established_fields.contains(&field.symbol)
     {
@@ -365,15 +364,7 @@ pub(crate) fn handle_assignment<'program>(
     let definition = place.definition;
     // A collection-predicate fact over other fields is untouched by this
     // store; its element windows are tracked separately.
-    let written_field = program
-        .data_members(definition)
-        .iter()
-        .find_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) if field.name.as_str() == field_name => {
-                Some(field.symbol)
-            }
-            _ => None,
-        });
+    let written_field = selected_field.map(|field| field.symbol);
     // Complete Cartesian field bounds preserve every unwritten component.
     // Retain and re-prove the written component's original clauses; normalized
     // intervals are not replacement source predicates or new proof premises.
@@ -398,7 +389,7 @@ pub(crate) fn handle_assignment<'program>(
         .filter(|fact| fact_mentions_any_field(program, definition, fact))
         .filter(|fact| {
             !region_was_established
-                || super::place_queries::fact_names_field(program, fact, &field_name)
+                || super::place_queries::fact_names_field(program, definition, fact, &field_name)
         })
         .filter(|fact| {
             let Some(expression) = fact.as_expression() else {
@@ -592,7 +583,12 @@ fn case_fact_spans_mentioning(
         .filter_map(|member| {
             let variant = member.as_variant()?;
             if variant.where_facts.is_empty()
-                || !fact_span_mentions_field(program, variant.where_facts, field_name)
+                || !fact_span_mentions_field(
+                    program,
+                    place.definition,
+                    variant.where_facts,
+                    field_name,
+                )
                 || place
                     .active_case
                     .is_some_and(|active| active != variant.symbol)

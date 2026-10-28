@@ -23,6 +23,7 @@ pub(crate) fn stored_data_predicate_holds(
     statement_index: usize,
     receiver: ExpressionHandle,
     definition: &DataDefinition,
+    active_case: Option<symbols::SymbolHandle>,
     predicate: ExpressionHandle,
 ) -> bool {
     let Some(place) = crate::canonical_place_from_expression_in_state(
@@ -44,6 +45,7 @@ pub(crate) fn stored_data_predicate_holds(
         },
         place,
         definition,
+        active_case,
         predicate,
         observed: false,
         proven: true,
@@ -56,6 +58,7 @@ struct StoredPredicate<'definition> {
     site: StructuralPrefixSite,
     place: crate::CanonicalPlace,
     definition: &'definition DataDefinition,
+    active_case: Option<symbols::SymbolHandle>,
     predicate: ExpressionHandle,
     observed: bool,
     proven: bool,
@@ -97,6 +100,72 @@ impl StructuralPrefixVisitor for StoredPredicate<'_> {
                 });
                 bindings.push((field.name.to_string(), value));
             }
+        }
+        let subject_demanded = self.definition.predicate_subject_symbol.is_valid()
+            && crate::expression_traversal::visit_pre_order(
+                program,
+                vec![self.predicate],
+                |_, node| {
+                    matches!(node, typed_trees::expression::ExpressionNode::Name(path)
+                    if path.symbol == self.definition.predicate_subject_symbol)
+                },
+            );
+        if subject_demanded {
+            let variant = match self.active_case {
+                Some(symbol) => program
+                    .data_members(self.definition)
+                    .iter()
+                    .find_map(|member| {
+                        let variant = member.as_variant()?;
+                        (variant.symbol == symbol).then_some(variant)
+                    }),
+                None => None,
+            };
+            if self.active_case.is_some() && variant.is_none()
+                || variant.is_none()
+                    && program
+                        .data_members(self.definition)
+                        .iter()
+                        .any(|member| member.as_variant().is_some())
+            {
+                self.proven = false;
+                return;
+            }
+            let subject = super::structural_terms::captured_constructor_term(
+                program,
+                self.definition,
+                variant,
+                |field| {
+                    let mut place = self.place.clone();
+                    place.segments.push(facts::PlaceSegment::Field {
+                        symbol: field.symbol,
+                    });
+                    judge.captured_place_projection(
+                        &place,
+                        language_semantics::content::ContentPlaceVersion::Current,
+                    )
+                },
+            );
+            let Some(subject) = subject else {
+                self.proven = false;
+                return;
+            };
+            if !self.definition.predicate_subject_type.is_valid() {
+                self.proven = false;
+                return;
+            }
+            let name = format!(
+                "\0stored_subject_{}_{}",
+                self.definition.predicate_subject_symbol.arena_index(),
+                self.definition.predicate_subject_symbol.generation()
+            );
+            parameters.push(StateParameter {
+                symbol: self.definition.predicate_subject_symbol,
+                name: name.as_str().into(),
+                type_reference: self.definition.predicate_subject_type,
+                ..Default::default()
+            });
+            bindings.push((name, subject));
         }
         let judgment = instantiated_selected_fact_judgment(
             program,

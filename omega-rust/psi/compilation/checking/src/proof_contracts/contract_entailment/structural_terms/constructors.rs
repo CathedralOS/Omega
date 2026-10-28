@@ -209,8 +209,7 @@ pub(in super::super) fn constructor_literal_term(
     }) {
         return None;
     }
-    let mut fields = Vec::with_capacity(declared.len());
-    for field in declared {
+    complete_constructor_term(definition, variant, declared.into_iter(), |field| {
         let mut matches =
             supplied
                 .iter()
@@ -241,7 +240,36 @@ pub(in super::super) fn constructor_literal_term(
             zero_value_structural_term(program, field.type_reference)
                 .or_else(|| field_term(field, None))?
         };
-        fields.push((field.name.as_str().to_owned(), value));
+        Some(value)
+    })
+}
+
+/// A complete unqualified value snapshot from exact declared field captures.
+/// This creates no predicate certificate, omitted zero, or erased inhabitant.
+/// Construction and restoration supply their own independently formed inputs.
+pub(in super::super) fn captured_constructor_term(
+    program: &dyn crate::CheckingInput,
+    definition: &DataDefinition,
+    variant: Option<&DataVariant>,
+    field_value: impl FnMut(&DataField) -> Option<StructuralTerm>,
+) -> Option<StructuralTerm> {
+    complete_constructor_term(
+        definition,
+        variant,
+        constructor_fields(program, definition, variant).into_iter(),
+        field_value,
+    )
+}
+
+fn complete_constructor_term<'field>(
+    definition: &DataDefinition,
+    variant: Option<&DataVariant>,
+    declared: impl ExactSizeIterator<Item = &'field DataField>,
+    mut field_value: impl FnMut(&DataField) -> Option<StructuralTerm>,
+) -> Option<StructuralTerm> {
+    let mut fields = Vec::with_capacity(declared.len());
+    for field in declared {
+        fields.push((field.name.as_str().to_owned(), field_value(field)?));
     }
     Some(constructed_term(definition, variant, fields))
 }
