@@ -1,2 +1,1 @@
-exact arithmetic
-u64
+may overflow `u64`
