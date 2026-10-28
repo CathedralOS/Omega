@@ -703,15 +703,11 @@ pub(super) fn local_jump<'program>(
     // of a machine inside its enclosing-machine family; both leave the source
     // scope when the transition's invocation completes. A machine head outside
     // that family stays an ordinary call.
-    let target = find_state_in_machine(program, flow.machine_symbol, call.target_symbol)
-        .or_else(|| {
+    let target =
+        find_state_in_machine(program, flow.machine_symbol, call.target_symbol).or_else(|| {
             validation::find_machine_head(program, call.target_symbol)
                 .filter(|(destination, _)| {
-                    machine_in_frame_family(
-                        program,
-                        flow.machine_symbol,
-                        destination.symbol,
-                    )
+                    machine_in_frame_family(program, flow.machine_symbol, destination.symbol)
                 })
                 .map(|(_, entry)| entry)
         })?;
@@ -728,8 +724,7 @@ pub(super) fn local_jump<'program>(
             // to the entered body, not a borrowed receiver alias. A machine
             // head's name reaches that body through its entry state.
             (path.members.count() == 1
-                && validation::call_target_entry_symbol(program, path.head_symbol)
-                    == target.symbol)
+                && validation::call_target_entry_symbol(program, path.head_symbol) == target.symbol)
                 .then_some(LocalJump { target, site })
         }
         validation::CallSite::Expression { call: invoked, .. } => {
@@ -744,15 +739,11 @@ pub(super) fn local_jump<'program>(
                 call.statement_index,
                 call.call_ordinal,
             )
-            .is_some_and(|arm| {
-                arm.is_valid() && site.completes_transition(program, arm)
-            });
+            .is_some_and(|arm| arm.is_valid() && site.completes_transition(program, arm));
             (completes
                 && program.call_has_no_runtime_receiver_for_target(invoked)
-                && validation::call_target_entry_symbol(
-                    program,
-                    site.target_symbol(program),
-                ) == target.symbol)
+                && validation::call_target_entry_symbol(program, site.target_symbol(program))
+                    == target.symbol)
                 .then_some(LocalJump { target, site })
         }
         _ => None,
@@ -775,9 +766,7 @@ fn machine_in_frame_family(
             return true;
         }
         let parent = program.symbols.get(scope).parent;
-        if !parent.is_valid()
-            || program.symbols.get(parent).kind != symbols::SymbolKind::Machine
-        {
+        if !parent.is_valid() || program.symbols.get(parent).kind != symbols::SymbolKind::Machine {
             return false;
         }
         scope = parent;

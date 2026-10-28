@@ -104,65 +104,66 @@ pub(crate) fn check_flow_call_borrows(
     // Receiver read footprints serve only this pass's whole-receiver call
     // judgments; they build on the first call that needs them.
     let receiver_reads = crate::flow::StateReceiverReadCache::default();
-    let per_state_diagnostics: Vec<Vec<Diagnostic>> = validation::checking_thread_pool().install(|| {
-        use rayon::prelude::*;
-        state_flows
-            .par_iter()
-            .filter_map(|&(state_flow, borrow_state)| {
-                let borrow_state = borrow_state?;
-                let mut local_diagnostics = Vec::new();
-                let mut local_bound_lookup = None;
+    let per_state_diagnostics: Vec<Vec<Diagnostic>> =
+        validation::checking_thread_pool().install(|| {
+            use rayon::prelude::*;
+            state_flows
+                .par_iter()
+                .filter_map(|&(state_flow, borrow_state)| {
+                    let borrow_state = borrow_state?;
+                    let mut local_diagnostics = Vec::new();
+                    let mut local_bound_lookup = None;
 
-                // Entry premises are stable inside the state. Statement-local call
-                // guarantees are appended by the consumer at the exact use point.
-                let stated_premises = validation::find_state_in_machine(
-                    program,
-                    state_flow.machine_symbol,
-                    state_flow.state_symbol,
-                )
-                .and_then(|state| {
-                    program
-                        .machine_by_symbol(state_flow.machine_symbol)
-                        .map(|machine| (machine, state))
-                })
-                .map(|(machine, state)| {
-                    overlap::stated_ordering_premises(
+                    // Entry premises are stable inside the state. Statement-local call
+                    // guarantees are appended by the consumer at the exact use point.
+                    let stated_premises = validation::find_state_in_machine(
+                        program,
+                        state_flow.machine_symbol,
+                        state_flow.state_symbol,
+                    )
+                    .and_then(|state| {
+                        program
+                            .machine_by_symbol(state_flow.machine_symbol)
+                            .map(|machine| (machine, state))
+                    })
+                    .map(|(machine, state)| {
+                        overlap::stated_ordering_premises(
+                            program,
+                            facts,
+                            machine,
+                            state,
+                            incoming_guards,
+                            &mut local_bound_lookup,
+                        )
+                    })
+                    .unwrap_or_default();
+
+                    check_statement_borrows(
                         program,
                         facts,
-                        machine,
-                        state,
-                        incoming_guards,
+                        state_flow,
+                        borrow_state,
+                        &stated_premises,
+                        &mut local_diagnostics,
+                        mutation_summaries,
+                        &receiver_reads,
+                        call_frames,
                         &mut local_bound_lookup,
-                    )
+                    );
+                    aggregates::check_formed_aggregates(
+                        program,
+                        facts,
+                        state_flow,
+                        borrow_state,
+                        &stated_premises,
+                        call_frames,
+                        &mut local_diagnostics,
+                        &mut local_bound_lookup,
+                    );
+                    (!local_diagnostics.is_empty()).then_some(local_diagnostics)
                 })
-                .unwrap_or_default();
-
-                check_statement_borrows(
-                    program,
-                    facts,
-                    state_flow,
-                    borrow_state,
-                    &stated_premises,
-                    &mut local_diagnostics,
-                    mutation_summaries,
-                    &receiver_reads,
-                    call_frames,
-                    &mut local_bound_lookup,
-                );
-                aggregates::check_formed_aggregates(
-                    program,
-                    facts,
-                    state_flow,
-                    borrow_state,
-                    &stated_premises,
-                    call_frames,
-                    &mut local_diagnostics,
-                    &mut local_bound_lookup,
-                );
-                (!local_diagnostics.is_empty()).then_some(local_diagnostics)
-            })
-            .collect()
-    });
+                .collect()
+        });
     for local_diagnostics in per_state_diagnostics {
         diagnostics.extend(local_diagnostics);
     }
