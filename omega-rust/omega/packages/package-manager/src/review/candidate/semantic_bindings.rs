@@ -240,13 +240,6 @@ pub(super) fn projection_error(
             }
         }
         SemanticBindingProjectionError::MissingCallableFacts { diagnostics } => {
-            // Temporary diagnostic observer at the projection's actual refusal.
-            // It retains the complete vector before bounded CLI presentation.
-            if std::env::var_os("OMEGA_TRACE_PACKAGE_DIAGNOSTICS").is_some() {
-                for (ordinal, diagnostic) in diagnostics.iter().enumerate() {
-                    eprintln!("PACKAGE_DIAGNOSTIC {ordinal}: {diagnostic:?}");
-                }
-            }
             CompileResolvedPackageReviewsError::Compilation {
                 package: consumer.clone(),
                 diagnostics,

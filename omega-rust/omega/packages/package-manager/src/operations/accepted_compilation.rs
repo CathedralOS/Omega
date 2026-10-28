@@ -314,9 +314,17 @@ impl CompilationReceipt {
                 )));
             }
             Some(Err(error)) => {
+                let diagnostics = error.failure.into_diagnostics();
+                // Temporary observer at the actual execution-completion refusal.
+                // Keep all diagnostics before the ordinary bounded presentation.
+                if std::env::var_os("OMEGA_TRACE_PACKAGE_DIAGNOSTICS").is_some() {
+                    for (ordinal, diagnostic) in diagnostics.iter().enumerate() {
+                        eprintln!("PACKAGE_DIAGNOSTIC {ordinal}: {diagnostic:?}");
+                    }
+                }
                 return Err(ProjectCompilationError::Review(Error::Compilation {
                     package: self.packages.get(error.occurrence).unwrap_or(root).clone(),
-                    diagnostics: error.failure.into_diagnostics(),
+                    diagnostics,
                 }));
             }
             Some(Ok(output)) => output,
