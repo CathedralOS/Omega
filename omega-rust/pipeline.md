@@ -155,8 +155,9 @@ receipts; a reused frontend never substitutes another occurrence's return or
 grants. Package operations supply requested
 products and exact root permission consent, and receive reports or inspections,
 not checked activations to resume. Standalone and session products share
-selection, Terminal production, then installation; source checking no longer
-installs the package product ahead of that sequence. Review descriptions supply
+complete source-side selection, Terminal production, then permission/trust
+admission and artifact completion. No source-reading installation phase follows
+Terminal production. Review descriptions supply
 the same borrowed production facts without a second producer mode. Demanded
 components and lazy review descriptions enter the same product sequence as root
 compilation. Component completion owns its exported plans, description and
@@ -333,6 +334,18 @@ target-companion leaves from those borrowed rows. There is no placeholder-leaf
 mutation pass or per-leaf source-plan copy. The projected callable contract stays
 distinct from the original satisfied schema and accepted public-plan identity;
 native demand and receiving authority still decide which supplies may execute.
+Source-dependent grants, callbacks, selected review, host roles and direct-call
+supplies now close together in `selected-dispatch/src/provider_binding.rs`.
+The returned `SelectedExecution` owns its provenance and target custody before
+Terminal production borrows it. There is no intermediate checked-provider
+result or post-Terminal source installation phase: that old operation consumed
+no artifact. Conversion to `CheckedCompilation` only assembles the completed
+custody. Checking-only task validation remains separate from artifact-based
+native task demand. Source/role failures can therefore precede Terminal or task
+diagnostics; native source failures remain deferred, and receiving permission,
+trust admission and actual native demand stay at their existing boundaries.
+This consolidates the source preparation owner, not the intended future
+Terminal-only provider selection.
 Accepted-service preparation likewise retains the exact nominal owner, complete
 target-side schema and ordered requirement identities once at checked-provider
 binding. Resolved semantic bindings carry that record, not a source-arena symbol.

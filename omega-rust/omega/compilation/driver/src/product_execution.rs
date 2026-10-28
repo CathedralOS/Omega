@@ -166,7 +166,7 @@ impl ProductRequest {
         };
         let requested = match product {
             CompilationProduct::Inspection(machine) => {
-                let checked = realization.install()?;
+                let checked = realization.finish_check()?;
                 return crate::inspection::inspect_terminal(checked, &machine)
                     .map(CompilationOutput::Inspection)
                     .map(CompilationWork::Complete)
@@ -186,7 +186,7 @@ impl ProductRequest {
                 },
             )))
         } else {
-            let checked = realization.install()?;
+            let checked = realization.finish_check()?;
             admit_permissions(&checked, permissions.as_ref(), false)?;
             checked
                 .admit_trust()
@@ -243,9 +243,7 @@ impl RequestedTerminalCompilation {
         self,
         produced: TerminalApplication,
     ) -> Result<CompilationOutput, CompilationProductError> {
-        let checked = phase_profile::scope("06.0.a_realization_install", || {
-            self.realization.install_after_terminal()
-        })?;
+        let checked = self.realization.into_checked_compilation();
         phase_profile::scope(
             "06.0.b_admit_permissions_and_trust",
             || -> Result<_, CompilationProductError> {

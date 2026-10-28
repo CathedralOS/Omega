@@ -151,9 +151,12 @@ impl CompilationSession {
         returned: Result<Option<build_evaluation::ReturnedBuild>, CompileFailure>,
     ) -> CheckedCompileOutcome {
         run_on_compile_thread(|| {
-            Ok::<_, CompileFailure>(self.select_completed_source(source, returned).install())
+            Ok::<_, CompileFailure>(
+                self.select_completed_source(source, returned)
+                    .finish_check(),
+            )
         })
-        .unwrap_or_else(|failure| refusal(failure).install())
+        .unwrap_or_else(|failure| refusal(failure).finish_check())
     }
 
     /// Produce a requested artifact or inspection from its completed source
