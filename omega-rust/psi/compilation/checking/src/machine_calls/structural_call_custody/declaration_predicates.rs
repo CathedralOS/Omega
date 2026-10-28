@@ -584,12 +584,51 @@ impl FactSpelling<'_> {
         if self.selects_declared_operator(expression) {
             return None;
         }
+        // The shared checked predicate owner proves BOTH directions over the
+        // full formal carriers. A necessary consequence cannot replace a row.
+        if let Some(consequence) = collection_predicates::exact_predicate_ordering(
+            self.program,
+            self.definition.symbol,
+            expression,
+        ) {
+            return self.exact_ordering(consequence);
+        }
         match self.program.expression_table.expression(expression) {
             ExpressionNode::Boolean(value) => Some(CheckedBooleanExpression::Constant(*value)),
             ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => Some(
                 CheckedBooleanExpression::Not(Box::new(self.boolean(unary.operand)?)),
             ),
             ExpressionNode::Binary(binary) => match binary.operator {
+                BinaryOperator::CaseMembership | BinaryOperator::Equal
+                    if crate::has_exact_data_case_membership_meaning(
+                        self.program,
+                        self.definition,
+                        expression,
+                        binary,
+                    ) =>
+                {
+                    let (path, reference) = self.field_path(binary.left)?;
+                    let selected = self
+                        .program
+                        .expression_table
+                        .name_path_node(binary.right)?
+                        .symbol;
+                    let case = self
+                        .program
+                        .closed_data_constructor_case(reference, selected)?;
+                    Some(CheckedBooleanExpression::StructuralCaseMembership {
+                        subject: checked_trees::CheckedStructuralCaseSubject {
+                            root: checked_trees::CheckedStructuralCaseRoot::Parameter {
+                                position: self.parameter_position,
+                            },
+                            path,
+                        },
+                        case: checked_trees::CheckedMemberIdentity::of_member(
+                            case.identity,
+                            case.name.clone(),
+                        ),
+                    })
+                }
                 BinaryOperator::And => Some(CheckedBooleanExpression::And {
                     left: Box::new(self.boolean(binary.left)?),
                     right: Box::new(self.boolean(binary.right)?),
@@ -644,6 +683,66 @@ impl FactSpelling<'_> {
                     })
             }
         }
+    }
+
+    fn exact_ordering(
+        &self,
+        consequence: collection_predicates::PredicateOrderingConsequence,
+    ) -> Option<CheckedBooleanExpression> {
+        let operand = |operand| match operand {
+            collection_predicates::PredicateIntegerOperand::Argument(subject)
+                if subject.projection.is_empty() =>
+            {
+                self.scalar(subject.expression)
+            }
+            collection_predicates::PredicateIntegerOperand::Integer(value) => {
+                let literal = numerics::literals::IntegerLiteral::from_parts(
+                    value < 0,
+                    numerics::literals::IntegerRadix::Decimal,
+                    &value.unsigned_abs().to_string(),
+                )
+                .ok()?;
+                Some((CheckedScalarExpression::IntegerLiteral { literal }, None))
+            }
+            _ => None,
+        };
+        let (left, left_type) = operand(consequence.left)?;
+        let (right, right_type) = operand(consequence.right)?;
+        let primitive = match (left_type, right_type) {
+            (Some(left), Some(right)) if left == right => left,
+            (Some(primitive), None) | (None, Some(primitive)) => primitive,
+            _ => return None,
+        };
+        carrier_bounds(primitive)?;
+        let (left, right, kind, negated) = match consequence.operator {
+            BinaryOperator::Equal => (left, right, CheckedIntegerComparisonKind::Equal, false),
+            BinaryOperator::NotEqual => (left, right, CheckedIntegerComparisonKind::Equal, true),
+            BinaryOperator::Less => (left, right, CheckedIntegerComparisonKind::LessThan, false),
+            BinaryOperator::LessOrEqual => (
+                left,
+                right,
+                CheckedIntegerComparisonKind::LessOrEqual,
+                false,
+            ),
+            BinaryOperator::Greater => (right, left, CheckedIntegerComparisonKind::LessThan, false),
+            BinaryOperator::GreaterOrEqual => (
+                right,
+                left,
+                CheckedIntegerComparisonKind::LessOrEqual,
+                false,
+            ),
+            _ => return None,
+        };
+        let comparison = CheckedBooleanExpression::IntegerComparison {
+            kind,
+            left: Box::new(land_integer_operand(left, primitive)?),
+            right: Box::new(land_integer_operand(right, primitive)?),
+        };
+        Some(if negated {
+            CheckedBooleanExpression::Not(Box::new(comparison))
+        } else {
+            comparison
+        })
     }
 
     /// One ordered comparison: both operands share an integer carrier, or
@@ -856,6 +955,17 @@ impl FactSpelling<'_> {
     )> {
         match self.program.expression_table.expression(expression) {
             ExpressionNode::Name(name) => {
+                if self.definition.predicate_subject_symbol.is_valid()
+                    && name.symbol == self.definition.predicate_subject_symbol
+                    && name.head_symbol == name.symbol
+                    && self
+                        .program
+                        .expression_table
+                        .name_path_member_symbols(name.member_symbols)
+                        == [name.symbol]
+                {
+                    return Some((self.prefix.to_vec(), self.definition.predicate_subject_type));
+                }
                 let members = self
                     .program
                     .expression_table
@@ -888,17 +998,37 @@ impl FactSpelling<'_> {
                 Some((path, leaf?))
             }
             ExpressionNode::Member(member) => {
-                if member.case_variant.is_some() {
-                    return None;
-                }
                 let (mut path, receiver_type) = self.field_path(member.receiver)?;
                 let owner = owned_data_definition(self.program, receiver_type)?;
-                let field = find_data_field(
+                let field = crate::value_custody::places::exact_data_member_field(
                     self.program,
                     owner,
                     member.member_symbol,
                     member.member.as_str(),
+                    member.case_variant.as_ref().map(|case| case.as_str()),
                 )?;
+                if !field.symbol.is_valid() {
+                    return None;
+                }
+                if let Some(case) = self
+                    .program
+                    .data_members(owner)
+                    .iter()
+                    .filter_map(|row| row.as_variant())
+                    .find(|case| {
+                        self.program
+                            .data_payload_fields(case)
+                            .iter()
+                            .any(|row| row.symbol == field.symbol)
+                    })
+                {
+                    path.push(CheckedStructuralPredicatePathSegment::Case(
+                        checked_trees::CheckedMemberIdentity::of_member(
+                            case.identity,
+                            case.name.clone(),
+                        ),
+                    ));
+                }
                 path.push(CheckedStructuralPredicatePathSegment::Field(
                     checked_trees::CheckedMemberIdentity::of_member(
                         field.identity,

@@ -177,10 +177,25 @@ pub(crate) fn handle_assignment<'program>(
                 window_open: false,
                 elements: Vec::new(),
                 element_windows: Vec::new(),
-                // The literal's selected case replaces the place's active case:
-                // the previous case's facts lapse with its payload, and the new
-                // case's facts were already proven at construction.
-                active_case: literal.and_then(|literal| literal.case_symbol),
+                // Whole replacement transports the same completed case row as
+                // initialization. Syntax cannot stand in for an emitted case;
+                // unknown or disagreeing normal outcomes retain no case fact.
+                active_case: crate::value_custody::places::declared_place_type_raw(
+                    program,
+                    machine,
+                    Some(state),
+                    target,
+                )
+                .and_then(|reference| {
+                    crate::proof_contracts::contract_entailment::completed_value_case_at_occurrence(
+                        program,
+                        machine,
+                        state,
+                        statement_index,
+                        value,
+                        reference,
+                    )
+                }),
             });
         }
     }
