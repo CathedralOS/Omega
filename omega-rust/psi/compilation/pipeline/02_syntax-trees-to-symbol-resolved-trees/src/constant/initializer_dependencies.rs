@@ -472,7 +472,7 @@ pub(crate) fn restore_const_call_targets(
         }
         recorded.push((span, symbol));
     }
-    if recorded.is_empty() {
+    if recorded.is_empty() && initializer_targets.is_empty() {
         return;
     }
     for &expression in work {

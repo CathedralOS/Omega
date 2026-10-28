@@ -1540,7 +1540,7 @@ fn recognize_structural_state_leaves_from<'a>(
                     if outcomes.len() > 1
                         && outcomes
                             .iter()
-                            .all(|outcome| outcome.has_no_new_effects_or_guarantees_since(&judge))
+                            .all(|outcome| outcome.has_no_new_effects_or_guarantees_since(judge))
                     {
                         let judge_refs: Vec<_> = outcomes.iter().collect();
                         let rejoined = judge.rejoin_pure_outcomes(&judge_refs, Some(*expression));

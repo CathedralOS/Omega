@@ -112,7 +112,7 @@ fn capture(
                 .filter(|execution| !execution.is_numeric())
                 .write(&mut output)?;
         }
-        write_values(*row_numeric_realizations, &mut output)?;
+        write_values(row_numeric_realizations, &mut output)?;
     }
     boundaries.calling_applications.write(&mut output)?;
     native_target.write(&mut output)?;

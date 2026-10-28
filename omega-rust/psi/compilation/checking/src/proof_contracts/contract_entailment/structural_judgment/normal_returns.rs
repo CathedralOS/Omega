@@ -2484,16 +2484,14 @@ impl<'program> StructuralJudge<'program> {
         // An overwritten referent supplies no stable input observation, but
         // does not erase independent guarantees about this returned value.
         // Equations requiring an omitted formal fail exact substitution.
-        let Some(guarantees) = self.selected_guarantees(
+        let guarantees = self.selected_guarantees(
             &owner,
             &entry_bindings,
             &bindings,
             &application.types,
             captured.as_ref(),
             0,
-        ) else {
-            return None;
-        };
+        )?;
         let mut equations = guarantees.equations;
         // A completed occurrence keeps its identity. Both existing value-call
         // judgments establish repeatability: conditional primitive normal
