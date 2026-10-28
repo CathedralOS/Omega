@@ -534,6 +534,7 @@ fn hash_supply(hash: &mut semantic_vocabulary::Fnv1a, mode: language_semantics::
         language_semantics::MachineSupplyMode::TopLevelRequirement => hash.byte(2),
         language_semantics::MachineSupplyMode::Boundary => hash.byte(3),
         language_semantics::MachineSupplyMode::AdmissionClaim => hash.byte(4),
+        language_semantics::MachineSupplyMode::CompilerPrimitive => hash.byte(7),
     }
 }
 

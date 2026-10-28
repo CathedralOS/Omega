@@ -47,6 +47,7 @@ pub fn canonical_template_contract_bytes(
         language_semantics::MachineSupplyMode::Boundary => 3,
         language_semantics::MachineSupplyMode::AdmissionClaim => 4,
         language_semantics::MachineSupplyMode::TopLevelRequirement => 6,
+        language_semantics::MachineSupplyMode::CompilerPrimitive => 7,
     });
     for (index, parameter) in parameters.iter().enumerate() {
         bytes.push(match parameter.kind {

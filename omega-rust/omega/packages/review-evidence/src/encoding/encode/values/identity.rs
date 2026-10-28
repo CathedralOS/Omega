@@ -64,6 +64,7 @@ pub(crate) fn encode_supply(
             PackageReviewCallableSupply::Requirement => encoder.tag("requirement", 1),
             PackageReviewCallableSupply::Boundary => encoder.tag("boundary", 2),
             PackageReviewCallableSupply::AdmissionClaim => encoder.tag("admission_claim", 3),
+            PackageReviewCallableSupply::CompilerPrimitive => encoder.tag("compiler_primitive", 6),
             PackageReviewCallableSupply::ExternalRealization => {
                 encoder.tag("external_realization", 4)
             }

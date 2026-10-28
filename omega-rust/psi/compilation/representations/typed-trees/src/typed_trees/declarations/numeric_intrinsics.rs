@@ -339,6 +339,28 @@ impl TypedTrees {
             .map(|catalogue| catalogue.execution)
     }
 
+    /// Settle source-shaped bodyless declarations only after their complete
+    /// immutable catalogue, signature and satisfaction edge authenticate.
+    /// Ordinary boundary claims retain their owner-acceptance classification.
+    pub fn retain_compiler_primitive_supplies(&mut self) {
+        for position in 0..self.machines().len() {
+            let machine = &self.machines()[position];
+            let authenticated = match self.machine_trait_conformances(machine) {
+                [conformance] => self
+                    .sealed_numeric_realization_descriptor(
+                        machine.symbol,
+                        conformance.requirement_symbol,
+                    )
+                    .is_some(),
+                _ => false,
+            };
+            if authenticated {
+                self.machines_mut()[position].supply_mode =
+                    language_semantics::MachineSupplyMode::CompilerPrimitive;
+            }
+        }
+    }
+
     pub fn sealed_numeric_realization_descriptor(
         &self,
         realization: symbols::SymbolHandle,
@@ -348,8 +370,12 @@ impl TypedTrees {
             NumericInstructionSet, SealedNumericRealization,
         };
         let machine = self.machine_by_symbol(realization)?;
-        if machine.supply_mode != language_semantics::MachineSupplyMode::Boundary
-            || machine.body_is_present
+        if !matches!(
+            machine.supply_mode,
+            language_semantics::MachineSupplyMode::Boundary
+                | language_semantics::MachineSupplyMode::AdmissionClaim
+                | language_semantics::MachineSupplyMode::CompilerPrimitive
+        ) || machine.body_is_present
             || !machine.lifetime_parameters.is_empty()
             || !self.machine_type_parameters(machine).is_empty()
             || machine.attached_data.is_some()

@@ -645,7 +645,10 @@ fn checked_or_catalog_binding(
         language_semantics::MachineSupplyMode::CheckedBody if machine.body_is_present => {
             Some((checked_adapter_draft(typed, machine), None))
         }
-        language_semantics::MachineSupplyMode::Boundary if !machine.body_is_present => {
+        language_semantics::MachineSupplyMode::Boundary
+        | language_semantics::MachineSupplyMode::CompilerPrimitive
+            if !machine.body_is_present =>
+        {
             let (binding, origin) = inferred_compiler_leaf_binding(
                 typed,
                 machine,

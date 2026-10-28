@@ -118,6 +118,7 @@ pub fn contract_identity(
         MachineSupplyMode::Boundary => 3,
         MachineSupplyMode::AdmissionClaim => 4,
         MachineSupplyMode::TopLevelRequirement => 6,
+        MachineSupplyMode::CompilerPrimitive => 7,
     };
     supply.hash(&mut identity);
     let mut services = published_service_names.iter().collect::<Vec<_>>();

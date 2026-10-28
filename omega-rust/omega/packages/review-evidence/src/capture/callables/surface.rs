@@ -242,6 +242,7 @@ pub(super) fn project<'a>(
             ))]);
         }
         MachineSupplyMode::AdmissionClaim
+        | MachineSupplyMode::CompilerPrimitive
         | MachineSupplyMode::TopLevelRequirement
         | MachineSupplyMode::Requirement
             if machine.body_is_present =>
@@ -253,6 +254,7 @@ pub(super) fn project<'a>(
         MachineSupplyMode::CheckedBody
         | MachineSupplyMode::Boundary
         | MachineSupplyMode::AdmissionClaim
+        | MachineSupplyMode::CompilerPrimitive
         | MachineSupplyMode::TopLevelRequirement
         | MachineSupplyMode::Requirement => {}
     }
@@ -298,6 +300,7 @@ pub(super) fn project<'a>(
         MachineSupplyMode::TopLevelRequirement => PackageReviewCallableSupply::TopLevelRequirement,
         MachineSupplyMode::Boundary => PackageReviewCallableSupply::Boundary,
         MachineSupplyMode::AdmissionClaim => PackageReviewCallableSupply::AdmissionClaim,
+        MachineSupplyMode::CompilerPrimitive => PackageReviewCallableSupply::CompilerPrimitive,
     };
 
     Ok(ProjectedSurface {

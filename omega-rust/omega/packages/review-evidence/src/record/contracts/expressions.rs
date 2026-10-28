@@ -22,6 +22,7 @@ pub enum PackageReviewCallableSupply {
     Boundary,
     AdmissionClaim,
     ExternalRealization,
+    CompilerPrimitive,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

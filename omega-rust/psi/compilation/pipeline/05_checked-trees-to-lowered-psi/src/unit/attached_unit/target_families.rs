@@ -122,6 +122,11 @@ pub(super) fn lower(
                     TargetMachineSupply::TopLevelRequirement
                 }
                 language_semantics::MachineSupplyMode::Boundary => TargetMachineSupply::Boundary,
+                language_semantics::MachineSupplyMode::CompilerPrimitive => {
+                    return Err(LoweringError::Unsupported(
+                        "a sealed compiler primitive cannot belong to a source target family",
+                    ));
+                }
                 language_semantics::MachineSupplyMode::AdmissionClaim => {
                     TargetMachineSupply::AdmissionClaim
                 }

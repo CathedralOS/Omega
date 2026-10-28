@@ -25,6 +25,9 @@ pub enum MachineSupplyMode {
     /// An accepted (axiom-tier) declaration: trusted without proof, shown
     /// in the trust report.
     AdmissionClaim,
+    /// An exact immutable toolchain primitive with an authenticated closed
+    /// semantic implementation. Source syntax cannot author this category.
+    CompilerPrimitive,
 }
 
 impl MachineSupplyMode {
@@ -38,7 +41,10 @@ impl MachineSupplyMode {
     pub const fn is_boundary_declaration(self) -> bool {
         matches!(
             self,
-            Self::TopLevelRequirement | Self::Boundary | Self::AdmissionClaim
+            Self::TopLevelRequirement
+                | Self::Boundary
+                | Self::AdmissionClaim
+                | Self::CompilerPrimitive
         )
     }
 }

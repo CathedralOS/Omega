@@ -118,6 +118,7 @@ pub(in crate::encoding::recovery) fn supply(
         3 => PackageReviewCallableSupply::AdmissionClaim,
         4 => PackageReviewCallableSupply::ExternalRealization,
         5 => PackageReviewCallableSupply::TopLevelRequirement,
+        6 => PackageReviewCallableSupply::CompilerPrimitive,
     }))
 }
 

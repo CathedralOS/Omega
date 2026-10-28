@@ -104,6 +104,7 @@ pub enum MachineSupplySnapshot {
     TopLevelRequirement,
     Boundary,
     AdmissionClaim,
+    CompilerPrimitive,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -301,6 +302,7 @@ fn machine_supply_snapshot(supply: language_semantics::MachineSupplyMode) -> Mac
         MachineSupplyMode::TopLevelRequirement => MachineSupplySnapshot::TopLevelRequirement,
         MachineSupplyMode::Boundary => MachineSupplySnapshot::Boundary,
         MachineSupplyMode::AdmissionClaim => MachineSupplySnapshot::AdmissionClaim,
+        MachineSupplyMode::CompilerPrimitive => MachineSupplySnapshot::CompilerPrimitive,
     }
 }
 

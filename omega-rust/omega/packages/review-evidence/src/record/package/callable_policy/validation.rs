@@ -43,6 +43,7 @@ impl PackagePolicyCallables {
             let boundary_supply = matches!(
                 callable.supply,
                 PackageReviewCallableSupply::Boundary
+                    | PackageReviewCallableSupply::CompilerPrimitive
                     | PackageReviewCallableSupply::TopLevelRequirement
                     | PackageReviewCallableSupply::AdmissionClaim
             );

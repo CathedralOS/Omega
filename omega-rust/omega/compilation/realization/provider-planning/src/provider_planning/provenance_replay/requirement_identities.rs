@@ -189,9 +189,10 @@ pub(crate) fn inferred_selected_target_compiler_leaf(
     ))
 }
 
-/// Source catalog candidates still require an exact selected target origin.
-/// Numeric source sealing and hosted catalog membership never substitute for
-/// receiving realization admission.
+/// Exact immutable numeric catalogue membership establishes primitive meaning;
+/// the receiving target independently checks its ISA availability. Other hosted
+/// catalogues retain their exact target-origin requirement. Neither route grants
+/// package authority or substitutes for receiving realization admission.
 pub(crate) fn inferred_compiler_leaf_binding(
     typed: &TypedTrees,
     machine: &checked_trees::typed_trees::machine::Machine,
@@ -214,6 +215,9 @@ pub(crate) fn inferred_compiler_leaf_binding(
             },
             None,
         ));
+    }
+    if machine.supply_mode == language_semantics::MachineSupplyMode::CompilerPrimitive {
+        return None;
     }
     inferred_hosted_console_compiler_intrinsic(
         typed,

@@ -6,7 +6,9 @@
 
 mod data_applications;
 mod product_requirement_operands;
-pub use product_requirement_operands::{PreparedProductRequirement, prepare_product_requirement_operand};
+pub use product_requirement_operands::{
+    PreparedProductRequirement, prepare_product_requirement_operand,
+};
 mod default_domain_zero;
 mod deferred_constants;
 mod opaque_property_receipts;
@@ -153,6 +155,7 @@ pub fn prepare_typed_trees(
     mut program: TypedTrees,
     request: &PreparationRequest<'_>,
 ) -> Result<(typed_trees::FrozenTypedTrees, TypedPreparation), Vec<diagnostics::Diagnostic>> {
+    program.retain_compiler_primitive_supplies();
     let pre_loop_guard = phase_profile::guard("05.c.1.pre_specialization");
     crate::assembly_control::validate_primitive_meanings(&program)?;
     // Declaration descriptions may retain pending implementations, but the
@@ -413,6 +416,7 @@ fn normalize_open_index_identities(
 pub fn specialize_static_machine_calls(
     program: &mut typed_trees::TypedTrees,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    program.retain_compiler_primitive_supplies();
     selections::retain_static_argument_contexts(program);
     specialize_machine_calls(program, false)?;
     // This private preparation can execute before ordinary source checking.

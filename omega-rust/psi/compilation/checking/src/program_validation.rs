@@ -539,6 +539,23 @@ fn validate<'program>(
             &mut diagnostics,
             &mut formation_obligations,
         );
+        if machine.supply_mode == language_semantics::MachineSupplyMode::CompilerPrimitive {
+            let authenticated = match program.machine_trait_conformances(machine) {
+                [conformance] => program
+                    .sealed_numeric_realization_descriptor(
+                        machine.symbol,
+                        conformance.requirement_symbol,
+                    )
+                    .is_some(),
+                _ => false,
+            };
+            if !authenticated {
+                diagnostics.push(diagnostics::Diagnostic::error(format!(
+                    "compiler primitive `{}` has no exact immutable catalogue realization",
+                    machine.name,
+                )));
+            }
+        }
         validate_machine_contracts(program, machine, &mut diagnostics);
         arithmetic_domains::validate_machine_total_specification_arithmetic(
             program,
