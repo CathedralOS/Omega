@@ -112,7 +112,7 @@ pub fn prepare_selected_execution(
             .and_then(|inputs| inputs.accepted_semantic_binding(role))
     };
     let resolved_exit_bindings = crate::retain_selected_compiler_intrinsic_review_identities(
-        &program,
+        settlement.provider_candidates,
         &external_providers,
         &service_declarations,
         &selected_provider_plan_facts,

@@ -14,7 +14,6 @@ use symbols::SymbolHandle;
 
 pub(crate) use provider_planning::intrinsic_declarations::{
     AcceptedIntrinsicBinding as AcceptedRowBinding, HostedService,
-    accepted_binding_matches_exit_process_row,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
