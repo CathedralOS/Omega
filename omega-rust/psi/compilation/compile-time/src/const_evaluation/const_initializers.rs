@@ -529,12 +529,32 @@ pub(crate) fn evaluate(
             &[],
             context.predecessor.clone(),
         )?;
+        // Static arguments must close before querying executable dependencies.
+        // This is readiness only: no relation, result, or provider is admitted.
+        let prepared = crate::PreparedBuildMachineProgram::prepare_in(&typed, &domain)?;
+        let execution = prepared.typed();
+        let operator_facts = validation::derive_pre_flow_operator_selections(execution);
+        let admission = domain.admission(execution, authority.clone());
         let mut observations = Vec::new();
         let mut pending_choices = Vec::new();
         for ordinal in &ready {
             let mut choices = Vec::new();
             for leaf in &declarations[*ordinal].leaves {
                 let reference = syntax.expressions.source_span(leaf.expression);
+                let mut probes = execution.machines().iter().filter(|machine| {
+                    execution.symbols.symbol_source_span(machine.symbol) == Some(reference)
+                });
+                let (Some(probe), None) = (probes.next(), probes.next()) else {
+                    return Err(failure(
+                        reference,
+                        "initializer probe lost its unique source owner",
+                    ));
+                };
+                target_observations[*ordinal] |= admission.closure_needs_execution_preparation(
+                    execution,
+                    probe.symbol,
+                    &operator_facts,
+                );
                 let observation = super::const_generic_expressions::observe_authored_probe(
                     &typed, reference, &syntax,
                 )
@@ -711,12 +731,17 @@ pub(crate) fn evaluate(
                         symbols.push(machine.symbol);
                     }
                 }
-                let prepared = crate::PreparedBuildMachineProgram::prepare_in(&typed, &domain)?;
+                // Deferred siblings remain authored; their private probes are
+                // not checked or executed by this independent batch.
+                let independent = domain.demanded_roots(&typed, &symbols);
+                let prepared =
+                    crate::PreparedBuildMachineProgram::prepare_in(&typed, &independent)?;
                 invocations::CheckedInitializers::prepare(
                     &prepared,
                     authority.clone(),
                     &symbols,
                     &domain.accounting,
+                    &[],
                 )
             })
             .transpose()?;

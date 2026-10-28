@@ -33,6 +33,7 @@ pub(crate) fn validate(
     typed: &TypedTrees,
     authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
     domain: &crate::build_time_evaluation::EvaluationDomain,
+    selected: crate::SelectedBuildTimeOperators<'_>,
 ) -> Result<(), Vec<Diagnostic>> {
     // Syntax work and receiving value validation have different domains. New
     // values carry exact constant dependencies, including call-produced values
@@ -284,6 +285,15 @@ pub(crate) fn validate(
         validate_authored_custody(&probe, owner, declaration)
             .map_err(|reason| super::failure(declaration.initializer_source_span, reason))?;
     }
+    // Rejoin supplied execution only after authenticating authored custody.
+    // Selected providers then enter the same actual call closure as settlement.
+    let probe = crate::machine_execution::selected_operators::prepare_selected_execution(
+        &probe,
+        selected.provider_bodies,
+        selected.operators,
+    )
+    .map_err(|reason| super::failure(source::SourceSpan::default(), reason))?
+    .unwrap_or(probe);
     let replay_execution = crate::syntax_probes::PreparedEvaluationInputs::domain_for_program(
         &probe,
         &probe_symbols,
@@ -295,6 +305,7 @@ pub(crate) fn validate(
         authority.clone(),
         &probe_symbols,
         &domain.accounting,
+        selected.operators,
     )?;
     let program = checked.typed();
     // A dependency capsule names a separate declaration job. Validate every

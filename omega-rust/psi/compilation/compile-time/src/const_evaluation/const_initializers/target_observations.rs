@@ -1,8 +1,8 @@
 //! Complete scalar declarations after their target observations have closed.
 //!
 //! Readiness preserves the whole expression and its selected dependencies.
-//! Omega supplies layout answers under the selected target; it does not supply
-//! arithmetic meaning or invocation permission. The ordinary scalar evaluator
+//! Omega supplies layout answers and exact selected execution under the target;
+//! neither supplies invocation permission. The ordinary scalar evaluator
 //! checks the declared carrier, every authored operator and admitted helper.
 //! Only completed declaration values return from the private evaluation forest.
 
@@ -17,6 +17,7 @@ pub(crate) fn settle(
     typed: &mut TypedTrees,
     authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
     domain: &EvaluationDomain,
+    selected: crate::SelectedBuildTimeOperators<'_>,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut declarations = typed
         .const_declarations()
@@ -35,7 +36,14 @@ pub(crate) fn settle(
     while !declarations.is_empty() {
         let mut ready = None;
         for (ordinal, (declaration, _)) in declarations.iter().enumerate() {
-            let mut probes = typed.clone();
+            let mut probes =
+                crate::machine_execution::selected_operators::prepare_selected_execution(
+                    typed,
+                    selected.provider_bodies,
+                    selected.operators,
+                )
+                .map_err(|reason| super::failure(declaration.initializer_source_span, reason))?
+                .unwrap_or_else(|| typed.clone());
             let owner = append_probe(
                 &mut probes,
                 declaration.symbol,
@@ -93,8 +101,13 @@ pub(crate) fn settle(
         // Extending work with a private probe preserves the original execution
         // selection: a Product description in a Build forest grants no body demand.
         let prepared = crate::PreparedBuildMachineProgram::prepare_in(&probes, &work)?;
-        let checked =
-            CheckedInitializers::prepare(&prepared, authority.clone(), &[owner], &work.accounting)?;
+        let checked = CheckedInitializers::prepare(
+            &prepared,
+            authority.clone(),
+            &[owner],
+            &work.accounting,
+            selected.operators,
+        )?;
         let execution = checked.typed();
         let machine = execution
             .machine(owner)

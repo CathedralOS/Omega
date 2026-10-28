@@ -46,6 +46,7 @@ pub(crate) struct CheckedInitializers {
     authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
     crash_causes: Vec<(symbols::SymbolHandle, Vec<checked_trees::CrashCause>)>,
     probe_symbols: Vec<symbols::SymbolHandle>,
+    operators: Vec<crate::SelectedBuildTimeBinaryOperator>,
 }
 
 impl CheckedInitializers {
@@ -54,7 +55,20 @@ impl CheckedInitializers {
         authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
         probe_symbols: &[symbols::SymbolHandle],
         accounting: &crate::evaluation_accounting::EvaluationAccounting,
+        operators: &[crate::SelectedBuildTimeBinaryOperator],
     ) -> Result<Self, Vec<Diagnostic>> {
+        let references = typed_trees::references::collect_program_references(prepared.typed());
+        let operators = operators
+            .iter()
+            .filter(|row| {
+                references.expressions.contains(&row.expression)
+                    && row
+                        .origin
+                        .machine_symbol()
+                        .is_some_and(|owner| prepared.typed().machine(owner).is_some())
+            })
+            .cloned()
+            .collect::<Vec<_>>();
         let mut bodies = prepared.typed().clone();
         let (probes, machines): (Vec<_>, Vec<_>) = bodies
             .machines()
@@ -89,14 +103,27 @@ impl CheckedInitializers {
         for probe in probes {
             typed.push_machine(probe);
         }
+        // Checking may normalize boundary tokens into requirement calls.
+        // Admission and interpretation consume the same validated selected
+        // meaning on a private graph, never mutate the completed judgment.
+        let typed = crate::machine_execution::selected_operators::prepare_selected_execution(
+            &typed,
+            &[],
+            &operators,
+        )
+        .map_err(|reason| super::failure(source::SourceSpan::default(), reason))?
+        .unwrap_or(typed);
         let admission = BuildTimeAdmissionPlan::infer(&typed, authority.clone())
-            .with_accounting(accounting.clone());
+            .with_accounting(accounting.clone())
+            .with_selected_operators(&typed, &operators)
+            .map_err(|reason| super::failure(source::SourceSpan::default(), reason))?;
         Ok(Self {
             typed,
             admission,
             authority,
             crash_causes,
             probe_symbols: probe_symbols.to_vec(),
+            operators,
         })
     }
 
@@ -476,7 +503,8 @@ impl ConstantCalls for Invocation<'_> {
                 );
                 let admission =
                     crate::BuildTimeAdmissionPlan::infer(&probe, self.program.authority.clone())
-                        .with_accounting(self.program.admission.accounting.clone());
+                        .with_accounting(self.program.admission.accounting.clone())
+                        .with_selected_operators(&probe, &self.program.operators)?;
                 admission.evaluate_const_evaluable_machine_symbol_for_invocation(
                     &probe,
                     owner,
