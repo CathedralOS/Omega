@@ -115,9 +115,7 @@ impl CanonicalSourceClosureSubject {
         &self,
         package: &PackageKey,
     ) -> Option<&PackageSourceNavigation> {
-        self.packages
-            .binary_search_by(|source| source.key().cmp(package))
-            .ok()
+        ResolvedSourceIdentity::index_in(&self.packages, package)
             .map(|index| &self.package_navigations[index])
     }
 
@@ -125,9 +123,7 @@ impl CanonicalSourceClosureSubject {
         &self,
         package: &PackageKey,
     ) -> Option<&DependencyProjections> {
-        self.packages
-            .binary_search_by(|source| source.key().cmp(package))
-            .ok()
+        ResolvedSourceIdentity::index_in(&self.packages, package)
             .map(|index| &self.package_dependency_projections[index])
     }
 

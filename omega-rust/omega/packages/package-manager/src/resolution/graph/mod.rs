@@ -61,6 +61,24 @@ impl ResolvedSourceIdentity {
         Self { key, resolution }
     }
 
+    /// Position of `key` in a canonically sorted package roster.
+    ///
+    /// Every roster in a canonical source closure is sorted by package key, so
+    /// one search answers it; a second spell of the search at a caller is a
+    /// second contract that can drift (two of them filtered on exact identity).
+    pub(crate) fn index_in(packages: &[Self], key: &PackageKey) -> Option<usize> {
+        packages
+            .binary_search_by(|source| source.key().cmp(key))
+            .ok()
+    }
+
+    /// Position of this exact identity - package key and immutable resolution -
+    /// in a canonically sorted roster. A key match with a different resolution
+    /// is not that identity.
+    pub(crate) fn exact_index_in(packages: &[Self], identity: &Self) -> Option<usize> {
+        Self::index_in(packages, identity.key()).filter(|position| &packages[*position] == identity)
+    }
+
     pub fn key(&self) -> &PackageKey {
         &self.key
     }
