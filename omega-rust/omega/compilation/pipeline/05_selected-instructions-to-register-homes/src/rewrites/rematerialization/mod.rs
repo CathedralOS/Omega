@@ -77,59 +77,32 @@ impl StagedOptimizedActiveResidentRematerialization {
     });
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StagedOptimizedActiveResidentRematerializationCustodyReceipt {
-    source: StagedOptimizedAllocationLegalityCustodyReceipt,
-    choices: SpillChoiceIdentity,
-    choice_policy: SpillChoicePolicy,
-    choice_usage: optimization_core::OptimizationWorkUsage,
-    classifications: RecoveryClassificationIdentity,
-    classification_policy: RecoveryClassificationPolicy,
-    classification_usage: optimization_core::OptimizationWorkUsage,
-    rematerialization: PressureRematerializationIdentity,
-    rematerialization_policy: PressureRematerializationPolicy,
-    rematerialization_usage: optimization_core::OptimizationWorkUsage,
-    budget: OptimizationWorkBudget,
-    transformed_selected: selected_instructions::SelectedInstructionPlanIdentity,
-    liveness: LivenessIdentity,
-    ranges: LiveRangeIdentity,
-    legality: AllocationLegalityIdentity,
-    homes: crate::RegisterHomeIdentity,
-    manifest: optimization_core::PostAllocationOptimizationManifestIdentity,
-    function_count: usize,
-    virtual_register_count: usize,
-    applied_count: usize,
-    rewritten_use_count: usize,
-    assignment_count: usize,
-}
-
-impl StagedOptimizedActiveResidentRematerializationCustodyReceipt {
-    receipt_accessor_rows!(
-        StagedOptimizedActiveResidentRematerializationCustodyReceipt {
-            source: StagedOptimizedAllocationLegalityCustodyReceipt,
-            choices: SpillChoiceIdentity,
-            choice_policy: SpillChoicePolicy,
-            choice_usage: optimization_core::OptimizationWorkUsage,
-            classifications: RecoveryClassificationIdentity,
-            classification_policy: RecoveryClassificationPolicy,
-            classification_usage: optimization_core::OptimizationWorkUsage,
-            rematerialization: PressureRematerializationIdentity,
-            rematerialization_policy: PressureRematerializationPolicy,
-            rematerialization_usage: optimization_core::OptimizationWorkUsage,
-            budget: OptimizationWorkBudget,
-            transformed_selected: selected_instructions::SelectedInstructionPlanIdentity,
-            liveness: LivenessIdentity,
-            ranges: LiveRangeIdentity,
-            legality: AllocationLegalityIdentity,
-            homes: crate::RegisterHomeIdentity,
-            manifest: optimization_core::PostAllocationOptimizationManifestIdentity,
-            function_count: usize,
-            virtual_register_count: usize,
-            applied_count: usize,
-            rewritten_use_count: usize,
-            assignment_count: usize,
-        }
-    );
+copy_receipt! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct StagedOptimizedActiveResidentRematerializationCustodyReceipt {
+        source: StagedOptimizedAllocationLegalityCustodyReceipt,
+        choices: SpillChoiceIdentity,
+        choice_policy: SpillChoicePolicy,
+        choice_usage: optimization_core::OptimizationWorkUsage,
+        classifications: RecoveryClassificationIdentity,
+        classification_policy: RecoveryClassificationPolicy,
+        classification_usage: optimization_core::OptimizationWorkUsage,
+        rematerialization: PressureRematerializationIdentity,
+        rematerialization_policy: PressureRematerializationPolicy,
+        rematerialization_usage: optimization_core::OptimizationWorkUsage,
+        budget: OptimizationWorkBudget,
+        transformed_selected: selected_instructions::SelectedInstructionPlanIdentity,
+        liveness: LivenessIdentity,
+        ranges: LiveRangeIdentity,
+        legality: AllocationLegalityIdentity,
+        homes: crate::RegisterHomeIdentity,
+        manifest: optimization_core::PostAllocationOptimizationManifestIdentity,
+        function_count: usize,
+        virtual_register_count: usize,
+        applied_count: usize,
+        rewritten_use_count: usize,
+        assignment_count: usize,
+    }
 }
 
 /// The recorded sweep once its applied rewrite and rebuilt facts are proven

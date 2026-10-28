@@ -45,33 +45,20 @@ pub(crate) fn assign_register_homes_reusing(
     })
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct RegisterHomeValidationReceipt {
-    pub(crate) identity: RegisterHomeIdentity,
-    pub(crate) legality: AllocationLegalityIdentity,
-    pub(crate) ranges: LiveRangeIdentity,
-    pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
-    pub(crate) allocator_availability: AllocatorAvailabilityIdentity,
-    pub(crate) function_count: usize,
-    pub(crate) assignment_count: usize,
-    pub(crate) tied_pair_count: usize,
-    pub(crate) tied_component_count: usize,
-    pub(crate) early_clobber_count: usize,
-}
-
-impl RegisterHomeValidationReceipt {
-    receipt_accessor_rows!(RegisterHomeValidationReceipt {
-        identity: RegisterHomeIdentity,
-        legality: AllocationLegalityIdentity,
-        ranges: LiveRangeIdentity,
-        register_environment: TargetRegisterEnvironmentIdentity,
-        allocator_availability: AllocatorAvailabilityIdentity,
-        function_count: usize,
-        assignment_count: usize,
-        tied_pair_count: usize,
-        tied_component_count: usize,
-        early_clobber_count: usize,
-    });
+copy_receipt! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct RegisterHomeValidationReceipt {
+        pub(crate) identity: RegisterHomeIdentity,
+        pub(crate) legality: AllocationLegalityIdentity,
+        pub(crate) ranges: LiveRangeIdentity,
+        pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
+        pub(crate) allocator_availability: AllocatorAvailabilityIdentity,
+        pub(crate) function_count: usize,
+        pub(crate) assignment_count: usize,
+        pub(crate) tied_pair_count: usize,
+        pub(crate) tied_component_count: usize,
+        pub(crate) early_clobber_count: usize,
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
