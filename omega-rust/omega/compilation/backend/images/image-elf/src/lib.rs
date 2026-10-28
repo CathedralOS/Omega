@@ -274,8 +274,7 @@ pub(crate) mod test_support {
         interpreter_expect: &'static str,
     ) -> crate::PlannedElfDynamicLinkInputs {
         use arena::Handle;
-        use image::{FinalImageMemory, FinalImageRelocation, FinalImageSection};
-        use object_file::RelocationKind;
+        use image::FinalImageMemory;
 
         let relocation_count = imports
             .iter()
@@ -303,31 +302,14 @@ pub(crate) mod test_support {
                 target,
                 locator_expect,
             );
-            for instruction_offset in fixture.instruction_offsets {
-                let (relocation_offset, kind) = match target {
-                    TargetProfile::LinuxX64 => {
-                        image.memory.text[*instruction_offset] = 0xe8;
-                        (instruction_offset + 1, RelocationKind::X86_64Relative32)
-                    }
-                    TargetProfile::LinuxArm64 => {
-                        image.memory.text[*instruction_offset..*instruction_offset + 4]
-                            .copy_from_slice(&[0, 0, 0, 0x94]);
-                        (*instruction_offset, RelocationKind::Aarch64Branch26)
-                    }
-                    _ => unreachable!("dynamic-table fixtures use a Linux target"),
-                };
-                image
-                    .relocation_table
-                    .relocations
-                    .insert(FinalImageRelocation {
-                        section: FinalImageSection::Text,
-                        offset: relocation_offset,
-                        byte_width: 4,
-                        symbol_handle,
-                        addend: 0,
-                        kind,
-                    });
-            }
+            insert_text_call_relocations(
+                &mut image,
+                target,
+                fixture
+                    .instruction_offsets
+                    .iter()
+                    .map(|offset| (*offset, symbol_handle)),
+            );
         }
         let interpreter_path = match target {
             TargetProfile::LinuxX64 => b"/lib64/ld-linux-\xfc-x86-64.so.2".as_slice(),
