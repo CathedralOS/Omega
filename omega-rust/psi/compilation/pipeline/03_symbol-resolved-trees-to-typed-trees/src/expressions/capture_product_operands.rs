@@ -65,7 +65,12 @@ impl Capture<'_> {
                 selection.kind(),
             )
             .map_err(|reason| {
-                Diagnostic::error(reason.to_string()).with_source_span(selection.source_span())
+                Diagnostic::error(format!(
+                    "captured static operand cannot rejoin its {:?} selection ({:?}): {reason}",
+                    selection.kind(),
+                    selection.exposure()
+                ))
+                .with_source_span(selection.source_span())
             })?;
         if rejoined != occurrence {
             return Err(Diagnostic::error(
@@ -465,7 +470,12 @@ impl Capture<'_> {
                     selection.kind(),
                 )
                 .map_err(|reason| {
-                    Diagnostic::error(reason.to_string()).with_source_span(selection.source_span())
+                    Diagnostic::error(format!(
+                        "captured static operand cannot rejoin its {:?} selection ({:?}): {reason}",
+                        selection.kind(),
+                        selection.exposure()
+                    ))
+                    .with_source_span(selection.source_span())
                 })?;
             if rejoined != occurrence {
                 return Err(Diagnostic::error(

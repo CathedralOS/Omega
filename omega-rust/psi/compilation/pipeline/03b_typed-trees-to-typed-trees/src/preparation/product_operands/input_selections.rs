@@ -40,7 +40,15 @@ impl Lower<'_> {
         self.program
             .authored_declaration_selections()
             .source_coordinate_occurrence(span, selection.exposure, kind)
-            .map_err(|reason| vec![Diagnostic::error(reason.to_string()).with_source_span(span)])
+            .map_err(|reason| {
+                vec![
+                    Diagnostic::error(format!(
+                        "static input cannot rejoin its {kind:?} selection ({:?}): {reason}",
+                        selection.exposure
+                    ))
+                    .with_source_span(span),
+                ]
+            })
     }
 
     fn input_ordinal(&self) -> Result<u32, Vec<Diagnostic>> {

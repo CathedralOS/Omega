@@ -724,6 +724,26 @@ impl Capture<'_> {
                     Handle::invalid()
                 };
                 let target = self.name(call.target.as_str(), call.target_symbol);
+                if let Some(occurrence) = call.authored_call_selection {
+                    let selection = program
+                        .authored_declaration_selections()
+                        .get(occurrence)
+                        .ok_or("Build static call lost its authored Call occurrence")?;
+                    if selection.kind()
+                        != language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Call
+                        || !program
+                            .expression_table
+                            .authored_selection_occurrences(expression)
+                            .any(|attached| attached == occurrence)
+                    {
+                        return Err("Build static call changed its source-owned Call association".into());
+                    }
+                    // The call token and its selected declaration have separate
+                    // coordinates. The original occurrence supplies the former;
+                    // `name` above retains the latter for exact source rejoining.
+                    self.environment.graph.names.get_mut(target).source_span =
+                        selection.source_span();
+                }
                 let owner = if call.requirement_application.is_valid() {
                     self.ty(call.requirement_application)?
                 } else {

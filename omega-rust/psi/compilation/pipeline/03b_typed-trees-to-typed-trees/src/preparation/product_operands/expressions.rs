@@ -37,7 +37,7 @@ impl Lower<'_> {
                 .authored_declaration_selections()
                 .source_coordinate_occurrence(span, selection.exposure, kind)
                 .map_err(|reason| {
-                    vec![Diagnostic::error(reason.to_string()).with_source_span(span)]
+                    vec![Diagnostic::error(format!("designated expression cannot rejoin its {kind:?} selection ({:?}): {reason}", selection.exposure)).with_source_span(span)]
                 })?;
             if kind
                 == language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Call
