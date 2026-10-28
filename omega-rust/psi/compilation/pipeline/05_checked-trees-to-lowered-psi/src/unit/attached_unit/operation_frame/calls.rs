@@ -695,12 +695,8 @@ impl OperationFrame<'_, '_> {
                 .local_places
                 .iter()
                 .cloned()
-                .chain(earlier.iter().filter_map(|(place, _)| place.clone()))
-                .chain(
-                    self.primitive_locals
-                        .iter()
-                        .map(|local| local.declaration.clone()),
-                )
+                .chain(earlier.iter().filter_map(|(place, _)| *place))
+                .chain(self.primitive_locals.iter().map(|local| local.declaration))
                 .chain(self.private_places.iter().cloned()),
         );
         let prepared = ordinary_calls::prepare(
@@ -871,12 +867,8 @@ impl OperationFrame<'_, '_> {
                 .local_places
                 .iter()
                 .cloned()
-                .chain(earlier.iter().filter_map(|(place, _)| place.clone()))
-                .chain(
-                    self.primitive_locals
-                        .iter()
-                        .map(|local| local.declaration.clone()),
-                )
+                .chain(earlier.iter().filter_map(|(place, _)| *place))
+                .chain(self.primitive_locals.iter().map(|local| local.declaration))
                 .chain(self.private_places.iter().cloned()),
         );
         let prepared = ordinary_calls::prepare(
