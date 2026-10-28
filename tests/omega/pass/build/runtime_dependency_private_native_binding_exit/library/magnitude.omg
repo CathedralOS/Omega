@@ -1,5 +1,5 @@
 module magnitude;
-public boundary trait Magnitude { machine read() -> i32 reaches Magnitude; }
+public boundary trait Magnitude { machine read() -> i32 reaches Magnitude invokes RawMagnitude; }
 boundary trait RawMagnitude { machine absolute(value: i32) -> i32 reaches Magnitude; }
 public NativeMagnitude satisfies Magnitude {
  machine read() -> i32 reaches Magnitude { RawMagnitude::absolute(-73) }
