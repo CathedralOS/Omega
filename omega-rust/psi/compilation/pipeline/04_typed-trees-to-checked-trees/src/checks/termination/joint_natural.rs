@@ -203,10 +203,12 @@ fn compare(
     destination: &Coordinate,
 ) -> Option<bool> {
     let initial = edge.values.initial_symbol(source.parameter)?;
-    let next = edge
-        .values
-        .current(*edge.arguments.get(destination.position)?)
-        .map(ScopedArithmeticValue::Term)?;
+    let next = super::arrival_value(
+        program,
+        machine,
+        &edge.values,
+        *edge.arguments.get(destination.position)?,
+    )?;
     let zero = ScopedArithmeticValue::Integer(BigInt::zero());
     let proves = |operator, left, right| {
         edge.values
