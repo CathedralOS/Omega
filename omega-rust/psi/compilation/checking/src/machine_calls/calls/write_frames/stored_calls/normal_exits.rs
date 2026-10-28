@@ -1,5 +1,8 @@
 //! Solve all reachable normal exits in the declared slot namespace.
 //! Completed operands retain their exact source cuts and carrier/backing association.
+//! A terminal invocation is an equation edge even across declaration owners.
+//! Solving all reachable normal returns together preserves recursive slot
+//! relations without treating a backedge as an identity or a completed call.
 
 use super::super as frames;
 use super::*;
@@ -45,12 +48,16 @@ fn solve_state_effects<'program>(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
 ) -> Option<Vec<SlotEffect>> {
+    if program.machine_holding_state(entry.symbol)?.symbol != machine.symbol {
+        return None;
+    }
     let mut states = vec![entry];
     let mut equations = Vec::new();
     let mut substitutions = frames::cycle_substitutions::Substitutions::default();
     let mut index = 0;
     while index < states.len() {
         let state = states[index];
+        let machine = program.machine_holding_state(state.symbol)?;
         let inventory = destination_inventory(program, state)?;
         let (last, prefixes) =
             stored_reference_transfer(program, machine, state, symbols, inference)?;
@@ -77,12 +84,23 @@ fn solve_state_effects<'program>(
                     .find(|completed| completed.target == edge)?;
                 match program.statement_table.transition_target(edge) {
                     TransitionTargetNode::Named { arguments, .. } => {
-                        if frames::terminal_calls::target(program, machine, edge).is_valid() {
-                            return None;
-                        }
-                        let target = frames::transition_topology::named_transition_target_state(
-                            program, machine, state, edge,
-                        )?;
+                        let call_target = frames::terminal_calls::target(program, machine, edge);
+                        let target = if call_target.is_valid() {
+                            let (callee, target) =
+                                frames::machine_state_by_symbol(program, call_target)?;
+                            if callee.supply_mode
+                                != language_semantics::MachineSupplyMode::CheckedBody
+                                || !callee.body_is_present
+                                || !program.machine_type_parameters(callee).is_empty()
+                            {
+                                return None;
+                            }
+                            target
+                        } else {
+                            frames::transition_topology::named_transition_target_state(
+                                program, machine, state, edge,
+                            )?
+                        };
                         let target_index = if let Some(index) = states
                             .iter()
                             .position(|candidate| candidate.symbol == target.symbol)
@@ -147,7 +165,7 @@ fn solve_state_effects<'program>(
                         };
                         let instantiated = instantiate(
                             program,
-                            machine,
+                            program.machine_holding_state(equation.state.symbol)?,
                             program.state_parameters(equations[*target].state),
                             arguments,
                             relative,

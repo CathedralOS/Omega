@@ -160,8 +160,9 @@ fn call_body_result_origins(
 }
 
 /// Complete result relation in the requested state's own parameter namespace.
-/// Internal transitions share one finite solve; actual machine invocations keep
-/// their active-body guard and cannot borrow provisional state summaries.
+/// Selected terminal successors share one finite solve across declaration
+/// owners. Ordinary invocations keep their active-body guard and cannot borrow
+/// provisional relations from an unfinished query.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn state_result_origins<'program>(
     program: &'program dyn crate::CheckingInput,
@@ -183,7 +184,6 @@ pub(super) fn state_result_origins<'program>(
     inference.active_states.push(state.symbol);
     let result = state_equations::solve(
         program,
-        machine,
         state,
         expected_result,
         symbols,
@@ -385,17 +385,11 @@ fn state_equation<'program>(
                                 program,
                                 machine,
                                 state,
-                                statement,
                                 index,
                                 edge,
                                 *arguments,
                                 expected_result,
-                                &mut relative,
-                                symbols,
-                                inference,
-                                include_shared,
                                 &mut edges,
-                                &mut returns,
                                 prefixes.get(index).and_then(Option::as_ref),
                             )?,
                             // Terminal arms return nothing.
@@ -764,24 +758,18 @@ fn merge_named_edge<'program>(
     program: &'program dyn crate::CheckingInput,
     machine: &'program Machine,
     source_state: &'program State,
-    boundary: &StatementNode,
     boundary_index: usize,
     edge: TransitionTargetHandle,
     edge_arguments: arena::HandleSpan<ExpressionHandle>,
     expected_result: TypeReferenceHandle,
-    relative: &mut AggregateOrigins,
-    symbols: &TopLevelSymbols<'_>,
-    inference: &mut FrameInference,
-    include_shared: bool,
     edges: &mut Vec<state_equations::Edge<'program>>,
-    returns: &mut bool,
     boundary_prefix: Option<&CollectedStatementPrefix>,
 ) -> Option<()> {
     let TransitionTargetNode::Named { .. } = program.statement_table.transition_target(edge) else {
         return None;
     };
     let call_target = super::terminal_calls::target(program, machine, edge);
-    let (target_machine, target_state) = if call_target.is_valid() {
+    let target_state = if call_target.is_valid() {
         let (callee, state) = machine_state_by_symbol(program, call_target)?;
         // A terminal invocation uses the same body-derived origin authority as
         // an expression call. Requirement signatures and recursive bodies do
@@ -797,12 +785,9 @@ fn merge_named_edge<'program>(
         {
             return None;
         }
-        (callee, state)
+        state
     } else {
-        (
-            machine,
-            named_transition_target_state(program, machine, source_state, edge)?,
-        )
+        named_transition_target_state(program, machine, source_state, edge)?
     };
     let arguments = program.statement_table.expression_handles(edge_arguments);
     let parameters = program.state_parameters(target_state);
@@ -822,40 +807,13 @@ fn merge_named_edge<'program>(
         return None;
     }
     let context = boundary_prefix?;
-    if !call_target.is_valid() {
-        edges.push(state_equations::Edge {
-            target: target_state,
-            statement_index: boundary_index,
-            arguments,
-            prefix: context.clone(),
-        });
-        return Some(());
-    }
-    let mut target_relative = state_result_origins(
-        program,
-        target_machine,
-        target_state,
-        expected_result,
-        symbols,
-        inference,
-        include_shared,
-    )?;
-    *returns = true;
-    instantiate_edge_origins(
-        program,
-        machine,
-        source_state,
-        target_state,
-        boundary,
-        boundary_index,
+    edges.push(state_equations::Edge {
+        target: target_state,
+        statement_index: boundary_index,
         arguments,
-        &mut target_relative,
-        context,
-        relative,
-        symbols,
-        inference,
-        include_shared,
-    )
+        prefix: context.clone(),
+    });
+    Some(())
 }
 
 /// Substitute a retained target relation at its exact captured source boundary.

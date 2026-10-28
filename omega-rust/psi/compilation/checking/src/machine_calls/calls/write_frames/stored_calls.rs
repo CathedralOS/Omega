@@ -1,8 +1,8 @@
 //! Normal-call transfer of reference slots. A type supplies the slot inventory;
 //! the complete body supplies its possible exit contents. Identity rows mean
 //! incoming contents survive that route, not that the carrier is its backing.
-//! Unknown new contents, local backing escapes and recursive summaries fail
-//! closed. Rows retain each slot's declared access alongside provenance;
+//! Unknown new contents, local backing escapes and unresolved summaries fail
+//! closed. Selected terminal cycles share one normal-exit fixed point. Rows retain each slot's declared access alongside provenance;
 //! checked stores still own permission and predicate authority.
 //!
 //! Slice inventories retain incoming defaults plus exact slot replacements.
