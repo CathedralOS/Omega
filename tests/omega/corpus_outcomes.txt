@@ -1935,7 +1935,7 @@ fail/build/crash_exclusion_trapping_provider rejected 3172ms expected @a92f16431
 	1 authored behavior exclusion(s) could not be satisfied
 	behavior exclusion violated: crash cause Trap is reachable in Terminal machine 5, reached through machine `CheckingAssert::check` (Terminal machine 3) at crash terminator in block 8
 	the selected composition retains crash cause Trap through Terminal machine 5, reached through machine `CheckingAssert::check` (Terminal machine 3) declared here
-fail/build/dependency_native_binding_private_operand rejected 297ms expected @a34f067628f9
+fail/build/dependency_native_binding_private_operand rejected 297ms expected @e5a0b87130b9
 	native binding operand `private_magnitude::magnitude::RawMagnitude::absolute` does not resolve to one visible Product boundary requirement
 fail/build/duplicate_program_entry_binding rejected 243ms expected @a92f16431042
 	root slot `windows_x86_64::ProgramEntry` is already bound to `Main::main`; it cannot also bind `Main::main`
@@ -17758,7 +17758,7 @@ fail/facts/nested_machine_statement_completion_target_body_rejected rejected 125
 fail/facts/nested_machine_statement_completion_wrong_tag_rejected rejected 3078ms expected @b0d06a168a00+wt
 	cannot prove requires contract for call probe from main: choice == constructor:80:package:0ababaff7be122379295755579dfe2fa5efa40c446ce2a4d4011f916f57fb1af::Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 pass/arithmetic/sparse_captured_utf_path_exit checked 59503ms check-target:macos_arm64 @b0d06a168a00+wt
-pass/build/runtime_dependency_private_native_binding_exit checked 1791ms check-target:macos_arm64 @a34f067628f9
+pass/build/runtime_dependency_private_native_binding_exit checked 1073ms check-target:macos_arm64 @e5a0b87130b9
 pass/build/runtime_retained_const_application_exit checked 1831ms check-target:macos_arm64 @248be7918b27
 pass/facts/nested_machine_statement_completion_call_result_exit checked 15104ms check-target:macos_arm64 @b0d06a168a00+wt
 pass/facts/nested_machine_statement_completion_const_name_exit checked 15196ms check-target:macos_arm64 @b0d06a168a00+wt
@@ -31491,7 +31491,7 @@ pass/host/runtime_foreign_scalar_loan_writeback_exit checked 7298ms check-target
 pass/host/runtime_foreign_zero_argument_import_exit checked 7365ms check-target:windows_x86_64 @a92f16431042
 pass/host/runtime_gui_foreground_window_exit checked 6991ms check-target:windows_x86_64 @a92f16431042
 pass/host/runtime_gui_window_lifecycle_exit checked 6762ms check-target:windows_x86_64 @a92f16431042
-pass/host/runtime_native_scalar_reference_ingress_exit checked 1677ms check-target:macos_arm64 @a34f067628f9
+pass/host/runtime_native_scalar_reference_ingress_exit checked 954ms check-target:macos_arm64 @e5a0b87130b9
 pass/host/runtime_returned_scalar_field_reference_sibling_exit checked 725ms check-target:macos_arm64 @db430d661cf1+wt
 pass/host/runtime_scalar_reference_backing_export_exit checked 3267ms check-target:linux_x86_64 @a92f16431042
 pass/host/runtime_semantic_gui_reach_exit checked 22080ms check-target:macos_arm64 @a92f16431042
