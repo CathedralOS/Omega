@@ -67,8 +67,8 @@ observations of the target-parity implementation.
 The execution ledger records producer inputs, optimized executable digests,
 actual native and Terminal outcomes, target-installation outcomes and reject
 diagnostics. Compiler exit 0 or compile-only target publication alone does not
-establish execution. Matching-host native execution on Windows or macOS and
-native AArch64 execution remain unverified until their engines observe them.
+establish execution. Native execution on Windows and Linux remains unverified; fresh macOS ARM64
+and Rosetta x86_64 observations are reported separately below.
 
 The optimized fixed baseline `27aa307651127ca13dd9ac08a2f1a687a2dd5bb0`
 wrongly rejects the frozen ordinary-provider rung and every existing countdown
@@ -77,15 +77,19 @@ The label store and its assertion are already checked. The shared current-value
 exit prover excluded both Unit completion and scalar referent parameters, so it
 could not consume that completed store through the exact exit origin.
 
-Producer `2b10d981c07293625ecaf678dcee1ec10aca6b83` supplies the repair:
+Producer `1273f57db0dfc09fa83edec23dfce9cb698b1abc` supplies the repair:
 normal Unit completion has no return operand, and stable scalar referents use
 the same store/call-frame invalidation as owned scalar values. Unreadable
 write-only referents have no initial observation. No result value or loan is
 invented. The nine places, root and frozen ordinary rung were observed with
 native exit 0 and Terminal exit 0 on `macos_arm64`; every wrong-edge twin still
 rejects for the incoming `done` label obligation. The actual source revision
-for these observations is `9a18ac9642e58c5803ae17ccbbede2a190eb5202`;
-its compiler and bundled-library inputs equal the producer's inputs.
+for the fresh complete row is `1273f57db0dfc09fa83edec23dfce9cb698b1abc`;
+its compiler and bundled-library inputs equal the producer's inputs. The
+selected-body pin also executes natively and in Terminal on `macos_x86_64`
+under Rosetta. Public CLI compilations for Mac ARM64 and x86_64 retain identical
+`program.oterm` bytes; separate matching-host image launches return 0.
+Explicit `--target` CLI compilation itself is not counted as execution.
 
 The retained build, raw engine streams, source/oracle hashes and product hashes
 are in the target-retirement qualification evidence. The focused ordinary
