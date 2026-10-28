@@ -1155,7 +1155,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
             .collect::<Option<Vec<_>>>()?;
     // The composed route mints full rosters through the one successor-plan
     // constructor; ordinary edges never select a continuation.
-    Some(CheckedStructuralControlSuccessorPlan::new(
+    let mut successor = CheckedStructuralControlSuccessorPlan::new(
         ordinal,
         target.symbol,
         false,
@@ -1164,7 +1164,36 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
         erased_arguments,
         erased_proof_arguments,
         Vec::new(),
-    ))
+    );
+    // Source permission scheduling retains the caller's frontier while a
+    // nonreturning terminal invocation remains pending. Recursive fusion
+    // changes its physical control edge, not that completion contract.
+    if let Some((invoked, _)) =
+        validation::terminal_callable_target(program, machine, arrival.target)
+        && invoked == target.symbol
+        && validation::normal_completion_possible(program, target) == Some(false)
+    {
+        let flow = facts.flow.control.state(machine.symbol, source.symbol)?;
+        let mut calls = flow.calls.handles().filter(|handle| {
+            let call = facts.flow.control.calls.get(*handle);
+            call.statement_index == ordinal as usize
+                && call.authored_site == checked_trees::FlowCallSite::NamedTransition
+                && call.authored_source_custody_valid
+                && call.authored_target == arrival.target
+                && call.target_symbol == invoked
+                && facts
+                    .flow
+                    .control
+                    .call_arguments
+                    .span(call.authored_arguments)
+                    == Some(arrival.arguments)
+        });
+        successor.pending_source_invocation = calls.next()?;
+        if calls.next().is_some() {
+            return None;
+        }
+    }
+    Some(successor)
 }
 
 /// Resolve a finite field/index path below an established source root.

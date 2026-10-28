@@ -48,6 +48,76 @@ pub(super) fn coordinate(
     completion_cleanup::coordinate(source(state, control), statement_index, continuation)
 }
 pub(super) use completion_cleanup::selection;
+
+/// A fused pending invocation has an internal arrival but no source normal
+/// completion. Retain its exact source call association; absence of a normal
+/// cleanup row alone cannot authorize this selection or retire any owner.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn for_successor_regions(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    claims: crate::emission::claim_bindings::PublishedClaims<'_>,
+    checked: &CheckedTrees,
+    owner: symbols::SymbolHandle,
+    state: &CheckedComposedUnitControlStatePlan,
+    edge: &checked_trees::CheckedStructuralControlSuccessorPlan,
+    catalogs: &mut catalogs::ComposedCatalogs<'_>,
+    parameters: &[StructuralParameterDeclaration],
+    evaluation: &Evaluation,
+    operations: &OperationBuffer,
+) -> Result<Vec<CleanupRegion>, LoweringError> {
+    if edge.pending_source_invocation.is_valid() {
+        let flow = checked.facts.flow.control.state(owner, state.state).ok_or(
+            LoweringError::Unsupported("pending fused invocation has no source state"),
+        )?;
+        if !flow
+            .calls
+            .handles()
+            .any(|handle| handle == edge.pending_source_invocation)
+        {
+            return Err(LoweringError::Unsupported(
+                "pending fused invocation is outside its source call roster",
+            ));
+        }
+        let call = checked
+            .facts
+            .flow
+            .control
+            .calls
+            .get(edge.pending_source_invocation);
+        if edge.is_continuation
+            || call.authored_site != checked_trees::FlowCallSite::NamedTransition
+            || !call.authored_source_custody_valid
+            || call.statement_index != edge.statement_ordinal as usize
+            || call.target_symbol != edge.target_state
+        {
+            return Err(LoweringError::Unsupported(
+                "pending fused invocation disagrees with its selected arrival",
+            ));
+        }
+        // No cleanup, release, or return is manufactured here. Whole no-code
+        // carrier custody remains with the emitted affine frontier solver;
+        // all other live owners and loans retain their existing obligations.
+        return Ok(Vec::new());
+    }
+    let exit = coordinate(
+        catalogs.cleanup_control,
+        state,
+        edge.statement_ordinal as usize,
+        edge.is_continuation,
+    )?;
+    let mut regions = for_exit_regions(
+        identities, claims, checked, state, exit, catalogs, parameters, evaluation, operations,
+    )?;
+    selection(
+        state.state,
+        &state.operations,
+        evaluation,
+        operations,
+        &mut regions,
+    )?;
+    Ok(regions)
+}
+
 pub(super) fn scalar_returns(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     claims: crate::emission::claim_bindings::PublishedClaims<'_>,

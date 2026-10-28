@@ -70,6 +70,11 @@ pub struct CheckedStructuralControlSuccessorPlan {
     /// route share this one plan; a scalar edge carries only this identity
     /// and leaves the rosters empty.
     pub is_continuation: bool,
+    /// The exact source invocation fused into this arrival when that call has
+    /// no normal return. It retains the suspended source cleanup frontier;
+    /// graph arrival does not turn it into a source completion. Zero denotes
+    /// an ordinary edge, which still requires its normal cleanup coordinate.
+    pub pending_source_invocation: arena::Handle<crate::FlowCallFact>,
     pub transfers: Vec<CheckedStructuralControlTransferPlan>,
     pub scalar_arguments: Vec<CheckedStructuralScalarArgumentPlan>,
     /// Proof-only erased actuals pairing the target's erased formals with the
@@ -100,6 +105,7 @@ impl CheckedStructuralControlSuccessorPlan {
             statement_ordinal,
             target_state,
             is_continuation,
+            pending_source_invocation: Default::default(),
             transfers,
             scalar_arguments,
             erased_arguments,
