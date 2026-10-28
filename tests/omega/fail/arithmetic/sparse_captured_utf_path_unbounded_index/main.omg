@@ -149,13 +149,18 @@ machine windows_path_character(path: &[u8], offset: u64) -> WindowsPathCharacter
 machine main() crashes Trap {
     let mut output: [u16; 4096];
     let ascii: WindowsPathStep = windows_path_step("A", &mut output, 0, 0);
+    let ascii_unit: u16 = output[0];
     let two: WindowsPathStep = windows_path_step("é", &mut output, 0, 0);
+    let two_unit: u16 = output[0];
     let three: WindowsPathStep = windows_path_step("界", &mut output, 0, 0);
+    let three_unit: u16 = output[0];
     let pair: WindowsPathStep = windows_path_step("𐀀", &mut output, 0, 0);
     transition ascii.status == 0 && ascii.next_input == 1 && ascii.next_output == 1
         && two.status == 0 && two.next_input == 2 && two.next_output == 1
         && three.status == 0 && three.next_input == 3 && three.next_output == 1
-        && pair.status == 0 && pair.next_input == 4 && pair.next_output == 2 {
+        && pair.status == 0 && pair.next_input == 4 && pair.next_output == 2
+        && ascii_unit == 65 && two_unit == 233 && three_unit == 30028
+        && output[0] == 55296 && output[1] == 56320 {
         true -> done() false -> bad()
     }
     machine done() {}
