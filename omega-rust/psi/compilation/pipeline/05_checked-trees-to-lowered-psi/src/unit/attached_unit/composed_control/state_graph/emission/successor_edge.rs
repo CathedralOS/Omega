@@ -1180,7 +1180,6 @@ impl StateGraphEmission<'_, '_> {
             identities,
             self.claims.published(),
             self.checked,
-            owner,
             state,
             edge,
             self.catalogs,

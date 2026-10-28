@@ -49,15 +49,14 @@ pub(super) fn coordinate(
 }
 pub(super) use completion_cleanup::selection;
 
-/// A fused pending invocation has an internal arrival but no source normal
-/// completion. Retain its exact source call association; absence of a normal
-/// cleanup row alone cannot authorize this selection or retire any owner.
+/// Consume the source completion classification of this checked arrival.
+/// A fused pending invocation has no source normal completion; ordinary edges
+/// still require their exact selected cleanup coordinate.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn for_successor_regions(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     claims: crate::emission::claim_bindings::PublishedClaims<'_>,
     checked: &CheckedTrees,
-    owner: symbols::SymbolHandle,
     state: &CheckedComposedUnitControlStatePlan,
     edge: &checked_trees::CheckedStructuralControlSuccessorPlan,
     catalogs: &mut catalogs::ComposedCatalogs<'_>,
@@ -66,50 +65,11 @@ pub(super) fn for_successor_regions(
     operations: &OperationBuffer,
 ) -> Result<Vec<CleanupRegion>, LoweringError> {
     if edge.pending_source_invocation.is_valid() {
-        let flow = checked.facts.flow.control.state(owner, state.state).ok_or(
-            LoweringError::Unsupported("pending fused invocation has no source state"),
-        )?;
-        if !flow
-            .calls
-            .handles()
-            .any(|handle| handle == edge.pending_source_invocation)
-        {
-            return Err(LoweringError::Unsupported(
-                "pending fused invocation is outside its source call roster",
-            ));
-        }
-        let call = checked
-            .facts
-            .flow
-            .control
-            .calls
-            .get(edge.pending_source_invocation);
-        if edge.is_continuation
-            || call.authored_site != checked_trees::FlowCallSite::NamedTransition
-            || !call.authored_source_custody_valid
-            || call.statement_index != edge.statement_ordinal as usize
-        {
-            return Err(LoweringError::Unsupported(
-                "pending fused invocation disagrees with its selected source occurrence",
-            ));
-        }
-        let source_owner =
-            checked
-                .typed
-                .machine_by_symbol(owner)
-                .ok_or(LoweringError::Unsupported(
-                    "pending fused invocation has no source machine",
-                ))?;
-        if !validation::terminal_callable_target(&checked.typed, source_owner, call.target_symbol)
-            .is_some_and(|(entry, _)| entry == edge.target_state)
-        {
-            return Err(LoweringError::Unsupported(
-                "pending fused invocation has a different executable arrival",
-            ));
-        }
-        // No cleanup, release, or return is manufactured here. Whole no-code
-        // carrier custody remains with the emitted affine frontier solver;
-        // all other live owners and loans retain their existing obligations.
+        // Stage04 established the exact original call's pending contract and
+        // its fused destination once. Consume that checked classification;
+        // replaying source admission here would create a second semantic owner.
+        // This selects no source cleanup, release or normal return. Whole
+        // no-code carrier custody still belongs to affine frontier closure.
         return Ok(Vec::new());
     }
     let exit = coordinate(

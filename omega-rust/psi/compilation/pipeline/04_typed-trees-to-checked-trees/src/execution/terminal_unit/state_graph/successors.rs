@@ -1198,8 +1198,22 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
         let mut calls = flow.calls.handles().filter(|handle| {
             let call = facts.flow.control.calls.get(*handle);
             call.statement_index == ordinal as usize
-                && call.authored_site == checked_trees::FlowCallSite::NamedTransition
-                && call.authored_target == arrival.target
+                && !facts.flow.control.is_retired(source.symbol, call)
+                && validation::find_call_site(
+                    program,
+                    machine.symbol,
+                    source.symbol,
+                    call.statement_index,
+                    call.call_ordinal,
+                )
+                .is_some_and(|site| site.completes_transition(program, transition.target))
+                && validation::transition_call_target(
+                    program,
+                    machine,
+                    source,
+                    call.statement_index,
+                    call.call_ordinal,
+                ) == Some(transition.target)
         });
         let selected = calls.next()?;
         mark(SuccessorGuard::PendingInvocationAmbiguity);
@@ -1216,18 +1230,20 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
         // arrival names its executable state. Join through the same exact
         // source-owner topology as ordinary terminal calls; do not rewrite
         // the authored identity or normalize an unknown target into a match.
-        if !validation::terminal_callable_target(program, machine, call.target_symbol)
-            .is_some_and(|(entry, _)| entry == invoked)
+        if call.authored_target != arrival.target
+            || !validation::terminal_callable_target(program, machine, call.target_symbol)
+                .is_some_and(|(entry, _)| entry == invoked)
         {
             return None;
         }
         mark(SuccessorGuard::PendingInvocationArguments);
-        if facts
-            .flow
-            .control
-            .call_arguments
-            .span(call.authored_arguments)
-            != Some(arrival.arguments)
+        if call.authored_expression != arrival.expression
+            || facts
+                .flow
+                .control
+                .call_arguments
+                .span(call.authored_arguments)
+                != Some(arrival.arguments)
         {
             return None;
         }
