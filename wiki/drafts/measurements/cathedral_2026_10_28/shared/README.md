@@ -132,3 +132,8 @@ identified frozen-input baseline). After a whitespace-only adapter cleanup, the
 actual builder was rerun and its receipt refreshed; every export and packaged
 output hash still matches the native-tested build. The Cathedral implementation
 patch is retained here for the paired change.
+
+The subsequent [full Cathedral build and boot](../full-boot/README.md) passes
+the default mixed desktop and cold-reboot test using this shared UI path. The
+separate Omega kernel remains blocked before image emission; see that record
+for the current specialization failure and exact producer.
