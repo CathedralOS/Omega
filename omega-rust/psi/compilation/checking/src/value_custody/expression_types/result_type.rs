@@ -852,17 +852,7 @@ fn same_result_type(
                 ..
             },
         ) if left_symbol == right_symbol && left_lifetimes == right_lifetimes => {
-            let left_arguments = program
-                .type_reference_table
-                .type_reference_handles(*left_arguments);
-            let right_arguments = program
-                .type_reference_table
-                .type_reference_handles(*right_arguments);
-            left_arguments.len() == right_arguments.len()
-                && left_arguments
-                    .iter()
-                    .zip(right_arguments)
-                    .all(|(left, right)| same_result_type(program, *left, *right, active))
+            same_result_arguments(program, *left_arguments, *right_arguments, active)
         }
         (
             TypeReferenceNode::DynamicTrait {
@@ -876,22 +866,27 @@ fn same_result_type(
                 ..
             },
         ) if left_symbol == right_symbol => {
-            let left_arguments = program
-                .type_reference_table
-                .type_reference_handles(*left_arguments);
-            let right_arguments = program
-                .type_reference_table
-                .type_reference_handles(*right_arguments);
-            left_arguments.len() == right_arguments.len()
-                && left_arguments
-                    .iter()
-                    .zip(right_arguments)
-                    .all(|(left, right)| same_result_type(program, *left, *right, active))
+            same_result_arguments(program, *left_arguments, *right_arguments, active)
         }
         _ => false,
     };
     active.pop();
     same
+}
+
+fn same_result_arguments(
+    program: &dyn crate::CheckingInput,
+    left: arena::HandleSpan<TypeReferenceHandle>,
+    right: arena::HandleSpan<TypeReferenceHandle>,
+    active: &mut Vec<(TypeReferenceHandle, TypeReferenceHandle)>,
+) -> bool {
+    let left_arguments = program.type_reference_table.type_reference_handles(left);
+    let right_arguments = program.type_reference_table.type_reference_handles(right);
+    left_arguments.len() == right_arguments.len()
+        && left_arguments
+            .iter()
+            .zip(right_arguments)
+            .all(|(left, right)| same_result_type(program, *left, *right, active))
 }
 
 fn has_domain_result_shell(
