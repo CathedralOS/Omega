@@ -268,6 +268,13 @@ impl DeferredResolvedFrontier {
         Ok(demand)
     }
 
+    /// Prepared declaration syntax for the next pre-resolution generic-data
+    /// normalization. This is immutable lookup context, never another body or
+    /// constant-evaluation work roster.
+    pub fn generic_normalization_context(&self) -> Arc<SyntaxTrees> {
+        Arc::clone(&self.syntax)
+    }
+
     /// Completion is transactional. A failed body cannot partly advance the
     /// retained frontier or change which source its next consumer receives.
     pub fn complete_machine_bodies(
