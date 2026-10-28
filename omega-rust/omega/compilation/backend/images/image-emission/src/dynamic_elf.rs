@@ -21,7 +21,7 @@ use image_elf::{
 use target::{Architecture, NormalizedElfInterpreterPlan, ObjectFormat};
 
 use crate::ObjectArtifact;
-use crate::final_image_validation::validate_terminal_dynamic_elf_image;
+use crate::final_image_validation::validate_terminal_image;
 
 /// Non-installable dynamic output bound to the complete object artifact that
 /// selected its writer path.
@@ -241,7 +241,7 @@ fn validated_output(
         ));
     }
     let mut output = emitted_direct_executable_output(admitted.output().clone());
-    let validation = validate_terminal_dynamic_elf_image(
+    let validation = validate_terminal_image(
         artifact,
         prepared.object,
         prepared.relocations,

@@ -16,6 +16,13 @@ use super::hosted_unit_entry::{EntryShim, EntrySurface};
 mod implementation_tables;
 mod native_code_layouts;
 
+/// Replay one terminal image against the exact prepared object inputs. Every
+/// writer lane — direct, dynamic ELF, PE — settles here: preparation only
+/// clones the artifact's plan and appends its entry symbol, so the prepared
+/// object carries the same import set the writer was given. The hosted-entry
+/// shim (when one was prepared) is part of the replay boundary, so a receiver
+/// bridge cannot be dropped by the import path any more than by the direct
+/// writer.
 pub(super) fn validate_terminal_image(
     artifact: &ObjectArtifact,
     object: &object_file::ObjectPlan,
@@ -25,36 +32,6 @@ pub(super) fn validate_terminal_image(
     output: &EmittedImageOutput,
 ) -> Result<CompilerTextValidationEvidence, Diagnostic> {
     let expected_imports = object
-        .layout
-        .symbols
-        .iter()
-        .filter(|(_, symbol)| symbol.kind == object_file::SymbolKind::Import)
-        .count();
-    validate_terminal_image_with_import_count(
-        artifact,
-        object,
-        relocations,
-        text_bytes,
-        entry_shim,
-        output,
-        expected_imports,
-    )
-}
-
-/// Replay the dynamic ELF terminal image against the exact prepared object
-/// inputs. The hosted-entry shim (when one was prepared) is part of the
-/// replay boundary, so a receiver bridge cannot be dropped by the import
-/// path any more than by the direct writer.
-pub(super) fn validate_terminal_dynamic_elf_image(
-    artifact: &ObjectArtifact,
-    object: &object_file::ObjectPlan,
-    relocations: &object_file::RelocationPlan,
-    text_bytes: &[u8],
-    entry_shim: Option<EntryShim>,
-    output: &EmittedImageOutput,
-) -> Result<CompilerTextValidationEvidence, Diagnostic> {
-    let expected_imports = artifact
-        .object()
         .layout
         .symbols
         .iter()

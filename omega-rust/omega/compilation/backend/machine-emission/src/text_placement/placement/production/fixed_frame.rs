@@ -304,6 +304,12 @@ fn exact_operation(operations: &[OperationId]) -> Result<OperationId, TextPlacem
         .ok_or(TextPlacementError::SourceShapeMismatch)
 }
 
+/// A function-relative fixup offset carried into the section's coordinates.
+fn section_coordinate(base: u64, offset: u64) -> Result<u64, TextPlacementError> {
+    base.checked_add(offset)
+        .ok_or(TextPlacementError::OffsetOverflow)
+}
+
 #[allow(clippy::too_many_arguments)]
 fn resolve(
     architecture: Architecture,
@@ -324,9 +330,8 @@ fn resolve(
     {
         return Err(TextPlacementError::SourceShapeMismatch);
     }
-    let call_section_offset = function_section_offset
-        .checked_add(instruction_offset)
-        .ok_or(TextPlacementError::OffsetOverflow)?;
+    let section_at = |offset| section_coordinate(function_section_offset, offset);
+    let call_section_offset = section_at(instruction_offset)?;
     let (kind, displacement, patch_bytes) = match (architecture, fixup.kind) {
         (
             Architecture::X86_64,
@@ -415,17 +420,11 @@ fn resolve(
         call_section_offset,
         call_byte_count: usize_to_u64(instruction_bytes.len())?,
         opcode_function_offset: fixup.opcode_function_offset,
-        opcode_section_offset: function_section_offset
-            .checked_add(fixup.opcode_function_offset)
-            .ok_or(TextPlacementError::OffsetOverflow)?,
+        opcode_section_offset: section_at(fixup.opcode_function_offset)?,
         field_function_offset: fixup.patch_function_offset,
-        field_section_offset: function_section_offset
-            .checked_add(fixup.patch_function_offset)
-            .ok_or(TextPlacementError::OffsetOverflow)?,
+        field_section_offset: section_at(fixup.patch_function_offset)?,
         next_instruction_function_offset: fixup.reference_function_offset,
-        next_instruction_section_offset: function_section_offset
-            .checked_add(fixup.reference_function_offset)
-            .ok_or(TextPlacementError::OffsetOverflow)?,
+        next_instruction_section_offset: section_at(fixup.reference_function_offset)?,
         callee_section_offset,
         field_byte_width: fixup.patch_byte_width,
         addend: fixup.addend,
@@ -455,9 +454,7 @@ fn resolve_foreign(
     {
         return Err(TextPlacementError::SourceShapeMismatch);
     }
-    let call_section_offset = function_section_offset
-        .checked_add(instruction_offset)
-        .ok_or(TextPlacementError::OffsetOverflow)?;
+    let section_at = |offset| section_coordinate(function_section_offset, offset);
     // Every callback materialization group precedes the call word in roster
     // order; `cursor` tracks the running offset inside the row's bytes while
     // each group is checked against its destination's exact byte shape.
@@ -666,20 +663,14 @@ fn resolve_foreign(
         boundary: fixup.boundary,
         ordinal: fixup.ordinal,
         call_function_offset: instruction_offset,
-        call_section_offset,
+        call_section_offset: section_at(instruction_offset)?,
         call_byte_count: usize_to_u64(instruction_bytes.len())?,
         opcode_function_offset: fixup.opcode_function_offset,
-        opcode_section_offset: function_section_offset
-            .checked_add(fixup.opcode_function_offset)
-            .ok_or(TextPlacementError::OffsetOverflow)?,
+        opcode_section_offset: section_at(fixup.opcode_function_offset)?,
         field_function_offset: fixup.patch_function_offset,
-        field_section_offset: function_section_offset
-            .checked_add(fixup.patch_function_offset)
-            .ok_or(TextPlacementError::OffsetOverflow)?,
+        field_section_offset: section_at(fixup.patch_function_offset)?,
         next_instruction_function_offset: fixup.reference_function_offset,
-        next_instruction_section_offset: function_section_offset
-            .checked_add(fixup.reference_function_offset)
-            .ok_or(TextPlacementError::OffsetOverflow)?,
+        next_instruction_section_offset: section_at(fixup.reference_function_offset)?,
         field_byte_width: fixup.patch_byte_width,
         addend: fixup.addend,
         callback_materializations: fixup
