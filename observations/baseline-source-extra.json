@@ -1,0 +1,218 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "afc7615de5a17bac8de7ec7ab6a123a14d6d40ef",
+  "dirty": false,
+  "leg": "checked",
+  "target": null,
+  "golden": "tests/omega/corpus_outcomes.txt",
+  "golden_reason_gaps": {
+    "rows": 1,
+    "of": 19272
+  },
+  "subset": true,
+  "filter": "pass/borrow/runtime_write_only_qualified_array_element_exit,pass/collections/runtime_stored_reference_array_replacement_contract_exit",
+  "shard": null,
+  "verdict": "moved",
+  "exit_code": 1,
+  "counts": {
+    "fixtures": 2,
+    "by_status": {
+      "rejected": 2
+    },
+    "wrong_reason": 0,
+    "wrong_reason_fixtures": [],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 2,
+    "lost_success_fixtures": [
+      "pass/borrow/runtime_write_only_qualified_array_element_exit",
+      "pass/collections/runtime_stored_reference_array_replacement_contract_exit"
+    ],
+    "pinned_off_target": 2,
+    "pinned_off_target_fixtures": [
+      "pass/borrow/runtime_write_only_qualified_array_element_exit",
+      "pass/collections/runtime_stored_reference_array_replacement_contract_exit"
+    ],
+    "by_verdict": {
+      "moved": 2
+    }
+  },
+  "oracle_failures": [],
+  "infrastructure_error": null,
+  "golden_provenance": {
+    "stamped": 2,
+    "legacy": 0,
+    "unknown_revisions": 0,
+    "oldest": {
+      "revision": "a92f16431042",
+      "commits_behind": 504
+    }
+  },
+  "perf_context": {
+    "golden": {
+      "cpus": 10,
+      "jobs": "2",
+      "load1_end": 8.21,
+      "load1_start": 7.27,
+      "machine": "arm64",
+      "platform": "darwin",
+      "schema": "omega-corpus-context-v1"
+    },
+    "current": {
+      "schema": "omega-corpus-context-v1",
+      "jobs": "2",
+      "cpus": 10,
+      "platform": "darwin",
+      "machine": "arm64",
+      "load1_start": 8.24,
+      "load1_end": 9.7
+    },
+    "warnings": []
+  },
+  "observations": [
+    {
+      "fixture": "pass/borrow/runtime_write_only_qualified_array_element_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 3179,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "cannot prove default-domain field requirement for return from indexed at statement 1: entries[0] requires [u8; N]::Utf8",
+        "cannot prove default-domain field requirement for return from indexed at statement 1: entries[1] requires [u8; N]::Utf8",
+        "cannot prove default-domain field requirement for return from captured at statement 2: entries[1] requires [u8; N]::Utf8",
+        "cannot prove default-domain field requirement for return from field at statement 1: container.entries[1] requires [u8; N]::Utf8",
+        "cannot prove default-domain field requirement for return from finish at statement 1: entries[1] requires [u8; N]::Utf8"
+      ],
+      "regressed_from": {
+        "status": "checked",
+        "facts": {
+          "check-target": "macos_arm64"
+        }
+      },
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/collections/runtime_stored_reference_array_replacement_contract_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 6556,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \"main\", reason: \"value storage local is not established\", gap: None })"
+      ],
+      "regressed_from": {
+        "status": "checked",
+        "facts": {
+          "check-target": "macos_arm64"
+        }
+      },
+      "recorded_at": null
+    }
+  ],
+  "fixtures": [
+    {
+      "fixture": "pass/borrow/runtime_write_only_qualified_array_element_exit",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/borrow/runtime_write_only_qualified_array_element_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 2304,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [
+          "cleanup effect dependency in `main` has no exact structural residual disposition in state `entry` at statement 17"
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {
+            "check-target": "macos_arm64"
+          }
+        },
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "pass/borrow/runtime_write_only_qualified_array_element_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 3179,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [
+          "cannot prove default-domain field requirement for return from indexed at statement 1: entries[0] requires [u8; N]::Utf8",
+          "cannot prove default-domain field requirement for return from indexed at statement 1: entries[1] requires [u8; N]::Utf8",
+          "cannot prove default-domain field requirement for return from captured at statement 2: entries[1] requires [u8; N]::Utf8",
+          "cannot prove default-domain field requirement for return from field at statement 1: container.entries[1] requires [u8; N]::Utf8",
+          "cannot prove default-domain field requirement for return from finish at statement 1: entries[1] requires [u8; N]::Utf8"
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {
+            "check-target": "macos_arm64"
+          }
+        },
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/collections/runtime_stored_reference_array_replacement_contract_exit",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/collections/runtime_stored_reference_array_replacement_contract_exit",
+        "tier": "pass",
+        "status": "incomplete",
+        "millis": 2764,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [
+          "`observe` has no executable body: this compiler does not lower a state of it yet (sequence cleanup actions); in state `observe::entry`"
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {
+            "check-target": "macos_arm64"
+          }
+        },
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "pass/collections/runtime_stored_reference_array_replacement_contract_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 6556,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [
+          "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \"main\", reason: \"value storage local is not established\", gap: None })"
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {
+            "check-target": "macos_arm64"
+          }
+        },
+        "recorded_at": null
+      }
+    }
+  ]
+}

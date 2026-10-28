@@ -1,0 +1,35 @@
+{
+  "command": [
+    "python3",
+    "tools/corpus_gate.py",
+    "--runner",
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-cyclic/producer-4/corpus_runner",
+    "--filter",
+    "pass/borrows/runtime_stored_reference_case_residual_retirement_exit,pass/control_flow/runtime_wrapping_division_reused_inputs_exit,pass/facts/as_slice_views_generic_stored_reference_selectors_exit,pass/facts/crash_entry_ieee_view_local_writable_exit,pass/termination/wrapping_subject_guarded_descent,pass/text/runtime_view_local_boundary_write_exit,pass/text/runtime_view_local_first_store_exit,pass/text/runtime_view_local_qualified_argument_exit,pass/text/runtime_view_local_reassign_exit,fail/borrows/view_local_store_while_lent,fail/termination/stored_reference_endpoint_reseat,fail/termination/wrapping_subject_unguarded_decrement",
+    "--json",
+    "build/private-index-probe/baseline-source-selected.json"
+  ],
+  "exit": 3,
+  "elapsed_seconds": 39.680733333,
+  "producer": {
+    "revision": "485a671a334e1f2b7c553c155172cfdfa6c4d319",
+    "sha256": "17c4d4eebe0a3aeb968090246d1f06a06a415ee7610d98733cf7ddfa5b59490c",
+    "profile": "{\"schema\":\"omega-compiler-build-profile-v1\",\"opt_level\":\"1\"}\n"
+  },
+  "fixture_revision": "afc7615de5a17bac8de7ec7ab6a123a14d6d40ef",
+  "qualification": "Attribution replay with retained old producer485/semantic1e9 against exact current fixtures, not a run of current compiler source. Actual profile/runner digest retained.",
+  "selected": [
+    "pass/borrows/runtime_stored_reference_case_residual_retirement_exit",
+    "pass/control_flow/runtime_wrapping_division_reused_inputs_exit",
+    "pass/facts/as_slice_views_generic_stored_reference_selectors_exit",
+    "pass/facts/crash_entry_ieee_view_local_writable_exit",
+    "pass/termination/wrapping_subject_guarded_descent",
+    "pass/text/runtime_view_local_boundary_write_exit",
+    "pass/text/runtime_view_local_first_store_exit",
+    "pass/text/runtime_view_local_qualified_argument_exit",
+    "pass/text/runtime_view_local_reassign_exit",
+    "fail/borrows/view_local_store_while_lent",
+    "fail/termination/stored_reference_endpoint_reseat",
+    "fail/termination/wrapping_subject_unguarded_decrement"
+  ]
+}

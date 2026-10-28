@@ -1,0 +1,18 @@
+{
+  "command": [
+    "sh",
+    "tests/product/gate.sh",
+    "parser",
+    "build/product-nested/parser-baseline",
+    "tests/psi/parser/test_parser.py"
+  ],
+  "exit": 1,
+  "elapsed_seconds": 37.85916408400001,
+  "producer": {
+    "revision": "14f266609aa5729eee533c52726a754d5918a86d",
+    "sha256": "a53e3786b63eb35e3e64053f96f87908c2de3848766092c639b50aa68d634c00",
+    "profile": "{\"schema\":\"omega-compiler-build-profile-v1\",\"opt_level\":\"1\"}\n"
+  },
+  "library_tree": "6d825e5ddbdd5eb1564280777d08fe042b85727f",
+  "source_revision": "afc7615de5a17bac8de7ec7ab6a123a14d6d40ef"
+}

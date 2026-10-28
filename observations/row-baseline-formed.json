@@ -1,0 +1,236 @@
+[
+  {
+    "place": "local",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-cyclic/producer-4/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/wrapping_index/local/main.omg"
+    ],
+    "source_sha256": "62d1435da2c6106c695e4db3d2c15955bb9e5e122dc74d25bce20ac0e2312009",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `wrapping_index_local` with 1 diagnostic(s)\n  error: cannot prove index `window.index` is within length 512 in read::entry\n"
+  },
+  {
+    "place": "local",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-cyclic/producer-4/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/wrapping_index/local/invalid/main.omg"
+    ],
+    "source_sha256": "9eda38af890eb1cebbe23c1f0e6b6474dd34e249175306913f510aeb842168d5",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `wrapping_index_local_invalid` with 1 diagnostic(s)\n  error: cannot prove index `window.index` is within length 512 in read::entry\n"
+  },
+  {
+    "place": "field",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-cyclic/producer-4/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/wrapping_index/field/main.omg"
+    ],
+    "source_sha256": "ddbc0aa611f5485ddff2a394f117eaffc1ac96085f107fd999aa56a930786c14",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `wrapping_index_field` with 1 diagnostic(s)\n  error: cannot prove index `window.index` is within length 512 in read::entry\n"
+  },
+  {
+    "place": "field",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-cyclic/producer-4/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/wrapping_index/field/invalid/main.omg"
+    ],
+    "source_sha256": "809885a07f2e420172bfc33d6934e100990eb13192cc90401bf0dcf95f001ef3",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `wrapping_index_field_invalid` with 1 diagnostic(s)\n  error: cannot prove index `window.index` is within length 512 in read::entry\n"
+  },
+  {
+    "place": "parameter",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-cyclic/producer-4/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/wrapping_index/parameter/main.omg"
+    ],
+    "source_sha256": "7be9312a7eafebdcf3a15d36527f2e5f9baeeb357797a0cbbcbfb6533e497a7c",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `wrapping_index_parameter` with 1 diagnostic(s)\n  error: cannot prove index `window.index` is within length 512 in read::entry\n"
+  },
+  {
+    "place": "parameter",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-cyclic/producer-4/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/wrapping_index/parameter/invalid/main.omg"
+    ],
+    "source_sha256": "79eef3106793a41fa12a7eafbff0ea80beb0fddc78a1a284b29f92816d560ce0",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `wrapping_index_parameter_invalid` with 1 diagnostic(s)\n  error: cannot prove index `window.index` is within length 512 in read::entry\n"
+  },
+  {
+    "place": "call_result",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-cyclic/producer-4/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/wrapping_index/call_result/main.omg"
+    ],
+    "source_sha256": "8b7f8bf4de113cd5c6011d9b6a217f0e9b8a36102eaaa6f3953bb1059da4a81b",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `wrapping_index_call_result` with 1 diagnostic(s)\n  error: cannot prove index `window.index` is within length 512 in read::entry\n"
+  },
+  {
+    "place": "call_result",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-cyclic/producer-4/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/wrapping_index/call_result/invalid/main.omg"
+    ],
+    "source_sha256": "db86024bd7b08ae590a9c3c684a8be983b2fe1d08fc133c0a706c147e3d3fe31",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `wrapping_index_call_result_invalid` with 1 diagnostic(s)\n  error: cannot prove index `window.index` is within length 512 in read::entry\n"
+  },
+  {
+    "place": "match_join",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-cyclic/producer-4/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/wrapping_index/match_join/main.omg"
+    ],
+    "source_sha256": "0c31e3a980602f937857a2a25250801e3f8e1373e5d912ecbf73efc6085940ef",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `wrapping_index_match_join` with 1 diagnostic(s)\n  error: cannot prove index `window.index` is within length 512 in read::entry\n"
+  },
+  {
+    "place": "match_join",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-cyclic/producer-4/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/wrapping_index/match_join/invalid/main.omg"
+    ],
+    "source_sha256": "1bb779866733a01fbedb84b4c3e79c017fe0a9bcdd5373f49a24ed20bd47f835",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `wrapping_index_match_join_invalid` with 1 diagnostic(s)\n  error: cannot prove index `window.index` is within length 512 in read::entry\n"
+  },
+  {
+    "place": "const_name",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-cyclic/producer-4/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/wrapping_index/const_name/main.omg"
+    ],
+    "source_sha256": "84ab86cf3799070729d744a0897f77171deeda6e248dfa3403a109f7f6aeddd2",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `wrapping_index_const_name` with 1 diagnostic(s)\n  error: cannot prove index `window.index` is within length 512 in read::entry\n"
+  },
+  {
+    "place": "const_name",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-cyclic/producer-4/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/wrapping_index/const_name/invalid/main.omg"
+    ],
+    "source_sha256": "c548387151806b9e04fcf95ad3baece2742f7c4018381800aed00b9aa0a8060f",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `wrapping_index_const_name_invalid` with 1 diagnostic(s)\n  error: cannot prove index `window.index` is within length 512 in read::entry\n"
+  },
+  {
+    "place": "other_state",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-cyclic/producer-4/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/wrapping_index/other_state/main.omg"
+    ],
+    "source_sha256": "f5feeb28ba38c466fd3490c784aba1514e55e348cd87cf91b44ca9c39881f736",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `wrapping_index_other_state` with 1 diagnostic(s)\n  error: cannot prove index `window.index` is within length 512 in read::entry\n"
+  },
+  {
+    "place": "other_state",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-cyclic/producer-4/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/wrapping_index/other_state/invalid/main.omg"
+    ],
+    "source_sha256": "1dbc55f745402ae4b5526f4f2e81876558f08f90604354262a1e8f0318cd68b7",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `wrapping_index_other_state_invalid` with 1 diagnostic(s)\n  error: cannot prove index `window.index` is within length 512 in read::entry\n"
+  },
+  {
+    "place": "other_machine",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-cyclic/producer-4/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/wrapping_index/other_machine/main.omg"
+    ],
+    "source_sha256": "7fe56bfe7ca1136f9b8847add99a052af1a2c9d3b2cef71685d727910be93918",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `wrapping_index_other_machine` with 1 diagnostic(s)\n  error: cannot prove index `window.index` is within length 512 in read::entry\n"
+  },
+  {
+    "place": "other_machine",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-cyclic/producer-4/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/wrapping_index/other_machine/invalid/main.omg"
+    ],
+    "source_sha256": "05ec048751565c279ea4009c9eb5da6997fd5535ea49e1d1a73d3d4337c36603",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `wrapping_index_other_machine_invalid` with 1 diagnostic(s)\n  error: cannot prove index `window.index` is within length 512 in read::entry\n"
+  },
+  {
+    "place": "target_body",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-cyclic/producer-4/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/wrapping_index/target_body/main.omg"
+    ],
+    "source_sha256": "2bbf2c21f8622d2c29da01451464f67deef31287aad60ff99bdf8f48b74663f0",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `wrapping_index_target_body` with 1 diagnostic(s)\n  error: cannot prove index `window.index` is within length 512 in read::entry\n"
+  },
+  {
+    "place": "target_body",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-cyclic/producer-4/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/wrapping_index/target_body/invalid/main.omg"
+    ],
+    "source_sha256": "dd628130817ef45684387f0939fc1071640ea9f3eb63307abe1bedcea3fdf84d",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `wrapping_index_target_body_invalid` with 1 diagnostic(s)\n  error: cannot prove index `window.index` is within length 512 in read::entry\n"
+  }
+]

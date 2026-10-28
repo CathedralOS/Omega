@@ -1,0 +1,418 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "1dd012d66b41935f32ef801feaa2225d13011b38",
+  "dirty": true,
+  "leg": "checked",
+  "target": null,
+  "golden": "tests/omega/corpus_outcomes.txt",
+  "golden_reason_gaps": {
+    "rows": 1,
+    "of": 19272
+  },
+  "subset": true,
+  "filter": "facts/nested_machine_wrapping_index_",
+  "shard": null,
+  "verdict": "recorded",
+  "exit_code": 0,
+  "counts": {
+    "fixtures": 29,
+    "by_status": {
+      "checked": 15,
+      "rejected": 14
+    },
+    "wrong_reason": 0,
+    "wrong_reason_fixtures": [],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 0,
+    "lost_success_fixtures": [],
+    "pinned_off_target": 0,
+    "pinned_off_target_fixtures": [],
+    "by_verdict": {}
+  },
+  "oracle_failures": [],
+  "infrastructure_error": null,
+  "golden_provenance": null,
+  "perf_context": null,
+  "observations": [
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_actual_clamp_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4255,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "1dd012d66b41"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_actual_wrap_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4171,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "1dd012d66b41"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4242,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "1dd012d66b41"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4171,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "1dd012d66b41"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3680,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "1dd012d66b41"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3639,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "1dd012d66b41"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3615,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "1dd012d66b41"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_multiply_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3643,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "1dd012d66b41"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_nested_policy_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3481,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "1dd012d66b41"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3573,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "1dd012d66b41"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3441,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "1dd012d66b41"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3486,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "1dd012d66b41"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_saturating_no_overflow_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3375,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "1dd012d66b41"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_subtract_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3461,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "1dd012d66b41"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3374,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "1dd012d66b41"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_wrapping_index_call_result_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1529,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove index `window.index` is within length 512 in read::entry"
+      ],
+      "regressed_from": null,
+      "recorded_at": "1dd012d66b41"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_wrapping_index_const_name_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1546,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove index `window.index` is within length 512 in read::entry"
+      ],
+      "regressed_from": null,
+      "recorded_at": "1dd012d66b41"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_wrapping_index_crossing_band_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1582,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove index `window.index` is within length 512 in read::entry"
+      ],
+      "regressed_from": null,
+      "recorded_at": "1dd012d66b41"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_wrapping_index_exact_child_formation_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 326,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `probe` state `entry` cast expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).",
+        "exact arithmetic in machine `probe` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": "1dd012d66b41"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_wrapping_index_field_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1558,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove index `window.index` is within length 512 in read::entry"
+      ],
+      "regressed_from": null,
+      "recorded_at": "1dd012d66b41"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_wrapping_index_local_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1554,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove index `window.index` is within length 512 in read::entry"
+      ],
+      "regressed_from": null,
+      "recorded_at": "1dd012d66b41"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_wrapping_index_match_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1479,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove index `window.index` is within length 512 in read::entry"
+      ],
+      "regressed_from": null,
+      "recorded_at": "1dd012d66b41"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_wrapping_index_other_machine_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1572,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove index `window.index` is within length 512 in read::entry"
+      ],
+      "regressed_from": null,
+      "recorded_at": "1dd012d66b41"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_wrapping_index_other_state_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1578,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove index `window.index` is within length 512 in read::entry"
+      ],
+      "regressed_from": null,
+      "recorded_at": "1dd012d66b41"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_wrapping_index_overwritten_offset_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1560,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove index `window.index` is within length 512 in read::entry"
+      ],
+      "regressed_from": null,
+      "recorded_at": "1dd012d66b41"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_wrapping_index_parameter_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1526,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove index `window.index` is within length 512 in read::entry"
+      ],
+      "regressed_from": null,
+      "recorded_at": "1dd012d66b41"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_wrapping_index_target_body_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1434,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove index `window.index` is within length 512 in read::entry"
+      ],
+      "regressed_from": null,
+      "recorded_at": "1dd012d66b41"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_wrapping_index_wide_interval_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1417,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove index `window.index` is within length 512 in read::entry"
+      ],
+      "regressed_from": null,
+      "recorded_at": "1dd012d66b41"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_wrapping_index_wrapped_guard_original_offset_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1437,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove index `window.offset` is within length 512 in read::entry"
+      ],
+      "regressed_from": null,
+      "recorded_at": "1dd012d66b41"
+    }
+  ],
+  "fixtures": []
+}

@@ -1,0 +1,225 @@
+{
+  "submitted_head": "b7dd6b93124c5912f1f6b9d48b2c522e8819e7a3",
+  "starting_source": "4420a05daf5d5c510f187941d659d9f8bc0cf63d",
+  "fixed_base": "baf1b6ea0633681bcc2cf34d563d748a47fadb36",
+  "prerequisite": "Continues merged PR447, privately recurring entries and closed caller slices. Current numeric repair does not integrate moving main.",
+  "historical_evidence": "Actual repaired producer14f/runner1dd observations remain bound to their identities. Attribution uses old485/semantic1e9, reproducing14source failures and12runtime refusals exactly. Rawgates3arepreserved; validator authenticates these existingobservations without asserting anotherexecution.",
+  "acceptance": {
+    "parent": "NESTED-MACHINE-UNIFICATION",
+    "producer": "14f266609aa5729eee533c52726a754d5918a86d",
+    "runner": "1dd012d66b41935f32ef801feaa2225d13011b38",
+    "host": "macOS ARM64",
+    "new_source_fixtures": 29,
+    "new_native_terminal_zero_agreements": 15,
+    "nine_positive_places": true,
+    "nine_fact_sensitive_twins": true,
+    "focused_source_observations": 523,
+    "intended_source_outcomes": 509,
+    "inherited_source_failures_unchanged": [
+      "fail/borrows/view_local_store_while_lent",
+      "fail/termination/stored_reference_endpoint_reseat",
+      "fail/termination/wrapping_subject_unguarded_decrement",
+      "pass/borrow/runtime_write_only_qualified_array_element_exit",
+      "pass/borrows/runtime_stored_reference_case_residual_retirement_exit",
+      "pass/collections/runtime_stored_reference_array_replacement_contract_exit",
+      "pass/control_flow/runtime_wrapping_division_reused_inputs_exit",
+      "pass/facts/as_slice_views_generic_stored_reference_selectors_exit",
+      "pass/facts/crash_entry_ieee_view_local_writable_exit",
+      "pass/termination/wrapping_subject_guarded_descent",
+      "pass/text/runtime_view_local_boundary_write_exit",
+      "pass/text/runtime_view_local_first_store_exit",
+      "pass/text/runtime_view_local_qualified_argument_exit",
+      "pass/text/runtime_view_local_reassign_exit"
+    ],
+    "focused_both_observations": 240,
+    "native_terminal_exit_agreements": 223,
+    "authored_trap_agreements": 1,
+    "declaration_only_checks": 4,
+    "inherited_runtime_refusals_unchanged": [
+      "pass/borrow/runtime_write_only_qualified_array_element_exit",
+      "pass/borrows/runtime_indexed_stored_reference_call",
+      "pass/borrows/runtime_stored_reference_case_residual_retirement_exit",
+      "pass/collections/runtime_stored_reference_array_replacement_contract_exit",
+      "pass/control_flow/runtime_wrapping_division_reused_inputs_exit",
+      "pass/facts/as_slice_views_generic_stored_reference_selectors_exit",
+      "pass/facts/crash_entry_ieee_view_local_writable_exit",
+      "pass/termination/wrapping_subject_guarded_descent",
+      "pass/text/runtime_view_local_boundary_write_exit",
+      "pass/text/runtime_view_local_first_store_exit",
+      "pass/text/runtime_view_local_qualified_argument_exit",
+      "pass/text/runtime_view_local_reassign_exit"
+    ],
+    "qualification": "Authenticates actual retained source/runtime observations and baseline attribution, not another runtime execution. Raw gate exits remain3 for unchanged inherited failures; their goldens were not repinned.",
+    "remaining": "See actual std admission log; full library/product-source declaration migration, broader completion obligations and other-host native execution remain open."
+  },
+  "files": [
+    {
+      "path": "qualification/state.json.gz",
+      "sha256": "16c62969829e34a128df255b9536730a95077a0c3afa32bc26dc9f5c7dce01ee"
+    },
+    {
+      "path": "qualification/config.json.gz",
+      "sha256": "d5e8b57c9bd871850f25bd69d5ce9683af126bcc75d4c6bfe7463bbf8cbd510a"
+    },
+    {
+      "path": "qualification/receipt-0.json.gz",
+      "sha256": "9d3f7688f930fa3aceb045290918b694312f7655de37ed5b3d67c1ad0637274f"
+    },
+    {
+      "path": "qualification/run-0-stdout.txt",
+      "sha256": "16c777d77a9a382d58e1f742d596dce5dfd99b5103cd39495acef50ab3165724"
+    },
+    {
+      "path": "qualification/run-0-stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "observations/validate.py",
+      "sha256": "c6a34a12e90a99364e76f9034a5533111e630f1fc00e31b0d00c332a70f83cca"
+    },
+    {
+      "path": "observations/acceptance.json",
+      "sha256": "67012122cb31481fa7a1fb1840c5e6f7b30449c6fb3ae42534888ad0e4604317"
+    },
+    {
+      "path": "observations/producer-3.json",
+      "sha256": "021b86b6d360b7a52fab3cf8797e1bba56628cc47609366be89f535288c610b7"
+    },
+    {
+      "path": "observations/runner-producer.json",
+      "sha256": "e6430a5e6cf82e35307119106c41c02f86c79413dafe3f58be202cc651fd3b38"
+    },
+    {
+      "path": "observations/build-3.jsonl",
+      "sha256": "cf5eb6a5a008b73cc089250de3166c7b3a7e80c7f436aecbcc76279237547a0e"
+    },
+    {
+      "path": "observations/build-3.log",
+      "sha256": "9649876aa09fba66697e65c1cf27c2575fbb2d3277ddf5bd828fbceccb399238"
+    },
+    {
+      "path": "observations/runner-build.jsonl",
+      "sha256": "0032f4b590940675d55ec312ae4dd2b1062ba324c859882b30ae767fd1ffa117"
+    },
+    {
+      "path": "observations/runner-build.log",
+      "sha256": "c89846af79024478ec176d42ba2380d0376184673d1d5a4fda574c440695e347"
+    },
+    {
+      "path": "observations/frozen-row.json",
+      "sha256": "54ae65a57c9f557532f008bcb8ddbc0e7f52bfa1362d10530fe8d96055b8e1bb"
+    },
+    {
+      "path": "observations/row-baseline-formed.json",
+      "sha256": "e7414b6ccebb3762c1ef556a569205d78303f8a57d38841aff5cb64a3bf52be2"
+    },
+    {
+      "path": "observations/row-repaired-3.json",
+      "sha256": "81dae1d3122c1c39dfed23c4f52fe78b7de6c8abde18bc4b2c4676fb98b3d0a6"
+    },
+    {
+      "path": "observations/controls-baseline-headers.json",
+      "sha256": "56f0c8e4c977d30201d655ceec3bcf3fc2fb104fb06c4012cbcd605bd6984503"
+    },
+    {
+      "path": "observations/controls-final.json",
+      "sha256": "fef3bfd4c8fbf2cee53e46a59d7719ffcf0c687ba1ba26af805e0fd88c238058"
+    },
+    {
+      "path": "observations/counterfactual.json",
+      "sha256": "7793be1aa415d138acac0ce0147e9fc01a2ac330b6b9acfd09d84fbbffff97df"
+    },
+    {
+      "path": "observations/pins-source.json",
+      "sha256": "138d1d4a57fac6bd34409d0912eb5a6d2c01e440de25229479532dede6ae58a4"
+    },
+    {
+      "path": "observations/pins-both.json",
+      "sha256": "ef086312d232c1026e96d8db68f5b38ccf68e0a999d999afc865708bed19c792"
+    },
+    {
+      "path": "observations/corpus-source.json",
+      "sha256": "8723e294c313b5108b81bcad07cf6e1e34323969fc78a2cd13c2b44df38785e8"
+    },
+    {
+      "path": "observations/corpus-both.json",
+      "sha256": "715824a653b3a9b1d0d3a40a000278fb2b6118a3b5fbe4bf66122a8c9363f886"
+    },
+    {
+      "path": "observations/baseline-source-selected.json",
+      "sha256": "e447ed626ff71cd0b38513a036a70b9709a2e339107bbf5f3e879e74135594ff"
+    },
+    {
+      "path": "observations/baseline-source-extra.json",
+      "sha256": "b406fa4737bc51db9a4382e4ebbe71e20690a811c0bb6bb3fbf611a1aec3596c"
+    },
+    {
+      "path": "observations/baseline-both-selected.json",
+      "sha256": "106de7ce9796ab2d37e1322b318110a6c72d8822fbd5c54891e536884d05d611"
+    },
+    {
+      "path": "observations/baseline-attribution.json",
+      "sha256": "c0270a01c34f9f8326f1e5a18d851ab0aab8b59ae27208d5c5995b76079adaa7"
+    },
+    {
+      "path": "observations/runtime-attribution.json",
+      "sha256": "c7b9797ffa6b2deba5522b25a0f60d93e76f34446c52d0b013ec11b9af602ff5"
+    },
+    {
+      "path": "observations/format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "observations/clippy.log",
+      "sha256": "b89129372c3cab264bb02ed4d4de53f97a65665778dac369b69f3bb3bb5ea503"
+    },
+    {
+      "path": "observations/parser-admission.json",
+      "sha256": "2623fcf80bb5ba1d497f17325c2b6d85f6a1e7475798c9782bc2983a0fd24986"
+    },
+    {
+      "path": "observations/parser-admission.log",
+      "sha256": "5b3aff6fa700cd82825d63b35feff53539b5cb47627dfd513fe4abf75f853429"
+    },
+    {
+      "path": "observations/final-context.json",
+      "sha256": "e6e1a3c771e30ef699deb4e13b9211b0bf702a72bd0d58ac1b83db5306825269"
+    },
+    {
+      "path": "observations/publication-context.json",
+      "sha256": "fcd3a6a89b3e92beca11c198c24d89090d9af428c7de1023eb1cdda7db6d5d5c"
+    },
+    {
+      "path": "observations/focused-scope.json",
+      "sha256": "59a3fb2695579ef356e634a950417598a9204ece06f27b6bf59104ef627fa2a1"
+    },
+    {
+      "path": "counterfactual/main.omg",
+      "sha256": "39306ec3f7ea21449a28ce2e60f652cb4ff64667e4bbe587b776d2990bb5f848"
+    },
+    {
+      "path": "counterfactual/build.omg",
+      "sha256": "c5651ad97befa4a152d1780bee99feee0e75040e356d46010a9adc9f357f3fba"
+    },
+    {
+      "path": "observations/baseline-runner-producer.json",
+      "sha256": "5055321ade1e0f8adfceb282c2068a17525697a22f8285d8653a2df2d1aed04b"
+    },
+    {
+      "path": "source/1dd012d66b41935f32ef801feaa2225d13011b38.bundle",
+      "sha256": "1fe2284a3468a4cb5894761a1f32dbf98e2f1a5f5618ebb5a51e472badaa83f2"
+    },
+    {
+      "path": "source/485a671a334e1f2b7c553c155172cfdfa6c4d319.bundle",
+      "sha256": "d92a05d21c134e39f94859717b3f5bc1570d617284436df139e690b11417f9f7"
+    },
+    {
+      "path": "source/14f266609aa5729eee533c52726a754d5918a86d.bundle",
+      "sha256": "efeebb7fc767f73d72e709bd0f5a8972c552acf3cbb19d8df5068ee97266447c"
+    },
+    {
+      "path": "source/b7dd6b93124c5912f1f6b9d48b2c522e8819e7a3.bundle",
+      "sha256": "642985e5a78c209630d79db8047a43a8fe3e148d77ff1b647f94465d7c306f5f"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+package candidate checking failed: checked compilation failed for package `omega_language_std` with 7 diagnostic(s)
+  error: cannot prove ensures contract for exit from windows_query_synchronous_duplicate at statement 2: result != -1
+  error: cannot prove ensures contract for exit from windows_metadata_disk_file at statement 2: result != -1
+  error: cannot prove ensures contract for exit from windows_directory_acquire at statement 2: result != -1
+  error: cannot prove ensures contract for exit from windows_removal_acquire_root at statement 4: result != -1
+  error: cannot prove ensures contract for exit from windows_removal_acquire_child at statement 1: result != -1
+  error: machine call cycle: `next`, `pop`, `close`, `release` -- an internal call occurrence lacks a classified tail edge; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+  error: machine call cycle: `next`, `directory`, `query`, `name`, `extent`, `open`, `attributes`, `kind`, `capacity`, `push`, `leaf`, `pop`, `parent` -- an internal call occurrence lacks a classified tail edge; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle

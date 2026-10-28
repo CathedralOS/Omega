@@ -1,0 +1,808 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "afc7615de5a17bac8de7ec7ab6a123a14d6d40ef",
+  "dirty": false,
+  "leg": "both",
+  "target": "macos_arm64",
+  "golden": "tests/omega/corpus_both_macos_arm64.txt",
+  "golden_reason_gaps": {
+    "rows": 0,
+    "of": 5004
+  },
+  "subset": true,
+  "filter": "pass/borrow/runtime_write_only_qualified_array_element_exit,pass/borrows/runtime_indexed_stored_reference_call,pass/borrows/runtime_stored_reference_case_residual_retirement_exit,pass/collections/runtime_stored_reference_array_replacement_contract_exit,pass/control_flow/runtime_wrapping_division_reused_inputs_exit,pass/facts/as_slice_views_generic_stored_reference_selectors_exit,pass/facts/crash_entry_ieee_view_local_writable_exit,pass/termination/wrapping_subject_guarded_descent,pass/text/runtime_view_local_boundary_write_exit,pass/text/runtime_view_local_first_store_exit,pass/text/runtime_view_local_qualified_argument_exit,pass/text/runtime_view_local_reassign_exit",
+  "shard": null,
+  "verdict": "regressed",
+  "exit_code": 3,
+  "counts": {
+    "fixtures": 12,
+    "by_status": {
+      "rejected": 12
+    },
+    "wrong_reason": 0,
+    "wrong_reason_fixtures": [],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 7,
+    "lost_success_fixtures": [
+      "pass/borrows/runtime_stored_reference_case_residual_retirement_exit",
+      "pass/collections/runtime_stored_reference_array_replacement_contract_exit",
+      "pass/facts/crash_entry_ieee_view_local_writable_exit",
+      "pass/text/runtime_view_local_boundary_write_exit",
+      "pass/text/runtime_view_local_first_store_exit",
+      "pass/text/runtime_view_local_qualified_argument_exit",
+      "pass/text/runtime_view_local_reassign_exit"
+    ],
+    "pinned_off_target": 12,
+    "pinned_off_target_fixtures": [
+      "pass/borrow/runtime_write_only_qualified_array_element_exit",
+      "pass/borrows/runtime_indexed_stored_reference_call",
+      "pass/borrows/runtime_stored_reference_case_residual_retirement_exit",
+      "pass/collections/runtime_stored_reference_array_replacement_contract_exit",
+      "pass/control_flow/runtime_wrapping_division_reused_inputs_exit",
+      "pass/facts/as_slice_views_generic_stored_reference_selectors_exit",
+      "pass/facts/crash_entry_ieee_view_local_writable_exit",
+      "pass/termination/wrapping_subject_guarded_descent",
+      "pass/text/runtime_view_local_boundary_write_exit",
+      "pass/text/runtime_view_local_first_store_exit",
+      "pass/text/runtime_view_local_qualified_argument_exit",
+      "pass/text/runtime_view_local_reassign_exit"
+    ],
+    "by_verdict": {
+      "new": 5,
+      "regressed": 7
+    }
+  },
+  "oracle_failures": [
+    "pass/borrow/runtime_write_only_qualified_array_element_exit: expected native 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/borrows/runtime_indexed_stored_reference_call: expected native 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/borrows/runtime_stored_reference_case_residual_retirement_exit: expected native 70, observed rejected {'interpreter': 'unchecked'}",
+    "pass/collections/runtime_stored_reference_array_replacement_contract_exit: expected native 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/control_flow/runtime_wrapping_division_reused_inputs_exit: expected native 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/facts/as_slice_views_generic_stored_reference_selectors_exit: expected native 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/facts/crash_entry_ieee_view_local_writable_exit: expected native 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/text/runtime_view_local_boundary_write_exit: expected native 70, observed rejected {'interpreter': 'unchecked'}",
+    "pass/text/runtime_view_local_first_store_exit: expected native 70, observed rejected {'interpreter': 'unchecked'}",
+    "pass/text/runtime_view_local_qualified_argument_exit: expected native 70, observed rejected {'interpreter': 'unchecked'}",
+    "pass/text/runtime_view_local_reassign_exit: expected native 70, observed rejected {'interpreter': 'unchecked'}",
+    "pass/control_flow/runtime_wrapping_division_reused_inputs_exit: expected native stdout match from completed execution, observed rejected {'interpreter': 'unchecked'}",
+    "pass/control_flow/runtime_wrapping_division_reused_inputs_exit: expected native stderr match from completed execution, observed rejected {'interpreter': 'unchecked'}",
+    "pass/text/runtime_view_local_boundary_write_exit: expected native stdout match from completed execution, observed rejected {'interpreter': 'unchecked'}",
+    "pass/borrow/runtime_write_only_qualified_array_element_exit: expected interpreted 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/borrows/runtime_indexed_stored_reference_call: expected interpreted 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/borrows/runtime_stored_reference_case_residual_retirement_exit: expected interpreted 70, observed rejected {'interpreter': 'unchecked'}",
+    "pass/collections/runtime_stored_reference_array_replacement_contract_exit: expected interpreted 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/control_flow/runtime_wrapping_division_reused_inputs_exit: expected interpreted 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/facts/as_slice_views_generic_stored_reference_selectors_exit: expected interpreted 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/facts/crash_entry_ieee_view_local_writable_exit: expected interpreted 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/text/runtime_view_local_boundary_write_exit: expected interpreted 70, observed rejected {'interpreter': 'unchecked'}",
+    "pass/text/runtime_view_local_first_store_exit: expected interpreted 70, observed rejected {'interpreter': 'unchecked'}",
+    "pass/text/runtime_view_local_qualified_argument_exit: expected interpreted 70, observed rejected {'interpreter': 'unchecked'}",
+    "pass/text/runtime_view_local_reassign_exit: expected interpreted 70, observed rejected {'interpreter': 'unchecked'}",
+    "pass/control_flow/runtime_wrapping_division_reused_inputs_exit: expected interpreter stdout match from completed execution, observed rejected {'interpreter': 'unchecked'}",
+    "pass/control_flow/runtime_wrapping_division_reused_inputs_exit: expected interpreter stderr match from completed execution, observed rejected {'interpreter': 'unchecked'}",
+    "pass/text/runtime_view_local_boundary_write_exit: expected interpreter stdout match from completed execution, observed rejected {'interpreter': 'unchecked'}"
+  ],
+  "infrastructure_error": null,
+  "golden_provenance": {
+    "stamped": 7,
+    "legacy": 0,
+    "unknown_revisions": 2,
+    "oldest": {
+      "revision": "4e0178247b78",
+      "commits_behind": 970
+    }
+  },
+  "perf_context": {
+    "golden": {
+      "cpus": 10,
+      "jobs": "2",
+      "load1_end": 8.75,
+      "load1_start": 7.27,
+      "machine": "arm64",
+      "platform": "darwin",
+      "schema": "omega-corpus-context-v1"
+    },
+    "current": {
+      "schema": "omega-corpus-context-v1",
+      "jobs": "2",
+      "cpus": 10,
+      "platform": "darwin",
+      "machine": "arm64",
+      "load1_start": 9.7,
+      "load1_end": 12.31
+    },
+    "warnings": []
+  },
+  "observations": [
+    {
+      "fixture": "pass/borrow/runtime_write_only_qualified_array_element_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 3506,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "cannot prove default-domain field requirement for return from indexed at statement 1: entries[0] requires [u8; N]::Utf8",
+        "cannot prove default-domain field requirement for return from indexed at statement 1: entries[1] requires [u8; N]::Utf8",
+        "cannot prove default-domain field requirement for return from captured at statement 2: entries[1] requires [u8; N]::Utf8",
+        "cannot prove default-domain field requirement for return from field at statement 1: container.entries[1] requires [u8; N]::Utf8",
+        "cannot prove default-domain field requirement for return from finish at statement 1: entries[1] requires [u8; N]::Utf8"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/borrows/runtime_indexed_stored_reference_call",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 8237,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "target legalization failed: SourceCustodyMismatch { machine: Some(MachineId(2)), operation: Some(OperationId(4)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/borrows/runtime_stored_reference_case_residual_retirement_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 17736,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "state `selected` receives `main` while local borrow `pair` is still active (borrowed at statement 2; its last use is at statement 10)"
+      ],
+      "regressed_from": {
+        "status": "built",
+        "facts": {
+          "exit": "70",
+          "interpreter-exit": "70",
+          "interpreter": "agrees"
+        }
+      },
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/collections/runtime_stored_reference_array_replacement_contract_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 4918,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \"main\", reason: \"value storage local is not established\", gap: None })"
+      ],
+      "regressed_from": {
+        "status": "built",
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        }
+      },
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/control_flow/runtime_wrapping_division_reused_inputs_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 10488,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "partial wrapping division in machine `scale_positive` state `entry` local `__transition_subject#46`: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts",
+        "partial wrapping division in machine `digit_positive` state `entry` cast expression: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts",
+        "partial wrapping division in machine `digit_positive` state `entry` call argument: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/as_slice_views_generic_stored_reference_selectors_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 4465,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "no provider is selected for boundary requirement `Slice::range$specialized$fceed9c2c35315e8$0`, which the program entry reaches on target `macos_arm64`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/crash_entry_ieee_view_local_writable_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 2590,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "call from `read_bits` to `maybe_zero` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation"
+      ],
+      "regressed_from": {
+        "status": "built",
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        }
+      },
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/termination/wrapping_subject_guarded_descent",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 181,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [
+        "terminal call `count_down` does not select a declared machine entry or callable requirement",
+        "terminal call `signed_down` does not select a declared machine entry or callable requirement",
+        "terminal call `saturating_down` does not select a declared machine entry or callable requirement",
+        "terminal call `climb` does not select a declared machine entry or callable requirement"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/text/runtime_view_local_boundary_write_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 14501,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \"Main::main\", reason: \"membership source lacks its completed physical/source correspondence\", gap: None })"
+      ],
+      "regressed_from": {
+        "status": "built",
+        "facts": {
+          "exit": "70",
+          "stdout": "match",
+          "interpreter-exit": "70",
+          "interpreter-stdout": "match",
+          "interpreter": "agrees"
+        }
+      },
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/text/runtime_view_local_first_store_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 14169,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \"Main::main\", reason: \"membership source lacks its completed physical/source correspondence\", gap: None })"
+      ],
+      "regressed_from": {
+        "status": "built",
+        "facts": {
+          "exit": "70",
+          "interpreter-exit": "70",
+          "interpreter": "agrees"
+        }
+      },
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/text/runtime_view_local_qualified_argument_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 14466,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \"Main::main\", reason: \"membership source lacks its completed physical/source correspondence\", gap: None })"
+      ],
+      "regressed_from": {
+        "status": "built",
+        "facts": {
+          "exit": "70",
+          "interpreter-exit": "70",
+          "interpreter": "agrees"
+        }
+      },
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/text/runtime_view_local_reassign_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 14267,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \"Main::main\", reason: \"membership source lacks its completed physical/source correspondence\", gap: None })"
+      ],
+      "regressed_from": {
+        "status": "built",
+        "facts": {
+          "exit": "70",
+          "interpreter-exit": "70",
+          "interpreter": "agrees"
+        }
+      },
+      "recorded_at": null
+    }
+  ],
+  "fixtures": [
+    {
+      "fixture": "pass/borrow/runtime_write_only_qualified_array_element_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/borrow/runtime_write_only_qualified_array_element_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 3506,
+        "expected_satisfied": null,
+        "facts": {
+          "interpreter": "unchecked"
+        },
+        "diagnostics": [
+          "cannot prove default-domain field requirement for return from indexed at statement 1: entries[0] requires [u8; N]::Utf8",
+          "cannot prove default-domain field requirement for return from indexed at statement 1: entries[1] requires [u8; N]::Utf8",
+          "cannot prove default-domain field requirement for return from captured at statement 2: entries[1] requires [u8; N]::Utf8",
+          "cannot prove default-domain field requirement for return from field at statement 1: container.entries[1] requires [u8; N]::Utf8",
+          "cannot prove default-domain field requirement for return from finish at statement 1: entries[1] requires [u8; N]::Utf8"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/borrows/runtime_indexed_stored_reference_call",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/borrows/runtime_indexed_stored_reference_call",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 8237,
+        "expected_satisfied": null,
+        "facts": {
+          "interpreter": "unchecked"
+        },
+        "diagnostics": [
+          "target legalization failed: SourceCustodyMismatch { machine: Some(MachineId(2)), operation: Some(OperationId(4)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/borrows/runtime_stored_reference_case_residual_retirement_exit",
+      "verdict": "regressed",
+      "reasons": [
+        "status built -> rejected",
+        "exit 70 -> None",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/borrows/runtime_stored_reference_case_residual_retirement_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 2293,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "70",
+          "interpreter-exit": "70",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "9660dd146223"
+      },
+      "after": {
+        "fixture": "pass/borrows/runtime_stored_reference_case_residual_retirement_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 17736,
+        "expected_satisfied": null,
+        "facts": {
+          "interpreter": "unchecked"
+        },
+        "diagnostics": [
+          "state `selected` receives `main` while local borrow `pair` is still active (borrowed at statement 2; its last use is at statement 10)"
+        ],
+        "regressed_from": {
+          "status": "built",
+          "facts": {
+            "exit": "70",
+            "interpreter-exit": "70",
+            "interpreter": "agrees"
+          }
+        },
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/collections/runtime_stored_reference_array_replacement_contract_exit",
+      "verdict": "regressed",
+      "reasons": [
+        "status built -> rejected",
+        "exit 0 -> None",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/collections/runtime_stored_reference_array_replacement_contract_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 2200,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "4ce70cb5f8a0"
+      },
+      "after": {
+        "fixture": "pass/collections/runtime_stored_reference_array_replacement_contract_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 4918,
+        "expected_satisfied": null,
+        "facts": {
+          "interpreter": "unchecked"
+        },
+        "diagnostics": [
+          "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \"main\", reason: \"value storage local is not established\", gap: None })"
+        ],
+        "regressed_from": {
+          "status": "built",
+          "facts": {
+            "exit": "0",
+            "interpreter-exit": "0",
+            "interpreter": "agrees"
+          }
+        },
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/control_flow/runtime_wrapping_division_reused_inputs_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/control_flow/runtime_wrapping_division_reused_inputs_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 10488,
+        "expected_satisfied": null,
+        "facts": {
+          "interpreter": "unchecked"
+        },
+        "diagnostics": [
+          "partial wrapping division in machine `scale_positive` state `entry` local `__transition_subject#46`: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts",
+          "partial wrapping division in machine `digit_positive` state `entry` cast expression: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts",
+          "partial wrapping division in machine `digit_positive` state `entry` call argument: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/as_slice_views_generic_stored_reference_selectors_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/as_slice_views_generic_stored_reference_selectors_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 4465,
+        "expected_satisfied": null,
+        "facts": {
+          "interpreter": "unchecked"
+        },
+        "diagnostics": [
+          "no provider is selected for boundary requirement `Slice::range$specialized$fceed9c2c35315e8$0`, which the program entry reaches on target `macos_arm64`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/crash_entry_ieee_view_local_writable_exit",
+      "verdict": "regressed",
+      "reasons": [
+        "status built -> rejected",
+        "exit 0 -> None",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/facts/crash_entry_ieee_view_local_writable_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 2348,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "4e0178247b78+wt"
+      },
+      "after": {
+        "fixture": "pass/facts/crash_entry_ieee_view_local_writable_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 2590,
+        "expected_satisfied": null,
+        "facts": {
+          "interpreter": "unchecked"
+        },
+        "diagnostics": [
+          "call from `read_bits` to `maybe_zero` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation"
+        ],
+        "regressed_from": {
+          "status": "built",
+          "facts": {
+            "exit": "0",
+            "interpreter-exit": "0",
+            "interpreter": "agrees"
+          }
+        },
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/termination/wrapping_subject_guarded_descent",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/termination/wrapping_subject_guarded_descent",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 181,
+        "expected_satisfied": null,
+        "facts": {},
+        "diagnostics": [
+          "terminal call `count_down` does not select a declared machine entry or callable requirement",
+          "terminal call `signed_down` does not select a declared machine entry or callable requirement",
+          "terminal call `saturating_down` does not select a declared machine entry or callable requirement",
+          "terminal call `climb` does not select a declared machine entry or callable requirement"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/text/runtime_view_local_boundary_write_exit",
+      "verdict": "regressed",
+      "reasons": [
+        "status built -> rejected",
+        "stdout match -> absent",
+        "exit 70 -> None",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/text/runtime_view_local_boundary_write_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 2772,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "70",
+          "stdout": "match",
+          "interpreter-exit": "70",
+          "interpreter-stdout": "match",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "f76d8aa42d2a"
+      },
+      "after": {
+        "fixture": "pass/text/runtime_view_local_boundary_write_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 14501,
+        "expected_satisfied": null,
+        "facts": {
+          "interpreter": "unchecked"
+        },
+        "diagnostics": [
+          "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \"Main::main\", reason: \"membership source lacks its completed physical/source correspondence\", gap: None })"
+        ],
+        "regressed_from": {
+          "status": "built",
+          "facts": {
+            "exit": "70",
+            "stdout": "match",
+            "interpreter-exit": "70",
+            "interpreter-stdout": "match",
+            "interpreter": "agrees"
+          }
+        },
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/text/runtime_view_local_first_store_exit",
+      "verdict": "regressed",
+      "reasons": [
+        "status built -> rejected",
+        "exit 70 -> None",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/text/runtime_view_local_first_store_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 2668,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "70",
+          "interpreter-exit": "70",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "f76d8aa42d2a"
+      },
+      "after": {
+        "fixture": "pass/text/runtime_view_local_first_store_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 14169,
+        "expected_satisfied": null,
+        "facts": {
+          "interpreter": "unchecked"
+        },
+        "diagnostics": [
+          "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \"Main::main\", reason: \"membership source lacks its completed physical/source correspondence\", gap: None })"
+        ],
+        "regressed_from": {
+          "status": "built",
+          "facts": {
+            "exit": "70",
+            "interpreter-exit": "70",
+            "interpreter": "agrees"
+          }
+        },
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/text/runtime_view_local_qualified_argument_exit",
+      "verdict": "regressed",
+      "reasons": [
+        "status built -> rejected",
+        "exit 70 -> None",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/text/runtime_view_local_qualified_argument_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 2040,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "70",
+          "interpreter-exit": "70",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "f76d8aa42d2a"
+      },
+      "after": {
+        "fixture": "pass/text/runtime_view_local_qualified_argument_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 14466,
+        "expected_satisfied": null,
+        "facts": {
+          "interpreter": "unchecked"
+        },
+        "diagnostics": [
+          "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \"Main::main\", reason: \"membership source lacks its completed physical/source correspondence\", gap: None })"
+        ],
+        "regressed_from": {
+          "status": "built",
+          "facts": {
+            "exit": "70",
+            "interpreter-exit": "70",
+            "interpreter": "agrees"
+          }
+        },
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/text/runtime_view_local_reassign_exit",
+      "verdict": "regressed",
+      "reasons": [
+        "status built -> rejected",
+        "exit 70 -> None",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/text/runtime_view_local_reassign_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 2139,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "70",
+          "interpreter-exit": "70",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "f76d8aa42d2a"
+      },
+      "after": {
+        "fixture": "pass/text/runtime_view_local_reassign_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 14267,
+        "expected_satisfied": null,
+        "facts": {
+          "interpreter": "unchecked"
+        },
+        "diagnostics": [
+          "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \"Main::main\", reason: \"membership source lacks its completed physical/source correspondence\", gap: None })"
+        ],
+        "regressed_from": {
+          "status": "built",
+          "facts": {
+            "exit": "70",
+            "interpreter-exit": "70",
+            "interpreter": "agrees"
+          }
+        },
+        "recorded_at": null
+      }
+    }
+  ]
+}
