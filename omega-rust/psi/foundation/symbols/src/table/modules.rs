@@ -13,6 +13,7 @@ use std::sync::Arc;
 use arena::HandleSpan;
 use source::{SourceId, SourceSpan};
 
+use super::indices::{BindingSourceIndex, PreparedModuleImport, SourceLookupScope};
 use super::{SourceScopedTopLevelBinding, SymbolLookup, SymbolTable};
 use crate::{Symbol, SymbolHandle, SymbolKind, SymbolName, SymbolNameRef};
 
@@ -21,19 +22,6 @@ pub(super) struct ModuleImport {
     pub(super) path: Arc<str>,
     package_prefix_members: usize,
     exact_source: bool,
-}
-
-/// One module-import binding with the strings the candidate loop needs
-/// precomputed once per lookup instead of per (candidate, binding) pair.
-struct ImportBindingScope<'a> {
-    binding: &'a SourceScopedTopLevelBinding,
-    /// `logical_import_path` of the binding's import.
-    logical: String,
-    /// `import.path` members up to `package_prefix_members`, joined.
-    package_prefix: String,
-    /// `name(module)` when the binding's declaration source declares a
-    /// module whose display path is exactly `logical`.
-    module_leaf: Option<String>,
 }
 
 impl SourceScopedTopLevelBinding {
@@ -102,7 +90,9 @@ impl SymbolTable {
             return Err("a source file may declare only one module");
         }
         self.root_names.clear();
+        self.binding_source_index.clear();
         self.module_path_index.clear();
+        self.module_scope_index.clear();
         let mut parent = self.root;
         for (name, span) in members {
             let existing = self
@@ -130,6 +120,7 @@ impl SymbolTable {
                     parent,
                     Symbol {
                         parent,
+                        declaration_owner: SymbolHandle::invalid(),
                         children: HandleSpan::empty(),
                         kind: SymbolKind::Module,
                         name: symbol_name,
@@ -534,28 +525,71 @@ impl SymbolTable {
             .collect()
     }
 
+    /// Materialize the selected import environment once for this table frontier.
+    /// It owns no authority: all candidate-specific admission remains below.
+    pub(super) fn source_binding_index(&self) -> &BindingSourceIndex {
+        self.binding_source_index.0.get_or_init(|| {
+            let mut index = BindingSourceIndex {
+                has_selected_module: self
+                    .module_symbols
+                    .iter()
+                    .any(|(_, symbol)| self.symbol_source_is_selected(*symbol)),
+                ..Default::default()
+            };
+            for binding in &self.source_scoped_top_level_bindings {
+                if !self.source_binding_is_selected(binding) {
+                    continue;
+                }
+                let scope = index.by_source.entry(binding.reference_source).or_default();
+                if let Some(import) = &binding.module_import {
+                    let logical = logical_import_path(import);
+                    let package_prefix = import
+                        .path
+                        .split("::")
+                        .take(import.package_prefix_members)
+                        .collect::<Vec<_>>()
+                        .join("::");
+                    let module = self.source_module(binding.declaration_source);
+                    let module_leaf = (module.is_valid()
+                        && self.indexed_display_path(module) == logical.as_str())
+                    .then(|| self.name(module).to_string());
+                    scope.has_exact_import |= import.exact_source;
+                    scope.imports.push(PreparedModuleImport {
+                        binding_position: scope.bindings.len(),
+                        logical,
+                        package_prefix,
+                        module_leaf,
+                    });
+                }
+                scope.bindings.push(binding.clone());
+            }
+            index
+        })
+    }
+
+    fn source_lookup_scope(&self, reference_source: SourceId) -> &SourceLookupScope {
+        static EMPTY: SourceLookupScope = SourceLookupScope {
+            bindings: Vec::new(),
+            imports: Vec::new(),
+            has_exact_import: false,
+        };
+        self.source_binding_index()
+            .by_source
+            .get(&reference_source)
+            .unwrap_or(&EMPTY)
+    }
+
     pub(super) fn has_namespace_context(&self, reference: SourceSpan) -> bool {
-        // Base user units retain file-local import authority even when no
-        // module was declared; a dependency's generated unit is assembled
-        // with the base and keeps that route. The current activation's build
-        // extension is a separately assembled namespace; its complete
-        // retained stratum keeps the existing route.
+        // File metadata and activation membership are separate observations.
+        // The global selected-module term must not become a per-file term.
         self.source_file(reference).is_some_and(|file| {
             file.origin == source::SourceOrigin::User
                 && file.resolution_stratum
                     != source::SourceResolutionStratum::CurrentActivationExtension
-        }) || self
-            .module_symbols
-            .iter()
-            .any(|(_, symbol)| self.symbol_source_is_selected(*symbol))
-            || self.source_scoped_top_level_bindings.iter().any(|binding| {
-                self.source_binding_is_selected(binding)
-                    && binding.reference_source == reference.source_id
-                    && binding
-                        .module_import
-                        .as_ref()
-                        .is_some_and(|import| import.exact_source)
-            })
+        }) || self.source_binding_index().has_selected_module
+            || self
+                .source_lookup_scope(reference.source_id)
+                .has_exact_import
     }
 
     pub(super) fn select_namespace_candidate(
@@ -596,27 +630,14 @@ impl SymbolTable {
         if !local.is_empty() {
             return SymbolLookup::from_candidates(local.into_iter());
         }
-        let import_scopes: Vec<(&SourceScopedTopLevelBinding, String)> = self
-            .source_scoped_bindings_for(reference.source_id)
-            .iter()
-            .filter(|binding| binding.module_import.is_some())
-            .map(|binding| {
-                (
-                    binding,
-                    logical_import_path(
-                        binding
-                            .module_import
-                            .as_ref()
-                            .expect("import bindings carry module imports"),
-                    ),
-                )
-            })
-            .collect();
+        let source_scope = self.source_lookup_scope(reference.source_id);
         let imported = candidates
             .iter()
             .copied()
             .filter(|candidate| {
-                import_scopes.iter().any(|(binding, logical)| {
+                source_scope.imports.iter().any(|scope| {
+                    let binding = &source_scope.bindings[scope.binding_position];
+                    let logical = &scope.logical;
                     let import = binding
                         .module_import
                         .as_ref()
@@ -741,34 +762,8 @@ impl SymbolTable {
         // for every candidate. Each binding also carries its precomputed
         // logical import path and the string fragments the candidate loop
         // would otherwise re-derive per (candidate, binding) pair.
-        let import_bindings: Vec<ImportBindingScope<'_>> = self
-            .source_scoped_bindings_for(reference.source_id)
-            .iter()
-            .filter(|binding| binding.module_import.is_some())
-            .map(|binding| {
-                let import = binding
-                    .module_import
-                    .as_ref()
-                    .expect("import bindings carry module imports");
-                let logical = logical_import_path(import);
-                let package_prefix = import
-                    .path
-                    .split("::")
-                    .take(import.package_prefix_members)
-                    .collect::<Vec<_>>()
-                    .join("::");
-                let module = self.source_module(binding.declaration_source);
-                let module_leaf = (module.is_valid()
-                    && self.indexed_display_path(module) == logical.as_str())
-                .then(|| self.name(module).to_string());
-                ImportBindingScope {
-                    binding,
-                    logical,
-                    package_prefix,
-                    module_leaf,
-                }
-            })
-            .collect();
+        let source_scope = self.source_lookup_scope(reference.source_id);
+        let import_bindings = &source_scope.imports;
         let needs_candidate_path = qualified || !import_bindings.is_empty();
         let mut matches = Vec::new();
         let mut module_local_matches = Vec::new();
@@ -796,9 +791,8 @@ impl SymbolTable {
             {
                 candidate_pool.extend_from_slice(entries);
             }
-            for scope in &import_bindings {
-                let import = scope
-                    .binding
+            for scope in import_bindings {
+                let import = source_scope.bindings[scope.binding_position]
                     .module_import
                     .as_ref()
                     .expect("import bindings carry module imports");
@@ -876,7 +870,7 @@ impl SymbolTable {
                 && self.name(candidate) == name
                 && self.symbol_source_origin(candidate) != Some(source::SourceOrigin::User);
             let imported_path = import_bindings.iter().any(|scope| {
-                let binding = scope.binding;
+                let binding = &source_scope.bindings[scope.binding_position];
                 let import = binding
                     .module_import
                     .as_ref()

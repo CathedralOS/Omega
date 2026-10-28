@@ -105,14 +105,21 @@ pub(crate) fn normalize_closed_conformance_blocks(
         })
         .collect::<Vec<_>>();
     let mut ordinals = Vec::with_capacity(program.machines.len());
+    let mut discarded = Vec::new();
     let mut retained_count = 0;
     program.machines.retain(|machine| {
         let retain = !synthesized_default_candidates.contains(&machine.symbol)
             || selected_realizations.contains(&machine.symbol);
         ordinals.push(retain.then_some(retained_count));
         retained_count += usize::from(retain);
+        if !retain {
+            discarded.push(machine.symbol);
+        }
         retain
     });
+    for declaration in discarded {
+        program.symbols.clear_declaration_owner(declaration);
+    }
     for machine in program.machines.iter() {
         if machine.lexical_parent.is_valid() && !program.machines.contains(machine.lexical_parent) {
             return Err(Diagnostic::error(

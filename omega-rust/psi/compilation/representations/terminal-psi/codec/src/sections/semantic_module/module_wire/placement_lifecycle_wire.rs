@@ -14,10 +14,7 @@ pub fn encode_placement_lifecycle_catalog(
     plans: &[TerminalPlacementLifecyclePlan],
 ) -> Result<Vec<u8>, CodecError> {
     let mut writer = Writer::default();
-    writer.len("placement lifecycle plans", plans.len())?;
-    for plan in plans {
-        encode(&mut writer, plan)?;
-    }
+    writer.counted("placement lifecycle plans", plans, encode)?;
     Ok(writer.finish())
 }
 
@@ -62,10 +59,7 @@ pub(super) fn encode(
         }
     }
     writer.id(plan.schema);
-    writer.len("placement image fields", plan.image_fields.len())?;
-    for field in &plan.image_fields {
-        writer.id(*field);
-    }
+    writer.ids("placement image fields", &plan.image_fields)?;
     writer.id(plan.storage.carrier);
     writer.id(plan.storage.base);
     writer.id(plan.storage.length);

@@ -4,7 +4,6 @@
 
 pub(crate) mod diagnostic;
 pub(crate) mod root_role;
-pub(crate) mod service_establishment;
 
 const PROGRAM_STORAGE_ENTRY_OWNER: &str = "ProgramStorageEntry";
 const PROGRAM_STORAGE_ENTRY_METHOD: &str = "enter";

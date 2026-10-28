@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Real retained C pointers in default Terminal and native execution on this host."""
+"""Retained C backing and its typed carrier prerequisites in both host engines."""
 
 import hashlib
 import json
@@ -32,6 +32,8 @@ FACTS = (
      "foreign_nested_record_backing", ("generic_borrowed_root",), ("missing_leaf_predicate",)),
     ("foreign_nested_record_backing/arrays", "foreign_nested_array_backing",
      "foreign_nested_record_backing", ("computed_completions",), ("invalid_const",)),
+    ("linear_owner_borrowed_projection", "linear_owner_borrowed_projection",
+     None, (), ("unissued",)),
 )
 
 
@@ -119,18 +121,19 @@ def qualify_cohort(output, built, fact_name, fixture_prefix, provider_name, cont
     fact = ROOT / "samples/cli/facts" / fact_name
     cohort = output / fact_name
     cohort.mkdir(parents=True, exist_ok=True)
-    provider = cohort / "provider"
-    provider_source = ROOT / "samples/cli/facts" / provider_name / "fixture/prepare.py"
-    prepared = subprocess.run([sys.executable, str(provider_source),
-                               "--output", str(provider)], cwd=ROOT,
-                              capture_output=True, text=True, timeout=180)
-    (cohort / "provider.stdout.json").write_text(prepared.stdout, encoding="utf-8")
-    (cohort / "provider.stderr.txt").write_text(prepared.stderr, encoding="utf-8")
-    if prepared.returncode:
-        raise ValueError(f"{fact_name}: matching-host C fixture failed: {prepared.stderr}")
-    key = ("PATH" if os.name == "nt" else "DYLD_LIBRARY_PATH"
-           if sys.platform == "darwin" else "LD_LIBRARY_PATH")
-    os.environ[key] = str(provider) + (os.pathsep + os.environ[key] if os.environ.get(key) else "")
+    if provider_name is not None:
+        provider = cohort / "provider"
+        provider_source = ROOT / "samples/cli/facts" / provider_name / "fixture/prepare.py"
+        prepared = subprocess.run([sys.executable, str(provider_source),
+                                   "--output", str(provider)], cwd=ROOT,
+                                  capture_output=True, text=True, timeout=180)
+        (cohort / "provider.stdout.json").write_text(prepared.stdout, encoding="utf-8")
+        (cohort / "provider.stderr.txt").write_text(prepared.stderr, encoding="utf-8")
+        if prepared.returncode:
+            raise ValueError(f"{fact_name}: matching-host C fixture failed: {prepared.stderr}")
+        key = ("PATH" if os.name == "nt" else "DYLD_LIBRARY_PATH"
+               if sys.platform == "darwin" else "LD_LIBRARY_PATH")
+        os.environ[key] = str(provider) + (os.pathsep + os.environ[key] if os.environ.get(key) else "")
     positives = tuple(f"pass/facts/{fixture_prefix}_{place}" for place in PLACES + controls)
     negatives = tuple(f"fail/facts/{fixture_prefix}_{place}" for place in PLACES + reject_controls)
     status = compiler_pilot.run_suite("compiler-retained-foreign/" + fact_name,

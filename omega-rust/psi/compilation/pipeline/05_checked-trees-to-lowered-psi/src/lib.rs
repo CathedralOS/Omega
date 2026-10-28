@@ -68,6 +68,8 @@ mod retention;
 
 // Beside the route: shared producer vocabulary and diagnostic source attribution.
 mod activation_storage;
+mod task_activation;
+pub use task_activation::lower_task_activation_demands;
 mod call_operands;
 mod call_sites;
 mod content_classes;

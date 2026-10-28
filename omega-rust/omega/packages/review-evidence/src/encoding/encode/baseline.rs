@@ -43,9 +43,7 @@ pub(in crate::encoding) fn policy(
     value: &PackagePolicyBaseline,
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.package_identity_field("package", value.package)?;
-    encoder.field("target", |encoder| {
-        encoder.string(value.target.identity().as_str())
-    })?;
+    encoder.string_field("target", value.target.identity().as_str())?;
     encoder.field_by("public_api", &value.public_api, public_api::public_api)?;
     encoder.field_by("callables", &value.callables, callable_policy::policy)?;
     encoder.field_by(

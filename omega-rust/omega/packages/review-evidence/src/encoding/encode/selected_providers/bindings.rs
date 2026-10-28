@@ -55,9 +55,7 @@ pub(super) fn binding(
             machine_package_identity,
         } => {
             encoder.tag("checked_adapter", 6);
-            encoder.field("machine_identity", |encoder| {
-                encoder.string(machine_identity)
-            })?;
+            encoder.string_field("machine_identity", machine_identity)?;
             encoder.optional_package_identity_field(
                 "machine_package_identity",
                 *machine_package_identity,

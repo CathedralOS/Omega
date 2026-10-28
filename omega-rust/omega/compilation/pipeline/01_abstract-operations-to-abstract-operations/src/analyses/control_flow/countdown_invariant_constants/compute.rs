@@ -1,12 +1,13 @@
 //! Optimizer module role: proposal leaf. Direct certificate-owned constant construction.
 
 use super::{
-    BlockId, CountdownInvariantConstantAnalysisError, CountdownInvariantConstantAnalysisSnapshot,
-    CountdownInvariantConstantRole, CountdownInvariantIntegerConstant, IntegerType, IntegerValue,
-    MachineId, NodeLocation, O, OperationId, OptimizerUnsignedCountdownRankingCertificate,
-    PsiOptimizationFunction, PsiOptimizationUnit, ScalarType, UnsignedCountdownInvariantConstants,
+    AnalysisRoot, BlockId, CountdownInvariantConstantAnalysisError,
+    CountdownInvariantConstantAnalysisSnapshot, CountdownInvariantConstantRole,
+    CountdownInvariantIntegerConstant, IntegerType, IntegerValue, MachineId, NodeLocation, O,
+    OperationId, OptimizerUnsignedCountdownRankingCertificate, PsiOptimizationFunction,
+    PsiOptimizationUnit, ScalarType, UnsignedCountdownInvariantConstants,
     ValidatedCountedLoopAnalysis, ValidatedOptimizerCycleComponents, ValueDefinitionSite, ValueId,
-    recompute_psi_optimization_unit_identity, unsupported, validate_locations,
+    unsupported, validate_analysis_root, validate_locations,
 };
 pub(super) fn propose(
     unit: &PsiOptimizationUnit,
@@ -54,8 +55,7 @@ pub(super) fn propose(
         });
     }
     Ok(CountdownInvariantConstantAnalysisSnapshot {
-        revision: unit.identity,
-        terminal_psi: unit.psi,
+        root: AnalysisRoot::of(unit),
         loops,
     })
 }
@@ -182,22 +182,8 @@ fn validate_roots(
     custody: &ValidatedOptimizerCycleComponents,
     counted: &ValidatedCountedLoopAnalysis,
 ) -> Result<(), CountdownInvariantConstantAnalysisError> {
-    let recomputed = recompute_psi_optimization_unit_identity(unit);
-    if recomputed != unit.identity {
-        return Err(CountdownInvariantConstantAnalysisError::StaleUnitIdentity {
-            stored: unit.identity,
-            recomputed,
-        });
-    }
-    if unit.psi != custody.terminal_psi()
-        || unit.psi != custody.ranking_certificates().snapshot().terminal_psi
-        || unit.psi != counted.snapshot().terminal_psi
-    {
-        return Err(CountdownInvariantConstantAnalysisError::TerminalIdentityMismatch);
-    }
-    if counted.snapshot().revision != unit.identity {
-        return Err(CountdownInvariantConstantAnalysisError::CountedLoopRevisionMismatch);
-    }
+    validate_analysis_root(unit, custody, &[counted.snapshot().root])
+        .map_err(CountdownInvariantConstantAnalysisError::Root)?;
     // The counted roster covers exactly the certified subset of the validated
     // SCC roster; uncertified components carry no countdown custody.
     if custody.ranking_certificates().certificates().len() != counted.loops().len() {

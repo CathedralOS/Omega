@@ -964,28 +964,12 @@ impl NativeProviderExecution {
             boundary_contract_report_fingerprint: evidence.boundary_contract_report_fingerprint(),
         }
     }
-
-    pub const fn provider_plan_report_identity(&self) -> u64 {
-        self.provider_plan_report_identity
-    }
-
-    pub const fn provider_execution_report_identity(&self) -> u64 {
-        self.provider_execution_report_identity
-    }
-
-    pub const fn provider_execution_report_fingerprint(&self) -> u64 {
-        self.provider_execution_report_fingerprint
-    }
-
-    pub const fn normalized_root_report_identity(&self) -> u64 {
-        self.normalized_root_report_identity
-    }
-
-    pub const fn boundary_contract_report_fingerprint(&self) -> u64 {
-        self.boundary_contract_report_fingerprint
-    }
 }
 
+/// The one access surface of a replayed provider execution. Every in-crate
+/// reader already reaches these coordinates through this trait; spelling them
+/// again as inherent methods shadowed it, so a change to one copy would not
+/// reach the other.
 impl ProviderExecutionEvidence for NativeProviderExecution {
     fn requirement_identity(&self) -> &str {
         &self.requirement_identity

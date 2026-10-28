@@ -11,10 +11,7 @@ pub fn encode_placed_view_input_catalog(
     inputs: &[TerminalPlacedViewInput],
 ) -> Result<Vec<u8>, CodecError> {
     let mut writer = Writer::default();
-    writer.len("placed view inputs", inputs.len())?;
-    for input in inputs {
-        encode_placed_view_input(&mut writer, input)?;
-    }
+    writer.counted("placed view inputs", inputs, encode_placed_view_input)?;
     Ok(writer.finish())
 }
 

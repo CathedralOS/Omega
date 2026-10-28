@@ -4,10 +4,11 @@ use super::{
     Candidate, ElfAddressFreeSectionDescriptor, ElfDynamicSectionDescriptorContents,
     ElfDynamicSectionKind, SECTION_NAME_TABLE_NAME_OFFSET, SECTION_NAME_TABLE_SEED, SHF_ALLOC,
     SHT_DYNSYM, SHT_GNU_HASH, SHT_GNU_VERNEED, SHT_GNU_VERSYM, SHT_HASH, SHT_PROGBITS, SHT_STRTAB,
-    ValidatedElfDynamicSectionPayloads, derive_contents, name_at,
+    ValidatedElfDynamicSectionPayloads, derive_contents,
     non_authoritative_descriptor_compatibility_fingerprint, plan_elf_dynamic_section_descriptors,
     read_u32, validate_candidate, validate_contents,
 };
+use crate::bytes::name_at;
 use crate::dynamic_executable::interpreter_path;
 use crate::test_support::SingleSiteImportFixture;
 use crate::{plan_elf_dynamic_sections, serialize_elf_dynamic_sections};
@@ -209,7 +210,9 @@ fn semantic_links_and_append_only_name_seed_preserve_exact_names() {
         .map(|descriptor| {
             (
                 descriptor.kind,
-                name_at(&extended, descriptor.name_offset).unwrap().to_vec(),
+                name_at(&extended, descriptor.name_offset, "section-name seed")
+                    .unwrap()
+                    .to_vec(),
             )
         })
         .collect::<Vec<_>>();
@@ -217,10 +220,18 @@ fn semantic_links_and_append_only_name_seed_preserve_exact_names() {
 
     for (kind, name) in expected {
         let descriptor = row(&plan.contents, kind);
-        assert_eq!(name_at(&extended, descriptor.name_offset).unwrap(), name);
+        assert_eq!(
+            name_at(&extended, descriptor.name_offset, "section-name seed").unwrap(),
+            name
+        );
     }
     assert_eq!(
-        name_at(&extended, SECTION_NAME_TABLE_NAME_OFFSET).unwrap(),
+        name_at(
+            &extended,
+            SECTION_NAME_TABLE_NAME_OFFSET,
+            "section-name seed",
+        )
+        .unwrap(),
         b".shstrtab"
     );
     assert_eq!(
@@ -310,9 +321,9 @@ fn independent_validation_rejects_every_name_metadata_link_and_identity_corrupti
 
 #[test]
 fn malformed_name_and_hash_reads_reject_without_panicking() {
-    assert!(name_at(&[], 0).is_err());
-    assert!(name_at(b"unterminated", 0).is_err());
-    assert!(name_at(SECTION_NAME_TABLE_SEED, u32::MAX).is_err());
+    assert!(name_at(&[], 0, "test name").is_err());
+    assert!(name_at(b"unterminated", 0, "test name").is_err());
+    assert!(name_at(SECTION_NAME_TABLE_SEED, u32::MAX, "test name").is_err());
     assert!(read_u32(&[], 4, "hash").is_err());
     assert!(read_u32(&[0; 7], 4, "hash").is_err());
     assert!(read_u32(&[0; 8], usize::MAX, "hash").is_err());

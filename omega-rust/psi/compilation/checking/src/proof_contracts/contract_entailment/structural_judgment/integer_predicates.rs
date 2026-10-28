@@ -308,7 +308,7 @@ impl StructuralJudge<'_> {
     pub(in crate::proof_contracts::contract_entailment) fn integer_premises_contradictory(
         &self,
     ) -> bool {
-        if !self.runtime_body_values || self.case_facts_only {
+        if !self.runtime_body_values || self.case_facts_only || self.has_no_rewrites() {
             return false;
         }
         let Some(prepared) = self.prepare_integer_premises() else {
@@ -866,13 +866,22 @@ impl StructuralJudge<'_> {
                             return Some(true);
                         }
                         if operator == BinaryOperator::Equal
-                            && work.operations.is_empty()
+                            && goal_has_no_operations
                             && left
                                 .sub(&right)
                                 .constant_value()
                                 .is_some_and(|constant| !constant.is_zero())
                             && !(has_premises && queries_and_contradictory().1)
                         {
+                            work.operations.clear();
+                            return Some(false);
+                        }
+                        if !has_premises
+                            && operator == BinaryOperator::Equal
+                            && goal_has_no_operations
+                            && left != right
+                        {
+                            work.operations.clear();
                             return Some(false);
                         }
                         if operator == BinaryOperator::Equal
@@ -892,10 +901,6 @@ impl StructuralJudge<'_> {
                             }
                         }
                         if work.carrier_bounds.len() == base_bounds && goal_has_no_operations {
-                            if !has_premises && operator == BinaryOperator::Equal && left != right {
-                                work.operations.clear();
-                                return Some(false);
-                            }
                             let holds = IntegerObservations::comparison_holds(
                                 &queries_and_contradictory().0,
                                 operator,
@@ -915,17 +920,18 @@ impl StructuralJudge<'_> {
                     }
                     let operations = 0..observations.operations.len();
                     let goal_has_no_operations = operations.is_empty();
+                    let no_rewrites = self.has_no_rewrites();
                     // Only this goal has registered since the sealed premise context.
                     // Even an unavailable projection is discarded with this whole fork.
                     if !observations.install_premises(&mut Vec::new())
                         || !observations.admitted(operations)
                     {
-                        return None;
+                        return no_rewrites.then_some(false);
                     }
                     let queries = observations.engine.lower_bound_queries();
                     if IntegerObservations::comparison_holds(&queries, operator, &left, &right) {
                         Some(true)
-                    } else if goal_has_no_operations {
+                    } else if goal_has_no_operations || no_rewrites {
                         Some(false)
                     } else {
                         None

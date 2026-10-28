@@ -6,7 +6,9 @@
 //! conjunct set a producer cites, so the two reads cannot describe different
 //! obligations.
 
-use crate::integer_rules::fixed_integer::{fixed_integer_as_i128, integer_value_as_i128};
+use crate::integer_rules::fixed_integer::{
+    fixed_integer_as_i128, fixed_integer_term, integer_value_as_i128,
+};
 use crate::integer_rules::integer_affine::CheckedIntegerAffineForm;
 use crate::integer_rules::integer_affine::witness_checking::CheckedIntegerEndpointStep;
 use semantic_vocabulary::{
@@ -353,10 +355,8 @@ fn map_integer_affine_bound_with_remainder_policy(
     if !walk.required_evidence.is_empty() {
         return Err(IntegerAffineBoundConversionError::WrappingEvidenceMissing);
     }
-    let mapped_value = IntegerValue::for_sign(form.integer_type().sign(), walk.mapped)
-        .map_err(|_| IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)?;
-    let mapped = ScalarTerm::integer(form.integer_type(), mapped_value)
-        .map_err(|_| IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)?;
+    let mapped = fixed_integer_term(form.integer_type(), walk.mapped)
+        .ok_or(IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)?;
 
     // Positive forms preserve order, negative forms reverse it. A constant
     // form can soundly provide either orientation; retaining the root bound's

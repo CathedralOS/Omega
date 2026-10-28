@@ -1,10 +1,10 @@
 //! Optimizer module role: proposal leaf. Direct countdown-summary construction.
 
 use super::{
-    CountedLoopAnalysisError, CountedLoopAnalysisSnapshot, ExactUnsignedTripCount, LoopRegion, O,
-    OptimizerCycleComponent, OptimizerUnsignedCountdownRankingCertificate, PsiOptimizationFunction,
-    PsiOptimizationUnit, ScalarType, UnsignedCountdownLoopSummary,
-    ValidatedOptimizerCycleComponents, recompute_psi_optimization_unit_identity, region, shape,
+    AnalysisRoot, CountedLoopAnalysisError, CountedLoopAnalysisSnapshot, ExactUnsignedTripCount,
+    LoopRegion, O, OptimizerCycleComponent, OptimizerUnsignedCountdownRankingCertificate,
+    PsiOptimizationFunction, PsiOptimizationUnit, ScalarType, UnsignedCountdownLoopSummary,
+    ValidatedOptimizerCycleComponents, region, shape, validate_analysis_root,
 };
 pub(super) fn propose(
     unit: &PsiOptimizationUnit,
@@ -28,8 +28,7 @@ pub(super) fn propose(
     }
     loops.sort_by(|left, right| left.certificate.component.cmp(&right.certificate.component));
     Ok(CountedLoopAnalysisSnapshot {
-        revision: unit.identity,
-        terminal_psi: unit.psi,
+        root: AnalysisRoot::of(unit),
         loops,
     })
 }
@@ -86,18 +85,7 @@ fn validate_roots(
     unit: &PsiOptimizationUnit,
     custody: &ValidatedOptimizerCycleComponents,
 ) -> Result<(), CountedLoopAnalysisError> {
-    let recomputed = recompute_psi_optimization_unit_identity(unit);
-    if recomputed != unit.identity {
-        return Err(CountedLoopAnalysisError::StaleUnitIdentity {
-            stored: unit.identity,
-            recomputed,
-        });
-    }
-    if unit.psi != custody.terminal_psi()
-        || unit.psi != custody.ranking_certificates().snapshot().terminal_psi
-    {
-        return Err(CountedLoopAnalysisError::TerminalIdentityMismatch);
-    }
+    validate_analysis_root(unit, custody, &[]).map_err(CountedLoopAnalysisError::Root)?;
     // Ranking certificates name the certified subset of the validated SCC
     // roster; uncertified Natural and unranked components remain in custody
     // without entering this analysis.

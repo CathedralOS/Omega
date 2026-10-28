@@ -1,5 +1,7 @@
 //! Exact view-source joins. The validated source graph establishes descriptor
 //! availability; selected SSA checks the separate physical address lifetime.
+use crate::selection::place_declaration::{declares_block_parameter, declares_operation_result};
+
 use legalized_operations::{
     LegalizedScalarArgument, LegalizedScalarFunction, LegalizedScalarInstructionKind,
     LegalizedScalarTerminator,
@@ -194,14 +196,7 @@ pub(super) fn accepts_at(
                 parameter.structural_type,
                 &parameter.projected_qualifications,
             )
-            && signature.structural_places.iter().any(|candidate| {
-                candidate.id == place
-                    && candidate.kind
-                        == StructuralPlaceKind::BlockParameter {
-                            block,
-                            position: parameter.position,
-                        }
-            }))
+            && declares_block_parameter(signature, place, block, parameter.position))
         .then_some(());
     }
     let (psi_operation, element_view_source) = match &target.source {
@@ -267,14 +262,12 @@ pub(super) fn accepts_at(
                 || !terminal_semantics::view_descriptor_projected_qualifications(signature.structural_types.iter(), result.structural_type, &result.projected_qualifications)
                 || !result.claims.is_empty()
                 || element_view_source
-                || !signature.structural_places.iter().any(|place| {
-                    place.id == result.place
-                        && place.kind
-                            == StructuralPlaceKind::OperationResult {
-                                producer: psi_operation,
-                                structural_type: result.structural_type,
-                            }
-                })
+                || !declares_operation_result(
+                    signature,
+                    result.place,
+                    psi_operation,
+                    result.structural_type,
+                )
                 || !signature.structural_types.iter().any(|declaration| {
                     declaration.id == result.structural_type
                         && declaration.shape.is_borrowed_byte_view()
@@ -289,14 +282,12 @@ pub(super) fn accepts_at(
                 || !terminal_semantics::view_descriptor_projected_qualifications(signature.structural_types.iter(), result.structural_type, &result.projected_qualifications)
                 || !result.claims.is_empty()
                 || !element_view_source
-                || !signature.structural_places.iter().any(|place| {
-                    place.id == result.place
-                        && place.kind
-                            == StructuralPlaceKind::OperationResult {
-                                producer: psi_operation,
-                                structural_type: result.structural_type,
-                            }
-                })
+                || !declares_operation_result(
+                    signature,
+                    result.place,
+                    psi_operation,
+                    result.structural_type,
+                )
                 || !signature.structural_types.iter().any(|declaration| {
                     declaration.id == result.structural_type
                         && matches!(declaration.shape, StructuralTypeShape::ElementView { .. })
@@ -316,14 +307,12 @@ pub(super) fn accepts_at(
                 || !result.qualifications.is_empty()
                 || !terminal_semantics::view_descriptor_projected_qualifications(signature.structural_types.iter(), result.structural_type, &result.projected_qualifications)
                 || !result.claims.is_empty()
-                || !signature.structural_places.iter().any(|place| {
-                    place.id == result.place
-                        && place.kind
-                            == StructuralPlaceKind::OperationResult {
-                                producer: psi_operation,
-                                structural_type: result.structural_type,
-                            }
-                })
+                || !declares_operation_result(
+                    signature,
+                    result.place,
+                    psi_operation,
+                    result.structural_type,
+                )
                 || !signature.structural_types.iter().any(|declaration| {
                     declaration.id == result.structural_type
                         && if element_view_source {
@@ -395,14 +384,12 @@ pub(super) fn accepts_view_loan(
             &result.projected_qualifications,
         )
         && result.claims.is_empty()
-        && signature.structural_places.iter().any(|place| {
-            place.id == result.place
-                && place.kind
-                    == StructuralPlaceKind::OperationResult {
-                        producer: psi_operation,
-                        structural_type: result.structural_type,
-                    }
-        })
+        && declares_operation_result(
+            signature,
+            result.place,
+            psi_operation,
+            result.structural_type,
+        )
         && signature.structural_types.iter().any(|declaration| {
             declaration.id == result.structural_type
                 && matches!(declaration.shape, StructuralTypeShape::ElementView { .. })

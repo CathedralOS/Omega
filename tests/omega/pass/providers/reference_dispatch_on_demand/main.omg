@@ -1,0 +1,19 @@
+// Expected exit: 0.
+// A selected checked provider and implicit IEEE match use their exact execution
+// bindings in each engine; ordinary production needs no checked-oracle table.
+use omega::language::core::float_operations;
+
+boundary trait Reading { machine value() -> f64 reaches; }
+
+Chosen satisfies Reading {
+    machine value() -> f64 { 1.5f64 }
+}
+
+machine main() reaches Reading crashes Trap {
+    let expected: f64 = 1.5f64;
+    let observed: f64 = Reading::value();
+    let selected: u32 = match observed { expected -> 7, _ -> 9 };
+    transition selected == 7 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

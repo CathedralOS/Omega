@@ -41,9 +41,7 @@ pub(in crate::encoding::encode) fn encode_boundary_application(
                                 )?;
                                 encoder
                                     .field("value_type", |encoder| encoder.string(value_type))?;
-                                encoder.field("value_encoding", |encoder| {
-                                    encoder.string(value_encoding)
-                                })?;
+                                encoder.string_field("value_encoding", value_encoding)?;
                             }
                         };
                         Ok(())

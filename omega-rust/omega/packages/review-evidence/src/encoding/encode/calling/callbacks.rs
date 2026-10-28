@@ -20,20 +20,14 @@ pub(super) fn encode(
     })?;
     encoder.field("demands", |encoder| {
         encoder.sequence(&callbacks.demands, |encoder, demand| {
-            encoder.field("destination", |encoder| {
-                destination(encoder, &demand.destination);
-                Ok(())
-            })?;
+            encoder.field_by("destination", &demand.destination, destination)?;
             encoder.field_by("requirement", &demand.requirement, encode_nominal)
         })
     })?;
     encoder.field("materializations", |encoder| {
         encoder.sequence(&callbacks.materializations, |encoder, materialization| {
             encoder.u32_field("binder_index", materialization.binder_index)?;
-            encoder.field("destination", |encoder| {
-                destination(encoder, &materialization.destination);
-                Ok(())
-            })?;
+            encoder.field_by("destination", &materialization.destination, destination)?;
             Ok(())
         })
     })?;
@@ -82,9 +76,7 @@ fn layout_application(
     encoder: &mut Encoder,
     layout: &PackagePolicyCallbackLayoutApplication,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("policy", |encoder| {
-        encoder.option(layout.policy.as_ref(), encode_nominal)
-    })?;
+    encoder.option_field("policy", layout.policy.as_ref(), encode_nominal)?;
     encoder.field("schema", |encoder| type_identity(encoder, &layout.schema))?;
     encoder.u64_field("byte_size", layout.byte_size)?;
     encoder.u64_field("alignment", layout.alignment)?;

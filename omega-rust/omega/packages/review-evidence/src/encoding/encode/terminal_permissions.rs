@@ -26,9 +26,7 @@ pub(super) fn policy(
     policy: &PackagePolicyTerminalPermissions,
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.package_identity_field("package", policy.package)?;
-    encoder.field("target", |encoder| {
-        encoder.string(policy.target.identity().as_str())
-    })?;
+    encoder.string_field("target", policy.target.identity().as_str())?;
     encoder.field("services", |encoder| {
         encoder.sequence(&policy.services, |encoder, service| {
             encoder.field_by("service", &service.service, encode_nominal)?;

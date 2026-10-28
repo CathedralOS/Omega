@@ -190,6 +190,9 @@ pub fn lower_machine(
         )
     })
     .map_err(LoweringError::InvalidDeclarationIdentity)?;
+    lowered.semantic_module.task_activation_demands =
+        crate::lower_task_activation_demands(checked, &mut identities)
+            .map_err(LoweringError::TaskActivation)?;
     lowered.semantic_module.identities =
         phase_profile::scope("05.identities_build", || identities.build());
     // Declaration and evidence producers intern beyond the body snapshot.

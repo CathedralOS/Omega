@@ -1,0 +1,1 @@
+reaches `.len` metadata below a stored pointer of write-only parameter `home`

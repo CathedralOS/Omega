@@ -1,16 +1,12 @@
 //! Admission of retained publication without reconstructing its output.
 use super::{
-    FunctionFragmentObjectContainerStage, FunctionFragmentObjectContainerUnavailableData,
     RelocationFreeObjectContainerError, RelocationFreeObjectContainerIdentity,
     StagedOptimizedRelocationFreeObjectContainer,
     StagedRelocationFreeObjectContainerCustodyReceipt, object_error,
     validate_optimized_fixed_frame_text_section,
 };
-use crate::fragment_container::reconstruction::receipt;
-use crate::{
-    decode_relocation_free_object, relocation_free_object_statistics,
-    validate_relocation_free_object_from_text,
-};
+use crate::fragment_container::reconstruction::{construct_manifest, receipt};
+use crate::{decode_relocation_free_object, validate_relocation_free_object_from_text};
 
 pub fn validate_optimized_relocation_free_object_container(
     staged: &StagedOptimizedRelocationFreeObjectContainer,
@@ -47,41 +43,15 @@ pub fn validate_optimized_relocation_free_object_container(
 fn validate_manifest(
     staged: &StagedOptimizedRelocationFreeObjectContainer,
 ) -> Result<(), RelocationFreeObjectContainerError> {
-    let record = staged.manifest.record();
-    let object = staged.object();
-    let statistics = relocation_free_object_statistics(object, staged.container())
-        .map_err(|_| RelocationFreeObjectContainerError::LengthOverflow)?;
-    if record.identity != record.recomputed_identity()
-        || record.source_text_section_manifest != staged.source.manifest().record().identity
-        || record.text_section != staged.source.text_section().identity
-        || record.psi != object.psi
-        || record.fuel_schedule != object.fuel_schedule
-        || record.selections != object.selections
-        || record.selected != object.selected
-        || record.target != object.target
-        || record.semantic_entry != object.semantic_entry
-        || record.semantic_entry_symbol != object.semantic_entry_symbol
-        || record.symbol_policy != object.symbol_policy
-        || record.object != object.identity
-        || record.object_container != staged.container.identity
-        || record.relocation_requirements != object.relocation_requirements
-        || record.statistics != statistics
-    {
-        return Err(RelocationFreeObjectContainerError::ManifestMismatch);
+    // `construct_manifest` owns which manifest fields the source, the object and
+    // the container decide. Admission rebuilds that record and compares it
+    // whole: the field correspondence is not restated here, and a future stage
+    // or unavailable role reaches admission through the constructor's single
+    // owner.
+    let expected = construct_manifest(&staged.source, staged.object(), staged.container())?;
+    if staged.manifest.record() == expected.record() {
+        Ok(())
+    } else {
+        Err(RelocationFreeObjectContainerError::ManifestMismatch)
     }
-    // Exhaustive matches force future role additions to receive admission rules.
-    match record.stage {
-        FunctionFragmentObjectContainerStage::ValidatedRelocationFreeObjectContainerV1 => {}
-    }
-    for unavailable in [
-        record.external_entry_bridge,
-        record.executable_image,
-        record.installation,
-        record.publication,
-    ] {
-        match unavailable {
-            FunctionFragmentObjectContainerUnavailableData::Unavailable => {}
-        }
-    }
-    Ok(())
 }

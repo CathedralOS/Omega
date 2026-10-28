@@ -43,17 +43,9 @@ pub(super) fn validate_bytes(
         }
         // ISA encoding is the shared primitive. The submitted row, role,
         // offsets, lengths, ordering and exact arena extent are checked here.
-        // The commit schedule covers only the non-red-zone extent, and a
-        // resident frame can never carry preservation storage or a call.
-        let committed_bytes = function
-            .frame_size_bytes
-            .checked_sub(function.red_zone_resident_bytes)
-            .ok_or(Error::NonCanonicalEncoding)?;
-        if function.red_zone_resident_bytes != 0
-            && (function.contains_call || !function.callee_save_slots.is_empty())
-        {
-            return Err(Error::NonCanonicalEncoding);
-        }
+        // Only the non-red-zone extent commits.
+        let committed_bytes =
+            crate::frame_layout::committed_extent(function).ok_or(Error::NonCanonicalEncoding)?;
         // The recorded return-address custody must be an instance of the
         // mechanism the pair's declared unwind row continues through; a
         // foreign custody fails closed before the codec runs.

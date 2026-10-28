@@ -6,6 +6,7 @@ use super::{
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
+use crate::selection::construction::scalar_graph::structural::operation_provenance;
 use crate::selection::construction::scalar_graph::structural::transport_register;
 
 pub(in crate::selection) fn observe(
@@ -41,12 +42,7 @@ pub(in crate::selection) fn observe(
     }
     let place = *place;
     let tag = transport_register(builder, place, *tag_byte_offset)?;
-    let provenance = SelectedInstructionProvenance {
-        operations: vec![row.operation],
-        values: vec![result.value],
-        fuel: row.fuel.clone(),
-        ..Default::default()
-    };
+    let provenance = operation_provenance(row, vec![result.value]);
     let (pointer, pointer_slots) = super::runtime_address::projection_origin(
         source,
         builder,

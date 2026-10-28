@@ -13,11 +13,10 @@
 //! check path and the produced-artifact path derive identical demand rows.
 
 use crate::{
-    LayoutApplicationId, StructuralTypeDeclaration, TargetLayoutApplication,
-    terminal_module::TerminalIdentityIndex,
+    LayoutApplicationId, StructuralTypeDeclaration, terminal_module::TerminalIdentityIndex,
 };
 use language_semantics::CarryPolicy;
-use semantic_vocabulary::{MachineId, ScalarType, StructuralTypeId};
+use semantic_vocabulary::{ScalarType, StructuralTypeId};
 
 /// Which ordinary `TaskRuntime` operation requested one concrete activation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -29,14 +28,13 @@ pub enum TerminalTaskStartOperation {
 /// One checked value type retained for target-side layout resolution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum TerminalTaskValueType {
+    /// Erased Unit outcome: no storage, alignment one.
+    Unit,
     /// Primitive scalar; sized directly by the selected target.
     Scalar(ScalarType),
     /// Structural type by id inside the demand bundle's own
     /// `structural_types` table (bundle-local id space).
     Structural(StructuralTypeId),
-    /// Authored target-layout application by id inside the bundle's own
-    /// `target_layout_applications` table.
-    TargetLayout(LayoutApplicationId),
 }
 
 /// One signature operand: its checked type plus the normalized identity
@@ -106,6 +104,16 @@ pub struct TerminalTaskResidentValue {
     pub normalized_identity: TerminalIdentityIndex,
 }
 
+/// Alternative state storage within one activation. A frame retains only one
+/// state and one parked crossing at a time, so both rosters compose by maximum,
+/// never by concatenating every reachable state's values.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalTaskFrameState {
+    pub state: TerminalIdentityIndex,
+    pub resident: Vec<TerminalTaskResidentValue>,
+    pub crossing_arguments: Vec<Vec<TerminalTaskResidentValue>>,
+}
+
 /// A checked call edge to another activation frame.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalTaskFrameCall {
@@ -144,9 +152,8 @@ pub struct TerminalTaskFrame {
     pub machine_callable_identity: TerminalIdentityIndex,
     /// Entry state name text.
     pub entry: TerminalIdentityIndex,
-    /// Ordered resident values: resume word excluded; the checked state
-    /// parameters, locals, and live call arguments only.
-    pub resident: Vec<TerminalTaskResidentValue>,
+    /// Resume-word storage is target-owned and excluded from these rows.
+    pub states: Vec<TerminalTaskFrameState>,
     /// Checked call edges by callee frame identity.
     pub calls: Vec<TerminalTaskFrameCall>,
     /// Live calls that could not be bound to a checked target.
@@ -159,23 +166,20 @@ pub struct TerminalTaskFrame {
 pub struct TerminalTaskActivationDemand {
     /// The ordinary `TaskRuntime` operation that requested this activation.
     pub operation: TerminalTaskStartOperation,
-    /// Report fingerprint of the requirement specialization
-    /// (the selected runtime identity).
+    /// Report fingerprint of the requirement specialization, independent of
+    /// the selected runtime.
     pub report_fingerprint: u64,
     /// Normalized callable identity text of the trait requirement.
     pub requirement_callable_identity: TerminalIdentityIndex,
     /// Declaration path text of the requirement owner trait.
     pub requirement_owner_path: TerminalIdentityIndex,
-    /// Package identity text of the requirement owner (empty index when
-    /// the owner is unscoped).
-    pub requirement_owner_package: TerminalIdentityIndex,
+    /// Exact package owner; an unmanaged declaration remains unscoped.
+    pub requirement_owner_package: Option<semantic_vocabulary::PackageKeyIdentity>,
     /// Whether the requirement owner's symbol is inside the dependency
     /// scope the selected provider plans were admitted under.
     pub requirement_in_scope: bool,
     /// Authored requirement identity text.
     pub authored_requirement_identity: TerminalIdentityIndex,
-    /// Target machine by module id.
-    pub machine: MachineId,
     /// Normalized callable identity text of the target machine.
     pub machine_callable_identity: TerminalIdentityIndex,
     /// Entry state name text of the activation entry.
@@ -195,6 +199,8 @@ pub struct TerminalTaskActivationDemand {
     pub signature_arguments: Vec<TerminalTaskSignatureValue>,
     /// The outcome signature operand.
     pub signature_outcome: TerminalTaskSignatureValue,
+    /// Exact root of the frame graph; sorting the roster cannot change it.
+    pub root_frame: u64,
     /// The activation's frame roster in canonical identity order.
     pub frames: Vec<TerminalTaskFrame>,
     /// The canonical suspension crossings in canonical identity order.
@@ -212,12 +218,30 @@ pub struct TerminalTaskActivationDemand {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TerminalTaskActivationDemands {
     /// One row per checked `TaskRuntime` start specialization, ordered by
-    /// `(report_fingerprint, machine, entry)`.
+    /// `(report_fingerprint, machine_callable_identity, entry)`.
     pub demands: Vec<TerminalTaskActivationDemand>,
     /// Structural declarations referenced by demand value types
     /// (bundle-local `StructuralTypeId` space).
     pub structural_types: Vec<StructuralTypeDeclaration>,
+    /// Identity-only reference targets do not require by-value storage.
+    pub structural_referents: Vec<crate::StructuralReferentIdentity>,
     /// Target-layout applications referenced by demand value types
     /// (bundle-local `LayoutApplicationId` space).
-    pub target_layout_applications: Vec<TargetLayoutApplication>,
+    pub target_layout_applications: Vec<TerminalTaskTargetLayout>,
+}
+
+/// Checked geometry alternatives needed only for activation storage. Task
+/// marshalling consumes extent and alignment, not an executable layout-policy
+/// body, field accessor or module-local machine coordinate.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalTaskTargetLayout {
+    pub id: LayoutApplicationId,
+    pub record: StructuralTypeId,
+    pub realizations: Vec<TerminalTaskLayoutRealization>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalTaskLayoutRealization {
+    pub target: String,
+    pub storage: semantic_vocabulary::AuthoredRecordStorage,
 }

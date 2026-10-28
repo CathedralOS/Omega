@@ -5,7 +5,7 @@ use super::{
     CountdownInvariantConstantPlacementAnalysisSnapshot, PsiOptimizationUnit,
     ValidatedCountdownInvariantConstantAnalysis,
     ValidatedCountdownInvariantConstantPlacementAnalysis, ValidatedCountedLoopAnalysis,
-    ValidatedOptimizerCycleComponents, replay,
+    ValidatedOptimizerCycleComponents, replay, validate_analysis_root,
 };
 pub(super) fn accept(
     unit: &PsiOptimizationUnit,
@@ -17,14 +17,8 @@ pub(super) fn accept(
     ValidatedCountdownInvariantConstantPlacementAnalysis,
     CountdownInvariantConstantPlacementAnalysisError,
 > {
-    if candidate.revision != unit.identity {
-        return Err(
-            CountdownInvariantConstantPlacementAnalysisError::CandidateRevisionMismatch {
-                candidate: candidate.revision,
-                current: unit.identity,
-            },
-        );
-    }
+    validate_analysis_root(unit, custody, &[candidate.root])
+        .map_err(CountdownInvariantConstantPlacementAnalysisError::Root)?;
     let reconstructed = replay::reconstruct(unit, custody, counted, invariants)?;
     if *candidate != reconstructed {
         return Err(CountdownInvariantConstantPlacementAnalysisError::SnapshotMismatch);

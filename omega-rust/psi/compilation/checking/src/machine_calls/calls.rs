@@ -357,7 +357,7 @@ fn report_argument_reference_access(
 /// Prefer the occurrence's applied result. A declaration's raw result still
 /// contains its own static and region binders; consumers must not compare those
 /// foreign binders with a caller's type after preparation applied the call.
-pub(crate) fn call_result_type(
+pub fn call_result_type(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {

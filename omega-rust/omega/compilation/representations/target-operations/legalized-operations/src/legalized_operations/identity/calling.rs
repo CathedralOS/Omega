@@ -1,4 +1,4 @@
-use super::encoding::encode_len;
+use super::encoding::{encode_len, encode_option};
 use super::scalar::encode_register;
 use calling_conventions::{
     CallPlan, CallbackMaterialization, CallingPolicy, EntryControl, IndirectPointerLocation,
@@ -17,13 +17,7 @@ pub fn encode_call_plan(bytes: &mut Vec<u8>, plan: &CallPlan) {
     for placement in &plan.parameters {
         encode_placement(bytes, placement);
     }
-    match &plan.result {
-        Some(result) => {
-            bytes.push(1);
-            encode_placement(bytes, result);
-        }
-        None => bytes.push(0),
-    }
+    encode_option(bytes, plan.result.as_ref(), encode_placement);
     encode_len(bytes, plan.callback_materializations.len());
     for materialization in &plan.callback_materializations {
         encode_callback_materialization(bytes, materialization);
@@ -110,13 +104,9 @@ pub fn encode_placement(bytes: &mut Vec<u8>, placement: &ValuePlacement) {
             } => {
                 bytes.push(3);
                 encode_indirect_pointer(bytes, pointer);
-                match copy_stack_byte_offset {
-                    Some(offset) => {
-                        bytes.push(1);
-                        crate::codec_bytes::push_encoded(bytes, offset.to_le_bytes());
-                    }
-                    None => bytes.push(0),
-                }
+                encode_option(bytes, copy_stack_byte_offset, |bytes, offset| {
+                    crate::codec_bytes::push_encoded(bytes, offset.to_le_bytes())
+                });
                 crate::codec_bytes::push_encoded(bytes, byte_size.to_le_bytes());
                 crate::codec_bytes::push_encoded(bytes, alignment.to_le_bytes());
             }

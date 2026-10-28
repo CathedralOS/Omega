@@ -66,10 +66,7 @@ pub(crate) fn encode_application(
     encoder.field("static_parameters", |encoder| {
         encoder.sequence(&application.static_parameters, encode_type_parameter)
     })?;
-    encoder.field("target", |encoder| {
-        encode_representation_target(encoder, application.target);
-        Ok(())
-    })?;
+    encoder.field_by("target", application.target, encode_representation_target)?;
     encoder.field_by(
         "shape_graph",
         &application.shape_graph,
@@ -85,9 +82,11 @@ pub(crate) fn encode_application(
             Ok(())
         })
     })?;
-    encoder.field("semantic_result", |encoder| {
-        encoder.option(application.semantic_result.as_ref(), type_identity)
-    })?;
+    encoder.option_field(
+        "semantic_result",
+        application.semantic_result.as_ref(),
+        type_identity,
+    )?;
     encoder.field("native_parameters", |encoder| {
         encoder.sequence(&application.native_parameters, |encoder, parameter| {
             encoder.field("name", |encoder| encoder.string(&parameter.name))?;

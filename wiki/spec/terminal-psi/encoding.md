@@ -59,7 +59,7 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 198 even when every table
+order below. This layout uses semantic format marker 199 even when every table
 is empty; older markers reject rather than selecting an optional dialect:
 
 | Catalog table | Row fields |
@@ -705,7 +705,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 198 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 199 + `u16` vocabulary
 marker 130 + the entry callable, followed by the module tables in the
 declaration order below. The entry callable uses its ordinary machine-or-boundary
 tag and identifier encoding.
@@ -808,6 +808,22 @@ Older markers are rejected before their payload is read.
 | 36 | callback applications | counted checked registrar occurrences |
 | 37 | boundary application candidates | counted checked bodies for closed applications |
 | 38 | task activation demands | counted task activation demand rows |
+
+Marker 199 task demands carry canonical callable/entry identity indices, exact
+requirement package ownership, specialization commitment, signature storage
+types, the root frame identity, the reachable frame graph and checked carry
+crossings. Each frame stores a counted list of alternative states; each state
+stores its resident values and a counted list of alternative staged-call
+argument lists. Native storage is the maximum over those alternatives, not
+their concatenation. Values use tag `0` for Unit, `1` for a scalar, and
+`2` for a bundle-local structural declaration. The bundle retains its own
+structural declarations and identity-only referents, followed by checked
+target-layout extent/alignment alternatives. Layout rows have no fabricated
+module machine coordinates. Old flat-frame payloads reject rather than being
+read as the new state/crossing grammar. External ingress rejects missing or
+duplicate identities, absent root/callee frames, invalid structural references,
+incomplete layout alternatives and truncated payloads. Provider coverage and
+target storage composition remain the receiving Omega join's responsibility.
 
 A placement lifecycle row encodes its boundary machine id, `u8` operation
 (`0` initialize, `1` move-out), then `u8` execution kind (`0` selected provider,

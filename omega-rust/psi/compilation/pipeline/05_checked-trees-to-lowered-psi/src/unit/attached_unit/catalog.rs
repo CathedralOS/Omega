@@ -650,7 +650,7 @@ fn select_from<'a>(
 }
 
 /// The one checked declaration of `identity` in the Unit roster.
-pub(super) fn selected_declaration<'a>(
+pub(crate) fn selected_declaration<'a>(
     plans: UnitPlans<'a>,
     identity: typed_trees::type_identity::TypeIdentityId,
 ) -> Result<&'a CheckedUnitStructuralTypePlan, LoweringError> {

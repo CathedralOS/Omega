@@ -48,5 +48,5 @@ pub use psi_terminal_production::{
     TerminalBuildRequestCall, TerminalBuildRequestOperation, TerminalBuildRequests,
     TerminalBuildSelectionRequest, TerminalCompositionAdmission, TerminalMachineSelection,
     TerminalProductionCustody, TerminalProductionRequest, TerminalProgramRoots,
-    UnmeasuredProduction,
+    UnmeasuredProduction, lower_task_activation_demands,
 };

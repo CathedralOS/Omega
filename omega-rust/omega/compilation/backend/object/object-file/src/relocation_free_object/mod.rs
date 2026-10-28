@@ -39,6 +39,18 @@ impl ObjectLocalSymbolId {
         if value == 0 { None } else { Some(Self(value)) }
     }
 
+    /// The id of the `index`th row of a canonical sequence that begins after
+    /// `preceding` earlier rows: the function table starts the sequence, the
+    /// import plan continues it after the function rows. `None` is the index
+    /// arithmetic refusing, never a hole in the sequence.
+    pub fn at(preceding: usize, index: usize) -> Option<Self> {
+        u64::try_from(preceding)
+            .ok()?
+            .checked_add(u64::try_from(index).ok()?)?
+            .checked_add(1)
+            .and_then(Self::new)
+    }
+
     pub const fn get(self) -> u64 {
         self.0
     }
@@ -241,6 +253,7 @@ pub enum RelocationFreeObjectDecodeError {
     InvalidObject(RelocationFreeObjectError),
 }
 
+optimization_core::take_error_from_adapter!(RelocationFreeObjectDecodeError);
 optimization_core::truncated_from_adapter!(RelocationFreeObjectDecodeError);
 
 /// The canonical target wire identity's three failures, each keeping this
@@ -383,10 +396,9 @@ pub(crate) fn validate_relocation_free_object(
     let mut cursor = 0_u64;
     let mut entry_count = 0_u64;
     for (index, symbol) in object.symbols.iter().enumerate() {
-        let ordinal = u64::try_from(index)
-            .map_err(|_| RelocationFreeObjectError::LengthOverflow)?
-            .checked_add(1)
-            .ok_or(RelocationFreeObjectError::LengthOverflow)?;
+        let ordinal = ObjectLocalSymbolId::at(0, index)
+            .ok_or(RelocationFreeObjectError::LengthOverflow)?
+            .get();
         if symbol.symbol.get() != ordinal {
             return Err(RelocationFreeObjectError::NonCanonicalSymbolId);
         }
@@ -446,14 +458,9 @@ pub(crate) fn validate_relocation_free_object(
     let mut import_symbols = std::collections::BTreeMap::new();
     let mut last_coordinate = None;
     for (index, import) in object.normalized_imports.iter().enumerate() {
-        let expected = u64::try_from(object.symbols.len())
-            .map_err(|_| RelocationFreeObjectError::LengthOverflow)?
-            .checked_add(
-                u64::try_from(index).map_err(|_| RelocationFreeObjectError::LengthOverflow)?,
-            )
-            .and_then(|base| base.checked_add(1))
+        let expected = ObjectLocalSymbolId::at(object.symbols.len(), index)
             .ok_or(RelocationFreeObjectError::LengthOverflow)?;
-        if import.symbol.get() != expected {
+        if import.symbol != expected {
             return Err(RelocationFreeObjectError::NonCanonicalForeignImportId);
         }
         let coordinate = (import.boundary.get(), import.ordinal);
@@ -557,11 +564,7 @@ fn encode_plan_content(
     crate::codec_bytes::push_encoded(&mut output, object.text_section.byte_count.to_le_bytes());
     encode_bytes(&mut output, &object.text_section.bytes)?;
     output.push(1);
-    output.extend_from_slice(
-        &u64::try_from(object.symbols.len())
-            .map_err(|_| RelocationFreeObjectError::LengthOverflow)?
-            .to_le_bytes(),
-    );
+    crate::codec_bytes::push_count_u64(&mut output, object.symbols.len());
     for symbol in &object.symbols {
         crate::codec_bytes::push_encoded(&mut output, symbol.symbol.get().to_le_bytes());
         crate::codec_bytes::push_encoded(&mut output, symbol.source_function_index.to_le_bytes());
@@ -580,21 +583,16 @@ fn encode_plan_content(
         &mut output,
         object.semantic_entry_symbol.get().to_le_bytes(),
     );
-    output.extend_from_slice(
-        &u64::try_from(object.normalized_imports.len())
-            .map_err(|_| RelocationFreeObjectError::LengthOverflow)?
-            .to_le_bytes(),
-    );
+    crate::codec_bytes::push_count_u64(&mut output, object.normalized_imports.len());
     for import in &object.normalized_imports {
         crate::codec_bytes::push_encoded(&mut output, import.symbol.get().to_le_bytes());
         crate::codec_bytes::push_encoded(&mut output, import.boundary.get().to_le_bytes());
         crate::codec_bytes::push_encoded(&mut output, import.ordinal.to_le_bytes());
         encode_string(&mut output, &import.name)?;
     }
-    output.extend_from_slice(
-        &u64::try_from(object.unresolved_normalized_foreign_calls.len())
-            .map_err(|_| RelocationFreeObjectError::LengthOverflow)?
-            .to_le_bytes(),
+    crate::codec_bytes::push_count_u64(
+        &mut output,
+        object.unresolved_normalized_foreign_calls.len(),
     );
     for field in &object.unresolved_normalized_foreign_calls {
         crate::codec_bytes::push_encoded(&mut output, field.symbol.get().to_le_bytes());
@@ -613,11 +611,7 @@ fn encode_plan_content(
     if object.relocation_requirements
         == RelocationFreeObjectRelocationRequirements::UnresolvedObjectSymbolFieldsV1
     {
-        output.extend_from_slice(
-            &u64::try_from(object.unresolved_image_addresses.len())
-                .map_err(|_| RelocationFreeObjectError::LengthOverflow)?
-                .to_le_bytes(),
-        );
+        crate::codec_bytes::push_count_u64(&mut output, object.unresolved_image_addresses.len());
         for address in &object.unresolved_image_addresses {
             address.encode_identity(&mut output);
         }
@@ -728,7 +722,7 @@ fn encode_placed_callback_materializations(
     output: &mut Vec<u8>,
     materializations: &[PlacedCallbackAddressMaterialization],
 ) {
-    crate::codec_bytes::push_encoded(output, (materializations.len() as u64).to_le_bytes());
+    crate::codec_bytes::push_count_u64(output, materializations.len());
     for materialization in materializations {
         match materialization.destination {
             machine_code::CallbackAddressDestination::Register(register) => {
@@ -814,7 +808,7 @@ fn decode_plan_content(
         name: cursor_string(cursor)?,
         alignment: cursor.u64()?,
         byte_count: cursor.u64()?,
-        bytes: cursor_bytes(cursor)?,
+        bytes: cursor.length_prefixed()?.to_vec(),
     };
     let symbol_policy_tag = cursor.byte()?;
     if symbol_policy_tag != 1 {
@@ -822,7 +816,7 @@ fn decode_plan_content(
             symbol_policy_tag,
         ));
     }
-    let symbol_count = cursor_length(cursor)?;
+    let symbol_count = cursor.length()?;
     let mut symbols = Vec::with_capacity(symbol_count);
     for _ in 0..symbol_count {
         let symbol = ObjectLocalSymbolId::new(cursor.u64()?)
@@ -859,7 +853,7 @@ fn decode_plan_content(
         MachineId::new(cursor.u64()?).ok_or(RelocationFreeObjectDecodeError::InvalidMachine)?;
     let semantic_entry_symbol = ObjectLocalSymbolId::new(cursor.u64()?)
         .ok_or(RelocationFreeObjectDecodeError::InvalidSymbolId)?;
-    let import_count = cursor_length(cursor)?;
+    let import_count = cursor.length()?;
     let mut normalized_imports = Vec::with_capacity(import_count);
     for _ in 0..import_count {
         let symbol = ObjectLocalSymbolId::new(cursor.u64()?)
@@ -875,7 +869,7 @@ fn decode_plan_content(
             name,
         });
     }
-    let field_count = cursor_length(cursor)?;
+    let field_count = cursor.length()?;
     let mut unresolved_normalized_foreign_calls = Vec::with_capacity(field_count);
     for _ in 0..field_count {
         let symbol = ObjectLocalSymbolId::new(cursor.u64()?)
@@ -899,7 +893,7 @@ fn decode_plan_content(
     if relocation_requirements
         == RelocationFreeObjectRelocationRequirements::UnresolvedObjectSymbolFieldsV1
     {
-        let address_count = cursor_length(cursor)?;
+        let address_count = cursor.length()?;
         unresolved_image_addresses.reserve(address_count);
         for _ in 0..address_count {
             unresolved_image_addresses.push(decode_image_address(cursor)?);
@@ -1015,7 +1009,7 @@ fn decode_machine_register(
 fn decode_placed_callback_materializations(
     cursor: &mut Cursor<'_>,
 ) -> Result<Vec<PlacedCallbackAddressMaterialization>, RelocationFreeObjectDecodeError> {
-    let count = cursor_length(cursor)?;
+    let count = cursor.length()?;
     let mut materializations = Vec::with_capacity(count);
     for _ in 0..count {
         let destination = match cursor.byte()? {
@@ -1071,26 +1065,13 @@ fn encode_string(output: &mut Vec<u8>, value: &str) -> Result<(), RelocationFree
 }
 
 fn encode_bytes(output: &mut Vec<u8>, value: &[u8]) -> Result<(), RelocationFreeObjectError> {
-    output.extend_from_slice(
-        &u64::try_from(value.len())
-            .map_err(|_| RelocationFreeObjectError::LengthOverflow)?
-            .to_le_bytes(),
-    );
+    crate::codec_bytes::push_count_u64(output, value.len());
     output.extend_from_slice(value);
     Ok(())
 }
 
-fn cursor_length(cursor: &mut Cursor) -> Result<usize, RelocationFreeObjectDecodeError> {
-    usize::try_from(cursor.u64()?).map_err(|_| RelocationFreeObjectDecodeError::LengthOverflow)
-}
-
-fn cursor_bytes(cursor: &mut Cursor) -> Result<Vec<u8>, RelocationFreeObjectDecodeError> {
-    let length = cursor_length(cursor)?;
-    Ok(cursor.take(length)?.to_vec())
-}
-
 fn cursor_string(cursor: &mut Cursor) -> Result<String, RelocationFreeObjectDecodeError> {
-    String::from_utf8(cursor_bytes(cursor)?)
+    String::from_utf8(cursor.length_prefixed()?.to_vec())
         .map_err(|_| RelocationFreeObjectDecodeError::InvalidUtf8)
 }
 

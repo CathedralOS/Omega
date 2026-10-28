@@ -273,6 +273,13 @@ the artifact itself, including after reload. There is no late Psi signature quer
 for these adapters. Other checked-source inputs to product coordination remain
 part of the migration; this does not claim the entire driver is source-free.
 
+Entry custody retains declared arguments and physical/semantic calling contracts,
+not synthesized service fields on an application record. Provider roots come from
+actual calls and callback demand. Selected entries, private native derivation
+records and runtime provisions carry no synthetic field-establishment roster;
+older private records reject at their schema boundary. Ordinary provider
+admission, placed-view inputs and physical entry adapters remain independent.
+
 Component publication prepares its exported calling applications before Terminal
 production. The retained product carries those complete applications to the
 ordinary provider catalog join, which checks agreement with imported and explicit
@@ -612,7 +619,16 @@ accepted through `omega.lock`. Pipeline execution does not load or mutate a
 separate admissions file.
 
 [`omega/compilation/realization/provider-planning/`](omega/compilation/realization/provider-planning/README.md)
-owns provider choices and calling, component and task planning.
+owns provider choices and calling and component planning.
+Psi projects checked task activation requirements, exact specialization and
+carry evidence, and the reachable frame graph into Terminal Psi. State-resident
+storage and staged arguments at each suspension crossing remain separate
+alternatives. Native proposal construction joins those demands to exact selected
+runtime plans and target geometry without reopening source. Checking-only stops
+request that same portable projection without executable body lowering and use
+the same source-free join. Instruction lowering and task storage share the
+backend calling-conventions geometry owner. This closes static activation
+planning; it does not implement a task executor.
 [`selected-dispatch/`](omega/compilation/realization/selected-dispatch/README.md) owns selected
 execution preparation and settlement.
 It imports no Psi transform: the source coordinator owns stage requests and
@@ -620,9 +636,17 @@ supplies operator selections. Adapter dispatch reads the canonical backing
 through a Product declaration/occurrence selection instead of cloning and
 pruning a separate program. Build copies remain outside that selected frontier.
 Provider grants resolve through backend provider evidence.
-Product adapter dispatch and selected float executions live beside the checked
-program in `SelectedExecution`; they never copy or mutate checked Psi. The
-reference checked interpreter receives those explicit execution bindings.
+Optional x86 FMA admission consumes demanded Terminal builtin proposals at
+native provider admission. Checked source retains no separate FMA association
+list: an operation in an unselected target body creates no deployment demand
+for the selected body. Exact profile and feature admission remain required for
+each realized FMA, and its ordinary target-operation record carries that custody.
+The optional reference checked interpreter prepares adapter dispatch and selected
+float executions at its own entrance. `SelectedExecution` retains no reference
+dispatch table, and ordinary Product installation does not scan source to prepare
+an engine it will not run. Terminal/native provider admission consumes canonical
+demand and selected rows independently. Reference preparation never copies or
+mutates checked Psi; Build's required comparison preparation remains separate.
 Matching source-owner/entry/Psi-optimization requests share one Terminal
 production and backing allocation, including in retained native images. Each
 target independently admits the unoptimized composition and retains its own

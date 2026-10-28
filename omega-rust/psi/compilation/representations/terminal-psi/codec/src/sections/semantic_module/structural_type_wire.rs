@@ -78,10 +78,7 @@ pub(crate) fn encode_structural_type(
                 writer.u64(storage.byte_size);
                 writer.u64(storage.byte_alignment);
             }
-            writer.len("structural fields", fields.len())?;
-            for field in fields {
-                encode_structural_field(writer, field)?;
-            }
+            writer.counted("structural fields", fields, encode_structural_field)?;
             if matches!(
                 storage,
                 StructuralRecordStorage::Authored(_)
@@ -112,10 +109,7 @@ pub(crate) fn encode_structural_type(
         }
         StructuralTypeShape::Mixed { fields, cases } => {
             writer.u8(5);
-            writer.len("mixed structural fields", fields.len())?;
-            for field in fields {
-                encode_structural_field(writer, field)?;
-            }
+            writer.counted("mixed structural fields", fields, encode_structural_field)?;
             writer.len("mixed structural cases", cases.len())?;
             for case in cases {
                 writer.id(case.id);
