@@ -2280,7 +2280,11 @@ crashes Trap
         }
     }
 
-    machine compare(resolver: &Resolver, left_scope: TypeScope, left: u64 in Trapping, right_scope: TypeScope, right: u64 in Trapping) -> bool {
+    // This helper has its own invocation contract. Its caller discharges the
+    // table bounds above; lexical nesting does not import that live guard.
+    machine compare(resolver: &Resolver, left_scope: TypeScope, left: u64 in Trapping, right_scope: TypeScope, right: u64 in Trapping) -> bool
+    requires left < 65536, right < 65536
+    {
         let left_domain: DomainBinding = resolver.output.domain_bindings[left];
         let right_domain: DomainBinding = resolver.output.domain_bindings[right];
         let left_item: u64 = resolver.output.domain_items[left];

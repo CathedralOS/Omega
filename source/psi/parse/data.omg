@@ -144,8 +144,9 @@ crashes Trap
     }
 
     machine retired(parser: &mut Parser, input: &TokenStream) {
+        let owner: u64 in Trapping = parser.output.data_count as u64 in Trapping;
         Parser::parse_retired_identity(parser, input, RetiredIdentityOwner::Declaration,
-            parser.output.data_count as u64 in Trapping, true);
+            owner, true);
         transition parser.output.accepted {
             true -> member(parser, input)
             _ -> done()
@@ -333,8 +334,9 @@ crashes Trap
     }
 
     machine payload_retired(parser: &mut Parser, input: &TokenStream) {
+        let owner: u64 in Trapping = parser.output.case_count as u64 in Trapping;
         Parser::parse_retired_identity(parser, input, RetiredIdentityOwner::Payload,
-            parser.output.case_count as u64 in Trapping, false);
+            owner, false);
         transition parser.output.accepted {
             true -> payload_retired_separator(parser, input)
             _ -> done()
