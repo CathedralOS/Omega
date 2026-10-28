@@ -1,0 +1,24 @@
+// Expected exit: 0
+// The Byte successor is a live internal arrival even though the EOF path ends
+// the process. Its whole affine result has source-owned no-code disposal
+// authority; selected EOF completion cannot erase the Byte path custody.
+use omega_language_std::console;
+machine read()
+reaches Console
+{
+    let input: ByteRead = block Console::read_byte();
+    transition input {
+        ByteRead::Byte { value } -> block retain(value)
+        _ -> done()
+    }
+    machine retain(value: i32) {
+        Console::write_byte(value);
+        transition { _ -> block read() }
+    }
+    machine done() { Console::exit_process(0); }
+}
+machine main()
+reaches Console
+{
+    block read();
+}
