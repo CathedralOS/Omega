@@ -36,7 +36,7 @@ DIAGNOSTICS = (
     "UncoveredDispatch", "ImmutablePlace", "ImplicitAttenuation",
     "MissingPatternField", "DuplicatePatternField",
 )
-SELECTIONS = ("none", "machine", "reserved", "field", "length", "binder")
+SELECTIONS = {0: "none", 1: "machine", 3: "field", 4: "length", 5: "binder"}
 ADAPTATIONS = ("", "landed", "lent", "qualified", "read")
 
 
@@ -159,6 +159,7 @@ def decode(payload: bytes) -> Observation:
                       reader.byte() == 1, reader.u64())
         for _ in range(reader.u64())
     )
+    assert all(row.selection[0] in SELECTIONS for row in expressions), "unknown selection tag"
     binders = tuple(reader.u64() for _ in range(reader.u64()))
     assert reader.cursor == len(payload), "trailing typing observation bytes"
     return Observation(accepted, diagnostic, diagnostic_span, rows, arguments, expressions, binders)
@@ -278,6 +279,24 @@ def phase_rejected(program: str, name: str, source: bytes, status: int) -> None:
     actual_status, payload = run(program, source)
     assert actual_status == status, f"{name}: status {actual_status}"
     assert payload == b"", name
+
+
+def nested_machine_cases(program: str) -> None:
+    source = b"machine outer<T>(x: T) -> T { helper(x) machine helper(v: T) -> T { v } }"
+    accepted(program, "nested-own-result-retains-ancestor-type", source, ((b"helper(x)", "G0"),),
+             selections=((b"helper(x)", "machine", 1),))
+    source = b"machine outer() -> u8 { 7 machine helper() {} }"
+    accepted(program, "nested-default-result-is-independent-unit", source, ())
+    source = b"machine outer() -> u8 { 7 machine helper() { 1 } }"
+    rejected(program, "nested-default-unit-cannot-inherit-parent-result", source, "MismatchedTypes", b"1")
+    for name, source in (
+        ("empty-scalar-result", b"machine f() -> u8 {}"),
+        ("empty-generic-result", b"machine f<T>() -> T {}"),
+        ("implicit-unit-after-write", b"machine f(value: &mut u8) -> u8 { value = 7; }"),
+    ):
+        rejected(program, name, source, "TerminalResultMismatch", source)
+    source = b"machine f(ready: bool) -> u8 { transition ready { true -> 7 false -> {} } }"
+    rejected(program, "unit-arm-cannot-complete-scalar-result", source, "TerminalResultMismatch", b"false -> {}")
 
 
 def main() -> None:
@@ -1977,6 +1996,8 @@ def main() -> None:
     phase_rejected(program, "resolution-rejection-has-no-observation", b"data A { x: Q; }", 248)
     phase_rejected(program, "parse-rejection-has-no-observation", b"data A { x: ; }", 250)
     phase_rejected(program, "lex-rejection-has-no-observation", b"\x80", 251)
+
+    nested_machine_cases(program)
 
     determinism = b"data P { x: u8; }\nmachine f(p: &P) -> u16 { p.x as u16 + 1 }"
     first = run(program, determinism)

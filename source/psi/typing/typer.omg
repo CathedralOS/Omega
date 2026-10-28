@@ -196,9 +196,8 @@ crashes Trap
     machine done() {}
 }
 
-// Each machine's entry body, then its states. A state's result is its own
-// declared type or, when it declares none, the machine's: a state's terminal
-// value completes the invocation (wiki/spec/language/state_contracts.md).
+// Every declaration checks its own executable body and result. An omitted
+// result is Unit, independent of lexical ancestry.
 machine Typer::type_bodies(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution)
 crashes Trap
 {
@@ -215,6 +214,7 @@ crashes Trap
         let item: MachineItem = SyntaxTrees::machine_item(syntax, index);
         let result: u64 in Trapping = Typer::declared_result(typer, item.has_return_type, item.return_type, typer.output.unit);
         Typer::type_body(typer, sources, syntax, resolution, item.first_statement, item.statement_count, result);
+        Typer::require_body_completion(typer, syntax, item, result);
         transition { _ -> next_machine(typer, sources, syntax, resolution, index + 1) }
     }
 

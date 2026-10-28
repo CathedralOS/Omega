@@ -310,6 +310,7 @@ pub(super) fn arm_call(
     trace.statement(Some(statement_ordinal));
     let operation = build_call_operation(
         program,
+        shapes,
         facts,
         Some(scalar_callees),
         machine,

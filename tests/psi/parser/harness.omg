@@ -1009,8 +1009,7 @@ machine ParserHarness::write_parse_observation(
 // expression range, the visibility flag, the span, the target flag and span,
 // the boundary flag and the container tag (0 root, 1 trait, 2 conformance).
 // Parameter rows carry the name,
-// type-reference handle and span. State rows carry the name, parameter range,
-// return-type flag and handle, statement range and span.
+// type-reference handle and span. Every declaration uses the same machine row.
 machine ParserHarness::write_machine_tables(parser_harness: &mut ParserHarness, output: &SyntaxTrees)
 reaches Console
 crashes Trap
@@ -1117,7 +1116,7 @@ crashes Trap
 }
 
 
-// Body tables follow the states: expressions (kind and operator tags, left,
+// Executable body tables follow the declaration signatures: expressions (kind and operator tags, left,
 // right, range first and count, flag, name span, type-reference handle,
 // span; a Name's identifier is its name span and its range is zero, a Path's
 // range covers its members and its name span is zero), call arguments (expression handles), construction fields (name,

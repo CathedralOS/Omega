@@ -15,7 +15,7 @@ use psi::typing::typer;
 // discarded: an expression statement's value is Unit (or `Never`), and the
 // intentional discard `_ = call();` drops a call's result
 // (wiki/spec/language/effects.md). A transition's case arm binds its payload
-// binders before its target types; a target state's arguments meet its
+// binders before its target types; each callee's arguments meet its
 // parameters, a terminal machine call's result the body's result, and `-> {}`
 // completes a unit body (wiki/spec/language/state_contracts.md). Its arms
 // cover its subject (coverage.omg).
@@ -44,6 +44,50 @@ crashes Trap
         transition { _ -> next(typer, sources, syntax, resolution, index + 1, end, result) }
     }
 
+    machine done() {}
+}
+
+// An executable declaration that reaches its end completes with Unit. A
+// terminal statement or a Never expression has no fallthrough completion.
+// Bodyless signatures make no executable completion claim.
+public machine Typer::require_body_completion(typer: &mut Typer, syntax: &SyntaxTrees, item: MachineItem, result: u64 in Trapping)
+crashes Trap
+{
+    transition item.has_body && typer.output.accepted && result != typer.output.unit {
+        true -> next(typer, syntax, item, item.first_statement)
+        false -> done()
+    }
+    machine next(typer: &mut Typer, syntax: &SyntaxTrees, item: MachineItem, index: u64 in Trapping) {
+        transition index < item.first_statement + item.statement_count {
+            true -> statement(typer, syntax, item, index)
+            false -> missing(typer, item)
+        }
+    }
+    machine statement(typer: &mut Typer, syntax: &SyntaxTrees, item: MachineItem, index: u64 in Trapping) {
+        let statement: Statement = SyntaxTrees::statement(syntax, index);
+        let terminal: bool = statement.kind == StatementKind::Tail || statement.kind == StatementKind::Crash || statement.kind == StatementKind::Transition;
+        transition terminal {
+            true -> done()
+            false -> evaluated(typer, syntax, item, index, statement)
+        }
+    }
+    machine evaluated(typer: &mut Typer, syntax: &SyntaxTrees, item: MachineItem, index: u64 in Trapping, statement: Statement) {
+        transition statement.has_value {
+            true -> value(typer, syntax, item, index, statement.value)
+            false -> next(typer, syntax, item, index + 1)
+        }
+    }
+    machine value(typer: &mut Typer, syntax: &SyntaxTrees, item: MachineItem, index: u64 in Trapping, expression: u64 in Trapping) {
+        let value_type: u64 in Trapping = Typing::expression_type(&typer.output, expression);
+        let never: bool = Typer::never_type(typer, value_type);
+        transition never {
+            true -> done()
+            false -> next(typer, syntax, item, index + 1)
+        }
+    }
+    machine missing(typer: &mut Typer, item: MachineItem) {
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::TerminalResultMismatch, item.source_span);
+    }
     machine done() {}
 }
 
@@ -555,9 +599,8 @@ crashes Trap
     }
 }
 
-// An arm's target. A call selecting a state is a jump; a terminal call or
-// value completes the machine and meets its result, and `-> {}` completes a
-// unit body.
+// A terminal target forwards the selected call's result, its own value, or
+// Unit. Every form meets the current declaration's independent result.
 machine Typer::type_target(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, arm: TransitionArm, result: u64 in Trapping)
 crashes Trap
 {
@@ -575,16 +618,9 @@ crashes Trap
 
     machine target(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, arm: TransitionArm, result: u64 in Trapping) {
         Typer::type_tree(typer, sources, syntax, resolution, arm.target);
-        let selection: Selection = Typing::selection(&typer.output, arm.target);
         transition typer.output.accepted {
-            true -> selected(typer, syntax, arm, result, selection)
+            true -> completes(typer, syntax, arm, result)
             _ -> done()
-        }
-    }
-
-    machine selected(typer: &mut Typer, syntax: &SyntaxTrees, arm: TransitionArm, result: u64 in Trapping, selection: Selection) {
-        transition selection {
-            _ -> completes(typer, syntax, arm, result)
         }
     }
 

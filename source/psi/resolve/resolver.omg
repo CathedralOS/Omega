@@ -1611,7 +1611,7 @@ crashes Trap
 }
 
 // Machine signatures: each machine's generic annotations, its parameter and
-// return types, its `where machine` contracts', then each state's, all in
+// return types and its `where machine` contracts, all in
 // the machine's scope (a trait or conformance member's includes its
 // container's generic parameters).
 machine Resolver::bind_machine_references(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
@@ -1766,8 +1766,8 @@ public machine Resolver::empty_scope() -> TypeScope {
 }
 
 // Machine namespaces. A machine's generic parameter names are distinct,
-// each signature's parameter names are distinct, and a machine's state names
-// are distinct; a state may repeat the machine's own name and its
+// each signature's parameter names and each lexical declaration family
+// obey the ordinary duplicate and overload rules. A helper's
 // parameters' names, and a member's generic parameters may shadow its
 // container's. Two machines of one module may share a path (owner and name,
 // a member's owner being its container) only as overloads: identical generic
@@ -2626,8 +2626,7 @@ crashes Trap
     }
 }
 
-// Where a machine's statement run ends: after its last state's statements,
-// or after its entry statements when it declares no state.
+// A declaration owns only its executable statements; descendants have independent ranges.
 machine Resolver::statement_end(syntax: &SyntaxTrees, item: MachineItem) -> u64 in Trapping {
     item.first_statement + item.statement_count
 }

@@ -149,7 +149,7 @@ public data DataItem [copy] {
     source_span: SourceSpan;
 }
 
-// One typed parameter of a machine or state: `name: Type`.
+// One typed parameter of a machine: `name: Type`.
 // A binding marked `[erased]`
 // (wiki/spec/proofs/contracts.md#explicit-erased-bindings): it stays in
 // checking and identity but contributes no runtime field, read or cleanup.
@@ -302,7 +302,7 @@ public data ArmPatternKind [copy] {
 // What an arm's target spells (wiki/spec/language/state_contracts.md). A
 // `Call` names a declaration, `name(arguments)` or `Owner::name(arguments)`,
 // possibly acknowledged (`suspend block f(x)`); resolution decides whether it
-// jumps to a state or completes the machine through a terminal call. A
+// completes the invocation through a terminal call. A
 // `Value` is any other expression, a terminal value that completes the
 // machine. `Unit` is the explicit Unit completion `{}`.
 public data ArmTargetKind [copy] {
@@ -368,7 +368,7 @@ public data Statement [copy] {
 // `Terminates` is the termination promise; `terminates by subjects [-> View]`
 // adds its ranking witness: the ranked subjects in `SyntaxTrees::arguments`
 // and the view, a path or an argumented view call, as its expression.
-// Machines, contracts, states, data declarations and cases each own a
+// Machines, contracts, data declarations and cases each own a
 // contiguous range of clauses.
 public data ClauseKind [copy] {
     case Reaches;
@@ -464,7 +464,7 @@ public data OperatorToken [copy] {
 // `operator`, spelled at `token`.
 // Every declaration has its own signature, contract and executable ranges.
 // Its lexical parent scopes names without retaining runtime values. A bodyless declaration ends at `;`
-// and owns no statements or states. Every expression of the declaration,
+// and owns no statements or nested declarations. Every expression of the declaration,
 // in its clauses and its bodies, lies in the contiguous range from
 // `first_expression`. A target-scoped declaration (`linux_arm64 machine
 // ...`) names its target, one body of the family the path keys by target;

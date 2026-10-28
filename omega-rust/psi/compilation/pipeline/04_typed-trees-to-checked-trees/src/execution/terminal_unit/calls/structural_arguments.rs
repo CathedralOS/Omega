@@ -28,6 +28,7 @@ use crate::execution::terminal_unit::{
 
 pub(crate) fn structural_call_arguments(
     program: &dyn ::validation::CheckingInput,
+    shapes: &mut crate::execution::terminal_unit::types::ShapeCollector<'_>,
     facts: &CheckFacts,
     call: &checked_trees::FlowCallFact,
     caller_machine: &typed_trees::machine::Machine,
@@ -243,6 +244,7 @@ pub(crate) fn structural_call_arguments(
             let expression = *explicit_arguments.get(explicit_index.checked_sub(1)?)?;
             output.push(result_arguments::argument(
                 program,
+                shapes,
                 facts,
                 caller_machine.symbol,
                 caller_state.symbol,
@@ -456,6 +458,7 @@ pub(crate) fn structural_call_arguments(
         // both coordinates; type-only parameter presentation loses that hop.
         if let Some(plan) = computation_arguments::borrowed_storage_argument(
             program,
+            shapes,
             &facts.borrow,
             caller_machine.symbol,
             caller_state,

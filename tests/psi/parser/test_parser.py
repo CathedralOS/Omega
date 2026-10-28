@@ -227,7 +227,7 @@ def decode(payload: bytes) -> Observation:
     )
     # Machine rows: owner flag and span, name span, generic-parameter range,
     # parameter range, return-type flag and handle, clause range, entry
-    # statement range, machine range, body flag, expression range, visibility
+    # statement range, lexical parent handle, body flag, expression range, visibility
     # flag, span, target flag and span, boundary flag, container tag,
     # operator token tag and span, contract range, every-requirement flag.
     machines = tuple(
@@ -1949,6 +1949,25 @@ def expression_form_cases(program: str) -> None:
              type_reference_count=2, parameter_count=1, expression_count=131)
 
 
+def nested_machine_cases(program: str) -> None:
+    source = (b"machine outer() -> u8 { 37 machine middle() -> u8 { 41 "
+              b"machine leaf() -> u8 { 43 } } machine sibling() -> u8 { 47 } }")
+    status, payload = run(program, source)
+    actual = decode(payload)
+    assert status == 0 and actual.accepted, actual
+    assert [row[17] for row in actual.machines] == [0, 1, 2, 1], actual.machines
+    assert [row[15:17] for row in actual.machines] == [(0, 1), (1, 1), (2, 1), (3, 1)], actual.machines
+    assert [row[19:21] for row in actual.machines] == [(0, 1), (1, 1), (2, 1), (3, 1)], actual.machines
+    source = b"".join(f"machine n{index}() {{ ".encode() for index in range(128)) + b"}" * 128
+    status, payload = run(program, source)
+    actual = decode(payload)
+    assert status == 0 and actual.accepted and len(actual.machines) == 128, actual
+    assert [row[17] for row in actual.machines] == list(range(128)), actual.machines
+    source = b"machine outer() { machine child() {} let x: u8 = 1; }"
+    status, payload = run(program, source)
+    assert status == 250 and not decode(payload).accepted
+
+
 def main() -> None:
     if len(sys.argv) != 2:
         raise SystemExit(
@@ -2844,7 +2863,7 @@ def main() -> None:
     assert len(decode(payload).machines) == 10240
     overflow_start = len(exact_nested) - 1
     rejected(program, "nested-machine-capacity-plus-one", exact_nested[:-1] + b"machine overflow {} }",
-             48, (overflow_start, overflow_start + 7), machine_count=10240)
+             52, (overflow_start, overflow_start + 7), machine_count=10240)
 
     # Body tables: 16,384 statements and 8,192 transition arms. A statement
     # or arm past its table rejects once it completes, at the token after it.
@@ -3813,6 +3832,8 @@ def main() -> None:
     assert nested_status == 0, "32 nested groups"
     too_nested = b"machine f() { " + b"(" * 33 + b"1" + b")" * 33 + b"; }"
     rejected(program, "expression-nesting-plus-one", too_nested, 68, (46, 47))
+
+    nested_machine_cases(program)
 
     root_declaration_cases(program)
     machine_form_cases(program)

@@ -19,9 +19,9 @@ use psi::types::types;
 // of a later argument (a read, a loan, or a nested call's argument inside
 // it) when either is exclusive. Places overlap when one's path is a prefix
 // of the other's, through references; integer-literal indexes that differ
-// are apart. A local jump that forwards an exclusive reference parameter
-// whole passes its body's data parent on and holds nothing new beside the
-// jump's other arguments, unless it forwards that parameter twice.
+// are apart. A terminal invocation may transfer an existing mutable descriptor after
+// completed scalar observations through that same route. Fresh borrows and
+// retained reference results retain their ordinary exclusive loan windows.
 
 // What an argument holds while its call runs: nothing, or a shared or an
 // exclusive loan of a place expression.
@@ -157,8 +157,6 @@ crashes Trap
         }
     }
 
-    // A forwarded data parent pairs only with a second forwarding of its
-    // parameter.
     machine paired(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
@@ -392,7 +390,7 @@ crashes Trap
     }
 }
 
-// Whether an argument forwards an exclusive reference parameter whole.
+// Whether an argument transfers an existing mutable descriptor.
 // Existing descriptor values may transfer at a terminal call. A newly formed
 // borrow, recast or returning invocation has its independent loan window.
 machine Checker::forwards_reference(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, argument: u64 in Trapping) -> bool
@@ -508,7 +506,7 @@ crashes Trap
 }
 
 // The handle of a call's callee's first parameter, plus one: a machine's or
-// a state's; zero when the callee has no parameter list here.
+// zero when the callee has no parameter list here.
 public machine Checker::callee_parameters(syntax: &SyntaxTrees, selection: Selection) -> u64 in Trapping
 crashes Trap
 {

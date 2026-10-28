@@ -308,8 +308,7 @@ crashes Trap
         }
     }
 
-    // A bodyless declaration owns empty statement and state ranges at the
-    // tables' ends.
+    // A bodyless declaration owns an empty executable range at the tables' ends.
     machine signature_end(parser: &mut Parser, input: &TokenStream) {
         Parser::take_current(parser, input);
         parser.machine_first_statement = parser.output.statement_count as u64 in Trapping;
@@ -351,9 +350,16 @@ crashes Trap
     }
 
     machine nested_member(parser: &mut Parser, input: &TokenStream, nested: bool) {
-        transition nested && parser.output.machine_count < 10240 {
-            true -> nested_header(parser, input)
+        transition nested {
+            true -> nested_capacity(parser, input)
             false -> body_end_rejected(parser, input)
+        }
+    }
+
+    machine nested_capacity(parser: &mut Parser, input: &TokenStream) {
+        transition parser.output.machine_count < 10240 {
+            true -> nested_header(parser, input)
+            false -> machine_full(parser, input)
         }
     }
 
@@ -378,10 +384,21 @@ crashes Trap
     machine close(parser: &mut Parser, input: &TokenStream) {
         Parser::take_current(parser, input);
         let current: u64 in Trapping = parser.machine_current;
+        transition current < 10240 {
+            true -> close_bounded(parser, input, current)
+            false -> invalid_handle()
+        }
+    }
+
+    machine close_bounded(parser: &mut Parser, input: &TokenStream, current: u64 in Trapping)
+    requires current < 10240
+    {
         let item: MachineItem = SyntaxTrees::machine_item(&parser.output, current);
         parser.output.machines[current].source_span.span.end = parser.token_end as u64 in Trapping;
         transition { _ -> completed(parser, input, current, item.parent) }
     }
+
+    machine invalid_handle() { crash Trap; }
 
     machine completed(parser: &mut Parser, input: &TokenStream, current: u64 in Trapping, parent: u64 in Trapping) {
         transition parent > 0 {

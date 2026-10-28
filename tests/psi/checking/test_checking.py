@@ -170,6 +170,23 @@ def phase_rejected(program: str, name: str, source: bytes, status: int) -> None:
     assert actual == status and payload == b"", f"{name}: status {actual}, {len(payload)} bytes"
 
 
+def nested_machine_cases(program: str) -> None:
+    source = (b"machine outer(a: &[u8; 4], i: u64) -> u8 { transition i < 4 { true -> middle(a, i) false -> (0) } "
+              b"machine middle(a: &[u8; 4], i: u64) -> u8 { leaf(a, i) "
+              b"machine leaf(a: &[u8; 4], i: u64) -> u8 { a[i] } } }")
+    accepted(program, "three-level-ordinary-and-terminal-arrival-facts", source)
+    rejected(program, "three-level-arrival-bound-endpoint", source.replace(b"i < 4", b"i <= 4"), "IndexOutOfBounds", b"a[i]")
+    source = (b"machine outer(a: &[u8; 4], i: u64) requires i < 4 { _ = helper(a, i); _ = helper(a, 4); "
+              b"machine helper(a: &[u8; 4], i: u64) -> u8 { a[i] } }")
+    rejected(program, "private-helper-never-inherits-parent-entry-facts", source, "IndexOutOfBounds", b"a[i]")
+    source = (b"data Cell { value: u64; } machine observe(cell: &Cell) -> u64 { cell.value } "
+              b"machine update(cell: &mut Cell, before: u64) -> u64 { cell.value = 73; before } "
+              b"machine forward(cell: &mut Cell) -> u64 { transition { _ -> update(cell, observe(cell)) } }")
+    accepted(program, "terminal-existing-reference-captures-completed-observation", source)
+    ordinary = source.replace(b"transition { _ -> update(cell, observe(cell)) }", b"let before: u64 = update(cell, observe(cell)); before")
+    rejected(program, "returning-call-retains-ordinary-exclusive-window", ordinary, "OverlappingArguments", b"cell!7")
+
+
 def main() -> None:
     if len(sys.argv) != 2:
         raise SystemExit("usage: test_checking.py <checking-harness-executable>")
@@ -3475,6 +3492,8 @@ def main() -> None:
         b"sink!2",
     )
     phase_rejected(program, "resolution-rejection-has-no-observation", b"data A { x: Q; }", 248)
+
+    nested_machine_cases(program)
 
     determinism = b"machine read(a: &[u8; 4], i: u64) -> u8 { a[i] }"
     first = run(program, determinism)
