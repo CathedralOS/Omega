@@ -20,4 +20,3 @@ diagnostics = { path = "../../../foundation/diagnostics" }
 source = { path = "../../../foundation/source" }
 symbols = { path = "../../../foundation/symbols" }
 semantic-vocabulary = { path = "../../../foundation/semantic-vocabulary" }
-validation = { path = "../../checking" }
