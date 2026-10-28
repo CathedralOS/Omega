@@ -1,5 +1,6 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "no_normal_dispatch_normal");
+    Optimizations::enable(&mut builder.optimizations, Optimization::ControlFlowCleanup);
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
