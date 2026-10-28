@@ -20,6 +20,8 @@ pub struct PackageReviewInput<'a> {
     /// Original checked trees have a separate immutable query namespace. A
     /// supplied candidate's memo must never stand in for compiler custody.
     pub(crate) custody_checking_input: &'a dyn validation::CheckingInput,
+    pub(crate) service_declarations:
+        Option<&'a provider_planning::service_declarations::ServiceDeclarations>,
     pub(crate) external_providers:
         Option<&'a psi_terminal_production::ExternalProviderDeclarations>,
 }
@@ -34,6 +36,7 @@ impl<'a> PackageReviewInput<'a> {
             checking_input: program,
             custody_checking_input: &**custody,
             external_providers: None,
+            service_declarations: None,
         }
     }
 
@@ -52,6 +55,21 @@ impl<'a> PackageReviewInput<'a> {
                 "package external provider declarations: {error:?}"
             ))]
         })
+    }
+
+    /// Project the supplied program independently. The original catalog stays
+    /// in custody; source handles never cross between these namespaces.
+    pub(super) fn project_service_declarations(
+        &self,
+    ) -> provider_planning::service_declarations::ServiceDeclarations {
+        provider_planning::service_declarations::ServiceDeclarations::prepare(
+            provider_planning::ProviderPlanningContext::new(
+                self.checking_input,
+                source::DependencyScope::Product,
+            ),
+            &self.custody.providers().boundary_calling_plan_realizations,
+            self.custody.sources().exact_toolchain_sources(),
+        )
     }
 
     /// Authored deployment scope must agree with immutable compiler custody.

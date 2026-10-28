@@ -32,6 +32,7 @@ pub enum SelectedCompilerIntrinsicExecutionIdentity {
 pub fn derive_selected_compiler_intrinsic_execution_identity_for_row(
     checked: &CheckedTrees,
     numeric: crate::NumericProviderSelection<'_>,
+    services: &provider_planning::service_declarations::ServiceDeclarations,
     plan: &ProviderPlan,
     schema: ProviderSchemaDeclaration,
     row: &ProviderPlanRow,
@@ -50,8 +51,12 @@ pub fn derive_selected_compiler_intrinsic_execution_identity_for_row(
         requirement_symbol,
         realization_symbol,
         selected_target,
-        accepted_console_binding.map(AcceptedRowBinding::resolved),
-        accepted_process_exit_binding.map(AcceptedRowBinding::resolved),
+        accepted_console_binding
+            .map(|binding| AcceptedRowBinding::resolved(binding, services))
+            .transpose()?,
+        accepted_process_exit_binding
+            .map(|binding| AcceptedRowBinding::resolved(binding, services))
+            .transpose()?,
     )
 }
 
@@ -65,12 +70,15 @@ pub(crate) struct AcceptedRowBinding<'binding> {
 }
 
 impl<'binding> AcceptedRowBinding<'binding> {
-    fn resolved(binding: &'binding crate::ResolvedAcceptedSemanticBinding) -> Self {
-        Self {
+    fn resolved(
+        binding: &'binding crate::ResolvedAcceptedSemanticBinding,
+        services: &provider_planning::service_declarations::ServiceDeclarations,
+    ) -> Result<Self, Diagnostic> {
+        Ok(Self {
             accepted: binding.accepted(),
             public_plan: None,
-            declaration_symbol: Some(binding.declaration_symbol()),
-        }
+            declaration_symbol: Some(services.rejoin(binding.declaration())?.symbol),
+        })
     }
 }
 
