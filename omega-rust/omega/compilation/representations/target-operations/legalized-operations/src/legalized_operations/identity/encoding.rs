@@ -33,3 +33,21 @@ pub(super) fn encode_ids(bytes: &mut Vec<u8>, values: impl IntoIterator<Item = u
 pub(super) fn encode_len(bytes: &mut Vec<u8>, len: usize) {
     crate::codec_bytes::push_encoded(bytes, (len as u64).to_le_bytes());
 }
+
+/// Tagged optional payload: one `0` discriminant for absence, or `1` followed
+/// by the payload its encoder lays down. Every optional field these encoders
+/// write uses this one frame, so an absent row and an empty payload never share
+/// bytes.
+pub(super) fn encode_option<T>(
+    bytes: &mut Vec<u8>,
+    value: Option<T>,
+    encode: impl FnOnce(&mut Vec<u8>, T),
+) {
+    match value {
+        Some(value) => {
+            bytes.push(1);
+            encode(bytes, value);
+        }
+        None => bytes.push(0),
+    }
+}

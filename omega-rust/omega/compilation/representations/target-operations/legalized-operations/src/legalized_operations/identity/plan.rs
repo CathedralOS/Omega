@@ -1,4 +1,4 @@
-use super::encoding::{encode_ids, encode_len};
+use super::encoding::{encode_ids, encode_len, encode_option};
 use crate::legalized_operations::LegalizedStructuralContract;
 use crate::legalized_operations::identity::structural_types::{
     encode_entry_claim, encode_structural_parameter, encode_structural_place,
@@ -10,13 +10,9 @@ pub(super) fn encode_structural_contract(
     function: &LegalizedStructuralContract,
     cached_catalog: &mut Option<(abstract_operations::StructuralTypeCatalog, Vec<u8>)>,
 ) {
-    match &function.result {
-        None => bytes.push(0),
-        Some(result) => {
-            bytes.push(1);
-            super::structural_result::encode_result(bytes, result);
-        }
-    }
+    encode_option(bytes, function.result.as_ref(), |bytes, result| {
+        super::structural_result::encode_result(bytes, result)
+    });
     if let Some((cached, encoded)) = cached_catalog.as_ref()
         && cached.ptr_eq(&function.structural_types)
     {
@@ -37,10 +33,7 @@ pub(super) fn encode_structural_contract(
         bytes.extend_from_slice(&optimization_unit::placed_view_catalog_identity_bytes(
             &function.structural_types,
         ));
-        *cached_catalog = Some((
-            function.structural_types.clone(),
-            bytes[start..].to_vec(),
-        ));
+        *cached_catalog = Some((function.structural_types.clone(), bytes[start..].to_vec()));
     }
     encode_len(bytes, function.parameters.len());
     for parameter in &function.parameters {
