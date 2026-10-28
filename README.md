@@ -33,11 +33,11 @@ These are design guarantees, within the stated trust boundaries:
 | Stack overflow | ✅ Prevented | Worst case stack calculations and tail-recursion only |
 | Data races | ✅ Prevented| Borrow-checking and synchronization. |
 | Hidden or unexpected service reach | ✅ Prevented | Queryable call reachability graphs with no circumvention. |
-| Integer overflow / division by zero | ☑️ Prevented by default | Compile-time checked by default. |
-| Unintended infinite loops | ☑️ Opt-in Prevention | Termination proofs. |
-| Deadlocks / indefinite waits | ☑️ Preventable | Protocol proofs. |
-| Dependency supply-chain attacks | ☑️ Preventable | Reviewable reach graphs, package manager reports. |
-| Compiler supply-chain attacks | ☑️ Preventable | Auditable bootstrap chain. |
+| Integer overflow / division by zero | 🌟 Prevented by default | Compile-time checked by default. |
+| Unintended infinite loops | 🌟 Opt-in Prevention | Termination proofs. |
+| Deadlocks / indefinite waits | 🌟 Preventable | Protocol proofs. |
+| Dependency supply-chain attacks | 🌟 Preventable | Reviewable reach graphs, package manager reports. |
+| Compiler supply-chain attacks | 🌟 Preventable | Auditable bootstrap chain. |
 
 These guarantees rely on the contracts of external code and hardware. A foreign
 function that lies about its memory access, or an OS that violates its contract,
