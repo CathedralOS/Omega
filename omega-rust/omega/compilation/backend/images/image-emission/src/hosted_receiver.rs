@@ -748,7 +748,7 @@ pub(super) fn validate_unit_image(
 ) -> Result<(), Diagnostic> {
     let invalid = || crate::hosted_activation_stack::invalid(artifact.target);
     let plan = shim.stack.as_ref().ok_or_else(invalid)?;
-    if plan.demand.psi() != artifact.psi()
+    if plan.demand.psi() != artifact.psi
         || plan.demand.target() != artifact.target()
         || plan.demand.entry() != artifact.entry()
         || artifact.physical_entry_binding().is_some()
