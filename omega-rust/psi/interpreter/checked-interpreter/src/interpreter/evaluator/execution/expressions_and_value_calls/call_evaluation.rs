@@ -252,99 +252,19 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                 return self.eval_float_extremum(builtin, left, right);
             }
         }
-        if matches!(
-            target,
-            "float#multiply_then_add_f32"
-                | "float#multiply_then_add_f64"
-                | "float#fused_multiply_add_f32"
-                | "float#fused_multiply_add_f64"
-                | "float#fused_multiply_add_toward_zero_f32"
-                | "float#fused_multiply_add_toward_zero_f64"
-                | "float#fused_multiply_add_toward_positive_f32"
-                | "float#fused_multiply_add_toward_positive_f64"
-                | "float#fused_multiply_add_toward_negative_f32"
-                | "float#fused_multiply_add_toward_negative_f64"
-        ) && call.receiver == ExpressionHandle::invalid()
+        // The named-float intrinsics lower to unnameable `float#...` spellings.
+        // One owner resolves the spelling into its operation, arity and format;
+        // an operand count that does not fit defers to the next candidate.
+        if call.receiver == ExpressionHandle::invalid()
+            && let Some(value) = self.eval_named_float_intrinsic(
+                target,
+                self.program
+                    .expression_table
+                    .expression_handles(call.arguments),
+                frame,
+            )?
         {
-            let arguments = self
-                .program
-                .expression_table
-                .expression_handles(call.arguments)
-                .to_vec();
-            if arguments.len() == 3 {
-                let format = if target.ends_with("_f32") {
-                    SemanticFloatFormat::BINARY32
-                } else {
-                    SemanticFloatFormat::BINARY64
-                };
-                return self.eval_rewritten_ternary_float(&arguments, format, target, frame);
-            }
-        }
-        if matches!(
-            target,
-            "float#add_toward_zero_f32"
-                | "float#add_toward_zero_f64"
-                | "float#add_toward_positive_f32"
-                | "float#add_toward_positive_f64"
-                | "float#add_toward_negative_f32"
-                | "float#add_toward_negative_f64"
-                | "float#subtract_toward_zero_f32"
-                | "float#subtract_toward_zero_f64"
-                | "float#subtract_toward_positive_f32"
-                | "float#subtract_toward_positive_f64"
-                | "float#subtract_toward_negative_f32"
-                | "float#subtract_toward_negative_f64"
-                | "float#multiply_toward_zero_f32"
-                | "float#multiply_toward_zero_f64"
-                | "float#multiply_toward_positive_f32"
-                | "float#multiply_toward_positive_f64"
-                | "float#multiply_toward_negative_f32"
-                | "float#multiply_toward_negative_f64"
-                | "float#divide_toward_zero_f32"
-                | "float#divide_toward_zero_f64"
-                | "float#divide_toward_positive_f32"
-                | "float#divide_toward_positive_f64"
-                | "float#divide_toward_negative_f32"
-                | "float#divide_toward_negative_f64"
-        ) && call.receiver == ExpressionHandle::invalid()
-        {
-            let arguments = self
-                .program
-                .expression_table
-                .expression_handles(call.arguments)
-                .to_vec();
-            if arguments.len() == 2 {
-                let format = if target.ends_with("_f32") {
-                    SemanticFloatFormat::BINARY32
-                } else {
-                    SemanticFloatFormat::BINARY64
-                };
-                return self.eval_rewritten_directed_binary(&arguments, format, target, frame);
-            }
-        }
-        if matches!(
-            target,
-            "float#sqrt_toward_zero_f32"
-                | "float#sqrt_toward_zero_f64"
-                | "float#sqrt_toward_positive_f32"
-                | "float#sqrt_toward_positive_f64"
-                | "float#sqrt_toward_negative_f32"
-                | "float#sqrt_toward_negative_f64"
-        ) && call.receiver == ExpressionHandle::invalid()
-        {
-            let arguments = self
-                .program
-                .expression_table
-                .expression_handles(call.arguments)
-                .to_vec();
-            if arguments.len() == 1 {
-                let format = if target.ends_with("_f32") {
-                    SemanticFloatFormat::BINARY32
-                } else {
-                    SemanticFloatFormat::BINARY64
-                };
-                return self.eval_rewritten_directed_square_root(&arguments, format, target, frame);
-            }
+            return Ok(value);
         }
         // Builtin: sqrt over a single float operand. The interpreter consumes
         // the same exact semantic function used as the native
