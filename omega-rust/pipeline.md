@@ -338,8 +338,13 @@ requirement's token or named catalog row supplies both signature obligations
 and its closed execution identity. Provider planning and selected dispatch use
 that classification; diagnostic strings do not gate support. Package review
 still independently rejoins its supplied candidate to retained selection
-custody. The classification is not yet published in canonical Terminal Psi;
-moving this source dependency remains part of provider-settlement migration.
+custody. Psi publishes numeric meaning and its exact IEEE format in canonical
+Terminal boundary declarations; native proposal creation consumes that meaning
+and reconciles it with selected-provider custody rather than inferring the format
+from a result or parameter. Portable decoding validates the complete numeric
+signature. This meaning does not select or authorize a provider. Review-only
+products still use checked source custody: moving their complete conformance
+evidence to Terminal remains part of provider-settlement migration.
 Provider selection and target geometry still originate outside Psi. This is not
 yet target-independent constant production or a completed Terminal-only provider
 pipeline; portable deferred recipes remain part of the migration.

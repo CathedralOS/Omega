@@ -103,7 +103,7 @@ pub struct IntegerLanding {
 
 /// A float FORMAT a literal has landed at (F2, the float half of the ch5
 /// two-phase law). Names mean formats permanently: `f32` never rebinds.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum FloatFormat {
     F32,
     F64,

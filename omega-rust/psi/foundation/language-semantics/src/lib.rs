@@ -26,6 +26,7 @@ pub mod content;
 pub mod declaration_selection;
 mod external_bindings;
 mod machine_termination;
+pub mod numeric_intrinsics;
 mod permissions;
 pub mod quotient_correspondence;
 mod semantic_domains;
