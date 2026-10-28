@@ -418,7 +418,7 @@ fn selected_constructor_field<'program>(
 fn constructor_byte_literal_observations(
     program: &mut TypedTrees,
     expression: ExpressionHandle,
-) -> Vec<(ExpressionHandle, TypeReferenceHandle)> {
+) -> Vec<(symbols::SymbolHandle, ExpressionHandle, TypeReferenceHandle)> {
     let observations = (|| {
         let literal = program.expression_table.struct_literal_node(expression)?;
         Some(
@@ -454,7 +454,7 @@ fn constructor_byte_literal_observations(
                     };
                     (program.symbols.builtin_type_atom(*symbol)
                         == Some(symbols::BuiltinTypeAtom::U8))
-                    .then_some((field.value, element, bytes.len()))
+                    .then_some((field.field_symbol, field.value, element, bytes.len()))
                 })
                 .collect::<Vec<_>>(),
         )
@@ -462,7 +462,7 @@ fn constructor_byte_literal_observations(
     .unwrap_or_default();
     observations
         .into_iter()
-        .map(|(value, element_type, length)| {
+        .map(|(field, value, element_type, length)| {
             let node = TypeReferenceNode::FixedArray {
                 element_type,
                 length: FixedArrayLength::Literal(length),
@@ -472,6 +472,7 @@ fn constructor_byte_literal_observations(
                 .type_reference_rows()
                 .find_map(|(reference, candidate)| (candidate == &node).then_some(reference));
             (
+                field,
                 value,
                 existing.unwrap_or_else(|| program.type_reference_table.insert(node)),
             )
@@ -552,7 +553,10 @@ fn retain_constructor_result_type(
         let required = selected_constructor_field(program, literal, field.field_symbol)?;
         let Some(actual) = byte_copies
             .iter()
-            .find_map(|(value, reference)| (*value == field.value).then_some(*reference))
+            .find_map(|(selected_field, value, reference)| {
+                (*selected_field == field.field_symbol && *value == field.value)
+                    .then_some(*reference)
+            })
             .or_else(|| scope.result_type(program, field.value))
         else {
             continue;

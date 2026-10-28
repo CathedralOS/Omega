@@ -81,6 +81,36 @@ pub(super) fn build(
         trace.statement(Some(coordinate.statement_index));
     };
     phase("call operation: boundary signature");
+    // Operand establishment and the invocation consume the same complete
+    // logical signature. Its member telescope is applied in the caller;
+    // the declaration's raw Type binders are not receiving argument types.
+    let contract_requirement = requirement;
+    let requirement = match requirement {
+        BoundaryRequirement::Trait {
+            definition,
+            signature,
+        } => {
+            let applied = match call_site {
+                validation::CallSite::Statement(call) => {
+                    program.requirement_statement_call_signature(machine.symbol, call)
+                }
+                validation::CallSite::Expression { call, .. } => {
+                    program.requirement_call_signature(machine.symbol, call)
+                }
+                validation::CallSite::TransitionNamed { path, .. } => program
+                    .trait_machine_signature(path.symbol)
+                    .map(|(_, signature)| signature),
+            }?;
+            if applied.symbol != signature.symbol {
+                return None;
+            }
+            BoundaryRequirement::Trait {
+                definition,
+                signature: applied,
+            }
+        }
+        requirement => requirement,
+    };
     let target = requirement.target_symbol();
     let (owner, source_parameters, signature_type_parameters, return_type, callback_parameters) =
         match requirement {
@@ -192,7 +222,7 @@ pub(super) fn build(
     // Callback contracts survive closure separately from executable generic
     // arity. Machine-only ordinals are the same ordinals MP2b records; type
     // or const binders cannot shift a callback's selection to another row.
-    let callback_contract_parameters = match requirement {
+    let callback_contract_parameters = match contract_requirement {
         BoundaryRequirement::Trait { signature, .. } => {
             program.requirement_invocation_contract_parameters(signature)
         }
@@ -377,7 +407,7 @@ pub(super) fn build(
             )?);
             continue;
         }
-        phase("call operation: boundary argument parameter");
+        phase("call operation: boundary argument storage root");
         let source_symbol = place.root.as_symbol()?;
         // Boundary calls lend the same primitive local home as checked-body
         // calls. Its existing admission retains the authored type and exact
@@ -424,7 +454,7 @@ pub(super) fn build(
             structural_arguments.push(argument);
             continue;
         }
-        phase("call operation: boundary argument parameter");
+        phase("call operation: boundary argument source parameter");
         let source =
             SourceParameter::resolve(caller_source_parameters, caller_parameters, source_symbol)?;
         let custody = source.custody(structural_access_for_type_reference(program, formal));
