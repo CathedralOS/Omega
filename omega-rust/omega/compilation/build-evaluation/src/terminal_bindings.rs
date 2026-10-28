@@ -429,12 +429,28 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
                 })
             }
             (BuildSelectionRequest::Declaration(request), action, values) => {
-                let independent = match (action, values) {
-                    (TerminalBuildBindingOperation::Select, []) => None,
+                let (target, independent) = match (action, values) {
+                    (TerminalBuildBindingOperation::Select, []) => (None, None),
                     (
-                        TerminalBuildBindingOperation::SelectMode,
-                        [TerminalScalarValue::Boolean(value)],
-                    ) => Some(*value),
+                        TerminalBuildBindingOperation::SelectProvider,
+                        [
+                            TerminalScalarValue::Integer {
+                                value: IntegerValue::Unsigned(code),
+                                ..
+                            },
+                            TerminalScalarValue::Boolean(value),
+                        ],
+                    ) => {
+                        let target = u64::try_from(*code)
+                            .ok()
+                            .and_then(
+                                language_semantics::declaration_selection::ProductTarget::from_code,
+                            )
+                            .ok_or_else(|| {
+                                refuse("Product selection names an unknown catalog target")
+                            })?;
+                        (Some(target), Some(*value))
+                    }
                     _ => {
                         return Err(refuse(
                             "Product selection disagrees with its evaluated operands",
@@ -468,6 +484,7 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
                 ExecutedBuildSelection::Declaration(ExecutedProductSelection {
                     request: request.clone(),
                     selecting_machine: call.selecting_machine,
+                    target,
                     composition,
                 })
             }

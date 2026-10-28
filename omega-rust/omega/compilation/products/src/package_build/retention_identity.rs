@@ -27,7 +27,7 @@ impl PreparedPackageBuild {
     pub fn native_product_input_identity(&self) -> Result<[u8; 32], String> {
         let mut identity = BuildOutputIdentity {
             program: self.prepared.built.source.typed(),
-            digest: DomainDigestEncoder::new(b"omega-native-product-build-outputs-v1\0"),
+            digest: DomainDigestEncoder::new(b"omega-native-product-build-outputs-v2\0"),
             source_contents: HashMap::new(),
         };
         identity.computed(&self.prepared.built.computed_build_config)?;
@@ -111,8 +111,10 @@ impl BuildOutputIdentity<'_> {
                 request,
                 selecting_machine,
                 composition,
+                target,
             } = selection;
             self.product_request(request)?;
+            self.product_target(*target);
             self.optional_occurrence(*selecting_machine)?;
             self.digest.bool(composition.is_some());
             if let Some(mode) = composition {
@@ -188,6 +190,7 @@ impl BuildOutputIdentity<'_> {
                 subject,
                 provider_type,
                 composition_mode,
+                target,
                 selecting_machine,
                 source_span,
             } = selection;
@@ -214,6 +217,7 @@ impl BuildOutputIdentity<'_> {
                 }
             }
             self.provider_identity(provider_type)?;
+            self.product_target(*target);
             self.composition(*composition_mode);
             self.symbol(*selecting_machine)?;
             self.occurrence(*source_span)?;
@@ -501,6 +505,16 @@ impl BuildOutputIdentity<'_> {
         self.digest.string(canonical_path);
         self.digest.string(authored_path);
         Ok(())
+    }
+
+    fn product_target(
+        &mut self,
+        target: Option<language_semantics::declaration_selection::ProductTarget>,
+    ) {
+        self.digest.bool(target.is_some());
+        if let Some(target) = target {
+            self.digest.string(target.canonical_name());
+        }
     }
 
     fn composition(&mut self, mode: CompositionMode) {

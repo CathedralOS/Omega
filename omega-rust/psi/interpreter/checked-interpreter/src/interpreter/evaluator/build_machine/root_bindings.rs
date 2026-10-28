@@ -72,7 +72,12 @@ impl<'program> Evaluator<'program> {
             if matches!(
                 protocol,
                 Some(
-                    "prepare" | "bind" | "bind_description" | "select" | "select_mode" | "exclude"
+                    "prepare"
+                        | "bind"
+                        | "bind_description"
+                        | "select"
+                        | "select_provider"
+                        | "exclude"
                 )
             ) {
                 return trap(
@@ -99,7 +104,7 @@ impl<'program> Evaluator<'program> {
                 RootBindingOperand::Description => "bind_description",
             },
             BuildSelectionRequest::Declaration(_) => match protocol {
-                Some("select_mode") => "select_mode",
+                Some("select_provider") => "select_provider",
                 _ => "select",
             },
         };
@@ -218,15 +223,28 @@ impl<'program> Evaluator<'program> {
                 })
             }
             BuildSelectionRequest::Declaration(request) => {
-                let independent = match (operation, arguments) {
-                    ("select", [_]) => None,
-                    ("select_mode", [_, mode]) => {
+                let (target, independent) = match (operation, arguments) {
+                    ("select", [_]) => (None, None),
+                    ("select_provider", [_, target, mode]) => {
+                        let Value::Int(code) = self.eval_expression(*target, frame)? else {
+                            return trap("Product selection requires its checked target value");
+                        };
+                        let target = u64::try_from(code)
+                            .ok()
+                            .and_then(
+                                language_semantics::declaration_selection::ProductTarget::from_code,
+                            )
+                            .ok_or_else(|| {
+                                Halt::Trap(
+                                    "Product selection names an unknown catalog target".into(),
+                                )
+                            })?;
                         let Value::Bool(independent) = self.eval_expression(*mode, frame)? else {
                             return trap(
                                 "Product selection requires its checked composition value",
                             );
                         };
-                        Some(independent)
+                        (Some(target), Some(independent))
                     }
                     _ => return trap("Product selection lost its ordinary arguments"),
                 };
@@ -265,6 +283,7 @@ impl<'program> Evaluator<'program> {
                 };
                 SourceBuildSelection::Declaration(ExecutedProductSelection {
                     request,
+                    target,
                     composition,
                     selecting_machine,
                 })

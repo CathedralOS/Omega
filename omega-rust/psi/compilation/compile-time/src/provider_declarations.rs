@@ -288,6 +288,7 @@ fn collect_provider_selections<'a>(
             boundary_identity,
             provider_type,
             composition_mode,
+            None,
             machine,
             source_span,
             &selections,
