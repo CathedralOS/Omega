@@ -50,27 +50,33 @@ pub(crate) fn evaluate_closed_boolean_expression(
     Some(value)
 }
 
-pub(crate) fn lower_boolean_expression(
-    program: &dyn ::validation::CheckingInput,
-    operators: &CheckedOperatorFacts,
-    expression: ExpressionHandle,
-    parameters: &[StateParameter],
-    authored_parameters: &[StateParameter],
-    parameter_types: &[PrimitiveType],
-    locals: &[ScalarLocal],
-    exact_integer_casts: &[validation::ExactIntegerCastFact],
-) -> Option<CheckedBooleanExpression> {
-    BooleanLowering::new(
-        program,
-        operators,
-        parameters,
-        authored_parameters,
-        parameter_types,
-        locals,
-        exact_integer_casts,
-    )
-    .expression(expression)
+macro_rules! lower_boolean_entry {
+    ($name:ident, $walk:ident) => {
+        pub(crate) fn $name(
+            program: &dyn ::validation::CheckingInput,
+            operators: &CheckedOperatorFacts,
+            expression: ExpressionHandle,
+            parameters: &[StateParameter],
+            authored_parameters: &[StateParameter],
+            parameter_types: &[PrimitiveType],
+            locals: &[ScalarLocal],
+            exact_integer_casts: &[validation::ExactIntegerCastFact],
+        ) -> Option<CheckedBooleanExpression> {
+            BooleanLowering::new(
+                program,
+                operators,
+                parameters,
+                authored_parameters,
+                parameter_types,
+                locals,
+                exact_integer_casts,
+            )
+            .$walk(expression)
+        }
+    };
 }
+
+lower_boolean_entry!(lower_boolean_expression, expression);
 
 // The recursive Boolean walk keeps the same invocation checking input and
 // borrowed scalar namespace. Authored coordinates remain separate from dense
@@ -557,24 +563,4 @@ pub(crate) fn construct_integer_comparison(
     })
 }
 
-pub(crate) fn lower_boolean_guard(
-    program: &dyn ::validation::CheckingInput,
-    operators: &CheckedOperatorFacts,
-    expression: ExpressionHandle,
-    parameters: &[StateParameter],
-    authored_parameters: &[StateParameter],
-    parameter_types: &[PrimitiveType],
-    locals: &[ScalarLocal],
-    exact_integer_casts: &[validation::ExactIntegerCastFact],
-) -> Option<CheckedBooleanExpression> {
-    BooleanLowering::new(
-        program,
-        operators,
-        parameters,
-        authored_parameters,
-        parameter_types,
-        locals,
-        exact_integer_casts,
-    )
-    .guard(expression)
-}
+lower_boolean_entry!(lower_boolean_guard, guard);
