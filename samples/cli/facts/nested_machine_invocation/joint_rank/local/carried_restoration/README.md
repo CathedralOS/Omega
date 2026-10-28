@@ -31,7 +31,9 @@ already records statement-call completion; checking now consumes the existing
 post-call, pre-store cut and requires that exact loan to be present there.
 It grants no new access or pointer geometry. Completing calls retain an
 unchanged static telescope by exact resolved binder identity; changed static
-applications still require their ordinary specialization. The existing copied
+applications still require their ordinary specialization. Each equation reads
+its own declared result before substituting edge actuals; call and result
+admission retain their exact applied type obligations. The existing copied
 computed indexed-view snapshot row supplies the const-dependent comparison.
 
 ## Requirements and evidence
@@ -46,7 +48,9 @@ computed indexed-view snapshot row supplies the const-dependent comparison.
   calls use exact actuals and each declaration's own namespace; no enclosing
   runtime value is captured.
 - Live-child, staged-input, untouched-sibling and missing-repair controls
-  retain their independent loan/restoration refusals. A recurring-selector
+  retain their independent loan/restoration refusals. Whole completing calls
+  with shared-to-mutable escalation or a distinct nominal result still reject
+  their ordinary result access/type obligation. A recurring-selector
   control returns element 1 after entering with selector 0; claiming the old
   element's value after writing 99 still rejects.
 - The checked operations lower through Terminal Psi, call/layout planning,
@@ -61,8 +65,8 @@ computed indexed-view snapshot row supplies the const-dependent comparison.
   signal 5 and Terminal `Trap`. The counter and backing observations therefore
   discriminate omitted, repeated and misplaced effects.
 
-Measured producer: `2b42461073a` (opt-level 1, pinned nightly, macOS ARM64),
-CLI SHA-256 `97ce9cd1ef7af32a52d2b8993d42da7ee159bfc9dc238d6319181b96751ad42e`.
+Measured producer: `12e835480a7` (opt-level 1, pinned nightly, macOS ARM64),
+CLI SHA-256 `11e029c9f9a46400648d2cd1919c6fa7cdba601c58646dda20ad6765f0fc101a`.
 Raw receipts, locks and observations remain in the owning qualification/claim
 record (`build/nested-loans/`). Initial invalid-tail and missing-ceiling setup
 logs remain separate from the valid baseline refusals. Other-host native

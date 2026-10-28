@@ -1437,19 +1437,24 @@ fail/borrows/nested_array_shared_view_write rejected 1053ms expected @a92f164310
 	machine `store` state `entry` assignment cannot write `slots` because it is not mutable in this state (if `slots` is undeclared -- a typo -- no such field or local exists)
 fail/borrows/nested_callable_field_regions_swapped rejected 651ms expected @ddaf8758ca5e+wt
 	machine `Separate::join` state `join` does not satisfy trait `Joining` machine `join`: conformance borrow contract: callable returned view has a different input-source relation
-fail/borrows/nested_machine_carried_field_sibling_rejected rejected 4893ms expected @2b42461073a1
+fail/borrows/nested_machine_carried_field_sibling_rejected rejected 4925ms expected @12e835480a7a
 	statement 5 mutates `second.value` while local borrow `pair` is still active (borrowed at statement 2; its last use is at statement 6)
-fail/borrows/nested_machine_carried_live_child_rejected rejected 4928ms expected @2b42461073a1
+fail/borrows/nested_machine_carried_live_child_rejected rejected 4909ms expected @12e835480a7a
 	statement 3 creates local borrow `view` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 6)
 	statement 3 creates local borrow `view` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 6)
 	statement 5 creates local borrow `view` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 6)
 	statement 5 creates local borrow `view` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 6)
 	statement 6 reads `held.value` while local borrow `view` is still active (borrowed at statement 5; its last use is at statement 6)
-fail/borrows/nested_machine_carried_missing_repair_rejected rejected 3409ms expected @2b42461073a1
+fail/borrows/nested_machine_carried_missing_repair_rejected rejected 3450ms expected @12e835480a7a
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 0): `slot` must hold a value again before this state's exits consume the borrow
-fail/borrows/nested_machine_carried_recurrent_selector_false_guarantee_rejected rejected 3516ms expected @2b42461073a1
+fail/borrows/nested_machine_carried_recurrent_selector_false_guarantee_rejected rejected 3564ms expected @12e835480a7a
 	cannot prove ensures contract for exit from false_guarantee at statement 4: result == 23
-fail/borrows/nested_machine_carried_staged_input_rejected rejected 3537ms expected @2b42461073a1
+fail/borrows/nested_machine_carried_result_nominal_rejected rejected 6738ms expected @12e835480a7a+wt
+	machine `invalid` state `entry` return value expects `Other<>`, but the value is delivered as `View<>`
+fail/borrows/nested_machine_carried_result_shared_rejected rejected 6883ms expected @12e835480a7a+wt
+	machine `invalid` state `entry` return value requires mutable source access; shared or immutable storage cannot supply it
+	machine `invalid` state `entry` return value expects `&mut Cell`, but the value is delivered as `&Cell`
+fail/borrows/nested_machine_carried_staged_input_rejected rejected 3526ms expected @12e835480a7a
 	state `receive` receives `view` as both mutable and read-only
 	statement 3 creates local borrow `view` while local borrow `view` is still active (borrowed at statement 2)
 	statement 5 creates local borrow `view` while local borrow `view` is still active (borrowed at statement 3)
@@ -11663,23 +11668,23 @@ fail/facts/nested_machine_joint_rank_arrival_decrease_rejected rejected 2769ms e
 	machine call cycle: `count`, `first`, `second` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_call_result_rejected rejected 2291ms expected @de3c5539bbb6
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/facts/nested_machine_joint_rank_carried_restoration_call_result_rejected rejected 3524ms expected @2b42461073a1
+fail/facts/nested_machine_joint_rank_carried_restoration_call_result_rejected rejected 3511ms expected @12e835480a7a
 	machine call cycle: `relay`, `step` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/facts/nested_machine_joint_rank_carried_restoration_const_name_rejected rejected 3551ms expected @2b42461073a1
+fail/facts/nested_machine_joint_rank_carried_restoration_const_name_rejected rejected 3541ms expected @12e835480a7a
 	machine call cycle: `relay`, `step` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/facts/nested_machine_joint_rank_carried_restoration_field_rejected rejected 3530ms expected @2b42461073a1
+fail/facts/nested_machine_joint_rank_carried_restoration_field_rejected rejected 3525ms expected @12e835480a7a
 	machine call cycle: `relay`, `step` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/facts/nested_machine_joint_rank_carried_restoration_local_rejected rejected 3534ms expected @2b42461073a1
+fail/facts/nested_machine_joint_rank_carried_restoration_local_rejected rejected 3531ms expected @12e835480a7a
 	machine call cycle: `relay`, `step` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/facts/nested_machine_joint_rank_carried_restoration_match_join_rejected rejected 3519ms expected @2b42461073a1
+fail/facts/nested_machine_joint_rank_carried_restoration_match_join_rejected rejected 3523ms expected @12e835480a7a
 	machine call cycle: `relay`, `step` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/facts/nested_machine_joint_rank_carried_restoration_other_machine_rejected rejected 3520ms expected @2b42461073a1
+fail/facts/nested_machine_joint_rank_carried_restoration_other_machine_rejected rejected 3539ms expected @12e835480a7a
 	machine call cycle: `relay`, `step` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/facts/nested_machine_joint_rank_carried_restoration_other_state_rejected rejected 3525ms expected @2b42461073a1
+fail/facts/nested_machine_joint_rank_carried_restoration_other_state_rejected rejected 3515ms expected @12e835480a7a
 	machine call cycle: `relay`, `step` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/facts/nested_machine_joint_rank_carried_restoration_parameter_rejected rejected 3547ms expected @2b42461073a1
+fail/facts/nested_machine_joint_rank_carried_restoration_parameter_rejected rejected 3533ms expected @12e835480a7a
 	machine call cycle: `relay`, `step` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/facts/nested_machine_joint_rank_carried_restoration_target_body_rejected rejected 3511ms expected @2b42461073a1
+fail/facts/nested_machine_joint_rank_carried_restoration_target_body_rejected rejected 3517ms expected @12e835480a7a
 	machine call cycle: `relay`, `step` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_const_name_rejected rejected 2034ms expected @de3c5539bbb6
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
@@ -17672,18 +17677,18 @@ fail/facts/nested_machine_statement_completion_target_body_rejected rejected 125
 fail/facts/nested_machine_statement_completion_wrong_tag_rejected rejected 3078ms expected @b0d06a168a00+wt
 	cannot prove requires contract for call probe from main: choice == constructor:80:package:0ababaff7be122379295755579dfe2fa5efa40c446ce2a4d4011f916f57fb1af::Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 pass/arithmetic/sparse_captured_utf_path_exit checked 59503ms check-target:macos_arm64 @b0d06a168a00+wt
-pass/borrows/nested_machine_carried_field_replacement_exit checked 6501ms check-target:macos_arm64 @2b42461073a1
-pass/borrows/nested_machine_carried_long_cycle_exit checked 6397ms check-target:macos_arm64 @2b42461073a1
-pass/borrows/nested_machine_carried_recurrent_selector_exit checked 4894ms check-target:macos_arm64 @2b42461073a1
-pass/facts/nested_machine_joint_rank_carried_restoration_call_result_exit checked 4889ms check-target:macos_arm64 @2b42461073a1
-pass/facts/nested_machine_joint_rank_carried_restoration_const_name_exit checked 4939ms check-target:macos_arm64 @2b42461073a1
-pass/facts/nested_machine_joint_rank_carried_restoration_field_exit checked 4932ms check-target:macos_arm64 @2b42461073a1
-pass/facts/nested_machine_joint_rank_carried_restoration_local_exit checked 4923ms check-target:macos_arm64 @2b42461073a1
-pass/facts/nested_machine_joint_rank_carried_restoration_match_join_exit checked 4923ms check-target:macos_arm64 @2b42461073a1
-pass/facts/nested_machine_joint_rank_carried_restoration_other_machine_exit checked 4904ms check-target:macos_arm64 @2b42461073a1
-pass/facts/nested_machine_joint_rank_carried_restoration_other_state_exit checked 4901ms check-target:macos_arm64 @2b42461073a1
-pass/facts/nested_machine_joint_rank_carried_restoration_parameter_exit checked 4951ms check-target:macos_arm64 @2b42461073a1
-pass/facts/nested_machine_joint_rank_carried_restoration_target_body_exit checked 4969ms check-target:macos_arm64 @2b42461073a1
+pass/borrows/nested_machine_carried_field_replacement_exit checked 6404ms check-target:macos_arm64 @12e835480a7a
+pass/borrows/nested_machine_carried_long_cycle_exit checked 6320ms check-target:macos_arm64 @12e835480a7a
+pass/borrows/nested_machine_carried_recurrent_selector_exit checked 5296ms check-target:macos_arm64 @12e835480a7a
+pass/facts/nested_machine_joint_rank_carried_restoration_call_result_exit checked 5310ms check-target:macos_arm64 @12e835480a7a
+pass/facts/nested_machine_joint_rank_carried_restoration_const_name_exit checked 5398ms check-target:macos_arm64 @12e835480a7a
+pass/facts/nested_machine_joint_rank_carried_restoration_field_exit checked 5299ms check-target:macos_arm64 @12e835480a7a
+pass/facts/nested_machine_joint_rank_carried_restoration_local_exit checked 5401ms check-target:macos_arm64 @12e835480a7a
+pass/facts/nested_machine_joint_rank_carried_restoration_match_join_exit checked 5401ms check-target:macos_arm64 @12e835480a7a
+pass/facts/nested_machine_joint_rank_carried_restoration_other_machine_exit checked 5148ms check-target:macos_arm64 @12e835480a7a
+pass/facts/nested_machine_joint_rank_carried_restoration_other_state_exit checked 5106ms check-target:macos_arm64 @12e835480a7a
+pass/facts/nested_machine_joint_rank_carried_restoration_parameter_exit checked 5031ms check-target:macos_arm64 @12e835480a7a
+pass/facts/nested_machine_joint_rank_carried_restoration_target_body_exit checked 5098ms check-target:macos_arm64 @12e835480a7a
 pass/facts/nested_machine_statement_completion_call_result_exit checked 15104ms check-target:macos_arm64 @b0d06a168a00+wt
 pass/facts/nested_machine_statement_completion_const_name_exit checked 15196ms check-target:macos_arm64 @b0d06a168a00+wt
 pass/facts/nested_machine_statement_completion_field_exit checked 20163ms check-target:macos_arm64 @b0d06a168a00+wt

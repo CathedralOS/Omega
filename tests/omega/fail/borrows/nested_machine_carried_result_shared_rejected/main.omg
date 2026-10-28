@@ -1,0 +1,4 @@
+data Cell { value: u64; }
+machine shared(value: &Cell) -> &Cell { value }
+machine invalid(value: &Cell) -> &mut Cell { transition { _ -> shared(value) } }
+machine main() {}
