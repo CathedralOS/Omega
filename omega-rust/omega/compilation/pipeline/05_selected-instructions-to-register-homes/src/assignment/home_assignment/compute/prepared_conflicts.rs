@@ -63,6 +63,33 @@ impl DomainPair {
     }
 }
 
+fn record_physical_pair(
+    physical_matrix: &mut [u8],
+    conflict_masks: &mut [[u128; 8]],
+    use_conflict_masks: bool,
+    row_base: usize,
+    left_idx: usize,
+    right_idx: usize,
+    pair: DomainPair,
+    count: &mut u16,
+) {
+    let mask = pair.to_mask();
+    if mask == 0 {
+        return;
+    }
+    physical_matrix[row_base + right_idx] = mask;
+    *count += 1;
+    if use_conflict_masks {
+        let bit = 1u128 << left_idx;
+        let right_masks = &mut conflict_masks[right_idx];
+        for pm in 1..8u8 {
+            if (mask & pm) != 0 {
+                right_masks[pm as usize] |= bit;
+            }
+        }
+    }
+}
+
 impl PreparedConflicts {
     pub(super) fn new(
         function: usize,
@@ -409,20 +436,16 @@ impl PreparedConflicts {
                         left_defines: (left_w & right_u) != 0,
                         right_defines: (right_w & left_u) != 0,
                     };
-                    let mask = pair.to_mask();
-                    if mask != 0 {
-                        physical_matrix[row_base + right_idx] = mask;
-                        count += 1;
-                        if use_conflict_masks {
-                            let bit = 1u128 << left_idx;
-                            let right_masks = &mut conflict_masks[right_idx];
-                            for pm in 1..8u8 {
-                                if (mask & pm) != 0 {
-                                    right_masks[pm as usize] |= bit;
-                                }
-                            }
-                        }
-                    }
+                    record_physical_pair(
+                        &mut physical_matrix,
+                        &mut conflict_masks,
+                        use_conflict_masks,
+                        row_base,
+                        left_idx,
+                        right_idx,
+                        pair,
+                        &mut count,
+                    );
                 }
                 physical_counts[left_idx] = count;
             }
@@ -444,20 +467,16 @@ impl PreparedConflicts {
                         left_defines: definition_overwrites_use(left, right),
                         right_defines: definition_overwrites_use(right, left),
                     };
-                    let mask = pair.to_mask();
-                    if mask != 0 {
-                        physical_matrix[row_base + right_idx] = mask;
-                        count += 1;
-                        if use_conflict_masks {
-                            let bit = 1u128 << left_idx;
-                            let right_masks = &mut conflict_masks[right_idx];
-                            for pm in 1..8u8 {
-                                if (mask & pm) != 0 {
-                                    right_masks[pm as usize] |= bit;
-                                }
-                            }
-                        }
-                    }
+                    record_physical_pair(
+                        &mut physical_matrix,
+                        &mut conflict_masks,
+                        use_conflict_masks,
+                        row_base,
+                        left_idx,
+                        right_idx,
+                        pair,
+                        &mut count,
+                    );
                 }
                 physical_counts[left_idx] = count;
             }
