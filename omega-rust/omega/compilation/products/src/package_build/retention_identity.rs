@@ -27,7 +27,7 @@ impl PreparedPackageBuild {
     pub fn native_product_input_identity(&self) -> Result<[u8; 32], String> {
         let mut identity = BuildOutputIdentity {
             program: self.prepared.built.source.typed(),
-            digest: DomainDigestEncoder::new(b"omega-native-product-build-outputs-v6\0"),
+            digest: DomainDigestEncoder::new(b"omega-native-product-build-outputs-v7\0"),
             source_contents: HashMap::new(),
         };
         identity.computed(&self.prepared.built.computed_build_config)?;
