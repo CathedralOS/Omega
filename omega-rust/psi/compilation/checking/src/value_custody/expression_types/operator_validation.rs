@@ -1,4 +1,5 @@
 use super::value_classification::{ValueClass, concrete_data_type_name, value_class};
+use crate::value_custody::places::collection_operations::type_reference_is_collection;
 use diagnostics::Diagnostic;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
@@ -237,22 +238,17 @@ pub(super) fn type_reference_is_text_carrier(
     program: &dyn crate::CheckingInput,
     handle: TypeReferenceHandle,
 ) -> bool {
-    if !handle.is_valid() {
+    let Some(carrier) =
+        crate::value_custody::reference_shells::carrier_beneath_borrows(program, handle)
+    else {
         return false;
-    }
-    match program.type_reference_table.type_reference(handle) {
-        TypeReferenceNode::Reference { referee, .. } => {
-            type_reference_is_text_carrier(program, *referee)
-        }
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            type_reference_is_text_carrier(program, *base_type)
-        }
+    };
+    let element_type = match program.type_reference_table.type_reference(carrier) {
         TypeReferenceNode::FixedArray { element_type, .. }
-        | TypeReferenceNode::Slice { element_type } => {
-            program.primitive_type_reference(*element_type) == Some(PrimitiveType::U8)
-        }
-        _ => false,
-    }
+        | TypeReferenceNode::Slice { element_type } => *element_type,
+        _ => return false,
+    };
+    program.primitive_type_reference(element_type) == Some(PrimitiveType::U8)
 }
 
 /// Reject logical `&&`/`||` on a NON-bool operand (`5 && 3`, `a && n` for int `n`).
@@ -588,7 +584,7 @@ fn report_array_operator_operands(
     for operand in [left, right] {
         if let Some(operand_type) =
             crate::value_custody::places::declared_place_type(program, machine, state, operand)
-            && type_reference_is_array(program, operand_type)
+            && type_reference_is_collection(program, operand_type)
             && !type_reference_is_text_carrier(program, operand_type)
         {
             let detail = if is_equality {
@@ -606,23 +602,4 @@ fn report_array_operator_operands(
         }
     }
     false
-}
-
-/// Whether a type reference denotes an ARRAY (a fixed array or a slice), looking
-/// through `Reference`/`Constrained` shells.
-pub(super) fn type_reference_is_array(
-    program: &dyn crate::CheckingInput,
-    handle: TypeReferenceHandle,
-) -> bool {
-    if !handle.is_valid() {
-        return false;
-    }
-    match program.type_reference_table.type_reference(handle) {
-        TypeReferenceNode::Reference { referee, .. } => type_reference_is_array(program, *referee),
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            type_reference_is_array(program, *base_type)
-        }
-        TypeReferenceNode::FixedArray { .. } | TypeReferenceNode::Slice { .. } => true,
-        _ => false,
-    }
 }

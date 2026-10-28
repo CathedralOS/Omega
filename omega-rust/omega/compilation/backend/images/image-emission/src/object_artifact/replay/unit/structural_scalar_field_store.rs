@@ -278,27 +278,27 @@ pub(crate) fn expected_parameter_store_bytes(
             let source_register = x86_terminal_register(source)?;
             let mut bytes = Vec::new();
             if home.indirect {
-                emit_x86_stack_load(
+                expected_x86_stack_load(
                     &mut bytes,
                     ADDRESS_REGISTER,
                     home.location.stack_byte_offset()?,
                     8,
                 )?;
-                emit_x86_memory_store(
+                crate::object_artifact::replay::instruction_loads::x86_replay_memory_store(
                     &mut bytes,
                     source_register,
                     ADDRESS_REGISTER,
                     field_byte_offset,
-                    byte_size,
+                    u32::from(byte_size),
                 )?;
             } else {
-                emit_x86_stack_store(
+                crate::object_artifact::replay::instruction_loads::x86_replay_stack_store(
                     &mut bytes,
                     source_register,
                     home.location
                         .stack_byte_offset()?
                         .checked_add(field_byte_offset)?,
-                    byte_size,
+                    u32::from(byte_size),
                 )?;
             }
             Some(bytes)
@@ -431,105 +431,32 @@ fn expected_x86_store(
     let mut bytes = vec![0x49, 0xb8 | (VALUE_REGISTER & 7)];
     crate::codec_bytes::push_encoded(&mut bytes, bits.to_le_bytes());
     if home.indirect {
-        emit_x86_stack_load(
+        expected_x86_stack_load(
             &mut bytes,
             ADDRESS_REGISTER,
             home.location.stack_byte_offset()?,
             8,
         )?;
-        emit_x86_memory_store(
+        crate::object_artifact::replay::instruction_loads::x86_replay_memory_store(
             &mut bytes,
             VALUE_REGISTER,
             ADDRESS_REGISTER,
             field_byte_offset,
-            byte_size,
+            u32::from(byte_size),
         )?;
     } else {
         let destination = home
             .location
             .stack_byte_offset()?
             .checked_add(field_byte_offset)?;
-        emit_x86_stack_store(&mut bytes, VALUE_REGISTER, destination, byte_size)?;
+        crate::object_artifact::replay::instruction_loads::x86_replay_stack_store(
+            &mut bytes,
+            VALUE_REGISTER,
+            destination,
+            u32::from(byte_size),
+        )?;
     }
     Some(bytes)
-}
-
-fn emit_x86_stack_load(
-    bytes: &mut Vec<u8>,
-    register: u8,
-    byte_offset: u32,
-    byte_size: u16,
-) -> Option<()> {
-    match byte_size {
-        8 => {
-            bytes.push(0x48 | (((register >> 3) & 1) << 2));
-            bytes.push(0x8b);
-        }
-        _ => return None,
-    }
-    emit_x86_rsp_modrm(bytes, register, byte_offset);
-    Some(())
-}
-
-fn emit_x86_stack_store(
-    bytes: &mut Vec<u8>,
-    register: u8,
-    byte_offset: u32,
-    byte_size: u16,
-) -> Option<()> {
-    emit_x86_width_prefix(bytes, register, 0, byte_size)?;
-    bytes.push(if byte_size == 1 { 0x88 } else { 0x89 });
-    emit_x86_rsp_modrm(bytes, register, byte_offset);
-    Some(())
-}
-
-fn emit_x86_memory_store(
-    bytes: &mut Vec<u8>,
-    source: u8,
-    base: u8,
-    byte_offset: u32,
-    byte_size: u16,
-) -> Option<()> {
-    emit_x86_width_prefix(bytes, source, base, byte_size)?;
-    bytes.push(if byte_size == 1 { 0x88 } else { 0x89 });
-    if byte_offset == 0 && (base & 7) != 5 {
-        bytes.push(((source & 7) << 3) | (base & 7));
-    } else if byte_offset <= i8::MAX as u32 {
-        bytes.push(0x40 | ((source & 7) << 3) | (base & 7));
-        bytes.push(byte_offset as u8);
-    } else {
-        bytes.push(0x80 | ((source & 7) << 3) | (base & 7));
-        crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
-    }
-    Some(())
-}
-
-fn emit_x86_width_prefix(
-    bytes: &mut Vec<u8>,
-    register: u8,
-    base: u8,
-    byte_size: u16,
-) -> Option<()> {
-    let extension = (((register >> 3) & 1) << 2) | ((base >> 3) & 1);
-    match byte_size {
-        1 | 4 => bytes.push(0x40 | extension),
-        2 => {
-            bytes.push(0x66);
-            bytes.push(0x40 | extension);
-        }
-        8 => bytes.push(0x48 | extension),
-        _ => return None,
-    }
-    Some(())
-}
-
-fn emit_x86_rsp_modrm(bytes: &mut Vec<u8>, register: u8, byte_offset: u32) {
-    if byte_offset <= i8::MAX as u32 {
-        bytes.extend_from_slice(&[0x44 | ((register & 7) << 3), 0x24, byte_offset as u8]);
-    } else {
-        bytes.extend_from_slice(&[0x84 | ((register & 7) << 3), 0x24]);
-        crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
-    }
 }
 
 fn expected_aarch64_store(

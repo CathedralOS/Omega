@@ -42,6 +42,17 @@ fn invalid(target: target::NativeTarget) -> Diagnostic {
     ))
 }
 
+/// The checked recipe a runtime entry argument `ordinal` selects: the roster is
+/// keyed by runtime position, not by allocation row.
+pub(super) fn recipe_index_for_runtime_position(
+    recipes: &[terminal_installation::CheckedPrivateEntryRamRecipe],
+    ordinal: usize,
+) -> Option<usize> {
+    recipes
+        .iter()
+        .position(|recipe| recipe.input().runtime_position as usize == ordinal)
+}
+
 fn align(value: u64, alignment: u64, invalid: &dyn Fn() -> Diagnostic) -> Result<u64, Diagnostic> {
     if !alignment.is_power_of_two() {
         return Err(invalid());
@@ -317,10 +328,7 @@ fn prepare_linux_x86_64(
     }
     let (function, _) = crate::function_fragments::replay::entry_source(artifact)?;
     for (ordinal, _) in function.structural_parameters.iter().enumerate() {
-        let index = binding
-            .private_entry_ram
-            .iter()
-            .position(|recipe| recipe.input().runtime_position as usize == ordinal)
+        let index = recipe_index_for_runtime_position(&binding.private_entry_ram, ordinal)
             .ok_or_else(invalid)?;
         let symbol = *storage.private_ram.get(index).ok_or_else(invalid)?;
         let (rex, modrm) = [
@@ -631,10 +639,9 @@ fn validate_entry_arguments(
         return Err(invalid());
     }
     for (ordinal, parameter) in function.structural_parameters.iter().enumerate() {
-        let recipe = private_entry_ram
-            .iter()
-            .find(|recipe| recipe.input().runtime_position as usize == ordinal)
-            .ok_or_else(invalid)?;
+        let index =
+            recipe_index_for_runtime_position(private_entry_ram, ordinal).ok_or_else(invalid)?;
+        let recipe = private_entry_ram.get(index).ok_or_else(invalid)?;
         let actual = target
             .graph
             .parameters

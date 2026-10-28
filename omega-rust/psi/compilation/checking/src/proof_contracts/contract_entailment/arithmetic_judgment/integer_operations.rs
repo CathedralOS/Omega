@@ -4,143 +4,12 @@
 //! opaque quotient. It does not establish execution formation. Consumers prove
 //! each operation before using its consequences; this keeps cancellation from
 //! hiding a zero divisor or an overflowing intermediate, including MIN % -1.
-use super::{BigInt, BinaryOperator, Engine, OpaqueTerm, Polynomial};
-use crate::proof_contracts::arithmetic_domains::BigIntInterval as Interval;
+use super::{BigInt, BinaryOperator, Engine, Polynomial};
 use numerics::arithmetic::ArithmeticDomain;
 use typed_trees::operator::builtin_integer_result_carrier;
 use typed_trees::types::PrimitiveType;
 
 impl Engine<'_> {
-    /// Complete a selected finite integer calculation once. A representative
-    /// is an actual value, not the unbounded polynomial that produced it.
-    /// Same-carrier wrapping children can expand only inside the residue
-    /// polynomial: quotient/shift atoms and foreign policies remain values.
-    pub(super) fn integer_policy_value(
-        &mut self,
-        primitive: PrimitiveType,
-        domain: ArithmeticDomain,
-        value: Polynomial,
-    ) -> Option<Polynomial> {
-        if !primitive.is_fixed_integer()
-            || !matches!(
-                domain,
-                ArithmeticDomain::Wrapping | ArithmeticDomain::Saturating
-            )
-        {
-            return None;
-        }
-        let value = self.substituted(&value);
-        if self.integer_value_lands(primitive, &value) {
-            return Some(value);
-        }
-        let (minimum, maximum) = super::super::ranking_range::integer_carrier_bounds(primitive)?;
-        let value = if domain == ArithmeticDomain::Wrapping {
-            self.wrapping_residue(
-                primitive,
-                value,
-                &maximum.sub(&minimum).add(&BigInt::from_i64(1)),
-            )?
-        } else {
-            value
-        };
-        if let Some(value) = value.constant_value() {
-            return Some(Polynomial::constant(complete_integer_policy(
-                domain, &value, &minimum, &maximum,
-            )?));
-        }
-        let atom = format!("\0integer-policy:{primitive:?}:{domain:?}:{value:?}");
-        let interval = self.integer_policy_interval(primitive, domain, &value);
-        self.register_opaque_term(
-            atom.clone(),
-            OpaqueTerm::IntegerPolicy {
-                primitive,
-                domain,
-                value,
-            },
-        );
-        self.arithmetic_intervals.insert(atom.clone(), interval);
-        Some(Polynomial::atom(atom))
-    }
-
-    fn wrapping_residue(
-        &self,
-        primitive: PrimitiveType,
-        value: Polynomial,
-        modulus: &BigInt,
-    ) -> Option<Polynomial> {
-        let mut substitutions = super::BTreeMap::new();
-        for monomial in value.terms.keys() {
-            for atom in monomial.keys() {
-                let replacement = self
-                    .opaque_terms
-                    .iter()
-                    .find_map(|(known, term)| {
-                        if known != atom {
-                            return None;
-                        }
-                        match term {
-                            OpaqueTerm::IntegerPolicy {
-                                primitive: source,
-                                domain: ArithmeticDomain::Wrapping,
-                                value,
-                            } if *source == primitive => Some(value.clone()),
-                            _ => None,
-                        }
-                    })
-                    .unwrap_or_else(|| Polynomial::atom(atom.clone()));
-                substitutions.insert(atom.clone(), replacement);
-            }
-        }
-        let mut value =
-            super::super::inductive_judgment::apply_argument_map(&value, &substitutions)?;
-        for coefficient in value.terms.values_mut() {
-            let (_, remainder) = coefficient.div_rem(modulus)?;
-            *coefficient = if remainder.is_negative() {
-                remainder.add(modulus)
-            } else {
-                remainder
-            };
-        }
-        value.terms.retain(|_, coefficient| !coefficient.is_zero());
-        Some(value)
-    }
-
-    pub(super) fn integer_policy_interval(
-        &self,
-        primitive: PrimitiveType,
-        domain: ArithmeticDomain,
-        value: &Polynomial,
-    ) -> Interval {
-        let Some((minimum, maximum)) =
-            super::super::ranking_range::integer_carrier_bounds(primitive)
-        else {
-            return Interval::unbounded();
-        };
-        let value = self.substituted(value);
-        if let Some(value) = value.constant_value()
-            && let Some(value) = complete_integer_policy(domain, &value, &minimum, &maximum)
-        {
-            return Interval::constant(value);
-        }
-        if domain == ArithmeticDomain::Saturating {
-            let interval = self.polynomial_interval(&value);
-            return Interval {
-                low: Some(interval.low.map_or_else(
-                    || minimum.clone(),
-                    |value| value.max(minimum.clone()).min(maximum.clone()),
-                )),
-                high: Some(interval.high.map_or_else(
-                    || maximum.clone(),
-                    |value| value.max(minimum).min(maximum.clone()),
-                )),
-            };
-        }
-        Interval {
-            low: Some(minimum),
-            high: Some(maximum),
-        }
-    }
-
     /// Bitwise denotation belongs to the selected fixed carrier, independently
     /// of overflow policy. Substitute both operands before evaluation, but keep
     /// their declaration's operator selection and reject unlanded magnitudes.
@@ -236,6 +105,56 @@ impl Engine<'_> {
             }
             _ => false,
         }
+    }
+
+    /// Selected arithmetic combines operand policies; shifts belong to the
+    /// left value alone. Bitwise values are total regardless of these policies.
+    pub(in crate::proof_contracts::contract_entailment) fn integer_operation_policy(
+        operator: BinaryOperator,
+        meaning: [(PrimitiveType, ArithmeticDomain); 2],
+    ) -> Option<ArithmeticDomain> {
+        let [(_, left), (_, right)] = meaning;
+        match operator {
+            BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight => Some(left),
+            BinaryOperator::BitwiseAnd | BinaryOperator::BitwiseOr | BinaryOperator::BitwiseXor => {
+                Some(left.combine(right))
+            }
+            BinaryOperator::Add
+            | BinaryOperator::Subtract
+            | BinaryOperator::Multiply
+            | BinaryOperator::Divide
+            | BinaryOperator::Modulo
+                if left == ArithmeticDomain::Exact
+                    || right == ArithmeticDomain::Exact
+                    || left == right =>
+            {
+                Some(left.combine(right))
+            }
+            _ => None,
+        }
+    }
+
+    /// Total policy operations share mathematical operands, but their result
+    /// is a completed finite value. Division and shifts keep their separate
+    /// partial-operand/count obligations; this is no Exact-policy replacement.
+    pub(in crate::proof_contracts::contract_entailment) fn integer_policy_operation_meaning(
+        operator: BinaryOperator,
+        meaning: [(PrimitiveType, ArithmeticDomain); 2],
+    ) -> Option<(PrimitiveType, ArithmeticDomain)> {
+        let [(left, _), (right, _)] = meaning;
+        let policy = Self::integer_operation_policy(operator, meaning)?;
+        if !matches!(
+            policy,
+            ArithmeticDomain::Wrapping | ArithmeticDomain::Saturating
+        ) || !matches!(
+            operator,
+            BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply
+        ) {
+            return None;
+        }
+        let primitive = builtin_integer_result_carrier(operator, [left, right])
+            .filter(|primitive| primitive.is_fixed_integer())?;
+        Some((primitive, policy))
     }
 
     pub(in crate::proof_contracts::contract_entailment) fn selected_integer_binary_value(
@@ -391,7 +310,7 @@ impl Engine<'_> {
         binding: Option<&Polynomial>,
     ) -> Option<Polynomial> {
         let primitives = meaning.map(|(primitive, _)| primitive);
-        let policy = meaning[0].1;
+        let policy = Self::integer_operation_policy(operator, meaning)?;
         if !self.integer_operation_inputs_land(operator, primitives, policy, left, right) {
             return None;
         }
@@ -428,15 +347,10 @@ impl Engine<'_> {
             // Source formation can carry an explicitly selected Wrapping or
             // Saturating operation. Preserve that policy's actual value; this
             // does not make its unbounded candidate an Exact recipe.
-            let policy = meaning[0].1;
             if !matches!(
                 policy,
                 ArithmeticDomain::Wrapping | ArithmeticDomain::Saturating
-            ) || (!matches!(
-                operator,
-                BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
-            ) && meaning[1].1 != policy)
-            {
+            ) {
                 return None;
             }
             let candidate = match operator {
@@ -524,37 +438,48 @@ impl Engine<'_> {
         false
     }
 }
-
-fn complete_integer_policy(
-    domain: ArithmeticDomain,
-    value: &BigInt,
-    minimum: &BigInt,
-    maximum: &BigInt,
-) -> Option<BigInt> {
-    match domain {
-        ArithmeticDomain::Wrapping => {
-            let modulus = maximum.sub(minimum).add(&BigInt::from_i64(1));
-            let (_, remainder) = value.sub(minimum).div_rem(&modulus)?;
-            let residue = if remainder.is_negative() {
-                remainder.add(&modulus)
-            } else {
-                remainder
-            };
-            Some(minimum.add(&residue))
-        }
-        ArithmeticDomain::Saturating => {
-            Some(value.clone().max(minimum.clone()).min(maximum.clone()))
-        }
-        _ => None,
-    }
-}
-
 #[cfg(test)]
 mod admission_tests {
     use super::*;
 
     fn constant(value: i64) -> Polynomial {
         Polynomial::constant(BigInt::from_i64(value))
+    }
+
+    #[test]
+    fn exact_peers_preserve_combined_finite_policy() {
+        let program = typed_trees::TypedTrees::default();
+        for (policy, expected) in [
+            (ArithmeticDomain::Wrapping, 4),
+            (ArithmeticDomain::Saturating, 255),
+        ] {
+            for policies in [
+                [ArithmeticDomain::Exact, policy],
+                [policy, ArithmeticDomain::Exact],
+            ] {
+                let mut engine = Engine::for_explicit_bindings(&program);
+                let result = engine
+                    .admit_selected_integer_operation(
+                        BinaryOperator::Add,
+                        policies.map(|policy| (PrimitiveType::U8, policy)),
+                        &constant(250),
+                        &constant(10),
+                        None,
+                    )
+                    .expect("Exact is neutral in the selected finite policy");
+                assert_eq!(result.constant_value(), Some(BigInt::from_i64(expected)));
+            }
+        }
+        assert_eq!(
+            Engine::integer_operation_policy(
+                BinaryOperator::Add,
+                [
+                    (PrimitiveType::U8, ArithmeticDomain::Wrapping),
+                    (PrimitiveType::U8, ArithmeticDomain::Saturating)
+                ],
+            ),
+            None
+        );
     }
 
     #[test]

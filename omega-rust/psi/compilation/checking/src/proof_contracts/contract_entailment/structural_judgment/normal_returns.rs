@@ -194,7 +194,10 @@ impl<'program> StructuralJudge<'program> {
                     meaning.map(|(primitive, _)| primitive),
                 ) == Some(primitive) =>
                 {
-                    let policy = meaning[0].1;
+                    let policy =
+                        super::super::arithmetic_judgment::Engine::integer_operation_policy(
+                            *operator, *meaning,
+                        )?;
                     return self
                         .normal_results
                         .iter()

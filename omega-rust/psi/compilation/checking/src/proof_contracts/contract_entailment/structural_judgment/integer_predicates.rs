@@ -6,7 +6,7 @@
 //! Project observed integer terms into the existing arithmetic engine, with a
 //! query-local atom per complete value identity. No source expression is replayed,
 //! no caller state is reread, and no future call guarantee enters the premises.
-//! Wrapping/saturating operations remain opaque values rather than integer laws;
+//! Completed policy values retain wrapping/clamping before entering integer laws;
 //! Each expanded operation retains its carrier formation obligation until the
 //! authenticated premises establish it, independently of the requested goal.
 
@@ -1346,7 +1346,13 @@ impl StructuralJudge<'_> {
             _ => self.resolve(description),
         };
         let value = value.semantic_value();
-        if let Some((identity, ArithmeticDomain::Trapping)) = completed.as_ref()
+        if let Some((identity, policy)) = completed.as_ref()
+            && matches!(
+                policy,
+                ArithmeticDomain::Trapping
+                    | ArithmeticDomain::Wrapping
+                    | ArithmeticDomain::Saturating
+            )
             && !matches!(value, StructuralTerm::ScalarBinary { .. })
         {
             return observations.observed_atom(identity.clone(), primitive);
@@ -1375,7 +1381,8 @@ impl StructuralJudge<'_> {
             left,
             right,
         } = value
-            && Engine::integer_operation_meaning(*operator, *meaning)
+            && (Engine::integer_operation_meaning(*operator, *meaning)
+                || Engine::integer_policy_operation_meaning(*operator, *meaning).is_some())
         {
             if ![left, right]
                 .into_iter()
@@ -1396,7 +1403,15 @@ impl StructuralJudge<'_> {
             // independently of the carrier observing the completed result.
             let left = self.integer_value(left, meaning[0].0, observations, depth + 1)?;
             let right = self.integer_value(right, meaning[1].0, observations, depth + 1)?;
-            let completed = completed.filter(|_| meaning[0].1 == ArithmeticDomain::Trapping);
+            let policy = Engine::integer_operation_policy(*operator, *meaning)?;
+            let completed = completed.filter(|_| {
+                matches!(
+                    policy,
+                    ArithmeticDomain::Trapping
+                        | ArithmeticDomain::Wrapping
+                        | ArithmeticDomain::Saturating
+                )
+            });
             let (value, formation) = if let Some((completed, _)) = completed {
                 (
                     observations.observed_atom(completed, primitive)?,

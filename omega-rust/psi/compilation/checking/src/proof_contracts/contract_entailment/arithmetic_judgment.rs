@@ -5,6 +5,7 @@ use super::{
 use crate::proof_integer_expression;
 mod difference_matrix;
 mod integer_operations;
+mod integer_policy;
 mod intervals;
 mod lower_bound_queries;
 use crate::proof_contracts::arithmetic_domains::BigIntInterval as Interval;

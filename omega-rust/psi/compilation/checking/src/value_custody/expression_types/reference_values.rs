@@ -9,6 +9,7 @@ use super::{
     ExpressionHandle, ExpressionNode, TypeReferenceHandle, TypeReferenceNode,
     named_value_type_reference,
 };
+use crate::value_custody::places::declared_reference_access;
 use language_semantics::ReferenceAccess;
 use numerics::bignum::BigInt;
 use typed_trees::data::TypeParameterKind;
@@ -853,26 +854,10 @@ pub(crate) fn place_forwarded_exclusive_reference_access(
     ) else {
         return None;
     };
-    let Some(mut selected) = substituted_reference(program, selected, &substitutions) else {
+    let Some(selected) = substituted_reference(program, selected, &substitutions) else {
         return None;
     };
-    selected = program
-        .type_reference_table
-        .unconstrained_type_reference(selected);
     declared_reference_access(program, selected).filter(|access| access.is_exclusive())
-}
-
-pub(crate) fn declared_reference_access(
-    program: &dyn crate::CheckingInput,
-    mut reference: TypeReferenceHandle,
-) -> Option<language_semantics::ReferenceAccess> {
-    reference = program
-        .type_reference_table
-        .unconstrained_type_reference(reference);
-    match program.type_reference_table.type_reference(reference) {
-        TypeReferenceNode::Reference { access, .. } => Some(*access),
-        _ => None,
-    }
 }
 
 /// Borrowing a selected referent preserves the access of every enclosing

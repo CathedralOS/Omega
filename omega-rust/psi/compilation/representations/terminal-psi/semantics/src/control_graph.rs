@@ -5,9 +5,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use semantic_vocabulary::{BlockId, EdgeId};
+use semantic_vocabulary::{BlockId, EdgeId, ValueId};
 use semantic_vocabulary::{CycleComponentId, PsiSemanticId};
-use terminal_psi::{TerminalMachine, TerminalNaturalCycle};
+use terminal_psi::{Block, StructuralArgument, TerminalMachine, TerminalNaturalCycle, Terminator};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ControlGraphError {
@@ -26,6 +26,58 @@ pub fn successors(machine: &TerminalMachine) -> BTreeMap<BlockId, Vec<(EdgeId, B
             (block.id, edges)
         })
         .collect()
+}
+
+/// One control edge that forwards the predecessor's operands positionally into
+/// a target block's parameter roster.
+///
+/// A `StructuralCase` edge binds payload fields where the target expects
+/// forwarded parameters, so it never appears here; [`reaches_by_case`] answers
+/// its reach, and a consumer that needs forwarded operands abandons the fact on
+/// that path instead of projecting a payload as a parameter.
+#[derive(Debug, Clone, Copy)]
+pub struct ForwardedBinding<'block> {
+    pub target: BlockId,
+    pub arguments: &'block [ValueId],
+    pub structural_arguments: &'block [StructuralArgument],
+}
+
+/// The parameters this block's terminator forwards, with the exact operands
+/// each successor binds. Reading a block's arrival operands is one query: the
+/// terminator is classified here rather than re-matched by every consumer.
+pub fn forwarded_bindings(block: &Block) -> Vec<ForwardedBinding<'_>> {
+    match &block.terminator {
+        Terminator::Jump {
+            target,
+            arguments,
+            structural_arguments,
+            ..
+        } => vec![ForwardedBinding {
+            target: *target,
+            arguments: arguments.as_slice(),
+            structural_arguments: structural_arguments.as_slice(),
+        }],
+        Terminator::Conditional {
+            when_true,
+            when_false,
+            ..
+        } => [when_true, when_false]
+            .into_iter()
+            .map(|successor| ForwardedBinding {
+                target: successor.target,
+                arguments: successor.arguments.as_slice(),
+                structural_arguments: successor.structural_arguments.as_slice(),
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// Whether this block reaches `target` by a structural-case edge. The edge
+/// declares payload fields instead of forwarding the target's parameters.
+pub fn reaches_by_case(block: &Block, target: BlockId) -> bool {
+    matches!(&block.terminator, Terminator::StructuralCase { cases, .. }
+        if cases.iter().any(|successor| successor.target == target))
 }
 
 /// Failure to establish an exact, closed module control graph is not evidence

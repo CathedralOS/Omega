@@ -193,13 +193,16 @@ macro_rules! proof_bearing_scalar_rows {
             ];
         }
 
-        const PROOF_BEARING_SCALAR_TAGS: [OperationSemanticTag;
-            proof_bearing_scalar_rows!(@count $( $tag )+)] = [
-            $( OperationSemanticTag::$tag ),+
-        ];
-
-        const fn is_proof_bearing_scalar_tag(tag: OperationSemanticTag) -> bool {
-            matches!(tag, $( OperationSemanticTag::$tag )|+)
+        crate::semantic_rows::operation_semantic_cohort! {
+            rows: ProofBearingScalarSemanticRow,
+            tags: PROOF_BEARING_SCALAR_TAGS,
+            is_tag: is_proof_bearing_scalar_tag,
+            exact_row: exact_proof_bearing_scalar_semantic_row_in,
+            reject_unexpected: reject_unexpected_proof_bearing_scalar_rows,
+            missing: MissingProofBearingScalarRow,
+            duplicate: DuplicateProofBearingScalarRow,
+            unexpected: UnexpectedProofBearingScalarRow,
+            $( $tag ),+
         }
     };
     (@count $( $variant:ident )+) => {
@@ -230,33 +233,10 @@ fn canonical_schema(tag: OperationSemanticTag) -> Option<ProofBearingScalarLeafS
         .map(|row| row.schema)
 }
 
-pub fn exact_proof_bearing_scalar_semantic_row_in(
-    tag: OperationSemanticTag,
-    rows: &[ProofBearingScalarSemanticRow],
-) -> Result<Option<&ProofBearingScalarSemanticRow>, OperationSemanticError> {
-    if !is_proof_bearing_scalar_tag(tag) {
-        return Ok(None);
-    }
-    crate::semantic_rows::exactly_one_row_for_tag(
-        rows,
-        tag,
-        |row| row.tag,
-        OperationSemanticError::MissingProofBearingScalarRow,
-        OperationSemanticError::DuplicateProofBearingScalarRow,
-    )
-    .map(Some)
-}
-
 pub fn validate_proof_bearing_scalar_semantic_rows(
     rows: &[ProofBearingScalarSemanticRow],
 ) -> Result<(), OperationSemanticError> {
-    for row in rows {
-        if !is_proof_bearing_scalar_tag(row.tag) {
-            return Err(OperationSemanticError::UnexpectedProofBearingScalarRow(
-                row.tag,
-            ));
-        }
-    }
+    reject_unexpected_proof_bearing_scalar_rows(rows)?;
     for tag in PROOF_BEARING_SCALAR_TAGS {
         let row = exact_proof_bearing_scalar_semantic_row_in(tag, rows)?
             .expect("the requested tag belongs to the proof-bearing scalar cohort");
