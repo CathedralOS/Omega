@@ -62,10 +62,13 @@ mechanisms, not add one compiler-recognized name per width.
 The integer query surface is supplied by ordinary checked declarations in
 `core::integer`, including exact carrier refinement and static evaluation.
 [The endpoint fact](../../../samples/cli/facts/core_integer_endpoint/README.md)
-records its transport witnesses. The complete floating surface remains open:
-`CORE-INTEGER-FLOAT-APIS` in [the task board](../../../TASKS.md) retains floating
-representation, metadata and migration acceptance. The floating contracts below
-are ratified requirements, not a claim that the entire surface currently runs.
+records its transport witnesses. Ordinary `core::float` declarations supply
+format queries, scalar bit wrappers, classification and NaN construction;
+[the representation fact](../../../samples/cli/facts/core_float_representation/README.md)
+records their executable transport evidence. `CORE-INTEGER-FLOAT-APIS` in
+[the task board](../../../TASKS.md) retains the remaining computed-NaN constant
+evaluation and qualification acceptance. The floating contracts below are
+ratified requirements, not a claim of completed cross-host qualification.
 
 ### Integer carrier queries
 

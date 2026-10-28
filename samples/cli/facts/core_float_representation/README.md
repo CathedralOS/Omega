@@ -40,8 +40,31 @@ compile-only runs do not establish runtime acceptance. The row exercises owned
 scalar transport with temporary shared views, not mutable loan restoration or
 foreign calling conventions.
 
-Acceptance is in progress. The standalone call and constant rungs currently run
-with exit 0 in both engines on macOS arm64; the complete library row, focused
-format vectors, intended reject diagnostics and corpus migration remain open.
-Execution records retain exact producer/source identities in the owning claim.
-No cross-host runtime result is inferred from the four entry declarations.
+The nine places and their reject twins are pinned under
+[`tests/omega/pass/facts`](../../../../tests/omega/pass/facts) and
+[`tests/omega/fail/facts`](../../../../tests/omega/fail/facts), using the
+`core_float_representation_through_<place>_{exit,rejected}` names. All nine
+positives executed with exit 0 in both engines on macOS arm64 in the focused
+R38 corpus capture (producer `107c834ec646b5855dcd0df0ff81fd8beaa3f75e`);
+all nine twins rejected for their own representation obligation. The constant
+place additionally passed ordinary package admission and both engines with
+producer `bd08f84ec2b8` in R39. Execution records and raw observations retain
+the complete producer identities in the owning claim.
+
+The [format vectors](vectors/main.omg) cover both permanent formats without
+duplicating this row. They exercise finite endpoints, subnormal boundaries,
+epsilon, metadata, signed zeros, infinities, NaN payloads and explicit quieting.
+The [API controls](controls) cover unsupported and qualified carriers, invalid
+payloads, same-spelling user declarations and representation claims that IEEE
+equality does not establish. The
+[computed-NaN canonicalization program](controls/canonical_computed_nan/main.omg)
+and [unfixed bit observation](controls/computed_nan_bits/main.omg) remain the
+open acceptance pair: the former must run in both engines, and the latter must
+reject for lacking a fixed representation, rather than an unrelated diagnostic.
+
+The row establishes scalar layout and calling-plan transport, selected operations,
+register/stack homes and native image emission only through its actual programs.
+It does not establish foreign ABI, mutable loan restoration, arbitrary aggregate
+casts, or every backend instruction. The four entry declarations do not establish
+cross-host runtime qualification. The parent API task remains open until the
+computed-NaN pair and final focused acceptance complete.

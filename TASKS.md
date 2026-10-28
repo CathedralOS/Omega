@@ -1788,8 +1788,13 @@ defines the complete product bar.
   Integer milestone: ordinary `core::integer` extrema, width and signedness,
   exact type refinement and static-call custody are exercised by
   [the endpoint row](samples/cli/facts/core_integer_endpoint/README.md) and eight
-  carrier vectors. The floating API/representation row and its full acceptance
-  remain owned and open; the integer milestone does not close this task.
+  carrier vectors. The ordinary float declarations, both-format vectors and
+  [representation row](samples/cli/facts/core_float_representation/README.md)
+  now execute on macOS arm64; all nine pinned reject twins enforce their own
+  representation obligation. Scientific classification, error-budget and
+  quadrature samples use the new queries. Computed-NaN canonicalization during
+  constant evaluation, its unfixed-bit rejection control and final focused
+  qualification remain owned and open; these milestones do not close this task.
   Acceptance: integer/float APIs pass `omega run --both` with exact authored
   values and bit round trips on matching hosts. IEEE boundary and canonical-NaN
   vectors agree; invalid payloads, wrong kinds, unsupported/qualified carriers,
