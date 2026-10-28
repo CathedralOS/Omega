@@ -309,11 +309,10 @@ fn machine_selects_exact_requirement(
         .machine_trait_conformances(machine)
         .iter()
         .any(|conformance| {
+            // One exact overload owns this contract. Equal member names can
+            // have different carriers, policies and normal/crash guarantees.
             conformance.symbol == trait_symbol
-                && conformance
-                    .requirement
-                    .as_ref()
-                    .is_some_and(|name| *name == requirement.name)
+                && conformance.requirement_symbol == requirement.symbol
         })
 }
 
