@@ -28,6 +28,7 @@ pub(super) struct Custody {
     pub origins: Vec<ConstArgumentOrigin>,
     pub operators: Vec<SourceSpan>,
     pub calls: Vec<(SourceSpan, SourceSpan)>,
+    pub pending_constants: Vec<(SourceSpan, SourceSpan)>,
     call_targets: Vec<(SourceSpan, SymbolHandle)>,
     dependency_values: Vec<DependencyValue>,
 }
@@ -845,6 +846,17 @@ impl<'program> Collector<'program> {
             return Err(
                 "private constant declaration cannot be selected by this initializer owner".into(),
             );
+        }
+        if declaration.evaluated_value.is_none() && !self.specialized_calls && self.syntax.is_some()
+        {
+            // Source selection can precede readiness. Preserve the exact edge
+            // without inventing a canonical value; only the private observation
+            // owner consumes this inventory and cannot validate it for execution.
+            let pending = (reference, source);
+            if !self.custody.pending_constants.contains(&pending) {
+                self.custody.pending_constants.push(pending);
+            }
+            return Ok(());
         }
         // Read the current concrete declaration, never copy a caller's expected
         // origin into this result. Readiness comparison happens before execution.

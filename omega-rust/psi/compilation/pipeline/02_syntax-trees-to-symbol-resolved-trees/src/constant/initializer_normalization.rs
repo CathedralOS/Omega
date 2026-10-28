@@ -56,6 +56,14 @@ pub(crate) fn retained_constant_custody(
         )?;
         return Ok(custody);
     }
+    let mut retained = syntax_trees::item::ConstInitializerCustody::default();
+    append_retained_custody(
+        program,
+        owner,
+        source,
+        &mut retained,
+        DependencyPurpose::Authored,
+    )?;
     let dependencies = collect_declaration(
         program,
         if owner.authored_initializer.is_valid() {
@@ -70,8 +78,15 @@ pub(crate) fn retained_constant_custody(
             DependencyPurpose::DeclarationReadiness
         },
         None,
+        Some(&retained.call_selections),
     )
     .map_err(|reason| error(source, &reason))?;
+    if !dependencies.pending_calls.is_empty() {
+        return Err(error(
+            source,
+            "retained initializer has unresolved source call choices",
+        ));
+    }
     custody.builtin_operators = dependencies.initializer_operators;
     custody.call_selections = dependencies.calls;
     for (reference, declaration_source) in dependencies.constants {
@@ -335,14 +350,28 @@ fn declaration_custody(
             "normalization has ambiguous declaration custody",
         ));
     }
-    super::initializer_dependencies::collect_declaration(
+    let dependencies = super::initializer_dependencies::collect_declaration(
         program,
         record.authored,
         &owner.declared_type,
         purpose,
         None,
+        Some(
+            if purpose == super::initializer_dependencies::DependencyPurpose::Authored {
+                &record.receipt.authored_custody.call_selections
+            } else {
+                &record.receipt.declaration_custody.call_selections
+            },
+        ),
     )
-    .map_err(|reason| error(record.declaration, &reason))
+    .map_err(|reason| error(record.declaration, &reason))?;
+    if !dependencies.pending_calls.is_empty() {
+        return Err(error(
+            record.declaration,
+            "normalization has unresolved source call choices",
+        ));
+    }
+    Ok(dependencies)
 }
 
 fn reconstruct(
