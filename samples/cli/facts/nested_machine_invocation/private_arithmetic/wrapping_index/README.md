@@ -81,6 +81,12 @@ fixes their producing path without changing interpreter admission.
   rather than a misclassified Exact instruction. The unchanged reject twins
   remain checking obligations.
 
+The actual bundled-library replay removes all seven directory-buffer index
+diagnostics. On this fixed library source, five Windows completion guarantees
+and two unclassified tail cycles remain. Focused regression observations also
+retain fourteen source failures and twelve native refusals that reproduce
+identically with the pre-repair producer; their goldens remain unchanged.
+
 This row does not close the parent task. Full bundled-library admission,
 remaining call/completion contracts, broader cyclic measures and the
 Omega-written product/source declaration migration remain open. Focused
