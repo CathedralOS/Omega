@@ -342,14 +342,12 @@ pub(super) fn builtin_boolean_equality(
 }
 
 /// Whether `comparison` unambiguously selects the exact sealed toolchain
-/// `Float::<relation>` boundary machine — the IEEE relation its `ensures`
-/// contract names through the canonical `FloatSemantics` row. Selection
-/// evidence uses the same operand-driven resolution authority as the builtin
-/// gate, narrowed to one declared candidate with exact toolchain custody: the
-/// hermetic `toolchain::Float::<name>` identity and the sealed
-/// `float_operations.omg` source. A selected trait meaning, a same-spelled
-/// lookalike, or more than one matching candidate all fail closed and leave
-/// the builtin-meaning gate authoritative. This grants only the comparison
+/// float comparison requirement — the IEEE relation its public `ensures`
+/// contract names through the canonical `FloatSemantics` row. Selection uses
+/// the same scoped public application as source formation, then authenticates
+/// its exact toolchain declaration and sealed `float_operations.omg` source.
+/// A different selected trait, a same-spelled lookalike, or ambiguous supply
+/// fails closed. This grants only the comparison
 /// relation; the float fact readers still owe their own operand checks.
 pub fn sealed_float_comparison(
     program: &dyn crate::CheckingInput,
@@ -449,67 +447,96 @@ pub(super) fn sealed_float_comparison_declaration_for_operands(
     operand_types: &[Option<TypeReferenceHandle>],
 ) -> Option<symbols::SymbolHandle> {
     let spelling = typed_trees::operator::comparison_operator_spelling(comparison)?;
-    if !typed_trees::operator::selected_trait_operator_meanings(
-        program,
+    // Source checking and substituted proof reading must select the same
+    // public application. Reimplementing this as a free-operator scan rejects
+    // sealed Core traits, and can miss an explicit lexical trait override.
+    // Only original declaration facts participate in operator selection; the
+    // caller's later observations discharge predicates, never choose meaning.
+    let requirements =
+        super::contract_entailment::specification_calls::declaration_selection_requirements(
+            program, owner,
+        );
+    let operands = match program.expression_table.expression(expression) {
+        ExpressionNode::Binary(binary) => [binary.left, binary.right],
+        ExpressionNode::Call(call) => {
+            let [left, right] = program.expression_table.expression_handles(call.arguments) else {
+                return None;
+            };
+            [*left, *right]
+        }
+        _ => return None,
+    };
+    let operand_type = |operand| {
+        operands
+            .iter()
+            .position(|source| *source == operand)
+            .and_then(|index| operand_types.get(index).copied().flatten())
+    };
+    let scope = crate::OperatorApplicationScope {
         owner,
-        spelling,
-        operand_types,
-    )
-    .is_empty()
-    {
-        return None;
-    }
-    let candidates = typed_trees::operator::resolve_spelling_for_operands(
-        program,
-        spelling,
-        operand_types,
-        program.expression_table.source_span(expression),
-    )
-    .into_iter()
-    .map(|candidate| candidate.operator.symbol)
-    .chain(
-        typed_trees::operator::canonical_primitive_operator_meanings(
-            program,
-            spelling,
-            operand_types,
-        )
-        .into_iter()
-        .map(|meaning| meaning.requirement.symbol),
-    )
-    .collect::<Vec<_>>();
-    let [selected] = candidates.as_slice() else {
+        origin: None,
+        requires: &requirements,
+        expression_type: &operand_type,
+    };
+    let resolution =
+        crate::scoped_operator_application(program, &scope, expression, spelling, operand_types);
+    let Some(application) = resolution.selected() else {
+        if super::contract_entailment::struct_trace() {
+            eprintln!(
+                "STRUCT sealed-float-selection owner={owner:?} expression={} status={:?} selected={:?}",
+                program.expression_table.display_name(expression),
+                resolution.status,
+                resolution.selected_symbol
+            );
+        }
         return None;
     };
+    let selected = application.public_symbol();
     if let Some(call) = program.expression_table.call_node(expression)
-        && !call_targets_declaration_entry(program, call.target_symbol, *selected)
+        && !call_targets_declaration_entry(program, call.target_symbol, selected)
     {
         return None;
     }
-    if !matches!(typed_trees::operator::primitive_float_semantics(program, *selected), Some((operation, _)) if operation == comparison)
+    if !matches!(typed_trees::operator::primitive_float_semantics(program, selected), Some((operation, _)) if operation == comparison)
     {
         return None;
     }
-    (true
-        && program
+    let retained = program
+        .expression_table
+        .authored_selection_occurrences(expression)
+        .all(|occurrence| {
+            let target = program
+                .authored_declaration_selections()
+                .get(occurrence)
+                .map(|selection| selection.target());
+            match target {
+                Some(AuthoredDeclarationSelectionTarget::LateBound(
+                    language_semantics::declaration_selection::
+                        AuthoredDeclarationSelectionLateBinding::CheckedOperator,
+                )) => true,
+                Some(AuthoredDeclarationSelectionTarget::Resolved(selection)) => {
+                    selection.selected_symbol() == selected
+                }
+                _ => false,
+            }
+        });
+    if !retained && super::contract_entailment::struct_trace() {
+        let authored = program
             .expression_table
             .authored_selection_occurrences(expression)
-            .all(|occurrence| {
-                match program
+            .map(|occurrence| {
+                program
                     .authored_declaration_selections()
                     .get(occurrence)
                     .map(|selection| selection.target())
-                {
-                    Some(AuthoredDeclarationSelectionTarget::LateBound(
-                        language_semantics::declaration_selection::
-                            AuthoredDeclarationSelectionLateBinding::CheckedOperator,
-                    )) => true,
-                    Some(AuthoredDeclarationSelectionTarget::Resolved(selection)) => {
-                        selection.selected_symbol() == *selected
-                    }
-                    _ => false,
-                }
-            }))
-    .then_some(*selected)
+            })
+            .collect::<Vec<_>>();
+        eprintln!(
+            "STRUCT sealed-float-custody owner={owner:?} expression={} selected={selected:?} authored={authored:?}",
+            program.expression_table.display_name(expression)
+        );
+    }
+    retained.then_some(selected)
 }
 
 /// Read the same selected comparison inside a declaration telescope. The

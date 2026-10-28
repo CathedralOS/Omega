@@ -139,6 +139,16 @@ impl<'program> SpecificationCaller<'program> {
     }
 }
 
+/// Operator meaning belongs to the declaration's own public entry facts.
+/// Readers of substituted guarantees may reuse those source-selection facts;
+/// post-call caller observations never select a different operator for them.
+pub(in crate::proof_contracts) fn declaration_selection_requirements(
+    program: &dyn crate::CheckingInput,
+    owner: SymbolHandle,
+) -> Vec<&ProofFact> {
+    SpecificationCaller::Declaration(owner, &[]).selection_requirements(program)
+}
+
 /// Type-bound constant recipes use their real declaration telescope. Result
 /// typing alone cannot establish an application's argument formation. This
 /// checks owned operands and selected contracts without executing open binders.
