@@ -1,19 +1,25 @@
 //! Prepare direct-call inputs beside their original provider plan.
 //!
 //! Source/layout preparation retains original row coordinates and deferred
-//! foreign ABI failures. It creates no projected plan or intrinsic execution.
-//! Selected execution constructs complete target leaves after host admission.
+//! foreign ABI failures and immutable intrinsic declaration facts. It creates
+//! no projected plan or host grant. Selected execution joins target/accepted
+//! bindings and constructs complete leaves without reopening checked source.
 
 use crate::DerivedProviderPlan;
 use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
 
+/// Planning precedes constant closure. This phase cannot supply intrinsic facts
+/// to completion until the finalized checked snapshot has prepared them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnpreparedIntrinsicDeclaration;
+
 /// One candidate inventory owner. Toolchain-only plans have no authored source
 /// provenance; they cannot manufacture direct declaration inputs.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ProviderPlanCandidate {
+pub struct ProviderPlanCandidate<Intrinsic = crate::intrinsic_declarations::IntrinsicDeclaration> {
     source: ProviderPlanCandidateSource,
-    direct: Vec<DirectBoundaryInput>,
+    direct: Vec<DirectBoundaryInput<Intrinsic>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -22,7 +28,7 @@ enum ProviderPlanCandidateSource {
     Toolchain(ProviderPlan),
 }
 
-impl ProviderPlanCandidate {
+impl<Intrinsic> ProviderPlanCandidate<Intrinsic> {
     pub fn plan(&self) -> &ProviderPlan {
         match &self.source {
             ProviderPlanCandidateSource::Derived(source) => &source.plan,
@@ -37,7 +43,7 @@ impl ProviderPlanCandidate {
         }
     }
 
-    pub fn direct_boundaries(&self) -> &[DirectBoundaryInput] {
+    pub fn direct_boundaries(&self) -> &[DirectBoundaryInput<Intrinsic>] {
         &self.direct
     }
 
@@ -52,24 +58,32 @@ impl ProviderPlanCandidate {
     /// rebuilding its source associations under projected callable identities.
     pub fn direct_source(
         &self,
-        input: &DirectBoundaryInput,
+        input: &DirectBoundaryInput<Intrinsic>,
     ) -> Result<DirectBoundarySource<'_>, Diagnostic> {
-        let source = self.derived().ok_or_else(|| {
-            Diagnostic::error("direct boundary has no original provider provenance")
-        })?;
+        self.source.direct_source(input.row_index)
+    }
+}
+
+impl ProviderPlanCandidateSource {
+    fn direct_source(&self, row_index: usize) -> Result<DirectBoundarySource<'_>, Diagnostic> {
+        let Self::Derived(source) = self else {
+            return Err(Diagnostic::error(
+                "direct boundary has no original provider provenance",
+            ));
+        };
         let provenance = &source.provenance;
         let row =
-            source.plan.rows.get(input.row_index).ok_or_else(|| {
+            source.plan.rows.get(row_index).ok_or_else(|| {
                 Diagnostic::error("direct boundary lost its original provider row")
             })?;
         let requirement = provenance
             .row_requirements
-            .get(input.row_index)
+            .get(row_index)
             .copied()
             .ok_or_else(|| Diagnostic::error("direct boundary lost its original requirement"))?;
         let realization = provenance
             .row_realizations
-            .get(input.row_index)
+            .get(row_index)
             .and_then(crate::ProviderRowRealization::authored)
             .ok_or_else(|| Diagnostic::error("direct boundary lost its authored realization"))?;
         Ok(DirectBoundarySource {
@@ -92,25 +106,26 @@ pub struct DirectBoundarySource<'a> {
     pub realization: symbols::SymbolHandle,
 }
 
-/// Physical preparation is separate from catalog/host admission. Unsupported
-/// intrinsic execution is determined later, never represented by a placeholder.
+/// Prepared declaration/physical facts are separate from catalog/host admission.
+/// Unsupported execution and deferred shape errors are settled only when the
+/// original target and ownership gates demand them.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum DirectBoundaryMechanism {
-    Intrinsic,
+pub enum DirectBoundaryMechanism<Intrinsic = crate::intrinsic_declarations::IntrinsicDeclaration> {
+    Intrinsic(Intrinsic),
     Foreign(Result<calling_conventions::ExternalBindingRow, Vec<Diagnostic>>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DirectBoundaryInput {
+pub struct DirectBoundaryInput<Intrinsic = crate::intrinsic_declarations::IntrinsicDeclaration> {
     row_index: usize,
     declaration_identity: String,
     callable_identity: String,
     realization_owner: String,
     realization_package: Option<semantic_vocabulary::PackageKeyIdentity>,
-    pub mechanism: DirectBoundaryMechanism,
+    pub mechanism: DirectBoundaryMechanism<Intrinsic>,
 }
 
-impl DirectBoundaryInput {
+impl<Intrinsic> DirectBoundaryInput<Intrinsic> {
     /// Project the final callable plan only after its execution has been settled.
     /// The original satisfied schema remains separate from that projection and
     /// from any independently accepted public plan.
@@ -161,7 +176,7 @@ impl DirectBoundaryInput {
 pub(crate) fn prepare(
     source: DerivedProviderPlan,
     context: &super::external_binding_rows::ExternalBindingContext<'_>,
-) -> Result<ProviderPlanCandidate, Vec<Diagnostic>> {
+) -> Result<ProviderPlanCandidate<UnpreparedIntrinsicDeclaration>, Vec<Diagnostic>> {
     let typed = context.typed;
     let mut direct = Vec::new();
     for (row_index, row) in source.plan.rows.iter().enumerate() {
@@ -215,7 +230,7 @@ pub(crate) fn prepare(
             )]);
         }
         let mechanism = if matches!(row.binding, ProviderBinding::CompilerIntrinsic { .. }) {
-            DirectBoundaryMechanism::Intrinsic
+            DirectBoundaryMechanism::Intrinsic(UnpreparedIntrinsicDeclaration)
         } else {
             let binding = context
                 .row(&source.plan, row_index, Some(&source.provenance))
@@ -232,7 +247,7 @@ pub(crate) fn prepare(
         // must have the same hermetic owner as the published boundary catalog.
         let declaration_identity = match typed.normalized_hermetic_symbol_identity(machine.symbol) {
             Ok(identity) => identity,
-            Err(_) if matches!(mechanism, DirectBoundaryMechanism::Intrinsic) => format!(
+            Err(_) if matches!(mechanism, DirectBoundaryMechanism::Intrinsic(_)) => format!(
                 "program-local::{}",
                 typed.symbols.display_path(machine.symbol, "::")
             ),
@@ -251,4 +266,63 @@ pub(crate) fn prepare(
         source: ProviderPlanCandidateSource::Derived(source),
         direct,
     })
+}
+
+impl ProviderPlanCandidate<UnpreparedIntrinsicDeclaration> {
+    /// Transfer original ownership into completion-ready inputs after constant
+    /// closure. No source plan or direct payload is cloned or projected here.
+    pub(crate) fn prepare_intrinsic_declarations(
+        self,
+        typed: &checked_trees::typed_trees::TypedTrees,
+        exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
+    ) -> Result<ProviderPlanCandidate, Diagnostic> {
+        let Self { source, direct } = self;
+        let mut prepared = Vec::with_capacity(direct.len());
+        for input in direct {
+            let DirectBoundaryInput {
+                row_index,
+                declaration_identity,
+                callable_identity,
+                realization_owner,
+                realization_package,
+                mechanism,
+            } = input;
+            let mechanism = match mechanism {
+                DirectBoundaryMechanism::Foreign(binding) => {
+                    DirectBoundaryMechanism::Foreign(binding)
+                }
+                DirectBoundaryMechanism::Intrinsic(_) => {
+                    let row = source.direct_source(row_index)?;
+                    let identity = crate::service_declarations::exact_identity(
+                        typed,
+                        row.schema.symbol(),
+                        exact_toolchain_sources,
+                    );
+                    DirectBoundaryMechanism::Intrinsic(
+                        crate::intrinsic_declarations::IntrinsicDeclaration::prepare(
+                            typed,
+                            row.plan,
+                            row.schema,
+                            row.row,
+                            row.requirement,
+                            row.realization,
+                            identity,
+                        ),
+                    )
+                }
+            };
+            prepared.push(DirectBoundaryInput {
+                row_index,
+                declaration_identity,
+                callable_identity,
+                realization_owner,
+                realization_package,
+                mechanism,
+            });
+        }
+        Ok(ProviderPlanCandidate {
+            source,
+            direct: prepared,
+        })
+    }
 }

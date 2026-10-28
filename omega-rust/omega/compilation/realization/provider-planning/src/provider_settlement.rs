@@ -223,7 +223,7 @@ pub struct SettledTargetMachineDeclarations {
 /// and review provenance move into checking and selected execution; the
 /// settlement stays provider-planning custody beside the checked program.
 pub struct CheckedProviderSelection {
-    pub settlement: ProviderSettlement,
+    pub settlement: ProviderSettlement<crate::UnpreparedIntrinsicDeclaration>,
     pub selected_provider_plan_facts: SelectedProviderPlanFacts,
     pub selected_provider_provenance: Vec<SelectedProviderReviewProvenance>,
 }
@@ -232,7 +232,7 @@ pub struct CheckedProviderSelection {
 /// trust replay and native realization. Candidate plans stay separate from the
 /// selected plan facts that selected execution owns.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ProviderSettlement {
+pub struct ProviderSettlement<Intrinsic = crate::intrinsic_declarations::IntrinsicDeclaration> {
     /// Exact target used to derive candidate plans, including semantic-only
     /// checking's supported host profile. This grants no deployment entry.
     pub planning_target_profile: Option<target::TargetProfile>,
@@ -245,7 +245,7 @@ pub struct ProviderSettlement {
     pub component_calling_applications: Vec<calling_conventions::BoundaryCallingApplication>,
     /// Every derived candidate plan plus toolchain-settled plans; trust
     /// replays each selected plan against exactly one of these.
-    pub provider_candidates: Vec<crate::ProviderPlanCandidate>,
+    pub provider_candidates: Vec<crate::ProviderPlanCandidate<Intrinsic>>,
     /// Complete authored native candidates, including private/unselected rows.
     /// Package output and audit use this inventory, never runtime demand as an
     /// excuse to discard a declared foreign promise.
@@ -269,7 +269,48 @@ pub struct ProviderSettlement {
         Vec<std::sync::Arc<component_description::VerifiedComponent>>,
 }
 
-impl ProviderSettlement {
+impl ProviderSettlement<crate::UnpreparedIntrinsicDeclaration> {
+    /// Close declaration facts against the finalized source snapshot, after
+    /// target constant/layout closure and before source-free leaf completion.
+    pub fn prepare_intrinsic_declarations(
+        self,
+        typed: &TypedTrees,
+        exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
+    ) -> Result<ProviderSettlement, Vec<Diagnostic>> {
+        let Self {
+            planning_target_profile,
+            boundary_calling_plan_realizations,
+            component_calling_applications,
+            provider_candidates,
+            native_build_plans,
+            evaluated_via_bindings,
+            external_binding_rows,
+            independent_component_descriptions,
+            verified_independent_components,
+        } = self;
+        let mut prepared = Vec::with_capacity(provider_candidates.len());
+        for candidate in provider_candidates {
+            prepared.push(
+                candidate
+                    .prepare_intrinsic_declarations(typed, exact_toolchain_sources)
+                    .map_err(|diagnostic| vec![diagnostic])?,
+            );
+        }
+        Ok(ProviderSettlement {
+            planning_target_profile,
+            boundary_calling_plan_realizations,
+            component_calling_applications,
+            provider_candidates: prepared,
+            native_build_plans,
+            evaluated_via_bindings,
+            external_binding_rows,
+            independent_component_descriptions,
+            verified_independent_components,
+        })
+    }
+}
+
+impl<Intrinsic> ProviderSettlement<Intrinsic> {
     /// Publish the complete calling catalog from its producing owners. Explicit
     /// policy rows can also own an external import; retain that same application
     /// once. Default native policies retain their materialized geometry here too.

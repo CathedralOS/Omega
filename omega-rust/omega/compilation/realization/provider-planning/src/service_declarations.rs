@@ -186,7 +186,7 @@ impl ServiceDeclarations {
     }
 }
 
-fn exact_identity(
+pub(crate) fn exact_identity(
     typed: &TypedTrees,
     symbol: SymbolHandle,
     sources: &[(source::SourceId, [u8; 32])],

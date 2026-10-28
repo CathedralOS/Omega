@@ -343,6 +343,17 @@ immutable custody and uses only its own source correspondence for remaining
 contract capture. Unsupported or unowned unused declarations retain deferred
 projection refusals. Host classification still uses a catalog-local source join;
 this does not claim all accepted-service preparation is portable Psi.
+Original direct-call candidates also retain intrinsic declaration facts:
+exact nominal owners, bundled-source eligibility, signature/effect/supply checks
+and sealed placed-operation contracts. Selected-row review projects the supplied
+source through that same producer. Direct-call completion joins target and accepted
+public-plan custody without reopening checked trees; deferred shape failures are
+consumed only after the original ownership/target gate. Numeric execution still
+comes from Psi's external declarations. The accepted public plan, original row
+and projected callable plan remain distinct. Planning candidates cannot enter
+completion before constant closure: a typed preparation transition consumes
+their original ownership and derives these facts from the finalized checked
+snapshot. Layout-dependent identities are not assumed invariant across closure.
 Earlier typed constant/comparison evaluation, general review call coordinates
 and source-dependent direct-call preparation remain migration work; this does not claim
 that selected dispatch as a whole is source-free. Retaining current declarations

@@ -187,7 +187,6 @@ pub fn settle_selected_execution(
         accepted_binding(AcceptedSemanticBindingRole::ProcessExitExitProcessI32),
     )?;
     let direct_boundary_leaves = crate::intrinsic_review::produce_direct_boundary_leaves(
-        &checked.program,
         &checked.external_providers,
         &settlement.selected_provider_provenance,
         settlement.provider_candidates,

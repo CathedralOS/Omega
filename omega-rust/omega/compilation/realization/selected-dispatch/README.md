@@ -11,7 +11,15 @@ entrance. It rejoins accepted host bindings and produces complete direct-call
 leaves from the original provider rows. Provider planning retains those source
 owners once and prepares foreign ABI results at their original row coordinates;
 selected execution does not mutate incomplete leaves or reconstruct truncated
-source plans. The leaves are target-companion supplies, not permission to execute.
+source plans. The same inputs retain intrinsic declaration facts from
+[intrinsic_declarations.rs](../provider-planning/src/intrinsic_declarations.rs):
+exact ownership, signature/effect/supply eligibility and deferred failures.
+Direct-leaf completion consumes those facts without checked-source queries.
+Preparation consumes the original candidate after constant closure; its typed
+output prevents completion from accepting the earlier unprepared snapshot.
+The accepted public plan remains distinct from the original candidate and the
+projected callable plan. The leaves are target-companion supplies, not permission
+to execute.
 Task activation instead consumes
 portable demands in the source-free native proposal join. The compiler supplies inputs and
 consumes the result; it does not implement these decisions.
