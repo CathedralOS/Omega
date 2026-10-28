@@ -124,6 +124,7 @@ pub(crate) fn project(
                     requirement_identity: identities.intern(&callable),
                     requirement_package: checked.symbols.symbol_package_identity(requirement),
                     numeric_intrinsic,
+                    requirement_schema,
                     target: typed.machine_authored_target(machine).map(str::to_owned),
                     realization: declarations::identity(
                         identities,

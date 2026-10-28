@@ -198,7 +198,7 @@ impl PartialEq for ProgramIdentity {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TypedTrees {
     /// This instance's cache key; see `ProgramIdentity`. A clone keeps the
     /// tag it was cloned from: its content is identical at that moment, and a
@@ -338,7 +338,7 @@ pub struct TypedTrees {
 /// A package-scoped declaration whose consumer role supplies its completion
 /// contract before checking. Final provider admission independently rejoins
 /// the accepted role's complete schema and selected-plan commitments.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct BoundaryCompletionDeclaration {
     /// Absent only for the arena's invalid sentinel; every admitted row must
     /// retain its nonzero package identity.
@@ -350,7 +350,7 @@ pub struct BoundaryCompletionDeclaration {
     pub completion: semantic_vocabulary::BoundaryCompletion,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct EvidenceForwarding {
     pub machine_symbol: symbols::SymbolHandle,
     pub state_symbol: symbols::SymbolHandle,
@@ -362,7 +362,7 @@ pub struct EvidenceForwarding {
     pub source_conformance: Option<symbols::SymbolHandle>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProofOutputCall {
     pub machine_symbol: symbols::SymbolHandle,
     pub state_symbol: symbols::SymbolHandle,
@@ -376,7 +376,7 @@ pub struct ProofOutputCall {
     pub call: crate::expression::ExpressionHandle,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProofOutputSelector {
     pub output_field: crate::name::Identifier,
     pub binding: crate::name::Identifier,
@@ -384,7 +384,7 @@ pub struct ProofOutputSelector {
 
 /// Producer-retained fields for one application and its separate closure
 /// status. Substitution alone grants no concrete storage or checking authority.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct DataApplicationView {
     definition: Handle<data::DataDefinition>,
     is_closed: bool,
@@ -392,16 +392,19 @@ pub struct DataApplicationView {
 
 /// One designated source type's independent formation obligation. This is
 /// source custody, not an executable call or provider selection.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct DesignatedStaticTypeArgument {
     pub owner: symbols::SymbolHandle,
     pub reference: types::TypeReferenceHandle,
     pub source_span: source::SourceSpan,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TypedTreeTables {
     pub designated_static_type_arguments: Arena<DesignatedStaticTypeArgument>,
+    pub product_input_selections: Arena<crate::product_operand::ProductInputSelection>,
+    pub product_input_argument_steps: Arena<crate::product_operand::ProductArgumentStep>,
+    pub product_operand_applications: Arena<crate::product_operand::ProductOperandApplication>,
     /// Package-agnostic authored-selection custody carried verbatim from
     /// symbol resolution. Checked facts join late selections through the
     /// opaque occurrence identities in this ledger, never source rendering.
@@ -458,7 +461,7 @@ pub struct TypedTreeTables {
     pub wire_members: Arena<wire::WireMember>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TypedTreeRoots {
     pub const_declarations: HandleSpan<crate::constant::ConstDeclaration>,
     pub data_definitions: HandleSpan<data::DataDefinition>,
@@ -790,4 +793,19 @@ pub(crate) fn escape(value: &str) -> String {
         out.push(character);
     }
     out
+}
+
+// Instance identity is only a memo-cache key, never semantic program content.
+impl compiler_storage::Record for ProgramIdentity {
+    fn write(
+        &self,
+        _: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        Ok(())
+    }
+    fn read<Context>(
+        _: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        Ok(Self::default())
+    }
 }

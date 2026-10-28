@@ -5,7 +5,7 @@
 
 use crate::{DependencyPurpose, ProjectName, WorkspaceMemberPath};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum BuildRequest {
     Package(ProjectName),
     Application(ProjectName),
@@ -18,7 +18,7 @@ pub enum BuildRequest {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum BuildDependencySource {
     Path(String),
     Git {

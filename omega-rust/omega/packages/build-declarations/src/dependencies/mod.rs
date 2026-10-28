@@ -22,7 +22,7 @@ use crate::direct_build_call::{DirectBuildCallError, direct_build_call_operands}
 /// `build_depend_as` rows authorize the host build context. The two scopes
 /// are distinct: an alias or a package may appear in both, and neither scope
 /// falls back to the other.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum DependencyPurpose {
     Product,
     Build,

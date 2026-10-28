@@ -41,6 +41,40 @@ impl TypedTrees {
         crate::references::collect_program_conformance_occurrences(self)
     }
 
+    /// Prepared Product rows remain source-owned: the current declaration/body
+    /// census must still contain their exact authored operand and role. Cloned
+    /// helper bodies retain their original author; an arena row alone supplies
+    /// neither an occurrence nor authority to select an implementation.
+    pub fn live_product_operand_applications(
+        &self,
+    ) -> Vec<Handle<crate::product_operand::ProductOperandApplication>> {
+        if self.product_operand_applications.is_empty() {
+            return Vec::new();
+        }
+        let occurrences = crate::product_operand::collect_product_selection_occurrences(self);
+        self.product_operand_applications
+            .iter()
+            .filter_map(|(handle, selected)| {
+                let role = selected.role?;
+                let author = self.symbols.authored_origin(selected.owner);
+                occurrences
+                    .iter()
+                    .any(|occurrence| {
+                        self.symbols.authored_origin(occurrence.machine) == author
+                            && occurrence.request.operands.iter().enumerate().any(
+                                |(ordinal, operand)| {
+                                    occurrence.request.operation.product_operand_role(ordinal)
+                                        == Some(role)
+                                        && self
+                                            .same_product_operand_source(operand, &selected.operand)
+                                },
+                            )
+                    })
+                    .then_some(handle)
+            })
+            .collect()
+    }
+
     /// Census of occurrence/evidence selections, preserving each source anchor.
     pub fn closed_conformance_application_sites(
         &self,

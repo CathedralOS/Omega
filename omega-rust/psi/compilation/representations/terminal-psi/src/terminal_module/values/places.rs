@@ -39,7 +39,7 @@ use semantic_vocabulary::{
     ValueId,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum StructuralPathSegment {
     /// Universal element selection in qualification metadata only. This is
     /// never an address, scalar selector, bounds proof, or loan authority.

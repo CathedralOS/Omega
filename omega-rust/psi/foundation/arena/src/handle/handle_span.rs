@@ -1,3 +1,4 @@
+use compiler_storage::Record;
 use std::fmt;
 use std::marker::PhantomData;
 
@@ -263,5 +264,26 @@ mod tests {
 
         span.push_contiguous(Handle::from_arena_index(4));
         span.push_contiguous(Handle::from_parts(5, 2));
+    }
+}
+
+impl<T: 'static> compiler_storage::Record for HandleSpan<T> {
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        self.start.write(output)?;
+        self.count.write(output)
+    }
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        let start = Handle::read(input)?;
+        let count = u32::read(input)?;
+        if count != 0 && (!start.is_valid() || start.arena_index().checked_add(count - 1).is_none())
+        {
+            return Err(input.error("arena span has an invalid start or overflowing range"));
+        }
+        Ok(Self::from_parts(start, count))
     }
 }

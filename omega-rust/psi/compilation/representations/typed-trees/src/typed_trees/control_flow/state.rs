@@ -5,7 +5,7 @@ use crate::statement::StatementNode;
 use arena::HandleSpan;
 use symbols::SymbolHandle;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct State {
     pub symbol: SymbolHandle,
     pub name: Identifier,

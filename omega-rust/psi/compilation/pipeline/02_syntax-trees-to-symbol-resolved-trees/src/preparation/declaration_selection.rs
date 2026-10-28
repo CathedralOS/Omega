@@ -20,7 +20,7 @@ use syntax_trees::identifier::{Identifier, JoinedSyntaxPath};
 use syntax_trees::item::{ConstDefinition, DataDefinition, DataMember, Item};
 
 /// Private selection state; transient symbols never escape into normalized syntax.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub(crate) struct ConstantSelection<'base> {
     symbols: SymbolTable,
     retained: Option<SelectionBase<'base>>,
@@ -770,30 +770,77 @@ impl<'base> ConstantSelection<'base> {
         self.data_declaration(syntax, name, selected)
     }
 
-    /// Read a selected callable or implementation telescope for constant probe
-    /// destinations. This is ordinary source-scoped declaration lookup, never
-    /// permission to execute the selected body or infer an implementation.
-    pub(super) fn static_parameters<'syntax>(
+    /// Read the receiving telescope selected in this invocation's namespace.
+    /// Parsed headers supply carrier syntax only; they never add declarations
+    /// or authorize evaluation. Retained headers are outside the cohort's work
+    /// roots, so copy their operands into its tables before returning handles.
+    pub(super) fn const_parameter_carriers(
         &self,
-        syntax: &'syntax SyntaxTrees,
+        syntax: &mut SyntaxTrees,
+        declaration_syntax: Option<&SyntaxTrees>,
         name: &Identifier,
-    ) -> Option<&'syntax [syntax_trees::item::TypeParameter]> {
+        kinds: &[SymbolKind],
+    ) -> Option<Vec<Option<syntax_trees::types::TypeReferenceHandle>>> {
         let selected = self.symbols.find_top_level_by_name_and_kinds_from_source(
             name.as_str(syntax),
-            &[SymbolKind::Machine, SymbolKind::Conformance],
+            kinds,
             name.source_span(),
         )?;
-        let source = self.symbols.symbol_source_span(selected)?;
-        syntax.root_items().find_map(|item| {
-            let (declaration, parameters) = match item {
-                Item::Machine(machine) => (&machine.name, machine.type_parameters),
-                Item::Conformance(conformance) => {
-                    (conformance.alias.as_ref()?, conformance.type_parameters)
-                }
-                _ => return None,
+        let reference = self.symbols.symbol_source_span(selected)?;
+        let selected_kind = self.symbols.get(selected).kind;
+        let selected_name = self.symbols.name(selected);
+        let parameters = |forest: &SyntaxTrees| {
+            let mut declarations = forest.root_items().filter_map(|item| {
+                let (kind, declaration, parameters) = match item {
+                    Item::Data(data) => (SymbolKind::Data, &data.name, data.type_parameters),
+                    Item::Machine(machine) => {
+                        (SymbolKind::Machine, &machine.name, machine.type_parameters)
+                    }
+                    Item::Conformance(conformance) => (
+                        SymbolKind::Conformance,
+                        conformance.alias.as_ref()?,
+                        conformance.type_parameters,
+                    ),
+                    _ => return None,
+                };
+                (kind == selected_kind
+                    && declaration.source_span() == reference
+                    && declaration.as_str(forest) == selected_name)
+                    .then_some(parameters)
+            });
+            let Some(parameters) = declarations.next() else {
+                return Ok(None);
             };
-            (declaration.source_span() == source).then(|| syntax.items.type_parameters(parameters))
-        })
+            if declarations.next().is_some() {
+                return Err(());
+            }
+            Ok(Some(
+                forest
+                    .items
+                    .type_parameters(parameters)
+                    .iter()
+                    .map(|parameter| match parameter.kind {
+                        syntax_trees::item::TypeParameterKind::Const { type_reference } => {
+                            Some(type_reference)
+                        }
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>(),
+            ))
+        };
+        if let Some(parameters) = parameters(syntax).ok()? {
+            return Some(parameters);
+        }
+        let forest = declaration_syntax?;
+        Some(
+            parameters(forest)
+                .ok()??
+                .into_iter()
+                .map(|carrier| {
+                    carrier.map(|carrier| syntax.copy_type_reference_handle(forest, carrier))
+                })
+                .collect(),
+        )
     }
 
     pub(crate) fn constructor<'syntax>(
@@ -1354,5 +1401,26 @@ mod retained_namespace_tests {
         }));
         ConstantSelection::new(&syntax, None, Vec::new())
             .expect("namespace registration retains source ownership before cloning names");
+    }
+}
+
+// Only the deferred frontier's owned predecessor is persistent. Normalization's
+// temporary borrow cannot escape as an independently restorable source owner.
+impl compiler_storage::Record for SelectionBase<'_> {
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        match self {
+            Self::Shared(base) => compiler_storage::Record::write(base, output),
+            Self::Borrowed(_) => {
+                Err(output.error("borrowed declaration selection is not a persistent frontier"))
+            }
+        }
+    }
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        compiler_storage::Record::read(input).map(Self::Shared)
     }
 }

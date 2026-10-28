@@ -2,7 +2,7 @@ use super::*;
 
 /// A proof-formula declaration. It has no result, executable body, effects, or
 /// runtime representation; its parameters are an erased proof-side telescope.
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
 pub struct PropositionDefinition {
     pub name: Identifier,
     pub is_public: bool,
@@ -13,7 +13,14 @@ pub struct PropositionDefinition {
     pub body: PropositionBody,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, syntax_trees_derive::PlainSyntaxEquivalent)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    compiler_storage::Record,
+)]
 pub enum PropositionBody {
     /// Owner-declared fact with no recoverable witness interface.
     Primitive,
@@ -43,7 +50,9 @@ pub enum PropositionBody {
 /// declarations live on their own root collection
 /// (`SyntaxTreeRoots::mathematical_definitions`) and resolution refuses them
 /// explicitly until that leg lands.
-#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(
+    Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+)]
 pub struct MathematicalDefinition {
     pub name: Identifier,
     pub is_public: bool,
@@ -62,7 +71,14 @@ pub struct MathematicalDefinition {
     pub body: MathematicalDefinitionBody,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, syntax_trees_derive::PlainSyntaxEquivalent)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    compiler_storage::Record,
+)]
 pub enum MathematicalDefinitionBody {
     /// `= term;` — a transparent checked term definition. Substitution of a
     /// use site with this exact term is the declaration's meaning; nothing
@@ -87,7 +103,9 @@ impl Default for MathematicalDefinitionBody {
 /// [`StateParameterNode`] its type is a [`MathematicalTypeHandle`] (it may be
 /// an arrow), and it carries no runtime binding facts — mathematical values
 /// are not executable data.
-#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(
+    Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+)]
 pub struct MathematicalParameterNode {
     pub name: Identifier,
     /// The binding occurrence's `[erased]` marker (contracts.md): an erased
@@ -101,7 +119,7 @@ pub struct MathematicalParameterNode {
 /// [`crate::types::TypeReferenceNode`] so that admitting `->` into the shared
 /// type grammar remains its own resolution decision; this leg only records
 /// the authored shape faithfully.
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
 pub enum MathematicalTypeNode {
     /// An ordinary type reference — `i32`, `A`, `core::Type<u>`,
     /// `core::Squash<A>`.
@@ -132,7 +150,15 @@ impl Default for MathematicalTypeNode {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default, syntax_trees_derive::PlainSyntaxEquivalent)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Default,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    compiler_storage::Record,
+)]
 pub struct MeasureDefinition {
     /// Fully-qualified declaration path, e.g. `Card::PowerOrder`.
     pub name: HandleSpan<Identifier>,
@@ -148,7 +174,14 @@ pub struct MeasureDefinition {
     pub token_count: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, syntax_trees_derive::PlainSyntaxEquivalent)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    compiler_storage::Record,
+)]
 pub enum ProofFact {
     Expression(crate::expression::ExpressionHandle),
     Membership(ProofMembershipFact),
@@ -160,7 +193,7 @@ impl Default for ProofFact {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, compiler_storage::Record)]
 pub struct ProofMembershipFact {
     pub value: crate::expression::ExpressionHandle,
     pub domain: HandleSpan<Identifier>,
@@ -176,7 +209,9 @@ pub struct ProofMembershipFact {
 /// conforms this machine to that single requirement (the machine-by-machine
 /// carrier model; the alias names the satisfier for plural algebras -- Nat
 /// under (max, add) is the tropical semiring).
-#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(
+    Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+)]
 pub struct SatisfiesClause {
     pub trait_name: Identifier,
     /// Complete explicit target-trait lifetime application, in trait-binder
@@ -193,7 +228,9 @@ pub struct SatisfiesClause {
 /// exact trait application. It names code, not data; the trait arguments carry
 /// every data type the interface needs, and no parameter is a subject
 /// ([named conformances](../../../../../../../../wiki/spec/language/conformances.md#declaration-and-selection)).
-#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(
+    Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+)]
 pub struct GenericConformanceBound {
     pub binder: Identifier,
     pub trait_name: Identifier,

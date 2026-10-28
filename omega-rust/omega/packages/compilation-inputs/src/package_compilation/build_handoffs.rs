@@ -41,6 +41,7 @@ struct PackageBuildHandoffContents {
         Arc<[build_time_evaluation::provider_declarations::RetainedProviderSelection]>,
     selection_observation: Option<[u8; 32]>,
     native_bindings: Arc<[super::retained_native_bindings::RetainedNativeBinding]>,
+    native_evaluation: Option<Arc<super::NativeBuildEvaluation>>,
 }
 
 impl PackageBuildHandoff {
@@ -86,6 +87,7 @@ impl PackageBuildHandoff {
                 provider_selections: Arc::from([]),
                 selection_observation: None,
                 native_bindings: Arc::from([]),
+                native_evaluation: None,
             }),
         }
     }
@@ -158,6 +160,10 @@ impl PackageBuildHandoff {
         &self.contents.native_bindings
     }
 
+    pub fn native_evaluation(&self) -> Option<&Arc<super::NativeBuildEvaluation>> {
+        self.contents.native_evaluation.as_ref()
+    }
+
     /// Only completed immutable package checking exports native application
     /// judgments. Recovery retains them inertly; receiving source admission
     /// independently checks every supplier and declaration anchor.
@@ -165,7 +171,23 @@ impl PackageBuildHandoff {
     pub fn with_checked_native_bindings(
         self,
         bindings: Vec<super::retained_native_bindings::RetainedNativeBinding>,
+        evaluation: Option<Arc<super::NativeBuildEvaluation>>,
     ) -> Result<Self, &'static str> {
+        if !bindings.is_empty() && evaluation.is_none() {
+            return Err("native package intent lost its completed Terminal Build code");
+        }
+        if let Some(evaluation) = &evaluation {
+            evaluation.usage.validate().map_err(|_| "native package evaluation has inconsistent accounting")?;
+            if !matches!(evaluation.usage.measurement, evaluation_accounting::EvaluationMeasurementIdentity::TerminalPsi { .. }) {
+                return Err("native package intent requires its actual Terminal evaluation");
+            }
+            if self.selection_observation().is_some_and(|provider| provider != evaluation.observation_digest) {
+                return Err("one package handoff mixes different original Build observations");
+            }
+            if bindings.iter().any(|row| row.observation != evaluation.observation_digest || row.usage != evaluation.usage) {
+                return Err("native package code and retained rows disagree on their original Build invocation");
+            }
+        }
         for (position, binding) in bindings.iter().enumerate() {
             binding.validate()?;
             if bindings[..position]
@@ -205,6 +227,7 @@ impl PackageBuildHandoff {
         }
         let mut contents = Arc::unwrap_or_clone(self.contents);
         contents.native_bindings = bindings.into();
+        contents.native_evaluation = evaluation;
         Ok(Self {
             contents: Arc::new(contents),
         })
@@ -220,6 +243,11 @@ impl PackageBuildHandoff {
         selections: Vec<build_time_evaluation::provider_declarations::RetainedProviderSelection>,
         observation: Option<[u8; 32]>,
     ) -> Result<Self, &'static str> {
+        if let (Some(provider), Some(native)) = (observation, self.native_evaluation()) {
+            if provider != native.observation_digest {
+                return Err("one package handoff mixes different original Build observations");
+            }
+        }
         if !selections.is_empty() && observation.is_none() {
             return Err("package provider choices have no original Build observation");
         }

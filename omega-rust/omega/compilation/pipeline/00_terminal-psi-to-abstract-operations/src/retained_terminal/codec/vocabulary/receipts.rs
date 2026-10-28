@@ -64,7 +64,9 @@ impl RecordValue for effects::provider_plan::EvaluatedBindingReceipt {
                 locator_identity_digest,
                 identity_digest,
             } = ReceiptRecord::read(input)?;
-            let identities = input.binding_identities()?;
+            let identities = input.context.binding_identities.clone().ok_or_else(|| {
+                input.error("evaluated binding receipt is missing its producer identity namespace")
+            })?;
             let producer = identities
                 .text(producer_callable_identity)
                 .filter(|identity| !identity.is_empty())

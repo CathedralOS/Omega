@@ -15,8 +15,12 @@ use typed_trees::{
     types::{self, TypeReferenceHandle, TypeReferenceNode},
 };
 
+mod nominal;
+pub use nominal::prepare_product_operand_application;
+
 mod environment;
 mod expressions;
+mod input_selections;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PreparedProductRequirement {
@@ -51,20 +55,9 @@ pub fn prepare_product_requirement_operand(
             refuse("native binding must name one exact visible package-owned requirement")
         });
     };
+    let source_owner = author;
     let author = environment::supplier_owner(program, static_environment, author)?;
-    let mut lower = Lower {
-        program,
-        graph,
-        author,
-        static_environment,
-        active_bindings: Vec::new(),
-        types: Vec::new(),
-        expressions: Vec::new(),
-        subjects: Vec::new(),
-        active_types: Vec::new(),
-        active_expressions: Vec::new(),
-        active_operands: Vec::new(),
-    };
+    let mut lower = Lower::new(program, graph, author, static_environment);
     if !graph.operands.is_valid(graph.root) {
         return Err(refuse("designated requirement has no owned root operand"));
     }
@@ -73,6 +66,12 @@ pub fn prepare_product_requirement_operand(
         return Err(refuse("designated requirement has no owned application"));
     }
     let root_application = graph.applications.get(root.application).clone();
+    lower
+        .input_path
+        .push(typed_trees::product_operand::ProductArgumentStep::Argument(
+            0,
+        ));
+    let mut source_argument = None;
     let (requirement, environment, method) = if root_application.member.is_valid() {
         let path = lower.path(root.path)?;
         let owner = typed_trees::product_operand::resolve_product_path(
@@ -97,6 +96,7 @@ pub fn prepare_product_requirement_operand(
             .as_mut()
             .expect("created above")
             .member = Handle::invalid();
+        source_argument = Some(owner_argument.clone());
         let reference = lower
             .program
             .static_operand_type_reference_in_scope(&owner_argument, author)
@@ -194,12 +194,41 @@ pub fn prepare_product_requirement_operand(
         .materialize_trait_application_arguments(&environment)
         .map_err(refuse)?;
 
+    let has_outer = root_application.member.is_valid();
+    if has_outer {
+        lower
+            .input_path
+            .push(typed_trees::product_operand::ProductArgumentStep::Member);
+    }
     let supplied = if method.is_valid() {
         Some(lower.application(method)?)
     } else {
         None
     };
-    let has_outer = root_application.member.is_valid();
+    if has_outer {
+        lower.input_path.pop();
+    }
+    lower.input_path.pop();
+    let member_argument = expr::StaticMachineArgument {
+        symbol: requirement,
+        path: Box::from([Identifier::generated(&operand.path)]),
+        application: supplied.clone().map(Box::new),
+        ..Default::default()
+    };
+    let source_argument = if let Some(mut owner) = source_argument {
+        let member = lower
+            .program
+            .expression_table
+            .insert_static_member(member_argument);
+        owner
+            .application
+            .as_mut()
+            .expect("retained applied owner")
+            .member = member;
+        owner
+    } else {
+        member_argument
+    };
     // An absent method tuple keeps the method's own universal telescope. An
     // explicitly supplied tuple must close completely, including unused args.
     if let Some(supplied) = &supplied {
@@ -271,12 +300,39 @@ pub fn prepare_product_requirement_operand(
                 application,
             )
             .map_err(refuse)?;
+        let input_scope = environment.retain(lower.program).map_err(refuse)?;
+        lower.retain_requirement_inputs(
+            operand,
+            source_owner,
+            requirement,
+            source_argument,
+            input_scope,
+            application,
+        );
         return Ok(PreparedProductRequirement {
             requirement,
             closed_requirement: Some(instance),
             trait_scope: retained_scope,
         });
     }
+    let source_application = lower
+        .program
+        .expression_table
+        .retain_static_machine_application(requirement, name, &[]);
+    lower
+        .program
+        .expression_table
+        .static_machine_application_mut(source_application)
+        .lexical_owner = author;
+    let input_scope = environment.retain(lower.program).map_err(refuse)?;
+    lower.retain_requirement_inputs(
+        operand,
+        source_owner,
+        requirement,
+        source_argument,
+        input_scope,
+        source_application,
+    );
     Ok(PreparedProductRequirement {
         requirement,
         closed_requirement: None,
@@ -290,6 +346,8 @@ struct Lower<'a> {
     author: SymbolHandle,
     static_environment: Option<&'a ProductStaticEnvironment>,
     active_bindings: Vec<source::SourceSpan>,
+    input_path: Vec<typed_trees::product_operand::ProductArgumentStep>,
+    input_selections: Vec<typed_trees::product_operand::ProductInputSelection>,
     types: Vec<(Handle<ProductOperandType>, TypeReferenceHandle)>,
     expressions: Vec<(Handle<ProductOperandExpression>, expr::ExpressionHandle)>,
     subjects: Vec<(
@@ -300,7 +358,61 @@ struct Lower<'a> {
     active_expressions: Vec<Handle<ProductOperandExpression>>,
     active_operands: Vec<Handle<ProductStaticOperand>>,
 }
+impl<'a> Lower<'a> {
+    fn new(
+        program: &'a mut TypedTrees,
+        graph: &'a ProductStaticOperandGraph,
+        author: SymbolHandle,
+        static_environment: Option<&'a ProductStaticEnvironment>,
+    ) -> Self {
+        Self {
+            program,
+            graph,
+            author,
+            static_environment,
+            active_bindings: Vec::new(),
+            input_path: Vec::new(),
+            input_selections: Vec::new(),
+            types: Vec::new(),
+            expressions: Vec::new(),
+            subjects: Vec::new(),
+            active_types: Vec::new(),
+            active_expressions: Vec::new(),
+            active_operands: Vec::new(),
+        }
+    }
+}
 impl Lower<'_> {
+    fn retain_requirement_inputs(
+        &mut self,
+        operand: &ProductDeclarationOperand,
+        owner: SymbolHandle,
+        declaration: SymbolHandle,
+        argument: expr::StaticMachineArgument,
+        scope: RetainedTraitScope,
+        supplying_application: typed_trees::static_applications::StaticMachineApplicationHandle,
+    ) {
+        let input_selections = self
+            .program
+            .product_input_selections
+            .insert_many(std::mem::take(&mut self.input_selections));
+        self.program.retain_product_operand_application(
+            typed_trees::product_operand::ProductOperandApplication {
+                operand: operand.clone(),
+                environment: self.static_environment.cloned().map(std::sync::Arc::new),
+                owner,
+                role: Some(ProductOperandRole::Requirement),
+                declaration,
+                demand: typed_trees::product_operand::ProductApplicationDemand::Selected,
+                argument,
+                input_selections,
+                scope,
+                supplying_application,
+                implementation: None,
+            },
+        );
+    }
+
     fn error(&self, reason: &str) -> Vec<Diagnostic> {
         vec![Diagnostic::error(reason)]
     }
@@ -473,7 +585,8 @@ impl Lower<'_> {
             .span_or_empty(value.arguments)
             .iter()
             .copied()
-            .map(|value| self.operand(value))
+            .enumerate()
+            .map(|(ordinal, value)| self.argument(ordinal, value))
             .collect::<Result<Vec<_>, _>>()?;
         Ok(expr::StaticSymbolApplication {
             arguments: arguments.into_boxed_slice(),
@@ -494,10 +607,15 @@ impl Lower<'_> {
             .span_or_empty(value.arguments)
             .iter()
             .copied()
-            .map(|value| self.operand(value))
+            .enumerate()
+            .map(|(ordinal, value)| self.argument(ordinal, value))
             .collect::<Result<Vec<_>, _>>()?;
         let member = if value.member.is_valid() {
-            let argument = self.operand(value.member)?;
+            self.input_path
+                .push(typed_trees::product_operand::ProductArgumentStep::Member);
+            let argument = self.operand(value.member);
+            self.input_path.pop();
+            let argument = argument?;
             self.program.expression_table.insert_static_member(argument)
         } else {
             Handle::invalid()
@@ -549,6 +667,7 @@ impl Lower<'_> {
                 member: self.identifier(member),
             });
         self.active_operands.pop();
+        self.retain_operand_input(value.authored_selection)?;
         Ok(expr::StaticMachineArgument {
             type_reference,
             application,
@@ -590,7 +709,9 @@ impl Lower<'_> {
         handle: Handle<ProductOperandType>,
     ) -> Result<TypeReferenceHandle, Vec<Diagnostic>> {
         if let Some((_, target)) = self.types.iter().find(|(source, _)| *source == handle) {
-            return Ok(*target);
+            let target = *target;
+            self.retain_type_input(handle, target)?;
+            return Ok(target);
         }
         if self.active_types.contains(&handle) {
             return Err(self.error("designated type graph contains a cycle"));
@@ -699,6 +820,7 @@ impl Lower<'_> {
             .map_err(|reason| self.error(reason))?;
         self.active_types.pop();
         self.types.push((handle, target));
+        self.retain_type_input(handle, target)?;
         Ok(target)
     }
     fn constraint(

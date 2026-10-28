@@ -5,8 +5,11 @@
 //! second program representation or permission to skip checking.
 
 mod data_applications;
-mod product_requirement_operands;
-pub use product_requirement_operands::{PreparedProductRequirement, prepare_product_requirement_operand};
+mod product_operands;
+pub use product_operands::{
+    PreparedProductRequirement, prepare_product_operand_application,
+    prepare_product_requirement_operand,
+};
 mod default_domain_zero;
 mod deferred_constants;
 mod opaque_property_receipts;
@@ -92,7 +95,7 @@ impl<'request> PreparationRequest<'request> {
 /// a language judgment keeps this beside it: preparation is a pure function
 /// of the typed program and these inputs, so an equal pair reproduces the
 /// exact preparation and the judgment may be taken without preparing again.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, compiler_storage::Record)]
 pub struct PreparationAdmission {
     admits_pending_inputs: bool,
     asm_authority: Option<validation::AsmAuthorityAdmission>,

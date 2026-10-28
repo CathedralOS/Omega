@@ -5,4 +5,5 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+compiler-storage = { path = "../compiler-storage" }
 semantic-vocabulary = { path = "../semantic-vocabulary" }

@@ -200,6 +200,7 @@ pub fn admit_native_binding(
     event_ordinal: usize,
     observation: &package_compilation::BuildObservationSummary,
     usage: package_compilation::BuildEvaluationUsage,
+    terminal_code: terminal_psi::TerminalPsiIdentity,
     table_field: Option<(SymbolHandle, SymbolHandle)>,
     same_stack_demand: Option<NativeSameStackDemand>,
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
@@ -243,8 +244,10 @@ pub fn admit_native_binding(
         .strip_prefix(&source.package_root)
         .map_err(|_| "native binding source is outside its immutable package")?;
     let mut hash = crate::digest_encoder::DomainDigestEncoder::new(
-        b"omega.build-native-binding.source.sha256.v4\0",
+        b"omega.build-native-binding.source.sha256.v5\0",
     );
+    hash.raw(&terminal_code.vocabulary_marker.get().to_le_bytes());
+    hash.raw(terminal_code.program_fingerprint.as_bytes());
     hash.bytes(producer.as_bytes());
     hash.bytes(requirement_identity.as_bytes());
     match &event.static_environment {

@@ -118,7 +118,7 @@ pub(crate) fn observe_build_time_value<E>(
 /// One supplied semantic execution, tied to the exact checked operator use.
 /// The caller owns selected-provider validation; this interpreter never selects
 /// a provider from a token or declaration name.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct SelectedBuildTimeBinaryOperator {
     pub expression: typed_trees::expression::ExpressionHandle,
     pub origin: checked_trees::CheckedValueOrigin,

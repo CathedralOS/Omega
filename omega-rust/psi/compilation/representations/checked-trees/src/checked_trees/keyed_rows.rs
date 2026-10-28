@@ -102,6 +102,7 @@ impl<Key: Clone, Row> Clone for KeyedGroupCache<Key, Row> {
 /// the producing arena's revision moves. The query borrows the arena that
 /// produced the grouping, so the index cannot be keyed against one arena's
 /// revision and read as another's.
+#[derive(compiler_storage::Record)]
 pub struct KeyedRows<Key, Row> {
     groups: OwnedIndex<KeyedGroupCache<Key, Row>>,
 }

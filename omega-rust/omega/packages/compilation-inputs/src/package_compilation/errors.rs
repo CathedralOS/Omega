@@ -10,10 +10,6 @@ use std::path::PathBuf;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PackageCompilationInputError {
-    NativeBindingBundleMismatch {
-        package: PackageKeyIdentity,
-        reason: String,
-    },
     InvalidDependencyAcquisition {
         root: PackageKeyIdentity,
         reason: String,
@@ -126,11 +122,6 @@ pub enum PackageCompilationInputError {
 impl fmt::Display for PackageCompilationInputError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::NativeBindingBundleMismatch { package, reason } => write!(
-                formatter,
-                "native package output {}: {reason}",
-                display_identity(*package)
-            ),
             Self::InvalidDependencyAcquisition { root, reason } => write!(
                 formatter,
                 "invalid acquired dependency requests for {}: {reason}",

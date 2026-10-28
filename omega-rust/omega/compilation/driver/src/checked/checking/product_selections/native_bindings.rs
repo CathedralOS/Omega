@@ -186,6 +186,18 @@ pub(super) fn admit(
         let usage = computed
             .evaluation_usage
             .ok_or_else(|| refuse("native binding lost its sponsoring Build accounting"))?;
+        let evaluation = computed
+            .config
+            .native_binding_evaluation
+            .as_ref()
+            .ok_or_else(|| refuse("native binding lost its completed Terminal Build code"))?;
+        if evaluation.observation_digest != observation.identity().digest()
+            || evaluation.usage != usage
+        {
+            return Err(refuse(
+                "native binding code and sponsoring observation/accounting disagree",
+            ));
+        }
         let mut row = provider_planning::admit_native_binding(
             typed,
             event,
@@ -194,6 +206,7 @@ pub(super) fn admit(
             ordinal,
             observation,
             usage,
+            evaluation.terminal_code,
             table_field,
             demand,
             &mut identities,

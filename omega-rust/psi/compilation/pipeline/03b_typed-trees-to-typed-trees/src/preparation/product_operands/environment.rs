@@ -87,19 +87,8 @@ impl Lower<'_> {
         let owner = rejoin_owner(self.program, binding.lexical_owner)?;
         let mut active_bindings = self.active_bindings.clone();
         active_bindings.push(binding.parameter);
-        let mut actual = Lower {
-            program: self.program,
-            graph: &environment.graph,
-            author: owner,
-            static_environment: Some(environment),
-            active_bindings,
-            types: Vec::new(),
-            expressions: Vec::new(),
-            subjects: Vec::new(),
-            active_types: Vec::new(),
-            active_expressions: Vec::new(),
-            active_operands: Vec::new(),
-        };
+        let mut actual = Lower::new(self.program, &environment.graph, owner, Some(environment));
+        actual.active_bindings = active_bindings;
         let argument = actual.operand(binding.argument)?;
         if argument.type_reference.is_valid() {
             actual

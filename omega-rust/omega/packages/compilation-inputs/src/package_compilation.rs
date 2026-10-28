@@ -13,6 +13,10 @@ mod build_handoffs;
 mod construction;
 mod dependency_graph;
 mod errors;
+mod native_bindings;
+mod native_evaluation;
+pub use native_evaluation::NativeBuildEvaluation;
+pub mod native_output_codec;
 pub mod native_selection_codec;
 pub mod provider_selection_codec;
 mod provider_selections;
@@ -110,7 +114,7 @@ impl Default for PackageCompilationTargetInputs {
 /// being reused with a child whose source-routing inputs differ. Exact-target
 /// generated sources and accepted semantic bindings are excluded because they
 /// join only after that shared checkpoint forks.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct PackageCompilationSourceInputs {
     filesystem: source::SourceFileSystem,
     root: PackageKeyIdentity,
@@ -121,7 +125,7 @@ pub struct PackageCompilationSourceInputs {
 
 /// A package-owned acquisition for an exact, purpose-local dependency request.
 /// The request is inert data, not an issued execution receipt or a host grant.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct PackageDependencyAcquisition {
     pub request_ordinal: usize,
     pub request: build_declarations::BuildRequest,
@@ -134,7 +138,7 @@ pub struct PackageDependencyAcquisition {
 /// may bind different packages in each. Only the compilation root may hold
 /// build-scope edges — the compiled program executes exactly one package's
 /// build entry, and dependency build files never join it.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 struct PackageCompilationSourceRecord {
     source_root: PathBuf,
     canonical_name: String,
@@ -536,6 +540,25 @@ impl PackageCompilationInputs {
 }
 
 impl build_time_evaluation::BuildTimeSelectionAuthority for PackageCompilationInputs {
+    fn declaration_selection_scope(
+        &self,
+    ) -> Option<BTreeMap<PackageKeyIdentity, Vec<PackageKeyIdentity>>> {
+        Some(
+            self.source
+                .packages
+                .iter()
+                .map(|(requester, record)| {
+                    let mut owners = vec![*requester];
+                    owners.extend(record.dependencies.values().copied());
+                    owners.extend(record.build_dependencies.values().copied());
+                    owners.sort_unstable();
+                    owners.dedup();
+                    (*requester, owners)
+                })
+                .collect(),
+        )
+    }
+
     fn allows_declaration_selection(
         &self,
         requester: PackageKeyIdentity,
@@ -616,5 +639,27 @@ mod acquisition_tests {
         wrong_package[0].package = root;
         assert!(inputs.with_dependency_acquisitions(wrong_package).unwrap_err().iter().any(|error| matches!(error,
             PackageCompilationInputError::InvalidDependencyAcquisition { reason, .. } if reason.contains("alias and purpose"))));
+    }
+}
+
+impl PackageCompilationSourceInputs {
+    /// Captured namespaces are immutable values. A metadata-only physical
+    /// package must reproduce its committed bytes now; location and old index
+    /// equality alone cannot attest unchanged source across invocations.
+    pub fn matches_current_source_identity(&self) -> Result<bool, String> {
+        for package in self.packages.values() {
+            if package.captured_source.is_some()
+                || self.filesystem.has_captured_namespace(&package.source_root)
+            {
+                continue;
+            }
+            let Some(expected) = &package.canonical_source_metadata else {
+                return Ok(false);
+            };
+            if crate::source_snapshot::capture(&package.source_root)? != *expected {
+                return Ok(false);
+            }
+        }
+        Ok(true)
     }
 }

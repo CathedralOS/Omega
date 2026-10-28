@@ -5,7 +5,7 @@
 //! user-declared carrier domains.
 
 /// A compiler-known value-domain predicate from Omega's core roster.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub enum ValueDomain {
     /// Excludes NaN and both infinities from a floating-point value.
     Finite,

@@ -1,1 +1,1 @@
-expected an integer literal for `u64`
+expected a canonical integer node for `u64`

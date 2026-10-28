@@ -14,6 +14,16 @@ pub struct NumericRealizationOwner {
     pub package: Option<PackageKeyIdentity>,
 }
 
+/// The declaration's exact plan slot. Presence records an eligible numeric
+/// requirement shape, even when its meaning is not in the supported catalog.
+/// Nominal requirement and package identity remain on the conformance.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ExternalRequirementSchema {
+    pub identity: TerminalIdentityIndex,
+    pub method: TerminalIdentityIndex,
+    pub owner: TerminalIdentityIndex,
+}
+
 /// A bodyless realization has no Terminal MachineId or body refinement to
 /// replay. Psi has checked its satisfaction edge. Retain the exact declaration
 /// and mechanism so a consumer can join an independently selected whole plan
@@ -39,6 +49,16 @@ impl NumericRealization {
                 .text(identity)
                 .is_some_and(|text| !text.is_empty())
         };
+        if self.numeric_intrinsic.is_some() && self.requirement_schema.is_none() {
+            return Err("numeric provider lost its exact requirement schema");
+        }
+        if self.requirement_schema.as_ref().is_some_and(|schema| {
+            ![schema.identity, schema.method, schema.owner]
+                .into_iter()
+                .all(present)
+        }) {
+            return Err("external provider has an incomplete requirement schema");
+        }
         if self.target.as_ref().is_some_and(String::is_empty)
             || self.numeric_intrinsic.signature().is_none()
         {

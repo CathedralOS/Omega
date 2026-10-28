@@ -12,7 +12,7 @@ use super::{BuildOperation, ProductTarget};
 /// Compiler-issued context for one ordinary Build selection call. Entry slots
 /// and declaration choices share activation custody, while retaining their
 /// distinct Product admission obligations.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum BuildSelectionRequest<Requirement> {
     ProviderReadiness(ProviderReadinessRequest<Requirement>),
     Entry(RootBindingRequest),
@@ -99,7 +99,7 @@ impl<Requirement> BuildSelectionRequest<Requirement> {
 
 /// The requirement is already resolved in this source owner. Only the named
 /// dependency backing is deferred; it grants no ordinary import or call.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProviderReadinessRequest<Requirement> {
     pub source_span: source::SourceSpan,
     pub requirement: Requirement,
@@ -108,7 +108,7 @@ pub struct ProviderReadinessRequest<Requirement> {
 
 /// Evaluated enum selections use checked Omega helpers to encode the closed
 /// toolchain vocabulary. Codes are protocol values, never guessed layout tags.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum ExclusionVocabulary {
     CrashCause,
     PhysicalAuthorityClass,
@@ -152,7 +152,7 @@ impl ExclusionVocabulary {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct EnumExclusionRequest {
     pub source_span: source::SourceSpan,
     pub vocabulary: ExclusionVocabulary,
@@ -166,7 +166,7 @@ pub struct ExecutedEnumExclusion {
 }
 
 /// Declaration role required by one exact compiler-owned Build operation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum ProductOperandRole {
     BoundarySubject,
     Provider,
@@ -224,14 +224,14 @@ impl BuildOperation {
 
 /// Source-authorized locators until the Product join admits their exact roles.
 /// Neither these strings nor a copied request grants declaration visibility.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProductDeclarationRequest {
     pub source_span: source::SourceSpan,
     pub operation: super::BuildOperation,
     pub operands: Box<[ProductDeclarationOperand]>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProductDeclarationOperand {
     pub path: String,
     pub source_span: source::SourceSpan,
@@ -281,7 +281,9 @@ impl ProductDeclarationRequest {
 
 /// The ordinary provider composition choice, independent of declaration or
 /// target identity. Omission at the source surface means Fused.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record,
+)]
 pub enum CompositionMode {
     #[default]
     Fused,
@@ -322,14 +324,14 @@ pub struct ExecutedNativeBinding {
 
 /// Inert designated operands retained under their authored lexical scope.
 /// They are not executable arguments or authority to publish a product.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct RootBindingRequest {
     pub source_span: source::SourceSpan,
     pub slot: String,
     pub implementation: RootBindingOperand,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum RootBindingOperand {
     AuthoredPath(String),
     #[default]

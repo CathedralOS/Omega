@@ -64,6 +64,7 @@ pub struct AssembledSyntax {
 
 /// Immutable physical source and parse frontier formed before exact target
 /// generated sources or target-scoped imports join compilation.
+#[derive(compiler_storage::Record)]
 pub struct ImmutableSourceParseCheckpoint {
     root_path: PathBuf,
     source_storage: Arc<SourceStorage>,
@@ -75,6 +76,7 @@ pub struct ImmutableSourceParseCheckpoint {
 
 /// The captured source namespace and Build parse prefix, not a Product judgment.
 /// Loading Product imports consumes this continuation after the Build join.
+#[derive(compiler_storage::Record)]
 pub struct DeferredProductSources {
     checkpoint: ImmutableSourceParseCheckpoint,
 }
@@ -254,6 +256,31 @@ impl DeferredProductSources {
 }
 
 impl ImmutableSourceParseCheckpoint {
+    /// Source capture normalizes the physical root before parsing. The public
+    /// request may keep a relative or symlink spelling of that same entry;
+    /// resolve both through the retained capture, never through reopened bytes.
+    pub fn admit_root(&self, root: &Path) -> Result<(), Vec<Diagnostic>> {
+        if root == self.root_path {
+            return Ok(());
+        }
+        let resolve = |path: &Path| {
+            self.source_storage
+                .filesystem
+                .canonicalize(path)
+                .map_err(|reason| {
+                    vec![Diagnostic::error(format!(
+                        "cannot resolve prepared source entry: {reason}"
+                    ))]
+                })
+        };
+        if resolve(root)? != resolve(&self.root_path)? {
+            return Err(vec![Diagnostic::error(
+                "checked child compilation root does not match its prepared source checkpoint",
+            )]);
+        }
+        Ok(())
+    }
+
     fn admit_product_inputs(
         &mut self,
         package_inputs: Option<&PackageCompilationInputs>,

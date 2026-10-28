@@ -5,6 +5,7 @@
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
     BuildOperation, BuildSelectionRequest, ProductDeclarationOperand, ProductDeclarationRequest,
+    ProductOperandRole,
 };
 use symbols::JoinedPath;
 
@@ -14,6 +15,7 @@ pub(crate) fn request(
     exposure: Option<
         language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
     >,
+    occurrences: &[language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId],
     namespace: symbols::SymbolHandle,
     target: symbols::SymbolHandle,
     name: &str,
@@ -85,8 +87,8 @@ pub(crate) fn request(
             "{} requires {} and {}",
             operation.authored_spelling(),
             match operation {
-                BuildOperation::NativeBinding
-                | BuildOperation::ServiceExclusion
+                BuildOperation::NativeBinding => "one exact requirement operand",
+                BuildOperation::ServiceExclusion
                 | BuildOperation::ServiceAudit
                 | BuildOperation::BoundaryAcceptance => "one bare declaration operand",
                 BuildOperation::WireCompatibilityRequest =>
@@ -127,10 +129,8 @@ pub(crate) fn request(
         None
     };
     let operands = operands.iter().skip(usize::from(requirement.is_some())).enumerate().map(|(position, operand)| {
-        let applied_requirement = operation.product_operand_role(position) == Some(language_semantics::declaration_selection::ProductOperandRole::Requirement)
-            && matches!(operation, BuildOperation::NativeBinding | BuildOperation::NativeTableFunction | BuildOperation::NativeVtableField | BuildOperation::NativeSameStackDemand)
-            && operand.application.is_some();
-        if operand.type_reference.is_valid() || (operand.application.is_some() && !applied_requirement)
+        let nominal_application = operand.application.is_some() && matches!(operation.product_operand_role(position), Some(ProductOperandRole::BoundarySubject | ProductOperandRole::Provider | ProductOperandRole::Requirement));
+        if operand.type_reference.is_valid() || (operand.application.is_some() && !nominal_application)
             || operand.const_literal.is_some() || operand.evidence_projection.is_some()
             || operand.path.is_empty() {
             return Err(Diagnostic::error("Build selection operands must name bare declarations, not applied types, conformance applications, values or projections")
@@ -142,12 +142,13 @@ pub(crate) fn request(
             return Err(Diagnostic::error("Product operand has no single authored source coordinate")
                 .with_source_span(span));
         }
-        let application = applied_requirement.then(|| super::capture_product_operands::capture(source, operand).map(std::sync::Arc::new)).transpose()?;
+        let application = nominal_application.then(|| super::capture_product_operands::capture(source, typed, exposure, occurrences, operand).map(std::sync::Arc::new)).transpose()?;
+        let leading = source::SourceSpan::new(first.source_id, source::Span::new(first.span.start, last.span.end));
+        let source_span = application.as_ref().map_or(leading, |graph| graph.authored_operand_span(leading));
         Ok(ProductDeclarationOperand {
             application,
             path: operand.path.joined_path(),
-            source_span: source::SourceSpan::new(first.source_id,
-                source::Span::new(first.span.start, last.span.end)),
+            source_span,
         })
     }).collect::<Result<Vec<_>, Diagnostic>>()?.into_boxed_slice();
     if let Some(requirement) = requirement {

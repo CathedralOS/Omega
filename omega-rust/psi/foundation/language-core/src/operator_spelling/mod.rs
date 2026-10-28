@@ -8,7 +8,7 @@
 /// The legal fixed operator tokens. A declaration may be associated with one
 /// token; receiver/operand machinery then picks the unique candidate. The
 /// canonical source form places that token immediately after `machine`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub enum OperatorSpelling {
     Add,
     Subtract,

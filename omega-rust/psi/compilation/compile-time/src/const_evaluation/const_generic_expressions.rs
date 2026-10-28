@@ -45,6 +45,7 @@ pub(crate) fn evaluate(
         sources.clone(),
         bindings.to_vec(),
         context.retained_base(),
+        context.declaration_syntax,
     )?;
     phase_profile::count(
         "pre_resolution.constant_expressions.data",

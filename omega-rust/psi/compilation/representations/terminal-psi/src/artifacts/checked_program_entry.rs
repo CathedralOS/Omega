@@ -14,7 +14,7 @@ use crate::TerminalPsiIdentity;
 /// Exact checked declaration and portable entry join, without automatic
 /// storage establishment or receiver eligibility. Installed arguments are
 /// admitted independently against their actual invocation backing.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedProgramEntryTerminalReceipt {
     source_signature_identity: [u8; 32],
     source_machine_name: String,

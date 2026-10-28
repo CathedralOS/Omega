@@ -80,6 +80,46 @@ impl StructuralJudge<'_> {
         ))
     }
 
+    /// A completed builtin integer/Boolean equality has the ordinary value
+    /// inverse. IEEE equality intentionally has no such identity law. Both
+    /// observations must already be authorized before truth donates an equation.
+    pub(super) fn identity_equality_operands(
+        &self,
+        predicate: &StructuralTerm,
+        truth: &StructuralTerm,
+    ) -> Option<(StructuralTerm, StructuralTerm)> {
+        let StructuralTerm::ScalarBinary {
+            references,
+            operator,
+            meaning,
+            left,
+            right,
+        } = predicate
+        else {
+            return None;
+        };
+        let holds = boolean_value(truth)?;
+        if !matches!(
+            (operator, holds),
+            (BinaryOperator::Equal, true) | (BinaryOperator::NotEqual, false)
+        ) || meaning[0] != meaning[1]
+            || !(meaning[0].0.is_fixed_integer() || meaning[0].0 == PrimitiveType::Bool)
+            || !super::super::structural_terms::scalar_operand_is_observed(
+                self.program,
+                references[0],
+                left,
+            )
+            || !super::super::structural_terms::scalar_operand_is_observed(
+                self.program,
+                references[1],
+                right,
+            )
+        {
+            return None;
+        }
+        Some((*left.clone(), *right.clone()))
+    }
+
     /// Logical conjunction/disjunction have no overloadable operator spelling.
     /// The retained connective decomposes predicates; every leaf still owes
     /// its own exact selected meaning and truth judgment. A scalar result-type

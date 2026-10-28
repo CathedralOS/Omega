@@ -1,6 +1,8 @@
 use super::*;
 
-#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(
+    Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+)]
 pub struct OperatorDefinition {
     pub is_public: bool,
     pub is_boundary: bool,
@@ -16,13 +18,13 @@ pub struct OperatorDefinition {
     pub token_count: usize,
 }
 
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
 pub struct CapabilityDefinition {
     pub name: Identifier,
     pub members: HandleSpan<CapabilityMember>,
 }
 
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
 pub enum CapabilityMember {
     Field(CapabilityField),
     State(CapabilityState),
@@ -34,19 +36,23 @@ impl Default for CapabilityMember {
     }
 }
 
-#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(
+    Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+)]
 pub struct CapabilityField {
     pub name: Identifier,
     pub type_reference: crate::types::TypeReferenceHandle,
 }
 
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
 pub struct CapabilityState {
     pub signature: StateSignature,
     pub contracts: HandleSpan<CapabilityContract>,
 }
 
-#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(
+    Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+)]
 pub struct CapabilityContract {
     pub kind: CapabilityContractKind,
     /// Exact authored `requires`, `ensures`, or `crashes` keyword anchor.
@@ -59,7 +65,15 @@ pub struct CapabilityContract {
     pub token_count: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default, syntax_trees_derive::PlainSyntaxEquivalent)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Default,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    compiler_storage::Record,
+)]
 pub enum CapabilityContractKind {
     Ensures,
     /// Outcome-specific guarantee row. The path is authored syntax only;
@@ -75,7 +89,7 @@ pub enum CapabilityContractKind {
     },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum CrashCause {
     Trap,
     Abort,

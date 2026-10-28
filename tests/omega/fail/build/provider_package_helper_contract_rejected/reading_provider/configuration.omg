@@ -1,5 +1,5 @@
 module configuration;
-machine choose(builder: &mut Build) {
+machine choose<const Flag: bool>(builder: &mut Build) {
     Build::select_provider<main::Reading, main::FirstReading>(builder, windows_x86_64);
     Build::select_provider<main::Reading, main::FirstReading>(builder, macos_x86_64);
     Build::select_provider<main::Reading, main::FirstReading>(builder, linux_x86_64);

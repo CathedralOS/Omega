@@ -1,4 +1,4 @@
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum SymbolKind {
     #[default]
     Unknown,

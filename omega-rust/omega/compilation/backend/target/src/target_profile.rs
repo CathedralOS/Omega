@@ -35,7 +35,7 @@ pub enum ObjectFormat {
 /// The selected deployment profile. Unlike [`NativeTarget`], this identity
 /// retains policy distinctions that share one architecture/object format
 /// (notably Windows and UEFI x86-64).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum TargetProfile {
     LinuxArm64,
     LinuxX64,
@@ -97,7 +97,7 @@ pub enum ProgramEntryCallingConvention {
 
 /// Closed identity of a toolchain-owned physical-entry contract package.
 /// Source paths prove membership in this identity; they never define it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum ProgramEntryPhysicalContractPackage {
     UefiX64,
     MacosArm64,

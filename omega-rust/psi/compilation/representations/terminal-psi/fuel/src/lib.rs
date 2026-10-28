@@ -139,14 +139,14 @@ impl TerminalFuelSchedule {
 }
 
 /// Stable semantic site to which executed logical work is attributed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum FuelChargeSite {
     Operation(OperationId),
     Edge(EdgeId),
 }
 
 /// Aggregate execution count and logical units charged at one semantic site.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, compiler_storage::Record)]
 pub struct FuelAttribution {
     executions: u64,
     units: u64,
@@ -163,7 +163,7 @@ impl FuelAttribution {
 }
 
 /// Deterministic usage for one concrete terminal-Psi execution.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct TerminalFuelUsage {
     schedule: FuelScheduleIdentity,
     total_units: u64,

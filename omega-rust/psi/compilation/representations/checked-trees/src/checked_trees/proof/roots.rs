@@ -11,7 +11,7 @@ use crate::{
     OutcomeSpecificGuaranteeFact, ProofObligationFact, ProofOutputCallFact,
 };
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProofFacts {
     pub obligations: Arena<ProofObligationFact>,
     pub integer_assignments: Arena<crate::CheckedIntegerAssignmentDecision>,

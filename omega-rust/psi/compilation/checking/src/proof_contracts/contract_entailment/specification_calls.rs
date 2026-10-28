@@ -190,12 +190,12 @@ pub(crate) fn validate_declaration_expression_formation(
 /// Validate a selected application's operands before its requirements or result
 /// can contribute facts. Constant recipes and abstract predicates share this owner.
 #[allow(clippy::too_many_arguments)]
-fn validate_declaration_call_arguments(
+fn validate_declaration_value_arguments(
     program: &dyn crate::CheckingInput,
     owner_symbol: SymbolHandle,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
-    call: &TableCallExpression,
+    actual: &[ExpressionHandle],
     selected: SelectedCallContract<'_>,
     content_formation: Option<ContentDeclarationFormation<'_>>,
     application: Option<&AppliedProofBindings>,
@@ -205,11 +205,6 @@ fn validate_declaration_call_arguments(
     let Some(expected) = owner_parameter_scope(program, &selected) else {
         return;
     };
-    let actual = program
-        .expression_table
-        .expression_handles(call.arguments)
-        .get(owner_leading_operands(&selected)..)
-        .unwrap_or(&[]);
     if actual.len() != expected.len() {
         diagnostics.push(
             Diagnostic::error(format!(
@@ -220,6 +215,21 @@ fn validate_declaration_call_arguments(
         return;
     }
     for (argument, parameter) in actual.iter().zip(expected.iter()) {
+        let required_type = application.map_or(parameter.type_reference, |application| {
+            application.project_type(program, parameter.type_reference)
+        });
+        if let Some(pending) = pending_data_subject(program, owner_symbol, *argument)
+            && crate::field_domains::readable_nominal_definition(program, required_type)
+                .is_some_and(|required| {
+                    required.symbol == pending.symbol && !required.where_facts.is_empty()
+                })
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "cannot form specification argument in {owner}: the logical subject's pending default domain cannot admit the nominal value required by parameter `{}`",
+                parameter.name,
+            )).with_source_span(program.expression_table.source_span(*argument)));
+            continue;
+        }
         // This exact proof observation already has a checked place, carrier,
         // access and qualification. It is not an ordinary runtime reference.
         // Selected call preconditions remain with validate_expression below.
@@ -229,9 +239,7 @@ fn validate_declaration_call_arguments(
         {
             continue;
         }
-        let required_type = application.map_or(parameter.type_reference, |application| {
-            application.project_type(program, parameter.type_reference)
-        });
+
         let natural = crate::parameter_expression_result_type_reference(
             program,
             owner_symbol,
@@ -270,6 +278,14 @@ pub(crate) fn validate_declaration_call_requirements(
     diagnostics: &mut Vec<Diagnostic>,
     formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
+    if let ProofFact::Membership(membership) = fact
+        && pending_data_subject(program, owner_symbol, membership.value).is_some()
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "cannot form named-domain membership in {owner}: the logical subject's own default domain is still pending admission"
+        )).with_source_span(program.expression_table.source_span(membership.value)));
+        return;
+    }
     let mut roots = Vec::new();
     fact_roots(program, fact, &mut roots);
     let content = content_conservation_inputs(program);
@@ -369,26 +385,101 @@ pub(crate) fn validate_proof_body_formation(
     );
 }
 
+/// Branch premises retain polarity without manufacturing a source expression.
+/// These are scoped assumptions after independent operand formation, never
+/// admission of the predicate's pending enclosing default domain.
+#[derive(Clone, Copy)]
+struct SpecificationPremises<'scope> {
+    asserted: &'scope [ExpressionHandle],
+    denied: &'scope [ExpressionHandle],
+}
+
+impl SpecificationPremises<'_> {
+    fn arithmetic_hypotheses(
+        self,
+        program: &dyn crate::CheckingInput,
+        caller: SpecificationCaller<'_>,
+    ) -> Vec<crate::ScopedArithmeticHypothesis> {
+        let bindings = arithmetic_caller_bindings(program, caller);
+        self.asserted
+            .iter()
+            .map(|expression| (*expression, true))
+            .chain(self.denied.iter().map(|expression| (*expression, false)))
+            .map(|(expression, holds)| crate::ScopedArithmeticHypothesis {
+                proposition: crate::ScopedArithmeticExpression {
+                    owner: caller.expression_owner(),
+                    expression,
+                    bindings: bindings.clone(),
+                },
+                holds,
+            })
+            .collect()
+    }
+
+    fn structural_judge<'program>(
+        self,
+        program: &'program dyn crate::CheckingInput,
+        caller: SpecificationCaller<'_>,
+        arguments: &[ExpressionHandle],
+    ) -> Option<StructuralJudge<'program>> {
+        let all = self
+            .asserted
+            .iter()
+            .chain(self.denied)
+            .copied()
+            .collect::<Vec<_>>();
+        if !names_are_unambiguous(program, &all, arguments) {
+            return None;
+        }
+        let eligible = |fact: &ExpressionHandle| {
+            structurally_substitutable_fact(program, *fact, &|expression| {
+                caller.term(program, expression)
+            })
+        };
+        let asserted = self
+            .asserted
+            .iter()
+            .copied()
+            .filter(eligible)
+            .collect::<Vec<_>>();
+        let denied = self
+            .denied
+            .iter()
+            .copied()
+            .filter(eligible)
+            .collect::<Vec<_>>();
+        let parameters = caller
+            .parameters(program)
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        let mut judge = StructuralJudge::from_declaration_requires(
+            program,
+            caller.symbol(),
+            &parameters,
+            &asserted,
+            true,
+        );
+        for expression in asserted {
+            judge.intake_formed_condition(expression, true);
+        }
+        for expression in denied {
+            judge.intake_formed_condition(expression, false);
+        }
+        Some(judge)
+    }
+}
+
 fn declaration_anonymous_fit(
     program: &dyn crate::CheckingInput,
     caller: SpecificationCaller<'_>,
     expression: ExpressionHandle,
-    prior_facts: &[ExpressionHandle],
+    prior_facts: SpecificationPremises<'_>,
     target: typed_trees::types::PrimitiveType,
 ) -> super::operand_fits::CarrierFit {
-    use crate::{ScopedArithmeticExpression, ScopedArithmeticHypothesis, ScopedArithmeticValue};
+    use crate::{ScopedArithmeticExpression, ScopedArithmeticValue};
     let bindings = arithmetic_caller_bindings(program, caller);
-    let hypotheses = prior_facts
-        .iter()
-        .map(|fact| ScopedArithmeticHypothesis {
-            proposition: ScopedArithmeticExpression {
-                owner: caller.expression_owner(),
-                expression: *fact,
-                bindings: bindings.clone(),
-            },
-            holds: true,
-        })
-        .collect::<Vec<_>>();
+    let hypotheses = prior_facts.arithmetic_hypotheses(program, caller);
     let value = ScopedArithmeticValue::Term(ScopedArithmeticExpression {
         owner: caller.expression_owner(),
         expression,
@@ -403,6 +494,133 @@ fn declaration_anonymous_fit(
     )
 }
 
+/// The declaration-owned logical subject exposes carrier geometry, not an
+/// already admitted runtime value of the default domain currently being formed.
+fn pending_data_subject<'program>(
+    program: &'program dyn crate::CheckingInput,
+    owner: SymbolHandle,
+    mut expression: ExpressionHandle,
+) -> Option<&'program typed_trees::data::DataDefinition> {
+    let definition = program.data_definition_by_symbol(owner)?;
+    if !definition.predicate_subject_symbol.is_valid() || definition.where_facts.is_empty() {
+        return None;
+    }
+    let mut visited = Vec::new();
+    loop {
+        if !expression.is_valid() || visited.contains(&expression) {
+            return Some(definition);
+        }
+        visited.push(expression);
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Name(path) => {
+                return (path.symbol == definition.predicate_subject_symbol).then_some(definition);
+            }
+            ExpressionNode::SavedSubject(saved) => {
+                expression = program.saved_value_source(saved)?
+            }
+            ExpressionNode::Borrow(borrow) => expression = borrow.target,
+            ExpressionNode::Cast(cast) => expression = cast.value,
+            _ => return None,
+        }
+    }
+}
+
+fn validate_pending_subject_materialization(
+    program: &dyn crate::CheckingInput,
+    caller: SpecificationCaller<'_>,
+    expression: ExpressionHandle,
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let SpecificationCaller::Declaration(symbol, _) = caller else {
+        return;
+    };
+    let mut operands = Vec::new();
+    match program.expression_table.expression(expression) {
+        ExpressionNode::StructLiteral(literal) => operands.extend(
+            program
+                .expression_table
+                .struct_fields(literal.fields)
+                .iter()
+                .map(|field| field.value),
+        ),
+        ExpressionNode::ArrayLiteral(elements) => {
+            operands.extend(program.expression_table.expression_handles(*elements))
+        }
+        ExpressionNode::Borrow(borrow) => operands.push(borrow.target),
+        ExpressionNode::Cast(cast) => operands.push(cast.value),
+        _ => return,
+    }
+    for operand in operands {
+        if pending_data_subject(program, symbol, operand).is_some() {
+            diagnostics.push(Diagnostic::error(format!(
+                "cannot materialize the logical subject in {owner}: its complete default domain is still pending formation"
+            )).with_source_span(program.expression_table.source_span(operand)));
+        }
+    }
+}
+
+fn validate_specification_payload_projection(
+    program: &dyn crate::CheckingInput,
+    caller: SpecificationCaller<'_>,
+    expression: ExpressionHandle,
+    premises: SpecificationPremises<'_>,
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
+        return;
+    };
+    let Some(reference) = caller.expression_type(program, member.receiver) else {
+        return;
+    };
+    let Some(definition) = crate::field_domains::readable_nominal_definition(program, reference)
+    else {
+        return;
+    };
+    let Some(field) = crate::value_custody::places::exact_data_member_field(
+        program,
+        definition,
+        member.member_symbol,
+        member.member.as_str(),
+        member.case_variant.as_ref().map(|case| case.as_str()),
+    ) else {
+        return;
+    };
+    let parent = program.symbols.get(field.symbol).parent;
+    if program.symbols.get(parent).kind != SymbolKind::Variant {
+        return;
+    }
+    let cases = program
+        .data_members(definition)
+        .iter()
+        .filter_map(|member| member.as_variant())
+        .collect::<Vec<_>>();
+    // A sole case has no inactive payload alternative. This is carrier
+    // geometry, independent of the default-domain predicate being formed.
+    if matches!(cases.as_slice(), [case] if case.symbol == parent) {
+        return;
+    }
+    let proven = caller
+        .term(program, member.receiver)
+        .is_some_and(|subject| {
+            premises
+                .structural_judge(program, caller, &[member.receiver])
+                .is_some_and(|judge| {
+                    matches!(
+                        judge.judge_case(subject, definition.symbol, parent),
+                        StructuralJudgment::Proven
+                    )
+                })
+        });
+    if !proven {
+        diagnostics.push(Diagnostic::error(format!(
+            "cannot form specification payload projection `{}` in {owner}: establish its exact active case before projecting the payload",
+            member.member.as_str(),
+        )).with_source_span(program.expression_table.source_span(expression)));
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn validate_specification_expression(
     program: &dyn crate::CheckingInput,
@@ -415,17 +633,57 @@ fn validate_specification_expression(
     visited: &mut Vec<ExpressionHandle>,
     formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
-    if !expression.is_valid() || visited.contains(&expression) {
+    validate_specification_expression_in_scope(
+        program,
+        caller,
+        expression,
+        SpecificationPremises {
+            asserted: prior_facts,
+            denied: &[],
+        },
+        owner,
+        diagnostics,
+        content_formation,
+        visited,
+        formation_obligations,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_specification_expression_in_scope(
+    program: &dyn crate::CheckingInput,
+    caller: SpecificationCaller<'_>,
+    expression: ExpressionHandle,
+    prior_facts: SpecificationPremises<'_>,
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+    content_formation: Option<ContentDeclarationFormation<'_>>,
+    visited: &mut Vec<ExpressionHandle>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
+) {
+    if !expression.is_valid() {
+        return;
+    }
+    if visited.contains(&expression) {
+        diagnostics.push(
+            Diagnostic::error(format!(
+                "cannot form cyclic retained specification expression in {owner}"
+            ))
+            .with_source_span(program.expression_table.source_span(expression)),
+        );
         return;
     }
     visited.push(expression);
     let node = program.expression_table.expression(expression);
     let diagnostics_before = diagnostics.len();
-    children(program, node, |child| {
-        validate_specification_expression(
+    if let ExpressionNode::Binary(binary) = node
+        && matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or)
+    {
+        let debts_before = formation_obligations.len();
+        validate_specification_expression_in_scope(
             program,
             caller,
-            child,
+            binary.left,
             prior_facts,
             owner,
             diagnostics,
@@ -433,7 +691,67 @@ fn validate_specification_expression(
             visited,
             formation_obligations,
         );
-    });
+        let mut asserted = prior_facts.asserted.to_vec();
+        let mut denied = prior_facts.denied.to_vec();
+        // A conditional formation receipt cannot justify its own next operand.
+        // When it remains pending, form the right side without that assumption.
+        if diagnostics.len() == diagnostics_before && formation_obligations.len() == debts_before {
+            let branch = if binary.operator == BinaryOperator::And {
+                &mut asserted
+            } else {
+                &mut denied
+            };
+            if !branch.contains(&binary.left) {
+                branch.push(binary.left);
+            }
+        }
+        validate_specification_expression_in_scope(
+            program,
+            caller,
+            binary.right,
+            SpecificationPremises {
+                asserted: &asserted,
+                denied: &denied,
+            },
+            owner,
+            diagnostics,
+            content_formation,
+            visited,
+            formation_obligations,
+        );
+    } else {
+        children(program, node, |child| {
+            validate_specification_expression_in_scope(
+                program,
+                caller,
+                child,
+                prior_facts,
+                owner,
+                diagnostics,
+                content_formation,
+                visited,
+                formation_obligations,
+            );
+        });
+    }
+    // Only active ancestry is retained. Successful formation under a
+    // guarded branch cannot cache authority for another retained DAG use.
+    visited.pop();
+    if diagnostics.len() != diagnostics_before {
+        return;
+    }
+    validate_pending_subject_materialization(program, caller, expression, owner, diagnostics);
+    if diagnostics.len() != diagnostics_before {
+        return;
+    }
+    validate_specification_payload_projection(
+        program,
+        caller,
+        expression,
+        prior_facts,
+        owner,
+        diagnostics,
+    );
     if diagnostics.len() != diagnostics_before {
         return;
     }
@@ -616,15 +934,13 @@ fn validate_specification_expression(
             }
         }
     }
-    if let SpecificationCaller::Declaration(symbol, parameters) = caller
-        && let Some(call) = call
-    {
-        validate_declaration_call_arguments(
+    if let SpecificationCaller::Declaration(symbol, parameters) = caller {
+        validate_declaration_value_arguments(
             program,
             symbol,
             parameters,
             expression,
-            call,
+            &arguments,
             contract_owner,
             content_formation,
             application_bindings.as_ref(),
@@ -675,6 +991,7 @@ fn validate_specification_expression(
     // not let two different resolved caller binders acquire one such variable.
     // The arithmetic route below uses exact symbols directly.
     let structural_facts = prior_facts
+        .asserted
         .iter()
         .copied()
         .filter(|fact| {
@@ -683,7 +1000,12 @@ fn validate_specification_expression(
             }) && names_are_unambiguous(program, &[*fact], &arguments)
         })
         .collect::<Vec<_>>();
-    let structural_names_unique = names_are_unambiguous(program, &structural_facts, &arguments);
+    let structural_all = structural_facts
+        .iter()
+        .chain(prior_facts.denied)
+        .copied()
+        .collect::<Vec<_>>();
+    let structural_names_unique = names_are_unambiguous(program, &structural_all, &arguments);
     let substitution = substitution.and_then(|mut substitution| {
         let bindings = application_bindings.as_ref()?;
         for binding in &bindings.constants {
@@ -696,17 +1018,11 @@ fn validate_specification_expression(
         }
         Some(substitution)
     });
-    let judge = StructuralJudge::from_declaration_requires(
-        program,
-        caller.symbol(),
-        &caller
-            .parameters(program)
-            .into_iter()
-            .cloned()
-            .collect::<Vec<_>>(),
-        &structural_facts,
-        true,
-    );
+    let judge = SpecificationPremises {
+        asserted: &structural_facts,
+        denied: prior_facts.denied,
+    }
+    .structural_judge(program, caller, &arguments);
     // Named proposition requirements are an erased evidence lane, not Boolean
     // facts for the structural/arithmetic prover. The checked-tree contract
     // evidence binder validates each supplied term's exact owner, proposition
@@ -739,7 +1055,7 @@ fn validate_specification_expression(
         let proven = if let Some(required) = requirement.as_expression()
             && arguments_select_plainly
         {
-            let structural =
+            let structural = judge.as_ref().is_some_and(|judge| {
                 requirement_parameters_are_bound(
                     program,
                     *required,
@@ -767,7 +1083,7 @@ fn validate_specification_expression(
                             && matches!(
                                 instantiated_selected_fact_judgment(
                                     program,
-                                    &judge,
+                                    judge,
                                     owner_symbol(&contract_owner),
                                     parameters,
                                     *required,
@@ -780,7 +1096,8 @@ fn validate_specification_expression(
                                 ),
                                 StructuralJudgment::Proven
                             )
-                    });
+                    })
+            });
             structural
                 || arithmetic_requirement(
                     program,
@@ -1416,7 +1733,12 @@ fn structurally_substitutable_fact(
     term: &impl Fn(ExpressionHandle) -> Option<StructuralTerm>,
 ) -> bool {
     let Some(binary) = program.expression_table.binary_node(expression) else {
-        return false;
+        return matches!(program.expression_table.expression(expression), ExpressionNode::Call(_))
+            && term(expression).is_some_and(|term| {
+                matches!(&term, StructuralTerm::Application { result_type, .. }
+                    if program.primitive_type_reference(*result_type) == Some(typed_trees::types::PrimitiveType::Bool))
+                    && term_has_complete_substitution(program, &term)
+            });
     };
     if super::structural_terms::is_case_observation(program, expression) {
         // Classification is not a value operand. Exact selected meaning is
@@ -1769,14 +2091,14 @@ fn arithmetic_requirement(
     program: &dyn crate::CheckingInput,
     caller: SpecificationCaller<'_>,
     callee: &SelectedCallContract<'_>,
-    prior_facts: &[ExpressionHandle],
+    prior_facts: SpecificationPremises<'_>,
     requirement: ExpressionHandle,
     arguments: &[ExpressionHandle],
     applied: &AppliedProofBindings,
 ) -> bool {
     use crate::{
         ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
-        ScopedArithmeticHypothesis, ScopedArithmeticValue, StrictArithmeticImplicationJudgment,
+        ScopedArithmeticValue, StrictArithmeticImplicationJudgment,
     };
     let Some(parameter_scope) = owner_parameter_scope(program, callee) else {
         return false;
@@ -1786,17 +2108,7 @@ fn arithmetic_requirement(
         return false;
     }
     let bindings = arithmetic_caller_bindings(program, caller);
-    let hypotheses = prior_facts
-        .iter()
-        .map(|expression| ScopedArithmeticHypothesis {
-            proposition: ScopedArithmeticExpression {
-                owner: caller.expression_owner(),
-                expression: *expression,
-                bindings: bindings.clone(),
-            },
-            holds: true,
-        })
-        .collect::<Vec<_>>();
+    let hypotheses = prior_facts.arithmetic_hypotheses(program, caller);
     // Separate rosters keep self-call argument substitution from rewriting
     // the caller's hypotheses, even when caller and callee symbols coincide.
     // Call formation still consumes the complete selected telescope. This

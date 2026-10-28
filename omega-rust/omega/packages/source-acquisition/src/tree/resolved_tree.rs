@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 
 /// One completely traversed source tree and its canonical content identity.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ResolvedSourceTree {
     pub root: PathBuf,
     /// Number of file and symlink leaves. Directories participate in identity

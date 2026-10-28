@@ -333,7 +333,7 @@ pub(super) fn project(
                 .authored_origin(application.requirement_symbol);
             provider_planning::IntrinsicRequirement::by_symbol(compilation.checking_input, origin)
         })
-        .map(|requirement| requirement.requirement_identity)
+        .map(|requirement| requirement.into_source().requirement_identity)
         .ok_or_else(|| {
             vec![Diagnostic::error(
                 "actual compiler-intrinsic application names no boundary operator or top-level boundary requirement",

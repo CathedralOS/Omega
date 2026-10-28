@@ -83,7 +83,7 @@ pub(crate) struct PendingOutcomeSpecificContract {
     pub(crate) result_data_source_span: source::SourceSpan,
     pub(crate) result_case_name: String,
 }
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub(crate) enum ConstResolutionMode {
     #[default]
     Complete,

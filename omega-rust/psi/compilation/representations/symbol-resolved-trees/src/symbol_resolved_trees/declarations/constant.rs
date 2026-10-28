@@ -7,7 +7,7 @@ use symbols::SymbolHandle;
 /// and package custody must survive value erasure. Resolution continuations
 /// retain the detached initializer in this same arena for future substitution;
 /// typing does not carry this link into a runtime constant representation.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ConstDeclaration {
     pub symbol: SymbolHandle,
     pub is_public: bool,

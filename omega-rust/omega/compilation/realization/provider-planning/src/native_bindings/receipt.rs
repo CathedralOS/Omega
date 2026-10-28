@@ -41,7 +41,7 @@ impl ReceiptSource {
             format!("native binding Build accounting is inconsistent: {error:?}")
         })?;
         let mut invocation = crate::digest_encoder::DomainDigestEncoder::new(
-            b"omega.build-native-binding.invocation.sha256.v4\0",
+            b"omega.build-native-binding.invocation.sha256.v5\0",
         );
         invocation.raw(&self.source);
         invocation.raw(observation.identity().as_bytes());
@@ -53,7 +53,7 @@ impl ReceiptSource {
         invocation.bytes(&measured);
         let invocation = invocation.finish();
         let mut materialization = crate::digest_encoder::DomainDigestEncoder::new(
-            b"omega.build-native-binding.materialization.sha256.v4\0",
+            b"omega.build-native-binding.materialization.sha256.v5\0",
         );
         materialization.raw(&invocation);
         materialization.raw(&self.locator.as_bytes());
@@ -74,10 +74,10 @@ impl ReceiptSource {
             &self.producer,
             identities,
             EvaluatedBindingProducerClosureDigest::from_bytes(self.source)?,
-            3,
+            4,
             retained_usage,
             EvaluatedBindingEvaluationDigest::from_bytes(invocation)?,
-            4,
+            5,
             EvaluatedBindingMaterializationDigest::from_bytes(materialization.finish())?,
             self.locator,
         )

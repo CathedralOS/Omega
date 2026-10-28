@@ -36,6 +36,7 @@ mod where_fact_intervals;
 
 pub(crate) use float_predicates::float_field_literal_bound_meaning;
 pub use float_predicates::{data_float_predicate, data_predicates_admit_zero};
+pub(crate) use place_queries::membership_field;
 pub use standing_requirements::standing_facts_prove_requirement;
 pub(crate) use symbolic_values::applied_const_integer;
 pub(crate) use where_fact_intervals::{
@@ -731,6 +732,27 @@ fn walk_state(
                         summaries,
                         &mut call_established,
                     );
+                }
+                // Initializer admission remains the ordinary construction/call
+                // obligation. Retain its independently completed case at this
+                // cut; a later payload write cannot rediscover it from syntax
+                // or the destination annotation after the source has changed.
+                if local.initial_value.is_valid()
+                    && place_queries::declared_root_established(program, state, local.symbol)
+                    && let Some(definition) = crate::field_domains::owned_nominal_data_definition(program, local.type_reference)
+                    && crate::value_custody::data::data_requires_establishment(program, definition)
+                    && program.data_members(definition).iter().any(|member| member.as_variant().is_some())
+                    && !tracked.iter().any(|place| place.spelling == local.name.as_str())
+                    && let Some(active_case) = crate::proof_contracts::contract_entailment::completed_value_case_at_occurrence(
+                        program, machine, state, statement_ordinal, local.initial_value, local.type_reference,
+                    )
+                {
+                    tracked.push(TrackedPlace {
+                        spelling: local.name.to_string(), definition,
+                        fields: Vec::new(), established_fields: Vec::new(), symbols: Vec::new(), measures: Vec::new(),
+                        established: true, born_zero: false, window_open: false,
+                        elements: Vec::new(), element_windows: Vec::new(), active_case: Some(active_case),
+                    });
                 }
             }
             StatementNode::Transition(transition) => {

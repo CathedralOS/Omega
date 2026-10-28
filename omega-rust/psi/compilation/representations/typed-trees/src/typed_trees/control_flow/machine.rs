@@ -48,7 +48,7 @@ impl crate::TypedTrees {
 
 /// Whether this declaration's implementation has entered typed storage.
 /// Deferred states retain their real interfaces, not executable empty bodies.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum MachineBodyStatus {
     Deferred,
     #[default]
@@ -57,7 +57,7 @@ pub enum MachineBodyStatus {
 
 /// The consumer of this checked program. Declaration programs produce Build
 /// selections; their calls are not executable operations in the product.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum MachinePurpose {
     #[default]
     Runtime,
@@ -67,14 +67,14 @@ pub enum MachinePurpose {
 /// An extracted lexical region still belongs to one source activation. Its
 /// generated call retains the exact argument roster that captures that region;
 /// an ordinary authored invocation cannot supply this association.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct LexicalRegionOrigin {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
     pub arguments: HandleSpan<ExpressionHandle>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct Machine {
     pub lexical_region_origin: Option<LexicalRegionOrigin>,
     /// Conjunctive catalog architecture demand retained after instruction normalization.
@@ -152,7 +152,7 @@ pub struct Machine {
 }
 
 /// Declaration-local structural equality, independent of current consumers.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct DeclaredTypeEquation {
     pub parameter: TypeReferenceHandle,
     pub definition: TypeReferenceHandle,
@@ -211,7 +211,7 @@ impl Machine {
 /// A canonical body is not a portable contract: direct portable references
 /// remain unsupported until checking carries that independent contract.
 /// Families also retain deployment tags unknown to the native target catalog.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct TargetMachineFamily {
     /// The authored contract path every member implements
     /// (`StatLayout::plan`); equal to each member machine's `name`.
@@ -230,7 +230,7 @@ pub struct TargetMachineFamily {
 }
 
 /// One target's body within a [`TargetMachineFamily`].
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct TargetMachineFamilyMember {
     /// The authored target name (`linux_x86_64`, `demo_target`, ...).
     pub target: Identifier,
@@ -285,7 +285,7 @@ impl Default for Machine {
 /// an implementation parameter; its argument is one named conformance whose
 /// trait application equals this one after substitution. No parameter is a
 /// data subject.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct GenericConformanceBound {
     /// The binder's `ConformanceParameter` symbol.
     pub binder: SymbolHandle,
@@ -296,7 +296,7 @@ pub struct GenericConformanceBound {
     pub arguments: Vec<TypeReferenceHandle>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct OwnedData {
     pub symbol: SymbolHandle,
     pub name: Identifier,
@@ -304,7 +304,7 @@ pub struct OwnedData {
     pub initial_value: ExpressionHandle,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TraitConformance {
     pub symbol: SymbolHandle,
     pub name: Identifier,

@@ -39,6 +39,9 @@ pub struct BuildConfig {
     pub provider_selections: Vec<ProviderSelection>,
     /// Package-local native intent admitted against exact Product requirements.
     pub admitted_native_bindings: Vec<provider_planning::AdmittedNativeBinding>,
+    /// Exact executed code, observation and accounting; not a second native choice inventory.
+    pub native_binding_evaluation:
+        Option<std::sync::Arc<package_compilation::NativeBuildEvaluation>>,
     /// Dependency-owned executed choices retain default precedence. They do
     /// not acquire the consuming application's override authority.
     pub package_provider_selections: Vec<ProviderSelection>,
@@ -83,6 +86,7 @@ impl BuildConfig {
             grants,
             provider_selections,
             admitted_native_bindings,
+            native_binding_evaluation,
             package_provider_selections,
             assumed_bindings,
             opaque_representation_selections,
@@ -96,6 +100,13 @@ impl BuildConfig {
             && grants == &other.grants
             && provider_selections == &other.provider_selections
             && package_provider_selections == &other.package_provider_selections
+            && native_binding_evaluation
+                .as_ref()
+                .map(|value| value.terminal_code)
+                == other
+                    .native_binding_evaluation
+                    .as_ref()
+                    .map(|value| value.terminal_code)
             && admitted_native_bindings.len() == other.admitted_native_bindings.len()
             && admitted_native_bindings
                 .iter()
@@ -282,6 +293,19 @@ impl ComputedBuildConfig {
         if self.native_binding_requests != execution.native_binding_requests {
             return Err("source cohort execution changed native Build intent".into());
         }
+        if self
+            .config
+            .native_binding_evaluation
+            .as_ref()
+            .map(|value| value.terminal_code)
+            != execution
+                .config
+                .native_binding_evaluation
+                .as_ref()
+                .map(|value| value.terminal_code)
+        {
+            return Err("source cohort execution changed its native Build code".into());
+        }
         let mut application = self.clone();
         application.config.admitted_native_bindings = application
             .config
@@ -294,6 +318,8 @@ impl ComputedBuildConfig {
                 )
             })
             .collect::<Result<_, _>>()?;
+        application.config.native_binding_evaluation =
+            execution.config.native_binding_evaluation.clone();
         application.evaluation_usage = execution.evaluation_usage;
         application.observation_summary = execution.observation_summary.clone();
         application.optimization_report_request = execution.optimization_report_request.clone();

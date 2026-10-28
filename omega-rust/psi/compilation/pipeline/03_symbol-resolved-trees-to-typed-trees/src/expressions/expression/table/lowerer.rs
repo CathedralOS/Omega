@@ -452,6 +452,10 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                         program,
                         self.target_trees,
                         self.source.authored_expression_exposure(expression),
+                        &self
+                            .source
+                            .authored_selection_occurrences(expression)
+                            .collect::<Vec<_>>(),
                         namespace,
                         call.target_symbol,
                         call.target.as_str(),

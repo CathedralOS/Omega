@@ -15,6 +15,7 @@ mod operators;
 mod preparation;
 
 pub use preparation::{
-    PreparedProductRequirement, prepare_product_requirement_operand, PreparationAdmission, PreparationRequest, TypedPreparation, prepare_constant_execution,
-    prepare_typed_trees, specialize_static_machine_calls,
+    PreparationAdmission, PreparationRequest, PreparedProductRequirement, TypedPreparation,
+    prepare_constant_execution, prepare_product_operand_application,
+    prepare_product_requirement_operand, prepare_typed_trees, specialize_static_machine_calls,
 };

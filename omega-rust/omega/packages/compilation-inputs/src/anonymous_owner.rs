@@ -18,7 +18,7 @@ use std::sync::Arc;
 /// Captured inputs retained while an anonymous Build executes privately.
 /// This is not a declaration owner. Completion follows the dependency join;
 /// the current standalone route admits no outstanding dependency requests.
-#[derive(Clone)]
+#[derive(Clone, compiler_storage::Record)]
 pub struct AnonymousSourceCapture {
     pub(crate) root: std::path::PathBuf,
     pub(crate) capture: Arc<CapturedSourceTree>,

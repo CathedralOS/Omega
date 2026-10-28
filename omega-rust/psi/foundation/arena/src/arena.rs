@@ -10,6 +10,7 @@
 //! allocated buffers for subsequent reuse. Physical metadata mode is separate
 //! from logical freshness so a failed payload operation keeps its prior contract.
 
+use compiler_storage::Record;
 use std::marker::PhantomData;
 use std::ops::Range;
 
@@ -17,7 +18,7 @@ use crate::{Handle, HandleSpan};
 
 /// Complete nonuniform slot identity, including allocation order for vacant rows.
 /// Storage recovery checks this roster before any handle can resolve against it.
-#[derive(Default)]
+#[derive(Default, compiler_storage::Record)]
 pub struct ArenaSlotStorage {
     pub generations: Vec<u32>,
     pub occupied: Vec<bool>,
@@ -1139,3 +1140,48 @@ fn next_generation(generation: u32) -> u32 {
 
 #[cfg(test)]
 mod tests;
+
+// Storage keeps every row, including holes and dummy values. Revisions describe
+// local mutations and restart cold; they convey neither source nor proof identity.
+impl<T: compiler_storage::Record> compiler_storage::Record for Arena<T> {
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        output.record(|output| {
+            let storage = self.storage_view();
+            storage.dummy.write(output)?;
+            output.record(|output| {
+                output.sequence(storage.items.len())?;
+                for item in storage.items {
+                    item.write(output)?;
+                }
+                Ok(())
+            })?;
+            match storage.slots {
+                Some(slots) => {
+                    true.write(output)?;
+                    slots.write(output)?;
+                }
+                None => false.write(output)?,
+            }
+            storage.fresh_generation.write(output)?;
+            storage.fresh.write(output)
+        })
+    }
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        input.record(|input| {
+            let dummy = T::read(input)?;
+            let items = Vec::<T>::read(input)?;
+            let slots = if bool::read(input)? {
+                Some(ArenaSlotStorage::read(input)?)
+            } else {
+                None
+            };
+            Self::from_storage(dummy, items, slots, u32::read(input)?, bool::read(input)?)
+                .map_err(|reason| input.error(reason))
+        })
+    }
+}

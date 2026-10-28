@@ -10,6 +10,7 @@ name = "proof_admission"
 path = "src/lib.rs"
 
 [dependencies]
+compiler-storage = { path = "../../../foundation/compiler-storage" }
 arena = { path = "../../../foundation/arena" }
 terminal-psi = { path = "../../representations/terminal-psi" }
 semantic-vocabulary = { path = "../../../foundation/semantic-vocabulary" }

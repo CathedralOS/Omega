@@ -3,6 +3,49 @@
 use super::*;
 use expr::{ExpressionHandle, ExpressionNode as Node};
 impl Lower<'_> {
+    /// Rejoin only coordinates captured from this source node's original
+    /// attachments. Every materialized node, including substituted literals,
+    /// retains those obligations for ordinary checking and finalization.
+    fn retain_expression_source(
+        &mut self,
+        expression: ExpressionHandle,
+        source_span: source::SourceSpan,
+        selections: HandleSpan<ProductOperandSelection>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let retained = if selections.is_empty() {
+            &[][..]
+        } else {
+            self.graph.selections.span(selections).ok_or_else(|| {
+                self.error("designated expression has a foreign authored-selection span")
+            })?
+        };
+        let mut occurrences = Vec::with_capacity(retained.len());
+        for selection in retained {
+            let kind = selection.kind.ok_or_else(|| {
+                self.error("designated expression lost its authored selection kind")
+            })?;
+            let span = self
+                .program
+                .symbols
+                .rejoin_product_occurrence(selection.source_span);
+            let occurrence = self
+                .program
+                .authored_declaration_selections()
+                .source_coordinate_occurrence(span, selection.exposure, kind)
+                .map_err(|reason| {
+                    vec![Diagnostic::error(reason.to_string()).with_source_span(span)]
+                })?;
+            occurrences.push(occurrence);
+        }
+        let span = self.program.symbols.rejoin_product_occurrence(source_span);
+        self.program
+            .expression_table
+            .set_source_span(expression, span);
+        self.program
+            .expression_table
+            .attach_authored_selection_occurrences(expression, occurrences);
+        Ok(())
+    }
     fn expression_optional(
         &mut self,
         handle: Handle<ProductOperandExpression>,
@@ -77,6 +120,7 @@ impl Lower<'_> {
             )
             .ok_or_else(|| self.error("completed static actual has no ordinary const value"))?;
             let result = self.program.expression_table.insert(node);
+            self.retain_expression_source(result, value.source_span, value.authored_selections)?;
             self.expressions.push((handle, result));
             self.active_expressions.pop();
             return Ok(result);
@@ -121,11 +165,11 @@ impl Lower<'_> {
                     target,
                 ));
                 let target = self.program.expression_table.insert_tree(&owned);
-                let span = self
-                    .program
-                    .symbols
-                    .rejoin_product_occurrence(value.source_span);
-                self.program.expression_table.set_source_span(target, span);
+                self.retain_expression_source(
+                    target,
+                    value.source_span,
+                    value.authored_selections,
+                )?;
                 self.active_expressions.pop();
                 self.expressions.push((handle, target));
                 return Ok(target);
@@ -240,15 +284,44 @@ impl Lower<'_> {
             } => {
                 let requirement_application = self.ty_optional(owner)?;
                 let target_symbol = self.symbol(target)?;
+                // Nested calls own their own static telescope. Their actual
+                // positions must not be appended to an outer nominal input.
+                let outer_path = std::mem::take(&mut self.input_path);
+                let outer_selections = std::mem::take(&mut self.input_selections);
                 let machine_arguments = self
                     .graph
                     .static_arguments
                     .span_or_empty(static_arguments)
                     .iter()
                     .copied()
-                    .map(|value| self.operand(value))
-                    .collect::<Result<Vec<_>, _>>()?
-                    .into_boxed_slice();
+                    .enumerate()
+                    .map(|(ordinal, value)| self.argument(ordinal, value))
+                    .collect::<Result<Vec<_>, _>>();
+                let input_selections =
+                    self.program
+                        .product_input_selections
+                        .insert_many(std::mem::replace(
+                            &mut self.input_selections,
+                            outer_selections,
+                        ));
+                self.input_path = outer_path;
+                let machine_arguments = machine_arguments?.into_boxed_slice();
+                let target_name = self.identifier(target);
+                let authored_application = self
+                    .program
+                    .expression_table
+                    .retain_static_machine_application(
+                        target_symbol,
+                        target_name,
+                        &machine_arguments,
+                    );
+                let source_application = self
+                    .program
+                    .expression_table
+                    .static_machine_application_mut(authored_application);
+                source_application.lexical_owner = self.author;
+                source_application.binding_declaration = target_symbol;
+                source_application.input_selections = input_selections;
                 Node::Call(expr::TableCallExpression {
                     authored_call_binding: Some(
                         language_semantics::declaration_selection::ResolvedAuthoredCallBinding {
@@ -266,7 +339,7 @@ impl Lower<'_> {
                     machine_arguments,
                     operational_acknowledgement: acknowledgement,
                     build_selection: Handle::invalid(),
-                    authored_machine_application: Handle::invalid(),
+                    authored_machine_application: authored_application,
                     static_machine_parameter: SymbolHandle::invalid(),
                     static_requirement_dispatch: None,
                     quotient_operation: None,
@@ -354,11 +427,7 @@ impl Lower<'_> {
             )),
         };
         let target = self.program.expression_table.insert(node);
-        let span = self
-            .program
-            .symbols
-            .rejoin_product_occurrence(value.source_span);
-        self.program.expression_table.set_source_span(target, span);
+        self.retain_expression_source(target, value.source_span, value.authored_selections)?;
         self.active_expressions.pop();
         self.expressions.push((handle, target));
         Ok(target)

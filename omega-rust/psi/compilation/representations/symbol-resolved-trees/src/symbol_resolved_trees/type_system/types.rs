@@ -14,7 +14,7 @@ pub type TypeReferenceHandle = Handle<TypeReferenceNode>;
 /// A supplied subtree rejoins its declaration after symbol allocation. The
 /// row is shared by both resolved carrier forms; zero means ordinary lexical
 /// ownership. It never supplies a lifetime binder on behalf of another owner.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct OperandLifetimeOwner {
     pub declaration: SymbolHandle,
 }
@@ -23,13 +23,13 @@ pub type OperandLifetimeOwnerHandle = Handle<OperandLifetimeOwner>;
 /// One authored generic application and the exact closed occurrence replacing
 /// it. Declaration exposure is supplied by the containing typed source context,
 /// never by the visibility of the synthesized data declaration.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
 pub struct GenericApplicationOrigin {
     pub instance: Handle<TypeReference>,
     pub application: Handle<TypeReference>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
 pub enum TypeReference {
     Reference(ReferenceTypeReference),
     Constrained(ConstrainedTypeReference),
@@ -59,12 +59,12 @@ pub enum TypeReference {
     Unit,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ReferenceTypeReference {
     pub storage: ReferenceTypeReferenceStorage,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
 pub struct ReferenceTypeReferenceStorage {
     pub supplied_operand_owner: OperandLifetimeOwnerHandle,
     pub referee: Handle<TypeReference>,
@@ -77,12 +77,12 @@ pub struct ReferenceTypeReferenceStorage {
 
 deref_to_storage!(ReferenceTypeReference => ReferenceTypeReferenceStorage);
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ConstrainedTypeReference {
     pub storage: ConstrainedTypeReferenceStorage,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
 pub struct ConstrainedTypeReferenceStorage {
     pub supplied_operand_owner: OperandLifetimeOwnerHandle,
     pub base_type: Handle<TypeReference>,
@@ -91,19 +91,19 @@ pub struct ConstrainedTypeReferenceStorage {
 
 deref_to_storage!(ConstrainedTypeReference => ConstrainedTypeReferenceStorage);
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct FixedArrayTypeReference {
     pub storage: FixedArrayTypeReferenceStorage,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
 pub struct FixedArrayTypeReferenceStorage {
     pub supplied_operand_owner: OperandLifetimeOwnerHandle,
     pub element_type: Handle<TypeReference>,
     pub length: FixedArrayLength,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum FixedArrayLength {
     Literal(usize),
     /// Exact symbolic constant-position use, pending owned evaluation.
@@ -145,12 +145,12 @@ impl fmt::Display for FixedArrayLength {
 
 deref_to_storage!(FixedArrayTypeReference => FixedArrayTypeReferenceStorage);
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct SliceTypeReference {
     pub storage: SliceTypeReferenceStorage,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
 pub struct SliceTypeReferenceStorage {
     pub supplied_operand_owner: OperandLifetimeOwnerHandle,
     pub element_type: Handle<TypeReference>,
@@ -158,12 +158,12 @@ pub struct SliceTypeReferenceStorage {
 
 deref_to_storage!(SliceTypeReference => SliceTypeReferenceStorage);
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct GenericTypeReference {
     pub storage: GenericTypeReferenceStorage,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct GenericTypeReferenceStorage {
     pub supplied_operand_owner: OperandLifetimeOwnerHandle,
     pub base_symbol: SymbolHandle,
@@ -176,25 +176,25 @@ pub struct GenericTypeReferenceStorage {
 
 deref_to_storage!(GenericTypeReference => GenericTypeReferenceStorage);
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct TypeReferenceTable {
     nodes: TypeReferenceNodeStorage,
     spans: TypeReferenceSpanStorage,
     supplied_operand_owners: Arena<SuppliedOperandOwner>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 struct SuppliedOperandOwner {
     reference: TypeReferenceHandle,
     owner: OperandLifetimeOwnerHandle,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 struct TypeReferenceNodeStorage {
     type_references: Arena<TypeReferenceNode>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 struct TypeReferenceSpanStorage {
     type_reference_handles: Arena<TypeReferenceHandle>,
     constraints: Arena<TypeConstraintNode>,
@@ -558,7 +558,7 @@ impl Default for TypeReferenceTable {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
 pub enum TypeReferenceNode {
     Reference {
         referee: TypeReferenceHandle,
@@ -599,7 +599,7 @@ pub enum TypeReferenceNode {
     Unit,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum TypeConstraint {
     Named(DiagnosticName),
     Range {
@@ -612,13 +612,13 @@ pub enum TypeConstraint {
     Domain(DomainConstraint),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
 pub struct DomainConstraint {
     pub name: DiagnosticName,
     pub arguments: HandleSpan<TypeReference>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum TypeConstraintNode {
     Named(DiagnosticName),
     Range {
@@ -631,7 +631,7 @@ pub enum TypeConstraintNode {
     Domain(DomainConstraintNode),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
 pub struct DomainConstraintNode {
     pub name: DiagnosticName,
     pub arguments: HandleSpan<TypeReferenceHandle>,

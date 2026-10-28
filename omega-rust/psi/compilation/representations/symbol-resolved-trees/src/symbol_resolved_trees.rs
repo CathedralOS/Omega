@@ -50,7 +50,7 @@ use std::ops::{Deref, DerefMut};
 use symbols::JoinedPath;
 use symbols::SymbolTable;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct SymbolResolvedTrees {
     pub roots: SymbolResolvedRoots,
     pub tables: SymbolResolvedTableStorage,
@@ -102,7 +102,7 @@ pub enum AuthoredSelectionExtensionRebaseError {
     OccurrenceOutsideOwnerFrontier(AuthoredSelectionOccurrenceStore),
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct SymbolResolvedRoots {
     pub const_declarations: OrderedRootArena<crate::constant::ConstDeclaration>,
     pub data_definitions: OrderedRootArena<crate::data::DataDefinition>,
@@ -164,7 +164,7 @@ impl SymbolResolvedRoots {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct SymbolResolvedTableStorage {
     pub declarations: SymbolResolvedDeclarationStorage,
     pub bodies: SymbolResolvedBodyStorage,
@@ -172,7 +172,7 @@ pub struct SymbolResolvedTableStorage {
     authored_declaration_selections: AuthoredDeclarationSelections,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct SymbolResolvedDeclarationStorage {
     pub data_members: Arena<data::DataMember>,
     pub data_payload_fields: Arena<data::DataField>,
@@ -205,7 +205,7 @@ pub struct SymbolResolvedDeclarationStorage {
     pub wire_members: Arena<wire::WireMember>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct SymbolResolvedTypeStorage {
     pub operand_lifetime_owners: Arena<types::OperandLifetimeOwner>,
     pub constraints: Arena<types::TypeConstraint>,
@@ -213,7 +213,7 @@ pub struct SymbolResolvedTypeStorage {
     pub generic_application_origins: Arena<types::GenericApplicationOrigin>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct SymbolResolvedBodyStorage {
     pub expressions: expression::ExpressionTable,
     pub statements: statement::StatementTable,

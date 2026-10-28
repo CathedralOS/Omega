@@ -136,26 +136,8 @@ pub(crate) fn row_execution_identity(
     // boundary operator or a top-level `boundary requirement` machine.
     if matches!(schema, ProviderSchemaDeclaration::BoundaryOperator(_))
         || (matches!(schema, ProviderSchemaDeclaration::BoundaryRequirement(_))
-            && provider_planning::IntrinsicRequirement::by_symbol(checked, requirement_symbol)
-                .is_some_and(|requirement| {
-                    requirement.kind
-                        == provider_planning::IntrinsicRequirementKind::TopLevelRequirement
-                }))
+            && numeric.has_requirement_schema(requirement_symbol))
     {
-        let requirement =
-            provider_planning::IntrinsicRequirement::by_symbol(checked, requirement_symbol)
-                .ok_or_else(|| Diagnostic::error("numeric selection has no exact requirement"))?;
-        let ([method], [selected_row]) = (plan.schema.methods.as_slice(), plan.rows.as_slice())
-        else {
-            return Err(Diagnostic::error(
-                "numeric selection must bind one schema method and row",
-            ));
-        };
-        if selected_row != row || !requirement.plan_row_binds(plan, method, row) {
-            return Err(Diagnostic::error(
-                "numeric selection differs from its exact requirement",
-            ));
-        }
         return numeric
             .execution(plan, row, requirement_symbol, realization_symbol)
             .map(|execution| {

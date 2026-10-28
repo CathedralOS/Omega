@@ -16,6 +16,7 @@ use typed_trees::state::State;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 mod invocation_parameters;
+mod product_operands;
 mod requirement_predicates;
 pub(crate) use invocation_parameters::invocation_parameters;
 
@@ -72,6 +73,7 @@ pub fn validate_source_const_recipes(
             }
         }
     }
+    product_operands::validate_source_recipes(program, &mut diagnostics, formation_obligations);
     crate::program_validation::finish_strict_diagnostics(diagnostics)
 }
 
@@ -130,6 +132,7 @@ pub fn validate_authored_static_arguments(
             }
         }
     }
+    product_operands::validate_parameter_correspondence(program, &mut diagnostics);
     // The declaration owns a complete family, including tuples no source call
     // uses. Preparation can derive these rows but cannot admit their operands
     // or substituted predicates on the checker's behalf.

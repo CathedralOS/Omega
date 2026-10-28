@@ -142,6 +142,34 @@ impl PreparedPackageBuild {
                     .observation_summary
                     .as_ref(),
             )
+            .map_err(|reason| vec![Diagnostic::error(reason)])?
+            .with_checked_native_bindings(
+                provider_planning::capture_package_native_bindings(
+                    prepared.built.source.typed(),
+                    &prepared
+                        .built
+                        .computed_build_config
+                        .config
+                        .admitted_native_bindings,
+                    prepared
+                        .built
+                        .computed_build_config
+                        .selected_build_machine_symbol,
+                    prepared
+                        .built
+                        .computed_build_config
+                        .observation_summary
+                        .as_ref(),
+                    prepared.built.computed_build_config.evaluation_usage,
+                )
+                .map_err(|reason| vec![Diagnostic::error(reason)])?,
+                prepared
+                    .built
+                    .computed_build_config
+                    .config
+                    .native_binding_evaluation
+                    .clone(),
+            )
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
         Ok(Self {
             root_path,

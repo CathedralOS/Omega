@@ -17,7 +17,7 @@ use crate::{BuildTimeValue, SelectedBuildTimeBinaryOperator, SelectedBuildTimeMa
 
 /// The actual executable input of a successful pure invocation. Checked inputs
 /// retain their facts and separate Product declaration frontier unchanged.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, compiler_storage::Record)]
 pub enum PureEvaluationProgram {
     Typed(Arc<TypedTrees>),
     Checked(Arc<checked_trees::CheckedTrees>),
@@ -75,7 +75,7 @@ impl PureEvaluationProgram {
 
 /// One root invocation, not one row per interpreted child call. The private
 /// constructor keeps request/result association with the measured execution.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, compiler_storage::Record)]
 pub struct PureEvaluationReceipt {
     program: Arc<PureEvaluationProgram>,
     machine: symbols::SymbolHandle,
@@ -89,7 +89,7 @@ pub struct PureEvaluationReceipt {
 /// Failed pure evaluation currently returns no measured usage. Retain that
 /// absence explicitly; a tolerated probe failure must not refuse its source,
 /// and an incompletely measured completion must never become a warm hit.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, compiler_storage::Record)]
 pub enum PureEvaluationOutcome {
     Returned {
         value: BuildTimeValue,
@@ -166,7 +166,7 @@ impl PureEvaluationReceipt {
 
 /// One root execution in source order, with its engine's own usage vocabulary.
 /// A Terminal receipt never manufactures checked-interpreter steps.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, compiler_storage::Record)]
 pub enum PureEvaluationRecord {
     Checked(PureEvaluationReceipt),
     Terminal(PureTerminalEvaluationReceipt),
@@ -201,7 +201,7 @@ const PURE_TERMINAL_FUEL_CEILING: u64 = 100_000;
 /// One Terminal execution with the exact checked source, produced artifact,
 /// selected numeric imports, result and meter actually used by that execution.
 /// A failed production may have no artifact; it never becomes a warm hit.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, compiler_storage::Record)]
 pub struct PureTerminalEvaluationReceipt {
     source_program: Arc<PureEvaluationProgram>,
     machine: symbols::SymbolHandle,
@@ -212,7 +212,7 @@ pub struct PureTerminalEvaluationReceipt {
     fuel_ceiling: u64,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, compiler_storage::Record)]
 pub enum PureTerminalEvaluationOutcome {
     Returned {
         value: terminal_interpreter::TerminalExecutionResult,
@@ -294,7 +294,7 @@ impl PureTerminalEvaluationReceipt {
 /// Immutable charge ledger for one successful completion. Reuse preserves
 /// source order, multiplicity, schema and ceiling rather than adding nested
 /// interpreter counts a second time or reporting a fresh execution.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, compiler_storage::Record)]
 pub struct SourceCompletionAccounting {
     receipts: Arc<[PureEvaluationRecord]>,
     reused: bool,
@@ -529,5 +529,27 @@ impl SourceCompletionAccounting {
             receipts.extend(other.receipts.iter().cloned());
             self.receipts = receipts.into();
         }
+    }
+}
+
+// Pending domains carry no attempt-local collector across invocations. Completed
+// receipts persist separately in SourceCompletionAccounting, with their real
+// charges. A collector still attached here means the continuation is not sealed.
+impl compiler_storage::Record for EvaluationAccounting {
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        if self.state.is_some() {
+            return Err(
+                output.error("source continuation still owns an active accounting collector")
+            );
+        }
+        Ok(())
+    }
+    fn read<Context>(
+        _: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        Ok(Self::default())
     }
 }

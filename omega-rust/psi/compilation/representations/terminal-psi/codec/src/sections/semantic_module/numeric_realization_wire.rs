@@ -64,6 +64,7 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<NumericRealization, Code
         requirement,
         requirement_identity,
         requirement_package,
+        requirement_schema,
         numeric_intrinsic,
         target,
         realization,

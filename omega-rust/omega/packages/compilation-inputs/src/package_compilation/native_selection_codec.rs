@@ -15,7 +15,7 @@ use language_semantics::declaration_selection::{
     BuildSelectionOrigin, NativeBindingValue, ProductTarget,
 };
 
-const MAGIC: &[u8] = b"OMG-BUILD-NATIVE-CHOICES\x02";
+const MAGIC: &[u8] = b"OMG-BUILD-NATIVE-CHOICES\x03";
 
 fn pool(rows: &[RetainedNativeBinding]) -> SelectionSources {
     let mut sources = Vec::new();
@@ -37,18 +37,25 @@ fn pool(rows: &[RetainedNativeBinding]) -> SelectionSources {
     SelectionSources { sources }
 }
 
-pub fn encode_package_native_bindings(rows: &[RetainedNativeBinding]) -> Vec<u8> {
+pub fn encode_package_native_bindings(
+    rows: &[RetainedNativeBinding],
+    evaluation: Option<&super::NativeBuildEvaluation>,
+) -> Vec<u8> {
     let pool = pool(rows);
     let mut output = MAGIC.to_vec();
     encode_sources(&pool.sources, &mut output);
     encode_rows(&pool, rows, &mut output);
+    encode_evaluation(evaluation, &mut output);
     output
 }
 
-pub fn package_native_bindings_digest(rows: &[RetainedNativeBinding]) -> [u8; 32] {
+pub fn package_native_bindings_digest(
+    rows: &[RetainedNativeBinding],
+    evaluation: Option<&super::NativeBuildEvaluation>,
+) -> [u8; 32] {
     let pool = pool(rows);
     let mut digest =
-        crate::digest_encoder::DomainDigestEncoder::new(b"omega-package-native-choices-v2\0");
+        crate::digest_encoder::DomainDigestEncoder::new(b"omega-package-native-choices-v3\0");
     digest.u64(pool.sources.len() as u64);
     for source in &pool.sources {
         let relative = source
@@ -66,6 +73,13 @@ pub fn package_native_bindings_digest(rows: &[RetainedNativeBinding]) -> [u8; 32
     let mut rows_bytes = Vec::new();
     encode_rows(&pool, rows, &mut rows_bytes);
     digest.bytes(&rows_bytes);
+    match evaluation {
+        None => digest.byte(0),
+        Some(value) => {
+            digest.byte(1);
+            digest.raw(&value.identity_digest());
+        }
+    }
     digest.finish()
 }
 
@@ -310,7 +324,12 @@ fn read_receipt(
     (value.identity_digest() == expected).then_some(value)
 }
 
-pub fn decode_package_native_bindings(bytes: &[u8]) -> Option<Vec<RetainedNativeBinding>> {
+pub fn decode_package_native_bindings(
+    bytes: &[u8],
+) -> Option<(
+    Vec<RetainedNativeBinding>,
+    Option<std::sync::Arc<super::NativeBuildEvaluation>>,
+)> {
     let mut cursor = ObservationCursor::new(bytes);
     if cursor.bytes(MAGIC.len())? != MAGIC {
         return None;
@@ -380,5 +399,53 @@ pub fn decode_package_native_bindings(bytes: &[u8]) -> Option<Vec<RetainedNative
         row.validate().ok()?;
         rows.push(row);
     }
-    cursor.exhausted().then_some(rows)
+    let evaluation = decode_evaluation(&mut cursor)?;
+    cursor.exhausted().then_some((rows, evaluation))
+}
+
+fn encode_evaluation(value: Option<&super::NativeBuildEvaluation>, output: &mut Vec<u8>) {
+    match value {
+        None => output.push(0),
+        Some(value) => {
+            output.push(1);
+            output.extend_from_slice(&value.terminal_code.vocabulary_marker.get().to_le_bytes());
+            output.extend_from_slice(value.terminal_code.program_fingerprint.as_bytes());
+            let mut usage = Vec::new();
+            crate::build_execution::build_record_codec::encode_build_evaluation_usage(
+                &value.usage,
+                &mut usage,
+            );
+            push_framed(output, &usage);
+            output.extend_from_slice(&value.observation_digest);
+        }
+    }
+}
+fn decode_evaluation(
+    cursor: &mut ObservationCursor<'_>,
+) -> Option<Option<std::sync::Arc<super::NativeBuildEvaluation>>> {
+    match cursor.u8()? {
+        0 => Some(None),
+        1 => {
+            let vocabulary_marker = terminal_psi::VocabularyMarker::new(cursor.u16()?)?;
+            let program_fingerprint =
+                terminal_psi::SemanticFingerprint::from_bytes(cursor.bytes(32)?.try_into().ok()?);
+            let mut encoded_usage = ObservationCursor::new(cursor.framed()?);
+            let usage = crate::build_execution::build_record_codec::recover_build_evaluation_usage(
+                &mut encoded_usage,
+            )?;
+            if !encoded_usage.exhausted() {
+                return None;
+            }
+            let observation_digest = cursor.bytes(32)?.try_into().ok()?;
+            Some(Some(std::sync::Arc::new(super::NativeBuildEvaluation {
+                terminal_code: terminal_psi::TerminalPsiIdentity {
+                    vocabulary_marker,
+                    program_fingerprint,
+                },
+                usage,
+                observation_digest,
+            })))
+        }
+        _ => None,
+    }
 }

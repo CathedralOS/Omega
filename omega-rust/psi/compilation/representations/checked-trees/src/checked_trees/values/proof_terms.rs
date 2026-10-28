@@ -11,7 +11,7 @@ use typed_trees::type_identity::TypeIdentityId;
 /// proof-only type (`Nat` and friends), or a closed checked-shape
 /// record/enum whose fields are all term-expressible. Neither admits a
 /// scalar lane, so the lane carries the carrier's semantic type identity.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedErasedProofParameterPlan {
     /// The parameter's dense authored position in the signature.
     pub source_position: u32,
@@ -24,7 +24,7 @@ pub struct CheckedErasedProofParameterPlan {
 
 /// Where one checked proof term belongs. Mirroring the scalar-expression
 /// roles keeps each erased actual unambiguous under its call coordinate.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub enum CheckedProofTermRole {
     /// Proof-only actual for one erased proof formal of a direct bound call,
     /// keyed by the call's binding ordinal and the dense ordinal in the
@@ -50,7 +50,7 @@ pub enum CheckedProofTermRole {
 
 /// Typed inputs to a retained closed mathematical function. Scalar expressions
 /// use the same immutable source namespace as ordinary scalar call operands.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedMathematicalArgument {
     Formal {
         parameter_symbol: SymbolHandle,
@@ -65,7 +65,7 @@ pub enum CheckedMathematicalArgument {
 /// construction, a pass-through of the caller's own erased proof-lane
 /// formal, or — nested inside a construction field — a scalar leaf; none
 /// owns a runtime operand.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedProofTerm {
     /// A source evidence term independently checked against its exact source
     /// carrier in the program's mathematical signature. These coordinates
@@ -124,7 +124,7 @@ impl Default for CheckedProofTerm {
 }
 
 /// One named payload field of a checked proof-term construction.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedProofTermField {
     /// The field's declared symbol inside the selected case. The terminal
     /// lane canonicalizes its identity at lowering.
@@ -134,7 +134,7 @@ pub struct CheckedProofTermField {
 }
 
 /// A proof term pinned to its authored location and role.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedLocatedProofTerm {
     /// The state whose statement authored the term.
     pub state: SymbolHandle,
@@ -150,7 +150,7 @@ pub struct CheckedLocatedProofTerm {
 
 /// The recorded proof terms of one program, keyed like the scalar
 /// expression facts so lookups stay coordinate-exact.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedProofTerms {
     /// Every recorded proof term, in record order.
     pub terms: Vec<CheckedLocatedProofTerm>,

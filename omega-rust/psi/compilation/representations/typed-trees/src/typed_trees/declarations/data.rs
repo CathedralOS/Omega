@@ -3,11 +3,15 @@ use crate::types::TypeReferenceHandle;
 use arena::HandleSpan;
 use symbols::SymbolHandle;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct DataDefinition {
     pub symbol: SymbolHandle,
     pub name: Identifier,
     pub is_public: bool,
+    /// Proof-only subject of this declaration's unestablished default domain.
+    /// Its carrier supplies geometry and member types, not predicate truth.
+    pub predicate_subject_symbol: SymbolHandle,
+    pub predicate_subject_type: TypeReferenceHandle,
     pub supply_mode: language_semantics::DataSupplyMode,
     pub lifetime_parameters: Vec<Identifier>,
     pub type_parameters: HandleSpan<TypeParameter>,
@@ -37,6 +41,8 @@ impl Default for DataDefinition {
             symbol: SymbolHandle::invalid(),
             name: Identifier::default(),
             is_public: false,
+            predicate_subject_symbol: SymbolHandle::invalid(),
+            predicate_subject_type: TypeReferenceHandle::invalid(),
             supply_mode: language_semantics::DataSupplyMode::CheckedShape,
             lifetime_parameters: Vec::new(),
             type_parameters: HandleSpan::empty(),
@@ -52,7 +58,7 @@ impl Default for DataDefinition {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct QuotientDefinition {
     pub carrier: TypeReferenceHandle,
     pub relation: Vec<Identifier>,
@@ -60,7 +66,7 @@ pub struct QuotientDefinition {
     pub equivalence: Option<QuotientEquivalenceSelection>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct QuotientEquivalenceSelection {
     pub relation: Vec<Identifier>,
     pub relation_symbol: SymbolHandle,
@@ -74,7 +80,7 @@ pub struct QuotientEquivalenceSelection {
 /// Declared type properties (`data Point [copy]`). The spelling set is closed
 /// at parse time; validation verifies unrestricted multiplicity and carry
 /// structurally.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct DataProperties {
     pub carry: Option<language_semantics::CarryPolicy>,
     /// The first-class usage model (`[copy]` -> Unrestricted, ordinary data ->
@@ -111,7 +117,7 @@ pub enum DataShapeKind {
     Record,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum DataMember {
     Field(DataField),
     Variant(DataVariant),
@@ -141,7 +147,7 @@ impl Default for DataMember {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct TypeParameter {
     pub symbol: SymbolHandle,
     pub name: Identifier,
@@ -188,7 +194,7 @@ impl Default for TypeParameter {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum TypeParameterKind {
     #[default]
     Type,
@@ -224,7 +230,7 @@ impl TypeParameterKind {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum MachineParameterContract {
     RequirementIdentity,
     Structural(crate::signature::StateSignature),
@@ -285,13 +291,13 @@ impl<'program> MachineParameterContractView<'program> {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct PropositionParameterSignature {
     pub name: Identifier,
     pub parameters: HandleSpan<crate::signature::StateParameter>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct DataField {
     pub identity: Option<u64>,
     pub symbol: SymbolHandle,
@@ -316,7 +322,7 @@ fn member_path_identity(identity: Option<u64>, name: &Identifier) -> String {
 /// ordinals and the ordinals are equal, or when neither does and the names
 /// match — while the field itself holds no rendered text. Shared by checked
 /// structural paths, predicate paths, and their producers.
-#[derive(Debug, Clone, Default, Eq)]
+#[derive(Debug, Clone, Default, Eq, compiler_storage::Record)]
 pub struct DataMemberIdentity {
     pub ordinal: Option<u64>,
     pub name: Identifier,
@@ -412,7 +418,7 @@ impl DataVariant {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct DataVariant {
     pub identity: Option<u64>,
     pub symbol: SymbolHandle,

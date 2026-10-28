@@ -27,10 +27,14 @@ impl PreparedPackageBuild {
     pub fn native_product_input_identity(&self) -> Result<[u8; 32], String> {
         let mut identity = BuildOutputIdentity {
             program: self.prepared.built.source.typed(),
-            digest: DomainDigestEncoder::new(b"omega-native-product-build-outputs-v7\0"),
+            digest: DomainDigestEncoder::new(b"omega-native-product-build-outputs-v8\0"),
             source_contents: HashMap::new(),
         };
         identity.computed(&self.prepared.built.computed_build_config)?;
+        for bundle in self.inputs.dependency_build_handoffs() {
+            identity.package(Some(bundle.package()));
+            identity.digest.raw(&package_compilation::native_output_codec::digest(bundle));
+        }
         identity.admission(&self.prepared.built.admission);
         Ok(identity.digest.finish())
     }
@@ -188,6 +192,7 @@ impl BuildOutputIdentity<'_> {
             grants,
             provider_selections,
             admitted_native_bindings,
+            native_binding_evaluation,
             package_provider_selections,
             assumed_bindings,
             opaque_representation_selections,
@@ -256,6 +261,8 @@ impl BuildOutputIdentity<'_> {
                 }
             }
         }
+        self.digest.bool(native_binding_evaluation.is_some());
+        if let Some(evaluation) = native_binding_evaluation { self.digest.raw(&evaluation.identity_digest()); }
         self.digest.len(admitted_native_bindings.len());
         for row in admitted_native_bindings {
             self.symbol(row.requirement)?;
@@ -268,6 +275,7 @@ impl BuildOutputIdentity<'_> {
                 self.digest.raw(
                     &package_compilation::native_selection_codec::package_native_bindings_digest(
                         std::slice::from_ref(retained.as_ref()),
+                        None,
                     ),
                 );
             }

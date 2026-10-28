@@ -13,7 +13,7 @@ use typed_trees::TypedTrees;
 use typed_trees::constant_recipes::ConstantRecipeHandle;
 
 /// The relation a closed recipe value must satisfy.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum ConstantRecipeRequirement {
     /// `bound < recipe`: an index whose proven upper bound is `bound` reads
     /// inside the recipe extent.
@@ -26,7 +26,7 @@ pub enum ConstantRecipeRequirement {
     EqualRecipe(ConstantRecipeHandle),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ConstantRecipeObligation {
     owner: symbols::SymbolHandle,
     recipe: ConstantRecipeHandle,

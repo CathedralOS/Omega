@@ -270,9 +270,7 @@ pub(crate) fn finalize_authored_expression_selections(
 
     finalize_authored_statement_call_selections(program)?;
 
-    for candidate in statement_candidates(program) {
-        record_unattached_candidate(program, candidate)?;
-    }
+    finalize_statement_static_argument_selections(program)?;
 
     Ok(())
 }
@@ -845,56 +843,182 @@ fn collect_conformance_bound_candidates(
     }
 }
 
-fn statement_candidates(program: &SymbolResolvedTrees) -> Vec<UnattachedCandidate> {
-    let mut candidates = Vec::new();
+fn finalize_statement_static_argument_selections(
+    program: &mut SymbolResolvedTrees,
+) -> Result<(), Diagnostic> {
+    use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure as Exposure;
+    use symbol_resolved_trees::statement::Statement;
+    let mut sites = Vec::new();
     for machine in program.machines.iter() {
-        for state_handle in program.machine_state_handles(machine.states) {
-            let state = program.machine_state(*state_handle);
-            for statement in program
-                .tables
-                .declarations
-                .state_statements
-                .span_or_empty(state.statements)
-            {
-                let symbol_resolved_trees::statement::Statement::Call(call) = statement else {
-                    continue;
-                };
+        for state in program.machine_state_handles(machine.states) {
+            let statements = program.machine_state(*state).statements;
+            collect_statement_static_sites(
+                program,
+                statements,
+                machine.compiler_selection_partition,
+                &mut sites,
+            );
+        }
+    }
+    for (statements, offset, partition, candidates) in sites {
+        let mut occurrences = Vec::with_capacity(candidates.len());
+        for candidate in candidates {
+            // Coordinate-only Product capture cannot authenticate compiler-copy
+            // partitions. Preserve ordinary partitioned Source semantics and
+            // let capture fail explicitly until it has a semantic copy owner.
+            let existing = program
+                .authored_declaration_selections()
+                .iter()
+                .filter(|selection| {
+                    selection.source_span() == candidate.source_span
+                        && selection.exposure() == Exposure::PrivateImplementation
+                        && selection.kind() == candidate.kind
+                        && selection.compiler_partition() == partition
+                })
+                .map(|selection| selection.occurrence_id())
+                .collect::<Vec<_>>();
+            let occurrence = match existing.as_slice() {
+                [occurrence] => {
+                    let retained = program
+                        .authored_declaration_selections()
+                        .get(*occurrence)
+                        .expect("indexed existing statement source selection");
+                    let target = match retained.target() {
+                        language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(target) => CandidateTarget::Resolved(target.selected_symbol()),
+                        language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::LateBound(binding) => CandidateTarget::LateBound(binding),
+                        _ => return Err(Diagnostic::error("statement static input cannot reuse an intrinsic source selection").with_source_span(candidate.source_span)),
+                    };
+                    reconcile_copy_targets(
+                        program,
+                        candidate.source_span,
+                        candidate.kind,
+                        target,
+                        candidate.target,
+                    )?;
+                    *occurrence
+                }
+                [] => match candidate.target {
+                    CandidateTarget::Resolved(symbol) => program
+                        .record_resolved_authored_declaration_selection_in_partition(
+                            candidate.source_span,
+                            Exposure::PrivateImplementation,
+                            candidate.kind,
+                            partition,
+                            symbol,
+                        ),
+                    CandidateTarget::LateBound(binding) => program
+                        .record_late_bound_authored_declaration_selection_in_partition(
+                            candidate.source_span,
+                            Exposure::PrivateImplementation,
+                            candidate.kind,
+                            partition,
+                            binding,
+                        ),
+                }
+                .map_err(record_diagnostic)?,
+                _ => {
+                    return Err(Diagnostic::error(
+                        "original statement static input has ambiguous source custody",
+                    )
+                    .with_source_span(candidate.source_span));
+                }
+            };
+            if !occurrences.contains(&occurrence) {
+                occurrences.push(occurrence);
+            }
+        }
+        let Some(Statement::Call(call)) = program
+            .tables
+            .declarations
+            .state_statements
+            .span_mut_or_empty(statements)
+            .get_mut(offset)
+        else {
+            return Err(Diagnostic::error(
+                "original static-input site no longer identifies a statement call",
+            ));
+        };
+        call.authored_static_argument_selections = occurrences.into_boxed_slice();
+    }
+    Ok(())
+}
+
+type StatementStaticSite = (
+    arena::HandleSpan<symbol_resolved_trees::statement::Statement>,
+    usize,
+    Option<CompilerDerivedSelectionPartition>,
+    Vec<UnattachedCandidate>,
+);
+fn collect_statement_static_sites(
+    program: &SymbolResolvedTrees,
+    statements: arena::HandleSpan<symbol_resolved_trees::statement::Statement>,
+    partition: Option<CompilerDerivedSelectionPartition>,
+    sites: &mut Vec<StatementStaticSite>,
+) {
+    use symbol_resolved_trees::statement::Statement;
+    for (offset, statement) in program.state_statements(statements).iter().enumerate() {
+        match statement {
+            Statement::Call(call) => {
+                let mut candidates = Vec::new();
                 collect_statement_static_argument_candidates(
                     program,
                     &call.machine_arguments,
                     call.target.source_span(),
+                    BuildOperation::from_call_target(call.target.as_str())
+                        .is_some_and(BuildOperation::selects_product_declarations)
+                        && !call.target_symbol.is_valid(),
                     &mut candidates,
                 );
+                sites.push((statements, offset, partition, candidates));
             }
+            Statement::Assembly(handle) => {
+                let declarations = &program.tables.declarations;
+                for block in declarations
+                    .assembly_blocks
+                    .span_or_empty(declarations.assembly_graphs.get(*handle).blocks)
+                {
+                    collect_statement_static_sites(program, block.instructions, partition, sites);
+                }
+            }
+            _ => {}
         }
     }
-    candidates
-        .retain(|candidate| candidate.source_span.span.start < candidate.source_span.span.end);
-    candidates
 }
 
 fn collect_statement_static_argument_candidates(
     program: &SymbolResolvedTrees,
     arguments: &[symbol_resolved_trees::expression::StaticMachineArgument],
     fallback_span: SourceSpan,
+    defer: bool,
     candidates: &mut Vec<UnattachedCandidate>,
 ) {
     for argument in arguments {
         if has_authored_static_declaration(program, argument) {
-            candidates.push(UnattachedCandidate {
-                source_span: path_span(&argument.path, fallback_span),
-                exposure: language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
-                kind: static_argument_kind(program, argument.symbol),
-                target: resolved_or_late(argument.symbol, LateBinding::CheckedStaticArgument),
-            });
+            candidates.push(UnattachedCandidate { source_span: path_span(&argument.path, fallback_span), exposure: language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation, kind: static_argument_kind(program, argument.symbol), target: if defer { CandidateTarget::LateBound(LateBinding::CheckedStaticArgument) } else { resolved_or_late(argument.symbol, LateBinding::CheckedStaticArgument) } });
         }
         if let Some(application) = &argument.application {
             collect_statement_static_argument_candidates(
                 program,
                 &application.arguments,
                 fallback_span,
+                defer,
                 candidates,
             );
+            if application.member.is_valid()
+                && let Some(member) = program
+                    .tables
+                    .bodies
+                    .expressions
+                    .static_member(application.member)
+            {
+                collect_statement_static_argument_candidates(
+                    program,
+                    std::slice::from_ref(member),
+                    fallback_span,
+                    defer,
+                    candidates,
+                );
+            }
         }
     }
 }
@@ -1289,6 +1413,21 @@ fn collect_static_argument_candidates(
                 defer_call_arguments,
                 candidates,
             );
+            if application.member.is_valid()
+                && let Some(member) = program
+                    .tables
+                    .bodies
+                    .expressions
+                    .static_member(application.member)
+            {
+                collect_static_argument_candidates(
+                    program,
+                    expression,
+                    std::slice::from_ref(member),
+                    defer_call_arguments,
+                    candidates,
+                );
+            }
         }
     }
 }

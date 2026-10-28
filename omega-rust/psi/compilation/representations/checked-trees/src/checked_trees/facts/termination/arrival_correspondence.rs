@@ -17,7 +17,7 @@ use typed_trees::types::TypeReferenceHandle;
 
 pub type CheckedRankCoordinateHandle = Handle<CheckedRankCoordinate>;
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedRankValueDerivation {
     #[default]
     CapturedCoordinate,
@@ -25,14 +25,14 @@ pub enum CheckedRankValueDerivation {
 }
 
 /// One exact formal-relative coordinate. An empty path is the formal itself.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedRankCoordinate {
     pub parameter: SymbolHandle,
     pub path: HandleSpan<PlaceSegment>,
 }
 
 /// Binding-time provenance for a stable state-local captured value.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedRankLocalCapture {
     pub symbol: SymbolHandle,
     pub statement_ordinal: u32,
@@ -42,7 +42,7 @@ pub struct CheckedRankLocalCapture {
 
 /// One exact arrival's actual completion. A computation dependency is not an
 /// equality premise; source admission still substitutes and judges the actual.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedRankCoordinateTransport {
     pub source_state: SymbolHandle,
     /// Original parent coordinate in the authenticated transport record.
@@ -62,7 +62,7 @@ pub struct CheckedRankCoordinateTransport {
 /// A receiving completion locates an independently formed fresh value. It
 /// has no entry-value ancestry and cannot export a source equality. The
 /// selected binding and complete arrival judgments supply the rank relation.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedRankReceivingCoordinate {
     pub destination: CheckedRankCoordinateHandle,
     pub type_reference: TypeReferenceHandle,
@@ -75,7 +75,7 @@ pub struct CheckedRankReceivingCoordinate {
 
 /// A selected reading. Its entry coordinate denotes the ranking template's
 /// subject; its destination denotes this state's own arrival value.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedRankCoordinateBinding {
     pub entry: CheckedRankCoordinateHandle,
     pub destination: CheckedRankCoordinateHandle,
@@ -83,7 +83,7 @@ pub struct CheckedRankCoordinateBinding {
     pub receiving: HandleSpan<CheckedRankReceivingCoordinate>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedStateRankCorrespondence {
     pub state: SymbolHandle,
     pub bindings: HandleSpan<CheckedRankCoordinateBinding>,
@@ -91,7 +91,7 @@ pub struct CheckedStateRankCorrespondence {
 
 /// The complete proof attempt uses one premise regime on every edge. Initial
 /// entry facts remain an edge-local exception, never a renewed arrival fact.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedRankPremiseRegime {
     #[default]
     RankInvariant,
@@ -101,7 +101,7 @@ pub enum CheckedRankPremiseRegime {
 /// The arithmetic result for one exact complete local arrival. Membership and
 /// formation were mandatory for admission. Nonincrease remains separate from
 /// local-cycle strictness: a call component may need it on an acyclic local hop.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedRankArrivalEdge {
     pub source: SymbolHandle,
     pub destination: SymbolHandle,
@@ -111,7 +111,7 @@ pub struct CheckedRankArrivalEdge {
     pub strictly_decreases: bool,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedMachineRankCorrespondence {
     pub machine: SymbolHandle,
     /// Exact authored body, distinguishing target-scoped bodies beside one
@@ -126,7 +126,7 @@ pub struct CheckedMachineRankCorrespondence {
 /// Source admission's body-local result. A diagnostic is retained as export
 /// payload; it is never a premise. Progress consumes only the established
 /// local result, and final checks report the source judgment without replay.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedRankBodyJudgment {
     pub machine: SymbolHandle,
     pub body: HandleSpan<State>,
@@ -140,13 +140,13 @@ pub struct CheckedRankBodyJudgment {
 
 /// One exact authored body in the complete call-component decision. A symbol
 /// alone cannot distinguish target-scoped bodies sharing a callable owner.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedRuntimeRankMember {
     pub machine: SymbolHandle,
     pub body: HandleSpan<State>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedRuntimeNaturalState {
     pub state: SymbolHandle,
     pub coordinate: CheckedRankCoordinateHandle,
@@ -167,7 +167,7 @@ impl Default for CheckedRuntimeNaturalState {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedRuntimeRankEdge {
     pub source: SymbolHandle,
     pub target: SymbolHandle,
@@ -179,7 +179,7 @@ pub struct CheckedRuntimeRankEdge {
 /// An empty diagnostic establishes the component's shared edge ranking.
 /// Natural observation rows are a projection of that decision, never a second
 /// source proof. Reservations or a topology-only component supply no row.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedRuntimeRankComponent {
     pub members: HandleSpan<CheckedRuntimeRankMember>,
     pub states: HandleSpan<CheckedRuntimeNaturalState>,
@@ -189,7 +189,7 @@ pub struct CheckedRuntimeRankComponent {
 
 /// Natural ranking of logical source invocations. These coordinates are
 /// immutable machine Value/Const operands, never executable state slots.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedSourceNaturalRankMember {
     pub machine: SymbolHandle,
     pub body: HandleSpan<State>,
@@ -203,7 +203,7 @@ pub struct CheckedSourceNaturalRankMember {
 
 /// Every exact recurrent source invocation owes strict descent independently
 /// of the theorem it cites. Call ordinals use the ordinary occurrence owner.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedSourceNaturalRankEdge {
     pub caller: SymbolHandle,
     pub callee: SymbolHandle,
@@ -215,14 +215,14 @@ pub struct CheckedSourceNaturalRankEdge {
     pub argument_position: Option<u32>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedSourceNaturalRankComponent {
     pub members: HandleSpan<CheckedSourceNaturalRankMember>,
     pub edges: HandleSpan<CheckedSourceNaturalRankEdge>,
     pub view: language_semantics::RankingViewId,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedRankArrivalPlan {
     pub judgments: Arena<CheckedRankBodyJudgment>,
     pub machines: Arena<CheckedMachineRankCorrespondence>,

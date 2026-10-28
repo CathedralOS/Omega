@@ -254,7 +254,7 @@ impl AsmSchedulingHintKind {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum AsmControlRegister {
     Cr0,
     Cr2,
@@ -339,7 +339,7 @@ impl AsmControlRegister {
 /// for plus its read-only syndrome registers; ELR_EL1/SPSR_EL1 stay out —
 /// writing them participates in a mode transition (eret's regime contract),
 /// which AsmInstructionContract does not model.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum AsmSystemRegister {
     /// x86 control registers share the retained scalar register-event route.
     Control(AsmControlRegister),
@@ -540,7 +540,7 @@ impl AsmSystemRegister {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum AsmTargetApplicability {
     #[default]
     Any,
@@ -581,7 +581,7 @@ pub enum AsmAuthorityRequirement {
     IdtControl,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum AsmFenceKind {
     Load,
     Store,
@@ -652,7 +652,7 @@ pub enum AsmMemoryOrdering {
     Fence(AsmFenceKind),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum AsmInterruptControlKind {
     Disable,
     Enable,

@@ -4,7 +4,7 @@ use arena::HandleSpan;
 use std::ops::{Deref, DerefMut};
 use symbols::SymbolHandle;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct DataDefinition {
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
@@ -12,8 +12,13 @@ pub struct DataDefinition {
     pub storage: DataDefinitionStorage,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct DataDefinitionStorage {
+    /// Declaration-owned logical value whose default domain is being formed.
+    /// This is a proof binder, never an implicit runtime argument or an
+    /// already-established instance of the declared data type.
+    pub predicate_subject_symbol: SymbolHandle,
+    pub predicate_subject_type: TypeReference,
     pub supply_mode: language_semantics::DataSupplyMode,
     pub lifetime_parameters: Vec<DiagnosticName>,
     pub type_parameters: HandleSpan<TypeParameter>,
@@ -39,7 +44,7 @@ pub struct DataDefinitionStorage {
     pub members: HandleSpan<DataMember>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct QuotientDefinition {
     pub carrier: TypeReference,
     pub relation: Vec<DiagnosticName>,
@@ -47,7 +52,7 @@ pub struct QuotientDefinition {
     pub equivalence: Option<QuotientEquivalenceSelection>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct QuotientEquivalenceSelection {
     pub relation: Vec<DiagnosticName>,
     pub relation_symbol: SymbolHandle,
@@ -60,7 +65,7 @@ pub struct QuotientEquivalenceSelection {
 
 /// Declared type properties (`data Point [copy]`). The spelling set is closed
 /// at parse time, so only normalized semantic properties travel here.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct DataProperties {
     pub carry: Option<language_semantics::CarryPolicy>,
     pub multiplicity: language_semantics::Multiplicity,
@@ -97,7 +102,7 @@ pub enum DataShapeKind {
     Record,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum DataMember {
     Field(DataField),
     Variant(DataVariant),
@@ -111,7 +116,7 @@ impl Default for DataMember {
 
 /// A named declaration binder with an authored kind and declared property
 /// bounds — shared by generic type parameters and proposition binders.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct Binder<K> {
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
@@ -122,7 +127,7 @@ pub struct Binder<K> {
 
 pub type TypeParameter = Binder<TypeParameterKind>;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum TypeParameterKind {
     #[default]
     Type,
@@ -151,7 +156,7 @@ pub enum TypeParameterKind {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum MachineParameterContract {
     RequirementIdentity,
     Structural(crate::signature::StateSignature),
@@ -217,13 +222,13 @@ impl<'program> MachineParameterContractView<'program> {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct PropositionParameterSignature {
     pub name: DiagnosticName,
     pub parameters: HandleSpan<crate::signature::StateParameter>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
 pub struct DataField {
     pub identity: Option<u64>,
     pub symbol: SymbolHandle,
@@ -232,7 +237,7 @@ pub struct DataField {
     pub type_reference: TypeReference,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct DataVariant {
     pub identity: Option<u64>,
     pub symbol: SymbolHandle,
