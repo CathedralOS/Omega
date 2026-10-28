@@ -1176,30 +1176,39 @@ impl StateGraphEmission<'_, '_> {
         // Operand evaluation establishes the outgoing values before the exact
         // selected source exit determines the remaining owned dispositions.
         // Keep action kinds and their checked order through private staging.
-        let exit = super::super::cleanup::coordinate(
-            self.catalogs.cleanup_control,
-            state,
-            edge.statement_ordinal as usize,
-            false,
-        )?;
-        let mut cleanup_regions = super::super::cleanup::for_exit_regions(
-            identities,
-            self.claims.published(),
-            self.checked,
-            state,
-            exit,
-            self.catalogs,
-            state_parameters,
-            &edge_evaluation,
-            operations,
-        )?;
-        super::super::cleanup::selection(
-            state.state,
-            &state.operations,
-            &edge_evaluation,
-            operations,
-            &mut cleanup_regions,
-        )?;
+        // Fusing an invocation into this graph does not create a normal
+        // return for its caller. Operand execution and transfers above still
+        // happen; only the source's normal-return disposition is absent.
+        let mut cleanup_regions =
+            if edge.completion == checked_trees::CheckedSuccessorCompletion::NoNormalInvocation {
+                Vec::new()
+            } else {
+                let exit = super::super::cleanup::coordinate(
+                    self.catalogs.cleanup_control,
+                    state,
+                    edge.statement_ordinal as usize,
+                    false,
+                )?;
+                let mut cleanup_regions = super::super::cleanup::for_exit_regions(
+                    identities,
+                    self.claims.published(),
+                    self.checked,
+                    state,
+                    exit,
+                    self.catalogs,
+                    state_parameters,
+                    &edge_evaluation,
+                    operations,
+                )?;
+                super::super::cleanup::selection(
+                    state.state,
+                    &state.operations,
+                    &edge_evaluation,
+                    operations,
+                    &mut cleanup_regions,
+                )?;
+                cleanup_regions
+            };
         // Proof-only actuals never evaluate: each checked erased row
         // lowers to a term over the emitting state's scalar values and
         // erased formals, in the target's erased-roster order.

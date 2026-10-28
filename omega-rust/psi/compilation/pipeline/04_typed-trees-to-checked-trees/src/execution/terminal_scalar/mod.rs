@@ -128,6 +128,7 @@ fn checked_successor(
     Some(CheckedStructuralControlSuccessorPlan::new(
         statement_ordinal,
         target,
+        crate::execution::successor_completion::classify(program, machine, path.symbol),
         is_continuation,
         Vec::new(),
         Vec::new(),
