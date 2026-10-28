@@ -579,6 +579,9 @@ impl Capture<'_> {
                 case: self.declaration(value.case_symbol),
             },
             Source::ZeroValue(value) => ProductExpressionKind::ZeroValue(self.ty_handle(*value)?),
+            Source::TypeExpression(value) => {
+                ProductExpressionKind::TypeExpression(self.ty_handle(*value)?)
+            }
             Source::Call(value) => {
                 let receiver = self.expression(value.receiver)?;
                 let target = self.name(&value.target, value.target_symbol);

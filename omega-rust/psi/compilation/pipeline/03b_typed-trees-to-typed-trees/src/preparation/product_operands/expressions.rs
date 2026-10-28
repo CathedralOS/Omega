@@ -240,6 +240,7 @@ impl Lower<'_> {
                 end_inclusive: inclusive,
             }),
             ProductExpressionKind::ZeroValue(target) => Node::ZeroValue(self.ty(target)?),
+            ProductExpressionKind::TypeExpression(target) => Node::TypeExpression(self.ty(target)?),
             ProductExpressionKind::Cast {
                 value,
                 target,

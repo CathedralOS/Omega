@@ -223,6 +223,7 @@ pub enum ProductExpressionKind {
         domain_arguments: HandleSpan<Handle<ProductOperandType>>,
         form: language_core::cast_form::CastForm,
     },
+    TypeExpression(Handle<ProductOperandType>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]

@@ -650,6 +650,9 @@ impl Capture<'_> {
             expr::ExpressionNode::ZeroValue(reference) => {
                 ProductExpressionKind::ZeroValue(self.ty(*reference)?)
             }
+            expr::ExpressionNode::TypeExpression(reference) => {
+                ProductExpressionKind::TypeExpression(self.ty(*reference)?)
+            }
             expr::ExpressionNode::Unary(unary) => ProductExpressionKind::Unary {
                 operator: match unary.operator {
                     expr::UnaryOperator::BitwiseNot => ProductUnaryOperator::BitwiseNot,
