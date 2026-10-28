@@ -15,7 +15,6 @@ use typed_trees::state::State;
 use typed_trees::statement::{
     StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode,
 };
-use typed_trees::types::TypeReferenceNode;
 
 pub(super) fn validate(
     program: &dyn crate::CheckingInput,
@@ -23,7 +22,7 @@ pub(super) fn validate(
     state: &State,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    if !machine.supplies_checked_body() || is_unit(program, state) {
+    if !machine.supplies_checked_body() || calls::unit_type(program, state.return_type) {
         return;
     }
     let statements = program.statement_table.statements(state.statement_nodes);
@@ -50,7 +49,14 @@ pub(super) fn validate(
                 }
                 if transition.guard == TransitionGuardNode::Always
                     || transition.continuation.is_valid()
+                    || !order.get(position + 1).is_some_and(|next| {
+                        matches!(statements[*next], StatementNode::Transition(_))
+                    })
                 {
+                    // Source-to-typed admission proves every authored dispatch
+                    // exhaustive, including finite case matrices whose last
+                    // guard need not be Always. All its arms have been checked
+                    // at this maximal run boundary; none falls into a suffix.
                     return;
                 }
             }
@@ -69,9 +75,15 @@ pub(super) fn validate(
                 return;
             }
             StatementNode::LocalData(local)
-                if local.initial_value.is_valid()
-                    && calls::expression_normal_completion_possible(program, local.initial_value)
-                        == Some(false) =>
+                if local.ordinary_value_initializer().is_some_and(|value| {
+                    calls::expression_normal_completion_possible(program, value) == Some(false)
+                }) =>
+            {
+                return;
+            }
+            StatementNode::Assignment(assignment)
+                if calls::expression_normal_completion_possible(program, assignment.value)
+                    == Some(false) =>
             {
                 return;
             }
@@ -92,20 +104,6 @@ pub(super) fn validate(
             "implicit body completion",
             diagnostics,
         );
-    }
-}
-
-fn is_unit(program: &dyn crate::CheckingInput, state: &State) -> bool {
-    let mut reference = state.return_type;
-    if !reference.is_valid() {
-        return true;
-    }
-    loop {
-        match program.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Unit => return true,
-            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
-            _ => return false,
-        }
     }
 }
 
