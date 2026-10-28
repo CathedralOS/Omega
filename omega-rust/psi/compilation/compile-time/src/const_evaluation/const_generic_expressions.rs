@@ -45,6 +45,7 @@ pub(crate) fn evaluate(
         sources.clone(),
         bindings.to_vec(),
         context.retained_base(),
+        context.declaration_syntax,
     )?;
     phase_profile::count(
         "pre_resolution.constant_expressions.data",
@@ -161,17 +162,13 @@ pub(crate) fn evaluate(
         if need_lexical {
             for (argument, expression, _, _) in &pending {
                 if lexical_arguments.contains(argument) {
-                    let origins =
-                        lexical_selection::retain(&syntax, &resolved, *expression).map_err(
-                            |reason| {
-                                vec![
-                                    Diagnostic::error(format!(
-                                        "const argument expression: {reason}"
-                                    ))
+                    let origins = lexical_selection::retain(&syntax, &resolved, *expression)
+                        .map_err(|reason| {
+                            vec![
+                                Diagnostic::error(format!("const argument expression: {reason}"))
                                     .with_source_span(syntax.expressions.source_span(*expression)),
-                                ]
-                            },
-                        )?;
+                            ]
+                        })?;
                     lexical_origins.push((*argument, origins));
                 }
             }

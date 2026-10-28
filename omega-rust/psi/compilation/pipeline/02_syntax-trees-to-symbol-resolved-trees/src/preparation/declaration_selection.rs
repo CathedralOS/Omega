@@ -705,30 +705,60 @@ impl<'base> ConstantSelection<'base> {
         self.data_declaration(syntax, name, selected)
     }
 
-    /// Read a selected callable or implementation telescope for constant probe
-    /// destinations. This is ordinary source-scoped declaration lookup, never
-    /// permission to execute the selected body or infer an implementation.
-    pub(super) fn static_parameters<'syntax>(
+    /// Read the receiving telescope selected in this invocation's namespace.
+    /// Parsed headers supply carrier syntax only; they never add declarations
+    /// or authorize evaluation. Retained headers are outside the cohort's work
+    /// roots, so copy their operands into its tables before returning handles.
+    pub(super) fn const_parameter_carriers(
         &self,
-        syntax: &'syntax SyntaxTrees,
+        syntax: &mut SyntaxTrees,
+        declaration_syntax: Option<&SyntaxTrees>,
         name: &Identifier,
-    ) -> Option<&'syntax [syntax_trees::item::TypeParameter]> {
+        kinds: &[SymbolKind],
+    ) -> Option<Vec<Option<syntax_trees::types::TypeReferenceHandle>>> {
         let selected = self.symbols.find_top_level_by_name_and_kinds_from_source(
             name.as_str(syntax),
-            &[SymbolKind::Machine, SymbolKind::Conformance],
+            kinds,
             name.source_span(),
         )?;
-        let source = self.symbols.symbol_source_span(selected)?;
-        syntax.root_items().find_map(|item| {
-            let (declaration, parameters) = match item {
-                Item::Machine(machine) => (&machine.name, machine.type_parameters),
-                Item::Conformance(conformance) => {
-                    (conformance.alias.as_ref()?, conformance.type_parameters)
-                }
-                _ => return None,
-            };
-            (declaration.source_span() == source).then(|| syntax.items.type_parameters(parameters))
-        })
+        let reference = self.symbols.symbol_source_span(selected)?;
+        let parameters = |forest: &SyntaxTrees| {
+            forest.root_items().find_map(|item| {
+                let (declaration, parameters) = match item {
+                    Item::Data(data) => (&data.name, data.type_parameters),
+                    Item::Machine(machine) => (&machine.name, machine.type_parameters),
+                    Item::Conformance(conformance) => {
+                        (conformance.alias.as_ref()?, conformance.type_parameters)
+                    }
+                    _ => return None,
+                };
+                (declaration.source_span() == reference).then(|| {
+                    forest
+                        .items
+                        .type_parameters(parameters)
+                        .iter()
+                        .map(|parameter| match parameter.kind {
+                            syntax_trees::item::TypeParameterKind::Const { type_reference } => {
+                                Some(type_reference)
+                            }
+                            _ => None,
+                        })
+                        .collect::<Vec<_>>()
+                })
+            })
+        };
+        if let Some(parameters) = parameters(syntax) {
+            return Some(parameters);
+        }
+        let forest = declaration_syntax?;
+        Some(
+            parameters(forest)?
+                .into_iter()
+                .map(|carrier| {
+                    carrier.map(|carrier| syntax.copy_type_reference_handle(forest, carrier))
+                })
+                .collect(),
+        )
     }
 
     pub(crate) fn constructor<'syntax>(

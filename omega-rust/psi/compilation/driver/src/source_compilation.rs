@@ -58,6 +58,7 @@ pub struct BuildSourceInput<'source> {
 /// Authored bodies are complete; generated sources may extend this exact base.
 #[derive(Clone, compiler_storage::Record)]
 pub struct CompletedSource {
+    declaration_syntax: Arc<syntax_trees::SyntaxTrees>,
     accounting: build_time_evaluation::SourceCompletionAccounting,
     typing: symbol_resolved_trees_to_typed_trees::SeededTypingBase,
     pending_pre_checks: Vec<PreCheckEvaluation>,
@@ -85,6 +86,7 @@ impl SourceCompilationRequest {
     ) -> Result<SourceContinuation, Vec<Diagnostic>> {
         let _profile = phase_profile::guard("psi.source.prepare");
         let context = SourceContext {
+            declaration_syntax: Arc::new(self.syntax.clone()),
             bindings: self.top_level_bindings.clone(),
             authority: self.selection_authority.clone(),
             build_helper_identity: self.build_helper_identity.into(),
@@ -114,6 +116,7 @@ impl SourceCompilationRequest {
                     source_scoped_top_level_bindings: &self.top_level_bindings,
                     selection_authority: self.selection_authority,
                     predecessor: retained.clone(),
+                    declaration_syntax: Some(&context.declaration_syntax),
                 },
             },
         )?;
@@ -355,7 +358,7 @@ impl SourceContinuation {
             mut typing,
             mut pending_bodies,
             pending_pre_checks,
-            context: _,
+            context,
         } = Arc::unwrap_or_clone(owned_input);
         loop {
             // Build may append concrete declarations. Join their exact suffix
@@ -391,6 +394,7 @@ impl SourceContinuation {
             }
         }
         let source = CompletedSource {
+            declaration_syntax: context.declaration_syntax,
             typing,
             pending_pre_checks: deferred,
             accounting,
@@ -437,6 +441,7 @@ impl CompletedSource {
                     source_scoped_top_level_bindings: &[],
                     selection_authority: Some(extension.selection_authority),
                     predecessor: Some(self.typing.clone()),
+                    declaration_syntax: Some(&self.declaration_syntax),
                 },
             )?;
         let seeded = observer.record_result(PsiCompilationStage::Resolution, || {

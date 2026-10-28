@@ -197,8 +197,10 @@ pub fn evaluate_pre_resolution(
     // and invocation admission used by ordinary static arguments.
     if syntax_trees.root_item_handles().len() > roots_before_generic {
         syntax_trees = const_generic_expressions::evaluate(syntax_trees, &source_context)?;
-        syntax_trees =
-            const_generic_calls::evaluate_const_generic_calls(syntax_trees, source_context.clone())?;
+        syntax_trees = const_generic_calls::evaluate_const_generic_calls(
+            syntax_trees,
+            source_context.clone(),
+        )?;
     }
     let plan_laid_records = plan_laid::desugar_plan_laid_value_types(&mut syntax_trees)?;
     Ok(PreResolutionEvaluation {
@@ -236,6 +238,9 @@ pub struct SelectedBuildTimeOperators<'a> {
 /// predecessor but never participate in each other's normalization.
 #[derive(Clone, Default)]
 pub struct BuildTimeSources<'a> {
+    /// Parsed declaration context, separate from the cohort being elaborated.
+    /// Lookup still selects through the receiving namespace and authority.
+    pub declaration_syntax: Option<&'a syntax_trees::SyntaxTrees>,
     pub sources: Option<Arc<source::SourceMap>>,
     pub source_scoped_top_level_bindings: &'a [symbols::SourceScopedTopLevelBinding],
     pub selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,

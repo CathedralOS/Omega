@@ -18,6 +18,9 @@ use syntax_trees::SyntaxTrees;
 
 #[derive(Clone)]
 pub(super) struct SourceContext {
+    /// Freshly acquired parsed declarations remain lookup context when their
+    /// resolved/typed owners leave the new cohort's worklist.
+    pub declaration_syntax: Arc<SyntaxTrees>,
     pub bindings: Vec<SourceScopedTopLevelBinding>,
     pub authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
     pub build_helper_identity: std::borrow::Cow<'static, str>,
@@ -28,6 +31,7 @@ impl SourceContext {
     pub fn same_input(&self, other: &Self) -> bool {
         self.recorded_authority.is_none()
             && other.recorded_authority.is_none()
+            && Arc::ptr_eq(&self.declaration_syntax, &other.declaration_syntax)
             && self.bindings == other.bindings
             && self.build_helper_identity == other.build_helper_identity
             && match (&self.authority, &other.authority) {
