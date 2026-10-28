@@ -11729,6 +11729,35 @@ fail/facts/nested_machine_private_cyclic_target_body_rejected rejected 301ms exp
 	exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/nested_machine_wrapping_index_call_result_rejected rejected 1529ms expected @1dd012d66b41
+	cannot prove index `window.index` is within length 512 in read::entry
+fail/facts/nested_machine_wrapping_index_const_name_rejected rejected 1546ms expected @1dd012d66b41
+	cannot prove index `window.index` is within length 512 in read::entry
+fail/facts/nested_machine_wrapping_index_crossing_band_rejected rejected 1582ms expected @1dd012d66b41
+	cannot prove index `window.index` is within length 512 in read::entry
+fail/facts/nested_machine_wrapping_index_exact_child_formation_rejected rejected 326ms expected @1dd012d66b41
+	exact arithmetic in machine `probe` state `entry` cast expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `probe` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/nested_machine_wrapping_index_field_rejected rejected 1558ms expected @1dd012d66b41
+	cannot prove index `window.index` is within length 512 in read::entry
+fail/facts/nested_machine_wrapping_index_local_rejected rejected 1554ms expected @1dd012d66b41
+	cannot prove index `window.index` is within length 512 in read::entry
+fail/facts/nested_machine_wrapping_index_match_join_rejected rejected 1479ms expected @1dd012d66b41
+	cannot prove index `window.index` is within length 512 in read::entry
+fail/facts/nested_machine_wrapping_index_other_machine_rejected rejected 1572ms expected @1dd012d66b41
+	cannot prove index `window.index` is within length 512 in read::entry
+fail/facts/nested_machine_wrapping_index_other_state_rejected rejected 1578ms expected @1dd012d66b41
+	cannot prove index `window.index` is within length 512 in read::entry
+fail/facts/nested_machine_wrapping_index_overwritten_offset_rejected rejected 1560ms expected @1dd012d66b41
+	cannot prove index `window.index` is within length 512 in read::entry
+fail/facts/nested_machine_wrapping_index_parameter_rejected rejected 1526ms expected @1dd012d66b41
+	cannot prove index `window.index` is within length 512 in read::entry
+fail/facts/nested_machine_wrapping_index_target_body_rejected rejected 1434ms expected @1dd012d66b41
+	cannot prove index `window.index` is within length 512 in read::entry
+fail/facts/nested_machine_wrapping_index_wide_interval_rejected rejected 1417ms expected @1dd012d66b41
+	cannot prove index `window.index` is within length 512 in read::entry
+fail/facts/nested_machine_wrapping_index_wrapped_guard_original_offset_rejected rejected 1437ms expected @1dd012d66b41
+	cannot prove index `window.offset` is within length 512 in read::entry
 fail/facts/nested_nine_level_record_field_bound_through_call_result_rejected rejected 879ms expected @a92f16431042
 	exact arithmetic in machine `check_bound` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/nested_nine_level_record_field_bound_through_const_name_rejected rejected 874ms expected @a92f16431042
@@ -27729,6 +27758,21 @@ pass/facts/nested_machine_private_cyclic_parameter_exit checked 3389ms check-tar
 pass/facts/nested_machine_private_cyclic_root_exit checked 3288ms check-target:macos_arm64 @485a671a334e
 pass/facts/nested_machine_private_cyclic_target_body_exit checked 3349ms check-target:macos_arm64 @485a671a334e
 pass/facts/nested_machine_private_cyclic_unrelated_builtin_exit checked 3399ms check-target:macos_arm64 @485a671a334e
+pass/facts/nested_machine_wrapping_index_actual_clamp_exit checked 4255ms check-target:macos_arm64 @1dd012d66b41
+pass/facts/nested_machine_wrapping_index_actual_wrap_exit checked 4171ms check-target:macos_arm64 @1dd012d66b41
+pass/facts/nested_machine_wrapping_index_call_result_exit checked 4242ms check-target:macos_arm64 @1dd012d66b41
+pass/facts/nested_machine_wrapping_index_const_name_exit checked 4171ms check-target:macos_arm64 @1dd012d66b41
+pass/facts/nested_machine_wrapping_index_field_exit checked 3680ms check-target:macos_arm64 @1dd012d66b41
+pass/facts/nested_machine_wrapping_index_local_exit checked 3639ms check-target:macos_arm64 @1dd012d66b41
+pass/facts/nested_machine_wrapping_index_match_join_exit checked 3615ms check-target:macos_arm64 @1dd012d66b41
+pass/facts/nested_machine_wrapping_index_multiply_exit checked 3643ms check-target:macos_arm64 @1dd012d66b41
+pass/facts/nested_machine_wrapping_index_nested_policy_exit checked 3481ms check-target:macos_arm64 @1dd012d66b41
+pass/facts/nested_machine_wrapping_index_other_machine_exit checked 3573ms check-target:macos_arm64 @1dd012d66b41
+pass/facts/nested_machine_wrapping_index_other_state_exit checked 3441ms check-target:macos_arm64 @1dd012d66b41
+pass/facts/nested_machine_wrapping_index_parameter_exit checked 3486ms check-target:macos_arm64 @1dd012d66b41
+pass/facts/nested_machine_wrapping_index_saturating_no_overflow_exit checked 3375ms check-target:macos_arm64 @1dd012d66b41
+pass/facts/nested_machine_wrapping_index_subtract_exit checked 3461ms check-target:macos_arm64 @1dd012d66b41
+pass/facts/nested_machine_wrapping_index_target_body_exit checked 3374ms check-target:macos_arm64 @1dd012d66b41
 pass/facts/nested_nine_level_record_field_bound_through_call_result_exit checked 2797ms check-target:macos_arm64 @a92f16431042
 pass/facts/nested_nine_level_record_field_bound_through_const_name_exit checked 2817ms check-target:macos_arm64 @a92f16431042
 pass/facts/nested_nine_level_record_field_bound_through_field_exit checked 1906ms check-target:macos_arm64 @a92f16431042
