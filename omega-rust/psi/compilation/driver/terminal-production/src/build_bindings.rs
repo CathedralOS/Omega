@@ -141,7 +141,11 @@ pub(super) fn capture(
                             .iter()
                             .any(|state| state.symbol == occurrence.source_state)
                     })
-                    .and_then(|machine| checked.symbols.symbol_source_span(machine.symbol))
+                    .and_then(|machine| {
+                        checked
+                            .symbols
+                            .symbol_source_span(checked.symbols.authored_origin(machine.symbol))
+                    })
                     .ok_or_else(|| {
                         diagnostics::Diagnostic::error(
                             "Build selection lost its authored machine coordinate",
