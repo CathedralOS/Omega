@@ -12,6 +12,7 @@ mod integer_predicates;
 mod invocation_entry;
 mod licenses;
 pub(super) mod normal_returns;
+mod resolution_queries;
 mod returned_fields;
 pub(super) mod selected_contracts;
 mod storage_effects;
@@ -481,6 +482,7 @@ pub(super) struct StructuralJudge<'program> {
     // Active executed bodies bound ordinary calls as well as terminal transfers.
     // A recurrent call consumes its checked contract instead of unfolding again.
     body_invocations: Arc<Vec<SymbolHandle>>,
+    active_application: Option<Arc<resolution_queries::ApplicationResolution<'program>>>,
     normal_memberships: Arc<Vec<MembershipGuarantee>>,
     pub(super) normal_content_guarantees:
         Arc<Vec<super::content_conservation::ObservedContentEquation>>,
@@ -551,6 +553,7 @@ impl Clone for StructuralJudge<'_> {
             returned_field_owners: Arc::clone(&self.returned_field_owners),
             returned_field_trace: self.returned_field_trace.clone(),
             body_invocations: Arc::clone(&self.body_invocations),
+            active_application: self.active_application.clone(),
             normal_memberships: Arc::clone(&self.normal_memberships),
             normal_content_guarantees: Arc::clone(&self.normal_content_guarantees),
             invalidated_storage: Arc::clone(&self.invalidated_storage),
@@ -991,6 +994,7 @@ impl<'program> StructuralJudge<'program> {
             returned_field_owners: Arc::new(Vec::new()),
             returned_field_trace: None,
             body_invocations: Arc::new(Vec::new()),
+            active_application: None,
             normal_memberships: Arc::new(Vec::new()),
             normal_content_guarantees: Arc::new(Vec::new()),
             invalidated_storage: Arc::new(Vec::new()),
@@ -1601,21 +1605,11 @@ impl<'program> StructuralJudge<'program> {
                         return resolved;
                     }
                     if self.require_closed_computation {
-                        let StructuralTerm::Application {
-                            target,
-                            selections,
-                            machine,
-                            arguments,
-                            ..
-                        } = &resolved
-                        else {
-                            unreachable!();
-                        };
                         // Conditional normal-return guarantees are not proof
                         // that this evaluation completes. Compute its body
                         // using the same continuing invocation depth instead.
                         return self
-                            .unfold_application(*target, selections, machine, arguments, depth + 1)
+                            .unfold_application(&resolved, depth + 1)
                             .map_or(resolved.clone(), |value| self.resolve_at(value, depth + 1));
                     }
                     // Hypothesis rewrites first (the inductive hypothesis
@@ -1633,19 +1627,7 @@ impl<'program> StructuralJudge<'program> {
                         term = normalized;
                         continue;
                     }
-                    let StructuralTerm::Application {
-                        result_type: _,
-                        target,
-                        selections,
-                        machine,
-                        arguments,
-                    } = &resolved
-                    else {
-                        unreachable!();
-                    };
-                    if let Some(unfolded) =
-                        self.unfold_application(*target, selections, machine, arguments, depth + 1)
-                    {
+                    if let Some(unfolded) = self.unfold_application(&resolved, depth + 1) {
                         term = unfolded;
                         continue;
                     }
@@ -1956,13 +1938,14 @@ impl<'program> StructuralJudge<'program> {
         {
             return Some(value);
         }
-        let result = self.unfold_application(
+        let application = StructuralTerm::Application {
+            result_type,
             target,
-            selections,
-            machine.name.as_str(),
-            arguments,
-            depth + 1,
-        )?;
+            selections: selections.to_vec(),
+            machine: machine.name.as_str().to_owned(),
+            arguments: arguments.to_vec(),
+        };
+        let result = self.unfold_application(&application, depth + 1)?;
         let result = self.resolve_at(result, depth + 1);
         if self.require_closed_computation && !result.is_closed_value() {
             return None;
@@ -2044,7 +2027,14 @@ impl<'program> StructuralJudge<'program> {
                 0,
             )?,
             None => {
-                judge.unfold_application(target, selections, machine.name.as_str(), arguments, 0)?
+                let application = StructuralTerm::Application {
+                    result_type,
+                    target,
+                    selections: selections.to_vec(),
+                    machine: machine.name.as_str().to_owned(),
+                    arguments: arguments.to_vec(),
+                };
+                judge.unfold_application(&application, 0)?
             }
         };
         let value = judge.resolve(value);
@@ -2059,12 +2049,20 @@ impl<'program> StructuralJudge<'program> {
     /// No source initializer is replayed to reconstruct a caller snapshot.
     fn unfold_application(
         &self,
-        target: SymbolHandle,
-        selections: &[typed_trees::expression::StaticMachineArgument],
-        machine_name: &str,
-        arguments: &[StructuralTerm],
+        application: &StructuralTerm,
         depth: usize,
     ) -> Option<StructuralTerm> {
+        let StructuralTerm::Application {
+            target,
+            selections,
+            machine: machine_name,
+            arguments,
+            ..
+        } = application
+        else {
+            return None;
+        };
+        let target = *target;
         if super::struct_trace() {
             eprintln!("STRUCT unfold? {machine_name} args {arguments:?} depth {depth}");
         }
@@ -2138,8 +2136,7 @@ impl<'program> StructuralJudge<'program> {
         // This is an admitted application body, not another runtime event.
         // Nested calls still pass specification_application_candidate; both
         // ordinary and normalized terminal values use that same admission.
-        let mut specification = self.clone();
-        specification.specification_terms = true;
+        let specification = self.resolving_application(application)?;
 
         let mut environment = environment;
         let statements = program.statement_table.statements(state.statement_nodes);
@@ -2165,7 +2162,7 @@ impl<'program> StructuralJudge<'program> {
                     depth + 1,
                 )?;
                 let term = if self.require_closed_computation {
-                    let completed = self.resolve_at(term, depth + 1);
+                    let completed = specification.resolve_at(term, depth + 1);
                     if !completed.is_closed_value() {
                         return None;
                     }
@@ -2236,8 +2233,8 @@ impl<'program> StructuralJudge<'program> {
                         let subject_term = if position < parameter_count {
                             &environment[position].1
                         } else {
-                            local_subject =
-                                self.resolve_at(environment[position].1.clone(), depth + 1);
+                            local_subject = specification
+                                .resolve_at(environment[position].1.clone(), depth + 1);
                             &local_subject
                         };
                         let StructuralTerm::Constructor {

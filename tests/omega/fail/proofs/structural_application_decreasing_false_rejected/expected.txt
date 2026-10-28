@@ -1,0 +1,2 @@
+ensures contract proof fact
+is disproved structurally

@@ -1,0 +1,24 @@
+// A repeated proof callable with different decreasing arguments remains available.
+// Expected exit: 0
+use omega::language::core::nat;
+machine collapse(value: Nat) -> Nat
+terminates by value;
+{
+    transition value {
+        Nat::Zero -> (Nat::Zero)
+        Nat::Succ { prev } -> continue_collapse(prev)
+    }
+    machine continue_collapse(value: Nat) -> Nat
+    terminates by value;
+    {
+        let captured: Nat = collapse(value);
+        transition captured {
+            Nat::Zero -> (Nat::Zero)
+            _ -> (Nat::Succ { prev: Nat::Zero })
+        }
+    }
+}
+machine closed_question()
+ensures collapse(Nat::Succ { prev: Nat::Succ { prev: Nat::Zero } }) == (Nat::Succ { prev: Nat::Zero })
+{}
+machine main() { closed_question(); }

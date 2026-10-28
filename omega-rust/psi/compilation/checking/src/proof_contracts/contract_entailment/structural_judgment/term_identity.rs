@@ -11,6 +11,56 @@
 use super::StructuralTerm;
 
 impl StructuralTerm {
+    /// Recurrence compares the complete retained resolver input. Semantic
+    /// equality alone erases observation authority and float landing metadata;
+    /// those payloads must not collapse two different pending questions.
+    pub(super) fn same_resolution_payload(&self, other: &Self) -> bool {
+        if std::mem::discriminant(self) != std::mem::discriminant(other) || self != other {
+            return false;
+        }
+        let metadata_matches = match (self, other) {
+            (
+                Self::ObservedValue { observed_type, .. },
+                Self::ObservedValue {
+                    observed_type: other_type,
+                    ..
+                },
+            ) => observed_type == other_type,
+            (
+                Self::ScalarBinary { references, .. },
+                Self::ScalarBinary {
+                    references: other_references,
+                    ..
+                },
+            ) => references == other_references,
+            (
+                Self::IndexedValue { element_type, .. },
+                Self::IndexedValue {
+                    element_type: other_type,
+                    ..
+                },
+            ) => element_type == other_type,
+            (Self::Float(value), Self::Float(other_value)) => {
+                value.landing() == other_value.landing()
+            }
+            _ => true,
+        };
+        if !metadata_matches {
+            return false;
+        }
+        let mut children = Vec::new();
+        self.for_each_child(|child| children.push(child));
+        let mut index = 0;
+        let mut same = true;
+        other.for_each_child(|child| {
+            same &= children
+                .get(index)
+                .is_some_and(|value| value.same_resolution_payload(child));
+            index += 1;
+        });
+        same && index == children.len()
+    }
+
     /// Visit every immediate child subterm of `self` once, in declaration
     /// order: a constructor's fields, an application's arguments, and the one
     /// or two operand terms the observation variants carry. A shell's observed
