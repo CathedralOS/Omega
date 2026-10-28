@@ -91,6 +91,18 @@ impl ConstInitializerSelection {
                     .with_source_span(definition.name.source_span()),
             ]);
         }
+        self.pending_leaf_dependencies(syntax, definition, expression)
+    }
+
+    pub fn pending_leaf_dependencies(
+        &self,
+        syntax: &SyntaxTrees,
+        definition: &syntax_trees::item::ConstDefinition,
+        expression: syntax_trees::expression::ExpressionHandle,
+    ) -> Result<
+        crate::constant::initializer_dependencies::ConstInitializerDependencies,
+        Vec<Diagnostic>,
+    > {
         let declaration = self
             .frontier
             .trees

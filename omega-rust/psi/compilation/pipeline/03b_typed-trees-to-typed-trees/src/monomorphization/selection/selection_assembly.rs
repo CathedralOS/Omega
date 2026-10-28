@@ -44,12 +44,20 @@ pub(crate) fn selection_for_call(
     } else {
         target_symbol
     };
-    resolve_callee(program, callee_states, effective_target)?;
+    let callee = resolve_callee(program, callee_states, effective_target)?;
     // A runtime `Value` subject resolves only against the locals the call can
     // see: the caller's parameters and `let` declarations before its own
     // statement.
-    let scope_limit =
-        enclosing_statement_ordinal(program, caller_state, site).unwrap_or(usize::MAX);
+    let scope_limit = if !candidates[callee.candidate_index]
+        .template
+        .value_const_parameters
+        .is_empty()
+        || !machine_arguments.is_empty()
+    {
+        enclosing_statement_ordinal(program, caller_state, site).unwrap_or(usize::MAX)
+    } else {
+        usize::MAX
+    };
     selection_for_call_with_local_prefix(
         program,
         caller_machine,

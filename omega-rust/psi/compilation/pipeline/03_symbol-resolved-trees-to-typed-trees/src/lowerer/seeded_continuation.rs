@@ -433,7 +433,7 @@ fn lower_body_completion(
     }
     let cohort = TypingCohort::continuing(&predecessor, &retained.typed).completing(&selected);
     super::validate_resolved_semantics_in(&source, &cohort)?;
-    let mut candidate = retained.typed.as_ref().clone();
+    let mut candidate = Arc::unwrap_or_clone(retained.typed);
     join_resolved_semantics(&source, &predecessor, &mut candidate)?;
     let mut lowerer = Lowerer {
         typed_trees: candidate,
