@@ -90,7 +90,7 @@ impl PackageSourceContent {
             purpose: inputs.compilation_purpose(),
             source: inputs.source_inputs(),
             generated: inputs
-                .dependency_generated_source_instances()
+                .dependency_build_handoff_instances()
                 .map(|(scope, bundle)| GeneratedSourceContent {
                     scope,
                     package: bundle.package(),

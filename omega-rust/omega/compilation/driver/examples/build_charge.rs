@@ -659,11 +659,8 @@ fn anonymous_generator_source_scope() {
                 error.into_diagnostics()
             )
         });
-    assert_eq!(build.generated_source_bundle().sources().len(), 1);
-    assert_eq!(
-        build.generated_source_bundle().sources()[0].bytes(),
-        expected
-    );
+    assert_eq!(build.build_handoff().sources().len(), 1);
+    assert_eq!(build.build_handoff().sources()[0].bytes(), expected);
     let checked = session
         .compiler()
         .check_package_build(build)
@@ -716,10 +713,7 @@ fn anonymous_generator_source_scope() {
                 error.into_diagnostics()
             )
         });
-    assert_eq!(
-        build.generated_source_bundle().sources()[0].bytes(),
-        expected
-    );
+    assert_eq!(build.build_handoff().sources()[0].bytes(), expected);
     let checked = session.compiler().check_package_build(build).unwrap();
     assert_eq!(
         checked
@@ -865,10 +859,7 @@ fn anonymous_generator_source_scope() {
     let root = resolved.builds.pop().unwrap();
     let inputs = root.package_inputs().clone();
     let build = root.complete(session.compiler(), profile, inputs).unwrap();
-    assert_eq!(
-        build.generated_source_bundle().sources()[0].bytes(),
-        expected
-    );
+    assert_eq!(build.build_handoff().sources()[0].bytes(), expected);
     session.compiler().check_package_build(build).unwrap();
     assert_eq!(counters::build_execution_count() - before, 1);
     session.close().unwrap();
@@ -963,7 +954,7 @@ fn terminal_build_filesystem() {
         "completed Build releases execution consent rather than carrying it as Product authority"
     );
     println!("build_execution_inputs_retain_the_grant_guard_until_return_settlement");
-    let generated = build.generated_source_bundle().sources();
+    let generated = build.build_handoff().sources();
     assert_eq!(generated.len(), 1);
     assert_eq!(generated[0].relative_path(), b"generated.omg");
     assert_eq!(
@@ -1446,13 +1437,13 @@ fn application_source_resolution(project: &str, private_call: bool) {
     let child = child
         .complete(session.compiler(), product_target, inputs.clone())
         .unwrap();
-    assert_eq!(child.generated_source_bundle().target(), product_target);
+    assert_eq!(child.build_handoff().target(), product_target);
     let host_child = child.select_target(profile, inputs).unwrap();
     let root = builds.pop().unwrap();
     let inputs = root
         .package_inputs()
         .clone()
-        .with_complete_dependency_generated_sources(vec![child.generated_source_bundle().clone()])
+        .with_complete_dependency_build_handoffs(vec![child.build_handoff().clone()])
         .unwrap();
     let root = root
         .complete(session.compiler(), product_target, inputs)
@@ -1460,9 +1451,7 @@ fn application_source_resolution(project: &str, private_call: bool) {
     let host_inputs = root
         .package_inputs()
         .clone()
-        .with_complete_dependency_generated_sources(vec![
-            host_child.generated_source_bundle().clone(),
-        ])
+        .with_complete_dependency_build_handoffs(vec![host_child.build_handoff().clone()])
         .unwrap();
     let root = root.select_target(profile, host_inputs).unwrap();
     let result = execute_joined_product(session.compiler(), root, &temporary.path().join("output"));
@@ -1635,7 +1624,7 @@ fn executed_dependency_source_join(project: &str, private_call: bool) {
         let build = compiler
             .complete_package_build(invocation, Some(returned))
             .unwrap_or_else(|error| panic!("child completion: {:?}", error.into_diagnostics()));
-        generated.push(build.generated_source_bundle().clone());
+        generated.push(build.build_handoff().clone());
     }
     assert!(
         root_return.join_dependency_sources(&preview, &[]).is_err(),
@@ -1708,7 +1697,7 @@ fn executed_dependency_source_join(project: &str, private_call: bool) {
     let inputs = resolved
         .join_build(resolved.root(), &mut root_return)
         .unwrap()
-        .with_complete_dependency_generated_sources(generated)
+        .with_complete_dependency_build_handoffs(generated)
         .unwrap();
     let changed_graph = unbound_join_inputs(
         acquired.source_capture(),
@@ -1935,7 +1924,7 @@ fn completed_build_target_fanout() {
     let mut products = Vec::new();
     for profile in [windows, linux, unbound_target] {
         let selected = build.select_target(profile, inputs.clone()).unwrap();
-        assert_eq!(selected.generated_source_bundle().target(), profile);
+        assert_eq!(selected.build_handoff().target(), profile);
         products.push((
             (profile, false),
             compiler::PreparedPackageProduct {
@@ -2094,7 +2083,7 @@ fn settled_build_product_contexts() {
     let inputs = root
         .package_inputs()
         .clone()
-        .with_complete_dependency_generated_sources(vec![child.generated_source_bundle().clone()])
+        .with_complete_dependency_build_handoffs(vec![child.build_handoff().clone()])
         .unwrap();
     let mut settled = root
         .settle(session.compiler(), host, inputs.clone())

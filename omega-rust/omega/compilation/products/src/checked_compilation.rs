@@ -221,11 +221,11 @@ impl CheckedCompilation {
     /// Retain this package's own explicit generated-source handoffs as one
     /// compiler-issued bundle suitable for a later dependency compilation.
     /// The bundle is not admission and carries no filesystem authority.
-    pub fn package_generated_source_bundle(
+    pub fn package_build_handoff(
         &self,
-    ) -> Result<package_compilation::PackageGeneratedSourceBundle, String> {
+    ) -> Result<package_compilation::PackageBuildHandoff, String> {
         self.sources
-            .package_generated_source_bundle(
+            .package_build_handoff(
                 self.execution.settled.selected_target_profile,
                 self.execution.build.generated_sources.clone(),
             )

@@ -233,7 +233,7 @@ impl DeferredProductSources {
             imports.seed(root.clone(), source::DependencyScope::Product);
         }
         if let Some(inputs) = package_inputs {
-            for source in inputs.provider_selection_source_seeds()? {
+            for source in inputs.product_selection_source_seeds()? {
                 imports.seed(source, source::DependencyScope::Product);
             }
         }
@@ -435,7 +435,7 @@ impl ImmutableSourceParseCheckpoint {
             imports.mark_loaded(&source.path, source.dependency_scope);
         }
         let mut generated_source_custody = match package_inputs {
-            Some(package_inputs) => append_dependency_generated_sources_to_storage(
+            Some(package_inputs) => append_dependency_build_handoffs_to_storage(
                 &mut source_storage,
                 &mut imports,
                 package_inputs,
@@ -852,7 +852,7 @@ impl GeneratedSourceExtension {
     }
 }
 
-fn append_dependency_generated_sources_to_storage(
+fn append_dependency_build_handoffs_to_storage(
     source_storage: &mut SourceStorage,
     imports: &mut ImportQueue,
     package_inputs: &PackageCompilationInputs,
@@ -861,7 +861,7 @@ fn append_dependency_generated_sources_to_storage(
     catalogue: &mut source::SourceCatalogue,
 ) -> Result<Vec<(source::SourceId, build_output::PackageGeneratedSource)>, Vec<Diagnostic>> {
     let entries =
-        crate::source_imports::admit_dependency_generated_sources(package_inputs, source_scope)?;
+        crate::source_imports::admit_dependency_build_handoffs(package_inputs, source_scope)?;
 
     for entry in &entries {
         imports.mark_loaded(&entry.logical_path, entry.scope);

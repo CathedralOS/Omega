@@ -1,0 +1,5 @@
+use configuration;
+machine build(builder: &mut Build) {
+    Build::package(builder, "reading_provider");
+    configuration::choose(builder);
+}
