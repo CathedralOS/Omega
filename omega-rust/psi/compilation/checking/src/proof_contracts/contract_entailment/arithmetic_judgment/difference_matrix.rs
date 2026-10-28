@@ -152,19 +152,60 @@ impl<'program> Engine<'program> {
         Some(through_zero.add(self.matrix.stored_bound_indices(zero, to)?))
     }
 
-    /// Seed a batch before closing its real dependency components. Independent
-    /// intervals communicate through zero at query time; eagerly extending an
-    /// edge with every virtual through-zero predecessor/successor materializes
-    /// their Cartesian product and turns independent captures into one dense
-    /// graph. Normal-return observation can add hundreds of such captures.
-    ///
-    /// The component closure retains every justified bound, including both
-    /// directions through zero. It also owns the historical lexical order and
-    /// positive-cycle handling for inconsistent premises. Updating its actual
-    /// seeds as one batch keeps those semantics without speculative dense rows.
+    /// Keep consistent dependency components sparse. A contradictory update
+    /// follows the historical closure route: its lexical amplification can
+    /// affect which independent operation premises become admitted before the
+    /// prefix is rejected. Materialize virtual zero paths only on that route,
+    /// rather than connecting every independent runtime capture eagerly.
     pub(super) fn refresh_difference_bounds(&mut self) {
-        if self.seed_matrix() || self.requires_unsatisfiable {
+        if self.requires_unsatisfiable {
+            self.materialize_zero_paths();
+            self.seed_matrix();
             self.close_matrix();
+            return;
+        }
+        let original = self.matrix.clone();
+        if self.seed_matrix() {
+            self.close_matrix();
+            if self.requires_unsatisfiable {
+                self.matrix = original;
+                self.requires_unsatisfiable = false;
+                self.materialize_zero_paths();
+                self.seed_matrix();
+                self.close_matrix();
+            }
+        }
+    }
+
+    fn materialize_zero_paths(&mut self) {
+        let Some(zero) = self.matrix.position(ZERO_ATOM) else {
+            return;
+        };
+        let atoms = self.matrix.lexical_indices().to_vec();
+        let incoming: Vec<_> = atoms
+            .iter()
+            .filter_map(|from| {
+                self.matrix
+                    .stored_bound_indices(*from, zero)
+                    .cloned()
+                    .map(|bound| (*from, bound))
+            })
+            .collect();
+        let outgoing: Vec<_> = atoms
+            .iter()
+            .filter_map(|to| {
+                self.matrix
+                    .stored_bound_indices(zero, *to)
+                    .cloned()
+                    .map(|bound| (*to, bound))
+            })
+            .collect();
+        for (from, prefix) in incoming {
+            for (to, suffix) in &outgoing {
+                if from != *to {
+                    self.matrix.record_indices(from, *to, prefix.add(suffix));
+                }
+            }
         }
     }
 
