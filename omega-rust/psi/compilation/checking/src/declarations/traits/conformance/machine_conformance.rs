@@ -681,8 +681,8 @@ fn validate_machine_operator_conformance(
 
 /// Conform THIS machine to ONE trait requirement (the machine-by-machine
 /// carrier model): the machine's ENTRY signature must match the requirement's
-/// (with `Self` binding to the carrier type on first use). LAW requirements
-/// (an `ensures` on the requirement) additionally demand a proven-ensures |=
+/// in its retained ordinary trait application. LAW requirements (an `ensures`
+/// on the requirement) additionally demand a proven-ensures |=
 /// declared-law match (rung B: contract_entailment::check_law_conformance).
 fn validate_machine_single_requirement(
     program: &dyn crate::CheckingInput,
@@ -723,35 +723,23 @@ fn validate_machine_single_requirement(
         )));
         return;
     }
-    let matching_requirements = if named_requirements.len() == 1 {
-        named_requirements
-    } else {
-        named_requirements
-            .into_iter()
-            .filter(|requirement| {
-                program.normalized_result_dispatch_set(requirement.return_type)
-                    == implementation_dispatch
-            })
-            .collect::<Vec<_>>()
-    };
-    let [requirement] = matching_requirements.as_slice() else {
-        let dispatch = if implementation_dispatch.is_empty() {
-            "<empty>".to_owned()
-        } else {
-            implementation_dispatch.identity()
-        };
+    // Source preparation settled the exact overload from its complete
+    // parameter/dispatch slot. Checking consumes that nominal edge and checks
+    // the entire applied signature below; a second result-only selector loses
+    // distinctions such as f32 versus f64 parameter carriers.
+    let Some(requirement) = named_requirements
+        .into_iter()
+        .find(|requirement| requirement.symbol == settled_requirement_symbol)
+    else {
         diagnostics.push(Diagnostic::error(format!(
-            "machine `{}` satisfies `{}::{}`, but its entry result dispatch set `{dispatch}` selects {} matching requirement overload(s); exactly one is required",
-            machine.name,
-            trait_definition.name,
-            requirement_name,
-            matching_requirements.len(),
+            "machine `{}` satisfies `{}::{}` but its retained exact requirement is not one of that declaration's overloads",
+            machine.name, trait_definition.name, requirement_name,
         )));
         return;
     };
-    if requirement.symbol != settled_requirement_symbol {
+    if program.normalized_result_dispatch_set(requirement.return_type) != implementation_dispatch {
         diagnostics.push(Diagnostic::error(format!(
-            "machine `{}` satisfies `{}::{}` but its retained exact requirement does not match overload resolution",
+            "machine `{}` satisfies `{}::{}` but its entry result dispatch set does not match the retained exact requirement",
             machine.name, trait_definition.name, requirement_name,
         )));
         return;
