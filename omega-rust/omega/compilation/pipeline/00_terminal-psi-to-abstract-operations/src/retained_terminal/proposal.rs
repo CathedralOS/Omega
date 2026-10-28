@@ -295,12 +295,6 @@ fn bind_direct_boundary_leaves(
 ) -> Result<Vec<backend_plan::DirectBoundaryLeaf>, Vec<Diagnostic>> {
     let mut bound = Vec::new();
     for candidate in candidates {
-        if std::env::var_os("OMEGA_TRACE_PROVIDER_FORM").is_some() {
-            eprintln!(
-                "direct-numeric-candidate decl={} callable={} execution={:?}",
-                candidate.declaration_identity, candidate.callable_identity, candidate.execution
-            );
-        }
         let mut declarations = module.boundary_machines.iter().filter(|boundary| {
             boundary.declaration.as_ref().is_some_and(|declaration| {
                 module
