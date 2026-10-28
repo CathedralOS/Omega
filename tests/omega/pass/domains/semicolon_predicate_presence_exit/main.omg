@@ -1,0 +1,22 @@
+// Expected exit: 0
+domain u64::Tagged;
+domain u64::Positive requires self > 0;
+
+machine forward(value: u64 in Tagged) -> u64 in Tagged {
+    value
+}
+
+machine main() crashes Trap {
+    let tagged: u64 in Tagged = 7u64 as u64 in Tagged;
+    let positive: u64 in Positive = 7u64;
+    let copied: u64 in Tagged = forward(tagged);
+
+    transition (copied as u64) == 7u64 && (positive as u64) == 7u64 {
+        true -> {}
+        _ -> failed()
+    }
+
+    machine failed() crashes Trap {
+        crash Trap;
+    }
+}

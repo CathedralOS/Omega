@@ -341,7 +341,7 @@ fn atom_requires_carried_evidence(program: &dyn crate::CheckingInput, atom: &Dom
         return false;
     };
     program.domain_definition(*symbol).is_some_and(|domain| {
-        !domain.predicate_body.is_present() && domain.establishment_routes.is_empty()
+        !domain.predicate_presence.is_present() && domain.establishment_routes.is_empty()
     })
 }
 

@@ -141,7 +141,7 @@ pub(crate) fn lower_domain_definition(
             .transpose()?,
         authored_routes,
         classification: domain.classification,
-        predicate_body: domain.predicate_body,
+        predicate_presence: domain.predicate_presence,
         facts,
         operators,
         semantic_clause_token_count: domain.semantic_clause_token_count,

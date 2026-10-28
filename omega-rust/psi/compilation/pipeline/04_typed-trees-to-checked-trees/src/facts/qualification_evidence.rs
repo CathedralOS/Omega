@@ -56,7 +56,7 @@ pub(crate) fn call_contract_evidence(
             let origin =
                 if machine_domain_establishment_route(program, machine, domain_symbol).is_some() {
                     QualificationEvidenceOrigin::AuthorizedRouteEstablishment
-                } else if domain.predicate_body.is_present() {
+                } else if domain.predicate_presence.is_present() {
                     QualificationEvidenceOrigin::Prover
                 } else {
                     QualificationEvidenceOrigin::CheckedTransformation
@@ -187,7 +187,7 @@ pub(crate) fn operator_contract_evidence(
     let Some(domain) = domain_definition(program, domain_symbol) else {
         return QualificationEvidence::default();
     };
-    if domain.predicate_body.is_present() {
+    if domain.predicate_presence.is_present() {
         return QualificationEvidence::from_origin(
             QualificationEvidenceOrigin::Prover,
             operator_symbol,

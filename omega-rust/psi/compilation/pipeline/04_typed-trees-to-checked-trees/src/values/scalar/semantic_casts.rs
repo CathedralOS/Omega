@@ -81,7 +81,7 @@ pub(crate) fn has_only_vacuous_tags(
                         TypeConstraintNode::Domain(domain) => {
                             domain.subject == DomainConstraintSubject::Declared
                                 && domain.semantic_id.is_valid()
-                                && !domain.predicate_body.is_present()
+                                && !domain.predicate_presence.is_present()
                                 && domain.establishment_routes.is_empty()
                                 && crate::facts::domain_is_vacuous(
                                     program,

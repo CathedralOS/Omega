@@ -71,7 +71,7 @@ impl Execution<'_, '_, '_> {
             .filter_map(|fact| {
                 let (_, _, symbol, identity) = fact.payload.domain_membership()?;
                 let domain = self.program.domain_definition(symbol)?;
-                if !domain.predicate_body.is_present()
+                if !domain.predicate_presence.is_present()
                     || domain.alias.is_some()
                     || validation::field_domains::domain_requires_provenance(self.program, symbol)
                 {

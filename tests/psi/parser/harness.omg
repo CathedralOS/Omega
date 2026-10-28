@@ -283,7 +283,6 @@ machine ParserHarness::write_parse_observation(
             ParseDiagnosticCode::ExpectedEstablishedBy -> parse_diagnostic(parser_harness, output, 136)
             ParseDiagnosticCode::ExpectedDomainRoute -> parse_diagnostic(parser_harness, output, 137)
             ParseDiagnosticCode::ExpectedDomainEnd -> parse_diagnostic(parser_harness, output, 138)
-            ParseDiagnosticCode::ExpectedDomainBodyEnd -> parse_diagnostic(parser_harness, output, 139)
             ParseDiagnosticCode::DomainCapacityExceeded -> parse_diagnostic(parser_harness, output, 140)
             ParseDiagnosticCode::NamePathCapacityExceeded -> parse_diagnostic(parser_harness, output, 141)
             ParseDiagnosticCode::ExpectedConstantName -> parse_diagnostic(parser_harness, output, 142)

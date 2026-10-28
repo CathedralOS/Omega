@@ -209,7 +209,7 @@ record_fields!(effects::provider_plan::ServiceEntryClaim {
     parameter_index,
     carrier_identity,
     domain,
-    predicate_body,
+    predicate_presence,
     effective_carry,
     authority_flow
 });
