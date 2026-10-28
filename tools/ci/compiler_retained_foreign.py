@@ -167,7 +167,7 @@ def uncovered_qualification(output, target, cli, fact):
     (output / "uncovered-qualification.stdout.txt").write_text(result.stdout, encoding="utf-8")
     (output / "uncovered-qualification.stderr.txt").write_text(result.stderr, encoding="utf-8")
     refused = (result.returncode == 201 and "native exit 0" in result.stderr.splitlines()
-               and "mutable host storage has an uncovered original qualification or owner"
+               and "mutable host storage lacks exact normal qualification preservation"
                in result.stderr)
     (output / "uncovered-qualification.json").write_text(json.dumps(dict(
         argv=arguments, exit=result.returncode, target=target, source_sha256=sources,

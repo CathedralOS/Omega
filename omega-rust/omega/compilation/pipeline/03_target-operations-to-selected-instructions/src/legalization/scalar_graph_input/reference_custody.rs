@@ -1406,6 +1406,14 @@ fn lifetime_storage_access_conflicts(
     path: &[StructuralPathSegment],
     requested: StructuralAccess,
 ) -> bool {
+    // A captured arrival may use this exact occurrence through an admitted
+    // spatial reborrow. Its opaque pointee geometry is not an access to the
+    // provider's separate validity anchor. Authenticate every alternative's
+    // grant and access ceiling; equal roots or lifetime links grant nothing.
+    // The debt remains live for unrelated uses and anchor disposal.
+    if borrowed_arrivals::lends_from(custody, place, &reference.identity, requested) {
+        return false;
+    }
     // A shared output can retain an exclusive validity anchor. Its own access
     // therefore cannot exempt that anchor from interference checks.
     custody
