@@ -1,6 +1,5 @@
 use crate::interpreter::evaluator::{
-    BTreeMap, Cell, DataMember, EvalResult, Evaluator, ExpressionHandle, Frame, SymbolHandle,
-    Value, trap,
+    BTreeMap, Cell, DataMember, EvalResult, Evaluator, ExpressionHandle, Frame, Value, trap,
 };
 
 impl<'program> Evaluator<'program> {
@@ -20,44 +19,43 @@ impl<'program> Evaluator<'program> {
     /// the tag and the named payload fields fill the case's declared payload.
     pub(super) fn eval_struct_literal(
         &mut self,
+        expression: ExpressionHandle,
         literal: &typed_trees::expression::TableStructLiteral,
         frame: &mut Frame,
     ) -> EvalResult<Value> {
         if let Some(case_name) = &literal.case_name {
-            return self.eval_case_literal(literal, case_name.as_str(), frame);
+            return self.eval_case_literal(expression, literal, case_name.as_str(), frame);
         }
-        let type_name = literal.type_name.as_str().to_owned();
-        // The resolved literal already selected its exact nominal owner. A
-        // module-qualified constructor spelling is not the declaration's
-        // canonical name, so the name scan cannot find it; prefer the
-        // resolved symbol, exactly as `eval_case_literal` does. The value
-        // carries the declaration's name, not the authored spelling.
-        let data = self
-            .program
-            .data_definitions()
-            .iter()
-            .find(|data| data.symbol == literal.type_symbol && literal.type_symbol.is_valid())
-            .or_else(|| self.find_data_by_name(&type_name));
-        let (type_symbol, type_name, mut fields) = if let Some(data) = data {
-            let mut fields = BTreeMap::new();
-            self.populate_data_fields(data, &mut fields)?;
-            (data.symbol, data.name.as_str().to_owned(), fields)
-        } else {
-            (SymbolHandle::invalid(), type_name, BTreeMap::new())
+        // The constructor occurrence retains its applied field telescope.
+        // A nominal template's open members cannot supply this value's storage.
+        let Some(data) =
+            validation::selected_construction_definition(self.program, expression, literal)
+        else {
+            return trap("record construction has no exact receiving data shape");
         };
+        let type_symbol = data.symbol;
+        let type_name = data.name.as_str().to_owned();
+        let mut fields = BTreeMap::new();
+        self.populate_data_fields(data, &mut fields)?;
         for field in self.program.expression_table.struct_fields(literal.fields) {
-            let field_type = self.field_type_reference(type_symbol, field.name.as_str());
-            let value =
-                self.eval_expression_at_type(field.value, field_type.unwrap_or_default(), frame)?;
+            let Some(field_type) = validation::selected_construction_field_type(
+                self.program,
+                expression,
+                literal,
+                field.field_symbol,
+            ) else {
+                return trap(format!(
+                    "record field `{}` has no checked receiving type",
+                    field.name
+                ));
+            };
+            let value = self.eval_expression_at_type(field.value, field_type, frame)?;
             // Coerce the field value to the field's declared width/domain, matching
             // the native store into the field slot (`Point { x: a+b }` with `a+b`
             // = 300 into a u8 field reads 44). The field type carries its own
             // domain, so resolve it directly.
-            let value = match field_type {
-                Some(type_reference) => self.coerce_scalar_value(value, type_reference)?,
-                None => value,
-            };
-            let value = self.capture_value_operand(value, field_type.unwrap_or_default())?;
+            let value = self.coerce_scalar_value(value, field_type)?;
+            let value = self.capture_value_operand(value, field_type)?;
             fields.insert(field.name.as_str().into(), self.allocate_cell(value)?);
         }
         Ok(Value::Struct {
@@ -73,18 +71,18 @@ impl<'program> Evaluator<'program> {
     /// traps.
     pub(super) fn eval_case_literal(
         &mut self,
+        expression: ExpressionHandle,
         literal: &typed_trees::expression::TableStructLiteral,
         case_name: &str,
         frame: &mut Frame,
     ) -> EvalResult<Value> {
         let type_name = literal.type_name.as_str();
-        let Some(data) = self
-            .program
-            .data_definitions()
-            .iter()
-            .find(|data| data.symbol == literal.type_symbol && literal.type_symbol.is_valid())
+        let Some(data) =
+            validation::selected_construction_definition(self.program, expression, literal)
         else {
-            return trap(format!("unknown data type `{type_name}` in case literal"));
+            return trap(format!(
+                "case `{type_name}::{case_name}` has no exact receiving data shape"
+            ));
         };
         let Some(variant) =
             self.program
@@ -119,18 +117,19 @@ impl<'program> Evaluator<'program> {
             payload.push((name, self.allocate_cell(value)?));
         }
         for field in self.program.expression_table.struct_fields(literal.fields) {
-            // Use this case's payload declaration, not a same-named field of
-            // another variant. Common fields keep their enclosing record type.
-            let field_type = self
-                .program
-                .data_payload_fields(variant)
-                .iter()
-                .find(|declared| declared.name == field.name)
-                .map(|declared| declared.type_reference)
-                .or_else(|| self.field_type_reference(data.symbol, field.name.as_str()));
-            let value =
-                self.eval_expression_at_type(field.value, field_type.unwrap_or_default(), frame)?;
-            let value = self.capture_value_operand(value, field_type.unwrap_or_default())?;
+            let Some(field_type) = validation::selected_construction_field_type(
+                self.program,
+                expression,
+                literal,
+                field.field_symbol,
+            ) else {
+                return trap(format!(
+                    "case field `{}` has no checked receiving type",
+                    field.name
+                ));
+            };
+            let value = self.eval_expression_at_type(field.value, field_type, frame)?;
+            let value = self.capture_value_operand(value, field_type)?;
             let Some(slot) = payload
                 .iter_mut()
                 .find(|(name, _)| **name == *field.name.as_str())

@@ -2071,6 +2071,8 @@ fail/build/provider_selection_missing_target rejected 25ms expected @13c576a20f0
 	select_provider requires two bare declaration operands and its explicit mutable Build and catalog target arguments (plus an optional composition mode)
 fail/build/representation_selection_fabricated_activation rejected 8ms expected @7530b1177ef5
 	the compiler-owned Build activation cannot be copied into local `counterfeit`
+fail/build/retained_const_argument_out_of_carrier rejected 332ms expected @248be7918b27
+	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "integer node `u8(257)` does not fit exact carrier `u8`", exceeded_provision: None, source_span: None, resolved_location: None })
 fail/build/retained_domain_and_service_rows_invalid_index rejected 68ms expected @a92f16431042
 	cannot prove scalar result domain for return from @const-qualification-INDEX-0 at statement 0: Below
 fail/build/retired_assumed_binding_receiver rejected 5ms expected @a92f16431042
@@ -17698,6 +17700,7 @@ fail/facts/nested_machine_statement_completion_target_body_rejected rejected 125
 fail/facts/nested_machine_statement_completion_wrong_tag_rejected rejected 3078ms expected @b0d06a168a00+wt
 	cannot prove requires contract for call probe from main: choice == constructor:80:package:0ababaff7be122379295755579dfe2fa5efa40c446ce2a4d4011f916f57fb1af::Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 pass/arithmetic/sparse_captured_utf_path_exit checked 59503ms check-target:macos_arm64 @b0d06a168a00+wt
+pass/build/runtime_retained_const_application_exit checked 1831ms check-target:macos_arm64 @248be7918b27
 pass/facts/nested_machine_statement_completion_call_result_exit checked 15104ms check-target:macos_arm64 @b0d06a168a00+wt
 pass/facts/nested_machine_statement_completion_const_name_exit checked 15196ms check-target:macos_arm64 @b0d06a168a00+wt
 pass/facts/nested_machine_statement_completion_field_exit checked 20163ms check-target:macos_arm64 @b0d06a168a00+wt
