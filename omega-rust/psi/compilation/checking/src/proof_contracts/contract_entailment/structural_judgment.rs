@@ -353,6 +353,17 @@ struct CompletedNominalCapture {
     value: StructuralTerm,
 }
 
+impl CompletedNominalCapture {
+    fn same_admission(&self, other: &Self) -> bool {
+        self.anchor == other.anchor
+            && self.reference == other.reference
+            && self
+                .value
+                .observation_identity_key()
+                .is_some_and(|key| other.value.observation_identity_key().as_ref() == Some(&key))
+    }
+}
+
 pub(super) struct StructuralJudge<'program> {
     program: &'program dyn crate::CheckingInput,
     entry_machines: std::sync::Arc<EntryMachines>,
@@ -492,7 +503,16 @@ impl<'program> StructuralJudge<'program> {
             && self.captured_result_equations.len() == base.captured_result_equations.len()
             && self.returned_field_owners.len() == base.returned_field_owners.len()
             && self.normal_memberships.len() == base.normal_memberships.len()
-            && self.completed_nominal_captures.len() == base.completed_nominal_captures.len()
+            && (Arc::ptr_eq(
+                &self.completed_nominal_captures,
+                &base.completed_nominal_captures,
+            ) || (self.completed_nominal_captures.len()
+                == base.completed_nominal_captures.len()
+                && self
+                    .completed_nominal_captures
+                    .iter()
+                    .zip(base.completed_nominal_captures.iter())
+                    .all(|(current, original)| current.same_admission(original))))
             && self.normal_content_guarantees.len() == base.normal_content_guarantees.len()
             && self.case_facts.len() == base.case_facts.len()
     }
