@@ -100,6 +100,7 @@ pub(crate) fn lower_declarations(
         let element_views =
             crate::expression_preparation::bindings::element_views(&view_roster, structural_types);
         let views = crate::scalar_lowering::contracts::ContractViewNamespace {
+            constant_values: &checked.typed.constant_recipe_closure.values,
             parameters: &view_roster,
             result: crate::scalar_lowering::contracts::ContractStructuralResult::Absent,
             structural_types,

@@ -426,7 +426,8 @@ fn scalar_expression_needs_no_bindings(
         CheckedScalarExpression::Boolean(expression) => {
             boolean_expression_needs_no_bindings(expression)
         }
-        CheckedScalarExpression::StructuralSequenceLength { .. }
+        CheckedScalarExpression::ConstantApplication { .. }
+        | CheckedScalarExpression::StructuralSequenceLength { .. }
         | CheckedScalarExpression::StorageRead { .. }
         | CheckedScalarExpression::ErasedParameter { .. }
         | CheckedScalarExpression::StructuralParameterField { .. }

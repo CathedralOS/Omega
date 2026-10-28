@@ -1544,7 +1544,8 @@ impl ScalarBindings {
             | CheckedScalarExpression::RepresentationView { operand, .. }
             | CheckedScalarExpression::IntegerExactCast { operand, .. } => self.scalar(operand)?,
             CheckedScalarExpression::Boolean(expression) => self.boolean(expression)?,
-            CheckedScalarExpression::IntegerLiteral { .. }
+            CheckedScalarExpression::ConstantApplication { .. }
+            | CheckedScalarExpression::IntegerLiteral { .. }
             | CheckedScalarExpression::IeeeFloatLiteral { .. }
             | CheckedScalarExpression::ImplementationSelection { .. }
             | CheckedScalarExpression::ErasedParameter { .. }

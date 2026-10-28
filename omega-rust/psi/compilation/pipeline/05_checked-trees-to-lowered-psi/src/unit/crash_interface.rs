@@ -174,7 +174,8 @@ fn contract_scoped_scalar(expression: &CheckedScalarExpression) -> bool {
                 })
                 && contract_scoped_scalar(operand)
         }
-        CheckedScalarExpression::Parameter { .. }
+        CheckedScalarExpression::ConstantApplication { .. }
+        | CheckedScalarExpression::Parameter { .. }
         | CheckedScalarExpression::ErasedParameter { .. }
         | CheckedScalarExpression::StructuralParameterField { .. }
         | CheckedScalarExpression::IntegerLiteral { .. }

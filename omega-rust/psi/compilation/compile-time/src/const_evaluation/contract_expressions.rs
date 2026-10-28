@@ -54,7 +54,12 @@ pub(super) fn roots(
         let has_recipe = program
             .constant_recipe_for_contract_expression(expression)
             .is_valid();
-        let invocations = subtree(program, expression)
+        let children = subtree(program, expression);
+        let has_observation = children.iter().any(|child| {
+            matches!(program.expression_table.expression(*child),
+                ExpressionNode::Call(call) if call.layout_query.is_some())
+        });
+        let invocations = children
             .into_iter()
             .filter_map(|call_expression| {
                 let (machine, static_application) =
@@ -68,7 +73,7 @@ pub(super) fn roots(
                 })
             })
             .collect::<Vec<_>>();
-        if !has_recipe && invocations.is_empty() {
+        if !has_recipe && !has_observation && invocations.is_empty() {
             continue;
         }
         let integer =
@@ -76,7 +81,7 @@ pub(super) fn roots(
                 .and_then(|reference| program.primitive_type_reference(reference))
                 .is_some_and(|primitive| primitive.is_integer());
         if integer {
-            candidates.push((expression, has_recipe, invocations));
+            candidates.push((expression, has_recipe || has_observation, invocations));
         }
     }
     if candidates.is_empty() {

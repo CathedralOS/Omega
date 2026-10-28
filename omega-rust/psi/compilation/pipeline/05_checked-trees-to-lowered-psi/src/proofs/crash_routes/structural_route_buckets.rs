@@ -541,7 +541,8 @@ fn uses_structural_storage(expression: &CheckedScalarExpression) -> bool {
             | CheckedScalarExpression::IntegerWiden { operand, .. }
             | CheckedScalarExpression::IntegerExactCast { operand, .. }
             | CheckedScalarExpression::RepresentationView { operand, .. } => pending.push(operand),
-            CheckedScalarExpression::StorageRead { .. }
+            CheckedScalarExpression::ConstantApplication { .. }
+            | CheckedScalarExpression::StorageRead { .. }
             | CheckedScalarExpression::Parameter { .. }
             | CheckedScalarExpression::ErasedParameter { .. }
             | CheckedScalarExpression::Local { .. }

@@ -1072,7 +1072,8 @@ pub(crate) fn map_scalar(
         | Scalar::IntegerWiden { operand, .. }
         | Scalar::IntegerExactCast { operand, .. }
         | Scalar::RepresentationView { operand, .. } => map_scalar(operand, map)?,
-        Scalar::IntegerLiteral { .. }
+        Scalar::ConstantApplication { .. }
+        | Scalar::IntegerLiteral { .. }
         | Scalar::IeeeFloatLiteral { .. }
         | Scalar::ImplementationSelection { .. } => {}
         Scalar::StructuralSequenceLength { .. } | Scalar::ErasedParameter { .. } => return None,

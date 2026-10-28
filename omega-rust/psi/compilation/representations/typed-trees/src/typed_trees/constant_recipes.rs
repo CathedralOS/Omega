@@ -51,8 +51,9 @@ pub struct RetainedConstantRecipe {
     pub position: RetainedConstantPosition,
     /// Exact nested value calls whose admission the contract root owns.
     pub invocations: arena::HandleSpan<ExpressionHandle>,
-    /// The zero-argument machine the position applies, resolved in the
-    /// authored scope; diagnostics and receipts name it.
+    /// The first authored callable dependency, when present. A primitive
+    /// observation has no authored callee and keeps the invalid handle.
+    /// This is a reachability/debug anchor, not the complete root's entry.
     pub machine: SymbolHandle,
     pub name: Identifier,
     pub source_span: source::SourceSpan,
