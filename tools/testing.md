@@ -624,6 +624,12 @@ On the pinned nightly, content freshness needs both
 and `CARGO_BUILD_FINGERPRINT=content`; enabling the unstable feature alone keeps
 timestamp freshness. See [Cargo's checksum freshness contract](https://doc.rust-lang.org/nightly/cargo/reference/unstable.html#checksum-freshness).
 
+Profile admission also requires a regular executable image (ELF, Mach-O or PE)
+with host execution permission. A matching Cargo profile receipt alone does
+not admit a damaged linker or strip output: `rust-objcopy` can report a disk
+write failure as a warning while Cargo exits successfully. Preserve that failed
+build's records and rebuild its executable after recovering disk headroom.
+
 **A directly invoked `target/debug/omega` can predate the commit you are
 judging, and it reports failures the tree does not have.** The same hazard as a
 stale `--runner` applies to hand-run CLI baselines, and it is easier to hit

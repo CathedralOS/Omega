@@ -7,12 +7,10 @@ regresses at a known commit, and a later commit breaks the runner outright.
 The gate's --bisect mapping must name the regression — never the
 infrastructure failure, which maps to skip.
 
-The scripted runner is a supplied producer like any other, so it answers the
-gate's profile preflight through the same protocol the real corpus_runner
-implements: its bytes carry the schema and `--build-profile` reports the
-profile embedded when the file was written. The gate is never told to skip
-the check for it, and a runner that declines the protocol is still refused
-(test_gate_refuses_a_runner_that_declines_the_profile_protocol).
+The positive test isolates producer admission in a test-only gate wrapper: it
+measures real --runner execution, corpus records and git bisect classification.
+Executable-image/profile admission has its own compiler_profile tests. The
+refusal test invokes the unmodified gate and never gives a script a bypass.
 
     python3 tools/tests/test_corpus_bisect.py -v
 """
@@ -81,6 +79,13 @@ class BisectRun(unittest.TestCase):
         runner = self.repository / "runner.py"
         runner.write_text(RUNNER, encoding="utf-8")
         runner.chmod(0o755)
+        self.gate = self.repository.parent / "bisect_gate.py"
+        self.gate.write_text(
+            "import sys\nfrom unittest.mock import patch\n"
+            + "sys.path.insert(0, " + repr(str(GATE.parent)) + ")\n"
+            + "import corpus_gate\n"
+            + "with patch.object(corpus_gate, 'require_optimized', return_value=None):\n"
+            + "    sys.exit(corpus_gate.main())\n", encoding="utf-8")
         self.commits = []
         # c0/c1 good; c2 regresses `subject` (bad); c3 breaks the runner
         # (skip); c4/c5 fix the runner but keep the regression. A skipped
@@ -116,7 +121,7 @@ class BisectRun(unittest.TestCase):
         self.git(self.repository, "bisect", "reset")
         self.git(self.repository, "checkout", "--detach", commit)
         result = subprocess.run(
-            [sys.executable, str(GATE), "--runner",
+            [sys.executable, str(self.gate), "--runner",
              str(self.repository / "runner.py"), "--golden",
              str(self.golden), "--bisect"],
             capture_output=True, text=True, encoding="utf-8",
@@ -144,7 +149,7 @@ class BisectRun(unittest.TestCase):
         # build entirely, so the test never touches cargo/mbx.
         result = subprocess.run(
             ["git", "-C", str(self.repository), "bisect", "run",
-             sys.executable, str(GATE), "--runner",
+             sys.executable, str(self.gate), "--runner",
              str(self.repository / "runner.py"), "--golden",
              str(self.golden), "--bisect"],
             capture_output=True, text=True, encoding="utf-8",
@@ -165,8 +170,8 @@ class BisectRun(unittest.TestCase):
         self.assertEqual(self.gate_at(self.commits[2])[0], 1)
         self.assertEqual(self.gate_at(self.commits[3])[0], 125)
 
-    def test_gate_refuses_a_runner_that_declines_the_profile_protocol(self):
-        """The fixture's own profile record must not have opened a bypass."""
+    def test_gate_refuses_a_script_before_the_profile_protocol(self):
+        """The isolated positive adapter never changes production admission."""
         unprofiled = self.repository / "unprofiled.py"
         unprofiled.write_text(UNPROFILED_RUNNER, encoding="utf-8")
         unprofiled.chmod(0o755)
@@ -178,7 +183,7 @@ class BisectRun(unittest.TestCase):
         output = result.stdout + result.stderr
         self.assertEqual(result.returncode, 125, output)
         self.assertIn("optimized compiler required before validation", output)
-        self.assertIn("unknown compiler build profile", output)
+        self.assertIn("not a recognized ELF, Mach-O or PE executable image", output)
 
     def tearDown(self):
         subprocess.run(["git", "-C", str(self.repository), "bisect", "reset"],
