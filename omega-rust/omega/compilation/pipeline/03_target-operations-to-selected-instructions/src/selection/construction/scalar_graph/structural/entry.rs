@@ -8,6 +8,29 @@ use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
 use crate::selection::construction::scalar_graph::structural::transport_register;
 
+macro_rules! entry_fixed_register {
+    ($builder:expr, $environment:expr, $place:expr, $parameter_index:expr, $register:expr) => {{
+        let fixed = $environment
+            .fixed_register_view($register)
+            .ok_or_else(|| invalid())?;
+        let input = VirtualRegisterId($builder.registers.len().try_into().map_err(|_| invalid())?);
+        $builder.registers.push(VirtualRegister {
+            id: input,
+            scalar_type: ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?,
+            ),
+            class: $builder.class,
+            origin: VirtualRegisterOrigin::StructuralParameter {
+                place: $place,
+                parameter_index: $parameter_index,
+            },
+            definition_site: None,
+            entry_fixed_view: Some(fixed),
+        });
+        input
+    }};
+}
+
 pub(in crate::selection) fn entry(
     function: usize,
     source: &LegalizedScalarFunction,
@@ -103,24 +126,8 @@ pub(in crate::selection) fn entry(
                 else {
                     return Err(invalid());
                 };
-                let fixed = environment
-                    .fixed_register_view(*register)
-                    .ok_or_else(|| invalid())?;
                 let input =
-                    VirtualRegisterId(builder.registers.len().try_into().map_err(|_| invalid())?);
-                builder.registers.push(VirtualRegister {
-                    id: input,
-                    scalar_type: ScalarType::Integer(
-                        IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?,
-                    ),
-                    class: builder.class,
-                    origin: VirtualRegisterOrigin::StructuralParameter {
-                        place,
-                        parameter_index,
-                    },
-                    definition_site: None,
-                    entry_fixed_view: Some(fixed),
-                });
+                    entry_fixed_register!(builder, environment, place, parameter_index, *register);
                 let offset = *value_byte_offset;
                 let output = transport_register(builder, place, offset)?;
                 builder.emit_copy_i64(input, output, SelectedInstructionProvenance::default())?;
@@ -199,23 +206,7 @@ pub(in crate::selection) fn entry(
             }
             _ => return Err(invalid()),
         };
-        let fixed = environment
-            .fixed_register_view(*pointer)
-            .ok_or_else(|| invalid())?;
-        let input = VirtualRegisterId(builder.registers.len().try_into().map_err(|_| invalid())?);
-        builder.registers.push(VirtualRegister {
-            id: input,
-            scalar_type: ScalarType::Integer(
-                IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?,
-            ),
-            class: builder.class,
-            origin: VirtualRegisterOrigin::StructuralParameter {
-                place,
-                parameter_index,
-            },
-            definition_site: None,
-            entry_fixed_view: Some(fixed),
-        });
+        let input = entry_fixed_register!(builder, environment, place, parameter_index, *pointer);
         let output = transport_register(builder, place, 0)?;
         builder.emit_copy_i64(input, output, SelectedInstructionProvenance::default())?;
         builder.transport.pointers.push((place, output));
