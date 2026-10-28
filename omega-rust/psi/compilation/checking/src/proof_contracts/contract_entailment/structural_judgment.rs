@@ -1251,6 +1251,13 @@ impl<'program> StructuralJudge<'program> {
             self.intake_equation(operand, truth, depth + 1);
             return;
         }
+        if let Some((left, right)) = self
+            .identity_equality_operands(&left, &right)
+            .or_else(|| self.identity_equality_operands(&right, &left))
+        {
+            self.intake_equation(left, right, depth + 1);
+            return;
+        }
         match (&left, &right) {
             (
                 StructuralTerm::Constructor {
