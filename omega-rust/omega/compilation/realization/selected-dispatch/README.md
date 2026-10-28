@@ -1,14 +1,16 @@
 # Selected execution realization
 
-[provider_binding.rs](src/provider_binding.rs) borrows the shared checked program
-and binds callback placements and provider grants. Source checking has already
+[provider_binding.rs](src/provider_binding.rs) prepares one complete selected
+execution from the shared checked program and Build inputs: provider grants,
+callback placements, declaration catalogs, selected review, accepted host roles
+and complete direct-call leaves. Source checking has already
 admitted representation properties and captured source review records. Psi
 derives and checks every authored generic operator candidate and finite boundary
 family without provider selection.
 
-[execution_settlement.rs](src/execution_settlement.rs) is the post-checking
-entrance. It rejoins accepted host bindings and produces complete direct-call
-leaves from the original provider rows. Provider planning retains those source
+[selected_execution.rs](src/selected_execution.rs) is the retained result, not
+a second execution phase. Terminal production borrows that completed result;
+there is no post-Terminal source installation step. Provider planning retains source
 owners once and prepares foreign ABI results at their original row coordinates;
 selected execution does not mutate incomplete leaves or reconstruct truncated
 source plans. The same inputs retain intrinsic declaration facts from
@@ -36,7 +38,7 @@ bindings; ordinary compilation neither builds nor retains this oracle-only table
 It never rewrites checked arenas. Terminal/native installation consumes the
 portable requirements and its own selected provider inputs.
 
-Neither entrance imports a Psi transform. The source coordinator constructs
+The preparation entrance imports no Psi transform. The source coordinator constructs
 preparation/checking requests and supplies its operator selections. Boundary
 dispatch borrows the canonical program and selects Product declaration and
 expression handles; it does not clone and prune a second typed program. Exact

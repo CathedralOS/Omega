@@ -235,7 +235,8 @@ fn entry_storage_has_no_provisional_field_mode() {
         include_str!("../../products/src/package_build.rs"),
         include_str!("checked/package_compilation.rs"),
         include_str!("execution_settlement.rs"),
-        include_str!("../../realization/selected-dispatch/src/execution_settlement.rs"),
+        include_str!("../../realization/selected-dispatch/src/provider_binding.rs"),
+        include_str!("../../realization/selected-dispatch/src/selected_execution.rs"),
         include_str!(
             "../../../packages/package-manager/src/review/candidate/passes/occurrences.rs"
         ),
@@ -560,9 +561,35 @@ fn product_batch_carries_work_instead_of_empty_outcome_slots() {
 }
 
 #[test]
+fn selected_source_preparation_has_no_post_terminal_installation() {
+    let preparation = include_str!("../../realization/selected-dispatch/src/provider_binding.rs");
+    assert!(preparation.contains("pub fn prepare_selected_execution("));
+    assert!(preparation.contains("retain_selected_compiler_intrinsic_review_identities("));
+    assert!(preparation.contains("produce_direct_boundary_leaves("));
+    assert!(preparation.contains("resolve_accepted_service_binding("));
+    let product = include_str!("product_execution.rs");
+    assert!(product.contains("self.realization.into_checked_compilation()"));
+    let selection = include_str!("execution_settlement.rs");
+    for retired in [
+        "CheckedProviderProgram",
+        "SelectedExecutionRequest",
+        "settle_selected_execution(",
+        "install_after_terminal",
+    ] {
+        assert!(
+            !selection.contains(retired),
+            "late source phase returned: {retired}"
+        );
+        assert!(
+            !product.contains(retired),
+            "late source phase returned: {retired}"
+        );
+    }
+}
+
+#[test]
 fn product_installation_does_not_prepare_reference_interpreter_dispatch() {
-    let settlement =
-        include_str!("../../realization/selected-dispatch/src/execution_settlement.rs");
+    let settlement = include_str!("../../realization/selected-dispatch/src/provider_binding.rs");
     for reference_work in [
         "CheckedInterpreterDispatch",
         "prepare_checked_interpreter_dispatch",

@@ -514,10 +514,10 @@ narrows realization only.
   Owners: `omega-rust/omega/compilation/driver/src/execution_settlement.rs`,
   `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/{boundary_application_settlement.rs,provider_admission/compiler_builtins.rs}`,
   and `omega-rust/omega/compilation/backend/artifacts/native-artifact/src/physical/derivation/evidence.rs`.
-  - Convert the remaining install-phase joins in `execution_settlement.rs`
-    (selected dispatch, component progress, intrinsic review,
-    and deferred constant recipes for
-    arrays/const-generics) from typed/checked records to canonical Terminal Psi
+  - Convert source-side preparation in `execution_settlement.rs` and
+    `selected-dispatch/src/provider_binding.rs` (selected dispatch, component
+    progress, intrinsic review and deferred array/const-generic recipes)
+    from typed/checked records to canonical Terminal Psi
     plus target Build rows, and replace provisional completion-role nomination
     so unused external candidates do not make selected returning implementations
     fail closed.

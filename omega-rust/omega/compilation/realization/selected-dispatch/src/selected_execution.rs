@@ -1,10 +1,8 @@
-//! Close accepted host bindings and entry
-//! establishment for one selected realization. Target/entry custody leaves with
-//! the selected program; native provider admission checks optional ISA features
-//! against actual Terminal demand. The compiler neither projects service roles
-//! nor completes this result afterward.
+//! Complete source-prepared execution for one selected realization.
+//!
+//! Provider binding produces this immutable result. Terminal production borrows
+//! it; native admission still joins actual demand and receiving permissions.
 
-use crate::provider_binding::CheckedProviderProgram;
 use checked_trees::CheckedTrees as CheckedProgram;
 use diagnostics::Diagnostic;
 use package_compilation::AcceptedSemanticBindingRole;
@@ -21,6 +19,8 @@ pub struct SelectedExecution {
     pub program: Arc<CheckedProgram>,
     pub service_declarations: Arc<provider_planning::service_declarations::ServiceDeclarations>,
     pub external_providers: Arc<psi_terminal_production::ExternalProviderDeclarations>,
+    /// Only native handoff demands these source identities. A refusal remains
+    /// data so checking-only stops acquire no native-only obligations.
     pub native_provider_sources: Result<Arc<backend_plan::NativeProviderSources>, Vec<Diagnostic>>,
     pub selected_target_profile: Option<target::TargetProfile>,
     pub selected_program_entry:
@@ -130,107 +130,4 @@ impl SelectedExecution {
         )
         .map_err(Diagnostic::error)
     }
-}
-
-/// Whole owner inputs, not independently projected service bindings or a
-/// second asserted component root. This remains a checked-tree realization
-/// boundary; it does not claim the intended Terminal-only provider handoff.
-pub struct SelectedExecutionRequest<'a> {
-    pub provider_candidates: &'a [provider_planning::ProviderPlanCandidate],
-    /// Provider derivation target, distinct from executable deployment selection.
-    pub provider_planning_target_profile: Option<target::TargetProfile>,
-    pub selected_program_entry:
-        Option<provider_planning::program_entry::SelectedCompilerProgramEntry>,
-    pub selected_target_profile: Option<target::TargetProfile>,
-    pub package_inputs: Option<&'a package_compilation::PackageCompilationInputs>,
-    pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
-    pub selected_provider_provenance: Vec<provider_planning::SelectedProviderReviewProvenance>,
-}
-
-/// Consume a complete checked surface and settle every selected execution
-/// rewrite before publishing the final compiler-facing surface.
-pub fn settle_selected_execution(
-    checked: CheckedProviderProgram,
-    mut settlement: SelectedExecutionRequest<'_>,
-) -> Result<SelectedExecution, Vec<Diagnostic>> {
-    if settlement.selected_target_profile.is_some()
-        && settlement.selected_target_profile != settlement.provider_planning_target_profile
-    {
-        return Err(vec![Diagnostic::error(
-            "selected deployment target differs from retained provider planning target",
-        )]);
-    }
-    let accepted_binding = |role| {
-        settlement
-            .package_inputs
-            .and_then(|inputs| inputs.accepted_semantic_binding(role))
-    };
-    let resolve_service_binding =
-        |binding: Option<&package_compilation::AcceptedSemanticBinding>| {
-            binding
-                .map(|binding| {
-                    crate::resolve_accepted_service_binding(&checked.service_declarations, binding)
-                })
-                .transpose()
-                .map_err(|diagnostic| vec![diagnostic])
-        };
-    let resolved_exit_bindings = crate::retain_selected_compiler_intrinsic_review_identities(
-        &checked.program,
-        &checked.external_providers,
-        &checked.service_declarations,
-        &checked.selected_provider_plan_facts,
-        &mut settlement.selected_provider_provenance,
-        settlement
-            .provider_planning_target_profile
-            .map(target::TargetProfile::target_name),
-        accepted_binding(AcceptedSemanticBindingRole::ConsoleExitProcessI32),
-        accepted_binding(AcceptedSemanticBindingRole::ProcessExitExitProcessI32),
-    )?;
-    let direct_boundary_leaves = crate::intrinsic_review::produce_direct_boundary_leaves(
-        &checked.external_providers,
-        &settlement.selected_provider_provenance,
-        settlement.provider_candidates,
-        &checked.service_declarations,
-        settlement
-            .provider_planning_target_profile
-            .map(target::TargetProfile::target_name),
-        &resolved_exit_bindings,
-    )?;
-    let resolved_filesystem_binding = resolve_service_binding(accepted_binding(
-        AcceptedSemanticBindingRole::FilesystemHostService,
-    ))?;
-    let resolved_time_host_binding = resolve_service_binding(accepted_binding(
-        AcceptedSemanticBindingRole::TimeHostService,
-    ))?;
-    // Package lookup is keyed by the exact role of this target's entry slot;
-    // the coordinator no longer supplies a separately asserted expected role.
-    let resolved_entry_binding = resolve_service_binding(
-        settlement
-            .selected_target_profile
-            .map(|profile| profile.program_entry_slot())
-            .and_then(|slot| slot.physical_contract_package)
-            .map(package_compilation::program_entry_semantic_binding_role)
-            .and_then(accepted_binding),
-    )?;
-    Ok(SelectedExecution {
-        direct_boundary_leaves,
-        service_declarations: checked.service_declarations,
-        external_providers: checked.external_providers,
-        native_provider_sources: checked.native_provider_sources,
-        program: checked.program,
-        selected_target_profile: settlement.selected_target_profile,
-        selected_program_entry: settlement.selected_program_entry,
-        x86_scalar_fma_provider: settlement.x86_scalar_fma_provider,
-        selected_provider_plan_facts: checked.selected_provider_plan_facts,
-        selected_provider_grants: checked.selected_provider_grants,
-        callback_placements: checked.callback_placements,
-        accepted_template_classifications: checked.accepted_template_classifications,
-        selected_provider_provenance: settlement.selected_provider_provenance,
-        resolved_semantic_bindings: resolved_exit_bindings
-            .into_iter()
-            .chain(resolved_filesystem_binding)
-            .chain(resolved_time_host_binding)
-            .chain(resolved_entry_binding)
-            .collect(),
-    })
 }

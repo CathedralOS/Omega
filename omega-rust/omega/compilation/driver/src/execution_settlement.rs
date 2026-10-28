@@ -1,10 +1,8 @@
-//! Join each target's provider selection against the invocation's immutable
-//! checked source, then realize the canonical artifact and the selected
-//! execution beside it. Selection is the Omega-00 join's producing half — it
-//! consumes the Psi facade's sealed checked product and Build rows; provider
-//! selection owns target choices, never another Psi checking pass. The
-//! installation half runs after Terminal production: the target-neutral
-//! artifact exists before the selected-execution rewrites that consume it.
+//! Prepare each target's complete selected execution against immutable checked
+//! source and Build rows. Terminal production borrows that result; converting
+//! it to a checked compilation assembles custody, not another compiler phase.
+//! Source-dependent selection remains migration work. Actual artifact demand,
+//! receiving permissions and native realization belong to the later native join.
 
 use crate::checked::CheckedCompilation;
 use crate::checked::checking::{attribute_diagnostics, timed};
@@ -15,29 +13,20 @@ use compilation_products::{
 };
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
-use selected_dispatch::{
-    CheckedProviderProgram, ProviderBindingRequest, SelectedExecutionRequest,
-    bind_checked_providers, settle_selected_execution,
-};
+use selected_dispatch::{ProviderBindingRequest, SelectedExecution, prepare_selected_execution};
 use std::sync::Arc;
 
 pub(crate) mod constant_recipe_closure;
 pub(crate) use constant_recipe_closure::same_checked_program;
 
 /// One target's complete provider selection beside the shared source custody.
-/// Terminal production reads this record to mint the target-neutral artifact;
-/// installation consumes it with the artifact to settle the selected
-/// execution. None of its fields re-enter checking or rewrite the program.
+/// Terminal production borrows this record to mint the target-neutral artifact.
+/// All source-dependent selected execution is already complete; no later
+/// installation phase reopens source or fills in this result.
 pub(crate) struct SelectedProviderCustody {
     pub(crate) source_completion_accounting: build_time_evaluation::SourceCompletionAccounting,
-    pub(crate) checked: CheckedProviderProgram,
+    pub(crate) execution: SelectedExecution,
     pub(crate) settlement: provider_planning::ProviderSettlement,
-    pub(crate) selected_provider_provenance:
-        Vec<provider_planning::SelectedProviderReviewProvenance>,
-    pub(crate) selected_program_entry:
-        Option<provider_planning::program_entry::SelectedCompilerProgramEntry>,
-    pub(crate) selected_target_profile: Option<target::TargetProfile>,
-    pub(crate) x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
     pub(crate) build: Arc<compilation_products::ComputedBuildConfig>,
     pub(crate) build_admission: BuildAdmission,
     pub(crate) provider_defaults:
@@ -47,13 +36,12 @@ pub(crate) struct SelectedProviderCustody {
     pub(crate) timings: CompileTimings,
 }
 
-/// A checked source application ready for Terminal production and installation.
-/// Review can stop by installing it directly; executable products retain this
-/// same selection until the portable artifact has been produced.
+/// A checked source application ready for Terminal production. Review stops
+/// validate task demands directly; executable products use their artifact's
+/// demands in native proposal construction instead.
 pub(crate) struct SelectedProductTarget {
     pub(crate) custody: SelectedProviderCustody,
     pub(crate) retained_checks: RetainedCompilationChecks,
-    package_inputs: Option<PackageCompilationInputs>,
     pub(crate) independent_component_products:
         Vec<Arc<compilation_products::IndependentComponentProduct>>,
 }
@@ -97,7 +85,6 @@ impl SelectedProductTarget {
         Ok(Self {
             custody: select_product_providers(source, target, package_inputs.as_ref())?,
             retained_checks: source.retained_checks.clone(),
-            package_inputs,
             independent_component_products: Vec::new(),
         })
     }
@@ -129,7 +116,8 @@ impl SelectedProductTarget {
                         .retained()
                         .native_realization_proposal()
                         .is_some_and(|proposal| {
-                            Some(proposal.target_profile()) == self.custody.selected_target_profile
+                            Some(proposal.target_profile())
+                                == self.custody.execution.selected_target_profile
                         })
             });
             let Some(product) = matching.next() else {
@@ -147,7 +135,7 @@ impl SelectedProductTarget {
                     "independent component verdict belongs to another description subject",
                 )]);
             }
-            for selection in &self.custody.selected_provider_provenance {
+            for selection in &self.custody.execution.selected_provider_provenance {
                 if selection
                     .selected_by
                     .composition_mode()
@@ -174,31 +162,31 @@ impl SelectedProductTarget {
         Ok(())
     }
 
-    pub(crate) fn install(self) -> Result<CheckedCompilation, Vec<Diagnostic>> {
+    pub(crate) fn finish_check(self) -> Result<CheckedCompilation, Vec<Diagnostic>> {
         let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
         let demands = psi_compiler::lower_task_activation_demands(
-            &self.custody.checked.program,
+            &self.custody.execution.program,
             &mut identities,
         )?;
         task_plans::realize_task_activations(
             &demands,
             &identities.build(),
-            &self.custody.checked.selected_provider_plan_facts,
+            &self.custody.execution.selected_provider_plan_facts,
             self.custody
+                .execution
                 .selected_target_profile
                 .unwrap_or_else(target::TargetProfile::host),
         )?;
-        self.install_after_terminal()
+        Ok(self.into_checked_compilation())
     }
 
-    /// Executable products discharge task demands against their produced
-    /// Terminal artifact in native-proposal construction, never source again.
-    pub(crate) fn install_after_terminal(self) -> Result<CheckedCompilation, Vec<Diagnostic>> {
-        install_selected_target(
+    /// Assemble the already-prepared result. Executable products discharge task
+    /// demands against Terminal in native proposal construction, not here.
+    pub(crate) fn into_checked_compilation(self) -> CheckedCompilation {
+        checked_compilation(
             self.custody,
             self.retained_checks,
             self.independent_component_products,
-            self.package_inputs.as_ref(),
         )
     }
 }
@@ -211,11 +199,11 @@ pub(crate) struct SelectedCompileOutcome {
 }
 
 impl SelectedCompileOutcome {
-    pub(crate) fn install(self) -> CheckedCompileOutcome {
+    pub(crate) fn finish_check(self) -> CheckedCompileOutcome {
         CheckedCompileOutcome {
             result: self
                 .result
-                .and_then(|selected| selected.install().map_err(CompileFailure::from)),
+                .and_then(|selected| selected.finish_check().map_err(CompileFailure::from)),
             independent_components: self.independent_components,
         }
     }
@@ -225,16 +213,7 @@ fn select_checked_providers(
     source: &CheckedProductSource,
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
-) -> Result<
-    (
-        CheckedProviderProgram,
-        provider_planning::ProviderSettlement,
-        Vec<provider_planning::SelectedProviderReviewProvenance>,
-        Option<provider_planning::program_entry::SelectedCompilerProgramEntry>,
-        Option<target::AdmittedX86ScalarFmaProvider>,
-    ),
-    Vec<Diagnostic>,
-> {
+) -> Result<(SelectedExecution, provider_planning::ProviderSettlement), Vec<Diagnostic>> {
     let typed = &source.program.typed;
     let build_config = &source.computed_build_config.config;
     let x86_scalar_fma_provider = build_config
@@ -288,31 +267,25 @@ fn select_checked_providers(
         &closed_program.typed,
         source.sources.exact_toolchain_sources(),
     )?;
-    let checked = bind_checked_providers(
+    let execution = prepare_selected_execution(
         closed_program,
         source.accepted_template_classifications.clone(),
         ProviderBindingRequest {
             exact_toolchain_sources: source.sources.exact_toolchain_sources(),
             package_inputs,
             boundary_calling_plan_realizations: &providers.boundary_calling_plan_realizations,
-            provider_plans: &providers
-                .provider_candidates
-                .iter()
-                .map(provider_planning::ProviderPlanCandidate::plan)
-                .collect::<Vec<_>>(),
+            provider_candidates: &providers.provider_candidates,
             selected_provider_plan_facts,
-            selected_provider_provenance: &selected_provider_provenance,
+            selected_provider_provenance,
             root_grants: &root_grants,
             authored_root_grants: &build_config.grants,
+            provider_planning_target_profile: providers.planning_target_profile,
+            selected_target_profile,
+            selected_program_entry,
+            x86_scalar_fma_provider,
         },
     )?;
-    Ok((
-        checked,
-        providers,
-        selected_provider_provenance,
-        selected_program_entry,
-        x86_scalar_fma_provider,
-    ))
+    Ok((execution, providers))
 }
 
 /// Prepare the exact provider and ABI inputs for either a product or an
@@ -369,9 +342,8 @@ fn prepare_target_provider_selection(
     )
 }
 
-/// Select this target's provider custody without starting installation.
-/// The returned record carries everything Terminal production and the
-/// selected-execution settle read; it has no production or admission side.
+/// Prepare this target's complete source-side custody without producing an
+/// artifact or admitting its native execution.
 pub(crate) fn select_product_providers(
     source: &CheckedProductSource,
     selected_target_profile: Option<target::TargetProfile>,
@@ -387,15 +359,11 @@ pub(crate) fn select_product_providers(
         }
         diagnostics
     })?;
-    let (checked, settlement, provenance, entry, x86) = selection;
+    let (execution, settlement) = selection;
     Ok(SelectedProviderCustody {
         source_completion_accounting: source.source_completion_accounting.clone(),
-        checked,
+        execution,
         settlement,
-        selected_provider_provenance: provenance,
-        selected_program_entry: entry,
-        selected_target_profile,
-        x86_scalar_fma_provider: x86,
         build: Arc::clone(&source.computed_build_config),
         build_admission: source.admission.clone().for_target(selected_target_profile),
         provider_defaults: Arc::clone(&source.provider_defaults),
@@ -405,69 +373,39 @@ pub(crate) fn select_product_providers(
     })
 }
 
-/// Install one already-selected execution against its produced artifact
-/// custody. Installation never reruns selection or checking; the artifact
-/// beside this record is what later joins read.
-pub(crate) fn install_selected_target(
+/// Assemble source custody and its completed selected execution. This is not
+/// artifact installation: no source query, selection or fallible phase remains.
+fn checked_compilation(
     selection: SelectedProviderCustody,
     retained_checks: RetainedCompilationChecks,
     independent_components: Vec<Arc<compilation_products::IndependentComponentProduct>>,
-    package_inputs: Option<&PackageCompilationInputs>,
-) -> Result<CheckedCompilation, Vec<Diagnostic>> {
-    let source_map = selection.checked.program.typed.symbols.source_map();
+) -> CheckedCompilation {
     let SelectedProviderCustody {
         source_completion_accounting,
-        checked,
+        execution,
         settlement,
-        selected_provider_provenance,
-        selected_program_entry,
-        selected_target_profile,
-        x86_scalar_fma_provider,
         build,
         build_admission,
         provider_defaults,
         product_selection,
         sources,
-        mut timings,
+        timings,
     } = selection;
-    let settled = timed(&mut timings, EXECUTION_SETTLEMENT, |_| {
-        settle_selected_execution(
-            checked,
-            SelectedExecutionRequest {
-                provider_planning_target_profile: settlement.planning_target_profile,
-                selected_program_entry,
-                selected_target_profile,
-                package_inputs,
-                x86_scalar_fma_provider,
-                selected_provider_provenance,
-                provider_candidates: &settlement.provider_candidates,
-            },
-        )
-    });
-    settled
-        .map(|settled| {
-            CheckedCompilation::from_settled_execution(
-                CheckedCompilationInputs {
-                    settled,
-                    build,
-                    build_admission,
-                    provider_defaults,
-                    providers: settlement,
-                    independent_components,
-                    product_selection,
-                },
-                sources,
-                timings,
-            )
-            .with_source_completion_accounting(source_completion_accounting)
-            .with_settled_checks(retained_checks)
-        })
-        .map_err(|mut diagnostics| {
-            if let Some(sources) = source_map.as_deref() {
-                attribute_diagnostics(&mut diagnostics, sources, package_inputs);
-            }
-            diagnostics
-        })
+    CheckedCompilation::from_settled_execution(
+        CheckedCompilationInputs {
+            settled: execution,
+            build,
+            build_admission,
+            provider_defaults,
+            providers: settlement,
+            independent_components,
+            product_selection,
+        },
+        sources,
+        timings,
+    )
+    .with_source_completion_accounting(source_completion_accounting)
+    .with_settled_checks(retained_checks)
 }
 
 /// Select one target against the shared source judgment. The consumer chooses
