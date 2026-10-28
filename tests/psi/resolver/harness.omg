@@ -1,5 +1,5 @@
 // Gate-owned black-box name-resolution harness. The gate package's build root
-// binds `ResolverHarness::main` as its own product entry; the product compiler
+// binds `resolver_entry_start` as its own product entry; the product compiler
 // closure never includes it. Lexing and parsing run exactly as in the product;
 // their rejections exit without an observation, since the parser gate owns
 // those phases' observations.
@@ -12,6 +12,18 @@ use psi::resolve::resolver;
 use psi::source::source;
 
 public data ResolverHarness {
+}
+
+// Hosted entry supplies no context parameter. The harness owns its ordinary
+// context storage and lends that live local to the processing machine.
+public machine resolver_entry_start()
+reaches Console
+invokes Console;
+crashes Trap
+blocks;
+{
+    let mut resolver_harness: ResolverHarness;
+    block ResolverHarness::main(&mut resolver_harness);
 }
 
 // A little-endian `u32` read from the gate's input, or the input ending
