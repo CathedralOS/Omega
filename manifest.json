@@ -1,0 +1,264 @@
+{
+  "submitted_head": "1f41b1eee4549d72c27e8efa424a43923dfe6318",
+  "fixed_author_base": "05e1922eb7b4d554a7d5ee84e47f99ebb3304827",
+  "integration": {
+    "reason": "Actual PR511 merge conflict after its successful compiler-check; no refresh solely for main movement.",
+    "original": "5a92d9be95a2b909fbbfe47a2c278acf4b9e6d49",
+    "incoming": "4c6b385bb20cb8661455c6fddb4efc130106c5fc",
+    "fixed_author_base": "05e1922eb7b4d554a7d5ee84e47f99ebb3304827",
+    "resolution": "Conflicted arithmetic files unchanged by this repair; keep incoming exact versions. Golden splice retains all unselected incoming blocks and reasons."
+  },
+  "original_evidence": "cf68c110db56c50c53c8acd7e28ff33baf200dd9 at work/nested-unit-completion-evidence preserves original5a qualification, actual producer5792/runner860 captures, old05e baseline attribution, frozen oracles/replay programs and source bundles.",
+  "acceptance": {
+    "source": "1f41b1eee4549d72c27e8efa424a43923dfe6318",
+    "fixed_author_base": "05e1922eb7b4d554a7d5ee84e47f99ebb3304827",
+    "integration": {
+      "reason": "Actual PR511 merge conflict after its successful compiler-check; no refresh solely for main movement.",
+      "original": "5a92d9be95a2b909fbbfe47a2c278acf4b9e6d49",
+      "incoming": "4c6b385bb20cb8661455c6fddb4efc130106c5fc",
+      "fixed_author_base": "05e1922eb7b4d554a7d5ee84e47f99ebb3304827",
+      "resolution": "Conflicted arithmetic files unchanged by this repair; keep incoming exact versions. Golden splice retains all unselected incoming blocks and reasons."
+    },
+    "target": "macos_arm64",
+    "fresh_nine_positive_places_and_nine_twins": true,
+    "fresh_positive_controls": 2,
+    "fresh_negative_controls": 5,
+    "focused": {
+      "source": {
+        "observations": 287,
+        "semantics_identical_to_original": true,
+        "statuses": {
+          "checked": 153,
+          "rejected": 134
+        },
+        "inherited": [
+          "pass/dependent/data_where_call_frame_preserves_disjoint_valuation_compile",
+          "pass/domains/unit_membership_postcondition_exit",
+          "fail/dependent/data_where_live_borrow_pins_witness_rejected"
+        ]
+      },
+      "both": {
+        "observations": 155,
+        "semantics_identical_to_original": true,
+        "statuses": {
+          "built": 111,
+          "checked": 42,
+          "rejected": 2
+        },
+        "inherited": [
+          "pass/control_flow/unconditional_unit_completion_exit",
+          "pass/dependent/data_where_call_frame_preserves_disjoint_valuation_compile",
+          "pass/domains/unit_membership_postcondition_exit",
+          "pass/generics/const_index_gated_default_domain_exit",
+          "pass/generics/const_index_nested_default_domain_exit"
+        ]
+      }
+    },
+    "runtime": {
+      "native_terminal_exit_agreements": 108,
+      "declaration_only": 42,
+      "terminal_only_foreign_native_unmeasured": 3,
+      "refusals": 2
+    },
+    "counterfactual": "Native signal5/Terminal Trap agreement",
+    "remaining": "Full product declaration-model migration and checking workflow remain unfinished. Original parser timeouts remain unverified historical observations; no new full-parser replay or other-host native acceptance claimed."
+  },
+  "files": [
+    {
+      "path": "qualification/state.json.gz",
+      "sha256": "e03c17d377cd417f3c97b8b55b674c654cb200198c596d9a78c5a262f6fe9707"
+    },
+    {
+      "path": "qualification/config.json.gz",
+      "sha256": "f8111d58c2288e83ac8cc44eed9638d1dd70805f9a4c09e87c9e3ecd6240f958"
+    },
+    {
+      "path": "qualification/receipt-0.json.gz",
+      "sha256": "5ab7e5444331cda0b76cf65fd498fa84b8524e4eb6717ce8087915e93ae86e4a"
+    },
+    {
+      "path": "qualification/0-stdout.txt",
+      "sha256": "46a8804453ef9ea7ebe6a31b0cd99b70620f269e830eac3ffecac66b0bae4f12"
+    },
+    {
+      "path": "qualification/0-stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "qualification/receipt-1.json.gz",
+      "sha256": "22025c3c44f4a39f4b979bb4cf81e3761164a490ef38da9113ca825d6a53dab6"
+    },
+    {
+      "path": "qualification/1-stdout.txt",
+      "sha256": "f4391334dc8ac9ba695845084d7e11dd63c2a3ad8db51a9603a3f3c8a6983d37"
+    },
+    {
+      "path": "qualification/1-stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "observations/controls.log.gz",
+      "sha256": "1c26b7c910353d4c708f11d2bb674a735e9c219292258a1b8ecf21abfe1c27b8"
+    },
+    {
+      "path": "observations/corpus-both-command.json.gz",
+      "sha256": "6b144c2107e8623f54dc45fadc6a978b5f14dc5fc3d4f865f5c9fa779320784c"
+    },
+    {
+      "path": "observations/controls.json.gz",
+      "sha256": "213c4ae3b8c063c9c9393a3af42949d0dbd35467e05455707f7af86a00228ea6"
+    },
+    {
+      "path": "observations/original-qualification-config.json.gz",
+      "sha256": "63bb93d976801f05dc9ee2bd5e9343bc1d64fccea049f708ef5e27e031c4c3fe"
+    },
+    {
+      "path": "observations/corpus-source.log.gz",
+      "sha256": "ea0d3113a2ef3a50f1aafe62dc1a118a5b5fded568e60948657ea9ce0ddf5632"
+    },
+    {
+      "path": "observations/qualification-config.json.gz",
+      "sha256": "37ad6cea024d3023b7d948152be2140f438121bb2ef44aec372014747b80b113"
+    },
+    {
+      "path": "observations/check.py.gz",
+      "sha256": "95e88004e70b1d18efef2968d11f2e2de31c8645ee392a610637c356fcd8129a"
+    },
+    {
+      "path": "observations/counterfactual.json.gz",
+      "sha256": "948b0e729abc91c56f6af32511bd533217aa918dbb2ea07e26cbf5468514d971"
+    },
+    {
+      "path": "observations/format.log.gz",
+      "sha256": "e12eee8436db9fdeae1e7c8cd2e03afe45a9fabaeb22b758e3562eb79c582897"
+    },
+    {
+      "path": "observations/corpus-both.log.gz",
+      "sha256": "9f5c68ca25f9225509d1ca5281949e7e1fc81c48eb74af132e8960e374dc097a"
+    },
+    {
+      "path": "observations/corpus-source.json.gz",
+      "sha256": "7bb1769b81141deaf98e74efba5f6940384689bdd70162e918eb81fd6d84679d"
+    },
+    {
+      "path": "observations/acceptance.json.gz",
+      "sha256": "8f13690d4532917faaf0087139b4e9ed8e6cec74bce2d362cd1c026e528b67b5"
+    },
+    {
+      "path": "observations/row.log.gz",
+      "sha256": "3cd9782772c3feef1f23a2940d2ba5ad21de9f94e2ab050182f9ff365102d38f"
+    },
+    {
+      "path": "observations/assessment-final.json.gz",
+      "sha256": "99464fed65b0a3e0a85c9f4f42738c5ac7926662cb3090607ba42032da4e307b"
+    },
+    {
+      "path": "observations/acceptance.log.gz",
+      "sha256": "e80209d99e9dbc60f7c2572734180234c3213b59e246062b0d131a7cdf98b411"
+    },
+    {
+      "path": "observations/golden-splice.json.gz",
+      "sha256": "92890fc3d1291b36fa8905f00baefc6ea013775634cb80b20e769ced9963e58b"
+    },
+    {
+      "path": "observations/publish-evidence.py.gz",
+      "sha256": "aca2b67977e167f2924b498046982cbf82c8ff9f26e5ceefa801e6c503202750"
+    },
+    {
+      "path": "observations/clippy.log.gz",
+      "sha256": "d29ce6f0f0ccbc3d905f824ff44945c56272031c057796a6e8856759c4baa585"
+    },
+    {
+      "path": "observations/original-qualification.json.gz",
+      "sha256": "3120865fcb3c772ec0e3e5c9003d6ce8e140a5ec92e7efe2de59d50bd7a025dc"
+    },
+    {
+      "path": "observations/build-runner.log.gz",
+      "sha256": "cd41ecb13b615b2301cb1049eb19d2afcd2ac3010bb815c629549a29a797956e"
+    },
+    {
+      "path": "observations/build-cli.jsonl.gz",
+      "sha256": "1f40097d9d1c122b1e3da2e38ad6b0172e840e385e4f2f1c6e9139c0ec44f30a"
+    },
+    {
+      "path": "observations/qualification-amend.json.gz",
+      "sha256": "f4970e42a461ffbc8b66219195cee91c0db5ad1a190fe316ba63903ac092b0f6"
+    },
+    {
+      "path": "observations/validate.py.gz",
+      "sha256": "0e97060e8542b2ad49337a1f1b28d30cf455b0e0afadffa5f4cf3e9a8555361f"
+    },
+    {
+      "path": "observations/controls-command.json.gz",
+      "sha256": "662983a0224de0ecc4f1a8f64005122a33d06fd2d4ef6b1a7be054d54841dc29"
+    },
+    {
+      "path": "observations/omega-producer.json.gz",
+      "sha256": "e16d3c60c24a10beb9fe43ae02172b7f311250d8bc7e7917a932a4e2555e2805"
+    },
+    {
+      "path": "observations/evidence-publish.log.gz",
+      "sha256": "328d53471f57ba366ec9e9884f5edf7677b32b2a8f234627a06c213a4ba638df"
+    },
+    {
+      "path": "observations/row.json.gz",
+      "sha256": "1991898a2cf67b956ac06cc269928351fe4af3a1930680bffaae9900a857bcb9"
+    },
+    {
+      "path": "observations/qualification-run.json.gz",
+      "sha256": "473260f1a6b975d9c042d7091be2cbc3dcc48bec419d9d5e39e190d3b4ae7fb0"
+    },
+    {
+      "path": "observations/build-runner.jsonl.gz",
+      "sha256": "96ad2b0c4e7faabc29bb7d1fd98e1de842de967f95d7cbbec9496cc7578717c7"
+    },
+    {
+      "path": "observations/row-command.json.gz",
+      "sha256": "bcf74e13a6c33eea5f4329a316c96f9204868edea29d693a7bf32812a48485d9"
+    },
+    {
+      "path": "observations/corpus-source-command.json.gz",
+      "sha256": "c084184d7cd901d2081e02c3177e4396e4e2091f7b4b209118ce439bc4efbfda"
+    },
+    {
+      "path": "observations/run-controls.py.gz",
+      "sha256": "7734540ac10fbb86e56fdf6bdeaa56b6076ad1dcfcb288c6c8dfbe0c70227f42"
+    },
+    {
+      "path": "observations/assessment-before.json.gz",
+      "sha256": "9040d563ec3eeb107e95c5a0f552ff34e5899a334c55fd3ed7f27faf399b78e2"
+    },
+    {
+      "path": "observations/run-row.py.gz",
+      "sha256": "6209b8c138c7e8a803cfd2540827a11956c6257eac92a0df322a09548d0f9c9f"
+    },
+    {
+      "path": "observations/integration.json.gz",
+      "sha256": "000a2b71bcd7e3f41f2c69ee133fe84e8e3d52192979ece647799cb1a394ca26"
+    },
+    {
+      "path": "observations/format-command.json.gz",
+      "sha256": "2e5c438a0507ce62920d9fc3c268eb5b86e7e1c8cfa454a981a43611a183aa82"
+    },
+    {
+      "path": "observations/corpus_runner-producer.json.gz",
+      "sha256": "ded9a25ea35d843e491e057c46005463c11c9de4bbd9ab7f50fdacbc1be5f037"
+    },
+    {
+      "path": "observations/corpus-both.json.gz",
+      "sha256": "b77d238a3357b9b37659907aa62d5bbdf782a1d56f656cb4b2e1ae7f2b91ce28"
+    },
+    {
+      "path": "observations/build-cli.log.gz",
+      "sha256": "466c8fa75df462ca0924aff2dd602a6516a8cab8a324137e4da20450a6678fea"
+    },
+    {
+      "path": "observations/clippy-command.json.gz",
+      "sha256": "adda5bba7ba431dc716c3ad0a13c7062c8a8923edc1f5d52f15ab09465425b33"
+    },
+    {
+      "path": "source/1f41b1eee4549d72c27e8efa424a43923dfe6318.bundle",
+      "sha256": "bb9985d6b35d53d7b0342cf1ba5544a2ba27f0af64e305f48f8f49b3791b8485"
+    }
+  ]
+}

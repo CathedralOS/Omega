@@ -1,0 +1,55 @@
+{
+  "source": "1f41b1eee4549d72c27e8efa424a43923dfe6318",
+  "fixed_author_base": "05e1922eb7b4d554a7d5ee84e47f99ebb3304827",
+  "integration": {
+    "reason": "Actual PR511 merge conflict after its successful compiler-check; no refresh solely for main movement.",
+    "original": "5a92d9be95a2b909fbbfe47a2c278acf4b9e6d49",
+    "incoming": "4c6b385bb20cb8661455c6fddb4efc130106c5fc",
+    "fixed_author_base": "05e1922eb7b4d554a7d5ee84e47f99ebb3304827",
+    "resolution": "Conflicted arithmetic files unchanged by this repair; keep incoming exact versions. Golden splice retains all unselected incoming blocks and reasons."
+  },
+  "target": "macos_arm64",
+  "fresh_nine_positive_places_and_nine_twins": true,
+  "fresh_positive_controls": 2,
+  "fresh_negative_controls": 5,
+  "focused": {
+    "source": {
+      "observations": 287,
+      "semantics_identical_to_original": true,
+      "statuses": {
+        "checked": 153,
+        "rejected": 134
+      },
+      "inherited": [
+        "pass/dependent/data_where_call_frame_preserves_disjoint_valuation_compile",
+        "pass/domains/unit_membership_postcondition_exit",
+        "fail/dependent/data_where_live_borrow_pins_witness_rejected"
+      ]
+    },
+    "both": {
+      "observations": 155,
+      "semantics_identical_to_original": true,
+      "statuses": {
+        "built": 111,
+        "checked": 42,
+        "rejected": 2
+      },
+      "inherited": [
+        "pass/control_flow/unconditional_unit_completion_exit",
+        "pass/dependent/data_where_call_frame_preserves_disjoint_valuation_compile",
+        "pass/domains/unit_membership_postcondition_exit",
+        "pass/generics/const_index_gated_default_domain_exit",
+        "pass/generics/const_index_nested_default_domain_exit"
+      ]
+    }
+  },
+  "runtime": {
+    "native_terminal_exit_agreements": 108,
+    "declaration_only": 42,
+    "terminal_only_foreign_native_unmeasured": 3,
+    "refusals": 2
+  },
+  "counterfactual": "Native signal5/Terminal Trap agreement",
+  "remaining": "Full product declaration-model migration and checking workflow remain unfinished. Original parser timeouts remain unverified historical observations; no new full-parser replay or other-host native acceptance claimed."
+}
+
