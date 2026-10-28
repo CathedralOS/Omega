@@ -175,7 +175,10 @@ fn lower_lexical_machine_parts(
     lowerer.current_state_name = None;
     lowerer.current_evidence_term_names.clear();
     let type_parameters = lower_type_parameters(lowerer, syntax_trees, machine.type_parameters)?;
-    let declared_type_equations = type_equations::lower(lowerer, syntax_trees, machine)?;
+    let type_equations::MachineTypeEquations {
+        definitions: declared_type_equations,
+        requires_argument_recovery,
+    } = type_equations::lower(lowerer, syntax_trees, machine)?;
     let mut predicates = Vec::new();
     for fact in syntax_trees.items.proof_facts(machine.where_facts) {
         let syntax_trees::item::ProofFact::Expression(expression) = fact else {
@@ -361,9 +364,9 @@ fn lower_lexical_machine_parts(
         target_family_interface: machine.target_family_interface,
         target_family_contracts_prepared: false,
         target_symbol_name,
-        has_structural_type_equations: !machine.where_facts.is_empty(),
+        has_structural_type_equations: requires_argument_recovery,
         structural_type_equations_pending: !machine.where_facts.is_empty()
-            && lowerer.structural_type_equations_pending,
+            && (lowerer.structural_type_equations_pending || !requires_argument_recovery),
         // TPR2: the termination plan's ONE population site (see
         // build_termination_plan below).
         termination_plan,

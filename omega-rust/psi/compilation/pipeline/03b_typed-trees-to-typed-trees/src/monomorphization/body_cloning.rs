@@ -97,9 +97,9 @@ pub(super) fn clone_single_specialized_machine(
         .map_err(|diagnostic| vec![diagnostic])?;
     let source_machine =
         source.unwrap_or(program).machines()[candidate.template.machine_index].clone();
-    // Source probes retain static equations as pending. Derive their closure
-    // from the actual tuple before declaration-based body substitution; a
-    // formal's own where definition cannot justify the supplied argument.
+    // Boolean constraints and source-probe equations retain pending closure.
+    // Derive it from the actual tuple before declaration-based substitution;
+    // a formal's own where definition cannot justify the supplied argument.
     let predicates_closed = if source_machine.structural_type_equations_pending {
         let input = source.unwrap_or(program);
         let substitutions = candidate

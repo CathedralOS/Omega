@@ -92,6 +92,21 @@ pub(crate) struct TypeEquation {
 }
 
 impl TypeEquation {
+    /// Conjunctions can recover the bindings of their structural leaves.
+    /// Alternatives and negation only constrain an already selected tuple;
+    /// their semantic predicates do not require syntax-based argument recovery.
+    pub(crate) fn requires_argument_recovery(&self) -> bool {
+        match &self.shape {
+            EquationShape::Structural { .. } => true,
+            EquationShape::Boolean {
+                operator: TypeBooleanOperator::And,
+                operands,
+                ..
+            } => operands.iter().any(Self::requires_argument_recovery),
+            EquationShape::Boolean { .. } | EquationShape::KindMismatch { .. } => false,
+        }
+    }
+
     /// The classifier, rather than an expression's spelling, gives this
     /// operand type role. Retain the equation in that declaration's scope.
     pub(crate) fn structural_definition(&self) -> Option<(usize, ExpressionHandle)> {

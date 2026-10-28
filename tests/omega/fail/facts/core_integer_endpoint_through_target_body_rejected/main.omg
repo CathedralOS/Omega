@@ -13,16 +13,16 @@ boundary trait EndpointProbe {
 }
 
 WindowsEndpointProbe satisfies EndpointProbe {
-    machine probe() -> u32 { consume(integer::max<u16>() as u32) }
+    machine probe() -> u32 ensures result == 0u32 { consume(integer::max<u16>() as u32) }
 }
 LinuxX86EndpointProbe satisfies EndpointProbe {
-    machine probe() -> u32 { consume(integer::max<u16>() as u32) }
+    machine probe() -> u32 ensures result == 0u32 { consume(integer::max<u16>() as u32) }
 }
 MacEndpointProbe satisfies EndpointProbe {
-    machine probe() -> u32 { consume(integer::max<u16>() as u32) }
+    machine probe() -> u32 ensures result == 0u32 { consume(integer::max<u16>() as u32) }
 }
 LinuxArmEndpointProbe satisfies EndpointProbe {
-    machine probe() -> u32 { consume(integer::max<u16>() as u32) }
+    machine probe() -> u32 ensures result == 0u32 { consume(integer::max<u16>() as u32) }
 }
 
 machine main() reaches EndpointProbe crashes Trap {
