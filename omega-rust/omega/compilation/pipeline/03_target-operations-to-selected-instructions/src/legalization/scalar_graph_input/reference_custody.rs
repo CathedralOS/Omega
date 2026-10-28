@@ -3148,6 +3148,20 @@ fn transfer_return_custody(
             disposed: !retired.disposals.is_empty(),
         }
     }));
+    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+        if let Err(reason) = terminal_semantics::validate_reference_result_completion(&occurrences)
+        {
+            eprintln!(
+                "CHECKSITE completion-legalization-refusal machine={:?} reason={:?} occurrences={:?}",
+                function.machine,
+                reason,
+                occurrences
+                    .iter()
+                    .map(|row| (row.identity, &row.parents, row.returned, row.disposed))
+                    .collect::<Vec<_>>()
+            );
+        }
+    }
     terminal_semantics::validate_reference_result_completion(&occurrences)
         .map_err(|reason| LegalizationError::ReferenceCompletion { reason })?;
     custody.leaves.retain(|(carrier, path), _| {
