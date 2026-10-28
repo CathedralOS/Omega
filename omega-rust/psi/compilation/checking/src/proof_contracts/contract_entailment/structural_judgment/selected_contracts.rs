@@ -1429,7 +1429,18 @@ pub(in crate::proof_contracts::contract_entailment) fn bound_term(
                     program, expression, reference, value,
                 );
             }
-            let selected = selected_call_contract_for_parameters(program, call, scope, parameters)?;
+            let Some(selected) =
+                selected_call_contract_for_parameters(program, call, scope, parameters)
+            else {
+                if super::super::struct_trace() {
+                    eprintln!(
+                        "STRUCT selected-requirement call-refused owner={scope:?} expression={} target={:?}",
+                        program.expression_table.display_name(expression),
+                        call.target_symbol,
+                    );
+                }
+                return None;
+            };
             let realization = super::super::structural_terms::realized_requirement_state(call);
             let arguments = program
                 .expression_table
@@ -1540,9 +1551,25 @@ pub(in crate::proof_contracts::contract_entailment) fn bound_term(
                         program, scope, parameters, operand,
                     )
                 });
-                super::super::structural_terms::sealed_primitive_float_operator(
+                if super::super::structural_terms::sealed_primitive_float_operator(
                     program, scope, expression, &types,
-                )?;
+                )
+                .is_none()
+                {
+                    if super::super::struct_trace() {
+                        eprintln!(
+                            "STRUCT selected-requirement binary-refused owner={scope:?} expression={} operand_types={:?} authored={:?}",
+                            program.expression_table.display_name(expression),
+                            types.map(|reference| reference
+                                .and_then(|reference| program.primitive_type_reference(reference))),
+                            program
+                                .expression_table
+                                .authored_selection_occurrences(expression)
+                                .collect::<Vec<_>>(),
+                        );
+                    }
+                    return None;
+                }
             }
             let left = bound_term(
                 program,
