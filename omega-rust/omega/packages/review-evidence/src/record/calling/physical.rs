@@ -1,3 +1,4 @@
+use crate::record::accessors::field_projection_accessors;
 use crate::record::{
     PackageReviewBoundaryCallingPolicy, PackageReviewBoundaryValuePlacement,
     PackageReviewMachineRegister,
@@ -19,9 +20,7 @@ pub struct PackagePolicyPhysicalCallingContract {
 }
 
 impl PackagePolicyPhysicalCallingContract {
-    pub const fn policy(&self) -> PackageReviewBoundaryCallingPolicy {
-        self.policy
-    }
+    field_projection_accessors!(copied policy: PackageReviewBoundaryCallingPolicy);
 
     /// Native ABI order, including any private whole-parameter callbacks.
     /// Their semantic origins are not inferred from these physical placements.
@@ -29,30 +28,16 @@ impl PackagePolicyPhysicalCallingContract {
         &self.parameters
     }
 
-    pub const fn result(&self) -> Option<&PackageReviewBoundaryValuePlacement> {
-        self.result.as_ref()
-    }
+    field_projection_accessors!(optional result: Option<&PackageReviewBoundaryValuePlacement>);
 
     /// Canonical register order, with no duplicates.
     pub fn ordinary_clobbers(&self) -> &[PackageReviewMachineRegister] {
         &self.ordinary_clobbers
     }
 
-    pub const fn stack_alignment(&self) -> u16 {
-        self.stack_alignment
-    }
-
-    pub const fn shadow_bytes(&self) -> u16 {
-        self.shadow_bytes
-    }
-
-    pub const fn entry_control(&self) -> PackagePolicyEntryControl {
-        self.entry_control
-    }
-
-    pub const fn state(&self) -> &PackagePolicyStatePlan {
-        &self.state
-    }
+    field_projection_accessors!(copied stack_alignment: u16, shadow_bytes: u16);
+    field_projection_accessors!(copied entry_control: PackagePolicyEntryControl);
+    field_projection_accessors!(borrowed state: &PackagePolicyStatePlan);
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -124,31 +109,11 @@ pub struct PackagePolicyStatePlan {
 }
 
 impl PackagePolicyStatePlan {
-    pub const fn initial_regime(&self) -> PackagePolicyMachineRegime {
-        self.initial_regime
-    }
-
-    pub const fn interrupted_state(&self) -> &PackagePolicyMachineStateSet {
-        &self.interrupted_state
-    }
-
-    pub const fn saved_state(&self) -> &PackagePolicyMachineStateSet {
-        &self.saved_state
-    }
-
-    pub const fn restored_state(&self) -> &PackagePolicyMachineStateSet {
-        &self.restored_state
-    }
-
-    pub const fn permitted_transitive_use(&self) -> &PackagePolicyMachineStateSet {
-        &self.permitted_transitive_use
-    }
-
-    pub const fn stack(&self) -> PackagePolicyEntryStack {
-        self.stack
-    }
-
-    pub const fn preemption(&self) -> PackagePolicyPreemption {
-        self.preemption
-    }
+    field_projection_accessors!(copied initial_regime: PackagePolicyMachineRegime);
+    field_projection_accessors!(borrowed interrupted_state: &PackagePolicyMachineStateSet);
+    field_projection_accessors!(borrowed saved_state: &PackagePolicyMachineStateSet);
+    field_projection_accessors!(borrowed restored_state: &PackagePolicyMachineStateSet);
+    field_projection_accessors!(borrowed permitted_transitive_use: &PackagePolicyMachineStateSet);
+    field_projection_accessors!(copied stack: PackagePolicyEntryStack);
+    field_projection_accessors!(copied preemption: PackagePolicyPreemption);
 }

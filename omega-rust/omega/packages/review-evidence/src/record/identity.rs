@@ -1,3 +1,4 @@
+use crate::record::accessors::field_projection_accessors;
 use semantic_vocabulary::PackageKeyIdentity;
 
 /// One shared length-prefixed semantic identity framing, independent of source
@@ -20,9 +21,7 @@ pub struct PackageReviewToolchainSourceIdentity {
 }
 
 impl PackageReviewToolchainSourceIdentity {
-    pub const fn digest(self) -> [u8; 32] {
-        self.digest
-    }
+    field_projection_accessors!(valued digest: [u8; 32]);
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -45,9 +44,7 @@ pub struct PackageReviewNominalIdentity {
 }
 
 impl PackageReviewNominalIdentity {
-    pub const fn owner(&self) -> PackageReviewNominalOwner {
-        self.owner
-    }
+    field_projection_accessors!(copied owner: PackageReviewNominalOwner);
 
     pub fn path(&self) -> &str {
         &self.path

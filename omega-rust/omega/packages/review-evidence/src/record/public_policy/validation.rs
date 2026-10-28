@@ -29,13 +29,7 @@ impl PackagePolicyPublicApi {
         roots(&self.propositions, package, |value| &value.identity)?;
         roots(&self.consts, package, |value| &value.identity)?;
         roots(&self.data, package, |value| &value.identity)?;
-        if self
-            .operators
-            .windows(2)
-            .any(|pair| pair[0].coordinate >= pair[1].coordinate)
-        {
-            return Err("public operators repeat or change canonical coordinate order");
-        }
+        ordered_by(&self.operators, |a, b| a.coordinate.cmp(&b.coordinate))?;
         for value in &self.operators {
             root(&value.coordinate.identity, package)?;
             shared::operator(&value.coordinate)?;
@@ -69,12 +63,7 @@ fn roots<T>(
     package: PackageKeyIdentity,
     identity: impl Fn(&T) -> &PackageReviewNominalIdentity,
 ) -> Result {
-    if values
-        .windows(2)
-        .any(|pair| identity(&pair[0]) >= identity(&pair[1]))
-    {
-        return Err("public declarations repeat or change canonical identity order");
-    }
+    ordered_by(values, |a, b| identity(a).cmp(identity(b)))?;
     for value in values {
         root(identity(value), package)?;
     }

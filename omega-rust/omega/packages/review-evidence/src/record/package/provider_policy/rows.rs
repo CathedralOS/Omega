@@ -1,3 +1,4 @@
+use crate::record::accessors::field_projection_accessors;
 use crate::record::{
     PackagePolicyEvaluatedBindingProducer, PackageReviewCompilerIntrinsicExecution,
     PackageReviewForeignLocator, PackageReviewNominalIdentity,
@@ -25,7 +26,7 @@ pub struct PackagePolicyProviderRow {
 }
 
 impl PackagePolicyProviderRow {
-    crate::record::accessors::record_accessors!(requirement);
+    field_projection_accessors!(borrowed requirement: &PackageReviewNominalIdentity);
     pub fn method(&self) -> &str {
         &self.method
     }
@@ -34,17 +35,10 @@ impl PackagePolicyProviderRow {
         self.realization.as_ref()
     }
 
-    pub fn requirement_lifetime_partition(&self) -> &[u32] {
-        &self.requirement_lifetime_partition
-    }
+    field_projection_accessors!(sliced requirement_lifetime_partition: &[u32]);
+    field_projection_accessors!(copied admitted_same_stack_bytes: u64);
 
-    pub fn admitted_same_stack_bytes(&self) -> u64 {
-        self.admitted_same_stack_bytes
-    }
-
-    pub fn binding(&self) -> &PackagePolicyProviderBinding {
-        &self.binding
-    }
+    field_projection_accessors!(borrowed binding: &PackagePolicyProviderBinding);
 
     pub(crate) fn compiler_intrinsic_execution(
         &self,
