@@ -181,6 +181,7 @@ impl Execution<'_, '_, '_> {
                     .control
                     .operand_retained_suppliers
                     .insert_many([checked_trees::FlowOperandRetainedSupplier {
+                        contract: None,
                         operand,
                         projection,
                     }]);

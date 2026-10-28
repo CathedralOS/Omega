@@ -244,6 +244,7 @@ impl<'program, 'writes> ArgumentSources<'program, 'writes> {
             control,
             &captured.operand,
             &[],
+            self.parameters.get(position)?.type_reference,
             &|operand, source| {
                 // This names the holder at its captured binding epoch. Later
                 // content writes do not erase a moved value's retained loans.

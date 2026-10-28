@@ -400,6 +400,7 @@ impl Execution<'_, '_, '_> {
                     .into_iter()
                     .map(
                         |(value, projection)| checked_trees::FlowOperandRetainedSupplier {
+                            contract: None,
                             operand: self.context.control.operands.insert(value),
                             projection: self
                                 .context

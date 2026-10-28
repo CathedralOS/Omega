@@ -50,6 +50,7 @@ pub(in crate::flow) fn captured_sources(
     control: &FlowControlFacts,
     operand: &FlowOperandFact,
     projection: &[facts::PlaceSegment],
+    contract: typed_trees::types::TypeReferenceHandle,
     stable_name: &impl Fn(&FlowOperandFact, &CanonicalPlace) -> bool,
 ) -> Option<RetainedSources> {
     fn visit(
@@ -57,6 +58,7 @@ pub(in crate::flow) fn captured_sources(
         control: &FlowControlFacts,
         operand: &FlowOperandFact,
         projection: &[facts::PlaceSegment],
+        contract: typed_trees::types::TypeReferenceHandle,
         stable_name: &impl Fn(&FlowOperandFact, &CanonicalPlace) -> bool,
         active: &mut Vec<Handle<FlowOperandRetention>>,
     ) -> Option<RetainedSources> {
@@ -70,7 +72,7 @@ pub(in crate::flow) fn captured_sources(
             )?
         };
         let mut result = RetainedSources::default();
-        let referent = crate::checks::contracts::exclusive_referent_type(program, reference);
+        let referent = crate::checks::contracts::exclusive_referent_type(program, contract);
         if referent.is_valid() {
             let places =
                 crate::flow::operand_values::captured_operand_reference_places_with_formation(
@@ -101,6 +103,7 @@ pub(in crate::flow) fn captured_sources(
                         control,
                         control.operands.get(alternative.value),
                         projection,
+                        contract,
                         stable_name,
                         active,
                     )?;
@@ -124,7 +127,7 @@ pub(in crate::flow) fn captured_sources(
             }
             return Some(result);
         }
-        if validation::reference_shell(program, reference).is_some() {
+        if validation::reference_shell(program, contract).is_some() {
             return Some(result);
         }
         if let Some(mut place) = validation::canonical_place_from_expression_in_state(
@@ -134,24 +137,36 @@ pub(in crate::flow) fn captured_sources(
             operand.expression,
         ) {
             place.segments.extend_from_slice(projection);
-            if program.type_multiplicity(reference)
-                != language_semantics::Multiplicity::Unrestricted
+            if program.type_multiplicity(contract) != language_semantics::Multiplicity::Unrestricted
                 && !matches!(place.root, facts::PlaceRoot::Expression(_))
                 && stable_name(operand, &place)
             {
                 result.holders.push(place);
             }
         }
-        let paths = validation::borrow_contracts::borrow_carrying_owner_paths(program, reference)?;
+        let paths = validation::borrow_contracts::borrow_carrying_owner_paths(program, contract)?;
         for path in paths {
+            let declared_path = crate::borrow::owner_place_segments(&path);
+            let declared = validation::project_type_reference_from_segments(
+                program,
+                contract,
+                &declared_path,
+            )?;
+            let relative =
+                crate::borrow::structural_owner_path(program, &path).and_then(|path| {
+                    validation::reference_result_custody::loan_place_segments(
+                        program, reference, &path,
+                    )
+                })?;
             let mut selected = projection.to_vec();
-            selected.extend(crate::borrow::owner_place_segments(&path));
+            selected.extend(relative);
             let profiles = validation::completed_storage::captured_retention_profiles_at_path(
                 program, control, operand, &selected,
             )?;
             let mut alternatives: Option<RetainedSources> = None;
             for profile in profiles {
-                let source = profile_sources(program, control, profile, stable_name, active)?;
+                let source =
+                    profile_sources(program, control, profile, declared, stable_name, active)?;
                 match &mut alternatives {
                     Some(common) => common.meet(&source),
                     None => alternatives = Some(source),
@@ -165,6 +180,7 @@ pub(in crate::flow) fn captured_sources(
         program: &dyn validation::CheckingInput,
         control: &FlowControlFacts,
         handle: Handle<FlowOperandRetention>,
+        contract: typed_trees::types::TypeReferenceHandle,
         stable_name: &impl Fn(&FlowOperandFact, &CanonicalPlace) -> bool,
         active: &mut Vec<Handle<FlowOperandRetention>>,
     ) -> Option<RetainedSources> {
@@ -178,8 +194,14 @@ pub(in crate::flow) fn captured_sources(
             if !profile.alternatives.is_empty() {
                 let mut common: Option<RetainedSources> = None;
                 for alternative in profile.alternatives.handles() {
-                    let source =
-                        profile_sources(program, control, alternative, stable_name, active)?;
+                    let source = profile_sources(
+                        program,
+                        control,
+                        alternative,
+                        contract,
+                        stable_name,
+                        active,
+                    )?;
                     match &mut common {
                         Some(common) => common.meet(&source),
                         None => common = Some(source),
@@ -199,11 +221,44 @@ pub(in crate::flow) fn captured_sources(
                     control,
                     control.operands.get(source.operand),
                     control.operand_retained_paths.span(source.projection)?,
+                    super::lifetime_contract::source_type(program, control, source)?,
                     stable_name,
                     active,
                 )?);
             }
-            if control.operands.is_valid(profile.stored_value) {
+            // Exact permission suppliers select an ordinary declared reference
+            // leaf. They are alternatives, not simultaneous lifetime debts.
+            // Its receiving field contract bounds every older actual capture.
+            if validation::reference_shell(program, contract).is_some()
+                && !profile.suppliers.is_empty()
+            {
+                let mut common: Option<RetainedSources> = None;
+                for source in control.operand_retained_suppliers.span(profile.suppliers)? {
+                    if !control.operands.is_valid(source.operand) {
+                        return None;
+                    }
+                    let supplied = visit(
+                        program,
+                        control,
+                        control.operands.get(source.operand),
+                        control.operand_retained_paths.span(source.projection)?,
+                        contract,
+                        stable_name,
+                        active,
+                    )?;
+                    match &mut common {
+                        Some(common) => common.meet(&supplied),
+                        None => common = Some(supplied),
+                    }
+                }
+                result.append(common?);
+            }
+            // A reference lends backing contents; consuming its descriptor
+            // does not consume the backing owner's contained permissions.
+            // Only owned carrier transport follows stored_value as ownership.
+            if validation::reference_shell(program, contract).is_none()
+                && control.operands.is_valid(profile.stored_value)
+            {
                 result.append(visit(
                     program,
                     control,
@@ -211,6 +266,7 @@ pub(in crate::flow) fn captured_sources(
                     control
                         .operand_retained_paths
                         .span(profile.stored_projection)?,
+                    contract,
                     stable_name,
                     active,
                 )?);
@@ -225,6 +281,7 @@ pub(in crate::flow) fn captured_sources(
         control,
         operand,
         projection,
+        contract,
         stable_name,
         &mut Vec::new(),
     )

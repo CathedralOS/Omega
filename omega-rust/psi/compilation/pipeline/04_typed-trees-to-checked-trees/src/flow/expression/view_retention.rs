@@ -1175,6 +1175,9 @@ impl Execution<'_, '_, '_> {
             for root in roots {
                 crate::collections::push_unique(&mut outputs[position].1, root);
             }
+            // Retain the contextual actual separately from an older stored
+            // capture. The latter proves supply, never the receiving contract.
+            let input = self.context.control.operands.insert(*actual);
             let supplier = if source.source
                 == validation::borrow_contracts::ViewReturnInputSource::Stored
                 && self.is_view_type(actual.type_reference)
@@ -1184,25 +1187,64 @@ impl Execution<'_, '_, '_> {
                     .operand_retentions
                     .is_valid(actual.retention)
                     .then(|| {
-                        self.context
+                        *self
+                            .context
                             .control
                             .operand_retentions
                             .get(actual.retention)
-                            .stored_value
                     })
-                    .filter(|handle| self.context.control.operands.is_valid(*handle))
+                    .filter(|profile| self.context.control.operands.is_valid(profile.stored_value))
+                    .and_then(|profile| {
+                        Some((
+                            profile.stored_value,
+                            self.context
+                                .control
+                                .operand_retained_paths
+                                .span(profile.stored_projection)?
+                                .to_vec(),
+                        ))
+                    })
             } else {
-                Some(self.context.control.operands.insert(*actual))
+                Some((input, Vec::new()))
             };
-            if let (Some(operand), Some(suppliers)) = (supplier, &mut outputs[position].3) {
+            if let (Some((operand, mut projection)), Some(suppliers)) =
+                (supplier, &mut outputs[position].3)
+            {
+                let source_path = self
+                    .context
+                    .control
+                    .operand_retained_paths
+                    .insert_many(source_path.iter().copied());
+                projection.extend_from_slice(
+                    self.context
+                        .control
+                        .operand_retained_paths
+                        .span_or_empty(source_path),
+                );
                 let projection = self
                     .context
                     .control
                     .operand_retained_paths
-                    .insert_many(source_path);
+                    .insert_many(projection);
+                let owner_path = self
+                    .context
+                    .control
+                    .operand_retained_paths
+                    .insert_many(crate::borrow::owner_place_segments(&source.owner_path));
                 suppliers.push(checked_trees::FlowOperandRetainedSupplier {
                     operand,
                     projection,
+                    contract: Some(checked_trees::FlowOperandLifetimeContract {
+                        state_symbol: self.state.symbol,
+                        statement_index: self.statement_index,
+                        invocation: expression,
+                        input,
+                        parameter_index: source.parameter_index,
+                        source: source.source,
+                        source_type: source.source_type,
+                        source_path,
+                        owner_path,
+                    }),
                 });
             } else {
                 // Retained roots remain valid lifetime exclusion, but partial

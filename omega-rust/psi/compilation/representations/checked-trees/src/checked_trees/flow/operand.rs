@@ -116,10 +116,36 @@ pub struct FlowOperandRetainedRegion {
     pub projection: HandleSpan<facts::PlaceSegment>,
 }
 
+/// One declared input relationship: lending the referent and transferring a
+/// stored descriptor have different contracts even when their paths are empty.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ViewReturnInputSource {
+    Referent,
+    Stored,
+}
+
+/// The original applied call contract bound on a lifetime supplier. This is
+/// not a promise inferred from the older actual capture reached through it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FlowOperandLifetimeContract {
+    pub state_symbol: symbols::SymbolHandle,
+    pub statement_index: usize,
+    pub invocation: ExpressionHandle,
+    pub input: Handle<FlowOperandFact>,
+    pub parameter_index: usize,
+    pub source: ViewReturnInputSource,
+    pub source_type: typed_trees::types::TypeReferenceHandle,
+    pub source_path: HandleSpan<facts::PlaceSegment>,
+    pub owner_path: HandleSpan<facts::PlaceSegment>,
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct FlowOperandRetainedSupplier {
     pub operand: Handle<FlowOperandFact>,
     pub projection: HandleSpan<facts::PlaceSegment>,
+    /// Present on a declared lifetime edge, independently of permission and
+    /// descriptor suppliers, whose selected field contract stays with its owner.
+    pub contract: Option<FlowOperandLifetimeContract>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

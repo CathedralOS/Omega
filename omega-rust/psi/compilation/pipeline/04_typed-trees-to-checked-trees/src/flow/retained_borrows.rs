@@ -41,6 +41,7 @@ pub(in crate::flow) use qualifications::memberships;
 pub(crate) use qualifications::{RetainedMembership, replay_memberships};
 
 mod captured_inputs;
+mod lifetime_contract;
 pub(in crate::flow) use captured_inputs::{RetainedSources, captured_sources, completed_calls};
 
 fn ending_inputs(
