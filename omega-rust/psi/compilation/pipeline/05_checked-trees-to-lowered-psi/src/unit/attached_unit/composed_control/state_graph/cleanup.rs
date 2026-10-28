@@ -88,10 +88,23 @@ pub(super) fn for_successor_regions(
             || call.authored_site != checked_trees::FlowCallSite::NamedTransition
             || !call.authored_source_custody_valid
             || call.statement_index != edge.statement_ordinal as usize
-            || call.target_symbol != edge.target_state
         {
             return Err(LoweringError::Unsupported(
-                "pending fused invocation disagrees with its selected arrival",
+                "pending fused invocation disagrees with its selected source occurrence",
+            ));
+        }
+        let source_owner =
+            checked
+                .typed
+                .machine_by_symbol(owner)
+                .ok_or(LoweringError::Unsupported(
+                    "pending fused invocation has no source machine",
+                ))?;
+        if !validation::terminal_callable_target(&checked.typed, source_owner, call.target_symbol)
+            .is_some_and(|(entry, _)| entry == edge.target_state)
+        {
+            return Err(LoweringError::Unsupported(
+                "pending fused invocation has a different executable arrival",
             ));
         }
         // No cleanup, release, or return is manufactured here. Whole no-code
