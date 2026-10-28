@@ -36,8 +36,9 @@ pub(super) fn prepare<'host, 'code>(
         };
     };
     let module = artifact.view().module();
-    let program = TerminalProgram::load_envelope(&artifact.to_bytes())
-        .map_err(|error| format!("Build provider code admission: {error:?}"))?;
+    // Keep freshly produced code alive after helper preparation is released;
+    // decoding is an external-byte ingress, not a same-session ownership transfer.
+    let program = TerminalProgram::retain(artifact.retain_code());
     let mut bindings = Vec::new();
     for boundary in &request.requirement.boundaries {
         let receiving = receiver
