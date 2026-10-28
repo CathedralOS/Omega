@@ -30,7 +30,10 @@ pub(super) fn validate(
                         && file.path == std::path::Path::new("<build-prelude>")
                 })
         })
-        .flat_map(|definition| program.trait_machine_instances(definition))
+        // Issuance is owned by the authored operation declaration. The
+        // executable roster replaces generic templates with closed instances;
+        // it cannot be compared to a closed call's retained template below.
+        .flat_map(|definition| program.trait_machine_signatures(definition).iter())
         .map(|signature| (signature.symbol, signature.name.as_str()))
         .collect();
     // A generic protocol operation has an ordinary closed requirement identity.

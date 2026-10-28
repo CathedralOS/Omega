@@ -1,0 +1,2 @@
+// Invalid: a direct generic hostprotocol call carries no designated operands.
+machine main() {}
