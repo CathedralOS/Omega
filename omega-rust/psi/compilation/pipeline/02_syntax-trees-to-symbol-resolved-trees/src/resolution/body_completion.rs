@@ -268,6 +268,27 @@ impl DeferredResolvedFrontier {
         Ok(demand)
     }
 
+    /// A newly completed body can demand an exact already-published generic
+    /// data declaration that source projection left as inactive backing. This
+    /// republishes that existing record, never a caller-built replacement.
+    pub fn reactivate_data_declarations(
+        mut self,
+        handles: &[arena::Handle<symbol_resolved_trees::data::DataDefinition>],
+    ) -> Result<Self, Diagnostic> {
+        let trees = Arc::make_mut(&mut self.trees);
+        for &handle in handles {
+            let declaration = trees.data_definitions.get(handle);
+            if declaration.generic_instance.is_none() {
+                return Err(Diagnostic::error(
+                    "data reactivation requires an exact derived declaration",
+                ));
+            }
+            trees.data_definitions.reactivate(handle);
+        }
+        trees.resolution_indexes = Default::default();
+        Ok(self)
+    }
+
     /// Prepared declaration syntax for the next pre-resolution generic-data
     /// normalization. This is immutable lookup context, never another body or
     /// constant-evaluation work roster.
