@@ -11,48 +11,32 @@ use super::{CompatiblePolicyScalarExpressionKey, ScalarExpressionRow, canonical_
 pub(in crate::rules) fn compatible_policy_scalar_leader(
     operation: &O,
 ) -> Option<ScalarExpressionRow<CompatiblePolicyScalarExpressionKey>> {
-    let row = match operation {
-        O::IntegerShift {
-            psi_operation,
-            result,
-            value_type,
-            count_type,
-            policy: IntegerShiftPolicy::Wrapping,
-            direction,
-            value,
-            count,
-        } => (
-            shift_key(*direction, *value_type, *count_type, *value, *count),
-            *psi_operation,
-            *result,
-            ScalarType::Integer(*value_type),
-        ),
-        O::IntegerArithmetic {
-            psi_operation,
-            result,
-            scalar_type,
-            arithmetic,
-            left,
-            right,
-        } if matches!(
-            arithmetic.policy(),
-            IntegerOverflowPolicy::Wrapping | IntegerOverflowPolicy::Saturating
-        ) =>
-        {
-            (
-                arithmetic_key(arithmetic.operator(), *scalar_type, *left, *right)?,
-                *psi_operation,
-                *result,
-                ScalarType::Integer(*scalar_type),
+    compatible_policy_scalar_row(
+        operation,
+        |policy| matches!(policy, IntegerShiftPolicy::Wrapping),
+        |policy| {
+            matches!(
+                policy,
+                IntegerOverflowPolicy::Wrapping | IntegerOverflowPolicy::Saturating
             )
-        }
-        _ => return None,
-    };
-    Some(row)
+        },
+    )
 }
 
 pub(in crate::rules) fn compatible_policy_scalar_redundant(
     operation: &O,
+) -> Option<ScalarExpressionRow<CompatiblePolicyScalarExpressionKey>> {
+    compatible_policy_scalar_row(
+        operation,
+        |policy| matches!(policy, IntegerShiftPolicy::Exact { .. }),
+        |policy| policy == IntegerOverflowPolicy::Exact,
+    )
+}
+
+fn compatible_policy_scalar_row(
+    operation: &O,
+    admit_shift: fn(&IntegerShiftPolicy) -> bool,
+    admit_arithmetic: fn(IntegerOverflowPolicy) -> bool,
 ) -> Option<ScalarExpressionRow<CompatiblePolicyScalarExpressionKey>> {
     let row = match operation {
         O::IntegerShift {
@@ -60,11 +44,11 @@ pub(in crate::rules) fn compatible_policy_scalar_redundant(
             result,
             value_type,
             count_type,
-            policy: IntegerShiftPolicy::Exact { .. },
+            policy,
             direction,
             value,
             count,
-        } => (
+        } if admit_shift(policy) => (
             shift_key(*direction, *value_type, *count_type, *value, *count),
             *psi_operation,
             *result,
@@ -77,7 +61,7 @@ pub(in crate::rules) fn compatible_policy_scalar_redundant(
             arithmetic,
             left,
             right,
-        } if arithmetic.policy() == IntegerOverflowPolicy::Exact => (
+        } if admit_arithmetic(arithmetic.policy()) => (
             arithmetic_key(arithmetic.operator(), *scalar_type, *left, *right)?,
             *psi_operation,
             *result,
