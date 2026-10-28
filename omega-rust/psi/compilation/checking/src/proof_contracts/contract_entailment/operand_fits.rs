@@ -416,6 +416,7 @@ fn operand_fits_at_occurrence(
     }
 }
 
+#[derive(Clone)]
 struct OperandFit {
     site: StructuralPrefixSite,
     request: OperandFitRequest,
@@ -424,6 +425,10 @@ struct OperandFit {
 }
 
 impl StructuralPrefixVisitor for OperandFit {
+    fn has_positive_proof(&self) -> bool {
+        self.seen && matches!(self.judgment, Some(CarrierFit::Proven))
+    }
+
     fn site(&self) -> StructuralPrefixSite {
         self.site
     }

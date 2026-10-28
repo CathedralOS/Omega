@@ -7,8 +7,8 @@
 
 mod private_arrivals;
 
-pub(crate) use private_arrivals::{ClosedArrivals, ProgramPrivateArrivalIndex};
 pub(super) use private_arrivals::observe_private_arrivals;
+pub(crate) use private_arrivals::{ClosedArrivals, ProgramPrivateArrivalIndex};
 
 use super::citations::{CitationFacts, machine_requires_facts};
 use super::structural_case_arms::{
@@ -140,6 +140,13 @@ pub(super) trait StructuralPrefixVisitor {
 
     /// True once no further path observation can change the visitor's verdict.
     fn is_complete(&self) -> bool {
+        false
+    }
+
+    /// A complete positive judgment may be published from an independently
+    /// checked caller frontier. Negative or partial trials never replace the
+    /// original lexical-root observation.
+    fn has_positive_proof(&self) -> bool {
         false
     }
 

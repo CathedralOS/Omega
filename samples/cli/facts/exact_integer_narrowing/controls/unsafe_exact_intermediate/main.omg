@@ -1,0 +1,10 @@
+// A later zero result cannot hide an overflowing Exact child.
+machine probe(value: u32 in Trapping) -> u8 {
+    transition value >= 1 && value <= 15 { true -> apply(value) false -> (0) }
+    machine apply(value: u32 in Trapping) -> u8 {
+        let overflowed: u32 = (value as u32) + 4294967295u32;
+        let cancelled: u32 = overflowed * 0;
+        cancelled as u8
+    }
+}
+machine main() { let observed: u8 = probe(7); }
