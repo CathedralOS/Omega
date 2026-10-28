@@ -14,6 +14,101 @@ use typed_trees::signature::{SignatureContractKind, StateParameter};
 use typed_trees::types::TypeReferenceHandle;
 
 impl StructuralJudge<'_> {
+    /// Expression and transition matches share the same admitted-case owner.
+    /// The completed subject supplies the complete pattern view; a classifier
+    /// alone never manufactures a payload value or imports nominal validity.
+    pub(super) fn intake_completed_match_case(
+        &mut self,
+        condition: ExpressionHandle,
+        subject_expression: ExpressionHandle,
+        subject: &StructuralTerm,
+        subject_type: TypeReferenceHandle,
+        machine: &typed_trees::machine::Machine,
+        state: &typed_trees::state::State,
+        environment: &[(String, StructuralTerm)],
+    ) {
+        let program = self.program;
+        let Some((source_definition, source_variant)) =
+            super::super::structural_terms::case_guard_classifier(
+                program,
+                machine,
+                Some(state),
+                condition,
+            )
+        else {
+            return;
+        };
+        let Some(comparison) = program.expression_table.binary_node(condition) else {
+            return;
+        };
+        let same_place =
+            crate::value_custody::places::canonical_place_from_expression(program, comparison.left)
+                .zip(
+                    crate::value_custody::places::canonical_place_from_expression(
+                        program,
+                        subject_expression,
+                    ),
+                )
+                .is_some_and(|(left, right)| left == right);
+        let same_observation = self
+            .callee_term_in_scope(
+                Some((machine, state, subject_type)),
+                comparison.left,
+                environment,
+                0,
+            )
+            .map(|value| self.resolve(value))
+            .and_then(|value| value.observation_identity_key())
+            .zip(self.resolve(subject.clone()).observation_identity_key())
+            .is_some_and(|(left, right)| left == right);
+        if comparison.left != subject_expression && !same_place && !same_observation {
+            return;
+        }
+        if !self.has_admitted_nominal_subject(subject_expression, subject, subject_type) {
+            return;
+        }
+        let Some(definition) =
+            program.data_constructor_definition(subject_type, source_definition.symbol)
+        else {
+            return;
+        };
+        let Some(variant) = program.data_constructor_case(
+            subject_type,
+            source_definition.symbol,
+            source_variant.symbol,
+        ) else {
+            return;
+        };
+        let Some(view) = super::super::structural_terms::captured_constructor_term(
+            program,
+            definition,
+            Some(variant),
+            |field| {
+                super::super::observed_projections::project_observed_value(
+                    program,
+                    subject_type,
+                    subject.clone(),
+                    &[facts::PlaceSegment::Field {
+                        symbol: field.symbol,
+                    }],
+                )
+            },
+        ) else {
+            return;
+        };
+        self.intake_selected_case_predicates(
+            definition,
+            variant,
+            &view,
+            subject_expression,
+            subject,
+            subject_type,
+            machine,
+            state,
+            environment,
+        );
+    }
+
     /// A successful nominal guard establishes only the selected case's facts.
     /// Its fresh common/payload terms identify this observed value, so later
     /// state substitution transports the predicate without rereading storage.

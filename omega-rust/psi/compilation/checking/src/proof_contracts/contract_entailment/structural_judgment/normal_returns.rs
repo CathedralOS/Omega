@@ -1210,6 +1210,19 @@ impl<'program> StructuralJudge<'program> {
                             let mut selected = tested.judge;
                             if predicate {
                                 selected.assume_normal_equation(tested.value, boolean_term(true));
+                                if let Some(subject_type) =
+                                    selected.normal_value_type_reference(dispatch.subject, scope)
+                                {
+                                    selected.intake_completed_match_case(
+                                        pattern,
+                                        dispatch.subject,
+                                        &subject.value,
+                                        subject_type,
+                                        scope.0,
+                                        scope.1,
+                                        environment,
+                                    );
+                                }
                             } else if equation_meaning {
                                 selected
                                     .assume_normal_equation(subject.value.clone(), tested.value);
