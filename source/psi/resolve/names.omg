@@ -9,14 +9,16 @@ use psi::syntax::syntax;
 // Expression names. Every name and path in a machine body, and in a
 // constant's value, binds in the order of
 // wiki/spec/language/modules.md#resolution: a local binding, then the body's
-// parameters (a state sees only its own, never the entry's), then the
-// machine's generic parameters (a trait or conformance member's own, then
-// its container's), then the unit's declarations. Where the name stands
+// parameters, then the machine's generic parameters and its exact enclosing
+// static declaration context, then the unit's declarations. An enclosing
+// invocation's runtime parameters, locals and facts are never captured.
+// Where the name stands
 // decides which declarations it may name: a value names a value binder
 // (`Count: u32`, `const N: u64`) or a constant, a call's callee a machine
-// binder, then a fellow member of the enclosing trait or conformance, then a
-// machine or a proposition, a call-shaped transition target a state of its
-// machine before any callee, a construction's path a data declaration or
+// binder, then the nearest lexical declaration family, then a fellow member
+// of the enclosing trait or conformance, then a machine or a proposition.
+// A transition's callee uses the same lexical declaration identities;
+// a construction's path names a data declaration or
 // `Type::Case`, a case pattern's path a case, and a path in value position a
 // case, an owned constant (`Owner::NAME`) or an owned machine. A callee path names a
 // machine through its owner, so `Trait::requirement` names a trait

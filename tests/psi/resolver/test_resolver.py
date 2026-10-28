@@ -996,7 +996,8 @@ def main() -> None:
     )
 
     # Expression names: locals, then pattern binders, then the body's own
-    # parameters; callees name machines, targets a machine before a machine,
+    # parameters; both ordinary calls and transition targets select exact
+    # lexical machine identities,
     # constructions and paths a data declaration's case.
     accepted(
         program,

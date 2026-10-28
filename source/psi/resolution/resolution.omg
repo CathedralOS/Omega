@@ -142,7 +142,8 @@ public data PathBinding [copy] {
 
 // The generic parameters a type name may bind: the enclosing declaration's
 // contiguous range of `SyntaxTrees::generic_parameters`, then, for a trait or
-// conformance member, its container's range, which the member's own shadow.
+// conformance member, its container's range. Exact lexical ancestors supply
+// static context between those tiers, never another invocation's values.
 public data TypeScope [copy] {
     first_generic_parameter: u64 in Trapping;
     generic_parameter_count: u64 in Trapping;
@@ -175,7 +176,8 @@ public data DomainBinding [copy] {
 // machine's owner is its authored `Owner::`; a trait requirement or default
 // and a conformance member are named through their container (`Trait::name`,
 // `Conformance::name`), whose `SyntaxTrees::traits` or `conformances` handle
-// is `item`. Overload families, duplicates and callees compare these paths.
+// is `item`. Lexical ancestry is independent in MachineItem; overload
+// families, duplicates and callees compare both identities.
 public data MachineOwner [copy] {
     container: MachineContainer;
     item: u64 in Trapping;
