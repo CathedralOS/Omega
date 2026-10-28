@@ -14,7 +14,7 @@ pub(in crate::flow) struct RetainedSources {
 }
 
 impl RetainedSources {
-    pub(super) fn append(&mut self, other: Self) {
+    pub(in crate::flow) fn append(&mut self, other: Self) {
         for holder in other.holders {
             if !self.holders.contains(&holder) {
                 self.holders.push(holder);

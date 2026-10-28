@@ -58,7 +58,7 @@ pub(super) fn source_type(
             && recorded.target_symbol == borrowed.target_symbol
     });
     let (_, actual) = actual.next()?;
-    if actual.operands.count() != arguments.len() + receiver
+    if actual.operands.count() as usize != arguments.len() + receiver
         || control
             .operands
             .span(actual.operands)?

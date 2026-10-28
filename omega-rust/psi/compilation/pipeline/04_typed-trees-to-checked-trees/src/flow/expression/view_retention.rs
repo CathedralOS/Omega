@@ -1108,6 +1108,26 @@ impl Execution<'_, '_, '_> {
             return;
         };
         let target = validation::call_target_symbol(self.program, call);
+        let call_ordinal =
+            self.borrow
+                .with_state_borrows(self.machine.symbol, self.state.symbol, |rows| {
+                    let [row] = rows else {
+                        return None;
+                    };
+                    let mut calls = self
+                        .borrow
+                        .calls
+                        .span(self.borrow.states.get(*row).calls)?
+                        .iter()
+                        .filter(|recorded| {
+                            recorded.statement_index == self.statement_index
+                                && recorded.authored_expression == expression
+                                && recorded.target_symbol
+                                    == validation::call_target_entry_symbol(self.program, target)
+                        });
+                    let ordinal = calls.next()?.call_ordinal;
+                    calls.next().is_none().then_some(ordinal)
+                });
         let Some(returned) = destination
             .is_valid()
             .then_some(destination)
@@ -1207,8 +1227,8 @@ impl Execution<'_, '_, '_> {
             } else {
                 Some((input, Vec::new()))
             };
-            if let (Some((operand, mut projection)), Some(suppliers)) =
-                (supplier, &mut outputs[position].3)
+            if let (Some((operand, mut projection)), Some(suppliers), Some(call_ordinal)) =
+                (supplier, &mut outputs[position].3, call_ordinal)
             {
                 let source_path = self
                     .context
@@ -1238,7 +1258,7 @@ impl Execution<'_, '_, '_> {
                         state_symbol: self.state.symbol,
                         statement_index: self.statement_index,
                         invocation: expression,
-                        call_ordinal: call.call_ordinal,
+                        call_ordinal,
                         output_parameter: None,
                         input,
                         parameter_index: source.parameter_index,

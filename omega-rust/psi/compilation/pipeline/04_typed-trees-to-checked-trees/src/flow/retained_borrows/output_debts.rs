@@ -144,10 +144,7 @@ pub(in crate::flow) fn sources(
             // Every currently held debt must retain the same actual supplier
             // lineage as the performed generation's recorded input window.
             for debt in &debts {
-                if !original_debts
-                    .iter()
-                    .any(|original| same_window(program, borrow, *debt, *original))
-                {
+                if !window_is_covered(program, borrow, *debt, &original_debts) {
                     return None;
                 }
             }
@@ -207,51 +204,115 @@ pub(in crate::flow) fn sources(
     Some(result)
 }
 
-fn same_window(
+/// The original generation is a complete roster of input alternatives. Every
+/// current predecessor path must reach one of those exact original windows or
+/// its immediate captured suppliers. Older shared ancestors are not a window
+/// identity: two later loans can share an ancestor while owing different bounds.
+fn window_is_covered(
     program: &dyn validation::CheckingInput,
     borrow: &BorrowFacts,
     current: Handle<BorrowLoanFact>,
-    original: Handle<BorrowLoanFact>,
+    originals: &[Handle<BorrowLoanFact>],
 ) -> bool {
-    let left = borrow.loans.get(current);
-    let right = borrow.loans.get(original);
-    if left.root != right.root
-        || left.kind != right.kind
-        || !same_path(
-            program,
-            borrow.loan_segments(left),
-            borrow.loan_segments(right),
-        )
-    {
-        return false;
-    }
-    fn ancestors(
-        borrow: &BorrowFacts,
-        root: Handle<BorrowLoanFact>,
-    ) -> Option<Vec<Handle<BorrowLoanFact>>> {
-        let mut result = Vec::new();
-        let mut pending = vec![root];
-        while let Some(handle) = pending.pop() {
-            if !borrow.loans.is_valid(handle) {
-                return None;
-            }
-            if result.contains(&handle) {
-                continue;
-            }
-            result.push(handle);
-            pending.extend_from_slice(
-                borrow
-                    .loan_suppliers
-                    .span(borrow.loans.get(handle).supplying_loans)?,
-            );
+    let current_loan = borrow.loans.get(current);
+    let mut boundary = Vec::new();
+    for original in originals {
+        if !borrow.loans.is_valid(*original) {
+            return false;
         }
-        Some(result)
+        let loan = borrow.loans.get(*original);
+        if loan.root != current_loan.root
+            || loan.kind != current_loan.kind
+            || !same_path(
+                program,
+                borrow.loan_segments(loan),
+                borrow.loan_segments(current_loan),
+            )
+        {
+            continue;
+        }
+        // Validate the entire original history for cycles/unknown handles,
+        // without flattening those older ancestors into permitted boundaries.
+        if !supplier_graph_is_known(borrow, *original) {
+            return false;
+        }
+        boundary.push(*original);
+        let Some(sources) = borrow.loan_suppliers.span(loan.supplying_loans) else {
+            return false;
+        };
+        for source in sources {
+            if !boundary.contains(source) {
+                boundary.push(*source);
+            }
+        }
     }
-    let (Some(left), Some(right)) = (ancestors(borrow, current), ancestors(borrow, original))
-    else {
+    if boundary.is_empty() {
         return false;
-    };
-    left.iter().any(|source| right.contains(source))
+    }
+    let mut resolved = Vec::new();
+    let mut active = Vec::new();
+    let mut pending = vec![(current, false)];
+    while let Some((handle, exiting)) = pending.pop() {
+        if !borrow.loans.is_valid(handle) {
+            return false;
+        }
+        if boundary.contains(&handle) || resolved.contains(&handle) {
+            continue;
+        }
+        if exiting {
+            active.pop();
+            resolved.push(handle);
+            continue;
+        }
+        if active.contains(&handle) {
+            return false;
+        }
+        let Some(suppliers) = borrow
+            .loan_suppliers
+            .span(borrow.loans.get(handle).supplying_loans)
+        else {
+            return false;
+        };
+        if suppliers.is_empty() {
+            return false;
+        }
+        active.push(handle);
+        pending.push((handle, true));
+        pending.extend(suppliers.iter().rev().map(|supplier| (*supplier, false)));
+    }
+    true
+}
+
+fn supplier_graph_is_known(borrow: &BorrowFacts, root: Handle<BorrowLoanFact>) -> bool {
+    let mut resolved = Vec::new();
+    let mut active = Vec::new();
+    let mut pending = vec![(root, false)];
+    while let Some((handle, exiting)) = pending.pop() {
+        if !borrow.loans.is_valid(handle) {
+            return false;
+        }
+        if resolved.contains(&handle) {
+            continue;
+        }
+        if exiting {
+            active.pop();
+            resolved.push(handle);
+            continue;
+        }
+        if active.contains(&handle) {
+            return false;
+        }
+        let Some(suppliers) = borrow
+            .loan_suppliers
+            .span(borrow.loans.get(handle).supplying_loans)
+        else {
+            return false;
+        };
+        active.push(handle);
+        pending.push((handle, true));
+        pending.extend(suppliers.iter().rev().map(|supplier| (*supplier, false)));
+    }
+    true
 }
 
 fn same_path(
