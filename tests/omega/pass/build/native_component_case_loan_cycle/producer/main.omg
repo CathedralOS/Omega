@@ -1,0 +1,47 @@
+public data Gate { slot: u64; }
+data Peer { visited: u64; }
+data Decision { case Ready(index: u64 [1..=16]); case Done; }
+public boundary trait Reading { machine read() -> u64 reaches blocks; }
+public Reader satisfies Reading {
+    machine read() -> u64 blocks; {
+        let gate: Gate;
+        let mut peer: Peer;
+        let result: u64 = block poll(&gate, &mut peer, 1u64);
+        peer.visited
+    }
+}
+public machine pause(gate: &Gate) -> u64 blocks; { gate.slot }
+machine observe(index: u64 [1..=16]) -> Decision {
+    transition index < 16u64 {
+        true -> (Decision::Ready { index: index })
+        _ -> (Decision::Done)
+    }
+}
+machine poll(gate: &Gate, peer: &mut Peer, index: u64 [1..=16]) -> u64 {
+    peer.visited = index;
+    let mut payload: [u64; 8];
+    payload[0] = index;
+    let decision: Decision = observe(index);
+    transition decision {
+        Decision::Ready { index } -> (block step(gate, peer, forwarded(index), &payload))
+        Decision::Done -> (0u64)
+    }
+}
+machine forwarded(index: u64 [1..=16]) -> u64 [1..=16] { index }
+machine step(gate: &Gate, peer: &mut Peer, index: u64 [1..=16], payload: &[u64; 8]) -> u64 {
+    transition payload[0] == index {
+        true -> (block advance(gate, peer, index))
+        _ -> (0u64)
+    }
+}
+machine advance(gate: &Gate, peer: &mut Peer, index: u64 [1..=16]) -> u64 {
+    transition index < 16u64 {
+        true -> (block waited(gate, peer, index + 1u64))
+        _ -> (0u64)
+    }
+}
+machine waited(gate: &Gate, peer: &mut Peer, index: u64 [1..=16]) -> u64 {
+    let ignored: u64 = block pause(gate);
+    transition { _ -> (block poll(gate, peer, index)) }
+}
+machine component_entry() {}
