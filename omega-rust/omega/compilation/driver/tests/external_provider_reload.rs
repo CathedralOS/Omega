@@ -10,7 +10,7 @@ use std::sync::Arc;
 use terminal_psi_to_abstract_operations::provider_admission;
 
 #[test]
-fn numeric_native_inputs_reload_from_canonical_external_satisfaction() {
+fn numeric_native_inputs_reload_from_canonical_numeric_satisfaction() {
     let target = "macos_arm64";
     let fixture = fixture_package_inputs::repo_root()
         .join("tests/omega/pass/float/named_provider_negate_is_nan_exit/main.omg");
@@ -90,7 +90,7 @@ fn numeric_native_inputs_reload_from_canonical_external_satisfaction() {
         recovered
             .artifact()
             .semantic_module()
-            .external_providers
+            .numeric_realizations
             .iter()
             .any(|candidate| candidate.numeric_intrinsic.is_some())
     );

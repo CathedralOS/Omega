@@ -193,8 +193,8 @@ fn project_terminal_native_body(
         request.provider_declarations,
     )
     .map_err(|message| vec![Diagnostic::error(message)])?;
-    crate::provider_admission::validate_external_provider_owners(
-        &terminal_module.external_providers,
+    crate::provider_admission::validate_numeric_realization_owners(
+        &terminal_module.numeric_realizations,
         &terminal_module.identities,
         request.provider_declarations,
     )

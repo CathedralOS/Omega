@@ -202,8 +202,7 @@ pub(super) fn solve(
         .enumerate()
         .map(|(index, &place)| (place, index))
         .collect();
-    let mut births_by_op: HashMap<OperationId, Vec<PlaceId>> =
-        HashMap::with_capacity(births.len());
+    let mut births_by_op: HashMap<OperationId, Vec<PlaceId>> = HashMap::with_capacity(births.len());
     for &(place, op) in births {
         births_by_op.entry(op).or_default().push(place);
     }

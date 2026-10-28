@@ -706,14 +706,11 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         &owners,
         &catalogs.structural_types,
     )?;
-    let dynamic_dispatch = catalogs
-        .dynamic_dispatch
-        .clone()
-        .unwrap_or_else(|| {
-            std::sync::Arc::new(crate::unit::dynamic_dispatch::DynamicDispatchIndex::new(
-                checked,
-            ))
-        });
+    let dynamic_dispatch = catalogs.dynamic_dispatch.clone().unwrap_or_else(|| {
+        std::sync::Arc::new(crate::unit::dynamic_dispatch::DynamicDispatchIndex::new(
+            checked,
+        ))
+    });
     let mut emission = StateGraphEmission {
         checked,
         plan,

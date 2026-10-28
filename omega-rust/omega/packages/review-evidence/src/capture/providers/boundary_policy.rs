@@ -20,12 +20,12 @@ pub(crate) fn project_checked_boundary_application_policy<'a>(
 ) -> Result<PackagePolicyBoundaryApplications, Vec<Diagnostic>> {
     let input = input.into();
     let projected = input
-        .external_providers
+        .numeric_realizations
         .is_none()
-        .then(|| input.project_external_providers())
+        .then(|| input.project_numeric_realizations())
         .transpose()?;
     let compilation = &PackageReviewInput {
-        external_providers: input.external_providers.or(projected.as_ref()),
+        numeric_realizations: input.numeric_realizations.or(projected.as_ref()),
         ..input
     };
     let policy = PackagePolicyBoundaryApplications {

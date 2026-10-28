@@ -1,15 +1,14 @@
-//! Checked external satisfaction is portable; choosing and admitting a provider
+//! Checked numeric catalogue realization is portable; choosing and admitting a provider
 //! is not. The explicit requirement survives lowering even without a call.
 
 use crate::{
     CheckedMachineDeclaration, NominalDeclarationIdentity, TerminalIdentityIndex,
     TerminalIdentityTable,
 };
-use language_semantics::ExternalBindingIdentity;
 use semantic_vocabulary::PackageKeyIdentity;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ExternalProviderOwner {
+pub struct NumericRealizationOwner {
     pub declaration: NominalDeclarationIdentity,
     pub identity: TerminalIdentityIndex,
     pub package: Option<PackageKeyIdentity>,
@@ -20,20 +19,19 @@ pub struct ExternalProviderOwner {
 /// and mechanism so a consumer can join an independently selected whole plan
 /// without reopening source or treating numeric meaning as provider authority.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ExternalProviderConformance {
+pub struct NumericRealization {
     pub requirement: NominalDeclarationIdentity,
     pub requirement_identity: TerminalIdentityIndex,
     pub requirement_package: Option<PackageKeyIdentity>,
-    pub numeric_intrinsic: Option<language_semantics::numeric_intrinsics::NumericIntrinsic>,
+    pub numeric_intrinsic: language_semantics::numeric_intrinsics::NumericIntrinsic,
     /// Legacy authored family membership, not a selected deployment target.
     pub target: Option<String>,
     pub realization: CheckedMachineDeclaration,
     pub realization_package: Option<PackageKeyIdentity>,
-    pub provider: Option<ExternalProviderOwner>,
-    pub binding: ExternalBindingIdentity,
+    pub provider: Option<NumericRealizationOwner>,
 }
 
-impl ExternalProviderConformance {
+impl NumericRealization {
     pub fn validate(&self, identities: &TerminalIdentityTable) -> Result<(), &'static str> {
         let declaration = &self.realization;
         let present = |identity| {
@@ -42,9 +40,7 @@ impl ExternalProviderConformance {
                 .is_some_and(|text| !text.is_empty())
         };
         if self.target.as_ref().is_some_and(String::is_empty)
-            || self
-                .numeric_intrinsic
-                .is_some_and(|meaning| meaning.signature().is_none())
+            || self.numeric_intrinsic.signature().is_none()
         {
             return Err("external provider has invalid target membership or numeric meaning");
         }
@@ -87,14 +83,6 @@ impl ExternalProviderConformance {
         }) {
             return Err("external provider lost its selecting declaration");
         }
-        match &self.binding {
-            ExternalBindingIdentity::VtableField { field }
-            | ExternalBindingIdentity::TableFunction { field }
-                if field.is_empty() =>
-            {
-                Err("external provider has an empty binding field")
-            }
-            _ => Ok(()),
-        }
+        Ok(())
     }
 }

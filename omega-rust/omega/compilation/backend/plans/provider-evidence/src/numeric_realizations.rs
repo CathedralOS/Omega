@@ -2,7 +2,7 @@
 
 use crate::CompilerIntrinsicExecutionIdentity;
 use crate::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
-use terminal_psi::{ExternalProviderConformance, TerminalIdentityTable};
+use terminal_psi::{NumericRealization, TerminalIdentityTable};
 
 /// Select one numeric satisfaction edge using nominal requirement identity,
 /// the exact callable, package owners, binding kind and deployment target.
@@ -11,14 +11,14 @@ use terminal_psi::{ExternalProviderConformance, TerminalIdentityTable};
 /// A declaration review also nominates its exact realization; a portable
 /// consumer without that coordinate must have one candidate in its admitted
 /// catalog. Never choose a family head or a sibling merely by display name.
-pub fn selected_numeric_provider<'a>(
-    providers: &'a [ExternalProviderConformance],
+pub fn selected_numeric_realization<'a>(
+    providers: &'a [NumericRealization],
     identities: &TerminalIdentityTable,
     requirement: &str,
     realization: Option<&str>,
     plan: &ProviderPlan,
     row: &ProviderPlanRow,
-) -> Result<Option<&'a ExternalProviderConformance>, &'static str> {
+) -> Result<Option<&'a NumericRealization>, &'static str> {
     let ProviderBinding::CompilerIntrinsic { machine } = &row.binding else {
         return Err("numeric provider does not select an external compiler intrinsic");
     };
@@ -27,7 +27,7 @@ pub fn selected_numeric_provider<'a>(
             && realization.is_none_or(|realization| {
                 identities.text(candidate.realization.machine.identity()) == Some(realization)
             })
-            && matches_external_selection(candidate, identities, plan, row, machine)
+            && matches_numeric_selection(candidate, identities, plan, row, machine)
     });
     let candidate = candidates.next();
     if candidates.next().is_some() {
@@ -41,22 +41,20 @@ pub fn selected_numeric_provider<'a>(
     Ok(candidate)
 }
 
-pub fn matches_external_selection(
-    candidate: &ExternalProviderConformance,
+pub fn matches_numeric_selection(
+    candidate: &NumericRealization,
     identities: &TerminalIdentityTable,
     plan: &ProviderPlan,
     row: &ProviderPlanRow,
     machine: &str,
 ) -> bool {
-    candidate.numeric_intrinsic.is_some()
-        && identities.text(candidate.requirement_identity)
-            == Some(plan.identities.text(row.requirement_identity))
+    identities.text(candidate.requirement_identity)
+        == Some(plan.identities.text(row.requirement_identity))
         && candidate.requirement_package == plan.schema.trait_package_identity
         && candidate
             .target
             .as_ref()
             .is_none_or(|target| *target == plan.target)
-        && candidate.binding == language_semantics::ExternalBindingIdentity::CompilerIntrinsic
         && identities.text(candidate.realization.callable) == Some(machine)
         && candidate.realization_package == plan.origin_package_identity
         && match &candidate.provider {

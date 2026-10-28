@@ -68,9 +68,9 @@ mod retention;
 
 // Beside the route: shared producer vocabulary and diagnostic source attribution.
 mod activation_storage;
-mod external_provider_declarations;
-pub use external_provider_declarations::{
-    ExternalProviderDeclarations, project_external_provider_declarations,
+mod numeric_realization_declarations;
+pub use numeric_realization_declarations::{
+    NumericRealizationDeclarations, project_numeric_realization_declarations,
 };
 mod task_activation;
 pub use task_activation::lower_task_activation_demands;

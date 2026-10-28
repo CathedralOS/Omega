@@ -112,7 +112,7 @@ pub(crate) fn resolve_accepted_service_binding(
 /// identity exists.
 pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
     checked: &CheckedTrees,
-    external_providers: &psi_terminal_production::ExternalProviderDeclarations,
+    numeric_realizations: &psi_terminal_production::NumericRealizationDeclarations,
     calling_plans: &[provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
     selected_provider_plans: &effects::SelectedProviderPlanFacts,
     provenance: &mut [SelectedProviderReviewProvenance],
@@ -247,8 +247,8 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
             match crate::compiler_intrinsic::row_execution_identity(
                 checked,
                 crate::NumericProviderSelection {
-                    candidate: external_providers,
-                    custody: external_providers,
+                    candidate: numeric_realizations,
+                    custody: numeric_realizations,
                     provider: retained.provider.provider_type,
                 },
                 plan,
@@ -358,7 +358,7 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
 /// accepted public selection. No leaf plan pretends to have the public digest.
 pub(crate) fn close_direct_boundary_candidates(
     checked: &CheckedTrees,
-    external_providers: &psi_terminal_production::ExternalProviderDeclarations,
+    numeric_realizations: &psi_terminal_production::NumericRealizationDeclarations,
     selected: &[SelectedProviderReviewProvenance],
     candidates: &mut [provider_planning::DirectBoundaryCandidate],
     target: Option<&str>,
@@ -392,8 +392,8 @@ pub(crate) fn close_direct_boundary_candidates(
         *execution = match crate::compiler_intrinsic::row_execution_identity(
             checked,
             crate::NumericProviderSelection {
-                candidate: external_providers,
-                custody: external_providers,
+                candidate: numeric_realizations,
+                custody: numeric_realizations,
                 provider: source.provenance.provider_type,
             },
             &source.plan,

@@ -3,13 +3,13 @@
 
 use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderPlan, ProviderPlanRow};
-use psi_terminal_production::ExternalProviderDeclarations;
+use psi_terminal_production::NumericRealizationDeclarations;
 use symbols::SymbolHandle;
 
 #[derive(Clone, Copy)]
 pub struct NumericProviderSelection<'a> {
-    pub candidate: &'a ExternalProviderDeclarations,
-    pub custody: &'a ExternalProviderDeclarations,
+    pub candidate: &'a NumericRealizationDeclarations,
+    pub custody: &'a NumericRealizationDeclarations,
     pub provider: Option<SymbolHandle>,
 }
 
@@ -33,8 +33,8 @@ impl<'a> NumericProviderSelection<'a> {
                 .custody
                 .nominal(realization)
                 .ok_or("numeric realization has no checked declaration")?;
-            let select = |declarations: &'a ExternalProviderDeclarations| {
-                effects::external_providers::selected_numeric_provider(
+            let select = |declarations: &'a NumericRealizationDeclarations| {
+                effects::numeric_realizations::selected_numeric_realization(
                     &declarations.conformances,
                     &declarations.identities,
                     nominal,
@@ -72,10 +72,7 @@ impl<'a> NumericProviderSelection<'a> {
                     "numeric meaning, realization or owner differs from checked selection custody",
                 );
             }
-            candidate
-                .0
-                .map(Into::into)
-                .ok_or("numeric provider has no checked meaning")
+            Ok(candidate.0.into())
         };
         join().map_err(|reason| {
             Diagnostic::error(format!("selected ProviderPlan `{}`: {reason}", plan.name))

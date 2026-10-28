@@ -1,12 +1,19 @@
-// The same rootless library cannot select a same-signature external leaf
-// whose valid satisfaction edge names another requirement.
+// A rootless numeric library keeps checked implementations and the core
+// numeric catalogue without inventing a ProgramEntry or granting intrinsics.
 use omega::language::core::float_operations;
 
-public data UnusedNumericProvider {}
+public boundary trait NegationSlot {
+    machine negate(value: f32) -> f32;
+}
+public boundary trait DifferentSlot {
+    machine negate(value: f32) -> f32;
+}
 
-public machine UnusedNumericProvider::negate(value: f32) -> f32
-    satisfies F32::square_root
-    via ForeignBinding::CompilerIntrinsic;
+public UnusedNumericProvider satisfies DifferentSlot {
+    machine negate(value: f32) -> f32 {
+        F32::negate(value)
+    }
+}
 
 public machine is_nan(value: f32) -> bool {
     F32::is_nan(value)

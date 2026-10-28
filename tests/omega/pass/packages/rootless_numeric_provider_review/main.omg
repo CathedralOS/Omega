@@ -1,12 +1,19 @@
-// A reusable numeric library has no ProgramEntry. Review must retain supplied
-// external declarations even when no call selects their implementation.
+// A rootless numeric library keeps checked implementations and the core
+// numeric catalogue without inventing a ProgramEntry or granting intrinsics.
 use omega::language::core::float_operations;
 
-public data UnusedNumericProvider {}
+public boundary trait NegationSlot {
+    machine negate(value: f32) -> f32;
+}
+public boundary trait DifferentSlot {
+    machine negate(value: f32) -> f32;
+}
 
-public machine UnusedNumericProvider::negate(value: f32) -> f32
-    satisfies F32::negate
-    via ForeignBinding::CompilerIntrinsic;
+public UnusedNumericProvider satisfies NegationSlot {
+    machine negate(value: f32) -> f32 {
+        F32::negate(value)
+    }
+}
 
 public machine is_nan(value: f32) -> bool {
     F32::is_nan(value)

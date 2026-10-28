@@ -5,8 +5,7 @@ use crate::LoweringError;
 use crate::machine_lowering::declarations;
 use checked_trees::CheckedTrees;
 use terminal_psi::{
-    ExternalProviderConformance, ExternalProviderOwner, TerminalIdentityTableBuilder,
-    TerminalModule,
+    NumericRealization, NumericRealizationOwner, TerminalIdentityTableBuilder, TerminalModule,
 };
 use typed_trees::machine::{SatisfiedDeclaration, resolve_satisfied_declaration};
 
@@ -16,7 +15,7 @@ pub(crate) fn retain(
     sources: &[(source::SourceId, [u8; 32])],
     module: &mut TerminalModule,
 ) -> Result<(), LoweringError> {
-    module.external_providers = project(
+    module.numeric_realizations = project(
         identities,
         checked,
         sources,
@@ -41,17 +40,11 @@ pub(crate) fn project(
     sources: &[(source::SourceId, [u8; 32])],
     include: impl Fn(&TerminalIdentityTableBuilder, &str) -> bool,
     mut retain_declaration: impl FnMut(symbols::SymbolHandle, terminal_psi::NominalDeclarationIdentity),
-) -> Result<Vec<ExternalProviderConformance>, LoweringError> {
+) -> Result<Vec<NumericRealization>, LoweringError> {
     let typed = &checked.typed;
     let mut candidates = Vec::new();
     for machine in typed.machines() {
         for conformance in typed.machine_trait_conformances(machine) {
-            let Some(binding) = conformance
-                .external_binding
-                .and_then(|binding| typed.external_bindings.identity(binding))
-            else {
-                continue;
-            };
             let Some(satisfied) = resolve_satisfied_declaration(typed, machine, conformance) else {
                 continue;
             };
@@ -78,6 +71,12 @@ pub(crate) fn project(
                 _ => vec![satisfied.symbol()],
             };
             for requirement in requirements {
+                let Some(numeric_intrinsic) =
+                    typed.sealed_numeric_realization(machine.symbol, requirement)
+                else {
+                    continue;
+                };
+
                 let callable = crate::unit::attached_unit::checked_unit_boundary_identity(
                     checked,
                     requirement,
@@ -86,32 +85,27 @@ pub(crate) fn project(
                 if !include(identities, &callable) {
                     continue;
                 }
-                let provider = if machine.attached_data_symbol.is_valid() {
-                    Some(ExternalProviderOwner {
-                        declaration: declarations::nominal(
-                            identities,
-                            checked,
-                            sources,
-                            machine.attached_data_symbol,
-                        )
-                        .map_err(LoweringError::Unsupported)?,
-                        identity: identities.intern(&typed.attached_data_path(machine).ok_or(
-                            LoweringError::Unsupported(
-                                "external provider has no attached owner identity",
-                            ),
-                        )?),
-                        package: checked
-                            .symbols
-                            .symbol_package_identity(machine.attached_data_symbol),
+                let owner = typed.machine_code_owner_symbol(machine);
+                let provider = if let Some(owner) = owner {
+                    Some(NumericRealizationOwner {
+                        declaration: declarations::nominal(identities, checked, sources, owner)
+                            .map_err(LoweringError::Unsupported)?,
+                        identity: identities.intern(
+                            &typed.machine_code_owner_path(machine).ok_or(
+                                LoweringError::Unsupported(
+                                    "numeric realization has no exact code owner",
+                                ),
+                            )?,
+                        ),
+                        package: checked.symbols.symbol_package_identity(owner),
                     })
                 } else {
                     None
                 };
-                let numeric_intrinsic = typed.numeric_intrinsic_execution(requirement);
-                if let Some(language_semantics::numeric_intrinsics::NumericIntrinsic::Builtin {
+                if let language_semantics::numeric_intrinsics::NumericIntrinsic::Builtin {
                     function,
                     ..
-                }) = numeric_intrinsic
+                } = numeric_intrinsic
                 {
                     let symbol = checked.symbols.builtin_function_symbol(function).ok_or(
                         LoweringError::Unsupported(
@@ -124,7 +118,7 @@ pub(crate) fn project(
                         ));
                     }
                 }
-                let candidate = ExternalProviderConformance {
+                let candidate = NumericRealization {
                     requirement: declarations::nominal(identities, checked, sources, requirement)
                         .map_err(LoweringError::Unsupported)?,
                     requirement_identity: identities.intern(&callable),
@@ -140,12 +134,14 @@ pub(crate) fn project(
                     .map_err(LoweringError::InvalidDeclarationIdentity)?,
                     realization_package: checked.symbols.symbol_package_identity(machine.symbol),
                     provider,
-                    binding: binding.clone(),
                 };
                 retain_declaration(requirement, candidate.requirement.clone());
                 retain_declaration(machine.symbol, candidate.realization.machine.clone());
                 if let Some(provider) = &candidate.provider {
-                    retain_declaration(machine.attached_data_symbol, provider.declaration.clone());
+                    retain_declaration(
+                        owner.ok_or(LoweringError::Unsupported("numeric owner disappeared"))?,
+                        provider.declaration.clone(),
+                    );
                 }
                 candidates.push(candidate);
             }

@@ -34,7 +34,7 @@ mod scalar_block_invariant_wire;
 mod target_family_wire;
 mod target_layout_wire;
 mod task_activation_wire;
-use super::external_provider_wire;
+use super::numeric_realization_wire;
 
 use terminal_psi::{
     TerminalIdentityIndex, TerminalIdentityTable, TerminalModule, TerminalRootServiceReach,
@@ -156,8 +156,8 @@ pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
     )?;
     writer.counted(
         "external provider conformances",
-        &module.external_providers,
-        external_provider_wire::encode,
+        &module.numeric_realizations,
+        numeric_realization_wire::encode,
     )?;
     writer.counted(
         "provider candidates",
@@ -353,7 +353,7 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
     let placed_view_inputs = decode_counted(reader, placed_view_wire::decode_placed_view_input)?;
     let reborrow_restored_call_uses = decode_counted(reader, decode_reborrow_restored_call_use)?;
     let boundary_machines = decode_counted(reader, decode_boundary_machine)?;
-    let external_providers = decode_counted(reader, external_provider_wire::decode)?;
+    let numeric_realizations = decode_counted(reader, numeric_realization_wire::decode)?;
     let provider_candidates = decode_counted(reader, decode_provider_candidate)?;
     let dynamic_dispatch = dynamic_dispatch_wire::decode_dynamic_dispatch(reader)?;
     let float_meaning_projections =
@@ -417,7 +417,7 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         placement_lifecycle_plans,
         reborrow_restored_call_uses,
         boundary_machines,
-        external_providers,
+        numeric_realizations,
         provider_candidates,
         dynamic_dispatch,
         float_meaning_projections,

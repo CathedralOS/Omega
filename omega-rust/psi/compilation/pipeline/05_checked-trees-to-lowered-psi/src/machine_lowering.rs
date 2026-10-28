@@ -181,7 +181,7 @@ pub fn lower_machine(
         )
     })
     .map_err(LoweringError::Unsupported)?;
-    crate::retention::external_providers::retain(
+    crate::retention::numeric_realizations::retain(
         &mut identities,
         checked,
         exact_toolchain_sources,

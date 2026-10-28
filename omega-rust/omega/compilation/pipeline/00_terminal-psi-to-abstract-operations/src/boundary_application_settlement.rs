@@ -86,7 +86,7 @@ fn project_terminal_boundary_application_realizations(
         let realization = match &row.binding {
             ProviderBinding::CompilerIntrinsic { .. } => {
                 let execution = crate::provider_admission::selected_execution(
-                    &module.external_providers,
+                    &module.numeric_realizations,
                     &module.identities,
                     requirement.declaration(),
                     plan,

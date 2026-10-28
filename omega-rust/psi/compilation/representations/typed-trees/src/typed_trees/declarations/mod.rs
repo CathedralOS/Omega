@@ -2,6 +2,7 @@
 
 pub mod boundary_completions;
 pub mod calling_vocabulary;
+pub mod code_owners;
 pub mod constant;
 pub mod data;
 pub mod domain;

@@ -7,7 +7,7 @@
 //! its selected plan and Terminal boundary. The consuming lowerer admits it
 //! through its local target catalog.
 
-use super::external_satisfaction::{reconcile_numeric_meaning, selected_execution};
+use super::numeric_satisfaction::{reconcile_numeric_meaning, selected_execution};
 use diagnostics::Diagnostic;
 use effects::CompilerIntrinsicExecutionIdentity;
 use effects::provider_plan::{ProviderPlan, ServiceSchema};
@@ -40,7 +40,7 @@ pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
     provenance: impl ExactSizeIterator<Item = CompilerIntrinsicPlanProvenance<'a>>,
     demanded_boundaries: &BTreeSet<String>,
     boundaries: &[terminal_psi::BoundaryMachineDeclaration],
-    external_providers: &[terminal_psi::ExternalProviderConformance],
+    numeric_realizations: &[terminal_psi::NumericRealization],
     identities: &terminal_psi::TerminalIdentityTable,
 ) -> Result<Vec<super::TerminalCompilerBuiltinProposal>, Vec<Diagnostic>> {
     let plans = selected.plans();
@@ -121,7 +121,7 @@ pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
         // refused here: whether the boundary is executed is each entry's
         // execution-scope question, answered at admission.
         let identity = match selected_execution(
-            external_providers,
+            numeric_realizations,
             identities,
             &boundary.owner,
             &plans[selected_row.plan_index],
