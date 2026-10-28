@@ -478,6 +478,7 @@ fn argument_matches_type_reference_using(
         if delivered_types::delivered_carrier_conflict(
             program,
             scope,
+            argument,
             actual.reference,
             &actual.substitutions,
             type_reference,

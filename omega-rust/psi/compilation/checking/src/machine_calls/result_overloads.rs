@@ -296,6 +296,18 @@ pub fn resolve_named_result_overloads(
                 changed_owners.push(owner.machine);
             }
         }
+        let application = call.authored_machine_application;
+        if application.is_valid() {
+            let retained = program
+                .expression_table
+                .static_machine_application_mut(application);
+            if !retained.registration_operation.is_valid() {
+                retained.registration_operation = selected;
+                if let Some(owner) = expression_owners.get(&handle.arena_index()) {
+                    changed_owners.push(owner.machine);
+                }
+            }
+        }
     }
     for (owner, statements, index, selected) in statement_updates {
         let StatementNode::Call(call) =
@@ -306,6 +318,16 @@ pub fn resolve_named_result_overloads(
         if call.target_symbol != selected {
             call.target_symbol = selected;
             changed_owners.push(owner);
+        }
+        let application = call.authored_machine_application;
+        if application.is_valid() {
+            let retained = program
+                .expression_table
+                .static_machine_application_mut(application);
+            if !retained.registration_operation.is_valid() {
+                retained.registration_operation = selected;
+                changed_owners.push(owner);
+            }
         }
     }
     for (state_symbol, statements, index, call, selected, returns_value) in
@@ -1004,7 +1026,8 @@ fn named_machine_overload_family_symbol(
                             )
                         }
                         None => {
-                            crate::value_custody::expression_types::argument_matches_call_carrier(
+                            crate::value_custody::literals::has_anonymous_numeric_results(program, *argument)
+                                && crate::value_custody::expression_types::argument_matches_call_carrier(
                                 program,
                                 owner.machine,
                                 *argument,
