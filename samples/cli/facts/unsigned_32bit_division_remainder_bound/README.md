@@ -115,10 +115,13 @@ partial operation. Both sources are pinned under `tests/omega/{pass,fail}/facts/
 This control belongs to the DOMAIN-DEFAULT-PREDICATE-UNIFICATION native-harness
 prerequisite. The retained `177a9d65` baseline rejects the valid local return's
 postcondition and rejects the twin for the intended definedness obligation.
-Actual optimized producer `4588a029b629f69684409fae92a91cbcd6986b60` on
-`macos_arm64` accepts both inline and local forms; each executes with native
-and Terminal exit 70. The local control also passes a fresh copied-project
-run and canonical Terminal artifact reload. All nine existing remainder places
+Actual optimized producer `4c99a65bd445d741fdd8b0152384d1258c33c6fa`
+accepts both inline and local forms; each executes with native and Terminal
+exit 70 on `macos_arm64`. Those observations retain their original identity
+under independent review of the one-line lint successor. Final producer
+`4588a029b629f69684409fae92a91cbcd6986b60` freshly checks and executes
+the local control at exit 70, including a copied-project run and canonical
+Terminal artifact reload. All nine existing remainder places
 execute with native/Terminal exit 0, and their source reject twins retain their
 intended diagnostics in the affected comparison. The zero-operand control
 rejects its own remainder-by-zero obligation. These records establish only the
