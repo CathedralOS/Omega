@@ -47,6 +47,7 @@ macro_rules! receipt_accessor_rows {
 }
 
 pub(crate) use optimization_core::digest_encoder;
+#[macro_use]
 mod assignment;
 mod output;
 mod preservation;
