@@ -87,6 +87,13 @@ fn recover_identity(cursor: &mut ObservationCursor<'_>) -> Option<PackageKeyIden
     PackageKeyIdentity::from_digest(cursor_digest(cursor)?)
 }
 
+/// One optional package identity: an absence byte, or `1` then the digest.
+fn encode_optional_identity(identity: Option<&PackageKeyIdentity>, out: &mut Vec<u8>) {
+    encode_optional(identity, out, |identity, out| {
+        encode_identity(*identity, out)
+    });
+}
+
 fn encode_disposition(disposition: &TerminalAuthorityDisposition, out: &mut Vec<u8>) {
     crate::codec_bytes::push_count_u64(out, disposition.classes().len());
     for class in disposition.classes() {
@@ -240,11 +247,7 @@ fn encode_service_method(
 ) {
     encode_string(&method.name, out);
     encode_string(&method.requirement_owner, out);
-    encode_optional(
-        method.requirement_owner_package_identity.as_ref(),
-        out,
-        |identity, out| encode_identity(*identity, out),
-    );
+    encode_optional_identity(method.requirement_owner_package_identity.as_ref(), out);
     encode_string(identities.text(method.requirement_identity), out);
     crate::codec_bytes::push_count_u64(out, method.parameter_count);
     crate::codec_bytes::push_count_u64(out, method.parameter_type_identities.len());
@@ -450,19 +453,11 @@ fn encode_service_schema(schema: &ServiceSchema, out: &mut Vec<u8>) {
         encode_string(text, out);
     }
     encode_string(schema.identity_text(schema.trait_name), out);
-    encode_optional(
-        schema.trait_package_identity.as_ref(),
-        out,
-        |identity, out| encode_identity(*identity, out),
-    );
+    encode_optional_identity(schema.trait_package_identity.as_ref(), out);
     crate::codec_bytes::push_count_u64(out, schema.receiver_applications.len());
     for application in &schema.receiver_applications {
         encode_string(schema.identity_text(application.trait_name), out);
-        encode_optional(
-            application.trait_package_identity.as_ref(),
-            out,
-            |identity, out| encode_identity(*identity, out),
-        );
+        encode_optional_identity(application.trait_package_identity.as_ref(), out);
         for roster in [
             &application.argument_identities,
             &application.lifetime_argument_identities,
@@ -627,9 +622,7 @@ fn encode_consumed_unit(unit: &ConsumedSourceUnit, out: &mut Vec<u8>) {
         ConsumedSourceUnitKind::ToolchainVirtual => out.push(2),
         ConsumedSourceUnitKind::ToolchainOwned => out.push(3),
     }
-    encode_optional(unit.package().as_ref(), out, |identity, out| {
-        encode_identity(*identity, out)
-    });
+    encode_optional_identity(unit.package().as_ref(), out);
     encode_optional(
         unit.toolchain_namespace().as_ref(),
         out,
