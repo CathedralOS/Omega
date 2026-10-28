@@ -16,9 +16,9 @@ Construction must prove every clause before the value is established. The Point 
 | Const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) |
 | Nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) |
 | Another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) |
-| Target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) |
+| Selected target implementation | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) |
 
-Each twin removes only the data predicate. The same produced values remain well formed, but the generic consuming subtraction loses its equality proof. The subtraction executes before a late observer compares the received lower payload with17 (or23 for the other join arm); the observer supplies no prior bound. Dropped or swapped payloads and join arms therefore fail the runtime oracle. Both match choices are exercised. Every positive binds ProgramEntry for all four hosted targets and declares Expected exit0.
+The target place uses four ordinary named implementations, selected by the exact ProgramEntry root and its explicit implementation argument in Build. Retired target-prefixed declarations are retained only in historical evidence. Each twin removes only the data predicate. The same produced values remain well formed, but the generic consuming subtraction loses its equality proof. The subtraction executes before a late observer compares the received lower payload with17 (or23 for the other join arm); the observer supplies no prior bound. Dropped or swapped payloads and join arms therefore fail the runtime oracle. Both match choices are exercised. Every positive binds ProgramEntry for all four hosted targets and declares Expected exit0.
 
 The source-to-native obligations are:
 

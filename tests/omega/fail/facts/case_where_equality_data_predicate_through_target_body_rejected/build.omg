@@ -1,7 +1,7 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "case_where_equality_data_predicate");
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, linux_entry);
+    Build::bind(builder, linux_arm64::ProgramEntry, linux_arm_entry);
+    Build::bind(builder, macos_arm64::ProgramEntry, mac_entry);
+    Build::bind(builder, windows_x86_64::ProgramEntry, windows_entry);
 }
