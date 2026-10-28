@@ -82,6 +82,7 @@ pub(crate) mod collection_bounds;
 pub(crate) mod completed_domains;
 pub(crate) mod completed_observations;
 mod completed_values;
+pub(crate) use completed_values::completed_value_case_at_occurrence;
 mod construction_predicates;
 pub(crate) mod statement_predicates;
 
