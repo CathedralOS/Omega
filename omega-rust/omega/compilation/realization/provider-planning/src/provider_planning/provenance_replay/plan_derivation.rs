@@ -13,7 +13,7 @@
 
 use crate::ProviderPlanningContext;
 use crate::provider_planning::operator_provider_evidence::{
-    provider_type_package_identity, provider_type_symbol,
+    provider_owner_package_identity, provider_owner_path, provider_owner_symbol,
 };
 use crate::provider_planning::provenance_replay::requirement_identities::{
     exact_satisfied_requirement_identity, inferred_compiler_leaf_binding,
@@ -43,8 +43,8 @@ pub(crate) fn derive_provider_plans(
             continue;
         }
         let origin_package_identity = typed.symbols.symbol_package_identity(machine.symbol);
-        let provider_type_package_identity = provider_type_package_identity(typed, machine);
-        let provider_type_symbol = provider_type_symbol(typed, machine);
+        let provider_type_package_identity = provider_owner_package_identity(typed, machine);
+        let provider_type_symbol = provider_owner_symbol(typed, machine);
         for clause in typed.machine_trait_conformances(machine) {
             if clause.requirement.is_some()
                 && checked_trees::typed_trees::operator::resolve_satisfied_boundary_operator_for_conformance(
@@ -82,7 +82,7 @@ pub(crate) fn derive_provider_plans(
                 continue;
             };
             let target = selected_target.unwrap_or_default().to_owned();
-            let provider_type = typed.attached_data_path(machine).unwrap_or_default();
+            let provider_type = provider_owner_path(typed, machine).unwrap_or_default();
             let semantic_requirement_identity = exact_satisfied_requirement_identity(
                 typed,
                 clause.symbol,
@@ -365,13 +365,13 @@ fn derive_top_level_requirement_plans(
         if !is_checked_adapter && !is_external_leaf {
             continue;
         }
-        let Some(provider_type_symbol) = provider_type_symbol(typed, machine) else {
+        let Some(provider_type_symbol) = provider_owner_symbol(typed, machine) else {
             continue;
         };
-        let Some(provider_type) = typed.attached_data_path(machine) else {
+        let Some(provider_type) = provider_owner_path(typed, machine) else {
             continue;
         };
-        let provider_type_package_identity = provider_type_package_identity(typed, machine);
+        let provider_type_package_identity = provider_owner_package_identity(typed, machine);
         let origin_package_identity = typed.symbols.symbol_package_identity(machine.symbol);
         for clause in typed.machine_trait_conformances(machine) {
             // The authored satisfies edge names the requirement declaration
@@ -498,8 +498,8 @@ fn derive_boundary_operator_plans(
             continue;
         }
         let origin_package_identity = typed.symbols.symbol_package_identity(machine.symbol);
-        let provider_type_package_identity = provider_type_package_identity(typed, machine);
-        let provider_type_symbol = provider_type_symbol(typed, machine);
+        let provider_type_package_identity = provider_owner_package_identity(typed, machine);
+        let provider_type_symbol = provider_owner_symbol(typed, machine);
         for clause in typed.machine_trait_conformances(machine) {
             let Some(requirement) = clause.requirement.as_ref() else {
                 continue;
@@ -530,7 +530,7 @@ fn derive_boundary_operator_plans(
                 continue;
             };
             let target = selected_target.unwrap_or_default().to_owned();
-            let provider_type = typed.attached_data_path(machine).unwrap_or_default();
+            let provider_type = provider_owner_path(typed, machine).unwrap_or_default();
             let plan_name = satisfies_plan_name(
                 &target,
                 schema.identity_text(schema.trait_name),

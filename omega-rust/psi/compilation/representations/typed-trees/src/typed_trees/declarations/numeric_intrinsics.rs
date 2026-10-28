@@ -230,15 +230,19 @@ impl TypedTrees {
             || self
                 .normalized_hermetic_symbol_identity(machine.symbol)
                 .ok()?
-                != format!("toolchain::{}::{target}", machine.name.as_str())
+                != format!(
+                    "toolchain::FloatNativeProvider::{}::{target}",
+                    machine.name.as_str()
+                )
         {
             return None;
         }
-        let provider = machine.attached_data_symbol;
-        if self.normalized_hermetic_symbol_identity(provider).ok()?
-            != "toolchain::FloatNativeProvider"
-            || self.symbol_toolchain_relative_path(provider)?
-                != std::path::Path::new("core/float_operations.omg")
+        let provider = self.declaration_scope_parent(machine.symbol);
+        if machine.attached_data.is_some()
+            || !provider.is_valid()
+            || self.symbols.get(provider).kind != symbols::SymbolKind::Module
+            || self.normalized_hermetic_symbol_identity(provider).ok()?
+                != "toolchain::FloatNativeProvider"
         {
             return None;
         }

@@ -137,7 +137,8 @@ pub fn selected_requirement_checked_adapter<'typed>(
     let adapter = exact_checked_adapter(context, plan, row)?;
     let declaration = match crate::provider_identity::named_provider(context, plan) {
         Some(owner) => owner.symbol,
-        None => adapter.attached_data_symbol,
+        None => super::super::operator_provider_evidence::provider_owner_symbol(typed, adapter)
+            .unwrap_or_else(symbols::SymbolHandle::invalid),
     };
     if !declaration.is_valid() || !context.contains(declaration) {
         return Err(diagnostics::Diagnostic::error(
@@ -231,7 +232,9 @@ pub fn exact_checked_adapter<'typed>(
             plan.name,
         )));
     }
-    if adapter.attached_data_symbol.is_valid() && !context.contains(adapter.attached_data_symbol) {
+    if super::super::operator_provider_evidence::provider_owner_symbol(typed, adapter)
+        .is_some_and(|owner| !context.contains(owner))
+    {
         return Err(diagnostics::Diagnostic::error(format!(
             "checked adapter `{}` for ProviderPlan `{}` retains a provider outside the {:?} planning context",
             plan.identity_text(*machine_identity),

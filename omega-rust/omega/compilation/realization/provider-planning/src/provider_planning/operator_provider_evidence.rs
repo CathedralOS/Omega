@@ -520,24 +520,44 @@ fn use_site_is_generic_template(
         .is_some_and(|machine| !typed.machine_type_parameters(machine).is_empty())
 }
 
-pub(crate) fn provider_type_package_identity(
-    typed: &TypedTrees,
-    machine: &checked_trees::typed_trees::machine::Machine,
-) -> Option<semantic_vocabulary::PackageKeyIdentity> {
-    provider_type_symbol(typed, machine)
-        .and_then(|symbol| typed.symbols.symbol_package_identity(symbol))
-}
-
-pub(crate) fn provider_type_symbol(
+/// The exact declaration that owns a provider machine's namespace. Module
+/// ownership is code ownership; it does not manufacture a data carrier or
+/// grant a boundary realization. The caller still authenticates every row.
+pub(crate) fn provider_owner_symbol(
     typed: &TypedTrees,
     machine: &checked_trees::typed_trees::machine::Machine,
 ) -> Option<symbols::SymbolHandle> {
+    if machine.attached_data.is_none() {
+        let owner = typed.declaration_scope_parent(machine.symbol);
+        return (owner.is_valid() && typed.symbols.get(owner).kind == symbols::SymbolKind::Module)
+            .then_some(owner);
+    }
     let attached_data = machine.attached_data.as_ref()?;
     let mut owners = typed.data_definitions().iter().filter(|definition| {
         definition.symbol == machine.attached_data_symbol && definition.name == *attached_data
     });
     let owner = owners.next()?;
     owners.next().is_none().then_some(owner.symbol)
+}
+
+pub(crate) fn provider_owner_path(
+    typed: &TypedTrees,
+    machine: &checked_trees::typed_trees::machine::Machine,
+) -> Option<String> {
+    let owner = provider_owner_symbol(typed, machine)?;
+    if typed.symbols.get(owner).kind == symbols::SymbolKind::Module {
+        Some(typed.symbols.display_path(owner, "::"))
+    } else {
+        typed.attached_data_path(machine)
+    }
+}
+
+pub(crate) fn provider_owner_package_identity(
+    typed: &TypedTrees,
+    machine: &checked_trees::typed_trees::machine::Machine,
+) -> Option<semantic_vocabulary::PackageKeyIdentity> {
+    provider_owner_symbol(typed, machine)
+        .and_then(|symbol| typed.symbols.symbol_package_identity(symbol))
 }
 
 /// Machines specialized from `machine_identity`'s template inside

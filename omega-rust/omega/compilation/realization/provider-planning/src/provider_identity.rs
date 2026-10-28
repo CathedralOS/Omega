@@ -208,12 +208,19 @@ pub fn provider_row_matches(
             .count()
             == 1
     } else {
-        machine.attached_data_symbol.is_valid()
-            && context.contains(machine.attached_data_symbol)
-            && typed.attached_data_path(machine).as_deref() == Some(plan.provider_type.as_str())
-            && typed
-                .symbols
-                .symbol_package_identity(machine.attached_data_symbol)
-                == plan.provider_type_package_identity
+        let Some(owner) =
+            crate::provider_planning::operator_provider_evidence::provider_owner_symbol(
+                typed, machine,
+            )
+        else {
+            return false;
+        };
+        context.contains(owner)
+            && crate::provider_planning::operator_provider_evidence::provider_owner_path(
+                typed, machine,
+            )
+            .as_deref()
+                == Some(plan.provider_type.as_str())
+            && typed.symbols.symbol_package_identity(owner) == plan.provider_type_package_identity
     }
 }
