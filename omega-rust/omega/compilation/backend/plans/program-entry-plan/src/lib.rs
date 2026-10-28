@@ -68,9 +68,6 @@ pub use selected_entry::SelectedProgramStorageEntryPlan;
 
 pub(crate) use selected_entry::diagnostic::ProgramStorageEntryDiagnostic;
 pub use selected_entry::root_role::ProgramStorageEntryRootRole;
-pub use selected_entry::service_establishment::{
-    ProgramEntryFusedServiceEstablishment, ProgramEntryReceivingRequirement,
-};
 
 pub use uefi::uefi_os_handoff::uefi_os_handoff_exhaustion_requires_error;
 mod source_guards;

@@ -206,6 +206,29 @@ fn package_review_retains_products_not_checked_compiler_state() {
 }
 
 #[test]
+fn entry_custody_has_no_synthetic_service_fields() {
+    for source in [
+        include_str!("../../realization/provider-planning/src/program_entry.rs"),
+        include_str!(
+            "../../pipeline/00_terminal-psi-to-abstract-operations/src/entry_settlement/model.rs"
+        ),
+        include_str!(
+            "../../pipeline/00_terminal-psi-to-abstract-operations/src/retained_terminal/codec/entry.rs"
+        ),
+        include_str!("../../backend/artifacts/native-artifact/src/runtime_provisions.rs"),
+    ] {
+        for retired in [
+            "ProgramEntryFusedServiceEstablishment",
+            "ProgramEntryReceivingRequirement",
+            "fused_service_establishments",
+            "fused_service_boundary_slots",
+        ] {
+            assert!(!source.contains(retired), "entry custody retains {retired}");
+        }
+    }
+}
+
+#[test]
 fn entry_storage_has_no_provisional_field_mode() {
     for source in [
         include_str!("../../products/src/compile_request/checked.rs"),

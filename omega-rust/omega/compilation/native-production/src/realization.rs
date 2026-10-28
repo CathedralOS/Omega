@@ -66,7 +66,6 @@ pub(crate) fn realize_native_artifact(
             .map(|checked| {
                 native_artifact::TerminalRuntimeProvisions::capture_native_admission(
                     checked,
-                    entry.fused_service_establishments(),
                     providers
                         .installation
                         .as_ref()
@@ -80,10 +79,8 @@ pub(crate) fn realize_native_artifact(
                         })
                         .collect(),
                     &input.plan().boundary_machines,
-                    &artifact.semantic_module().provider_candidates,
                     request.admission.providers.selected_provider_plans,
                     &artifact.semantic_module().identities,
-                    entry.source().identities(),
                     entry.source().target_slot(),
                     request.admission.providers.external_binding_rows,
                 )

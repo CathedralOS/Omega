@@ -133,7 +133,6 @@ impl VerifiedNativeArtifactInput {
         profile: target::TargetProfile,
         selected: &[crate::SelectedProviderAdapter],
         assumptions: &effects::SelectedProviderPlanFacts,
-        receiving_provider_roots: &[semantic_vocabulary::BoundaryMachineId],
         callbacks: &[backend_plan::TerminalCallbackOccurrenceProposal],
     ) -> Result<Self, crate::NativeExecutionScopeError> {
         profile
@@ -183,7 +182,6 @@ impl VerifiedNativeArtifactInput {
             &assumptions
                 .assumed_binding_coordinates(artifact.semantic_module())
                 .map_err(crate::NativeExecutionScopeError::TargetFamily)?,
-            receiving_provider_roots,
             callbacks,
         )?;
         input.retain_execution_scope(&scope);
