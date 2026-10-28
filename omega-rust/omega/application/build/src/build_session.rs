@@ -17,13 +17,22 @@ pub struct BuildSession {
 }
 
 impl BuildSession {
-    /// Reserve one resource grant and one reusable compiler for the invocation.
+    /// Reserve one resource grant and one reusable in-memory compiler.
+    /// Embedders own this lifetime and need no process-wide storage policy.
     pub fn create(workspace: &Path) -> Result<Self, CompileResolvedPackageReviewsError> {
         let packages = PackageBuildSession::create(workspace)?;
         Ok(Self {
-            compiler: compiler_session(),
+            compiler: CompilationSession::default(),
             packages,
         })
+    }
+
+    /// Application invocations retain their compiler inputs across processes.
+    /// Select storage before source preparation, while the session is empty.
+    pub fn create_retained(workspace: &Path) -> Result<Self, CompileResolvedPackageReviewsError> {
+        let mut session = Self::create(workspace)?;
+        session.compiler = compiler_session();
+        Ok(session)
     }
 
     /// Reuse the invocation's compiler without transferring it to package policy.

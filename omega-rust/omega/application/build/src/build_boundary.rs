@@ -49,7 +49,7 @@ fn package_audit_owns_session_and_target_execution_in_build() {
     let mut application = include_str!("package_inspection.rs");
     for operation in [
         "PackageInspectionTransaction::open(options)",
-        "BuildSession::create(",
+        "BuildSession::create_retained(",
         "transaction.prepare(None)",
         "resolve_inspection_sources(&inspection, &mut session)",
         "for target in inspection.targets().to_vec()",
