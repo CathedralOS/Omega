@@ -351,15 +351,6 @@ fn parse_data_member<'tokens, 'source>(
         }
     }
 
-    if input.at_contextual("case") {
-        // Distinguish a `case Name;` member from a field named `case`
-        // (`case: i32;`) by what follows the contextual keyword.
-        let after_case = input.take_contextual("case")?;
-        if after_case.at_name_like() || after_case.at_punctuation(PunctuationKind::Hash) {
-            return parse_case_member(syntax_trees, after_case);
-        }
-    }
-
     let identity = if input.at_punctuation(PunctuationKind::Hash) {
         input = input.take_punctuation(PunctuationKind::Hash, "#")?;
         let (identity, next) = input.take_identity()?;
@@ -368,6 +359,24 @@ fn parse_data_member<'tokens, 'source>(
     } else {
         None
     };
+    if input.at_contextual("case") {
+        // `case` stays a legal field name. The declaration kind follows the
+        // optional identity, while payload fields retain their own scope.
+        let after_case = input.take_contextual("case")?;
+        if after_case.at_punctuation(PunctuationKind::Hash) {
+            return Err(after_case
+                .error_here("numbered cases are spelled `#N case Name`, not `case #N Name`"));
+        }
+        if after_case.at_punctuation(PunctuationKind::LeftBrace) {
+            return Err(after_case.error_here(
+                "case declaration blocks are not supported; declare each `case Name` separately",
+            ));
+        }
+        if after_case.at_name_like() {
+            return parse_case_member(syntax_trees, after_case, identity);
+        }
+    }
+
     let (field_name, next) = input.take_identifier()?;
     let (relevance, next) = parse_binding_relevance_brackets(next, "data-field")?;
     input = next;
@@ -422,16 +431,9 @@ fn parse_data_member<'tokens, 'source>(
 
 fn parse_case_member<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
-    mut input: Input<'tokens, 'source>,
+    input: Input<'tokens, 'source>,
+    identity: Option<u64>,
 ) -> ParseResult<'tokens, 'source, DataMember> {
-    let identity = if input.at_punctuation(PunctuationKind::Hash) {
-        input = input.take_punctuation(PunctuationKind::Hash, "#")?;
-        let (identity, next) = input.take_identity()?;
-        input = next;
-        Some(identity)
-    } else {
-        None
-    };
     let (case_name, mut input) = input.take_identifier()?;
 
     let (payload, retired_payload_identities) = if input.at_punctuation(PunctuationKind::LeftParen)

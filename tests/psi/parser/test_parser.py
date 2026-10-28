@@ -54,6 +54,7 @@ class Observation:
     definitions: tuple[tuple[int, ...], ...] = ()
     erased_bindings: tuple[tuple[int, ...], ...] = ()
     arm_pattern_modes: tuple[tuple[bool, bool], ...] = ()
+    retired_identities: tuple[tuple[int, ...], ...] = ()
 
 
 class Reader:
@@ -78,8 +79,8 @@ class Reader:
 
 def decode(payload: bytes) -> Observation:
     reader = Reader(payload)
-    assert reader.bytes(8) == b"OMGPAR14"
-    assert reader.u64() == 14
+    assert reader.bytes(8) == b"OMGPAR15"
+    assert reader.u64() == 15
     accepted = reader.byte() == 1
     diagnostic = reader.byte()
     diagnostic_span = (reader.u64(), reader.u64(), reader.u64())
@@ -540,6 +541,11 @@ def decode(payload: bytes) -> Observation:
         (reader.byte(), reader.u64(), reader.u64(), reader.u64(), reader.u64())
         for _ in range(reader.u64())
     )
+    # Owner kind/index, exact literal span and complete retirement span.
+    retired_identities = tuple(
+        (reader.byte(), *(reader.u64() for _ in range(7)))
+        for _ in range(reader.u64())
+    )
     assert reader.cursor == len(payload), "trailing parser observation bytes"
     return Observation(
         accepted,
@@ -580,6 +586,7 @@ def decode(payload: bytes) -> Observation:
         definitions,
         erased_bindings,
         tuple(arm_pattern_modes),
+        retired_identities,
     )
 
 
@@ -835,7 +842,7 @@ def rejected(
 DECLARATION_TABLES = (
     "name_paths", "traits", "trait_parents", "conformances",
     "conformance_rows", "domains", "constants", "propositions",
-    "contracts", "match_arms", "definitions", "erased_bindings",
+    "contracts", "match_arms", "definitions", "erased_bindings", "retired_identities",
 )
 
 
@@ -3658,7 +3665,7 @@ def main() -> None:
         rejected(program, name, source, diagnostic, span, **counts)
 
     # Stable schema identities: `#N` before a field's or payload field's
-    # name and after `case`. Rows carry the flag and the literal's span; the
+    # name and before `case`. Rows carry the flag and the literal's span; the
     # member's span starts at its identity.
     def identity(source: bytes, fragment: bytes, occurrence: int = 1) -> tuple[int, int, int]:
         """The literal of the `occurrence`-th `#N` spelled `fragment`."""
@@ -3669,36 +3676,36 @@ def main() -> None:
                 end_occurrence: int = 1) -> tuple[int, int, int]:
         return (1, at(source, start, start_occurrence)[1], at(source, end, end_occurrence)[2])
 
-    source = b"data Optional<T> { case #0 None; case #1 Some(value: T); }"
+    source = b"data Optional<T> { #0 case None; #1 case Some(value: T); }"
     accepted(
         program, "case-identities", source,
         ((2, 0, 1, 0, len(source)),), (), (),
         ((1, 5, 13, 0, 2, 0, 0, 0, 2, 0, False, 1, 0, len(source), 0, 1),),
         (
-            (2, 0, *through(source, b"case", b";")),
-            (2, 1, *through(source, b"case", b";", 2, 2)),
+            (2, 0, *through(source, b"#0", b";")),
+            (2, 1, *through(source, b"#1", b";", 1, 2)),
         ),
         (),
         (
-            (*at(source, b"None"), True, *identity(source, b"#0"), *through(source, b"case", b";"), 0, 0, 0, 0),
-            (*at(source, b"Some"), True, *identity(source, b"#1"), *through(source, b"case", b";", 2, 2),
+            (*at(source, b"None"), True, *identity(source, b"#0"), *through(source, b"#0", b";"), 0, 0, 0, 0),
+            (*at(source, b"Some"), True, *identity(source, b"#1"), *through(source, b"#1", b";", 1, 2),
              0, 1, 0, 0),
         ),
         (named(source, b"T", 2),),
         ((*at(source, b"value"), 0, *through(source, b"value", b"T", 1, 2)),),
         ((2, *at(source, b"T"), 0, 0, 0, *at(source, b"T")),),
     )
-    source = b"data Disk { #1 counter: i32; case #2 Done(#0 code: u8, #1 more: u8); }"
+    source = b"data Disk { #1 counter: i32; #2 case Done(#0 code: u8, #1 more: u8); }"
     accepted(
         program, "field-and-payload-identities", source,
         ((2, 0, 1, 0, len(source)),), (), (),
         ((1, 5, 9, 0, 2, 0, 1, 0, 1, 0, False, 1, 0, len(source), 0, 0),),
         (
             (1, 0, *through(source, b"#1", b"i32;")),
-            (2, 0, *through(source, b"case", b");")),
+            (2, 0, *through(source, b"#2", b");")),
         ),
         ((*at(source, b"counter"), True, *identity(source, b"#1"), 0, *through(source, b"#1", b"i32;")),),
-        ((*at(source, b"Done"), True, *identity(source, b"#2"), *through(source, b"case", b");"), 0, 2, 0, 0),),
+        ((*at(source, b"Done"), True, *identity(source, b"#2"), *through(source, b"#2", b");"), 0, 2, 0, 0),),
         (named(source, b"i32"), named(source, b"u8"), named(source, b"u8", 2)),
         (
             (*at(source, b"code"), True, *identity(source, b"#0"), 1, *through(source, b"#0", b"u8,")),
@@ -3712,13 +3719,67 @@ def main() -> None:
         (*at(source, b"case"), True, *identity(source, b"#3"), 0, *through(source, b"#3", b";")),
     ), f"identified-field-named-case:\n{decode(payload).fields}"
     identity_rejections = (
-        ("case-identity-literal", b"data X { case # A; }", 108, (16, 17), {}),
+        ("case-identity-literal", b"data X { # case A; }", 108, (11, 15), {}),
         ("field-identity-literal", b"data X { #x: u8; }", 108, (10, 11), {}),
         ("payload-identity-literal", b"data X { case A(# y: u8); }", 108, (18, 19), {}),
         ("identity-after-field-name", b"data X { a #1: u8; }", 12, (11, 12), {}),
     )
     for name, source, diagnostic, span, counts in identity_rejections:
         rejected(program, name, source, diagnostic, span, **counts)
+
+    # Tombstones retain scope and exact source coordinates without adding a
+    # live field/case or changing its authored ordinal. Identity zero/max are
+    # ordinary values, not absence sentinels.
+    source = (
+        b"data Record { retired #18446744073709551615; #0 value: u8; } "
+        b"data Choice { retired #2; #7 case First(#1 value: u8, retired #18446744073709551615); "
+        b"#3 case Second(#1 value: u8, retired #2); }"
+    )
+    status, payload = run(program, source)
+    assert status == 0, ("scoped-retirements", status)
+    observation = decode(payload)
+    assert len(observation.data_members) == 3
+    assert len(observation.fields) == 1 and len(observation.payload_fields) == 2
+    assert [row[:3] for row in observation.cases] == [at(source, b"First"), at(source, b"Second")]
+    assert [row[4:7] for row in observation.cases] == [identity(source, b"#7"), identity(source, b"#3")]
+    assert observation.retired_identities == (
+        (1, 0, *identity(source, b"#18446744073709551615"), *at(source, b"retired #18446744073709551615;")),
+        (1, 1, *identity(source, b"#2"), *at(source, b"retired #2;")),
+        (2, 0, *identity(source, b"#18446744073709551615", 2), *at(source, b"retired #18446744073709551615", 2)),
+        (2, 1, *identity(source, b"#2", 2), *at(source, b"retired #2", 2)),
+    ), observation.retired_identities
+
+    source = b"data Keyed { #0 case [erased]: u8; }"
+    status, payload = run(program, source)
+    assert status == 0, ("identified-erased-field-named-case", status)
+    observation = decode(payload)
+    assert observation.fields[0][3:7] == (True, *identity(source, b"#0"))
+    assert observation.cases == () and observation.erased_bindings[0][:2] == (2, 0)
+    for name, source in (
+        ("retired-case-identity-order", b"data X { case #7 A; }"),
+        ("retired-case-group", b"data X { case { #7 A; } }"),
+        ("retired-numbered-case-group", b"data X { #7 case { A; } }"),
+    ):
+        fragment = b"#" if b"case #" in source else b"{"
+        occurrence = 1 if fragment == b"#" else 2
+        span = at(source, fragment, occurrence)
+        rejected(program, name, source, 20, span[1:])
+    source = b"data X { retired 3; }"
+    rejected(program, "retirement-requires-hash", source, 108, at(source, b"3")[1:])
+    source = b"data X { retired #; }"
+    rejected(program, "retirement-requires-literal", source, 108, at(source, b";")[1:])
+
+    source = b"data History { " + b"retired #1; " * 2048 + b"}"
+    status, payload = run(program, source)
+    assert status == 0, ("retirement-capacity", status)
+    observation = decode(payload)
+    assert len(observation.retired_identities) == 2048
+    assert observation.data_members == () and observation.cases == ()
+    source = b"data History { " + b"retired #1; " * 2049 + b"}"
+    status, payload = run(program, source)
+    assert status == 250, ("retirement-capacity-plus-one", status)
+    observation = decode(payload)
+    assert observation.diagnostic == 22 and len(observation.retired_identities) == 2048
 
     # The bracketed scalar range suffix is retired
     # (wiki/spec/language/domains.md, `scalar-range-contract-spelling`): a

@@ -4,8 +4,8 @@
 // meaning of all-zero storage.
 
 public data Optional<T> {
-    case #0 None;
-    case #1 Some(value: T);
+    #0 case None;
+    #1 case Some(value: T);
 }
 
 machine zero_is_none<T>()

@@ -232,8 +232,8 @@ fn rejects_stable_identities_above_u64_max() {
 fn parses_independently_numbered_cases_and_structured_payloads() {
     let source = r#"
         data Lookup<T> {
-            case #1 Found(#1 value: T, retired #2);
-            case #2 Missing;
+            #1 case Found(#1 value: T, retired #2);
+            #2 case Missing;
             retired #3;
         }
     "#;
@@ -432,8 +432,8 @@ fn parses_zero_value_of_nested_generic_type_without_spacing_closes() {
 #[test]
 fn numbered_mixed_data_is_independent_of_member_order() {
     for source in [
-        "data Mixed { #1 common: u8; case #1 First; }",
-        "data Mixed { case #1 First; #1 common: u8; }",
+        "data Mixed { #1 common: u8; #1 case First; }",
+        "data Mixed { #1 case First; #1 common: u8; }",
     ] {
         let tokens = Lexer::new(source)
             .tokenize()
@@ -445,9 +445,9 @@ fn numbered_mixed_data_is_independent_of_member_order() {
 #[test]
 fn enforces_all_or_nothing_numbering_per_identity_scope() {
     for source in [
-        "data Bad { case #1 First; case Second; }",
-        "data Bad { case #1 First; case #2 Second; retired #2; }",
-        "data Bad { case #1 First(#1 value: u8, other: u8); }",
+        "data Bad { #1 case First; case Second; }",
+        "data Bad { #1 case First; #2 case Second; retired #2; }",
+        "data Bad { #1 case First(#1 value: u8, other: u8); }",
         "data Bad { case First; retired #2; }",
     ] {
         let tokens = Lexer::new(source)

@@ -16,8 +16,8 @@ semantic tokens, and a fail-closed whole-file parser for ordinary
 `[pub] data Name [<generic parameters>] [properties] [where facts] { ... }`
 declarations whose generic parameters, `[copy]`/`[linear]` property lists and
 members share their grammars with the other declarations, with fields
-`[#N] name: Type;` and payload-free `case [#N] Name;` or structured
-`case [#N] Name([#N] field: Type, ...);` members that may carry their own
+`[#N] name: Type;` and payload-free `[#N] case Name;` or structured
+`[#N] case Name([#N] field: Type, ...);` members that may carry their own
 `where` facts (`#N` is a stable schema identity), and
 `[pub] [target] [boundary] machine [token] [Owner::]name [<generic
 parameters>] [(parameters)] [-> Type] contracts clauses ({ ... } | ;)`
@@ -125,7 +125,8 @@ constituents, both sides of a reference row) share one table
 `operator` introducers reject at their word: a boundary operation is a
 requirement of a boundary trait, and a token binds to an ordinary
 `machine + Name(...)` declaration. Unsupported roots, retired inline
-discriminants (`case A = 1`), `retired #N;` members, multi-domain unions, the
+discriminants (`case A = 1`), old-order numbered cases (`case #N Name`),
+case-group blocks, multi-domain unions, the
 retired bracketed scalar range suffix (`u32 [0..=9]`; ranges are
 `where`/`requires`/`ensures` propositions, `scalar-range-contract-spelling`),
 and the `if`, `loop`, `while` and `return` statements reject instead of
@@ -208,7 +209,14 @@ duplicate members: fields and cases share one namespace; each case's payload
 fields share another with the common fields. Stable identities
 ([`resolve/identities.omg`](resolve/identities.omg)) number all or none of a
 declaration's direct fields, of its cases, and of each case's payload fields,
-with distinct `u64` values compared by value. Trait requirements and defaults
+with distinct `u64` values compared by value.
+Retirement declarations (`retired #N;`, or `retired #N` within a payload)
+are retained as owner-scoped schema history, separately from live members.
+They activate numbered mode and reject both live-number reuse and duplicate
+retirements using the same checked `u64` decoder. A bare retirement in mixed
+field-and-case data still rejects because it names no unique member scope.
+Neither retirement history nor canonical identity order changes authored
+case order, the first zero case, or runtime discriminators. Trait requirements and defaults
 and conformance members are machines named through their container
 (`Trait::requirement`, `Conformance::member`; [`resolve/containers.omg`](resolve/containers.omg)),
 a `MachineOwner` per machine, and the container's generic parameters cover
@@ -678,9 +686,11 @@ and value binding. Lexical or parse rejection exits without an observation. Capa
 edges one unit's 65,536 tokens cannot reach (expressions, parameters, type
 references and call arguments) run here as multi-unit source sets.
 
-On macOS ARM64 the three gates build their harnesses natively from a fresh
+The recorded macOS ARM64 baseline built the three harnesses from a fresh
 CLI: all 456 parser cases, all 229 resolver cases and all 61 typing cases
-pass. Each gate counts each distinct source it runs as one case. No cached
+passed. Those counts describe that earlier source, before the prefix-identity
+and retirement-table changes. Each gate counts each distinct source it runs
+as one case. No cached
 executable may stand in for that run. Linux and Windows hosts have run none of
 them.
 

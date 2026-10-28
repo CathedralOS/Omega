@@ -3,7 +3,7 @@
 // the runtime discriminant. `retired` members keep historical
 // numbers reserved.
 //
-//   * `case #1 Found(#1 value: T, retired #2)` — numbered generic
+//   * `#1 case Found(#1 value: T, retired #2)` — numbered generic
 //     case with a numbered payload member and a retired slot.
 //   * `retired #3` — retired member on the data itself.
 //   * `hits` records the reached arm.
@@ -12,8 +12,8 @@
 // provider.
 
 data Lookup<T [copy]> [copy] {
-    case #1 Found(#1 value: T, retired #2);
-    case #2 Missing;
+    #1 case Found(#1 value: T, retired #2);
+    #2 case Missing;
     retired #3;
 }
 

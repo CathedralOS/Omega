@@ -998,7 +998,7 @@ def main() -> None:
     accepted(
         program,
         "case-identities",
-        b"data Optional<T> { case #0 None; case #1 Some(value: T); }",
+        b"data Optional<T> { #0 case None; #1 case Some(value: T); }",
         (generic(0),),
     )
     accepted(
@@ -1022,7 +1022,7 @@ def main() -> None:
         b"a:",
         length=1,
     )
-    rejected(program, "partial-case-identities", b"data P { case #0 A; case B; }", PARTIAL_STABLE_IDENTITIES, b"B")
+    rejected(program, "partial-case-identities", b"data P { #0 case A; case B; }", PARTIAL_STABLE_IDENTITIES, b"B")
     rejected(
         program,
         "partial-payload-identities",
@@ -1037,7 +1037,7 @@ def main() -> None:
         DUPLICATE_STABLE_IDENTITY,
         b"0x1",
     )
-    rejected(program, "duplicate-case-identity", b"data P { case #2 A; case #2 B; }", DUPLICATE_STABLE_IDENTITY, b"2", occurrence=2)
+    rejected(program, "duplicate-case-identity", b"data P { #2 case A; #2 case B; }", DUPLICATE_STABLE_IDENTITY, b"2", occurrence=2)
     rejected(program, "suffixed-identity", b"data P { #1u8 a: u8; }", INVALID_STABLE_IDENTITY, b"1u8")
     rejected(
         program,
@@ -1046,6 +1046,33 @@ def main() -> None:
         INVALID_STABLE_IDENTITY,
         b"18446744073709551616",
     )
+
+    # Retirement activates only its exact declaration/payload scope and
+    # reserves a u64 value without introducing a live name or case ordinal.
+    accepted(program, "retired-record-u64-max",
+             b"data R { retired #18446744073709551615; #0 value: u8; }", (builtin("u8"),))
+    accepted(program, "retired-sum-and-payload-scopes",
+             b"data C { retired #3; #100 case First(#3 value: u8, retired #18446744073709551615); #1 case Second; }",
+             (builtin("u8"),))
+    accepted(program, "retired-empty-schema", b"data History { retired #0; retired #18446744073709551615; }", ())
+    rejected(program, "retirement-numbers-record", b"data R { retired #8; value: u8; }",
+             PARTIAL_STABLE_IDENTITIES, b"value")
+    rejected(program, "retirement-numbers-cases", b"data C { retired #8; case First; }",
+             PARTIAL_STABLE_IDENTITIES, b"First")
+    rejected(program, "retirement-numbers-payload", b"data C { case First(value: u8, retired #8); }",
+             PARTIAL_STABLE_IDENTITIES, b"value")
+    rejected(program, "duplicate-retired-value", b"data R { retired #1; retired #0x1; }",
+             DUPLICATE_STABLE_IDENTITY, b"0x1")
+    rejected(program, "retired-case-reuse", b"data C { #7 case First; retired #7; }",
+             DUPLICATE_STABLE_IDENTITY, b"7", occurrence=2)
+    rejected(program, "retired-payload-reuse", b"data C { case First(#7 value: u8, retired #7); }",
+             DUPLICATE_STABLE_IDENTITY, b"7", occurrence=2)
+    rejected(program, "retired-suffixed-identity", b"data R { retired #1u8; }",
+             INVALID_STABLE_IDENTITY, b"1u8")
+    rejected(program, "retired-identity-past-u64", b"data R { retired #18446744073709551616; }",
+             INVALID_STABLE_IDENTITY, b"18446744073709551616")
+    rejected(program, "mixed-retirement-has-no-scope", b"data M { #1 value: u8; #1 case First; retired #7; }",
+             UNSUPPORTED_DECLARATION, b"retired #7;")
 
     # Machine generic parameters bind in the machine's own scope: its
     # signature, its states' signatures, `let` types, cast targets and static

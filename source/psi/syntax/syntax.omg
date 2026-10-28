@@ -100,6 +100,21 @@ public data DataMember [copy] {
     source_span: SourceSpan;
 }
 
+// Retirement is schema history, never a live field/case or a runtime tag.
+// Declaration owners select their field or case scope after the complete
+// shape is known; payload owners name one exact case's independent scope.
+public data RetiredIdentityOwner [copy] {
+    case Declaration;
+    case Payload;
+}
+
+public data RetiredIdentity [copy] {
+    owner_kind: RetiredIdentityOwner;
+    owner: u64 in Trapping;
+    identity: SourceSpan;
+    source_span: SourceSpan;
+}
+
 public data DataMultiplicity [copy] {
     case Affine;
     case Unrestricted;
@@ -928,6 +943,7 @@ where
     generic_parameter_count <= 256,
     field_count <= 1024,
     data_member_count <= 2048,
+    retired_identity_count <= 2048,
     case_count <= 1536,
     payload_field_count <= 1024,
     type_reference_count <= 65536,
@@ -970,6 +986,8 @@ where
     field_count: u64;
     data_members: [DataMember; 2048] in Trapping;
     data_member_count: u64;
+    retired_identities: [RetiredIdentity; 2048];
+    retired_identity_count: u64;
     cases: [DataCase; 1536] in Trapping;
     case_count: u64;
     payload_fields: [DataField; 1024] in Trapping;
@@ -1037,6 +1055,7 @@ public machine SyntaxTrees::clear(syntax_trees: &mut SyntaxTrees, source: Source
     syntax_trees.generic_parameter_count = 0;
     syntax_trees.field_count = 0;
     syntax_trees.data_member_count = 0;
+    syntax_trees.retired_identity_count = 0;
     syntax_trees.case_count = 0;
     syntax_trees.payload_field_count = 0;
     syntax_trees.type_reference_count = 0;
@@ -1135,6 +1154,23 @@ crashes Trap
     }
 
     machine invalid() -> DataMember {
+        crash Trap;
+    }
+}
+
+public machine SyntaxTrees::retired_identity(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> RetiredIdentity
+crashes Trap
+{
+    transition handle < syntax_trees.retired_identity_count {
+        true -> read(syntax_trees, handle)
+        _ -> invalid()
+    }
+
+    machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> RetiredIdentity {
+        syntax_trees.retired_identities[handle]
+    }
+
+    machine invalid() -> RetiredIdentity {
         crash Trap;
     }
 }
