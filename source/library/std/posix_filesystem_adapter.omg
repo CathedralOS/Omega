@@ -359,6 +359,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     machine canonicalize(path: &[u8] in Path, buffer: &mut [u8]) -> UnitResult
     reaches FilesystemMetadataQuery
     invokes PosixFilesystemHost;
+    invokes PosixCanonicalLibc;
     {
         let mut context: PosixFilesystem;
         posix_filesystem_canonicalize(&mut context, path, buffer)
@@ -1857,7 +1858,8 @@ invokes
 }
 
 machine posix_filesystem_canonicalize(filesystem: &mut PosixFilesystem, path: &[u8] in Path, buffer: &mut [u8]) -> UnitResult
-reaches FilesystemMetadataQuery
+invokes PosixCanonicalLibc;
+    reaches FilesystemMetadataQuery
 
 invokes
     PosixFilesystemHost;

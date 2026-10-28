@@ -32,100 +32,186 @@ data PosixFilesystemNativeProvider { }
 public boundary trait PosixFilesystemHost {
     // Open an existing file (`open(path, flags)`). Creating opens use
     // `open_create`, whose mode crosses as a fixed argument.
-    machine open(path: &[u8] in Path, flags: i32) -> i32 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
+    machine open(path: &[u8] in Path, flags: i32) -> i32 invokes PosixFilesystemDarwin;
+    invokes PosixFilesystemLinux;
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
     // The creating open (`open(path, flags, mode)` with `O_CREAT`, optionally
     // `O_EXCL`/`O_TRUNC`).
-    machine open_create(path: &[u8] in Path, flags: i32, mode: i32) -> i32 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
+    machine open_create(path: &[u8] in Path, flags: i32, mode: i32) -> i32 invokes PosixFilesystemDarwin;
+    invokes PosixFilesystemLinux;
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
     // `creat(path, mode)`: create or truncate for writing.
-    machine create(path: &[u8] in Path, mode: i32) -> i32 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
+    machine create(path: &[u8] in Path, mode: i32) -> i32 invokes PosixFilesystemDarwin;
+    invokes PosixFilesystemLinux;
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
     // Read up to `count` bytes (and at most `buffer.len`) into `buffer`. A short
     // read is a successful partial read; zero is end of file for a nonzero
     // request. A zero-length request still invokes the OS with count zero.
-    machine read(fd: i32, buffer: &mut [u8], count: u64) -> i64 reaches FilesystemContentRead;
+    machine read(fd: i32, buffer: &mut [u8], count: u64) -> i64 invokes PosixFilesystemDarwin;
+    invokes PosixFilesystemDarwinByteViews;
+    invokes PosixFilesystemLinuxArm64ByteViews;
+    invokes PosixFilesystemLinuxX86ByteViews;
+    reaches FilesystemContentRead;
     // Write a prefix of `bytes`; the result counts the bytes written. A short
     // write is a successful partial write. An empty view still invokes the OS
     // with count zero; the provider does not manufacture a successful result.
-    machine write(fd: i32, bytes: &[u8]) -> i64 reaches FilesystemContentWrite;
+    machine write(fd: i32, bytes: &[u8]) -> i64 invokes PosixFilesystemDarwin;
+    invokes PosixFilesystemDarwinByteViews;
+    invokes PosixFilesystemLinuxArm64ByteViews;
+    invokes PosixFilesystemLinuxX86ByteViews;
+    reaches FilesystemContentWrite;
     // `pread`: read at an absolute offset without moving the descriptor's cursor.
-    machine read_at(fd: i32, buffer: &mut [u8], count: u64, offset: i64) -> i64 reaches FilesystemContentRead;
+    machine read_at(fd: i32, buffer: &mut [u8], count: u64, offset: i64) -> i64 invokes PosixFilesystemDarwin;
+    invokes PosixFilesystemDarwinByteViews;
+    invokes PosixFilesystemLinuxArm64ByteViews;
+    invokes PosixFilesystemLinuxX86ByteViews;
+    reaches FilesystemContentRead;
     // `pwrite`: write at an absolute offset without moving the descriptor's
     // cursor.
-    machine write_at(fd: i32, bytes: &[u8], offset: i64) -> i64 reaches FilesystemContentWrite;
+    machine write_at(fd: i32, bytes: &[u8], offset: i64) -> i64 invokes PosixFilesystemDarwin;
+    invokes PosixFilesystemDarwinByteViews;
+    invokes PosixFilesystemLinuxArm64ByteViews;
+    invokes PosixFilesystemLinuxX86ByteViews;
+    reaches FilesystemContentWrite;
     // Release a descriptor.
-    machine close(fd: i32) -> i32 reaches;
+    machine close(fd: i32) -> i32 invokes PosixFilesystemDarwin;
+    invokes PosixFilesystemLinux;
+    reaches;
     // Remove a file (`unlink`).
-    machine remove(path: &[u8] in Path) -> i32 reaches FilesystemNamespaceMutation;
+    machine remove(path: &[u8] in Path) -> i32 invokes PosixFilesystemDarwin;
+    invokes PosixFilesystemLinux;
+    reaches FilesystemNamespaceMutation;
     // `lseek`: reposition the cursor; the result is the new absolute offset.
-    machine seek(fd: i32, offset: i64, whence: i32) -> i64 reaches;
+    machine seek(fd: i32, offset: i64, whence: i32) -> i64 invokes PosixFilesystemDarwin;
+    invokes PosixFilesystemLinux;
+    reaches;
     // `mkdir`.
-    machine create_dir(path: &[u8] in Path, mode: i32) -> i32 reaches FilesystemMetadataMutation + FilesystemNamespaceMutation;
+    machine create_dir(path: &[u8] in Path, mode: i32) -> i32 invokes PosixFilesystemDarwin;
+    invokes PosixFilesystemLinux;
+    reaches FilesystemMetadataMutation + FilesystemNamespaceMutation;
     // Remove an empty directory (`rmdir`).
-    machine remove_dir(path: &[u8] in Path) -> i32 reaches FilesystemNamespaceMutation;
+    machine remove_dir(path: &[u8] in Path) -> i32 invokes PosixFilesystemDarwin;
+    invokes PosixFilesystemLinux;
+    reaches FilesystemNamespaceMutation;
     // `mkdir` over trusted plain bytes: a prefix copied from a `Path` source is
     // NUL-free by construction.
-    machine create_dir_name(name: &[u8], mode: i32) -> i32 reaches FilesystemMetadataMutation + FilesystemNamespaceMutation;
+    machine create_dir_name(name: &[u8], mode: i32) -> i32 invokes PosixFilesystemDarwin;
+    invokes PosixFilesystemLinux;
+    reaches FilesystemMetadataMutation + FilesystemNamespaceMutation;
     // `openat` relative to an open directory. `name` is a trusted
     // directory-listing component.
-    machine open_at(dirfd: i32, name: &[u8], flags: i32) -> i32 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
+    machine open_at(dirfd: i32, name: &[u8], flags: i32) -> i32 invokes PosixFilesystemDarwin;
+    invokes PosixFilesystemLinux;
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
     // `unlinkat` relative to an open directory; `flags` carries the target's
     // `AT_REMOVEDIR` bit verbatim.
-    machine unlink_at(dirfd: i32, name: &[u8], flags: i32) -> i32 reaches FilesystemNamespaceMutation;
+    machine unlink_at(dirfd: i32, name: &[u8], flags: i32) -> i32 invokes PosixFilesystemDarwin;
+    invokes PosixFilesystemLinux;
+    reaches FilesystemNamespaceMutation;
     // `chmod`.
-    machine set_permissions(path: &[u8] in Path, mode: u32) -> i32 reaches FilesystemMetadataMutation;
+    machine set_permissions(path: &[u8] in Path, mode: u32) -> i32 invokes PosixFilesystemDarwin;
+    invokes PosixFilesystemLinux;
+    reaches FilesystemMetadataMutation;
     // `fchmod`.
-    machine set_file_permissions(fd: i32, mode: u32) -> i32 reaches FilesystemMetadataMutation;
+    machine set_file_permissions(fd: i32, mode: u32) -> i32 invokes PosixFilesystemDarwin;
+    invokes PosixFilesystemLinux;
+    reaches FilesystemMetadataMutation;
     // `rename`.
-    machine rename(from: &[u8] in Path, to: &[u8] in Path) -> i32 reaches FilesystemNamespaceMutation;
+    machine rename(from: &[u8] in Path, to: &[u8] in Path) -> i32 invokes PosixFilesystemDarwin;
+    invokes PosixFilesystemLinux;
+    reaches FilesystemNamespaceMutation;
     // `link(original, link)`.
-    machine hard_link(original: &[u8] in Path, link: &[u8] in Path) -> i32 reaches FilesystemNamespaceMutation;
+    machine hard_link(original: &[u8] in Path, link: &[u8] in Path) -> i32 invokes PosixFilesystemDarwin;
+    invokes PosixFilesystemLinux;
+    reaches FilesystemNamespaceMutation;
     // `symlink(target, link)`.
-    machine symlink(target: &[u8] in Path, link: &[u8] in Path) -> i32 reaches FilesystemNamespaceMutation;
+    machine symlink(target: &[u8] in Path, link: &[u8] in Path) -> i32 invokes PosixFilesystemDarwin;
+    invokes PosixFilesystemLinux;
+    reaches FilesystemNamespaceMutation;
     // `readlink`: the link's target bytes, not NUL-terminated; the result counts
     // them.
-    machine read_link(path: &[u8] in Path, buffer: &mut [u8], count: u64) -> i64 reaches FilesystemMetadataQuery;
+    machine read_link(path: &[u8] in Path, buffer: &mut [u8], count: u64) -> i64 invokes PosixFilesystemDarwin;
+    invokes PosixFilesystemDarwinByteViews;
+    invokes PosixFilesystemLinuxArm64ByteViews;
+    invokes PosixFilesystemLinuxX86ByteViews;
+    reaches FilesystemMetadataQuery;
     // Fill `buffer` with packed target directory records. Darwin returns `struct
     // direntry` records (d_reclen@16, d_namlen@18, d_type@20, d_name@21) and
     // advances `position`; Linux returns `getdents64` records (d_reclen@16,
     // d_type@18, NUL-terminated d_name@19) and ignores it. Zero means end of
     // directory.
-    machine read_dir(fd: i32, buffer: &mut [u8], count: u64, position: &mut i64) -> i64 reaches DirectoryEnumeration;
+    machine read_dir(fd: i32, buffer: &mut [u8], count: u64, position: &mut i64) -> i64 invokes PosixFilesystemDarwin;
+    invokes PosixFilesystemDarwinByteViews;
+    invokes PosixFilesystemLinuxArm64ByteViews;
+    invokes PosixFilesystemLinuxX86ByteViews;
+    reaches DirectoryEnumeration;
     // `unlink` over trusted plain bytes.
-    machine remove_name(path: &[u8]) -> i32 reaches FilesystemNamespaceMutation;
+    machine remove_name(path: &[u8]) -> i32 invokes PosixFilesystemDarwin;
+    invokes PosixFilesystemLinux;
+    reaches FilesystemNamespaceMutation;
     // `rmdir` over trusted plain bytes.
-    machine remove_dir_name(path: &[u8]) -> i32 reaches FilesystemNamespaceMutation;
+    machine remove_dir_name(path: &[u8]) -> i32 invokes PosixFilesystemDarwin;
+    invokes PosixFilesystemLinux;
+    reaches FilesystemNamespaceMutation;
     // `stat`: fill `buffer` (at least the target's `struct stat`, 144 bytes on
     // Darwin and x86-64 Linux, 128 on arm64 Linux) with the target record that
     // `StatLayout` decodes. Undersized output returns EINVAL before the OS call;
     // only the native record is written, not the rest of a larger caller view.
-    machine read_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32 reaches FilesystemMetadataQuery;
+    machine read_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32 invokes PosixFilesystemDarwin;
+    invokes PosixFilesystemLinux;
+    reaches FilesystemMetadataQuery;
     // `fstat`, the same record for an open descriptor.
-    machine read_file_metadata(fd: i32, buffer: &mut [u8]) -> i32 reaches FilesystemMetadataQuery;
+    machine read_file_metadata(fd: i32, buffer: &mut [u8]) -> i32 invokes PosixFilesystemDarwin;
+    invokes PosixFilesystemLinux;
+    reaches FilesystemMetadataQuery;
     // `lstat`: like `read_metadata` but a final symlink reports its own record.
-    machine read_symlink_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32 reaches FilesystemMetadataQuery;
+    machine read_symlink_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32 invokes PosixFilesystemDarwin;
+    invokes PosixFilesystemLinux;
+    reaches FilesystemMetadataQuery;
     // `fstatat`: query a trusted listing component relative to its open
     // directory. Flags are native; no-follow classification must request the
     // target's AT_SYMLINK_NOFOLLOW. Refuse undersized output before the OS call.
-    machine read_metadata_at(directory_descriptor: i32, name: &[u8], buffer: &mut [u8], flags: i32) -> i32 reaches FilesystemMetadataQuery;
+    machine read_metadata_at(directory_descriptor: i32, name: &[u8], buffer: &mut [u8], flags: i32) -> i32 invokes PosixFilesystemDarwin;
+    invokes PosixFilesystemLinux;
+    reaches FilesystemMetadataQuery;
     // `ftruncate`.
-    machine set_len(fd: i32, length: i64) -> i32 reaches FilesystemContentWrite + FilesystemMetadataMutation;
+    machine set_len(fd: i32, length: i64) -> i32 invokes PosixFilesystemDarwin;
+    invokes PosixFilesystemLinux;
+    reaches FilesystemContentWrite + FilesystemMetadataMutation;
     // `futimens`: `times` holds two packed `struct timespec` values (access, then
     // modification), 32 bytes on the supported POSIX targets. Undersized input
     // returns EINVAL before the OS call. The byte view itself need not be aligned.
-    machine set_file_times(fd: i32, times: &[u8]) -> i32 reaches FilesystemMetadataMutation;
+    machine set_file_times(fd: i32, times: &[u8]) -> i32 invokes PosixFilesystemDarwin;
+    invokes PosixFilesystemLinux;
+    reaches FilesystemMetadataMutation;
     // `fsync`.
-    machine sync(fd: i32) -> i32 reaches;
+    machine sync(fd: i32) -> i32 invokes PosixFilesystemDarwin;
+    invokes PosixFilesystemLinux;
+    reaches;
     // `fdatasync`: flush a file's data.
-    machine sync_data(fd: i32) -> i32 reaches;
+    machine sync_data(fd: i32) -> i32 invokes PosixFilesystemDarwin;
+    invokes PosixFilesystemLinux;
+    reaches;
     // `dup`: a fresh descriptor sharing the open file.
-    machine duplicate(fd: i32) -> i32 reaches;
+    machine duplicate(fd: i32) -> i32 invokes PosixFilesystemDarwin;
+    invokes PosixFilesystemLinux;
+    reaches;
     // `flock`: `LOCK_SH`=1, `LOCK_EX`=2, `LOCK_NB`=4, `LOCK_UN`=8.
-    machine lock_file(fd: i32, operation: i32) -> i32 reaches;
+    machine lock_file(fd: i32, operation: i32) -> i32 invokes PosixFilesystemDarwin;
+    invokes PosixFilesystemLinux;
+    reaches;
     // `chown`; -1 leaves a component unchanged.
-    machine change_owner(path: &[u8] in Path, uid: i32, gid: i32) -> i32 reaches FilesystemMetadataMutation;
+    machine change_owner(path: &[u8] in Path, uid: i32, gid: i32) -> i32 invokes PosixFilesystemDarwin;
+    invokes PosixFilesystemLinux;
+    reaches FilesystemMetadataMutation;
     // `lchown`: does not follow a final symlink.
-    machine change_owner_no_follow(path: &[u8] in Path, uid: i32, gid: i32) -> i32 reaches FilesystemMetadataMutation;
+    machine change_owner_no_follow(path: &[u8] in Path, uid: i32, gid: i32) -> i32 invokes PosixFilesystemDarwin;
+    invokes PosixFilesystemLinux;
+    reaches FilesystemMetadataMutation;
     // `fchown`.
-    machine change_file_owner(fd: i32, uid: i32, gid: i32) -> i32 reaches FilesystemMetadataMutation;
+    machine change_file_owner(fd: i32, uid: i32, gid: i32) -> i32 invokes PosixFilesystemDarwin;
+    invokes PosixFilesystemLinux;
+    reaches FilesystemMetadataMutation;
 }
 
 // Export the checked implementation for explicit raw-service composition.
