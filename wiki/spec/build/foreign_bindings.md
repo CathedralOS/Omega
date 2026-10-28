@@ -25,10 +25,7 @@ Build::bind<WindowsAudioPlaybackIo::c_play_sound>(
 );
 ```
 
-This is the accepted source contract. The reference compiler's initial closed
-static requirement path is documented under
-[provider planning](../../../omega-rust/omega/compilation/realization/provider-planning/README.md);
-that scoped implementation does not complete the migration below.
+This is the accepted source contract, not implemented reference-compiler syntax.
 `BUILD-OWNED-NATIVE-BINDINGS` in [the task board](../../../TASKS.md) tracks its
 implementation and migration. The existing source-level `via` clause and the
 bodyless per-symbol realization machine that only forwards to a locator are
