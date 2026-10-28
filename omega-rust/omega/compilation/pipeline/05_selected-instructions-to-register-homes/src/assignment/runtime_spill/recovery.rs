@@ -527,28 +527,10 @@ impl<'ranges> FailedDomain<'ranges> {
         }
         covered.sort_unstable();
         covered.dedup();
-        let mut pressure: Vec<(VirtualRegisterId, usize)> = Vec::new();
-        for (component, _) in covered {
-            if let Some((previous, count)) = pressure.last_mut()
-                && *previous == component
-            {
-                *count += 1;
-            } else {
-                pressure.push((component, 1));
-            }
-        }
+        let pressure = region_counts(covered);
         direct_covered.sort_unstable();
         direct_covered.dedup();
-        let mut direct_pressure: Vec<(VirtualRegisterId, usize)> = Vec::new();
-        for (reg, _) in direct_covered {
-            if let Some((previous, count)) = direct_pressure.last_mut()
-                && *previous == reg
-            {
-                *count += 1;
-            } else {
-                direct_pressure.push((reg, 1));
-            }
-        }
+        let direct_pressure = region_counts(direct_covered);
         Self {
             function,
             ranges,
@@ -585,28 +567,10 @@ impl<'ranges> FailedDomain<'ranges> {
         // failed member only once. Keep this sparse relation in sorted storage.
         covered.sort_unstable();
         covered.dedup();
-        let mut pressure: Vec<(VirtualRegisterId, usize)> = Vec::new();
-        for (component, _) in covered {
-            if let Some((previous, count)) = pressure.last_mut()
-                && *previous == component
-            {
-                *count += 1;
-            } else {
-                pressure.push((component, 1));
-            }
-        }
+        let pressure = region_counts(covered);
         direct_covered.sort_unstable();
         direct_covered.dedup();
-        let mut direct_pressure: Vec<(VirtualRegisterId, usize)> = Vec::new();
-        for (reg, _) in direct_covered {
-            if let Some((previous, count)) = direct_pressure.last_mut()
-                && *previous == reg
-            {
-                *count += 1;
-            } else {
-                direct_pressure.push((reg, 1));
-            }
-        }
+        let direct_pressure = region_counts(direct_covered);
         Self {
             function,
             ranges,
@@ -787,6 +751,25 @@ impl<'ranges> FailedDomain<'ranges> {
             self.live_points_of(register),
         )
     }
+}
+
+/// Run-length counts of a sorted, deduplicated register relation. Each
+/// remaining candidate fragment touching a failed member counts once, so a
+/// component several fragments reach still relieves one region contact.
+fn region_counts(
+    pairs: Vec<(VirtualRegisterId, VirtualRegisterId)>,
+) -> Vec<(VirtualRegisterId, usize)> {
+    let mut counts: Vec<(VirtualRegisterId, usize)> = Vec::new();
+    for (register, _) in pairs {
+        if let Some((previous, count)) = counts.last_mut()
+            && *previous == register
+        {
+            *count += 1;
+        } else {
+            counts.push((register, 1));
+        }
+    }
+    counts
 }
 
 // The failed identity is a domain leader, not a preferred spill payload.
