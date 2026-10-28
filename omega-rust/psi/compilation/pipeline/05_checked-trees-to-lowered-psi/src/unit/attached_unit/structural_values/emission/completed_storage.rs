@@ -329,11 +329,24 @@ impl Emission<'_, '_, '_> {
             .ok_or(LoweringError::Unsupported(
             "completed operand membership source is missing",
         ))?;
-        let (qualifications, _) = terminal_psi::StructuralPathQualification::select(
+        let (mut qualifications, _) = terminal_psi::StructuralPathQualification::select(
             qualifications,
             projected_qualifications,
             &membership_path,
         );
+        // A stored field and its completed descriptor can present the same
+        // value on different carrier rows. Rebind existing memberships through
+        // the common unchanged-referent/identical-theory judgment before asking
+        // for prerequisites on the receiving subject. Raw source row IDs are
+        // not memberships on that other carrier, even when names coincide.
+        terminal_semantics::present_structural_memberships(
+            self.structural_types.iter(),
+            self.domain_declarations.iter(),
+            membership_carrier,
+            &mut qualifications,
+            &mut Vec::new(),
+        )
+        .map_err(LoweringError::Unsupported)?;
         let mut established = Vec::new();
         for decision in memberships {
             let domain = self.checked_membership_domain(decision, membership_carrier)?;
