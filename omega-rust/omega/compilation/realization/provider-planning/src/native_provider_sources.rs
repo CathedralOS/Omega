@@ -65,7 +65,7 @@ fn selected_family_realizations(
             )]);
         }
         for (row_index, row) in plan.rows.iter().enumerate() {
-            let Some(realization) = provider.row_target_machine_origins[row_index]
+            let realization = provider.row_target_machine_origins[row_index]
                 .as_ref()
                 .map(|origin| origin.machine)
                 .or_else(|| provider.row_realizations[row_index].machine());

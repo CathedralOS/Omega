@@ -41,7 +41,7 @@ pub(super) fn validate_proposed(
                     .row_external_completion_leaves
                     .get(*index)
                     .is_some_and(|realization| {
-                        realization.machine().is_some_and(|machine| {
+                        realization.iter().any(|&machine| {
                             typed.symbols.symbol_package_identity(machine) == Some(package)
                         })
                     })

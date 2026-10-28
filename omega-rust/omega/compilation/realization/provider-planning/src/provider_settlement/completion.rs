@@ -22,16 +22,12 @@ pub(super) fn retain_completions(
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     for provider in selected {
         let mut rows = Vec::with_capacity(provider.plan.rows.len());
-        for (&requirement, realization) in provider
+        for (&requirement, &realization) in provider
             .provider
             .row_requirements
             .iter()
             .zip(&provider.provider.row_realizations)
         {
-            let Some(realization) = realization.authored() else {
-                rows.push(Vec::new());
-                continue;
-            };
             let completion =
                 checked_trees::typed_trees::boundary_completions::boundary_requirement_completion(
                     &checked.typed,
