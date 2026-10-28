@@ -79,9 +79,34 @@ fn project_terminal_boundary_application_realizations(
                 && plan.identities.text(row.requirement_identity) == requirement.overload()
         });
         let (Some((plan, row, execution)), None) = (matching.next(), matching.next()) else {
-            return Err(error(
-                "Terminal boundary application has no unique exact selected row",
-            ));
+            let matching_count = selected_rows
+                .iter()
+                .filter(|(plan, row, _)| {
+                    plan.schema.identity_text(plan.schema.trait_name) == requirement.overload()
+                        && plan.schema.trait_package_identity == requirement.package()
+                        && plan.identities.text(row.requirement_identity) == requirement.overload()
+                })
+                .count();
+            let selected = selected_rows
+                .iter()
+                .take(12)
+                .map(|(plan, row, _)| {
+                    format!(
+                        "schema={}, requirement={}, package={:?}",
+                        plan.schema.identity_text(plan.schema.trait_name),
+                        plan.identities.text(row.requirement_identity),
+                        plan.schema.trait_package_identity
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join("; ");
+            return Err(error(&format!(
+                "Terminal boundary application has no unique exact selected row: requirement={}, package={:?}, matching={matching_count}, selected rows={} [{}]",
+                requirement.overload(),
+                requirement.package(),
+                selected_rows.len(),
+                selected,
+            )));
         };
         let realization = match &row.binding {
             ProviderBinding::CompilerIntrinsic { .. } => {
