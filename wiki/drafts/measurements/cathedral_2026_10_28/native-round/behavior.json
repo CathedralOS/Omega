@@ -1,0 +1,296 @@
+{
+  "status": "equivalent",
+  "compilers": {
+    "full": {
+      "binary": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\ui-native-round\\omega-detailed.exe",
+      "sha256": "bda3bffe9219d478a2ffd4d17c4c5476c8788e264ebf898d6e86d65d92a70144",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "3"
+      }
+    },
+    "scoped": {
+      "binary": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\ui-native-round\\omega-scoped.exe",
+      "sha256": "a8aa73f50cc8b24ff2a7c25fc96592247d2d3812d9d2ca4d8843d302acc1fcfa",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "3"
+      }
+    }
+  },
+  "cases": [
+    {
+      "fixture": "tests\\omega\\pass\\domains\\moved_payload_uses_current_membership_exit",
+      "observations": {
+        "full": [
+          "accepted",
+          "5ffbde646eca7ff1727a9f7c1af05976bfcaab360d954f876133142e751b67ed",
+          0,
+          "",
+          ""
+        ],
+        "scoped": [
+          "accepted",
+          "5ffbde646eca7ff1727a9f7c1af05976bfcaab360d954f876133142e751b67ed",
+          0,
+          "",
+          ""
+        ]
+      },
+      "inputs": {
+        "build.omg": "134f9705e94a40c765b9e5ded05c964e091b1cb5fe9a4fbd7deae11315c18456",
+        "main.omg": "e8e0382a8c56c6a81da1781fd2fb053fbe0d946bdc0f6776f628afbcd6a8c20c"
+      },
+      "full_both": {
+        "exit_code": 201,
+        "agreed": false,
+        "diagnostics": [
+          "native exit 0",
+          "Terminal interpretation FAILED:",
+          "  error: runtime execution failed: Execution(ExecutionSite { machine: MachineId(1), block: BlockId(1), operation: Some(OperationId(5)), cause: VerifiedOperationMalformed })"
+        ]
+      },
+      "scoped_both": {
+        "exit_code": 201,
+        "agreed": false,
+        "diagnostics": [
+          "native exit 0",
+          "Terminal interpretation FAILED:",
+          "  error: runtime execution failed: Execution(ExecutionSite { machine: MachineId(1), block: BlockId(1), operation: Some(OperationId(5)), cause: VerifiedOperationMalformed })"
+        ]
+      }
+    },
+    {
+      "fixture": "tests\\omega\\pass\\traits\\runtime_dyn_post_write_alternatives_exit",
+      "observations": {
+        "full": [
+          "accepted",
+          "41d7c16409d1d44ea9208505a4917e38458462e703c227c89d2e5bbf0584f063",
+          0,
+          "",
+          ""
+        ],
+        "scoped": [
+          "accepted",
+          "41d7c16409d1d44ea9208505a4917e38458462e703c227c89d2e5bbf0584f063",
+          0,
+          "",
+          ""
+        ]
+      },
+      "inputs": {
+        "build.omg": "cc72e0d42e1de38ddd2b01159978383da970f5f7c271b44669a8f36c7a4b8038",
+        "main.omg": "08da76187f13106b3827e95880961e2f401f112db40a7840e9e22df920e3dddd"
+      },
+      "full_both": {
+        "exit_code": 0,
+        "agreed": true,
+        "diagnostics": [
+          "native exit 0",
+          "interp exit: 0"
+        ]
+      },
+      "scoped_both": {
+        "exit_code": 0,
+        "agreed": true,
+        "diagnostics": [
+          "native exit 0",
+          "interp exit: 0"
+        ]
+      }
+    },
+    {
+      "fixture": "tests\\omega\\pass\\traits\\runtime_dyn_selector_record_post_write_exit",
+      "observations": {
+        "full": [
+          "accepted",
+          "8b612330c37f8a5ff1820d2ca43e5bb417d70f93d8d95ee976ff516027a679c1",
+          0,
+          "",
+          ""
+        ],
+        "scoped": [
+          "accepted",
+          "8b612330c37f8a5ff1820d2ca43e5bb417d70f93d8d95ee976ff516027a679c1",
+          0,
+          "",
+          ""
+        ]
+      },
+      "inputs": {
+        "build.omg": "cc72e0d42e1de38ddd2b01159978383da970f5f7c271b44669a8f36c7a4b8038",
+        "main.omg": "4be1fe1cad4af56e6e92f1ea1c41ef7fefd4643469edc549a349f86e74417bee"
+      },
+      "full_both": {
+        "exit_code": 0,
+        "agreed": true,
+        "diagnostics": [
+          "native exit 0",
+          "interp exit: 0"
+        ]
+      },
+      "scoped_both": {
+        "exit_code": 0,
+        "agreed": true,
+        "diagnostics": [
+          "native exit 0",
+          "interp exit: 0"
+        ]
+      }
+    },
+    {
+      "fixture": "tests\\omega\\pass\\traits\\runtime_dyn_byte_subview_join",
+      "observations": {
+        "full": [
+          "accepted",
+          "1aa0a06b2cf7108c6622c1a60fbc6d6d7710afe74d79aa727c09c3de92af31b2",
+          0,
+          "",
+          ""
+        ],
+        "scoped": [
+          "accepted",
+          "1aa0a06b2cf7108c6622c1a60fbc6d6d7710afe74d79aa727c09c3de92af31b2",
+          0,
+          "",
+          ""
+        ]
+      },
+      "inputs": {
+        "build.omg": "7804705463ee2741e15f5ea9d4883976d7d0df76e017415e67da4da57789e458",
+        "main.omg": "0667109c3f35191e0ca0443197a137285d4acbe2fb5c11a0d49bb9e7d95bbd17"
+      },
+      "full_both": {
+        "exit_code": 0,
+        "agreed": true,
+        "diagnostics": [
+          "native exit 0",
+          "interp exit: 0"
+        ]
+      },
+      "scoped_both": {
+        "exit_code": 0,
+        "agreed": true,
+        "diagnostics": [
+          "native exit 0",
+          "interp exit: 0"
+        ]
+      }
+    },
+    {
+      "fixture": "tests\\omega\\pass\\borrows\\completed_reference_result_preserves_input_holds_exit",
+      "observations": {
+        "full": [
+          "accepted",
+          "7f36c8e387f75cfd180959cbeb2a2e6db25796203d5ae428c9b875c3eeabb1d5",
+          0,
+          "",
+          ""
+        ],
+        "scoped": [
+          "accepted",
+          "7f36c8e387f75cfd180959cbeb2a2e6db25796203d5ae428c9b875c3eeabb1d5",
+          0,
+          "",
+          ""
+        ]
+      },
+      "inputs": {
+        "build.omg": "e53c6408d0f69f134df73be8b4b32730da63aec1d051f543e209e6d2f0fdaf86",
+        "main.omg": "ea2a15108a53020a92eb8868f74c7dc5e7ebe689f4124beccbb678f8aafa87bb"
+      },
+      "full_both": {
+        "exit_code": 0,
+        "agreed": true,
+        "diagnostics": [
+          "native exit 0",
+          "interp exit: 0"
+        ]
+      },
+      "scoped_both": {
+        "exit_code": 0,
+        "agreed": true,
+        "diagnostics": [
+          "native exit 0",
+          "interp exit: 0"
+        ]
+      }
+    },
+    {
+      "fixture": "tests\\omega\\fail\\domains\\moved_payload_cannot_revive_issued_membership",
+      "observations": {
+        "full": [
+          "rejected",
+          [
+            "error: cannot prove requires contract for call read_issued from main: moved.cell in Cell::Issued in state `entry`"
+          ]
+        ],
+        "scoped": [
+          "rejected",
+          [
+            "error: cannot prove requires contract for call read_issued from main: moved.cell in Cell::Issued in state `entry`"
+          ]
+        ]
+      },
+      "inputs": {
+        "main.omg": "b7640e2e875bcf385921a5f491135ccebd408e8f8c15876284e7a3831734c1d0"
+      }
+    },
+    {
+      "fixture": "tests\\omega\\fail\\traits\\dyn_selector_prefix_write_invalidates",
+      "observations": {
+        "full": [
+          "rejected",
+          [
+            "error: cannot prove requires contract for call admit from probe: current >= 0.0 && current <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+          ]
+        ],
+        "scoped": [
+          "rejected",
+          [
+            "error: cannot prove requires contract for call admit from probe: current >= 0.0 && current <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+          ]
+        ]
+      },
+      "inputs": {
+        "main.omg": "dfb2175282e5ce8928cc1854f6ba4f01114c319792d6d1f4e2ed0a22d326a9f7"
+      }
+    },
+    {
+      "fixture": "tests\\omega\\fail\\proofs\\returned_reference_unproven_result_guarantee",
+      "observations": {
+        "full": [
+          "rejected",
+          [
+            "error: cannot prove ensures contract for exit from borrow at statement 0: result.identity == 19",
+            "error: cannot prove ensures contract for exit from wrap_scalar at statement 1: result.value == 19",
+            "error: cannot prove ensures contract for exit from borrow_scalar at statement 0: result == 19",
+            "error: cannot prove ensures contract for exit from wrap_disjunctive at statement 0: result.identity == 19",
+            "error: cannot prove ensures contract for exit from wrap_rebound_scalar at statement 2: result.value == 19",
+            "error: cannot prove ensures contract for exit from wrap_mutated_scalar at statement 1: result.value == 19"
+          ]
+        ],
+        "scoped": [
+          "rejected",
+          [
+            "error: cannot prove ensures contract for exit from borrow at statement 0: result.identity == 19",
+            "error: cannot prove ensures contract for exit from wrap_scalar at statement 1: result.value == 19",
+            "error: cannot prove ensures contract for exit from borrow_scalar at statement 0: result == 19",
+            "error: cannot prove ensures contract for exit from wrap_disjunctive at statement 0: result.identity == 19",
+            "error: cannot prove ensures contract for exit from wrap_rebound_scalar at statement 2: result.value == 19",
+            "error: cannot prove ensures contract for exit from wrap_mutated_scalar at statement 1: result.value == 19"
+          ]
+        ]
+      },
+      "inputs": {
+        "main.omg": "4f0a464da5b548d2ccc0af8ec325e66664a4e911797ee2f1fad994170d808779"
+      }
+    }
+  ],
+  "native_positive_pairs": 5,
+  "rejection_pairs": 3,
+  "interpreter_agreement_pairs": 4,
+  "unchanged_interpreter_failure_pairs": 1,
+  "reused_positive_record": "graph-checks-bounded/result.json; five completed positives before subsequent rejection harness failure",
+  "rejection_record": "graph-rejections-final/result.json"
+}

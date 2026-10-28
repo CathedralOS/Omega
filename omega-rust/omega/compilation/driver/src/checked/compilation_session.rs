@@ -76,7 +76,7 @@ impl CompilationSession {
         let Some(cache) = &self.source_graph else {
             return;
         };
-        match cache.load() {
+        match phase_profile::scope("source.graph.recovery", || cache.load()) {
             Ok(Some(graph)) => {
                 // Decode one coupled owner before any new IDs are allocated.
                 // Every request below still supplies fresh source/custody and

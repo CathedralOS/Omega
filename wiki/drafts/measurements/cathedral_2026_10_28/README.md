@@ -133,3 +133,6 @@ All edits and builds are isolated in `.agents/worktree/cathedral-benchmark`.
 [The measured implementation](shared/README.md) combines layout and frame in one
 export probe. Both exports remain required; the current composition has seven
 compiler roots. This original baseline retains its eight-root input definition.
+
+[The next native UI round](native-round/README.md) measures remaining work and
+limits payload graph construction to its query roots and their complete callees.

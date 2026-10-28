@@ -31,3 +31,56 @@ composition and incremental edit latency remain separate acceptance metrics.
 The completed experiment and selected implementation are recorded in
 [shared compilation](shared/README.md). One existing Build requesting both exports
 removes more repeated work than retaining a compiler across two root builds.
+
+
+## Native UI critical path, 2026-10-28
+
+Question: after sharing layout/frame compilation, which repeated analysis or
+persistence costs still dominate the complete invocation? The fresh optimized
+producer measures roughly eight seconds with retained inputs. Phase scopes show
+native production and Terminal lowering, rather than warm checking, dominate.
+See [the next measured round](native-round/README.md).
+
+Exact search queries:
+
+- `site.llvm.org docs DataFlowAnalysisIntro worklist reverse postorder fixed point`
+- `site.llvm.org Greedy register allocator live interval splitting compile time`
+
+Read [Clang dataflow analysis introduction](https://clang.llvm.org/docs/DataFlowAnalysisIntro.html),
+the worklist/convergence discussion: monotone transfer on a finite-height lattice
+converges, and a worklist revisits nodes whose inputs changed. Applicability:
+Omega payload membership retention and register allocation already use fixed
+points; measure which structures they reconstruct before adding another cache.
+This supports preserving the fixed point while removing unaffected work, not
+omitting proof obligations.
+
+Read [LLVM RegAllocGreedy.cpp](https://llvm.org/doxygen/RegAllocGreedy_8cpp_source.html),
+LLVM 24.0.0git, specifically `growRegion`: it tracks recently added bundles and
+uses a compile-complexity budget with a failed-attempt result. Applicability:
+Omega has repeated spill/reanalysis rounds, but already retains per-function
+facts and reanalyzes changed functions. LLVM's budget is not permission to skip
+Omega admission or claim a faster allocator without testing emitted programs.
+No LLVM implementation was copied. A register strategy change is deferred until
+its benefit and native-code cost can be measured separately.
+
+The first diagnostic disabled only source-graph retention in the owned workload
+copy, preserving native-component cache hits. Its two unretained runs took
+10.715 and 10.784 seconds versus retained 7.780 and 8.084 seconds, with identical
+native artifacts. Reject deleting the source cache. Narrow timers also ruled
+out descriptor residence scheduling (0.034 ms) and deprioritized repeated
+compiler-library identity (89.843 ms); payload membership propagation remained
+637.352 ms in that observation. All nested timings overlap their parent scopes.
+
+A Windows samply/xperf recording failed while processing its ETL with 'The handle
+is invalid'; it supplies no sampling attribution. Continue with existing phase
+scopes rather than treating the failed capture as evidence.
+
+
+The narrower experiment selected query-root graph construction. Retention adapts
+only the complete transitive invocation closure of its candidate query machines,
+including all dynamic alternatives, through the existing adapter. Four interleaved
+warm observations per compiler reduced mean wall time from 8.561 to 8.174 seconds;
+the graph phase fell from 666.872 to 397.519 ms. All six emitted artifacts were
+byte-identical in every run. Concurrent host builds make the wall-time estimate
+noisy; no subsecond or cold-build result is claimed. See the linked round for
+focused native/invalid controls and the unchanged baseline interpreter defect.
