@@ -408,6 +408,21 @@ impl ProductDeclarationOperand {
                     .names
                     .iter()
                     .any(|(_, name)| contains(name.source_span))
+                    || graph.operands.iter().any(|(_, operand)| {
+                        let path = graph.names.span_or_empty(operand.path);
+                        let (Some(first), Some(last)) = (path.first(), path.last()) else {
+                            return false;
+                        };
+                        first.source_span.source_id == last.source_span.source_id
+                            && occurrence
+                                == source::SourceSpan::new(
+                                    first.source_span.source_id,
+                                    source::Span::new(
+                                        first.source_span.span.start,
+                                        last.source_span.span.end,
+                                    ),
+                                )
+                    })
                     || graph
                         .expressions
                         .iter()

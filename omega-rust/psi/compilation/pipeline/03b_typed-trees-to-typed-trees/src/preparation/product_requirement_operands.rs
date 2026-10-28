@@ -384,6 +384,13 @@ impl Lower<'_> {
             .collect()
     }
     fn symbol(&self, name: Handle<ProductOperandName>) -> Result<SymbolHandle, Vec<Diagnostic>> {
+        self.symbol_named(name, &self.graph.names.get(name).text)
+    }
+    fn symbol_named(
+        &self,
+        name: Handle<ProductOperandName>,
+        path: &str,
+    ) -> Result<SymbolHandle, Vec<Diagnostic>> {
         let name = self.graph.names.get(name);
         if let Some(atom) = name.builtin_type {
             return self
@@ -415,7 +422,7 @@ impl Lower<'_> {
                 .program
                 .symbols
                 .find_top_level_by_name_and_kinds_from_source(
-                    &name.text,
+                    path,
                     &[symbols::SymbolKind::BuiltinType, symbols::SymbolKind::Data],
                     self.program
                         .symbols
@@ -437,17 +444,12 @@ impl Lower<'_> {
             .collect::<Vec<_>>();
         self.program
             .symbols
-            .find_build_subject_declaration_from_source(
-                &name.text,
-                name.source_span,
-                candidates,
-                &[],
-            )
+            .find_build_subject_declaration_from_source(path, name.source_span, candidates, &[])
             .ok_or_else(|| {
                 vec![
                     Diagnostic::error(format!(
                         "designated static operand `{}` has no exact visible source declaration",
-                        name.text
+                        path
                     ))
                     .with_source_span(name.source_span),
                 ]
@@ -514,7 +516,7 @@ impl Lower<'_> {
             .transpose()?
             .map(Box::new);
         let symbol = if let Some(last) = value.path.handles().last() {
-            self.symbol(last)?
+            self.symbol_named(last, &self.path(value.path)?)?
         } else {
             SymbolHandle::invalid()
         };
