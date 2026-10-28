@@ -223,6 +223,7 @@ impl TypedTrees {
         }
         let target = self.machine_authored_target(machine)?;
         language_semantics::declaration_selection::ProductTarget::from_canonical_name(target)?;
+        let namespace = format!("core::targets::{target}::float_impl");
         let expected_source = std::path::PathBuf::from("core/targets")
             .join(target)
             .join("float_impl.omg");
@@ -242,7 +243,7 @@ impl TypedTrees {
             || !provider.is_valid()
             || self.symbols.get(provider).kind != symbols::SymbolKind::Module
             || self.normalized_hermetic_symbol_identity(provider).ok()?
-                != "toolchain::FloatNativeProvider"
+                != format!("toolchain::{namespace}")
         {
             return None;
         }

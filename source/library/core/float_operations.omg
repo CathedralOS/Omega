@@ -23,7 +23,7 @@ use omega::language::core::targets::linux_arm64::float_impl;
 use omega::language::core::targets::linux_x86_64::float_impl;
 use omega::language::core::targets::windows_x86_64::float_impl;
 
-// Native realizations live in the private FloatNativeProvider code module.
+// Native realizations live in each target's private float_impl code module.
 // Their explicit arguments carry all runtime state; no data carrier owns code.
 
 public data FloatClass [copy] {
