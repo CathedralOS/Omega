@@ -2,10 +2,14 @@
 
 The checked seed-2 mov/sub/jnz CFG falls through with eax == 0 and stores output == 0.
 
-Owning requirement: **CHECKED-ASM-LABEL-CONTRACTS**, AArch64 countdown and
-register-view parity. Every place copies that sentence, keeps seed 2 and output
+Owning requirements: **BUILD-OWNED-TARGET-SELECTION**, ordinary named ISA
+implementations with explicit target-keyed Build rows, and
+**CHECKED-ASM-LABEL-CONTRACTS**, AArch64 countdown and register-view parity. Every place copies that sentence, keeps seed 2 and output
 0, and transports the countdown's result into the same consuming obligation.
-The x86 bodies use `eax`/`sub`/`jnz`. AArch64 realizes the same u32 operation as
+`X86Countdown` and `ArmCountdown` are ordinary named implementations of the
+portable `Countdown` requirement. Every Build file supplies five explicit catalog
+target rows; no countdown declaration has a source target prefix. The x86 body
+uses `eax`/`sub`/`jnz`. AArch64 realizes the same u32 operation as
 `subs w1, w0, 1; mov w0, w1; b.ne loop`: the destination differs from the left
 input, and the value move preserves the arithmetic zero condition. Output starts
 at 99, so skipping the assembly's fallthrough store cannot satisfy the oracle.
@@ -15,6 +19,11 @@ the historical `macos_x86_64` binding. Each declares `Expected exit: 0`. Label
 `done` requires the counter to be 0 and proves `output == 0` after the store;
 the selected countdown body then proves its ordinary `result == 0` contract.
 The consuming operation receives that fact before any runtime oracle branch.
+The match place also passes its original Boolean to an arm guard: selecting the
+wrong arm traps before the unchanged countdown. Both Boolean inputs execute.
+The target-body place has separate Build-selected forwarding implementations:
+x86 entries expect tag 17 and ARM entries expect tag 29. A wrong selected body
+traps before calling the portable countdown requirement.
 Transported outputs enter `observe_zero` with `requires value == 0`; parameter
 and nested-machine consumers owe the same precondition. The match join publishes
 its zero guarantee and both selected results enter that consumer. An equality
@@ -22,6 +31,7 @@ branch inside the consumer is only the runtime oracle, after arrival is proved.
 
 | Place | Positive | Reject twin | Transport |
 | --- | --- | --- | --- |
+| ordinary provider rung | [program](ordinary_provider/main.omg) | [wrong edge](ordinary_provider/invalid/main.omg) | frozen ordinary implementation migration |
 | root | [program](main.omg) | [wrong edge](invalid/main.omg) | canonical countdown |
 | local | [program](local/main.omg) | [wrong edge](local/invalid/main.omg) | local result |
 | field | [program](field/main.omg) | [wrong edge](field/invalid/main.omg) | record field |
@@ -34,11 +44,15 @@ branch inside the consumer is only the runtime oracle, after arrival is proved.
 | another target body | [program](target_body/main.omg) | [wrong edge](target_body/invalid/main.omg) | selected forwarding body |
 
 Each twin changes only the fallthrough label's own requirement from counter 0
-to counter 1, in every target body. The instruction sequence, bound, consuming
+to counter 1, in both ordinary ISA implementations. The instruction sequence, bound, consuming
 operation and runtime oracle are unchanged. The nine places and twins are pinned
 as `tests/omega/{pass,fail}/facts/checked_asm_countdown_through_*`.
 The positive fixtures also request all four hosted target interpretations from
 one unchanged retained Terminal artifact using `expected_terminal_targets.txt`.
+The target-body pin additionally requests the existing `compiled-application`
+cohort mode, so each installation receives its own actual admitted ProgramEntry
+root rather than the artifact-only default entry; the semantic artifact remains
+unchanged across that cohort.
 
 ## Baseline and evidence
 
@@ -55,6 +69,29 @@ actual native and Terminal outcomes, target-installation outcomes and reject
 diagnostics. Compiler exit 0 or compile-only target publication alone does not
 establish execution. Matching-host native execution on Windows or macOS and
 native AArch64 execution remain unverified until their engines observe them.
+
+The optimized fixed baseline `27aa307651127ca13dd9ac08a2f1a687a2dd5bb0`
+wrongly rejects the frozen ordinary-provider rung and every existing countdown
+place: the extracted helper cannot prove its `output == 0` normal-exit contract.
+The label store and its assertion are already checked. The shared current-value
+exit prover excluded both Unit completion and scalar referent parameters, so it
+could not consume that completed store through the exact exit origin.
+
+Producer `2b10d981c07293625ecaf678dcee1ec10aca6b83` supplies the repair:
+normal Unit completion has no return operand, and stable scalar referents use
+the same store/call-frame invalidation as owned scalar values. Unreadable
+write-only referents have no initial observation. No result value or loan is
+invented. The nine places, root and frozen ordinary rung were observed with
+native exit 0 and Terminal exit 0 on `macos_arm64`; every wrong-edge twin still
+rejects for the incoming `done` label obligation. The actual source revision
+for these observations is `9a18ac9642e58c5803ae17ccbbede2a190eb5202`;
+its compiler and bundled-library inputs equal the producer's inputs.
+
+The retained build, raw engine streams, source/oracle hashes and product hashes
+are in the target-retirement qualification evidence. The focused ordinary
+scalar-loan controls also pin explicit and implicit Unit completion, a later
+write invalidating the guarantee, and a missing store. These are regression
+controls for the shared proof operation, not another countdown fact row.
 
 ## Requirements and remaining acceptance
 
@@ -75,7 +112,7 @@ native AArch64 execution remain unverified until their engines observe them.
 - Psi 05–07: known arithmetic erases to ordinary checked modular scalar
   computations and explicit ZF transitions. The catalog's target demand and
   exact input/result identities survive extraction and Terminal lowering.
-- Omega 00–02: the selected target body and its ProgramEntry join the ordinary
+- Omega 00–02: explicit target-keyed named implementation rows and ProgramEntry join the ordinary
   provider/calling plans. Target installations use one retained Terminal artifact
   with actual target provisions and no source reopening.
 - Omega 03–06: ordinary u32 arithmetic and call realization own instruction
@@ -85,7 +122,10 @@ native AArch64 execution remain unverified until their engines observe them.
   the exit-0 oracle. Target compilation and interpreted target installations are
   reported separately from matching-host native execution.
 
-This row does not close **CHECKED-ASM-LABEL-CONTRACTS**. Other flag families,
+This row does not close **BUILD-OWNED-TARGET-SELECTION**: remaining library,
+layout-policy and product migrations, prefix rejection, and removal of implicit
+family parser/IR/codec/dispatch/install machinery stay open. It also does not
+close **CHECKED-ASM-LABEL-CONTRACTS**. Other flag families,
 linear hardware-effect retirement, transitive catalog plans, privileged port
 settlement, supplied-environment interpretation and interrupt/processor canaries
 remain open. Fresh focused observations and required independent review are
