@@ -51,6 +51,12 @@ pub(crate) fn settle(
                 declaration.materialized_initializer,
                 declaration.declared_type,
             );
+            // The appended recipe needs the same source-call formation as
+            // receiving replay, before dependency discovery or custody reads.
+            // Keep authored targets here; private specialization comes later.
+            while !validation::resolve_named_result_overloads(&mut probes)?.is_empty() {}
+            typed_trees_to_typed_trees::bind_pre_specialization_authored_selections(&mut probes)
+                .map_err(|diagnostic| vec![diagnostic])?;
             let mut work = domain.clone();
             work.include(owner);
             let work = work.demanded_roots(&probes, &[owner]);
