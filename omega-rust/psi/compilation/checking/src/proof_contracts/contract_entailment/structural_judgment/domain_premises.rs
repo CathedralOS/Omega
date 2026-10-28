@@ -194,6 +194,8 @@ impl StructuralJudge<'_> {
         reference: TypeReferenceHandle,
     ) -> bool {
         if !self.runtime_body_values
+            || !self.declaration_state.is_valid()
+            || self.storage_observation_invalidated(expression)
             || super::super::structural_terms::term_is_unobserved_descriptor(self.program, subject)
         {
             return false;

@@ -190,12 +190,12 @@ pub(crate) fn validate_declaration_expression_formation(
 /// Validate a selected application's operands before its requirements or result
 /// can contribute facts. Constant recipes and abstract predicates share this owner.
 #[allow(clippy::too_many_arguments)]
-fn validate_declaration_call_arguments(
+fn validate_declaration_value_arguments(
     program: &dyn crate::CheckingInput,
     owner_symbol: SymbolHandle,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
-    call: &TableCallExpression,
+    actual: &[ExpressionHandle],
     selected: SelectedCallContract<'_>,
     content_formation: Option<ContentDeclarationFormation<'_>>,
     application: Option<&AppliedProofBindings>,
@@ -205,11 +205,6 @@ fn validate_declaration_call_arguments(
     let Some(expected) = owner_parameter_scope(program, &selected) else {
         return;
     };
-    let actual = program
-        .expression_table
-        .expression_handles(call.arguments)
-        .get(owner_leading_operands(&selected)..)
-        .unwrap_or(&[]);
     if actual.len() != expected.len() {
         diagnostics.push(
             Diagnostic::error(format!(
@@ -220,6 +215,21 @@ fn validate_declaration_call_arguments(
         return;
     }
     for (argument, parameter) in actual.iter().zip(expected.iter()) {
+        let required_type = application.map_or(parameter.type_reference, |application| {
+            application.project_type(program, parameter.type_reference)
+        });
+        if let Some(pending) = pending_data_subject(program, owner_symbol, *argument)
+            && crate::field_domains::readable_nominal_definition(program, required_type)
+                .is_some_and(|required| {
+                    required.symbol == pending.symbol && !required.where_facts.is_empty()
+                })
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "cannot form specification argument in {owner}: the logical subject's pending default domain cannot admit the nominal value required by parameter `{}`",
+                parameter.name,
+            )).with_source_span(program.expression_table.source_span(*argument)));
+            continue;
+        }
         // This exact proof observation already has a checked place, carrier,
         // access and qualification. It is not an ordinary runtime reference.
         // Selected call preconditions remain with validate_expression below.
@@ -229,9 +239,7 @@ fn validate_declaration_call_arguments(
         {
             continue;
         }
-        let required_type = application.map_or(parameter.type_reference, |application| {
-            application.project_type(program, parameter.type_reference)
-        });
+
         let natural = crate::parameter_expression_result_type_reference(
             program,
             owner_symbol,
@@ -478,6 +486,64 @@ fn declaration_anonymous_fit(
     )
 }
 
+/// The declaration-owned logical subject exposes carrier geometry, not an
+/// already admitted runtime value of the default domain currently being formed.
+fn pending_data_subject<'program>(
+    program: &'program dyn crate::CheckingInput,
+    owner: SymbolHandle,
+    mut expression: ExpressionHandle,
+) -> Option<&'program typed_trees::data::DataDefinition> {
+    let definition = program.data_definition_by_symbol(owner)?;
+    if !definition.predicate_subject_symbol.is_valid() || definition.where_facts.is_empty() {
+        return None;
+    }
+    loop {
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Name(path) => {
+                return (path.symbol == definition.predicate_subject_symbol).then_some(definition);
+            }
+            ExpressionNode::Borrow(borrow) => expression = borrow.target,
+            ExpressionNode::Cast(cast) => expression = cast.value,
+            _ => return None,
+        }
+    }
+}
+
+fn validate_pending_subject_materialization(
+    program: &dyn crate::CheckingInput,
+    caller: SpecificationCaller<'_>,
+    expression: ExpressionHandle,
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let SpecificationCaller::Declaration(symbol, _) = caller else {
+        return;
+    };
+    let mut operands = Vec::new();
+    match program.expression_table.expression(expression) {
+        ExpressionNode::StructLiteral(literal) => operands.extend(
+            program
+                .expression_table
+                .struct_fields(literal.fields)
+                .iter()
+                .map(|field| field.value),
+        ),
+        ExpressionNode::ArrayLiteral(elements) => {
+            operands.extend(program.expression_table.expression_handles(*elements))
+        }
+        ExpressionNode::Borrow(borrow) => operands.push(borrow.target),
+        ExpressionNode::Cast(cast) => operands.push(cast.value),
+        _ => return,
+    }
+    for operand in operands {
+        if pending_data_subject(program, symbol, operand).is_some() {
+            diagnostics.push(Diagnostic::error(format!(
+                "cannot materialize the logical subject in {owner}: its complete default domain is still pending formation"
+            )).with_source_span(program.expression_table.source_span(operand)));
+        }
+    }
+}
+
 fn validate_specification_payload_projection(
     program: &dyn crate::CheckingInput,
     caller: SpecificationCaller<'_>,
@@ -655,6 +721,10 @@ fn validate_specification_expression_in_scope(
     // Only active ancestry is retained. Successful formation under a
     // guarded branch cannot cache authority for another retained DAG use.
     visited.pop();
+    if diagnostics.len() != diagnostics_before {
+        return;
+    }
+    validate_pending_subject_materialization(program, caller, expression, owner, diagnostics);
     if diagnostics.len() != diagnostics_before {
         return;
     }
@@ -848,15 +918,13 @@ fn validate_specification_expression_in_scope(
             }
         }
     }
-    if let SpecificationCaller::Declaration(symbol, parameters) = caller
-        && let Some(call) = call
-    {
-        validate_declaration_call_arguments(
+    if let SpecificationCaller::Declaration(symbol, parameters) = caller {
+        validate_declaration_value_arguments(
             program,
             symbol,
             parameters,
             expression,
-            call,
+            &arguments,
             contract_owner,
             content_formation,
             application_bindings.as_ref(),
