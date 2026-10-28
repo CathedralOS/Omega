@@ -340,9 +340,13 @@ that classification; diagnostic strings do not gate support. Package review
 still independently rejoins its supplied candidate to retained selection
 custody. Psi publishes numeric meaning and its exact IEEE format in canonical
 Terminal boundary declarations; native proposal creation consumes that meaning
-and reconciles it with selected-provider custody rather than inferring the format
-from a result or parameter. Portable decoding validates the complete numeric
-signature. This meaning does not select or authorize a provider. Review-only
+and joins the selected external realization to the boundary's canonical checked
+satisfaction edges. The catalog retains exact realization and selecting-owner
+declarations, package identities and structural binding mechanisms independently
+of target selection. Native retention omits the duplicate numeric execution
+sidecar; host and placement authority judgments remain separate. Portable
+decoding validates declaration coordinates and the complete numeric signature.
+This meaning does not select or authorize a provider. Review-only
 products still use checked source custody: moving their complete conformance
 evidence to Terminal remains part of provider-settlement migration.
 Provider selection and target geometry still originate outside Psi. This is not

@@ -267,6 +267,7 @@ pub(crate) fn retain_foreign_borrow_custodies(
             ))?;
         module.boundary_machines.push(BoundaryMachineDeclaration {
             numeric_intrinsic: None,
+            external_providers: Vec::new(),
             normal_qualifications: Vec::new(),
             scalar_domain_requirements: Vec::new(),
             declaration: None,

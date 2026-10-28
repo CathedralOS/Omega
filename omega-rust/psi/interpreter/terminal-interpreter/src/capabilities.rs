@@ -548,6 +548,7 @@ mod tests {
     ) -> terminal_psi::BoundaryMachineDeclaration {
         terminal_psi::BoundaryMachineDeclaration {
             numeric_intrinsic: None,
+            external_providers: Vec::new(),
             normal_qualifications: Vec::new(),
             scalar_domain_requirements: Vec::new(),
             declaration: None,

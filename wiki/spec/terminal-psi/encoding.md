@@ -59,7 +59,7 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 200 even when every table
+order below. This layout uses semantic format marker 201 even when every table
 is empty; older markers reject rather than selecting an optional dialect:
 
 | Catalog table | Row fields |
@@ -705,7 +705,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 200 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 201 + `u16` vocabulary
 marker 130 + the entry callable, followed by the module tables in the
 declaration order below. The entry callable uses its ordinary machine-or-boundary
 tag and identifier encoding.
@@ -1346,8 +1346,22 @@ are not re-sorted by the canonical-order checker.
 
 ### Boundary machines and provider candidates
 
-Marker 200 adds optional numeric meaning immediately after the optional checked
-callable and before the boundary identity: a presence Boolean followed, when
+Marker 201 adds a counted external-provider conformance roster after numeric
+meaning and before the boundary identity. Each row retains a checked machine
+declaration, optional realization package digest, optional selecting owner
+(nominal declaration index, provider identity index, optional package digest),
+and the structural external binding. Package digests are 32 bytes with a
+presence Boolean; owners likewise have a presence Boolean. Binding tags retain
+the language vocabulary: 2 = syscall followed by an i64 number, 3 = compiler
+intrinsic with no payload, 4 = vtable slot followed by an i64 index, 5 = vtable
+field and 6 = table function, each followed by a counted field string.
+Rows are strictly ordered and unique. Referenced declarations and signatures
+must exist; checked commitments and field names must be nonempty. Evidence-only
+boundaries cannot carry candidates. These are checked satisfaction edges for
+the enclosing requirement, not provider choices or external execution grants.
+
+Marker 200 added optional numeric meaning immediately after the optional checked
+callable: a presence Boolean followed, when
 present, by four bytes. This meaning is independent of provider selection and
 authority. Decoding checks the complete parameter/result signature, including
 the structural IEEE classification result. Non-callable evidence cannot carry it.

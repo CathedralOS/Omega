@@ -208,7 +208,13 @@ fn project_terminal_native_body(
                     "native proposal has mismatched intrinsic row custody",
                 )]);
             }
-            Ok(retained.row_executions.to_vec())
+            // Numeric meaning and external satisfaction travel in Terminal.
+            // Keep only the independent host/placement authority judgments.
+            Ok(retained
+                .row_executions
+                .iter()
+                .map(|execution| execution.filter(|execution| !execution.is_numeric()))
+                .collect())
         })
         .collect::<Result<Vec<_>, _>>()?;
     let callback_occurrences = project_callback_occurrences(

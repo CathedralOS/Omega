@@ -25,6 +25,7 @@ pub struct CompilerIntrinsicPlanProvenance<'a> {
 struct SelectedIntrinsicRow<'a> {
     requirement_identity: &'a str,
     plan_index: usize,
+    row: &'a effects::provider_plan::ProviderPlanRow,
     semantic_schema: &'a ServiceSchema,
     execution: Option<CompilerIntrinsicExecutionIdentity>,
 }
@@ -34,7 +35,7 @@ struct SelectedIntrinsicRow<'a> {
 /// Provenance stays borrowed and source-free; every plan is checked even
 /// without demand. The receiving target catalog admits these proposals later.
 pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
-    selected: &effects::SelectedProviderPlanFacts,
+    selected: &'a effects::SelectedProviderPlanFacts,
     provenance: impl ExactSizeIterator<Item = CompilerIntrinsicPlanProvenance<'a>>,
     demanded_boundaries: &BTreeSet<String>,
     boundaries: &[terminal_psi::BoundaryMachineDeclaration],
@@ -65,6 +66,7 @@ pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
                 selected_rows.push(SelectedIntrinsicRow {
                     requirement_identity: plan.identities.text(row.requirement_identity),
                     plan_index,
+                    row,
                     semantic_schema: retained.semantic_schema,
                     execution: *execution,
                 });
@@ -116,18 +118,26 @@ pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
         // A row this compile could not close is retained with its reason, not
         // refused here: whether the boundary is executed is each entry's
         // execution-scope question, answered at admission.
-        if let Err(reason) =
-            reconcile_numeric_meaning(boundary.numeric_intrinsic, selected_row.execution)
-        {
-            diagnostics.push(Diagnostic::error(format!(
-                "Terminal boundary `{requirement}` {reason}"
-            )));
-            continue;
-        }
+        let execution = match selected_execution(
+            boundary.numeric_intrinsic,
+            &boundary.external_providers,
+            identities,
+            &plans[selected_row.plan_index],
+            selected_row.row,
+            selected_row.execution,
+        ) {
+            Ok(execution) => execution,
+            Err(reason) => {
+                diagnostics.push(Diagnostic::error(format!(
+                    "Terminal boundary `{requirement}` {reason}"
+                )));
+                continue;
+            }
+        };
         let format = boundary
             .numeric_intrinsic
             .and_then(|meaning| meaning.builtin_format());
-        let settlement = match selected_row.execution {
+        let settlement = match execution {
             None => super::TerminalCompilerBuiltinSettlement::NoClosedCatalogIdentity,
             Some(execution) => match compiler_builtin_execution(execution, format) {
                 Some(execution) => super::TerminalCompilerBuiltinSettlement::Execution(execution),
@@ -588,6 +598,54 @@ fn compiler_builtin_execution(
     Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic { operation, format })
 }
 
+/// Join the selected external leaf to Psi's exact satisfaction edge. Numeric
+/// meaning alone cannot authorize execution; a same-signature provider or a
+/// declaration from another package cannot replace the selected realization.
+fn selected_execution(
+    meaning: Option<language_semantics::numeric_intrinsics::NumericIntrinsic>,
+    external_providers: &[terminal_psi::ExternalProviderConformance],
+    identities: &terminal_psi::TerminalIdentityTable,
+    plan: &ProviderPlan,
+    row: &effects::provider_plan::ProviderPlanRow,
+    retained: Option<CompilerIntrinsicExecutionIdentity>,
+) -> Result<Option<CompilerIntrinsicExecutionIdentity>, &'static str> {
+    let Some(meaning) = meaning else {
+        reconcile_numeric_meaning(None, retained)?;
+        return Ok(retained);
+    };
+    let effects::provider_plan::ProviderBinding::CompilerIntrinsic { machine } = &row.binding
+    else {
+        return Err("numeric provider does not select an external compiler intrinsic");
+    };
+    let mut candidates = external_providers.iter().filter(|candidate| {
+        candidate.binding == language_semantics::ExternalBindingIdentity::CompilerIntrinsic
+            && identities.text(candidate.realization.callable) == Some(machine.as_str())
+            && candidate.realization_package == plan.origin_package_identity
+            && match &candidate.provider {
+                Some(provider) => {
+                    identities.text(provider.identity) == Some(plan.provider_type.as_str())
+                        && provider.package == plan.provider_type_package_identity
+                }
+                None => {
+                    plan.provider_type.is_empty() && plan.provider_type_package_identity.is_none()
+                }
+            }
+    });
+    let (Some(candidate), None) = (candidates.next(), candidates.next()) else {
+        return Err(
+            "selected numeric provider does not rejoin one canonical external satisfaction",
+        );
+    };
+    candidate.validate(identities)?;
+    let execution = CompilerIntrinsicExecutionIdentity::from(meaning);
+    // A source-review consumer can still supply its independently retained row.
+    // It cannot replace the portable meaning. Native persistence omits it.
+    if retained.is_some() {
+        reconcile_numeric_meaning(Some(meaning), retained)?;
+    }
+    Ok(Some(execution))
+}
+
 /// Portable meaning never replaces selected-provider custody. In particular,
 /// a forged numeric boundary cannot turn an unsupported selected row into an
 /// executable provider, and a numeric provider cannot omit its portable meaning.
@@ -596,15 +654,7 @@ fn reconcile_numeric_meaning(
     selected: Option<CompilerIntrinsicExecutionIdentity>,
 ) -> Result<(), &'static str> {
     use CompilerIntrinsicExecutionIdentity as Execution;
-    let selected_numeric = matches!(
-        selected,
-        Some(
-            Execution::PrimitiveFloatBinary { .. }
-                | Execution::PrimitiveIntegerComparison { .. }
-                | Execution::NamedFloatNegation(_)
-                | Execution::NamedFloatConversion { .. }
-        )
-    ) || matches!(selected, Some(Execution::BuiltinFunction(function)) if function.is_float_family());
+    let selected_numeric = selected.is_some_and(Execution::is_numeric);
     match (meaning, selected, selected_numeric) {
         (Some(meaning), Some(execution), _)
             if meaning.signature().is_some() && Execution::from(meaning) == execution =>
@@ -620,6 +670,109 @@ fn reconcile_numeric_meaning(
 mod tests {
     use super::*;
     use language_semantics::numeric_intrinsics::NumericIntrinsic;
+
+    #[test]
+    fn numeric_provider_joins_portable_satisfaction_without_a_source_execution_row() {
+        use terminal_psi::{
+            CheckedMachineDeclaration, ExternalProviderConformance, ExternalProviderOwner,
+            NominalDeclarationIdentity, TerminalIdentityTableBuilder,
+        };
+        let mut identities = TerminalIdentityTableBuilder::default();
+        let callable = identities.intern("Realizer::negate(f32)->f32");
+        let provider = identities.intern("Realizer");
+        let package = semantic_vocabulary::PackageKeyIdentity::from_digest([31; 32]);
+        let candidate = ExternalProviderConformance {
+            realization: CheckedMachineDeclaration {
+                machine: NominalDeclarationIdentity::new(callable),
+                state: NominalDeclarationIdentity::new(callable),
+                semantic_declaration: callable,
+                parameter_types: vec![identities.intern("f32")],
+                callable,
+                result_type: identities.intern("f32"),
+                contract: [22; 32],
+                specialization: None,
+            },
+            realization_package: package,
+            provider: Some(ExternalProviderOwner {
+                declaration: NominalDeclarationIdentity::new(provider),
+                identity: provider,
+                package,
+            }),
+            binding: language_semantics::ExternalBindingIdentity::CompilerIntrinsic,
+        };
+        let identities = identities.build();
+        let plan = ProviderPlan {
+            provider_type: "Realizer".into(),
+            provider_type_package_identity: package,
+            origin_package_identity: package,
+            ..ProviderPlan::default()
+        };
+        let row = effects::provider_plan::ProviderPlanRow {
+            method: "negate".into(),
+            requirement_identity: Default::default(),
+            requirement_lifetime_partition: Vec::new(),
+            admitted_same_stack_bytes: 0,
+            binding: effects::provider_plan::ProviderBinding::CompilerIntrinsic {
+                machine: "Realizer::negate(f32)->f32".into(),
+            },
+        };
+        let meaning = NumericIntrinsic::from_canonical_encoding([3, 0, 0, 0]).unwrap();
+        assert_eq!(
+            selected_execution(
+                Some(meaning),
+                std::slice::from_ref(&candidate),
+                &identities,
+                &plan,
+                &row,
+                None
+            )
+            .unwrap(),
+            Some(meaning.into())
+        );
+        assert!(selected_execution(Some(meaning), &[], &identities, &plan, &row, None).is_err());
+        for mutation in 0..6 {
+            let mut altered = candidate.clone();
+            match mutation {
+                0 => altered.realization.callable = provider,
+                1 => altered.realization_package = None,
+                2 => altered.provider.as_mut().unwrap().identity = callable,
+                3 => altered.provider.as_mut().unwrap().package = None,
+                4 => {
+                    altered.binding =
+                        language_semantics::ExternalBindingIdentity::Syscall { number: 1 }
+                }
+                5 => altered.provider = None,
+                _ => unreachable!(),
+            }
+            assert!(
+                selected_execution(Some(meaning), &[altered], &identities, &plan, &row, None)
+                    .is_err(),
+                "mutation {mutation}"
+            );
+        }
+        assert!(
+            selected_execution(
+                Some(meaning),
+                &[candidate.clone(), candidate.clone()],
+                &identities,
+                &plan,
+                &row,
+                None
+            )
+            .is_err()
+        );
+        assert!(
+            selected_execution(
+                Some(meaning),
+                &[candidate],
+                &identities,
+                &plan,
+                &row,
+                Some(CompilerIntrinsicExecutionIdentity::HostedWriteByteI32)
+            )
+            .is_err()
+        );
+    }
 
     #[test]
     fn portable_numeric_meaning_cannot_authorize_or_replace_provider_custody() {
