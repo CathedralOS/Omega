@@ -32,14 +32,15 @@ pub(crate) fn lower(
             "bind_description"
         }
         (BuildSelectionRequest::Declaration(binding), 1)
-            if binding.operation.selects_product_declarations() =>
+            if binding.operation.selects_product_declarations()
+                && binding.operation != BuildOperation::ProviderSelection =>
         {
             "select"
         }
-        (BuildSelectionRequest::Declaration(binding), 2)
+        (BuildSelectionRequest::Declaration(binding), 2 | 3)
             if binding.operation == BuildOperation::ProviderSelection =>
         {
-            "select_mode"
+            "select_provider"
         }
         _ => {
             return Err(
@@ -81,10 +82,16 @@ pub(crate) fn lower(
     };
     let preparation = find("prepare")?;
     let commit = find(operation)?;
-    let value_helper = match &request {
-        BuildSelectionRequest::Exclusion(request) => Some(request.vocabulary.helper()),
-        _ if operation == "select_mode" => Some("build_selection_independent"),
-        _ => None,
+    let value_helpers = match &request {
+        BuildSelectionRequest::Exclusion(request) => vec![(1, request.vocabulary.helper())],
+        _ if operation == "select_provider" => {
+            let mut helpers = vec![(1, "build_selection_target")];
+            if arguments.len() == 3 {
+                helpers.push((2, "build_selection_independent"));
+            }
+            helpers
+        }
+        _ => Vec::new(),
     };
     let table = &mut target.expression_table;
     let mut members = Default::default();
@@ -98,6 +105,9 @@ pub(crate) fn lower(
         owner.symbol,
     )));
     let build_selection = table.insert_build_selection_request(request);
+    if operation == "select_provider" && arguments.len() == 2 {
+        arguments.push(table.insert(ExpressionNode::Boolean(false)));
+    }
     let mut emit = |symbol,
                     name: typed_trees::name::Identifier,
                     receiver,
@@ -128,7 +138,7 @@ pub(crate) fn lower(
         table.set_source_span(expression, source_span);
         expression
     };
-    if let Some(helper_name) = value_helper {
+    for (position, helper_name) in value_helpers {
         // Closed toolchain enums are ordinary checked data. Exhaustive helpers
         // encode protocol values; hosts never guess structural layout tags.
         let helper = source
@@ -146,11 +156,11 @@ pub(crate) fn lower(
                 ))
                 .with_source_span(source_span)
             })?;
-        arguments[1] = emit(
+        arguments[position] = emit(
             helper.symbol,
             crate::lowerer::name::lower_name(&helper.name),
             ExpressionHandle::invalid(),
-            vec![arguments[1]],
+            vec![arguments[position]],
             Default::default(),
             Default::default(),
         );

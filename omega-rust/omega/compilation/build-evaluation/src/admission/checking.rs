@@ -96,7 +96,7 @@ pub(crate) fn prepare_checked_build(
             })?;
             let selected = provider_planning::select_derived_provider_plans(
                 &candidates,
-                profile.native_target(),
+                profile,
                 &declarations.provider_defaults,
                 &[],
             )?;

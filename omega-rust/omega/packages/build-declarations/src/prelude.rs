@@ -5,11 +5,12 @@
 //! Optimization cases and counters are projected from the shared catalog.
 
 mod optimizations;
+mod targets;
 
 /// Construct the target-neutral Build API with the exact optimization catalog.
 /// Loading and parsing this source do not grant build-host authority.
 pub fn build_prelude_source() -> String {
-    optimizations::install(BUILD_PRELUDE)
+    targets::install(&optimizations::install(BUILD_PRELUDE))
 }
 
 const BUILD_PRELUDE: &str = r#"
@@ -57,6 +58,7 @@ public data X86DeploymentFeatures {
     case Baseline;
     case AvxFma3;
 }
+// compiler-owned target declarations
 // compiler-owned optimization declarations
 // Compiler-owned package-build path carrier. The evaluator replaces values
 // produced by `resolve` with activation-local rooted authority; an authored
@@ -107,7 +109,7 @@ public boundary trait BuildBindingOperations {
     machine bind(activation: u64) reaches;
     machine bind_description(activation: u64, description: ProductEntryRef) reaches;
     machine select(activation: u64) reaches;
-    machine select_mode(activation: u64, independent: bool) reaches;
+    machine select_provider(activation: u64, target: u64, independent: bool) reaches;
     machine exclude(activation: u64, code: u64) reaches;
 }
 machine build_exclusion_crash_code(cause: CrashCause) -> u64 {
