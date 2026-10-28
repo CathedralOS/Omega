@@ -82,6 +82,56 @@ pub fn resolve_product_path(
     )
 }
 
+/// Explain a refused designation without resolving another declaration or
+/// granting access. The current and frozen description views can differ while
+/// Product sources are being joined; diagnostics retain that distinction.
+pub fn product_declaration_lookup_diagnostic(
+    typed: &TypedTrees,
+    path: &str,
+    occurrence: source::SourceSpan,
+    kind: ProductOperandKind,
+) -> String {
+    let leaf = path.rsplit("::").next().unwrap_or(path);
+    let describe = |program: &TypedTrees| {
+        let reference = program.symbols.rejoin_product_occurrence(occurrence);
+        let candidates = product_candidates(program, kind).unwrap_or_default();
+        let matching = candidates.iter().filter_map(|(symbol, _)| {
+            let name = program.symbols.display_path(*symbol, "::");
+            if name.rsplit("::").next() != Some(leaf) { return None; }
+            Some({
+                let declaration = program.symbols.symbol_provenance_source_span(*symbol);
+                let file = declaration.and_then(|span| program.symbols.source_file(span));
+                format!("{name}: selected={}, package={:?}, scope={:?}, stratum={:?}, same-package={}, permitted-stratum={}",
+                    program.symbols.symbol_source_is_selected(*symbol),
+                    file.and_then(|file| file.package_identity),
+                    file.map(|file| file.dependency_scope),
+                    file.map(|file| file.resolution_stratum),
+                    declaration.is_some_and(|span| program.symbols.same_product_package_instance(reference, span)),
+                    program.symbols.source_reference_can_describe_product_symbol(reference, *symbol),
+                )
+            })
+        }).take(8).collect::<Vec<_>>();
+        format!(
+            "{} role candidates; matching declarations: [{}]",
+            candidates.len(),
+            matching.join("; ")
+        )
+    };
+    let source = typed.symbols.rejoin_product_occurrence(occurrence);
+    let file = typed.symbols.source_file(source);
+    let selected = typed
+        .symbols
+        .source_map()
+        .is_some_and(|sources| sources.source_is_selected(source.source_id));
+    format!(
+        "designation source: selected={selected}, package={:?}, scope={:?}; current Product view: {}; designated description view: {}",
+        file.and_then(|file| file.package_identity),
+        file.map(|file| file.dependency_scope),
+        describe(typed),
+        describe(typed.product_declarations())
+    )
+}
+
 fn product_candidates(
     program: &TypedTrees,
     kind: ProductOperandKind,

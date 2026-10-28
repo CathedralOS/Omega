@@ -279,7 +279,31 @@ impl TypedTrees {
     /// An application owns logical contracts, not executable realizations;
     /// constructing this row confers no conformance or proof authority.
     pub fn prepare_applied_callable_signatures(&mut self) -> Result<(), &'static str> {
-        let roots = self.applied_trait_roots();
+        self.prepare_callable_signatures_for(None)
+    }
+
+    /// A closed requirement can be an unused Product input rather than a
+    /// runtime call or type root. Its exact declaring environment still owns
+    /// the logical telescope independently of the closed executable signature.
+    pub(crate) fn prepare_trait_application_callable_signatures(
+        &mut self,
+        environment: &crate::trait_definition::TraitApplicationEnvironment,
+    ) -> Result<(), &'static str> {
+        self.prepare_callable_signatures_for(Some(environment))
+    }
+
+    fn prepare_callable_signatures_for(
+        &mut self,
+        environment: Option<&crate::trait_definition::TraitApplicationEnvironment>,
+    ) -> Result<(), &'static str> {
+        let roots = match environment {
+            Some(environment) => vec![
+                environment
+                    .scope(self)
+                    .ok_or("applied callable lost its exact declaring source environment")?,
+            ],
+            None => self.applied_trait_roots(),
+        };
         let mut pending = Vec::new();
         for scope in roots {
             scope.visit(self, &mut |scope| {

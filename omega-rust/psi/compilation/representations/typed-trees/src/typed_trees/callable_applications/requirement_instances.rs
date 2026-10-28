@@ -280,6 +280,11 @@ impl TypedTrees {
                 .ok_or("closed requirement has no complete portable local operand")
             })
             .collect::<Result<Vec<_>, _>>()?;
+        // The instance owns this complete source scope even when no runtime
+        // call or Type actual mentions it. Prepare the independently rederived
+        // logical telescope through the same ordinary signature owner before
+        // publishing or reusing the closed executable instance.
+        self.prepare_trait_application_callable_signatures(environment)?;
         // Signature and ABI equality are insufficient cache coordinates. The
         // outer application includes phantom arguments, and local Type/Const
         // operands retain their supplying region owner. Closure remains a
