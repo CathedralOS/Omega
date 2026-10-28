@@ -186,10 +186,7 @@ fn disjunction_introduction_checks_one_exact_selected_child() {
         );
         assert_eq!(
             accepted.assumptions,
-            vec![AcceptedPremise {
-                index: usize::from(expected == right),
-                proposition: expected,
-            }]
+            vec![recorded_premise(usize::from(expected == right), &expected)]
         );
     }
 
@@ -286,10 +283,7 @@ fn integer_order_transitivity_weakens_a_negative_bound_for_nonzero() {
     );
     assert_eq!(
         acceptance.semantic_axioms,
-        vec![AcceptedPremise {
-            index: 0,
-            proposition: negative_two_bound,
-        }]
+        vec![recorded_premise(0, &negative_two_bound)]
     );
 }
 
@@ -412,10 +406,7 @@ fn integer_order_substitution_transports_either_endpoint_in_either_equality_orie
     );
     assert_eq!(
         accepted.semantic_axioms,
-        vec![AcceptedPremise {
-            index: 0,
-            proposition: positive_equality,
-        }]
+        vec![recorded_premise(0, &positive_equality)]
     );
 
     let negative_literal = Proposition::LessOrEqual(literal(-2), literal(-1));
@@ -618,14 +609,8 @@ fn integer_affine_bound_checks_root_proof_normalization_and_exact_custody() {
     assert_eq!(
         accepted.semantic_axioms,
         vec![
-            AcceptedPremise {
-                index: 0,
-                proposition: landing,
-            },
-            AcceptedPremise {
-                index: 1,
-                proposition: definition.clone(),
-            },
+            recorded_premise(0, &landing),
+            recorded_premise(1, &definition),
         ]
     );
     assert_eq!(
@@ -736,10 +721,7 @@ fn integer_cast_bound_checks_complete_definition_word_and_exact_custody() {
     );
     assert_eq!(
         accepted.semantic_axioms,
-        vec![AcceptedPremise {
-            index: 0,
-            proposition: definition.clone(),
-        }]
+        vec![recorded_premise(0, &definition)]
     );
     let first_definition = Proposition::Equal(
         middle.clone(),
@@ -762,14 +744,8 @@ fn integer_cast_bound_checks_complete_definition_word_and_exact_custody() {
     assert_eq!(
         accepted.semantic_axioms,
         vec![
-            AcceptedPremise {
-                index: 0,
-                proposition: first_definition,
-            },
-            AcceptedPremise {
-                index: 1,
-                proposition: second_definition,
-            },
+            recorded_premise(0, &first_definition),
+            recorded_premise(1, &second_definition),
         ],
     );
     assert_eq!(
@@ -840,13 +816,7 @@ fn accepted_trust_closure_binds_the_exact_cited_premise() {
         &proof,
     )
     .expect("exact cited premise");
-    assert_eq!(
-        accepted.assumptions,
-        vec![AcceptedPremise {
-            index: 0,
-            proposition: cited.clone(),
-        }]
-    );
+    assert_eq!(accepted.assumptions, vec![recorded_premise(0, &cited)]);
     assert_eq!(
         accept_certificate(
             &PropositionContext::default(),
@@ -907,14 +877,8 @@ fn semantic_equalities_compose_only_through_the_same_middle_term() {
     assert_eq!(
         accepted.semantic_axioms,
         vec![
-            AcceptedPremise {
-                index: 0,
-                proposition: axioms[0].clone(),
-            },
-            AcceptedPremise {
-                index: 1,
-                proposition: axioms[1].clone(),
-            },
+            recorded_premise(0, &axioms[0]),
+            recorded_premise(1, &axioms[1]),
         ]
     );
 }
@@ -1171,4 +1135,13 @@ fn integer_value(integer: IntegerType, value: u64) -> ScalarTerm {
 /// The signed literal constructor the integer-order pins spell.
 fn signed_literal(integer: IntegerType, value: i128) -> ScalarTerm {
     ScalarTerm::integer(integer, IntegerValue::Signed(value)).expect("signed literal")
+}
+
+/// One recorded premise row of an accepted closure: the citation index beside
+/// the proposition it cites.
+fn recorded_premise(index: usize, proposition: &Proposition) -> AcceptedPremise {
+    AcceptedPremise {
+        index,
+        proposition: proposition.clone(),
+    }
 }
