@@ -52,14 +52,14 @@ blocks;
         _ -> malformed(typing_harness)
     }
 
-    machine packages(typing_harness: &mut TypingHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
+    state packages(typing_harness: &mut TypingHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
         transition remaining > 0 {
             true -> package_row(typing_harness, sources, parser, remaining)
             _ -> dependencies(typing_harness, sources, parser)
         }
     }
 
-    machine package_row(typing_harness: &mut TypingHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
+    state package_row(typing_harness: &mut TypingHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
         let toolchain: HarnessWord = block TypingHarness::read_u32(typing_harness);
         let mut name: ModulePath;
         ModulePath::clear(&mut name);
@@ -70,7 +70,7 @@ blocks;
         }
     }
 
-    machine add_package(
+    state add_package(
         typing_harness: &mut TypingHarness,
         sources: &mut SourceSet,
         parser: &mut Parser,
@@ -85,7 +85,7 @@ blocks;
         }
     }
 
-    machine dependencies(typing_harness: &mut TypingHarness, sources: &mut SourceSet, parser: &mut Parser) {
+    state dependencies(typing_harness: &mut TypingHarness, sources: &mut SourceSet, parser: &mut Parser) {
         let count: HarnessWord = block TypingHarness::read_u32(typing_harness);
         transition count.complete {
             true -> dependency(typing_harness, sources, parser, count.value)
@@ -93,14 +93,14 @@ blocks;
         }
     }
 
-    machine dependency(typing_harness: &mut TypingHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
+    state dependency(typing_harness: &mut TypingHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
         transition remaining > 0 {
             true -> dependency_row(typing_harness, sources, parser, remaining)
             _ -> units(typing_harness, sources, parser)
         }
     }
 
-    machine dependency_row(typing_harness: &mut TypingHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
+    state dependency_row(typing_harness: &mut TypingHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
         let requester: HarnessWord = block TypingHarness::read_u32(typing_harness);
         let scope: HarnessWord = block TypingHarness::read_u32(typing_harness);
         let mut alias: ModulePath;
@@ -115,7 +115,7 @@ blocks;
         }
     }
 
-    machine dependency_scope(
+    state dependency_scope(
         typing_harness: &mut TypingHarness,
         sources: &mut SourceSet,
         parser: &mut Parser,
@@ -131,7 +131,7 @@ blocks;
         }
     }
 
-    machine add_dependency(
+    state add_dependency(
         typing_harness: &mut TypingHarness,
         sources: &mut SourceSet,
         parser: &mut Parser,
@@ -148,7 +148,7 @@ blocks;
         }
     }
 
-    machine units(typing_harness: &mut TypingHarness, sources: &mut SourceSet, parser: &mut Parser) {
+    state units(typing_harness: &mut TypingHarness, sources: &mut SourceSet, parser: &mut Parser) {
         let count: HarnessWord = block TypingHarness::read_u32(typing_harness);
         transition count.complete {
             true -> unit(typing_harness, sources, parser, count.value)
@@ -156,14 +156,14 @@ blocks;
         }
     }
 
-    machine unit(typing_harness: &mut TypingHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
+    state unit(typing_harness: &mut TypingHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
         transition remaining > 0 {
             true -> unit_row(typing_harness, sources, parser, remaining)
             _ -> prepare_resolve(typing_harness, sources, parser)
         }
     }
 
-    machine unit_row(typing_harness: &mut TypingHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
+    state unit_row(typing_harness: &mut TypingHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
         let unit_package: HarnessWord = block TypingHarness::read_u32(typing_harness);
         let mut module_path: ModulePath;
         ModulePath::clear(&mut module_path);
@@ -174,7 +174,7 @@ blocks;
         }
     }
 
-    machine source(
+    state source(
         typing_harness: &mut TypingHarness,
         sources: &mut SourceSet,
         parser: &mut Parser,
@@ -191,7 +191,7 @@ blocks;
         }
     }
 
-    machine source_byte(
+    state source_byte(
         typing_harness: &mut TypingHarness,
         sources: &mut SourceSet,
         parser: &mut Parser,
@@ -207,7 +207,7 @@ blocks;
         }
     }
 
-    machine source_read(
+    state source_read(
         typing_harness: &mut TypingHarness,
         sources: &mut SourceSet,
         parser: &mut Parser,
@@ -224,7 +224,7 @@ blocks;
         }
     }
 
-    machine source_store(
+    state source_store(
         typing_harness: &mut TypingHarness,
         sources: &mut SourceSet,
         parser: &mut Parser,
@@ -242,7 +242,7 @@ blocks;
         }
     }
 
-    machine tokenize(
+    state tokenize(
         typing_harness: &mut TypingHarness,
         sources: &mut SourceSet,
         parser: &mut Parser,
@@ -258,7 +258,7 @@ blocks;
         }
     }
 
-    machine parse(
+    state parse(
         typing_harness: &mut TypingHarness,
         sources: &mut SourceSet,
         parser: &mut Parser,
@@ -274,7 +274,7 @@ blocks;
         }
     }
 
-    machine add(
+    state add(
         typing_harness: &mut TypingHarness,
         sources: &mut SourceSet,
         parser: &mut Parser,
@@ -290,13 +290,13 @@ blocks;
         }
     }
 
-    machine prepare_resolve(typing_harness: &mut TypingHarness, sources: &SourceSet, parser: &Parser) {
+    state prepare_resolve(typing_harness: &mut TypingHarness, sources: &SourceSet, parser: &Parser) {
         let mut resolver: Resolver;
         Resolver::initialize(&mut resolver);
         transition { _ -> resolve(typing_harness, sources, parser, &mut resolver) }
     }
 
-    machine resolve(
+    state resolve(
         typing_harness: &mut TypingHarness,
         sources: &SourceSet,
         parser: &Parser,
@@ -309,12 +309,12 @@ blocks;
         }
     }
 
-    machine prepare_type(typing_harness: &mut TypingHarness, sources: &SourceSet, parser: &Parser, resolver: &mut Resolver) {
+    state prepare_type(typing_harness: &mut TypingHarness, sources: &SourceSet, parser: &Parser, resolver: &mut Resolver) {
         let mut typer: Typer;
         transition { _ -> type_check(typing_harness, sources, parser, resolver, &mut typer) }
     }
 
-    machine type_check(
+    state type_check(
         typing_harness: &mut TypingHarness,
         sources: &SourceSet,
         parser: &Parser,
@@ -329,31 +329,31 @@ blocks;
         }
     }
 
-    machine accepted(typing_harness: &mut TypingHarness) {
+    state accepted(typing_harness: &mut TypingHarness) {
         Console::exit_process(0);
     }
 
-    machine type_rejected(typing_harness: &mut TypingHarness) {
+    state type_rejected(typing_harness: &mut TypingHarness) {
         Console::exit_process(249);
     }
 
-    machine resolve_rejected(typing_harness: &mut TypingHarness) {
+    state resolve_rejected(typing_harness: &mut TypingHarness) {
         Console::exit_process(248);
     }
 
-    machine parse_rejected(typing_harness: &mut TypingHarness) {
+    state parse_rejected(typing_harness: &mut TypingHarness) {
         Console::exit_process(250);
     }
 
-    machine lex_rejected(typing_harness: &mut TypingHarness) {
+    state lex_rejected(typing_harness: &mut TypingHarness) {
         Console::exit_process(251);
     }
 
-    machine source_full(typing_harness: &mut TypingHarness) {
+    state source_full(typing_harness: &mut TypingHarness) {
         Console::exit_process(252);
     }
 
-    machine malformed(typing_harness: &mut TypingHarness) {
+    state malformed(typing_harness: &mut TypingHarness) {
         Console::exit_process(253);
     }
 }
@@ -365,14 +365,14 @@ blocks;
 {
     transition { _ -> next(typing_harness, 0, 0, 1) }
 
-    machine next(typing_harness: &mut TypingHarness, read: u64 in Trapping, value: u64 in Trapping, scale: u64 in Trapping) -> HarnessWord {
+    state next(typing_harness: &mut TypingHarness, read: u64 in Trapping, value: u64 in Trapping, scale: u64 in Trapping) -> HarnessWord {
         transition read < 4 {
             true -> byte(typing_harness, read, value, scale)
             _ -> word(value)
         }
     }
 
-    machine byte(typing_harness: &mut TypingHarness, read: u64 in Trapping, value: u64 in Trapping, scale: u64 in Trapping) -> HarnessWord {
+    state byte(typing_harness: &mut TypingHarness, read: u64 in Trapping, value: u64 in Trapping, scale: u64 in Trapping) -> HarnessWord {
         let input: ByteRead = block Console::read_byte();
         transition input {
             ByteRead::Byte { value as byte } -> next(typing_harness, read + 1, value + (byte as u64 in Trapping) * scale, scale * 256)
@@ -380,11 +380,11 @@ blocks;
         }
     }
 
-    machine word(value: u64 in Trapping) -> HarnessWord {
+    state word(value: u64 in Trapping) -> HarnessWord {
         HarnessWord { value: value, complete: true }
     }
 
-    machine ended() -> HarnessWord {
+    state ended() -> HarnessWord {
         HarnessWord { value: 0, complete: false }
     }
 }
@@ -402,14 +402,14 @@ blocks;
         _ -> failed()
     }
 
-    machine byte(typing_harness: &mut TypingHarness, path: &mut ModulePath, left: u64 in Trapping) -> bool {
+    state byte(typing_harness: &mut TypingHarness, path: &mut ModulePath, left: u64 in Trapping) -> bool {
         transition left > 0 {
             true -> read(typing_harness, path, left)
             _ -> complete()
         }
     }
 
-    machine read(typing_harness: &mut TypingHarness, path: &mut ModulePath, left: u64 in Trapping) -> bool {
+    state read(typing_harness: &mut TypingHarness, path: &mut ModulePath, left: u64 in Trapping) -> bool {
         let input: ByteRead = block Console::read_byte();
         transition input {
             ByteRead::Byte { value } -> store(typing_harness, path, left, value)
@@ -417,7 +417,7 @@ blocks;
         }
     }
 
-    machine store(typing_harness: &mut TypingHarness, path: &mut ModulePath, left: u64 in Trapping, value: i32) -> bool {
+    state store(typing_harness: &mut TypingHarness, path: &mut ModulePath, left: u64 in Trapping, value: i32) -> bool {
         let kept: bool = ModulePath::append(path, value as u8);
         transition kept {
             true -> byte(typing_harness, path, left - 1)
@@ -425,11 +425,11 @@ blocks;
         }
     }
 
-    machine complete() -> bool {
+    state complete() -> bool {
         true
     }
 
-    machine failed() -> bool {
+    state failed() -> bool {
         false
     }
 }
@@ -461,73 +461,73 @@ crashes Trap
     TypingHarness::write_u64(typing_harness, output.types.row_count as u64 in Trapping);
     transition { _ -> row(typing_harness, output, syntax, 0) }
 
-    machine row(typing_harness: &mut TypingHarness, output: &Typing, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    state row(typing_harness: &mut TypingHarness, output: &Typing, syntax: &SyntaxTrees, index: u64 in Trapping) {
         transition index < output.types.row_count {
             true -> type_row(typing_harness, output, syntax, index)
             _ -> arguments(typing_harness, output, syntax)
         }
     }
 
-    machine type_row(typing_harness: &mut TypingHarness, output: &Typing, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    state type_row(typing_harness: &mut TypingHarness, output: &Typing, syntax: &SyntaxTrees, index: u64 in Trapping) {
         TypingHarness::write_type_row(typing_harness, output, index);
         transition { _ -> row(typing_harness, output, syntax, index + 1) }
     }
 
-    machine arguments(typing_harness: &mut TypingHarness, output: &Typing, syntax: &SyntaxTrees) {
+    state arguments(typing_harness: &mut TypingHarness, output: &Typing, syntax: &SyntaxTrees) {
         TypingHarness::write_u64(typing_harness, output.types.argument_count as u64 in Trapping);
         transition { _ -> argument(typing_harness, output, syntax, 0) }
     }
 
-    machine argument(typing_harness: &mut TypingHarness, output: &Typing, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    state argument(typing_harness: &mut TypingHarness, output: &Typing, syntax: &SyntaxTrees, index: u64 in Trapping) {
         transition index < output.types.argument_count {
             true -> argument_row(typing_harness, output, syntax, index)
             _ -> expressions(typing_harness, output, syntax)
         }
     }
 
-    machine argument_row(typing_harness: &mut TypingHarness, output: &Typing, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    state argument_row(typing_harness: &mut TypingHarness, output: &Typing, syntax: &SyntaxTrees, index: u64 in Trapping) {
         let argument_type: u64 in Trapping = TypeTable::argument(&output.types, index);
         TypingHarness::write_u64(typing_harness, argument_type);
         transition { _ -> argument(typing_harness, output, syntax, index + 1) }
     }
 
-    machine expressions(typing_harness: &mut TypingHarness, output: &Typing, syntax: &SyntaxTrees) {
+    state expressions(typing_harness: &mut TypingHarness, output: &Typing, syntax: &SyntaxTrees) {
         TypingHarness::write_u64(typing_harness, output.expression_count as u64 in Trapping);
         transition { _ -> expression(typing_harness, output, syntax, 0) }
     }
 
-    machine expression(typing_harness: &mut TypingHarness, output: &Typing, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    state expression(typing_harness: &mut TypingHarness, output: &Typing, syntax: &SyntaxTrees, index: u64 in Trapping) {
         transition index < output.expression_count {
             true -> expression_row(typing_harness, output, syntax, index)
             _ -> binders(typing_harness, output, syntax)
         }
     }
 
-    machine expression_row(typing_harness: &mut TypingHarness, output: &Typing, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    state expression_row(typing_harness: &mut TypingHarness, output: &Typing, syntax: &SyntaxTrees, index: u64 in Trapping) {
         TypingHarness::write_expression_span(typing_harness, syntax, index);
         TypingHarness::write_expression_row(typing_harness, output, index);
         transition { _ -> expression(typing_harness, output, syntax, index + 1) }
     }
 
-    machine binders(typing_harness: &mut TypingHarness, output: &Typing, syntax: &SyntaxTrees) {
+    state binders(typing_harness: &mut TypingHarness, output: &Typing, syntax: &SyntaxTrees) {
         TypingHarness::write_u64(typing_harness, output.binder_count as u64 in Trapping);
         transition { _ -> binder(typing_harness, output, syntax, 0) }
     }
 
-    machine binder(typing_harness: &mut TypingHarness, output: &Typing, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    state binder(typing_harness: &mut TypingHarness, output: &Typing, syntax: &SyntaxTrees, index: u64 in Trapping) {
         transition index < output.binder_count {
             true -> binder_row(typing_harness, output, syntax, index)
             _ -> done()
         }
     }
 
-    machine binder_row(typing_harness: &mut TypingHarness, output: &Typing, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    state binder_row(typing_harness: &mut TypingHarness, output: &Typing, syntax: &SyntaxTrees, index: u64 in Trapping) {
         let binder_type: u64 in Trapping = Typing::binder_type(output, index);
         TypingHarness::write_u64(typing_harness, binder_type);
         transition { _ -> binder(typing_harness, output, syntax, index + 1) }
     }
 
-    machine done() {}
+    state done() {}
 }
 
 machine TypingHarness::write_diagnostic(typing_harness: &mut TypingHarness, output: &Typing)
@@ -602,7 +602,7 @@ machine TypingHarness::write_selection(typing_harness: &mut TypingHarness, selec
         Selection::Binder { parameter } -> write(typing_harness, 5, parameter)
     }
 
-    machine write(typing_harness: &mut TypingHarness, tag: u8, handle: u64 in Trapping) {
+    state write(typing_harness: &mut TypingHarness, tag: u8, handle: u64 in Trapping) {
         TypingHarness::write_byte(typing_harness, tag);
         TypingHarness::write_u64(typing_harness, handle);
     }
@@ -614,7 +614,7 @@ machine TypingHarness::boolean_tag(value: bool) -> u8 {
         _ -> tag(0)
     }
 
-    machine tag(number: u8) -> u8 {
+    state tag(number: u8) -> u8 {
         number
     }
 }
@@ -636,7 +636,7 @@ machine TypingHarness::kind_tag(value: TypeKind) -> u8 {
         TypeKind::AnonymousArray -> tag(12)
     }
 
-    machine tag(number: u8) -> u8 {
+    state tag(number: u8) -> u8 {
         number
     }
 }
@@ -667,7 +667,7 @@ machine TypingHarness::builtin_tag(value: BuiltinType) -> u8 {
         BuiltinType::AtomicU64 -> tag(21)
     }
 
-    machine tag(number: u8) -> u8 {
+    state tag(number: u8) -> u8 {
         number
     }
 }
@@ -683,7 +683,7 @@ machine TypingHarness::domain_tag(value: DomainBinding) -> u8 {
         DomainBinding::Case -> tag(6)
     }
 
-    machine tag(number: u8) -> u8 {
+    state tag(number: u8) -> u8 {
         number
     }
 }
@@ -695,7 +695,7 @@ machine TypingHarness::access_tag(value: ReferenceAccess) -> u8 {
         ReferenceAccess::WriteOnly -> tag(2)
     }
 
-    machine tag(number: u8) -> u8 {
+    state tag(number: u8) -> u8 {
         number
     }
 }
@@ -709,7 +709,7 @@ machine TypingHarness::adaptation_tag(value: Adaptation) -> u8 {
         Adaptation::Read -> tag(4)
     }
 
-    machine tag(number: u8) -> u8 {
+    state tag(number: u8) -> u8 {
         number
     }
 }
@@ -761,7 +761,7 @@ machine TypingHarness::diagnostic_tag(value: TypeDiagnosticCode) -> u8 {
         TypeDiagnosticCode::DuplicatePatternField -> tag(42)
     }
 
-    machine tag(number: u8) -> u8 {
+    state tag(number: u8) -> u8 {
         number
     }
 }
