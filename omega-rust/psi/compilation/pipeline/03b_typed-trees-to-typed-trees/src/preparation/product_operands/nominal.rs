@@ -74,17 +74,13 @@ pub fn prepare_product_operand_application(
     };
     // Retain unfurled recipes before canonical closure replaces expressions.
     // Checking, rather than the folded tuple, owns arithmetic formation.
-    match role {
+    let parameters = match role {
         ProductOperandRole::BoundarySubject => {
-            let reference = lower
+            let definition = lower
                 .program
-                .static_operand_type_reference_in_scope(&source_argument, lexical_owner)
-                .map_err(refuse)?;
-            lower.program.retain_designated_static_type_argument(
-                lexical_owner,
-                reference,
-                operand.source_span,
-            );
+                .trait_definition_by_symbol(declaration)
+                .ok_or_else(|| refuse("an applied boundary lost its trait declaration"))?;
+            lower.program.trait_type_parameters(definition).to_vec()
         }
         ProductOperandRole::Provider => {
             let definition = lower
@@ -93,35 +89,38 @@ pub fn prepare_product_operand_application(
                 .ok_or_else(|| {
                     refuse("an applied provider must name an ordinary named implementation")
                 })?;
-            let parameters = lower
+            lower
                 .program
                 .conformance_type_parameters(definition)
-                .to_vec();
-            let arguments = &source_argument
-                .application
-                .as_ref()
-                .expect("created above")
-                .arguments;
-            if parameters.len() != arguments.len() {
-                return Err(refuse(
-                    "implementation application must supply its complete declaration telescope",
-                ));
-            }
-            for (parameter, argument) in parameters.iter().zip(arguments.iter()) {
-                if matches!(parameter.kind, TypeParameterKind::Type) {
-                    let reference = lower
-                        .program
-                        .static_operand_type_reference_in_scope(argument, lexical_owner)
-                        .map_err(refuse)?;
-                    lower.program.retain_designated_static_type_argument(
-                        lexical_owner,
-                        reference,
-                        operand.source_span,
-                    );
-                }
-            }
+                .to_vec()
         }
         _ => unreachable!("nominal roles checked above"),
+    };
+    let arguments = &source_argument
+        .application
+        .as_ref()
+        .expect("created above")
+        .arguments;
+    if parameters.len() != arguments.len() {
+        return Err(refuse(
+            "Product application must supply its complete declaration telescope",
+        ));
+    }
+    for (parameter, argument) in parameters.iter().zip(arguments.iter()) {
+        // Only Type actuals are runtime type formation roots. Const recipes
+        // remain unfurled in the retained application and are independently
+        // judged by the ordinary static-argument and arithmetic checkers.
+        if matches!(parameter.kind, TypeParameterKind::Type) {
+            let reference = lower
+                .program
+                .static_operand_type_reference_in_scope(argument, lexical_owner)
+                .map_err(refuse)?;
+            lower.program.retain_designated_static_type_argument(
+                lexical_owner,
+                reference,
+                operand.source_span,
+            );
+        }
     }
     let mut closed = source_argument.clone();
     crate::monomorphization::normalize_const_arguments(

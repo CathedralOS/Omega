@@ -97,15 +97,31 @@ pub fn prepare_product_requirement_operand(
             .expect("created above")
             .member = Handle::invalid();
         source_argument = Some(owner_argument.clone());
-        let reference = lower
+        let definition = lower
             .program
-            .static_operand_type_reference_in_scope(&owner_argument, author)
-            .map_err(refuse)?;
-        lower.program.retain_designated_static_type_argument(
-            author,
-            reference,
-            operand.source_span,
-        );
+            .trait_definition_by_symbol(owner)
+            .ok_or_else(|| refuse("applied requirement owner lost its trait declaration"))?;
+        let outer_parameters = lower.program.trait_type_parameters(definition).to_vec();
+        let outer_arguments = &owner_argument
+            .application
+            .as_ref()
+            .expect("created above")
+            .arguments;
+        // Const recipes belong to the independent static-input checker, never
+        // to runtime Type roots. Keep only the exact Type-kind actuals here.
+        for (parameter, argument) in outer_parameters.iter().zip(outer_arguments.iter()) {
+            if matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type) {
+                let reference = lower
+                    .program
+                    .static_operand_type_reference_in_scope(argument, author)
+                    .map_err(refuse)?;
+                lower.program.retain_designated_static_type_argument(
+                    author,
+                    reference,
+                    operand.source_span,
+                );
+            }
+        }
         // Closure consumes a derived tuple. Keep the source reference above
         // intact so immutable checking still judges every supplying recipe.
         crate::monomorphization::normalize_const_arguments(
@@ -118,11 +134,6 @@ pub fn prepare_product_requirement_operand(
             .program
             .static_operand_type_reference_in_scope(&owner_argument, author)
             .map_err(refuse)?;
-        lower.program.retain_designated_static_type_argument(
-            author,
-            reference,
-            operand.source_span,
-        );
         let scope = AppliedTraitScope::from_type_reference(lower.program, reference, author)
             .ok_or_else(|| {
                 refuse("native requirement has an invalid or incomplete outer application")

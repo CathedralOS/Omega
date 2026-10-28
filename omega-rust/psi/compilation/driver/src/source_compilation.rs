@@ -385,6 +385,32 @@ impl SourceContinuation {
         }
     }
 
+    /// Materialize original body edges when designated operands need their
+    /// exact lexical state. This is the same body-completion owner used by
+    /// complete_authored; constant evaluation and checking remain later steps.
+    pub fn materialize_authored_bodies(
+        self,
+        observer: &mut impl PsiCompilationObserver,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let Self { input, completions } = self;
+        let SourceCompletionInput {
+            typing,
+            pending_bodies,
+            pending_pre_checks,
+            context,
+        } = Arc::unwrap_or_clone(input);
+        let (typing, pending_bodies) = complete_authored_bodies(typing, pending_bodies, observer)?;
+        Ok(Self {
+            input: Arc::new(SourceCompletionInput {
+                typing,
+                pending_bodies,
+                pending_pre_checks,
+                context,
+            }),
+            completions,
+        })
+    }
+
     /// Consume the post-Build continuation and complete every authored body once.
     pub fn complete_authored(
         self,
@@ -405,28 +431,10 @@ impl SourceContinuation {
             pending_pre_checks,
             context,
         } = Arc::unwrap_or_clone(owned_input);
-        loop {
-            // Build may append concrete declarations. Join their exact suffix
-            // before body resolution allocates more symbols in the same owner.
-            pending_bodies = typing.join_prepared_allocations(pending_bodies)?;
-            let selected = pending_bodies.pending_machines().collect::<Vec<_>>();
-            if selected.is_empty() {
-                break;
-            }
-            let resolved = {
-                let _profile =
-                    phase_profile::guard("psi.source.complete_authored.complete_machine_bodies");
-                observer.record_result(PsiCompilationStage::Resolution, || {
-                    pending_bodies.complete_machine_bodies(&selected)
-                })?
-            };
-            (typing, pending_bodies) = {
-                let _profile = phase_profile::guard("psi.source.complete_authored.complete_bodies");
-                observer.record_result(PsiCompilationStage::Typing, || {
-                    typing.complete_bodies(resolved)
-                })?
-            };
-        }
+        (typing, pending_bodies) = complete_authored_bodies(typing, pending_bodies, observer)?;
+        // The paired resolved frontier remains alive until body completion; no
+        // consumer reconstructs it from typed declarations.
+        drop(pending_bodies);
         let mut deferred = Vec::new();
         let mut accounting = build_time_evaluation::SourceCompletionAccounting::default();
         for pre_check in pending_pre_checks {
@@ -447,6 +455,43 @@ impl SourceContinuation {
         completions.retain(input, &source)?;
         Ok(source)
     }
+}
+
+/// Resolution and typing stay paired across every demand for authored bodies.
+fn complete_authored_bodies(
+    mut typing: symbol_resolved_trees_to_typed_trees::SeededTypingBase,
+    mut pending_bodies: syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
+    observer: &mut impl PsiCompilationObserver,
+) -> Result<
+    (
+        symbol_resolved_trees_to_typed_trees::SeededTypingBase,
+        syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
+    ),
+    Vec<Diagnostic>,
+> {
+    loop {
+        // Build may append concrete declarations. Join their exact suffix
+        // before body resolution allocates more symbols in the same owner.
+        pending_bodies = typing.join_prepared_allocations(pending_bodies)?;
+        let selected = pending_bodies.pending_machines().collect::<Vec<_>>();
+        if selected.is_empty() {
+            break;
+        }
+        let resolved = {
+            let _profile =
+                phase_profile::guard("psi.source.complete_authored.complete_machine_bodies");
+            observer.record_result(PsiCompilationStage::Resolution, || {
+                pending_bodies.complete_machine_bodies(&selected)
+            })?
+        };
+        (typing, pending_bodies) = {
+            let _profile = phase_profile::guard("psi.source.complete_authored.complete_bodies");
+            observer.record_result(PsiCompilationStage::Typing, || {
+                typing.complete_bodies(resolved)
+            })?
+        };
+    }
+    Ok((typing, pending_bodies))
 }
 
 impl CompletedSource {
