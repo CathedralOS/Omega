@@ -815,14 +815,15 @@ pub(super) fn decode_record(bytes: &[u8]) -> Option<CachedCompiledReview> {
     let semantic_bindings = cursor_vec(&mut cursor, recover_binding)?;
     let semantic_binding_candidates = cursor_vec(&mut cursor, recover_candidate)?;
     let build_handoff = recover_build_handoff(&mut cursor)?;
+    let original_observation = build_observation_summary
+        .as_ref()
+        .map(|summary| summary.identity().digest());
     if build_handoff
         .selection_observation()
-        .is_some_and(|original| {
-            Some(original)
-                != build_observation_summary
-                    .as_ref()
-                    .map(|summary| summary.identity().digest())
-        })
+        .is_some_and(|original| Some(original) != original_observation)
+        || build_handoff
+            .native_evaluation()
+            .is_some_and(|evaluation| Some(evaluation.observation_digest) != original_observation)
     {
         return None;
     }
