@@ -1,0 +1,3 @@
+// Expected exit: 0
+machine missing() -> u8 {}
+machine main() {}

@@ -439,6 +439,7 @@ ensures
     (saturating_sub(a, (nat_max(a, b)))) == Nat::Zero
 {
     _ = le_add_right_self(a, (saturating_sub(b, a)));
+    transition { _ -> Nat::Zero }
 }
 
 // Right argument bound: `b <= nat_max(a, b)` -- induction on `a` with `b` free.
@@ -549,4 +550,5 @@ ensures
 {
     _ = sub_self(a);
     add_zero_right(a);
+    transition { _ -> Nat::Zero }
 }

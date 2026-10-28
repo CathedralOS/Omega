@@ -1,0 +1,3 @@
+// Expected exit: 0
+machine missing<T>(value: T, ready: bool) -> T { transition ready { true -> value false -> {} } }
+machine main() {}
