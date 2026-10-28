@@ -11451,6 +11451,36 @@ fail/facts/nested_fourteen_level_record_field_bound_through_target_body_rejected
 	exact arithmetic in machine `check_target` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `check_target` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `check_target` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/nested_machine_default_domain_call_result_rejected rejected 431ms expected @860b169d5798
+	machine `read` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/nested_machine_default_domain_const_name_rejected rejected 362ms expected @860b169d5798
+	machine `read` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/nested_machine_default_domain_field_rejected rejected 371ms expected @860b169d5798
+	machine `read` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/nested_machine_default_domain_local_rejected rejected 372ms expected @860b169d5798
+	machine `read` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/nested_machine_default_domain_match_join_rejected rejected 339ms expected @860b169d5798
+	machine `read` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/nested_machine_default_domain_other_machine_rejected rejected 362ms expected @860b169d5798
+	machine `read` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/nested_machine_default_domain_other_state_rejected rejected 341ms expected @860b169d5798
+	machine `read` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/nested_machine_default_domain_parameter_rejected rejected 380ms expected @860b169d5798
+	machine `read` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/nested_machine_default_domain_same_site_insufficient_arrival_rejected rejected 369ms expected @860b169d5798
+	machine `read` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/nested_machine_default_domain_stale_count_rejected rejected 382ms expected @860b169d5798
+	machine `read` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/nested_machine_default_domain_target_body_rejected rejected 385ms expected @860b169d5798
+	machine `read` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/nested_machine_default_domain_unformed_child_rejected rejected 333ms expected @860b169d5798
+	exact arithmetic in machine `read` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `read` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/nested_machine_default_domain_unit_result_mismatch_rejected rejected 353ms expected @860b169d5798
+	machine `read` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/nested_machine_default_domain_unresolved_sibling_rejected rejected 349ms expected @860b169d5798
+	terminal call `missing` does not select a declared machine entry or callable requirement
+	machine `read` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/facts/nested_machine_effectful_completion_call_result_rejected rejected 2011ms expected @165e14d1f48d
 	cannot prove ensures contract for exit from probe at statement 0: result != -1
 fail/facts/nested_machine_effectful_completion_const_name_rejected rejected 2116ms expected @165e14d1f48d
@@ -27701,6 +27731,17 @@ pass/facts/nested_fourteen_level_record_field_bound_through_other_machine_exit c
 pass/facts/nested_fourteen_level_record_field_bound_through_other_state_exit checked 2827ms check-target:macos_arm64 @a92f16431042
 pass/facts/nested_fourteen_level_record_field_bound_through_parameter_exit checked 1925ms check-target:macos_arm64 @a92f16431042
 pass/facts/nested_fourteen_level_record_field_bound_through_target_body_exit checked 2803ms check-target:macos_arm64 @a92f16431042
+pass/facts/nested_machine_default_domain_call_result_exit checked 2180ms check-target:macos_arm64 @860b169d5798
+pass/facts/nested_machine_default_domain_const_name_exit checked 2218ms check-target:macos_arm64 @860b169d5798
+pass/facts/nested_machine_default_domain_explicit_unit_exit checked 2181ms check-target:macos_arm64 @860b169d5798
+pass/facts/nested_machine_default_domain_field_exit checked 2269ms check-target:macos_arm64 @860b169d5798
+pass/facts/nested_machine_default_domain_local_exit checked 2087ms check-target:macos_arm64 @860b169d5798
+pass/facts/nested_machine_default_domain_match_join_exit checked 2156ms check-target:macos_arm64 @860b169d5798
+pass/facts/nested_machine_default_domain_no_indexed_store_exit checked 2181ms check-target:macos_arm64 @860b169d5798
+pass/facts/nested_machine_default_domain_other_machine_exit checked 2076ms check-target:macos_arm64 @860b169d5798
+pass/facts/nested_machine_default_domain_other_state_exit checked 2077ms check-target:macos_arm64 @860b169d5798
+pass/facts/nested_machine_default_domain_parameter_exit checked 2101ms check-target:macos_arm64 @860b169d5798
+pass/facts/nested_machine_default_domain_target_body_exit checked 2081ms check-target:macos_arm64 @860b169d5798
 pass/facts/nested_machine_effectful_completion_call_result_exit checked 4696ms check-target:macos_arm64 @165e14d1f48d
 pass/facts/nested_machine_effectful_completion_caller_storage_exit checked 4607ms check-target:macos_arm64 @165e14d1f48d
 pass/facts/nested_machine_effectful_completion_const_name_exit checked 4552ms check-target:macos_arm64 @165e14d1f48d

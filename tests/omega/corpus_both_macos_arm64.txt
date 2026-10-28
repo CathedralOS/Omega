@@ -2006,6 +2006,17 @@ pass/facts/nested_fourteen_level_record_field_bound_through_other_machine_exit b
 pass/facts/nested_fourteen_level_record_field_bound_through_other_state_exit built 46962ms exit:0 interpreter-exit:0 interpreter:agrees @80e7797d0e1e+wt
 pass/facts/nested_fourteen_level_record_field_bound_through_parameter_exit built 45256ms exit:0 interpreter-exit:0 interpreter:agrees @80e7797d0e1e+wt
 pass/facts/nested_fourteen_level_record_field_bound_through_target_body_exit built 46510ms exit:0 interpreter-exit:0 interpreter:agrees @80e7797d0e1e+wt
+pass/facts/nested_machine_default_domain_call_result_exit built 2830ms exit:0 interpreter-exit:0 interpreter:agrees @860b169d5798
+pass/facts/nested_machine_default_domain_const_name_exit built 2913ms exit:0 interpreter-exit:0 interpreter:agrees @860b169d5798
+pass/facts/nested_machine_default_domain_explicit_unit_exit built 2648ms exit:0 interpreter-exit:0 interpreter:agrees @860b169d5798
+pass/facts/nested_machine_default_domain_field_exit built 2731ms exit:0 interpreter-exit:0 interpreter:agrees @860b169d5798
+pass/facts/nested_machine_default_domain_local_exit built 2220ms exit:0 interpreter-exit:0 interpreter:agrees @860b169d5798
+pass/facts/nested_machine_default_domain_match_join_exit built 2317ms exit:0 interpreter-exit:0 interpreter:agrees @860b169d5798
+pass/facts/nested_machine_default_domain_no_indexed_store_exit built 2129ms exit:0 interpreter-exit:0 interpreter:agrees @860b169d5798
+pass/facts/nested_machine_default_domain_other_machine_exit built 2245ms exit:0 interpreter-exit:0 interpreter:agrees @860b169d5798
+pass/facts/nested_machine_default_domain_other_state_exit built 1939ms exit:0 interpreter-exit:0 interpreter:agrees @860b169d5798
+pass/facts/nested_machine_default_domain_parameter_exit built 2064ms exit:0 interpreter-exit:0 interpreter:agrees @860b169d5798
+pass/facts/nested_machine_default_domain_target_body_exit built 1877ms exit:0 interpreter-exit:0 interpreter:agrees @860b169d5798
 pass/facts/nested_machine_effectful_completion_call_result_exit built 4684ms exit:0 interpreter-exit:0 interpreter:agrees @165e14d1f48d
 pass/facts/nested_machine_effectful_completion_caller_storage_exit built 4490ms exit:0 interpreter-exit:0 interpreter:agrees @165e14d1f48d
 pass/facts/nested_machine_effectful_completion_const_name_exit built 4775ms exit:0 interpreter-exit:0 interpreter:agrees @165e14d1f48d
