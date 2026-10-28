@@ -1,0 +1,9 @@
+{
+  "candidate": "19f7211443ec3e1b56eab9ec4a7c14b83d34a895",
+  "fixed_base": "25647e44e4b9e86232598a6b829e90e794f3b2f8",
+  "qualification": "accepted retained observations and fresh scoped corpus; actual producer a333 unchanged compiler/library inputs",
+  "archive_sha256": "fb2f5c150d218148cdee31f730a207e597da85f48687074c6659f77bbb681e62",
+  "native_target": "macos_arm64",
+  "binary_payloads_in_archive": false,
+  "remaining": "Full source migration continues on preserved commits; broader capability open"
+}
