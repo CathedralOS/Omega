@@ -330,12 +330,16 @@ pub(super) fn project_structural_scalar_field_store(
     Ok(kind)
 }
 
-pub(super) fn project_byte_sequence_subslice(
+/// Both immutable windows legalize the same way: the source view's descriptor
+/// geometry supplies the runtime indices and the operation's two-leg bounds
+/// proof supplies the accepted fact. Only the published storage class differs,
+/// so the operation itself selects the legalized variant.
+pub(super) fn project_subslice(
     node: &optimization_unit::OptimizationNode,
     optimized: &optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
-    let AbstractOperation::ByteSequenceSubslice {
+    let (AbstractOperation::ByteSequenceSubslice {
         psi_operation,
         result,
         source,
@@ -343,31 +347,56 @@ pub(super) fn project_byte_sequence_subslice(
         end,
         length,
         obligation,
-    } = &node.operation
+    }
+    | AbstractOperation::ElementViewSubslice {
+        psi_operation,
+        result,
+        source,
+        start,
+        end,
+        length,
+        obligation,
+    }) = &node.operation
     else {
-        unreachable!("dispatched project_byte_sequence_subslice")
+        return Err(Error::custody());
     };
-    let kind = {
-        LegalizedScalarInstructionKind::ByteSequenceSubslice {
+    let indices = crate::legalization::runtime_indices::operands(
+        optimized,
+        unit,
+        *psi_operation,
+        &scalar_graph_input::element_views::descriptor_geometry(
+            optimized,
+            source,
+            &unit.structural_types,
+        )
+        .ok_or(LegalizationError::custody())?
+        .elements,
+    )?;
+    let accepted_fact = accepted_fact(unit, optimized, *psi_operation, *obligation)?;
+    let kind = if matches!(
+        node.operation,
+        AbstractOperation::ElementViewSubslice { .. }
+    ) {
+        LegalizedScalarInstructionKind::ElementViewSubslice {
             result: result.clone(),
             source: source.clone(),
-            indices: crate::legalization::runtime_indices::operands(
-                optimized,
-                unit,
-                *psi_operation,
-                &scalar_graph_input::element_views::descriptor_geometry(
-                    optimized,
-                    source,
-                    &unit.structural_types,
-                )
-                .ok_or(LegalizationError::custody())?
-                .elements,
-            )?,
+            indices,
             start: *start,
             end: *end,
             length: *length,
             obligation: *obligation,
-            accepted_fact: accepted_fact(unit, optimized, *psi_operation, *obligation)?,
+            accepted_fact,
+        }
+    } else {
+        LegalizedScalarInstructionKind::ByteSequenceSubslice {
+            result: result.clone(),
+            source: source.clone(),
+            indices,
+            start: *start,
+            end: *end,
+            length: *length,
+            obligation: *obligation,
+            accepted_fact,
         }
     };
     Ok(kind)
@@ -638,49 +667,6 @@ pub(super) fn project_element_view_read(
                     &elements,
                 )?
             },
-        }
-    };
-    Ok(kind)
-}
-
-pub(super) fn project_element_view_subslice(
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
-    unit: &PsiOptimizationUnit,
-) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
-    let AbstractOperation::ElementViewSubslice {
-        psi_operation,
-        result,
-        source,
-        start,
-        end,
-        length,
-        obligation,
-    } = &node.operation
-    else {
-        unreachable!("dispatched project_element_view_subslice")
-    };
-    let kind = {
-        LegalizedScalarInstructionKind::ElementViewSubslice {
-            result: result.clone(),
-            source: source.clone(),
-            indices: crate::legalization::runtime_indices::operands(
-                optimized,
-                unit,
-                *psi_operation,
-                &scalar_graph_input::element_views::descriptor_geometry(
-                    optimized,
-                    source,
-                    &unit.structural_types,
-                )
-                .ok_or(LegalizationError::custody())?
-                .elements,
-            )?,
-            start: *start,
-            end: *end,
-            length: *length,
-            obligation: *obligation,
-            accepted_fact: accepted_fact(unit, optimized, *psi_operation, *obligation)?,
         }
     };
     Ok(kind)
