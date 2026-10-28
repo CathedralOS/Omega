@@ -20,6 +20,11 @@ impl Lower<'_> {
             })?
         };
         let mut occurrences = Vec::with_capacity(retained.len());
+        let call_target_span = match self.program.expression_table.expression(expression) {
+            Node::Call(call) => Some(call.target.source_span()),
+            _ => None,
+        };
+        let mut call_selection = None;
         for selection in retained {
             let kind = selection.kind.ok_or_else(|| {
                 self.error("designated expression lost its authored selection kind")
@@ -35,6 +40,17 @@ impl Lower<'_> {
                 .map_err(|reason| {
                     vec![Diagnostic::error(reason.to_string()).with_source_span(span)]
                 })?;
+            if kind
+                == language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Call
+                && call_target_span == Some(span)
+            {
+                if call_selection.is_some_and(|previous| previous != occurrence) {
+                    return Err(
+                        self.error("designated call has conflicting source-owned Call occurrences")
+                    );
+                }
+                call_selection = Some(occurrence);
+            }
             occurrences.push(occurrence);
         }
         let span = self.program.symbols.rejoin_product_occurrence(source_span);
@@ -44,6 +60,9 @@ impl Lower<'_> {
         self.program
             .expression_table
             .attach_authored_selection_occurrences(expression, occurrences);
+        if let Node::Call(call) = self.program.expression_table.expression_mut(expression) {
+            call.authored_call_selection = call_selection;
+        }
         Ok(())
     }
     fn expression_optional(
@@ -324,6 +343,7 @@ impl Lower<'_> {
                 source_application.binding_declaration = target_symbol;
                 source_application.input_selections = input_selections;
                 Node::Call(expr::TableCallExpression {
+                    authored_call_selection: None,
                     authored_call_binding: Some(
                         language_semantics::declaration_selection::ResolvedAuthoredCallBinding {
                             selected: target_symbol,
