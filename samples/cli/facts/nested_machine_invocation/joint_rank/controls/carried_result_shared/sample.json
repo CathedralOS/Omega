@@ -1,0 +1,7 @@
+{
+  "rejection_contains": [
+    "return value requires mutable source access; shared or immutable storage cannot supply it",
+    "return value expects `&mut Cell`, but the value is delivered as `&Cell`"
+  ],
+  "notes": "Whole completing call keeps ordinary result type/access admission; returned-origin equations grant neither type equality nor mutable authority."
+}

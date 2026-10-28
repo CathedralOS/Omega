@@ -121,6 +121,24 @@ pub(super) fn check_statement_borrows<'p>(
                     continue;
                 }
                 call.exit_constraints
+            } else if !loan.formation_expression.is_valid() {
+                // A zero formation expression records the joined normal-call
+                // output roster. Its descriptor exists after the call's writes
+                // and transfers, not alongside the generation present at entry.
+                // This existing cut is after operand completion and before any
+                // enclosing destination store. Earlier inputs and live children
+                // are still checked at their own formation/invocation events.
+                if !facts
+                    .flow
+                    .borrow_loan_constraints(statement.pre_store_constraints)
+                    .any(|active| active == loan_handle)
+                {
+                    diagnostics.push(Diagnostic::error(
+                        "statement-call output custody is absent from its completion boundary",
+                    ));
+                    continue;
+                }
+                statement.pre_store_constraints
             } else {
                 statement.entry_constraints
             };

@@ -1,0 +1,5 @@
+{
+  "rejection_contains": [
+    "while local borrow `held` is still active"
+  ]
+}

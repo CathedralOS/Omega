@@ -33638,3 +33638,54 @@ run/traits/target_scoped_map_method_arguments rejected 8589ms check-target:macos
 	artifact control retargeted boundary with copied declaration refused for another reason: MalformedStructuralFoundation("checked boundary declaration differs from its exact declaration owner")
 run/variant_decimal_runtime_division checked 8989ms check-target:linux_x86_64 @a92f16431042
 run/variant_record_normalization_repeats checked 10387ms check-target:linux_x86_64 @a92f16431042
+fail/borrows/nested_machine_carried_field_sibling_rejected rejected 5991ms expected @775cddb40e5a
+	statement 5 mutates `second.value` while local borrow `pair` is still active (borrowed at statement 2; its last use is at statement 6)
+fail/borrows/nested_machine_carried_live_child_rejected rejected 5970ms expected @775cddb40e5a
+	statement 3 creates local borrow `view` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 6)
+	statement 3 creates local borrow `view` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 6)
+	statement 5 creates local borrow `view` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 6)
+	statement 5 creates local borrow `view` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 6)
+	statement 6 reads `held.value` while local borrow `view` is still active (borrowed at statement 5; its last use is at statement 6)
+fail/borrows/nested_machine_carried_missing_repair_rejected rejected 6074ms expected @775cddb40e5a
+	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 0): `slot` must hold a value again before this state's exits consume the borrow
+fail/borrows/nested_machine_carried_recurrent_selector_false_guarantee_rejected rejected 6277ms expected @775cddb40e5a
+	cannot prove ensures contract for exit from false_guarantee at statement 4: result == 23
+fail/borrows/nested_machine_carried_result_nominal_rejected rejected 5863ms expected @775cddb40e5a
+	machine `invalid` state `entry` return value expects `Other<>`, but the value is delivered as `View<>`
+fail/borrows/nested_machine_carried_result_shared_rejected rejected 5784ms expected @775cddb40e5a
+	machine `invalid` state `entry` return value requires mutable source access; shared or immutable storage cannot supply it
+	machine `invalid` state `entry` return value expects `&mut Cell`, but the value is delivered as `&Cell`
+fail/borrows/nested_machine_carried_staged_input_rejected rejected 4834ms expected @775cddb40e5a
+	state `receive` receives `view` as both mutable and read-only
+	statement 3 creates local borrow `view` while local borrow `view` is still active (borrowed at statement 2)
+	statement 5 creates local borrow `view` while local borrow `view` is still active (borrowed at statement 3)
+fail/facts/nested_machine_joint_rank_carried_restoration_call_result_rejected rejected 4877ms expected @775cddb40e5a
+	machine call cycle: `relay`, `step` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_carried_restoration_const_name_rejected rejected 4020ms expected @775cddb40e5a
+	machine call cycle: `relay`, `step` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_carried_restoration_field_rejected rejected 3979ms expected @775cddb40e5a
+	machine call cycle: `relay`, `step` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_carried_restoration_local_rejected rejected 3559ms expected @775cddb40e5a
+	machine call cycle: `relay`, `step` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_carried_restoration_match_join_rejected rejected 3536ms expected @775cddb40e5a
+	machine call cycle: `relay`, `step` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_carried_restoration_other_machine_rejected rejected 4440ms expected @775cddb40e5a
+	machine call cycle: `relay`, `step` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_carried_restoration_other_state_rejected rejected 4363ms expected @775cddb40e5a
+	machine call cycle: `relay`, `step` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_carried_restoration_parameter_rejected rejected 3560ms expected @775cddb40e5a
+	machine call cycle: `relay`, `step` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_carried_restoration_target_body_rejected rejected 3573ms expected @775cddb40e5a
+	machine call cycle: `relay`, `step` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+pass/borrows/nested_machine_carried_field_replacement_exit checked 5675ms check-target:macos_arm64 @775cddb40e5a
+pass/borrows/nested_machine_carried_long_cycle_exit checked 5674ms check-target:macos_arm64 @775cddb40e5a
+pass/borrows/nested_machine_carried_recurrent_selector_exit checked 4001ms check-target:macos_arm64 @775cddb40e5a
+pass/facts/nested_machine_joint_rank_carried_restoration_call_result_exit checked 3965ms check-target:macos_arm64 @775cddb40e5a
+pass/facts/nested_machine_joint_rank_carried_restoration_const_name_exit checked 4029ms check-target:macos_arm64 @775cddb40e5a
+pass/facts/nested_machine_joint_rank_carried_restoration_field_exit checked 3994ms check-target:macos_arm64 @775cddb40e5a
+pass/facts/nested_machine_joint_rank_carried_restoration_local_exit checked 4193ms check-target:macos_arm64 @775cddb40e5a
+pass/facts/nested_machine_joint_rank_carried_restoration_match_join_exit checked 4254ms check-target:macos_arm64 @775cddb40e5a
+pass/facts/nested_machine_joint_rank_carried_restoration_other_machine_exit checked 5001ms check-target:macos_arm64 @775cddb40e5a
+pass/facts/nested_machine_joint_rank_carried_restoration_other_state_exit checked 4938ms check-target:macos_arm64 @775cddb40e5a
+pass/facts/nested_machine_joint_rank_carried_restoration_parameter_exit checked 4433ms check-target:macos_arm64 @775cddb40e5a
+pass/facts/nested_machine_joint_rank_carried_restoration_target_body_exit checked 4340ms check-target:macos_arm64 @775cddb40e5a
