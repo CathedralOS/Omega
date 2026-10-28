@@ -30,12 +30,6 @@ pub(super) fn admit(
             &computed.declared_product_selections,
             &computed.product_selection_requests,
         )?;
-    let native = build_time_evaluation::native_bindings::collect(
-        typed,
-        computed.selected_build_machine_symbol,
-        &computed.declared_product_selections,
-        &computed.native_binding_requests,
-    )?;
     let grants = trust_model::collect_product_root_grants(
         typed,
         computed.selected_build_machine_symbol,

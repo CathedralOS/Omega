@@ -12,11 +12,11 @@ impl PackagePolicyNativeBinding {
     pub fn key(&self) -> (&crate::record::PackageReviewNominalIdentity, &str) {
         (
             &self.method.requirement,
-            self.producer().map_or("", |p| p.callable_identity.as_str()),
+            self.producer.callable_identity.as_str(),
         )
     }
-    pub fn producer(&self) -> Option<&crate::record::PackagePolicyEvaluatedBindingProducer> {
-        Some(&self.producer)
+    pub fn producer(&self) -> &crate::record::PackagePolicyEvaluatedBindingProducer {
+        &self.producer
     }
 
     pub fn validate(
@@ -24,9 +24,7 @@ impl PackagePolicyNativeBinding {
         package: semantic_vocabulary::PackageKeyIdentity,
         target: target::TargetProfile,
     ) -> Result<(), &'static str> {
-        let producer = self
-            .producer()
-            .ok_or("native inventory has no evaluated Build producer")?;
+        let producer = self.producer();
         if producer.package != Some(package)
             || producer.declaration.owner() != PackageReviewNominalOwner::Package(package)
         {

@@ -210,9 +210,7 @@ pub(super) fn project(
             true,
             |encoder| {
                 encode_nominal(encoder, &native.method.requirement)?;
-                let producer = native
-                    .producer()
-                    .ok_or_else(|| rejected("native row has no Build producer"))?;
+                let producer = native.producer();
                 encode_nominal(encoder, &producer.declaration)?;
                 encoder.string(&producer.callable_identity)
             },
