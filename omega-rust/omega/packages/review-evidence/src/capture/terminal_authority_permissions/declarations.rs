@@ -13,7 +13,7 @@ use symbols::SymbolHandle;
 pub(super) struct ResolvedService<'a> {
     pub symbol: SymbolHandle,
     pub service: PackageReviewNominalIdentity,
-    pub schema: ServiceSchema,
+    pub schema: &'a ServiceSchema,
     pub requirements: Vec<SymbolHandle>,
     pub permissions: Vec<ResolvedPermission<'a>>,
 }
@@ -38,27 +38,14 @@ pub(super) fn resolve_services<'a>(
                 "accepted binding differs from its retained policy",
             ));
         }
-        let symbol = resolved.declaration_symbol();
-        let definitions = compilation
-            .traits()
-            .iter()
-            .filter(|definition| definition.symbol == symbol)
-            .collect::<Vec<_>>();
-        let [definition] = definitions.as_slice() else {
-            return Err(rejected("accepted service has no unique exact trait"));
-        };
-        let schema = provider_planning::service_schema::from_typed(
-            provider_planning::ProviderPlanningContext::new(
-                compilation.checking_input,
-                source::DependencyScope::Product,
-            ),
-            &compilation
-                .custody
-                .providers()
-                .boundary_calling_plan_realizations,
-            definition,
-        )
-        .ok_or_else(|| rejected("accepted declaration is not a boundary service schema"))?;
+        let catalog = compilation.service_declarations.ok_or_else(|| {
+            rejected("candidate has no independent service declaration projection")
+        })?;
+        let source = catalog
+            .rejoin(resolved.declaration())
+            .map_err(|diagnostic| vec![diagnostic])?;
+        let symbol = source.symbol;
+        let schema = &source.declaration.schema;
         // Preserve the existing UEFI semantic-only binding exception. The
         // normalized review below is context, never a replacement permission
         // digest or a second source of target-entry ABI authority.
@@ -86,7 +73,7 @@ pub(super) fn resolve_services<'a>(
         if !expected_owner {
             return Err(rejected("accepted service changed its exact package owner"));
         }
-        let requirements = super::requirements::resolve(compilation, symbol, &schema)?;
+        let requirements = source.requirements.to_vec();
         let mut permissions = Vec::new();
         for supplied in accepted.terminal_authority_permissions() {
             if supplied.service_schema() != digest {

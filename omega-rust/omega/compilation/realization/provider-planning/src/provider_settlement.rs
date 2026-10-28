@@ -233,8 +233,6 @@ pub struct CheckedProviderSelection {
 /// selected plan facts that selected execution owns.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderSettlement {
-    /// Exact direct boundary candidates; only native execution demand selects them.
-    pub direct_boundary_leaves: Vec<crate::DirectBoundaryCandidate>,
     /// Exact target used to derive candidate plans, including semantic-only
     /// checking's supported host profile. This grants no deployment entry.
     pub planning_target_profile: Option<target::TargetProfile>,
@@ -247,7 +245,7 @@ pub struct ProviderSettlement {
     pub component_calling_applications: Vec<calling_conventions::BoundaryCallingApplication>,
     /// Every derived candidate plan plus toolchain-settled plans; trust
     /// replays each selected plan against exactly one of these.
-    pub provider_plans: Vec<ProviderPlan>,
+    pub provider_candidates: Vec<crate::ProviderPlanCandidate>,
     /// Complete authored native candidates, including private/unselected rows.
     /// Package output and audit use this inventory, never runtime demand as an
     /// excuse to discard a declared foreign promise.
@@ -468,18 +466,19 @@ pub fn settle_checked_providers(
         &target_provider_defaults,
         build_provider_selections,
     )?;
-    let direct_boundary_leaves = crate::provider_planning::direct_boundary_leaves::derive(
+    let direct_context = crate::provider_planning::external_binding_rows::ExternalBindingContext {
+        selected_target: target_name,
+        native_target: provider_selection_target,
+        boundary_calling_plan_realizations: &boundary_calling_plan_realizations,
         typed,
-        &derived_provider_plans,
-        target_name,
-        provider_selection_target,
-        &boundary_calling_plan_realizations,
         opaque_representation_selections,
-    )?;
-    let mut provider_plans = derived_provider_plans
-        .iter()
-        .map(|derived| derived.plan.clone())
-        .collect::<Vec<_>>();
+    };
+    let mut provider_candidates = derived_provider_plans
+        .into_iter()
+        .map(|source| {
+            crate::provider_planning::direct_boundary_inputs::prepare(source, &direct_context)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     // The canonical `FilesystemHost` slot admits no authored conformance or
     // selection row; the toolchain mints the per-target realization plan
     // itself. It joins extraction, fused-service erasure, closure facts, the
@@ -520,7 +519,7 @@ pub fn settle_checked_providers(
         &selected_semantic_plans,
         &selected_provider_plans
             .iter()
-            .map(|selected| selected.derived.clone())
+            .map(|selected| &selected.derived)
             .collect::<Vec<_>>(),
         &boundary_calling_plan_realizations,
         typed,
@@ -546,7 +545,10 @@ pub fn settle_checked_providers(
         checked,
         &mut selected_provider_provenance,
         target_name,
-        &derived_provider_plans,
+        &provider_candidates
+            .iter()
+            .filter_map(crate::ProviderPlanCandidate::derived)
+            .collect::<Vec<_>>(),
     )?;
     if package_inputs.is_some_and(PackageCompilationInputs::semantic_role_discovery) {
         semantic_roles::validate_proposed(typed, &selected_provider_provenance)?;
@@ -592,7 +594,7 @@ pub fn settle_checked_providers(
         // The trust report replays every selected plan against exactly one
         // retained candidate; the toolchain-settled plan is a real retained
         // candidate for the slot even though no package authored it.
-        provider_plans.push(minted.plan);
+        provider_candidates.push(crate::ProviderPlanCandidate::toolchain(minted.plan));
     }
     for assumption in assumed_bindings {
         let signature = |symbol| {
@@ -782,11 +784,10 @@ pub fn settle_checked_providers(
         )?;
     Ok(CheckedProviderSelection {
         settlement: ProviderSettlement {
-            direct_boundary_leaves,
             planning_target_profile: planning_target,
             boundary_calling_plan_realizations,
             component_calling_applications,
-            provider_plans,
+            provider_candidates,
             native_build_plans,
             evaluated_via_bindings,
             external_binding_rows,

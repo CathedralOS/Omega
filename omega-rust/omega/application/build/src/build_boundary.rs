@@ -40,7 +40,7 @@ fn readiness_prepares_helper_products_without_recursive_dependency_calls() {
     assert!(!preparation.contains("self.prepare_product("));
     assert!(preparation.contains("while let Some(current) = pending.last_mut()"));
     assert!(preparation.contains("self.complete_product(current)?"));
-    assert!(source.contains(".with_complete_dependency_generated_sources(generated)"));
+    assert!(source.contains(".with_complete_dependency_build_handoffs(generated)"));
     assert!(source.contains("*source == position && *scope == purpose"));
 }
 

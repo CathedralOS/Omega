@@ -1,0 +1,14 @@
+machine build(builder: &mut Build) {
+    Build::package(builder, "reading_implementations");
+    Build::select_provider<Marker, FirstMarker>(builder, windows_x86_64);
+    Build::select_provider<Marker, FirstMarker>(builder, linux_x86_64);
+    Build::select_provider<Marker, FirstMarker>(builder, macos_arm64);
+    Build::select_provider<Marker, FirstMarker>(builder, linux_arm64);
+    Build::select_provider<Marker, FirstMarker>(builder, macos_x86_64);
+    let generated: BuildPath = BuildOutput::resolve(&builder.output, "providers.omg");
+    let writer: i32 = BuildOutput::create(&mut builder.output, generated, 0);
+    let bytes: [u8; 228] = "module main;\npublic FirstReading satisfies Reading {\n    machine total() -> u64 ensures result >= 1000u64 { 1100u64 }\n}\npublic SecondReading satisfies Reading {\n    machine total() -> u64 ensures result >= 1000u64 { 2100u64 }\n}\n";
+    _ = BuildOutput::write(&mut builder.output, writer, &bytes);
+    _ = BuildOutput::close(&mut builder.output, writer);
+    BuildOutput::include_source(&mut builder.output, generated);
+}

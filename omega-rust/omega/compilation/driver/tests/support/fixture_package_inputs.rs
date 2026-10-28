@@ -185,12 +185,7 @@ fn derive_entry_from_inputs(
     .map_err(|failure| failure.into_diagnostics())?;
     checked
         .execution()
-        .candidate_service_binding(
-            &checked.providers().boundary_calling_plan_realizations,
-            role,
-            supplier,
-            schema,
-        )
+        .candidate_service_binding(role, supplier, schema)
         .map(Some)
         .map_err(|diagnostic| vec![diagnostic])
 }
@@ -798,7 +793,6 @@ fn dangerous_service_bindings(
             preliminary
                 .execution()
                 .candidate_service_binding(
-                    &preliminary.providers().boundary_calling_plan_realizations,
                     AcceptedSemanticBindingRole::FilesystemHostService,
                     owner,
                     "FilesystemHost",
@@ -811,7 +805,6 @@ fn dangerous_service_bindings(
             preliminary
                 .execution()
                 .candidate_service_binding(
-                    &preliminary.providers().boundary_calling_plan_realizations,
                     AcceptedSemanticBindingRole::TimeHostService,
                     owner,
                     "TimeHost",

@@ -10,7 +10,9 @@ mod admission;
 mod context;
 mod identities;
 mod product_requests;
+mod retained_selections;
 mod selection;
+pub use retained_selections::RetainedProviderSelection;
 
 use crate::is_exact_toolchain_build_prelude_data;
 use checked_trees::typed_trees::TypedTrees;
@@ -283,14 +285,26 @@ fn collect_provider_selections<'a>(
                 return;
             }
         };
+        let origin = match language_semantics::declaration_selection::BuildSelectionOrigin::capture(
+            &typed.symbols,
+            machine,
+            machine,
+            source_span,
+            None,
+        ) {
+            Ok(origin) => origin,
+            Err(reason) => {
+                diagnostics.push(Diagnostic::error(reason).with_source_span(source_span));
+                return;
+            }
+        };
         match admission::admit(
             context,
             boundary_identity,
             provider_type,
             composition_mode,
             None,
-            machine,
-            source_span,
+            origin,
             &selections,
         ) {
             Ok(selection) => selections.push(selection),

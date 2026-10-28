@@ -326,8 +326,25 @@ Numeric settlement checks these against the selected whole plan through the
 same source-free join; early typed Build planning adapts the source-owned view
 to that shared check. Eligibility is retained independently of numeric meaning,
 so absent meaning cannot fall through into another execution category.
+Direct-call preparation retains original plans and provenance once, with foreign
+ABI results or deferred refusals attached to their original row coordinates.
+Selected execution resolves accepted host bindings and constructs complete
+target-companion leaves from those borrowed rows. There is no placeholder-leaf
+mutation pass or per-leaf source-plan copy. The projected callable contract stays
+distinct from the original satisfied schema and accepted public-plan identity;
+native demand and receiving authority still decide which supplies may execute.
+Accepted-service preparation likewise retains the exact nominal owner, complete
+target-side schema and ordered requirement identities once at checked-provider
+binding. Resolved semantic bindings carry that record, not a source-arena symbol.
+Requirement-only role resolution, permission validation and candidate nomination
+consume it without rebuilding typed schemas. Independent package review projects
+the supplied program into its own catalog, compares complete records against
+immutable custody and uses only its own source correspondence for remaining
+contract capture. Unsupported or unowned unused declarations retain deferred
+projection refusals. Host classification still uses a catalog-local source join;
+this does not claim all accepted-service preparation is portable Psi.
 Earlier typed constant/comparison evaluation, general review call coordinates
-and direct-leaf execution records remain migration work; this does not claim
+and source-dependent direct-call preparation remain migration work; this does not claim
 that selected dispatch as a whole is source-free. Retaining current declarations
 does not reinstate retired standalone boundary requirements or source `via`
 bindings; their language migration remains separately owned.

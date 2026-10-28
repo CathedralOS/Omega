@@ -7,9 +7,20 @@ derives and checks every authored generic operator candidate and finite boundary
 family without provider selection.
 
 [execution_settlement.rs](src/execution_settlement.rs) is the post-checking
-entrance. It rejoins accepted host bindings. Task activation instead consumes
+entrance. It rejoins accepted host bindings and produces complete direct-call
+leaves from the original provider rows. Provider planning retains those source
+owners once and prepares foreign ABI results at their original row coordinates;
+selected execution does not mutate incomplete leaves or reconstruct truncated
+source plans. The leaves are target-companion supplies, not permission to execute.
+Task activation instead consumes
 portable demands in the source-free native proposal join. The compiler supplies inputs and
 consumes the result; it does not implement these decisions.
+Checked-provider binding prepares exact service declaration/schema records once.
+Resolved semantic bindings retain those records without source symbols; role and
+permission settlement read them directly. The invocation's catalog provides local
+source correspondence only where host classification still needs it. Package
+review prepares an independent candidate catalog and compares complete records,
+never substitutes the custody projection for candidate evidence.
 The optional checked-tree interpreter calls
 [checked_interpreter_dispatch.rs](src/checked_interpreter_dispatch.rs) immediately
 before reference execution. That owner prepares exact adapter and float-comparison

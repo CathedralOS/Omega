@@ -210,7 +210,12 @@ impl CheckedCompilation {
             &self.typed,
             self,
             &self.build().config.root_grant_selectors(),
-            &self.providers().provider_plans,
+            &self
+                .providers()
+                .provider_candidates
+                .iter()
+                .map(provider_planning::ProviderPlanCandidate::plan)
+                .collect::<Vec<_>>(),
             &self.execution().selected_provider_plan_facts,
             &self.execution().accepted_template_classifications,
             self.sources.package_subject().is_some(),
@@ -221,12 +226,38 @@ impl CheckedCompilation {
     /// Retain this package's own explicit generated-source handoffs as one
     /// compiler-issued bundle suitable for a later dependency compilation.
     /// The bundle is not admission and carries no filesystem authority.
-    pub fn package_generated_source_bundle(
+    pub fn package_build_handoff(
         &self,
-    ) -> Result<package_compilation::PackageGeneratedSourceBundle, &'static str> {
-        self.sources.package_generated_source_bundle(
-            self.execution.settled.selected_target_profile,
-            self.execution.build.generated_sources.clone(),
+    ) -> Result<package_compilation::PackageBuildHandoff, String> {
+        let handoff = self
+            .sources
+            .package_build_handoff(
+                self.execution.settled.selected_target_profile,
+                self.execution.build.generated_sources.clone(),
+            )
+            .map_err(str::to_owned)?
+            .with_checked_provider_selections(
+                &self.typed,
+                &self.build().config.provider_selections,
+                self.build().observation_summary.as_ref(),
+            )?;
+        let (declarations, intents) =
+            build_time_evaluation::native_bindings::capture_package_intents(
+                handoff.package(),
+                &self.build().native_formations,
+                &self.build().native_binding_requests,
+            )
+            .map_err(|diagnostics| {
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            })?;
+        handoff.with_native_binding_outputs(
+            declarations,
+            intents,
+            self.build().config.native_binding_evaluation.clone(),
         )
     }
 

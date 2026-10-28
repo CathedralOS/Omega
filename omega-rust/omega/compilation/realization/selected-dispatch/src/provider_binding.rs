@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 pub struct CheckedProviderProgram {
     pub program: Arc<CheckedProgram>,
+    pub service_declarations: Arc<provider_planning::service_declarations::ServiceDeclarations>,
     pub external_providers: Arc<psi_terminal_production::ExternalProviderDeclarations>,
     /// Source identities close with the bound program, before Terminal
     /// publication. Only a native handoff demands this result; retaining a
@@ -26,7 +27,7 @@ pub struct ProviderBindingRequest<'a> {
     pub package_inputs: Option<&'a package_compilation::PackageCompilationInputs>,
     pub boundary_calling_plan_realizations:
         &'a [provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
-    pub provider_plans: &'a [effects::provider_plan::ProviderPlan],
+    pub provider_plans: &'a [&'a effects::provider_plan::ProviderPlan],
     pub selected_provider_plan_facts: effects::SelectedProviderPlanFacts,
     pub root_grants: &'a [String],
     pub selected_provider_provenance: &'a [provider_planning::SelectedProviderReviewProvenance],
@@ -66,6 +67,16 @@ pub fn bind_checked_providers(
             settlement.boundary_calling_plan_realizations,
         )?;
     Ok(CheckedProviderProgram {
+        service_declarations: Arc::new(
+            provider_planning::service_declarations::ServiceDeclarations::prepare(
+                provider_planning::ProviderPlanningContext::new(
+                    &program.typed,
+                    source::DependencyScope::Product,
+                ),
+                settlement.boundary_calling_plan_realizations,
+                settlement.exact_toolchain_sources,
+            ),
+        ),
         external_providers: Arc::new(
             psi_terminal_production::project_external_provider_declarations(
                 &program,

@@ -1,0 +1,7 @@
+use configuration;
+machine build(builder: &mut Build) {
+    Build::package(builder, "reading_provider");
+    transition true { true -> first(builder) false -> second(builder) }
+    machine first(builder: &mut Build) { configuration::choose<true>(builder); }
+    machine second(builder: &mut Build) { configuration::choose<false>(builder); }
+}

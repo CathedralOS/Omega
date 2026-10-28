@@ -291,7 +291,11 @@ fn select_checked_providers(
             exact_toolchain_sources: source.sources.exact_toolchain_sources(),
             package_inputs,
             boundary_calling_plan_realizations: &providers.boundary_calling_plan_realizations,
-            provider_plans: &providers.provider_plans,
+            provider_plans: &providers
+                .provider_candidates
+                .iter()
+                .map(provider_planning::ProviderPlanCandidate::plan)
+                .collect::<Vec<_>>(),
             selected_provider_plan_facts,
             selected_provider_provenance: &selected_provider_provenance,
             root_grants: &root_grants,
@@ -410,7 +414,7 @@ pub(crate) fn install_selected_target(
     let SelectedProviderCustody {
         source_completion_accounting,
         checked,
-        mut settlement,
+        settlement,
         selected_provider_provenance,
         selected_program_entry,
         selected_target_profile,
@@ -427,13 +431,12 @@ pub(crate) fn install_selected_target(
             checked,
             SelectedExecutionRequest {
                 provider_planning_target_profile: settlement.planning_target_profile,
-                calling_plans: &settlement.boundary_calling_plan_realizations,
                 selected_program_entry,
                 selected_target_profile,
                 package_inputs,
                 x86_scalar_fma_provider,
                 selected_provider_provenance,
-                direct_boundary_candidates: &mut settlement.direct_boundary_leaves,
+                provider_candidates: &settlement.provider_candidates,
             },
         )
     });

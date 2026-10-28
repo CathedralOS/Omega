@@ -462,9 +462,7 @@ fn execute_fixture() {
         let inputs = root
             .package_inputs()
             .clone()
-            .with_complete_dependency_generated_sources(vec![
-                child.generated_source_bundle().clone(),
-            ])
+            .with_complete_dependency_build_handoffs(vec![child.build_handoff().clone()])
             .unwrap();
         let root = root.complete(session.compiler(), profile, inputs).unwrap();
         let result = joined_product_execution::execute_joined_product(

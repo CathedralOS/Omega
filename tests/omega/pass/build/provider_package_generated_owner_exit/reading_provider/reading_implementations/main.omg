@@ -1,0 +1,8 @@
+module main;
+public boundary trait Reading {
+    machine total() -> u64 reaches ensures result >= 1000u64;
+}
+
+public boundary trait Marker { machine read() -> u64 reaches; }
+FirstMarker satisfies Marker { machine read() -> u64 { 17u64 } }
+OtherMarker satisfies Marker { machine read() -> u64 { 19u64 } }

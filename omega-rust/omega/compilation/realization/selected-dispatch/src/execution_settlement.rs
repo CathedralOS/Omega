@@ -15,7 +15,11 @@ use std::sync::Arc;
 /// provenance alongside every checked-phase sidecar.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedExecution {
+    /// Complete direct-call supplies, constructed after host bindings resolve.
+    /// Native demand and receiving authority still decide which may execute.
+    pub direct_boundary_leaves: Vec<backend_plan::DirectBoundaryLeaf>,
     pub program: Arc<CheckedProgram>,
+    pub service_declarations: Arc<provider_planning::service_declarations::ServiceDeclarations>,
     pub external_providers: Arc<psi_terminal_production::ExternalProviderDeclarations>,
     pub native_provider_sources: Result<Arc<backend_plan::NativeProviderSources>, Vec<Diagnostic>>,
     pub selected_target_profile: Option<target::TargetProfile>,
@@ -110,38 +114,14 @@ impl SelectedExecution {
     /// normalized-schema coordinates for a required bound replay.
     pub fn candidate_service_binding(
         &self,
-        calling_plans: &[provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
         role: AcceptedSemanticBindingRole,
         package: semantic_vocabulary::PackageKeyIdentity,
         declaration_path: &str,
     ) -> Result<package_compilation::AcceptedSemanticBinding, Diagnostic> {
-        let typed = &self.program.typed;
-        let matches = typed
-            .traits()
-            .iter()
-            .filter(|definition| {
-                definition.is_boundary
-                    && typed.symbols.symbol_package_identity(definition.symbol) == Some(package)
-                    && typed.symbols.display_path(definition.symbol, "::") == declaration_path
-            })
-            .filter_map(|definition| {
-                provider_planning::service_schema::from_typed(
-                    provider_planning::ProviderPlanningContext::new(
-                        typed,
-                        source::DependencyScope::Product,
-                    ),
-                    calling_plans,
-                    definition,
-                )
-            })
-            .collect::<Vec<_>>();
-        let [schema] = matches.as_slice() else {
-            return Err(Diagnostic::error(format!(
-                "semantic-binding candidate {:?} resolved to {} exact package-owned boundary schemas instead of one",
-                role,
-                matches.len(),
-            )));
-        };
+        let service = self
+            .service_declarations
+            .select(package, declaration_path)?;
+        let schema = &service.declaration.schema;
         package_compilation::AcceptedSemanticBinding::new_service(
             role,
             package,
@@ -156,11 +136,9 @@ impl SelectedExecution {
 /// second asserted component root. This remains a checked-tree realization
 /// boundary; it does not claim the intended Terminal-only provider handoff.
 pub struct SelectedExecutionRequest<'a> {
-    pub direct_boundary_candidates: &'a mut [provider_planning::DirectBoundaryCandidate],
+    pub provider_candidates: &'a [provider_planning::ProviderPlanCandidate],
     /// Provider derivation target, distinct from executable deployment selection.
     pub provider_planning_target_profile: Option<target::TargetProfile>,
-    pub calling_plans:
-        &'a [provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
     pub selected_program_entry:
         Option<provider_planning::program_entry::SelectedCompilerProgramEntry>,
     pub selected_target_profile: Option<target::TargetProfile>,
@@ -191,11 +169,7 @@ pub fn settle_selected_execution(
         |binding: Option<&package_compilation::AcceptedSemanticBinding>| {
             binding
                 .map(|binding| {
-                    crate::resolve_accepted_service_binding(
-                        &checked.program,
-                        settlement.calling_plans,
-                        binding,
-                    )
+                    crate::resolve_accepted_service_binding(&checked.service_declarations, binding)
                 })
                 .transpose()
                 .map_err(|diagnostic| vec![diagnostic])
@@ -203,7 +177,7 @@ pub fn settle_selected_execution(
     let resolved_exit_bindings = crate::retain_selected_compiler_intrinsic_review_identities(
         &checked.program,
         &checked.external_providers,
-        settlement.calling_plans,
+        &checked.service_declarations,
         &checked.selected_provider_plan_facts,
         &mut settlement.selected_provider_provenance,
         settlement
@@ -212,11 +186,12 @@ pub fn settle_selected_execution(
         accepted_binding(AcceptedSemanticBindingRole::ConsoleExitProcessI32),
         accepted_binding(AcceptedSemanticBindingRole::ProcessExitExitProcessI32),
     )?;
-    crate::intrinsic_review::close_direct_boundary_candidates(
+    let direct_boundary_leaves = crate::intrinsic_review::produce_direct_boundary_leaves(
         &checked.program,
         &checked.external_providers,
         &settlement.selected_provider_provenance,
-        settlement.direct_boundary_candidates,
+        settlement.provider_candidates,
+        &checked.service_declarations,
         settlement
             .provider_planning_target_profile
             .map(target::TargetProfile::target_name),
@@ -239,6 +214,8 @@ pub fn settle_selected_execution(
             .and_then(accepted_binding),
     )?;
     Ok(SelectedExecution {
+        direct_boundary_leaves,
+        service_declarations: checked.service_declarations,
         external_providers: checked.external_providers,
         native_provider_sources: checked.native_provider_sources,
         program: checked.program,
