@@ -211,6 +211,12 @@ fn cleanup_rows(
         if disposition.exit.state_symbol != state.symbol {
             return Err("normal cleanup disposition belongs to another state");
         }
+        // The disposition remains in checked source evidence. Only its exact
+        // statically impossible execution edge is absent from this plan; do
+        // not try to recover homes that belonged solely to that unexecuted arm.
+        if exits::is_statically_unreachable(program, state, disposition.exit)? {
+            continue;
+        }
         // Capture authority belongs to the selected receipt, not a mutable
         // declaration namespace or a re-resolved prefix of its operation list.
         let captured = if disposition.selection.is_valid() {
