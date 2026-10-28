@@ -22,6 +22,8 @@ use crate::{
 };
 use std::convert::Infallible;
 
+mod inventory;
+
 #[derive(Debug)]
 pub struct GitWorkspaceSession {
     request: GitSourceRequest,
