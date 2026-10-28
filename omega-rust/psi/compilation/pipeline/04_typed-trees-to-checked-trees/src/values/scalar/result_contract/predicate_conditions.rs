@@ -6,7 +6,7 @@ use checked_trees::{CheckedScalarReadProjection, CheckedStorageRoot};
 
 impl ContractPredicates<'_, '_> {
     pub(super) fn exact_predicate_condition(
-        &self,
+        &mut self,
         expression: ExpressionHandle,
         depth: usize,
     ) -> Option<CheckedBooleanExpression> {
@@ -19,20 +19,46 @@ impl ContractPredicates<'_, '_> {
             .set(self.remaining.get().checked_sub(conditions.len())?);
         let mut predicates = Vec::new();
         for condition in conditions {
-            let left = self.condition_operand(&condition.left, None, depth + 1);
-            let right = self.condition_operand(
-                &condition.right,
-                left.as_ref().and_then(|term| scalar_expression_type(term)),
-                depth + 1,
-            )?;
-            let left = left.or_else(|| {
-                self.condition_operand(&condition.left, scalar_expression_type(&right), depth + 1)
-            })?;
-            predicates.push(construct_integer_comparison(
-                condition.operator,
-                left,
-                right,
-            )?);
+            let predicate = match condition {
+                validation::PredicateCondition::Boolean { subject, holds } => {
+                    let value = if subject.projection.is_empty() {
+                        self.boolean(subject.expression, depth + 1)?
+                    } else {
+                        let (CheckedScalarExpression::Boolean(value), _) = self
+                            .projected_scalar_subject(
+                                subject.expression,
+                                &subject.projection,
+                                depth + 1,
+                            )?
+                        else {
+                            return None;
+                        };
+                        *value
+                    };
+                    if holds {
+                        value
+                    } else {
+                        CheckedBooleanExpression::Not(Box::new(value))
+                    }
+                }
+                validation::PredicateCondition::Ordering(condition) => {
+                    let left = self.condition_operand(&condition.left, None, depth + 1);
+                    let right = self.condition_operand(
+                        &condition.right,
+                        left.as_ref().and_then(|term| scalar_expression_type(term)),
+                        depth + 1,
+                    )?;
+                    let left = left.or_else(|| {
+                        self.condition_operand(
+                            &condition.left,
+                            scalar_expression_type(&right),
+                            depth + 1,
+                        )
+                    })?;
+                    construct_integer_comparison(condition.operator, left, right)?
+                }
+            };
+            predicates.push(predicate);
         }
         let mut predicates = predicates.into_iter();
         let first = predicates.next()?;
@@ -93,10 +119,8 @@ impl ContractPredicates<'_, '_> {
                     self.program,
                     parameter.type_reference,
                 )?;
-                let supplied = validation::field_domains::readable_type_reference(
-                    self.program,
-                    actual.2,
-                )?;
+                let supplied =
+                    validation::field_domains::readable_type_reference(self.program, actual.2)?;
                 validation::declared_carriers_match(self.program, declared, supplied)
                     .then_some(actual)
             })
