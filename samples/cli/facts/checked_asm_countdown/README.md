@@ -97,6 +97,17 @@ scalar-loan controls also pin explicit and implicit Unit completion, a later
 write invalidating the guarantee, and a missing store. These are regression
 controls for the shared proof operation, not another countdown fact row.
 
+After resolving the actual main conflict at `75ea436b46adcb9c2e9889e32c4de8c6264768a4`,
+producer `7faf25e51b15080d3d7b0f3c5dc7823cab7882f3` repeats the complete
+11-positive/11-reject public row, 35 scoped Source controls, ten canonical
+macOS ARM64 both-engine runs and the selected-body Rosetta both-engine run.
+The original occurrence owner from main composes with optional Unit return
+operands. Public ARM64/x86_64 compilations retain identical Terminal bytes and
+the x86_64 image also exits 0 under Rosetta. Every scoped Source semantic
+observation and all 32 owned golden observations match the earlier complete
+row; their original recorded revisions remain intact. These fresh integration
+receipts are distinct from the original baseline and producer-1273 records.
+
 ## Requirements and remaining acceptance
 
 - Establishment: seed 2 justifies the initial positive counter. Modular u32
