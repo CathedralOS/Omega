@@ -1,5 +1,5 @@
 //! Selected byte-output custody rejoins source SSA, resolved scratch and decoded bytes.
-use super::{Error, attribution, fragment, host, selected, source};
+use super::{Error, attribution, fragment, host, placed_text_offset, selected, source};
 use crate::ObjectBoundarySettlement;
 use calling_conventions::{ValueLocation, ValuePlacement, ValueShape};
 use machine_code::{
@@ -115,9 +115,7 @@ pub(super) fn settlement(
         .ok_or(Error::Mismatch("byte output placed function"))?;
     Ok(ObjectBoundarySettlement {
         machine,
-        text_offset: host(placed.section_offset)?
-            .checked_add(code_offset)
-            .ok_or(Error::Overflow)?,
+        text_offset: placed_text_offset(placed.section_offset, code_offset)?,
         settlement,
     })
 }
@@ -178,10 +176,7 @@ pub(super) fn validate(
     if settlement.execution != BoundaryExecutionRecord::from(execution)
         || settlement.realization != realization
         || proposed.machine != machine
-        || proposed.text_offset
-            != host(placed.section_offset)?
-                .checked_add(offset)
-                .ok_or(Error::Overflow)?
+        || proposed.text_offset != placed_text_offset(placed.section_offset, offset)?
         || settlement.invocation_site != operation.into()
         || settlement.boundary != boundary
         || settlement.operation_ordinal

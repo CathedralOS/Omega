@@ -1,5 +1,8 @@
 //! Microsoft x64 installed-entry bridge; guest streams never carry observations.
-use super::{HostedReceiverBinding, ReceiverStorage, finish_receiver_shim, invalid};
+use super::{
+    HostedReceiverBinding, ReceiverStorage, finish_receiver_shim, invalid,
+    recipe_index_for_runtime_position,
+};
 use diagnostics::Diagnostic;
 use object_file::{ObjectPlan, ObjectSymbolHandle};
 
@@ -105,10 +108,7 @@ pub(super) fn prepare(
         initialize(&mut bytes, &mut fields, *symbol, recipe.contents());
     }
     for ordinal in 0..binding.private_entry_ram.len() {
-        let index = binding
-            .private_entry_ram
-            .iter()
-            .position(|recipe| recipe.input().runtime_position as usize == ordinal)
+        let index = recipe_index_for_runtime_position(&binding.private_entry_ram, ordinal)
             .ok_or_else(invalid)?;
         let prefix = match ordinal {
             0 => [0x48, 0x8d, 0x0d],
