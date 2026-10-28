@@ -5,6 +5,7 @@
 
 mod assumed_bindings;
 mod authority;
+mod native_bindings;
 mod restricted_build;
 mod semantic_dependencies;
 

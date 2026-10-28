@@ -94,32 +94,14 @@ pub(super) fn project(
                 )?;
                 Some(realization)
             };
-            let native_build = origin.native().map(|native| bindings::native_producer(compilation, native)).transpose()?;
-            let binding = if let Some(native) = origin.native() {
-                bindings::project_native(compilation, native, &row.binding)?
-            } else {
-                bindings::project(compilation, &plan.identities, &row.binding, requirement_symbol,
-                    realization_symbol.unwrap_or_else(SymbolHandle::invalid), toolchain_settled)?
-            };
-            // A native promise has no checked body to substitute for an
-            // installation-relative reach. Retain its independent requirement
-            // judgment; do not borrow the Build producer's effects.
-            let installation_reach = match realization_symbol {
-                Some(realization) => project_selected_installation_reach(compilation, plan, declaring_schema,
-                    requirement_symbol, realization, &requirement)?,
-                None if origin.native().is_some() => {
-                    let (_, signature) = compilation.typed.trait_machine_signature(requirement_symbol)
-                        .ok_or_else(|| rejected("native row lost its complete requirement contract"))?;
-                    if signature.service_reach_is_installation_bound { return Err(rejected("native Build installation-relative reach requires a retained native promise resolution")); }
-                    None
+            let native_build = match origin {
+                provider_planning::ProviderRowOrigin::BuildNative { receipt, .. } => {
+                    Some(bindings::native_producer(
+                        compilation,
+                        bindings::native_row(compilation, requirement_symbol, receipt)?,
+                    )?)
                 }
-                None => None,
-            };
-            let compiler_intrinsic_execution = match realization_symbol {
-                Some(realization) => project_compiler_intrinsic_execution(compilation, plan, row, retained.provider.schema, retained.provider.provider_type,
-                    requirement_symbol, realization, Some(target.target_name()), retained.row_compiler_intrinsic_executions[index])?,
-                None if retained.row_compiler_intrinsic_executions[index].is_none() => None,
-                None => return Err(rejected("native row carries an authored intrinsic execution")),
+                _ => None,
             };
             Ok(PackagePolicyProviderRow {
                 method: row.method.clone(),
@@ -142,13 +124,18 @@ pub(super) fn project(
                         plan,
                         row,
                         retained.provider.schema,
+                        retained.provider.provider_type,
                         requirement_symbol,
                         realization_symbol,
                         Some(target.target_name()),
                         retained.row_compiler_intrinsic_executions[index],
                     )?
-                } else {
+                } else if retained.row_compiler_intrinsic_executions[index].is_none() {
                     None
+                } else {
+                    return Err(rejected(
+                        "native row carries an authored intrinsic execution",
+                    ));
                 },
                 installation_reach: project_selected_installation_reach(
                     compilation,

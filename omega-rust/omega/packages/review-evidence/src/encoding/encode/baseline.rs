@@ -158,6 +158,11 @@ pub(super) fn native_binding(
         selected_providers::encode_service_method,
     )?;
     encoder.field_by(
+        "producer",
+        &value.producer,
+        values::external_policy::encode_producer,
+    )?;
+    encoder.field_by(
         "binding",
         &value.binding,
         selected_providers::encode_binding,

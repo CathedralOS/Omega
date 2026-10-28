@@ -5,6 +5,7 @@ use crate::record::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PackagePolicyNativeBinding {
     pub method: PackagePolicyServiceMethod,
+    pub producer: crate::record::PackagePolicyEvaluatedBindingProducer,
     pub binding: PackagePolicyProviderBinding,
 }
 impl PackagePolicyNativeBinding {
@@ -15,15 +16,9 @@ impl PackagePolicyNativeBinding {
         )
     }
     pub fn producer(&self) -> Option<&crate::record::PackagePolicyEvaluatedBindingProducer> {
-        match &self.binding {
-            PackagePolicyProviderBinding::Import { producer, .. } => Some(producer),
-            PackagePolicyProviderBinding::Syscall {
-                evaluated: Some(evaluated),
-                ..
-            } => Some(&evaluated.producer),
-            _ => None,
-        }
+        Some(&self.producer)
     }
+
     pub fn validate(
         &self,
         package: semantic_vocabulary::PackageKeyIdentity,

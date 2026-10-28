@@ -117,11 +117,12 @@ fn project_plan(
             retained.selected_by,
             provider_planning::ProviderSelectionProvenance::NativeBuild
         ) && !plan.rows.is_empty()
-            && retained
-                .provider
-                .row_realizations
-                .iter()
-                .all(|row| row.native().is_some()) => {}
+            && retained.provider.row_realizations.iter().all(|row| {
+                matches!(
+                    row,
+                    provider_planning::ProviderRowOrigin::BuildNative { .. }
+                )
+            }) => {}
         None if plan.provider_type_package_identity.is_none()
             && (plan.provider_type.is_empty() || toolchain_settled) => {}
         None => return Err(rejected("provider type has no exact declaration")),

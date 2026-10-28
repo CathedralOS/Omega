@@ -69,6 +69,7 @@ fn native_binding(
 ) -> Result<crate::record::PackagePolicyNativeBinding, Error> {
     Ok(crate::record::PackagePolicyNativeBinding {
         method: selected_providers::service_method(reader)?,
+        producer: super::external::producer(reader)?,
         binding: selected_providers::bindings::binding(reader)?,
     })
 }
