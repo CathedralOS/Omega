@@ -116,6 +116,28 @@ fn append_data_definition_facts(program: &dyn crate::CheckingInput, facts: &mut 
     }
 }
 
+/// Expression, membership value, and each proposition argument are the
+/// expressions a definition fact depends on. Data and domain facts share this
+/// roster; each caller appends its own dependency record.
+fn visit_proof_fact_expressions(
+    program: &dyn crate::CheckingInput,
+    proof_fact: &ProofFact,
+    mut visit: impl FnMut(typed_trees::expression::ExpressionHandle),
+) {
+    match proof_fact {
+        ProofFact::Expression(expression) => visit(*expression),
+        ProofFact::Membership(membership) => visit(membership.value),
+        ProofFact::Proposition(application) => {
+            for argument in program
+                .expression_table
+                .expression_handles(application.arguments)
+            {
+                visit(*argument);
+            }
+        }
+    }
+}
+
 fn data_fact_dependency_places(
     program: &dyn crate::CheckingInput,
     facts: &mut FactPlan,
@@ -123,36 +145,15 @@ fn data_fact_dependency_places(
     proof_fact: &ProofFact,
 ) -> Vec<DataDefinitionFactDependency> {
     let mut dependencies = Vec::new();
-    match proof_fact {
-        ProofFact::Expression(expression) => append_data_expression_dependency_places(
+    visit_proof_fact_expressions(program, proof_fact, |expression| {
+        append_data_expression_dependency_places(
             program,
             facts,
             data,
-            *expression,
+            expression,
             &mut dependencies,
-        ),
-        ProofFact::Membership(membership) => append_data_expression_dependency_places(
-            program,
-            facts,
-            data,
-            membership.value,
-            &mut dependencies,
-        ),
-        ProofFact::Proposition(application) => {
-            for argument in program
-                .expression_table
-                .expression_handles(application.arguments)
-            {
-                append_data_expression_dependency_places(
-                    program,
-                    facts,
-                    data,
-                    *argument,
-                    &mut dependencies,
-                );
-            }
-        }
-    }
+        );
+    });
     dependencies
 }
 
@@ -388,36 +389,15 @@ fn domain_fact_dependency_places(
     proof_fact: &ProofFact,
 ) -> Vec<DomainDefinitionFactDependency> {
     let mut dependencies = Vec::new();
-    match proof_fact {
-        ProofFact::Expression(expression) => append_domain_expression_dependency_places(
+    visit_proof_fact_expressions(program, proof_fact, |expression| {
+        append_domain_expression_dependency_places(
             program,
             facts,
             domain.target_type,
-            *expression,
+            expression,
             &mut dependencies,
-        ),
-        ProofFact::Membership(membership) => append_domain_expression_dependency_places(
-            program,
-            facts,
-            domain.target_type,
-            membership.value,
-            &mut dependencies,
-        ),
-        ProofFact::Proposition(application) => {
-            for argument in program
-                .expression_table
-                .expression_handles(application.arguments)
-            {
-                append_domain_expression_dependency_places(
-                    program,
-                    facts,
-                    domain.target_type,
-                    *argument,
-                    &mut dependencies,
-                );
-            }
-        }
-    }
+        );
+    });
     dependencies
 }
 
