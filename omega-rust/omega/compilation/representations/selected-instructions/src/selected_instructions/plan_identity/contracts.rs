@@ -11,6 +11,23 @@ pub(super) fn slot(bytes: &mut Vec<u8>, slot: OutgoingArgumentSlotId) {
 fn local_slot(bytes: &mut Vec<u8>, slot: crate::LocalStorageSlotId) {
     slot.encode_identity(bytes);
 }
+/// One indexed access row: the row's fixed identities in order, then the
+/// stride and the optional bound. The bound's tag records whether the plan
+/// knew an extent; an unknown bound is not a zero-length access.
+fn encode_indexed(bytes: &mut Vec<u8>, identities: &[u64], stride: u32, extent: Option<u64>) {
+    for identity in identities {
+        crate::codec_bytes::push_encoded(bytes, identity.to_le_bytes());
+    }
+    crate::codec_bytes::push_encoded(bytes, stride.to_le_bytes());
+    match extent {
+        Some(extent) => {
+            bytes.push(1);
+            crate::codec_bytes::push_encoded(bytes, extent.to_le_bytes());
+        }
+        None => bytes.push(0),
+    }
+}
+
 pub(super) fn encode_local_storage_slot(
     bytes: &mut Vec<u8>,
     row: &crate::SelectedLocalStorageSlot,
@@ -140,17 +157,12 @@ pub(super) fn encode_static(bytes: &mut Vec<u8>, function: &SelectedFunction) {
                 accepted_fact,
             } => {
                 bytes.push(10);
-                for identity in [index.get(), value.get(), obligation.get()] {
-                    crate::codec_bytes::push_encoded(bytes, identity.to_le_bytes());
-                }
-                crate::codec_bytes::push_encoded(bytes, stride.to_le_bytes());
-                match extent {
-                    Some(extent) => {
-                        bytes.push(1);
-                        crate::codec_bytes::push_encoded(bytes, extent.to_le_bytes());
-                    }
-                    None => bytes.push(0),
-                }
+                encode_indexed(
+                    bytes,
+                    &[index.get(), value.get(), obligation.get()],
+                    stride,
+                    extent,
+                );
                 bytes.extend_from_slice(&accepted_fact.bytes());
             }
             SelectedMemoryAccessRole::WriteIndexedStructural {
@@ -161,17 +173,7 @@ pub(super) fn encode_static(bytes: &mut Vec<u8>, function: &SelectedFunction) {
                 accepted_fact,
             } => {
                 bytes.push(13);
-                for identity in [index.get(), obligation.get()] {
-                    crate::codec_bytes::push_encoded(bytes, identity.to_le_bytes());
-                }
-                crate::codec_bytes::push_encoded(bytes, stride.to_le_bytes());
-                match extent {
-                    Some(extent) => {
-                        bytes.push(1);
-                        crate::codec_bytes::push_encoded(bytes, extent.to_le_bytes());
-                    }
-                    None => bytes.push(0),
-                }
+                encode_indexed(bytes, &[index.get(), obligation.get()], stride, extent);
                 bytes.extend_from_slice(&accepted_fact.bytes());
             }
             SelectedMemoryAccessRole::ReadIndexedPrimitive {
@@ -182,17 +184,7 @@ pub(super) fn encode_static(bytes: &mut Vec<u8>, function: &SelectedFunction) {
                 accepted_fact,
             } => {
                 bytes.push(12);
-                for identity in [index.get(), obligation.get()] {
-                    crate::codec_bytes::push_encoded(bytes, identity.to_le_bytes());
-                }
-                crate::codec_bytes::push_encoded(bytes, stride.to_le_bytes());
-                match extent {
-                    Some(extent) => {
-                        bytes.push(1);
-                        crate::codec_bytes::push_encoded(bytes, extent.to_le_bytes());
-                    }
-                    None => bytes.push(0),
-                }
+                encode_indexed(bytes, &[index.get(), obligation.get()], stride, extent);
                 bytes.extend_from_slice(&accepted_fact.bytes());
             }
             SelectedMemoryAccessRole::ReadElementView {

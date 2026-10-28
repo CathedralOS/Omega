@@ -48,7 +48,7 @@ pub(crate) fn function_fragment_emission_identity(
         }
         encode_function_provenance(&mut hasher, &function.provenance);
         hasher.raw(&function.byte_count.to_le_bytes());
-        encode_bytes(&mut hasher, &function.bytes);
+        hasher.bytes(&function.bytes);
         hasher.u64(function.blocks.len() as u64);
         for block in &function.blocks {
             hasher.raw(&block.block.0.to_le_bytes());
@@ -62,7 +62,7 @@ pub(crate) fn function_fragment_emission_identity(
                     row.alternative,
                 );
                 hasher.raw(&row.offset.to_le_bytes());
-                encode_bytes(&mut hasher, &row.bytes);
+                hasher.bytes(&row.bytes);
                 encode_branch(&mut hasher, row.branch.as_deref());
                 encode_optional_internal_machine_fixup(&mut hasher, row.internal_machine_fixup);
                 encode_optional_normalized_foreign_call_fixup(
@@ -166,11 +166,6 @@ fn encode_optional_normalized_foreign_call_fixup(
             }
         }
     }
-}
-
-fn encode_bytes(hasher: &mut crate::digest_encoder::DomainDigestEncoder, bytes: &[u8]) {
-    hasher.u64(bytes.len() as u64);
-    hasher.raw(&bytes);
 }
 
 fn encode_function_provenance(

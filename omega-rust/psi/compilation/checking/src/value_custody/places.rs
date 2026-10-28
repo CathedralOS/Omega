@@ -661,18 +661,14 @@ pub fn collection_element_type(
 }
 
 /// The declared reference access beneath a type's `Constrained` shells —
-/// `None` when the peeled carrier is not a `Reference`.
+/// `None` when the peeled carrier is not a `Reference`. The peel and the
+/// node check are `reference_shells`' classification, shared with every
+/// other reader of a declared borrow.
 pub fn declared_reference_access(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<language_core::ReferenceAccess> {
-    let peeled = peel_declared_constraints(program, type_reference);
-    let TypeReferenceNode::Reference { access, .. } =
-        program.type_reference_table.type_reference(peeled)
-    else {
-        return None;
-    };
-    Some(*access)
+    super::reference_shells::reference_shell(program, type_reference).map(|shell| shell.access)
 }
 
 mod declared_carriers;

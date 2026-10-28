@@ -27,7 +27,7 @@ pub fn relocation_free_text_section_identity(
     });
     hasher.raw(&section.section_alignment.to_le_bytes());
     hasher.raw(&section.byte_count.to_le_bytes());
-    encode_bytes(&mut hasher, &section.bytes);
+    hasher.bytes(&section.bytes);
     hasher.u64(section.functions.len() as u64);
     for function in &section.functions {
         hasher.raw(&function.source_function_index.to_le_bytes());
@@ -124,11 +124,6 @@ pub fn relocation_free_text_section_identity(
         TextSectionRelocationRequirements::UnresolvedObjectSymbolFieldsV1 => 3,
     });
     TerminalRelocationFreeTextSectionIdentity::from_canonical_bytes(&hasher.finish())
-}
-
-fn encode_bytes(hasher: &mut crate::digest_encoder::DomainDigestEncoder, bytes: &[u8]) {
-    hasher.u64(bytes.len() as u64);
-    hasher.raw(&bytes);
 }
 
 #[cfg(test)]
