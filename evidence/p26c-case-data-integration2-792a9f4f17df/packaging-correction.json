@@ -1,0 +1,21 @@
+{
+  "source": "792a9f4f17dfcbf082663549ae5e7635dd0628a6",
+  "manifest_sha256": "8c6661801ac3c3c901ee8fdb7c61e47befba26016018a454de4ef232a709b043",
+  "reason": "Initial collector duplicated three immutable producer executable files in record archive. Publication upload stopped by owner before refs changed. Corrected archive excludes those bytes, preserving exact binary digests/profiles/source bundles and every other archived record. No source/review/qualification/engine change.",
+  "unpublished_oversized_archive": {
+    "bytes": 218089819,
+    "sha256": "395f2622f992607ca82284c0db08cc9de04015853f90fef4dc0768ee9dc78856"
+  },
+  "unpublished_evidence_commit": "58a1246d96230257f58e833cc09091db5235e148",
+  "remote_before_corrected_push": "43383a9ec830f05d26ec19eb388690f3f6b1117c\trefs/heads/codex/p26c-case-data-3d3c2fb3\n",
+  "corrected_archive": {
+    "bytes": 63786930,
+    "sha256": "11bfd832b29fdb66a5e3e2bbeefd85c7daba3629e47ce14c85fd202a3955e3e8"
+  },
+  "excluded_producer_executable_sha256": {
+    "/Volumes/Crucial/CathedralOS/Omega/.agents/worktree/p26c/build/p26c/case-data-predicate-discovery/producer-6d4ed/omega": "dd0d9ad7e9778d6f28dc50d52879dcf2a319a86483db8fa43edcc3ac8c23da0a",
+    "/Volumes/Crucial/CathedralOS/Omega/.agents/worktree/p26c/build/p26c/case-data-predicate-discovery/producer-pair-6d4ed/corpus_runner": "a19ef5a2621e3c8c316fb4e614b71a8b526e58e20790b8655b2ce81d65125ff7",
+    "/Volumes/Crucial/CathedralOS/Omega/.agents/worktree/p26c/build/p26c/case-data-predicate-discovery/producer-pair-6d4ed/omega": "dd0d9ad7e9778d6f28dc50d52879dcf2a319a86483db8fa43edcc3ac8c23da0a"
+  },
+  "roundtrip": "Publisher verified SHA256 of every corrected tar member after compression."
+}
