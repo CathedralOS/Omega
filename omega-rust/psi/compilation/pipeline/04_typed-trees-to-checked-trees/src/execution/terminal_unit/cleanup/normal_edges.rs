@@ -182,6 +182,11 @@ fn cleanup_rows(
         PlaceRoot,
     ) -> Option<Option<CheckedUnitStructuralArgumentSourcePlan>>,
 ) -> Result<Vec<NormalExitConstruction>, &'static str> {
+    let flow_state = facts
+        .flow
+        .control
+        .state(machine, state.symbol)
+        .ok_or("normal cleanup state has no retained control flow")?;
     let mut rows = state_exits(program, facts, machine, state)?
         .into_iter()
         .map(|exit| NormalExitConstruction {
