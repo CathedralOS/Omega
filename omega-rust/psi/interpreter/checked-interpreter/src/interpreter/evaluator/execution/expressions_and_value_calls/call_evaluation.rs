@@ -8,6 +8,24 @@ use language_semantics::declaration_selection::CollectionMeasure;
 use symbols::BuiltinFunction;
 
 impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
+    /// Hand a call route's value to this state pass's transition guard subject.
+    ///
+    /// A transition's subject call evaluates once per transition evaluation, so
+    /// every route that produces a call value records it before returning. The
+    /// guard-depth condition belongs to that recording, not to each route: a
+    /// route hands its value here instead of copying the condition.
+    fn guard_subject_value(
+        &mut self,
+        handle: ExpressionHandle,
+        frame: &mut Frame,
+        value: Value,
+    ) -> Value {
+        if self.guard_depth > 0 {
+            frame.record_guard_call_result(handle, &value);
+        }
+        value
+    }
+
     pub(super) fn eval_call_expression(
         &mut self,
         handle: ExpressionHandle,
@@ -45,10 +63,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                     .expression_handles(call.arguments),
                 frame,
             )?;
-            if self.guard_depth > 0 {
-                frame.record_guard_call_result(handle, &value);
-            }
-            return Ok(value);
+            return Ok(self.guard_subject_value(handle, frame, value));
         }
         // A `dyn Trait` selector call targets its checked dynamic slot:
         // operand 0 carries the selector whose runtime type identity picks
@@ -61,10 +76,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                     .expression_handles(call.arguments),
                 frame,
             )?;
-            if self.guard_depth > 0 {
-                frame.record_guard_call_result(handle, &value);
-            }
-            return Ok(value);
+            return Ok(self.guard_subject_value(handle, frame, value));
         }
         let receiver_symbol = match self.program.expression_table.expression(call.receiver) {
             ExpressionNode::Member(member) => member.member_symbol,
@@ -83,10 +95,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                     .expression_handles(call.arguments),
                 frame,
             )?;
-            if self.guard_depth > 0 {
-                frame.record_guard_call_result(handle, &value);
-            }
-            return Ok(value);
+            return Ok(self.guard_subject_value(handle, frame, value));
         }
 
         // An explicitly bound bodyless wait is a host call even when its
@@ -99,10 +108,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                 .expression_handles(call.arguments),
             frame,
         )? {
-            if self.guard_depth > 0 {
-                frame.record_guard_call_result(handle, &value);
-            }
-            return Ok(value);
+            return Ok(self.guard_subject_value(handle, frame, value));
         }
 
         // A boundary operator application (`CheckedMath::offset_zero(70)`,
@@ -120,10 +126,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                 .expression_handles(call.arguments),
             frame,
         )? {
-            if self.guard_depth > 0 {
-                frame.record_guard_call_result(handle, &value);
-            }
-            return Ok(value);
+            return Ok(self.guard_subject_value(handle, frame, value));
         }
 
         // A byte-sequence predicate (`valid_utf8`, `no_nul`, `ascii_only`,
@@ -135,10 +138,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             let value = self.eval_expression(argument, frame)?;
             let bytes = byte_sequence_operand_bytes(&value)?;
             let value = Value::Bool(predicate.holds_for(&bytes));
-            if self.guard_depth > 0 {
-                frame.record_guard_call_result(handle, &value);
-            }
-            return Ok(value);
+            return Ok(self.guard_subject_value(handle, frame, value));
         }
 
         // The resolved-toolchain facet ladder: every Build facet family is
@@ -152,10 +152,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             self.program.expression_table.source_span(handle),
             frame,
         )? {
-            if self.guard_depth > 0 {
-                frame.record_guard_call_result(handle, &value);
-            }
-            return Ok(value);
+            return Ok(self.guard_subject_value(handle, frame, value));
         }
         let target = call.target.as_str();
         // Collection builtins and the host fallback below still classify the
@@ -216,19 +213,13 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             return Ok(Value::Unit);
         }
         if let Some(value) = self.try_build_selection_value_call(handle, call, frame)? {
-            if self.guard_depth > 0 {
-                frame.record_guard_call_result(handle, &value);
-            }
-            return Ok(value);
+            return Ok(self.guard_subject_value(handle, frame, value));
         }
         // Evaluated behavior exclusions (see the statement-call twin): the
         // call records the selection only when it actually runs against the
         // activation's root Build.
         if let Some(value) = self.try_behavior_exclusion_value_call(handle, call, frame)? {
-            if self.guard_depth > 0 {
-                frame.record_guard_call_result(handle, &value);
-            }
-            return Ok(value);
+            return Ok(self.guard_subject_value(handle, frame, value));
         }
         // Only a supplied architectural flags environment can answer PUSHFQ;
         // a fixed integer would fabricate instruction semantics.
@@ -480,10 +471,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             self.host_boundary_touched = true;
             self.non_fs_host_boundary_touched = true;
             let value = self.read_stdin_byte_value(call.target_symbol)?;
-            if self.guard_depth > 0 {
-                frame.record_guard_call_result(handle, &value);
-            }
-            return Ok(value);
+            return Ok(self.guard_subject_value(handle, frame, value));
         }
 
         // Ordinary calls consume the checked target, exactly as statement
@@ -514,10 +502,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                 // never selects it; ordinary calls resolve before this
                 // lookup is paid.
                 if let Some(value) = self.try_host_value_call(call, frame)? {
-                    if self.guard_depth > 0 {
-                        frame.record_guard_call_result(handle, &value);
-                    }
-                    return Ok(value);
+                    return Ok(self.guard_subject_value(handle, frame, value));
                 }
 
                 // Identity-backed intrinsic/requirement routes above remain
@@ -558,10 +543,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                     self.host_boundary_touched = true;
                     self.non_fs_host_boundary_touched = true;
                     let value = self.read_stdin_byte_value(call.target_symbol)?;
-                    if self.guard_depth > 0 {
-                        frame.record_guard_call_result(handle, &value);
-                    }
-                    return Ok(value);
+                    return Ok(self.guard_subject_value(handle, frame, value));
                 }
                 if let Some(value) = self.virtual_time_host_value(target) {
                     self.host_boundary_touched = true;
@@ -670,10 +652,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             .map(|value| value.unwrap_or(Value::Unit));
         self.guard_depth = entered_guard_depth;
         let value = value?;
-        if entered_guard_depth > 0 {
-            frame.record_guard_call_result(handle, &value);
-        }
-        Ok(value)
+        Ok(self.guard_subject_value(handle, frame, value))
     }
 
     pub(super) fn try_float_boundary_value_call(
