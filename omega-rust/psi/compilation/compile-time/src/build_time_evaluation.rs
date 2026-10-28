@@ -690,14 +690,7 @@ impl PreCheckEvaluation {
                     self.selection_authority.clone(),
                     &self.domain,
                 )
-            })? || data_layout_queries::pending_layout_queries_need_operator_selection(
-                typed,
-                self.domain.work(),
-            ) || typed.const_declarations().iter().any(|declaration| {
-                self.domain.contains(declaration.symbol)
-                    && declaration.pending_target_observation
-                    && declaration.evaluated_value.is_none()
-            })
+            })? || data_layout_queries::has_pending_target_observations(typed, self.domain.work())
         };
         if defer {
             let _g = phase_profile::guard("evaluate_or_defer.defer_path");
