@@ -103,7 +103,7 @@ pub fn prepare_product_requirement_operand(
         );
         // Closure consumes a derived tuple. Keep the source reference above
         // intact so immutable checking still judges every supplying recipe.
-        crate::monomorphization::body_rewriting::normalize_const_arguments(
+        crate::monomorphization::normalize_const_arguments(
             lower.program,
             author,
             std::slice::from_mut(&mut owner_argument),
@@ -218,7 +218,7 @@ pub fn prepare_product_requirement_operand(
             member: Handle::invalid(),
         });
         let authored_arguments = supplied.arguments.clone();
-        crate::monomorphization::body_rewriting::normalize_const_arguments(
+        crate::monomorphization::normalize_const_arguments(
             lower.program,
             author,
             &mut supplied.arguments,

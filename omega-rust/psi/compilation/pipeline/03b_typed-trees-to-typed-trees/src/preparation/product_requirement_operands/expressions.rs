@@ -98,12 +98,11 @@ impl Lower<'_> {
                     target,
                 ));
                 let target = self.program.expression_table.insert_tree(&owned);
-                self.program.expression_table.set_source_span(
-                    target,
-                    self.program
-                        .symbols
-                        .rejoin_product_occurrence(value.source_span),
-                );
+                let span = self
+                    .program
+                    .symbols
+                    .rejoin_product_occurrence(value.source_span);
+                self.program.expression_table.set_source_span(target, span);
                 self.active_expressions.pop();
                 self.expressions.push((handle, target));
                 return Ok(target);
@@ -332,12 +331,11 @@ impl Lower<'_> {
             )),
         };
         let target = self.program.expression_table.insert(node);
-        self.program.expression_table.set_source_span(
-            target,
-            self.program
-                .symbols
-                .rejoin_product_occurrence(value.source_span),
-        );
+        let span = self
+            .program
+            .symbols
+            .rejoin_product_occurrence(value.source_span);
+        self.program.expression_table.set_source_span(target, span);
         self.active_expressions.pop();
         self.expressions.push((handle, target));
         Ok(target)

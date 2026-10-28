@@ -54,6 +54,7 @@ mod trait_implementation_arguments;
 pub(crate) use selection::{BindingContext, StaticProposals, infer_static_bindings};
 
 mod body_rewriting;
+pub(crate) use body_rewriting::normalize_const_arguments;
 pub(crate) use body_rewriting::{collect_evidence_requirement_closure, insert_subject_name};
 mod body_cloning;
 pub(crate) use body_cloning::copy_type_reference;
