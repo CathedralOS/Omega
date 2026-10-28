@@ -12,41 +12,91 @@ pub fn native_binding_widths(
     typed: &TypedTrees,
     reference: TypeReferenceHandle,
 ) -> Result<[u64; 3], Vec<Diagnostic>> {
-    let exact = |name: &str| {
-        typed
-            .data_definitions()
-            .iter()
-            .filter(|definition| {
-                definition.name.as_str() == name
-                    && definition.generic_instance.is_none()
-                    && definition.is_public
-                    && definition.supply_mode == language_semantics::DataSupplyMode::CheckedShape
-                    && typed
-                        .symbols
-                        .symbol_source_span(definition.symbol)
-                        .and_then(|span| typed.symbols.source_file(span))
-                        .is_some_and(|file| {
-                            file.origin == SourceOrigin::Toolchain
-                                && file
-                                    .path
-                                    .ends_with(std::path::Path::new("core/external_binding.omg"))
-                        })
-            })
-            .collect::<Vec<_>>()
-    };
-    let bindings = exact("ForeignBinding");
-    let imports = exact("DllImport");
-    let ([binding], [import]) = (bindings.as_slice(), imports.as_slice()) else {
+    // The operand's retained generic origin owns its exact vocabulary. A
+    // later namespace normalization may qualify declaration presentation names;
+    // scanning those names cannot authenticate (or recover) this application.
+    let application =
+        binding_application(typed, reference).map_err(|reason| vec![Diagnostic::error(reason)])?;
+    let TypeReferenceNode::Generic { base_symbol, .. } =
+        typed.type_reference_table.type_reference(application)
+    else {
         return Err(vec![Diagnostic::error(
-            "native binding requires the unique compiler-owned ForeignBinding and DllImport declarations",
+            "native locator lost its exact generic origin",
         )]);
     };
+    let binding = exact_vocabulary(typed, *base_symbol, "ForeignBinding")?;
+    let import_symbol = typed
+        .data_members(binding)
+        .first()
+        .and_then(DataMember::as_variant)
+        .and_then(|variant| typed.data_payload_fields(variant).first())
+        .and_then(|field| {
+            match typed
+                .type_reference_table
+                .type_reference(field.type_reference)
+            {
+                TypeReferenceNode::Generic { base_symbol, .. } => Some(*base_symbol),
+                _ => None,
+            }
+        })
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "compiler-owned ForeignBinding lost its exact DllImport payload",
+            )]
+        })?;
+    let import = exact_vocabulary(typed, import_symbol, "DllImport")?;
     let parameters = exact_width_parameters(typed, binding)?;
     let import_parameters = exact_width_parameters(typed, import)?;
     validate_dll_import_shape(typed, import, import_parameters)?;
     validate_binding_shape(typed, binding, parameters, import.symbol)?;
     binding_widths(typed, binding.symbol, reference)
         .map_err(|message| vec![Diagnostic::error(message)])
+}
+
+fn exact_vocabulary<'a>(
+    typed: &'a TypedTrees,
+    symbol: SymbolHandle,
+    name: &str,
+) -> Result<&'a DataDefinition, Vec<Diagnostic>> {
+    let definition = typed.data_definition_by_symbol(symbol).ok_or_else(|| {
+        vec![Diagnostic::error(format!(
+            "native binding lost the exact `{name}` template declaration"
+        ))]
+    })?;
+    let admitted = typed.symbols.name(symbol) == name
+        && definition.generic_instance.is_none()
+        && definition.is_public
+        && definition.supply_mode == language_semantics::DataSupplyMode::CheckedShape
+        && typed
+            .symbols
+            .symbol_source_span(symbol)
+            .and_then(|span| typed.symbols.source_file(span))
+            .is_some_and(|file| {
+                file.origin == SourceOrigin::Toolchain
+                    && file
+                        .path
+                        .ends_with(std::path::Path::new("core/external_binding.omg"))
+            });
+    if !admitted {
+        return Err(vec![Diagnostic::error(format!(
+            "native binding requires the exact compiler-owned `{name}` declaration"
+        ))]);
+    }
+    Ok(definition)
+}
+
+fn binding_application(
+    typed: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> Result<TypeReferenceHandle, String> {
+    match typed.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::Named { symbol, .. } => typed
+            .data_definition_by_symbol(*symbol)
+            .and_then(|definition| definition.generic_instance)
+            .ok_or_else(|| "native locator must return a closed Binding application".to_owned()),
+        TypeReferenceNode::Generic { .. } => Ok(reference),
+        _ => Err("native locator must return a closed Binding application".to_owned()),
+    }
 }
 
 fn exact_width_parameters(
@@ -252,16 +302,7 @@ fn binding_widths(
     binding_symbol: SymbolHandle,
     return_type: TypeReferenceHandle,
 ) -> Result<[u64; 3], String> {
-    let application = match typed.type_reference_table.type_reference(return_type) {
-        TypeReferenceNode::Named { symbol, .. } => typed
-            .data_definition_by_symbol(*symbol)
-            .and_then(|definition| definition.generic_instance)
-            .ok_or_else(|| "native locator must return a closed Binding application".to_owned())?,
-        TypeReferenceNode::Generic { .. } => return_type,
-        _ => {
-            return Err("native locator must return a closed Binding application".to_owned());
-        }
-    };
+    let application = binding_application(typed, return_type)?;
     let TypeReferenceNode::Generic {
         base_symbol,
         arguments,
