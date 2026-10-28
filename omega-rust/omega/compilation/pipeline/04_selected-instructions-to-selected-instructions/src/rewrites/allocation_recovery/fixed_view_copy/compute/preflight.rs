@@ -55,11 +55,7 @@ pub(super) fn copy_row<'a>(
         selected_keys.copy_i64,
     )
     .ok_or(FixedViewCopyError::CopyConstraintMismatch)?;
-    if row.operands.len() != 2
-        || row.operands[0].operand != 0
-        || row.operands[0].access != RegisterOperandAccess::Use
-        || row.operands[1].operand != 1
-        || row.operands[1].access != RegisterOperandAccess::Def
+    if !crate::rewrites::declares_pair(row, RegisterOperandAccess::Use, RegisterOperandAccess::Def)
         || row.operands[0].class != row.operands[1].class
         || row.operands.iter().any(|operand| {
             operand.fixed_view.is_some() || operand.tied_to.is_some() || operand.early_clobber
