@@ -206,7 +206,7 @@ use structural_terms::{
 /// Whether `OMEGA_STRUCT_TRACE` asks for structural-judgment tracing. Read
 /// once: each environment lookup takes the process environment lock, and
 /// body unfolding asks once per application.
-pub(super) fn struct_trace() -> bool {
+fn struct_trace() -> bool {
     static TRACE: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *TRACE.get_or_init(|| std::env::var_os("OMEGA_STRUCT_TRACE").is_some())
 }

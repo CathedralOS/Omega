@@ -480,18 +480,7 @@ pub(super) fn sealed_float_comparison_declaration_for_operands(
     };
     let resolution =
         crate::scoped_operator_application(program, &scope, expression, spelling, operand_types);
-    let Some(application) = resolution.selected() else {
-        if super::contract_entailment::struct_trace() {
-            eprintln!(
-                "STRUCT sealed-float-selection owner={owner:?} expression={} status={:?} selected={:?}",
-                program.expression_table.display_name(expression),
-                resolution.status,
-                resolution.selected_symbol
-            );
-        }
-        return None;
-    };
-    let selected = application.public_symbol();
+    let selected = resolution.selected()?.public_symbol();
     if let Some(call) = program.expression_table.call_node(expression)
         && !call_targets_declaration_entry(program, call.target_symbol, selected)
     {
@@ -520,22 +509,6 @@ pub(super) fn sealed_float_comparison_declaration_for_operands(
                 _ => false,
             }
         });
-    if !retained && super::contract_entailment::struct_trace() {
-        let authored = program
-            .expression_table
-            .authored_selection_occurrences(expression)
-            .map(|occurrence| {
-                program
-                    .authored_declaration_selections()
-                    .get(occurrence)
-                    .map(|selection| selection.target())
-            })
-            .collect::<Vec<_>>();
-        eprintln!(
-            "STRUCT sealed-float-custody owner={owner:?} expression={} selected={selected:?} authored={authored:?}",
-            program.expression_table.display_name(expression)
-        );
-    }
     retained.then_some(selected)
 }
 
