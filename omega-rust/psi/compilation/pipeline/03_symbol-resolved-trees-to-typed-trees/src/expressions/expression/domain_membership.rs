@@ -161,6 +161,34 @@ fn domain_definition<'p>(
         })
 }
 
+/// Domain refinement consumes an admitted carrier. A data declaration's
+/// compiler-owned logical subject still owes that very default domain. Preserve
+/// its formation refusal before predicate expansion can erase an unused value.
+fn is_pending_data_subject(
+    program: &resolved::SymbolResolvedTrees,
+    target: &typed::TypedTrees,
+    mut value: typed::expression::ExpressionHandle,
+) -> bool {
+    let mut visited = Vec::new();
+    while value.is_valid() && !visited.contains(&value) {
+        visited.push(value);
+        match target.expression_table.expression(value) {
+            typed::expression::ExpressionNode::Name(path) => {
+                return path.symbol.is_valid()
+                    && program.data_definitions.iter().any(|definition| {
+                        definition.predicate_subject_symbol == path.symbol
+                            && program.symbols.get(path.symbol).parent == definition.symbol
+                            && !definition.where_facts.is_empty()
+                    });
+            }
+            typed::expression::ExpressionNode::Borrow(borrow) => value = borrow.target,
+            typed::expression::ExpressionNode::Cast(cast) => value = cast.value,
+            _ => return false,
+        }
+    }
+    false
+}
+
 pub(super) fn lower_domain_membership_expression(
     program: &resolved::SymbolResolvedTrees,
     target: &mut typed::TypedTrees,
@@ -168,6 +196,11 @@ pub(super) fn lower_domain_membership_expression(
     domain_symbol: symbols::SymbolHandle,
 ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
     let domain_definition = domain_definition(program, domain_symbol)?;
+    if is_pending_data_subject(program, target, value) {
+        return Err(Diagnostic::error(
+            "cannot form named-domain membership: the logical data subject's own default domain is still pending admission",
+        ).with_source_span(target.expression_table.source_span(value)));
+    }
     let expanded = crate::type_reference::domain_aliases::expand_domain_reference(
         program,
         domain_symbol,
