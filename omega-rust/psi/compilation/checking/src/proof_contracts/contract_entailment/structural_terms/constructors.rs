@@ -156,19 +156,22 @@ pub(in super::super) fn case_value_term(
 
 pub(in super::super) fn constructor_literal_term(
     program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
     literal: &TableStructLiteral,
     mut field_term: impl FnMut(&DataField, Option<&TableStructLiteralField>) -> Option<StructuralTerm>,
 ) -> Option<StructuralTerm> {
-    let definition = program.data_definition_by_symbol(literal.type_symbol)?;
+    // Every consumer supplies the original construction occurrence. The
+    // receiving application owns both its case and complete field carriers;
+    // a template's field types cannot decide omitted zeros for an instance.
+    let definition = crate::value_custody::struct_literals::selected_construction_definition(
+        program, expression, literal,
+    )?;
     let variant = match literal.case_symbol {
-        Some(symbol) => Some(program.data_members(definition).iter().find_map(
-            |member| match member {
-                DataMember::Variant(variant) if symbol.is_valid() && variant.symbol == symbol => {
-                    Some(variant)
-                }
-                _ => None,
-            },
-        )?),
+        Some(_) => Some(
+            crate::value_custody::struct_literals::selected_construction_case(
+                program, expression, literal, definition,
+            )?,
+        ),
         None => {
             if literal.case_name.is_some()
                 || program
@@ -183,23 +186,38 @@ pub(in super::super) fn constructor_literal_term(
     };
     let declared = constructor_fields(program, definition, variant);
     let supplied = program.expression_table.struct_fields(literal.fields);
+    let selected_fields = supplied
+        .iter()
+        .map(|field| {
+            crate::value_custody::struct_literals::selected_construction_field(
+                program,
+                expression,
+                literal,
+                field.field_symbol,
+            )
+        })
+        .collect::<Option<Vec<_>>>()?;
     // This forms a value term, not a predicate certificate. Source admission
     // independently checks the owner and selected case at their operand entry,
     // before this value exists. An omitted field still needs its own established
     // zero; the enclosing clause neither blocks normalization nor supplies it.
     // No field may disappear, occur twice, or be rebound by its spelling.
-    if supplied.iter().any(|field| {
+    if selected_fields.iter().any(|field| {
         !declared
             .iter()
-            .any(|declared| field.field_symbol.is_valid() && declared.symbol == field.field_symbol)
+            .any(|declared| field.symbol.is_valid() && declared.symbol == field.symbol)
     }) {
         return None;
     }
     let mut fields = Vec::with_capacity(declared.len());
     for field in declared {
-        let mut matches = supplied
-            .iter()
-            .filter(|supplied| supplied.field_symbol == field.symbol);
+        let mut matches =
+            supplied
+                .iter()
+                .zip(&selected_fields)
+                .filter_map(|(supplied, selected)| {
+                    (selected.symbol == field.symbol).then_some(supplied)
+                });
         let value = if let Some(supplied) = matches.next() {
             if matches.next().is_some() {
                 return None;

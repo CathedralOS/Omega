@@ -597,7 +597,7 @@ pub(super) fn structural_term(
             }
         }
         ExpressionNode::StructLiteral(literal) => {
-            constructor_literal_term(program, literal, |_, field| {
+            constructor_literal_term(program, expression, literal, |_, field| {
                 let field = field?;
                 structural_term(program, scope, frame, field.value, bindings)
             })

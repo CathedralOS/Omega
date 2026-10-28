@@ -1583,6 +1583,7 @@ impl<'program> StructuralJudge<'program> {
                     let fields = program.expression_table.struct_fields(literal.fields);
                     let constructed = super::super::structural_terms::constructor_literal_term(
                         program,
+                        expression,
                         literal,
                         |declared, supplied| {
                             if let Some(field) = supplied {

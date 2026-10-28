@@ -403,11 +403,12 @@ pub(crate) fn data_definition_snapshot(
             .collect(),
         predicate_subject: (data.predicate_subject_symbol.is_valid()
             && data.predicate_subject_type.is_valid())
-            .then(|| DataPredicateSubjectSnapshot {
-                carrier: type_reference_snapshot(program, data.predicate_subject_type),
-                owned_by_data: program.symbols.get(data.predicate_subject_symbol).parent == data.symbol
-                    && program.symbols.get(data.predicate_subject_symbol).kind == symbols::SymbolKind::Parameter,
-            }),
+        .then(|| DataPredicateSubjectSnapshot {
+            carrier: type_reference_snapshot(program, data.predicate_subject_type),
+            owned_by_data: program.symbols.get(data.predicate_subject_symbol).parent == data.symbol
+                && program.symbols.get(data.predicate_subject_symbol).kind
+                    == symbols::SymbolKind::Parameter,
+        }),
         generic_instance: data
             .generic_instance
             .map(|origin| type_reference_snapshot(program, origin)),

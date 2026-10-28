@@ -866,10 +866,20 @@ fn hinted_named_value_type_reference(
             let definition = program.data_definition_by_symbol(parent)?;
             if definition.predicate_subject_symbol.is_valid()
                 && matches_symbol(definition.predicate_subject_symbol)
-                && program.symbols.get(definition.predicate_subject_symbol).parent == definition.symbol
-                && program.symbols.get(definition.predicate_subject_symbol).kind == symbols::SymbolKind::Parameter
+                && program
+                    .symbols
+                    .get(definition.predicate_subject_symbol)
+                    .parent
+                    == definition.symbol
+                && program
+                    .symbols
+                    .get(definition.predicate_subject_symbol)
+                    .kind
+                    == symbols::SymbolKind::Parameter
             {
-                return definition.predicate_subject_type.is_valid()
+                return definition
+                    .predicate_subject_type
+                    .is_valid()
                     .then_some(definition.predicate_subject_type);
             }
             program

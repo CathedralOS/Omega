@@ -1141,6 +1141,25 @@ impl<'program> StructuralJudge<'program> {
         }
     }
 
+    /// A branch assumption is available only after its source operand was
+    /// independently formed. This supplies truth under that scoped path; it
+    /// never admits a pending nominal value or imports its default domain.
+    pub(super) fn intake_formed_condition(&mut self, fact: ExpressionHandle, holds: bool) {
+        if holds {
+            self.intake(self.program, fact);
+        }
+        if self
+            .declaration_expression_type(fact)
+            .and_then(|reference| self.program.primitive_type_reference(reference))
+            != Some(typed_trees::types::PrimitiveType::Bool)
+        {
+            return;
+        }
+        if let Some(term) = self.declaration_term(fact) {
+            self.intake_equation(term, value_predicates::boolean_term(holds), 0);
+        }
+    }
+
     /// A preserved runtime prefix may retain a selected Boolean predicate as
     /// truth. Entry hypotheses alone do not license this transport: the path
     /// owner must first keep their subjects through every preceding effect.
@@ -2509,16 +2528,21 @@ impl<'program> StructuralJudge<'program> {
                 self.observed_field_term(receiver_term, member.member.as_str(), depth)
             }
             ExpressionNode::StructLiteral(literal) => {
-                super::structural_terms::constructor_literal_term(program, literal, |_, field| {
-                    let field = field?;
-                    self.callee_term(
-                        field.value,
-                        environment,
-                        static_observations,
-                        scope,
-                        depth + 1,
-                    )
-                })
+                super::structural_terms::constructor_literal_term(
+                    program,
+                    expression,
+                    literal,
+                    |_, field| {
+                        let field = field?;
+                        self.callee_term(
+                            field.value,
+                            environment,
+                            static_observations,
+                            scope,
+                            depth + 1,
+                        )
+                    },
+                )
             }
             ExpressionNode::Unary(unary) => super::structural_terms::logical_not_term_in_scope(
                 program,
@@ -3152,6 +3176,11 @@ impl<'program> StructuralJudge<'program> {
         expression: ExpressionHandle,
         comparison: &typed_trees::expression::TableBinaryExpression,
     ) -> bool {
+        if !self.runtime_body_values {
+            return crate::proof_contracts::bound_expression_meaning::has_exact_parameter_case_membership_meaning(
+                self.program, &self.declaration_parameters, expression, comparison,
+            );
+        }
         self.program
             .machine(self.machine_symbol)
             .is_some_and(|machine| {
@@ -3293,7 +3322,7 @@ impl<'program> StructuralJudge<'program> {
         ));
     }
 
-    fn judge_case(
+    pub(super) fn judge_case(
         &self,
         subject: StructuralTerm,
         data_symbol: SymbolHandle,
