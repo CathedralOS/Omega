@@ -141,6 +141,7 @@ pub struct BuildTimeAdmissionPlan {
     suspension: Vec<BuildTimeSuspensionRow>,
     blocking: Vec<BuildTimeBlockingRow>,
     call_edges: Vec<BuildTimeCallEdge>,
+    pub(crate) operators: checked_trees::CheckedOperatorFacts,
     selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
     selected_operators: Vec<crate::SelectedBuildTimeBinaryOperator>,
     selected_machine_bodies: Vec<crate::SelectedBuildTimeMachineBody>,
@@ -239,11 +240,47 @@ impl BuildTimeAdmissionPlan {
     ) -> Self {
         let operational = validation::infer_operational_may(program);
         let service_reaches = validation::infer_service_reaches(program, &operational);
-        let (suspension, blocking, mut call_edges) = project_operational_axes(&operational);
+        let operators = validation::derive_pre_flow_operator_selections(program);
+        let (suspension, blocking, call_edges) =
+            Self::project_axes_and_operator_edges(&operational, &operators);
+        Self {
+            service_reaches,
+            suspension,
+            blocking,
+            call_edges,
+            operators,
+            selection_authority,
+            selected_operators: Vec::new(),
+            selected_machine_bodies: Vec::new(),
+            accounting: Default::default(),
+            checked_closures: Default::default(),
+        }
+    }
+
+    /// Infer only the call-edge axes needed for execution dependency discovery,
+    /// reusing pre-computed operator selections and skipping service-reach inference.
+    pub(crate) fn infer_execution_dependencies(
+        program: &TypedTrees,
+        operators: &checked_trees::CheckedOperatorFacts,
+        execution: &mut Vec<SymbolHandle>,
+    ) {
+        let operational = validation::infer_operational_may(program);
+        let (_, _, call_edges) = Self::project_axes_and_operator_edges(&operational, operators);
+        Self::append_edges_to_execution_dependencies(&call_edges, program, execution);
+    }
+
+    fn project_axes_and_operator_edges(
+        operational: &flow_effects::OperationalPlan,
+        operators: &checked_trees::CheckedOperatorFacts,
+    ) -> (
+        Vec<BuildTimeSuspensionRow>,
+        Vec<BuildTimeBlockingRow>,
+        Vec<BuildTimeCallEdge>,
+    ) {
+        let (suspension, blocking, mut call_edges) = project_operational_axes(operational);
         // Selected trait algebra is an exact source execution edge, just like
         // an ordinary named call. Retain the selected body so every admission
         // axis traverses it; this does not select an external provider.
-        let operators = validation::derive_pre_flow_operator_selections(program);
         for (expression, origin, _, _) in operators.resolved_expression_selections() {
             let Some(owner) = origin.machine_symbol() else {
                 continue;
@@ -256,7 +293,7 @@ impl BuildTimeAdmissionPlan {
                 || !candidate.realization_state_symbol.is_valid()
             {
                 continue;
-            }
+            };
             call_edges.push(BuildTimeCallEdge {
                 source_machine_symbol: owner,
                 target_machine_symbol: candidate.realization_machine_symbol,
@@ -264,17 +301,7 @@ impl BuildTimeAdmissionPlan {
                 target_operator_symbol: candidate.trait_requirement_symbol,
             });
         }
-        Self {
-            service_reaches,
-            suspension,
-            blocking,
-            call_edges,
-            selection_authority,
-            selected_operators: Vec::new(),
-            selected_machine_bodies: Vec::new(),
-            accounting: Default::default(),
-            checked_closures: Default::default(),
-        }
+        (suspension, blocking, call_edges)
     }
 
     /// Provisional typing retains equation and pending-type obligations.
@@ -360,11 +387,18 @@ impl BuildTimeAdmissionPlan {
         program: &TypedTrees,
         execution: &mut Vec<SymbolHandle>,
     ) {
+        Self::append_edges_to_execution_dependencies(&self.call_edges, program, execution);
+    }
+
+    fn append_edges_to_execution_dependencies(
+        call_edges: &[BuildTimeCallEdge],
+        program: &TypedTrees,
+        execution: &mut Vec<SymbolHandle>,
+    ) {
         let mut position = 0;
         while let Some(&machine) = execution.get(position) {
             position += 1;
-            for edge in self
-                .call_edges
+            for edge in call_edges
                 .iter()
                 .filter(|edge| edge.source_machine_symbol == machine)
             {

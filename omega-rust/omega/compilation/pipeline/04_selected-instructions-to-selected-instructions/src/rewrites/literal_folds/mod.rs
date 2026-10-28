@@ -354,5 +354,3 @@ failed_display!(
     OptimizedLiteralFoldCustodyError,
     "optimized literal-fold staging failed"
 );
-
-impl std::error::Error for OptimizedLiteralFoldCustodyError {}

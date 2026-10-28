@@ -7,9 +7,7 @@ use super::{PackageCommandError, failure};
 use crate::lock::PackageLock;
 use crate::operations::PackageFileTransaction;
 use crate::resolution::graph::ResolvedPackageSourceClosure;
-use crate::review::{
-    PackageSourcePatchError, PackageSourcePatchLimits, render_package_source_patch,
-};
+use crate::review::{PackageSourcePatchError, render_package_source_patch};
 use package_source::SourceResolver;
 use package_source::git::resolution::GitExactRevisionAcquisition;
 use platform_custody::record_file::RecordFileRoot;
@@ -58,8 +56,7 @@ pub(super) fn prepare(
             Ok(Some(_)) => {}
         }
         let baseline = baseline.as_ref().ok().and_then(Option::as_ref);
-        let patch =
-            render_package_source_patch(baseline, custody, PackageSourcePatchLimits::default());
+        let patch = render_package_source_patch(baseline, custody);
         match patch {
             Ok(patch)
                 if document.len().saturating_add(patch.as_str().len()) <= MAXIMUM_OUTPUT_BYTES =>

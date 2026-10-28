@@ -1269,9 +1269,15 @@ impl<'a> Replay<'a> {
             }
             Origin::Backing(DescriptorCallOrigin::Argument { source, projection }) => {
                 let (position, access, structural_type) = self.parameter(machine, *source)?;
-                if !matches!(access, terminal_psi::reading_borrow_pair_pattern!())
-                    && !(access == StructuralAccess::Owned
-                        && external_backing(self.types, structural_type, &projection.path))
+                // A borrowed argument names its referent's storage without
+                // reading it: a write-only loan's backing identity is fixed by
+                // the borrow's formation, so it exports like a reading borrow.
+                if !matches!(
+                    access,
+                    terminal_psi::reading_borrow_pair_pattern!()
+                        | StructuralAccess::WriteOnlyBorrow
+                ) && !(access == StructuralAccess::Owned
+                    && external_backing(self.types, structural_type, &projection.path))
                 {
                     return None;
                 }

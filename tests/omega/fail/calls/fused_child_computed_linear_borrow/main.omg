@@ -1,0 +1,33 @@
+// Expected: reject an unretired linear computed-borrow owner
+// Computed borrows retain their own type namespace in fused child machines.
+data Observation [linear] { value: u64; }
+machine same(left: &Observation, right: &Observation) -> bool { left.value == right.value }
+machine probe(output: &mut u64) {
+    transition { _ -> node(output, 0u64 as u64 in Wrapping) }
+    machine node(output: &mut u64, index: u64 in Wrapping) {
+        transition index < 2 {
+            true -> compare(output, index)
+            false -> done()
+        }
+    }
+    machine compare(output: &mut u64, index: u64 in Wrapping) {
+        let previous: Observation = Observation { value: 7 };
+        let current: Observation = Observation { value: 7 };
+        transition { _ -> choose(output, index, same(&previous, &current)) }
+    }
+    machine choose(output: &mut u64, index: u64 in Wrapping, equal: bool) {
+        transition equal { true -> keep(output, index) false -> done() }
+    }
+    machine keep(output: &mut u64, index: u64 in Wrapping) {
+        output = 7;
+        transition { _ -> node(output, index + (1u64 as u64 in Wrapping)) }
+    }
+    machine done() {}
+}
+machine main() crashes Trap {
+    let mut output: u64 = 0;
+    probe(&mut output);
+    transition output == 7 { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

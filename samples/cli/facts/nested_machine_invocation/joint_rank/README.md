@@ -86,3 +86,20 @@ Remaining parent acceptance includes private coordinates in ranged/structural
 views, portable composed WCSU and other-host physical limits, complete effectful
 call-contract/custody composition, source migration and the Omega-written
 compiler. This row does not close `NESTED-MACHINE-UNIFICATION`.
+
+## Returned carriers and restoration
+
+The same rank/counter fact also travels through each place's
+`carried_restoration/` production. A ranked nested component returns an owned
+`View` containing an exclusive reference; its ordinary caller reseats that
+carrier in the exact borrowed slot. Both the seven-step and empty paths retain
+the original backing, neighboring canary and carrier stamp. Each nondecreasing
+twin breaks only the strict edge. The selected-implementation place uses an
+ordinary named body selected by Build.
+
+[Requirement mapping and measured observations](local/carried_restoration/README.md)
+cover the complete row, normal output-loan timing, lineage controls and the
+100,000-cycle physical stack observation. Corresponding fixtures are pinned as
+`facts/nested_machine_joint_rank_carried_restoration_*`; composition and safety
+controls are `borrows/nested_machine_carried_*`. These are macOS ARM64 execution
+observations; the broader parent acceptance remains open.

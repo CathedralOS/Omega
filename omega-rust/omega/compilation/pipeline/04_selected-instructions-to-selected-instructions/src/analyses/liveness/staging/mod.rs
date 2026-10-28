@@ -88,5 +88,3 @@ failed_display!(
     OptimizedLivenessCustodyError,
     "optimized liveness staging failed"
 );
-
-impl std::error::Error for OptimizedLivenessCustodyError {}

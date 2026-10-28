@@ -106,7 +106,7 @@ pub(crate) struct ArithmeticDecisions {
 
 impl ArithmeticDecisions {
     /// Append another walk's decisions after these, preserving both orders.
-    pub(crate) fn append(&mut self, other: Self) {
+    pub(crate) fn extend(&mut self, other: Self) {
         self.integer_range_obligations
             .extend(other.integer_range_obligations);
         self.exact_integer_casts.extend(other.exact_integer_casts);
@@ -132,15 +132,6 @@ impl ArithmeticDecisions {
             interval,
             recipe: None,
         });
-    }
-
-    pub(crate) fn extend(&mut self, other: Self) {
-        self.integer_range_obligations
-            .extend(other.integer_range_obligations);
-        self.exact_integer_casts.extend(other.exact_integer_casts);
-        self.integer_assignments.extend(other.integer_assignments);
-        self.decided_formations.extend(other.decided_formations);
-        self.expression_values.extend(other.expression_values);
     }
 }
 

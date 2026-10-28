@@ -278,7 +278,9 @@ pub(super) fn check_flow_call_contracts(
             state_value_qualifications,
             state_diagnostics,
         ),
-    ) in state_flows.into_iter().zip(per_state_call_and_write_results)
+    ) in state_flows
+        .into_iter()
+        .zip(per_state_call_and_write_results)
     {
         decided.extend(state_decided);
         constant_obligations.extend(state_constant_obligations);

@@ -65,6 +65,7 @@ pub(crate) use cleanup_admission::validate_selected_cleanup_guarantees;
 // Operator resolution, indexed access bounds, and machine termination.
 mod indexed_writes;
 mod operators;
+mod places;
 mod ranges;
 pub(crate) mod termination;
 

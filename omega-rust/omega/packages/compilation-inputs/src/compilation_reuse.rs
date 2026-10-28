@@ -48,13 +48,13 @@ impl SourceAssemblyInputs {
     }
 }
 
-/// Exact source and semantic inputs to a Product frontend. Target attachments
-/// do not partition source work; their custody is still admitted per occurrence.
+/// Exact source inputs to a Product frontend. Target attachments and semantic
+/// binding admissions do not partition source assembly, resolution, or typing;
+/// entry contract source selection is already recorded in `SourceAssemblyInputs`,
+/// and custody/semantic bindings are still admitted per occurrence.
 #[derive(Clone, PartialEq, Eq)]
 pub struct ProductSourceInputs {
     assembly: SourceAssemblyInputs,
-    semantic_role_discovery: bool,
-    semantic_bindings: Vec<crate::AcceptedSemanticBinding>,
 }
 
 impl ProductSourceInputs {
@@ -64,11 +64,6 @@ impl ProductSourceInputs {
     ) -> Self {
         Self {
             assembly: SourceAssemblyInputs::new(packages, build_execution_profile),
-            semantic_role_discovery: packages
-                .is_some_and(|inputs| inputs.semantic_role_discovery()),
-            semantic_bindings: packages
-                .map(|inputs| inputs.accepted_semantic_bindings().cloned().collect())
-                .unwrap_or_default(),
         }
     }
 }

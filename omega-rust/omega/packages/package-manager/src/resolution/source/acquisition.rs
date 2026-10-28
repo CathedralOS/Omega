@@ -20,8 +20,8 @@ use std::path::Path;
 /// Invocation-owned source acquisition. Package policy selects pins and offline
 /// behavior before execution; repeated selectors retain their first Git result.
 pub struct BuildSourceAcquisitions<'operation> {
-    storage: &'operation SourceResolver,
-    options: GitResolutionOptions<'operation>,
+    pub(super) storage: &'operation SourceResolver,
+    pub(super) options: GitResolutionOptions<'operation>,
     root_request: PackageRootSourceRequest,
     locked_source: Option<&'operation CanonicalSourceClosureSubject>,
     git_sources: Vec<(GitSourceRequest, ResolvedGitSource)>,
@@ -215,16 +215,12 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
             } => {
                 let selected = GitSourceRequest::new(repository.clone(), Some(revision.clone()))
                     .map_err(|error| error.to_string())?;
-                let source = self.acquire_git(&selected, requester.limits)?;
                 let request = GitPackageSourceRequest::new(selected, selection.clone());
                 if let PackageSelection::Named(package) = selection {
-                    match self.acquire_workspace_member(source, request, package)? {
-                        AcquiredSourceSelection::Workspace(workspace) => {
-                            return Ok(AcquiredSourceSelection::Workspace(workspace));
-                        }
-                        AcquiredSourceSelection::Source(acquired) => acquired,
-                    }
-                } else if let Some(existing) = self.sources.iter().find(|acquired| {
+                    return self.acquire_workspace_member(request, package, requester.limits);
+                }
+                let source = self.acquire_git(request.acquisition(), requester.limits)?;
+                if let Some(existing) = self.sources.iter().find(|acquired| {
                     &acquired.lineage == source.lineage()
                         && acquired.navigation == super::PackageSourceNavigation::Root
                 }) {
@@ -485,8 +481,14 @@ impl AcquiredBuildSource {
         source: &ResolvedGitSource,
         request: GitPackageSourceRequest,
     ) -> Result<Self, String> {
-        if source.workspace_projection().is_some()
-            || source.lineage() != request.acquisition().lineage()
+        let navigation = match (request.selection(), source.selected_member()) {
+            (PackageSelection::Root, None) => super::PackageSourceNavigation::Root,
+            (PackageSelection::Named(_), Some(path)) => {
+                super::PackageSourceNavigation::Member(path.clone())
+            }
+            _ => return Err("Git acquisition has the wrong source selection".into()),
+        };
+        if source.lineage() != request.acquisition().lineage()
             || source.requested_locator() != request.requested_locator()
             || source.requested_revision() != request.requested_revision()
             || source.transport_profile() != request.transport_profile()
@@ -512,7 +514,7 @@ impl AcquiredBuildSource {
             limits: source.source_limits(),
             resolution,
             root_request: PackageRootSourceRequest::Git(request),
-            navigation: super::PackageSourceNavigation::Root,
+            navigation,
             selection: super::PackageSourceSelectionEvidence::Root,
             cache_directories: None,
         })

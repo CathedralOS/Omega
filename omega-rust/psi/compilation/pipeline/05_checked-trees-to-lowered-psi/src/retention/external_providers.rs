@@ -16,6 +16,32 @@ pub(crate) fn retain(
     sources: &[(source::SourceId, [u8; 32])],
     module: &mut TerminalModule,
 ) -> Result<(), LoweringError> {
+    module.external_providers = project(
+        identities,
+        checked,
+        sources,
+        |identities, callable| {
+            module
+                .boundary_machines
+                .iter()
+                .any(|boundary| identities.text(boundary.identity) == Some(callable))
+                || module
+                    .boundary_application_demands
+                    .iter()
+                    .any(|demand| demand.requirement().overload() == callable)
+        },
+        |_, _| {},
+    )?;
+    Ok(())
+}
+
+pub(crate) fn project(
+    identities: &mut TerminalIdentityTableBuilder,
+    checked: &CheckedTrees,
+    sources: &[(source::SourceId, [u8; 32])],
+    include: impl Fn(&TerminalIdentityTableBuilder, &str) -> bool,
+    mut retain_declaration: impl FnMut(symbols::SymbolHandle, terminal_psi::NominalDeclarationIdentity),
+) -> Result<Vec<ExternalProviderConformance>, LoweringError> {
     let typed = &checked.typed;
     let mut candidates = Vec::new();
     for machine in typed.machines() {
@@ -57,14 +83,7 @@ pub(crate) fn retain(
                     requirement,
                 )?
                 .render(checked)?;
-                let demanded =
-                    module.boundary_machines.iter().any(|boundary| {
-                        identities.text(boundary.identity) == Some(callable.as_str())
-                    }) || module
-                        .boundary_application_demands
-                        .iter()
-                        .any(|demand| demand.requirement().overload() == callable);
-                if !demanded {
+                if !include(identities, &callable) {
                     continue;
                 }
                 let provider = if machine.attached_data_symbol.is_valid() {
@@ -88,12 +107,29 @@ pub(crate) fn retain(
                 } else {
                     None
                 };
-                candidates.push(ExternalProviderConformance {
+                let numeric_intrinsic = typed.numeric_intrinsic_execution(requirement);
+                if let Some(language_semantics::numeric_intrinsics::NumericIntrinsic::Builtin {
+                    function,
+                    ..
+                }) = numeric_intrinsic
+                {
+                    let symbol = checked.symbols.builtin_function_symbol(function).ok_or(
+                        LoweringError::Unsupported(
+                            "numeric builtin is absent from its exact root slot",
+                        ),
+                    )?;
+                    if checked.symbols.builtin_function_for_symbol(symbol) != Some(function) {
+                        return Err(LoweringError::Unsupported(
+                            "numeric builtin does not round-trip through its exact root slot",
+                        ));
+                    }
+                }
+                let candidate = ExternalProviderConformance {
                     requirement: declarations::nominal(identities, checked, sources, requirement)
                         .map_err(LoweringError::Unsupported)?,
                     requirement_identity: identities.intern(&callable),
                     requirement_package: checked.symbols.symbol_package_identity(requirement),
-                    numeric_intrinsic: typed.numeric_intrinsic_execution(requirement),
+                    numeric_intrinsic,
                     target: typed.machine_authored_target(machine).map(str::to_owned),
                     realization: declarations::identity(
                         identities,
@@ -105,12 +141,17 @@ pub(crate) fn retain(
                     realization_package: checked.symbols.symbol_package_identity(machine.symbol),
                     provider,
                     binding: binding.clone(),
-                });
+                };
+                retain_declaration(requirement, candidate.requirement.clone());
+                retain_declaration(machine.symbol, candidate.realization.machine.clone());
+                if let Some(provider) = &candidate.provider {
+                    retain_declaration(machine.attached_data_symbol, provider.declaration.clone());
+                }
+                candidates.push(candidate);
             }
         }
     }
     candidates.sort();
     candidates.dedup();
-    module.external_providers = candidates;
-    Ok(())
+    Ok(candidates)
 }

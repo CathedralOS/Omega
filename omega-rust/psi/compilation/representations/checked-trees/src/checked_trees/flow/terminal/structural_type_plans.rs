@@ -417,9 +417,10 @@ pub struct CheckedUnitStructuralDomainPlan {
 /// One exact structural-domain precondition on a boundary argument. The
 /// argument index is dense over `structural_parameters`; no source expression
 /// or contract-fact handle survives into this plan.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedUnitStructuralDomainRequirementPlan {
     pub argument_index: u32,
+    pub path: Vec<CheckedUnitStructuralPathSegment>,
     pub domain: SemanticDomainId,
 }
 

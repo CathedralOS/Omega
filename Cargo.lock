@@ -982,6 +982,7 @@ dependencies = [
 name = "language-semantics"
 version = "0.1.0"
 dependencies = [
+ "build-time-values",
  "language-core",
  "numerics",
  "optimization",
@@ -1475,6 +1476,7 @@ dependencies = [
  "optimization-core",
  "package-compilation",
  "provider-planning",
+ "psi-terminal-production",
  "representation-planning",
  "selected-dispatch",
  "semantic-vocabulary",
@@ -1673,6 +1675,7 @@ dependencies = [
  "component-description",
  "diagnostics",
  "effects",
+ "evaluation-accounting",
  "flow-effects",
  "language-core",
  "language-semantics",
@@ -1742,6 +1745,7 @@ dependencies = [
  "terminal-codec",
  "terminal-psi",
  "typed-trees",
+ "validation",
 ]
 
 [[package]]
@@ -1951,6 +1955,7 @@ dependencies = [
  "package-compilation",
  "program-entry-plan",
  "provider-planning",
+ "psi-terminal-production",
  "representation-planning",
  "semantic-vocabulary",
  "source",
@@ -2536,6 +2541,7 @@ dependencies = [
  "semantic-vocabulary",
  "serde",
  "serde_json",
+ "sha2",
  "source",
  "symbols",
 ]

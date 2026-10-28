@@ -1,9 +1,10 @@
 //! Optimizer module role: executable entrance. Exact countdown constant-placement coordination.
 
-use abstract_operations::AbstractOperation as O;
+use abstract_operations::{
+    AbstractOperation as O, IntegerArithmeticOperator, IntegerOverflowPolicy,
+};
 use optimization_unit::{
-    NodeLocation, OptimizationNode, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
-    ValueDefinitionSite, ValueUse,
+    NodeLocation, OptimizationNode, PsiOptimizationFunction, PsiOptimizationUnit, ValueUse,
 };
 
 use crate::validation::ValidatedOptimizerCycleComponents;
@@ -16,7 +17,8 @@ use super::{
     AnalysisRoot, AnalysisRootError, CountdownInvariantConstantAnalysisError,
     CountdownInvariantConstantRole, CountdownInvariantIntegerConstant, CountedLoopAnalysisError,
     UnsignedCountdownLoopSummary, ValidatedCountdownInvariantConstantAnalysis,
-    ValidatedCountedLoopAnalysis, validate_analysis_root, validate_moved_constant_locations,
+    ValidatedCountedLoopAnalysis, expected_constant, invariant_constant_row, sole_provenance_node,
+    validate_analysis_root, validate_moved_constant_locations,
 };
 
 mod compute;
@@ -104,3 +106,84 @@ failed_display!(
 );
 
 impl std::error::Error for CountdownInvariantConstantPlacementAnalysisError {}
+
+/// The certificate operation that consumes one invariant constant: the guard
+/// comparison reading the zero, or the backedge decrement reading the one.
+pub(crate) fn consumer_operation(
+    certificate: &OptimizerUnsignedCountdownRankingCertificate,
+    role: CountdownInvariantConstantRole,
+) -> OperationId {
+    match role {
+        CountdownInvariantConstantRole::PositiveGuardZero => certificate.guard.comparison_operation,
+        CountdownInvariantConstantRole::BackedgeDecrementOne => {
+            certificate.descent.subtract_operation
+        }
+    }
+}
+
+/// Whether `node` is exactly `role`'s consumer of `constant`: the guard
+/// `rank < 0` comparison carrying the certificate's operation, condition,
+/// constant and rank parameter, or the backedge `rank - 1` exact subtraction
+/// carrying its operation, descent obligation, argument, rank type, source
+/// parameter and constant. Any other operation, and a decrement under another
+/// overflow policy or operator, is not the consumer the certificate names.
+pub(crate) fn consumer_matches(
+    node: &OptimizationNode,
+    certificate: &OptimizerUnsignedCountdownRankingCertificate,
+    role: CountdownInvariantConstantRole,
+    operation: OperationId,
+    constant: ValueId,
+) -> bool {
+    match (role, &node.operation) {
+        (
+            CountdownInvariantConstantRole::PositiveGuardZero,
+            O::IntegerLessThan {
+                psi_operation,
+                result,
+                left,
+                right,
+            },
+        ) => {
+            (*psi_operation, *result, *left, *right)
+                == (
+                    operation,
+                    certificate.guard.condition,
+                    constant,
+                    certificate.rank_parameter,
+                )
+        }
+        (
+            CountdownInvariantConstantRole::BackedgeDecrementOne,
+            O::IntegerArithmetic {
+                psi_operation,
+                result,
+                scalar_type,
+                arithmetic,
+                left,
+                right,
+            },
+        ) if (arithmetic.policy(), arithmetic.operator())
+            == (
+                IntegerOverflowPolicy::Exact,
+                IntegerArithmeticOperator::Subtract,
+            ) =>
+        {
+            (
+                *psi_operation,
+                arithmetic.obligation(),
+                *result,
+                *scalar_type,
+                *left,
+                *right,
+            ) == (
+                operation,
+                Some(certificate.descent.subtract_obligation),
+                certificate.descent.argument,
+                certificate.rank_type,
+                certificate.descent.source_parameter,
+                constant,
+            )
+        }
+        _ => false,
+    }
+}

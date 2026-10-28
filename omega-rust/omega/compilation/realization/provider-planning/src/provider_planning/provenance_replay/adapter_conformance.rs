@@ -180,16 +180,28 @@ pub fn exact_checked_adapter<'typed>(
             plan.name,
         )));
     }
-    let identity_matches = typed
-        .machines()
-        .iter()
-        .filter(|candidate| {
-            crate::target_machines::realizes_machine(context, candidate, Some(&plan.target))
-                && typed
-                    .machine_callable_identity_text(candidate)
-                    .is_some_and(|identity| identity == plan.identity_text(*machine_identity))
-        })
-        .collect::<Vec<_>>();
+    let target_identity_text = plan.identity_text(*machine_identity);
+    let target_callable_identity = typed.callable_identity_by_text(target_identity_text);
+    let identity_matches = if target_callable_identity.is_valid() {
+        let mut matches = typed
+            .machines_by_callable_identity(target_callable_identity)
+            .into_iter()
+            .filter(|candidate| {
+                crate::target_machines::realizes_machine(context, candidate, Some(&plan.target))
+            })
+            .collect::<Vec<_>>();
+        for candidate in typed.machines() {
+            if candidate.target.is_some()
+                && crate::target_machines::realizes_machine(context, candidate, Some(&plan.target))
+                && typed.machine_callable_identity(candidate) == target_callable_identity
+            {
+                matches.push(candidate);
+            }
+        }
+        matches
+    } else {
+        Vec::new()
+    };
     let matches = identity_matches
         .iter()
         .copied()
@@ -471,17 +483,31 @@ pub(crate) fn exact_checked_adapter_invocations(
             summaries.len(),
         )));
     };
-    let top_level_requirement = typed.machines().iter().find(|requirement| {
-        requirement.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
-            && typed
-                .machine_callable_identity_text(requirement)
-                .is_some_and(|identity| {
-                    identity == plan.schema.identity_text(method.requirement_identity)
+    let target_identity = typed.callable_identity_by_text(plan.schema.identity_text(method.requirement_identity));
+    let top_level_requirement = if target_identity.is_valid() {
+        typed
+            .machines_by_callable_identity(target_identity)
+            .into_iter()
+            .find(|requirement| {
+                requirement.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
+                    && context.contains(requirement.symbol)
+                    && typed.symbols.symbol_package_identity(requirement.symbol)
+                        == method.requirement_owner_package_identity
+            })
+            .or_else(|| {
+                typed.machines().iter().find(|requirement| {
+                    requirement.target.is_some()
+                        && requirement.supply_mode
+                            == language_semantics::MachineSupplyMode::TopLevelRequirement
+                        && typed.machine_callable_identity(requirement) == target_identity
+                        && context.contains(requirement.symbol)
+                        && typed.symbols.symbol_package_identity(requirement.symbol)
+                            == method.requirement_owner_package_identity
                 })
-            && context.contains(requirement.symbol)
-            && typed.symbols.symbol_package_identity(requirement.symbol)
-                == method.requirement_owner_package_identity
-    });
+            })
+    } else {
+        None
+    };
     let boundaries = typed
         .traits()
         .iter()

@@ -441,30 +441,11 @@ impl CurrentScalarValues<'_> {
             alternatives: Vec::new(),
             immutable_coordinate: true,
         }));
-        if !admitted(
-            self.program,
-            callee,
-            state,
-            self.statement_index,
-            expression,
-            &formals,
-            &lengths,
-            &fields,
-            0,
-        ) {
+        let occurrence = self.occurrence_at(self.program, callee, state, &lengths);
+        if !admitted(occurrence, expression, &formals, &fields, 0) {
             return None;
         }
-        let mut goal = scoped(
-            callee,
-            state,
-            self.statement_index,
-            expression,
-            &formals,
-            &lengths,
-            &fields,
-            &self.hypotheses,
-            self.program,
-        )?;
+        let mut goal = scoped(occurrence, expression, &formals, &fields)?;
         let mut captured_actuals = Vec::new();
         for (binding_index, binding) in goal.bindings.iter_mut().enumerate() {
             // A callee field needs an actual-place substitution, including on

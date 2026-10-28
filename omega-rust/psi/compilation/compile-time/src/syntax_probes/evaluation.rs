@@ -77,7 +77,13 @@ impl PreparedEvaluationInputs {
     ) -> EvaluationDomain {
         let mut execution = roots.to_vec();
         admission.append_execution_dependencies(program, &mut execution);
-        let (work, selection) = declaration_dependencies(program, &execution, expressions, &[]);
+        let (work, selection) = declaration_dependencies(
+            program,
+            &admission.operators,
+            &execution,
+            expressions,
+            &[],
+        );
         EvaluationDomain::selected(work, selection)
     }
 }
@@ -115,6 +121,46 @@ pub(crate) fn prepare_owned_probe_evaluation(
         owners,
         predecessor,
     )
+}
+
+/// Call-free scalar probes only inspect their own typed expression and constant
+/// declaration table, without needing an execution or checking domain closure.
+pub(crate) fn prepare_call_free_probe_typing(
+    mut frontier: syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
+    owners: &[SymbolHandle],
+    predecessor: Option<symbol_resolved_trees_to_typed_trees::SeededTypingBase>,
+) -> Result<TypedTrees, Vec<Diagnostic>> {
+    if owners.iter().any(|owner| {
+        !frontier
+            .trees()
+            .machines
+            .iter()
+            .any(|machine| machine.symbol == *owner)
+    }) {
+        return Err(vec![Diagnostic::error(
+            "evaluation probe lost its exact declaration owner",
+        )]);
+    }
+    loop {
+        let demand = frontier.body_demand(owners, &[])?;
+        if demand.deferred_machines.is_empty() {
+            break;
+        }
+        frontier = frontier
+            .complete_machine_bodies(&demand.deferred_machines)?
+            .into_resolved_frontier();
+    }
+    let typing = if let Some(predecessor) = predecessor {
+        let extension = frontier.into_extension()?;
+        let (typing, _) = predecessor.append_deferred(extension)?;
+        typing
+    } else {
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees_to_seeded_base(
+            frontier.shared_trees(),
+        )
+        .map_err(|diagnostic| vec![diagnostic])?
+    };
+    Ok(typing.into_typed())
 }
 
 fn prepare_evaluation_inputs_with_owners(
@@ -219,9 +265,11 @@ fn prepare_evaluation_inputs_with_owners(
         // Typing selects operator overloads which have no ordinary call edge in
         // raw syntax. Use the existing operational graph, not token spellings or
         // a second expression walker, to demand those same selected bodies.
-        selected_body_dependencies(typing.typed(), &mut execution);
+        let operators = validation::derive_pre_flow_operator_selections(typing.typed());
+        selected_body_dependencies(typing.typed(), &operators, &mut execution);
         let (work, selection) = declaration_dependencies(
             typing.typed(),
+            &operators,
             &execution,
             expression_sources,
             declaration_roots,
@@ -274,9 +322,12 @@ fn validate_declaration_roots(
     Ok(())
 }
 
-fn selected_body_dependencies(program: &TypedTrees, execution: &mut Vec<SymbolHandle>) {
-    crate::BuildTimeAdmissionPlan::infer(program, None)
-        .append_execution_dependencies(program, execution);
+fn selected_body_dependencies(
+    program: &TypedTrees,
+    operators: &checked_trees::CheckedOperatorFacts,
+    execution: &mut Vec<SymbolHandle>,
+) {
+    crate::BuildTimeAdmissionPlan::infer_execution_dependencies(program, operators, execution);
 }
 
 /// Calls are not the whole checking domain: a demanded signature, data predicate,
@@ -285,6 +336,7 @@ fn selected_body_dependencies(program: &TypedTrees, execution: &mut Vec<SymbolHa
 /// all non-machine declarations would instead check unrelated pending indices.
 fn declaration_dependencies(
     program: &TypedTrees,
+    operators: &checked_trees::CheckedOperatorFacts,
     execution: &[SymbolHandle],
     expression_sources: &[SourceSpan],
     declaration_roots: &[SymbolHandle],
@@ -292,43 +344,38 @@ fn declaration_dependencies(
     let declarations = typed_trees::references::collect_program_declarations(program);
     let roster = DeclarationSelection::from_symbols(declarations.iter().copied());
     let mut selection = DeclarationSelection::from_symbols(execution.iter().copied());
-    let mut endpoint_owners = DeclarationSelection::from_symbols([]);
+    let mut endpoint_owners =
+        typed_trees::references::collect_expression_source_owners(program, expression_sources);
+    let mut has_endpoint_owners = !expression_sources.is_empty();
     for &symbol in declaration_roots {
         if program.symbols.get(symbol).kind == symbols::SymbolKind::Machine {
             endpoint_owners.include(symbol);
+            has_endpoint_owners = true;
         } else {
             selection.include(symbol);
-        }
-    }
-    let operators = validation::derive_pre_flow_operator_selections(program);
-    // An endpoint is evaluated as part of its real declared type, not detached
-    // into an invented scalar carrier. Retain the declaration owning that exact
-    // occurrence, including its typed calls and proof/type dependencies.
-    if !expression_sources.is_empty() {
-        for symbol in declarations {
-            let references = collect_selected_program_references(
-                program,
-                &DeclarationSelection::from_symbols([symbol]),
-            );
-            if references.expressions.iter().any(|expression| {
-                expression_sources.contains(&program.expression_table.source_span(*expression))
-            }) {
-                endpoint_owners.include(symbol);
-            }
         }
     }
     // A signature owns work without demanding its machine implementation.
     // Actual calls from those endpoints have already entered `execution` through
     // resolved body demand. Their typed type/proof dependencies enter here, but
     // an enclosing machine does not become executable merely by owning a type.
-    for mut symbol in collect_selected_program_references(program, &endpoint_owners).symbols {
-        while symbol.is_valid() {
-            if roster.contains(symbol) && !endpoint_owners.contains(symbol) {
-                selection.include(symbol);
+    let endpoint_declarations = if has_endpoint_owners
+        && endpoint_owners != DeclarationSelection::from_symbols([])
+    {
+        let endpoint_refs = collect_selected_program_references(program, &endpoint_owners);
+        for mut symbol in endpoint_refs.symbols {
+            while symbol.is_valid() {
+                if roster.contains(symbol) && !endpoint_owners.contains(symbol) {
+                    selection.include(symbol);
+                }
+                symbol = program.symbols.get(symbol).parent;
             }
-            symbol = program.symbols.get(symbol).parent;
         }
-    }
+        endpoint_refs.declarations
+    } else {
+        Vec::new()
+    };
+    let mut closure = typed_trees::references::ReferenceClosure::new();
     loop {
         let mut changed = false;
         // A family declaration is one checking unit. Retain its members and
@@ -353,35 +400,34 @@ fn declaration_dependencies(
                 }
             }
         }
-        let references = collect_selected_program_references(program, &selection);
-        let mut referenced_symbols = references.symbols;
-        // Operator meaning is selected from operand types, not necessarily a
-        // resolved call target. Retain the ordinary selection's exact candidate
-        // context as well as its chosen declaration; pruning must not invent a
-        // builtin fallback by deleting an unresolved domain-owned candidate.
-        for (_, operator_use) in operators
-            .uses
-            .iter()
-            .filter(|(_, operator_use)| references.expressions.contains(&operator_use.expression))
-        {
-            referenced_symbols.insert(operator_use.selected_operator_symbol);
+        let (mut referenced_symbols, new_expressions) = closure.extend(program, &selection);
+        if !new_expressions.is_empty() {
+            // Operator meaning is selected from operand types, not necessarily a
+            // resolved call target. Retain the ordinary selection's exact candidate
+            // context as well as its chosen declaration; pruning must not invent a
+            // builtin fallback by deleting an unresolved domain-owned candidate.
+            for (_, operator_use) in operators
+                .uses
+                .iter()
+                .filter(|(_, operator_use)| new_expressions.contains(&operator_use.expression))
+            {
+                referenced_symbols.insert(operator_use.selected_operator_symbol);
+                referenced_symbols.extend(
+                    operators
+                        .candidates
+                        .span_or_empty(operator_use.candidates)
+                        .iter()
+                        .map(|candidate| candidate.operator_symbol),
+                );
+            }
             referenced_symbols.extend(
                 operators
-                    .candidates
-                    .span_or_empty(operator_use.candidates)
+                    .named_uses
                     .iter()
-                    .map(|candidate| candidate.operator_symbol),
+                    .filter(|(_, operator_use)| new_expressions.contains(&operator_use.expression))
+                    .map(|(_, operator_use)| operator_use.selected_operator_symbol),
             );
         }
-        referenced_symbols.extend(
-            operators
-                .named_uses
-                .iter()
-                .filter(|(_, operator_use)| {
-                    references.expressions.contains(&operator_use.expression)
-                })
-                .map(|(_, operator_use)| operator_use.selected_operator_symbol),
-        );
         for mut symbol in referenced_symbols {
             while symbol.is_valid() {
                 if roster.contains(symbol) && !selection.contains(symbol) {
@@ -393,9 +439,7 @@ fn declaration_dependencies(
         }
         if !changed {
             let mut work = selection.clone();
-            for symbol in
-                collect_selected_program_references(program, &endpoint_owners).declarations
-            {
+            for symbol in endpoint_declarations {
                 work.include(symbol);
             }
             return (work, selection);

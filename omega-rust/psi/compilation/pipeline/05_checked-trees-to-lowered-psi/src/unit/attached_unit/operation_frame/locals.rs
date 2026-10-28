@@ -6,12 +6,10 @@
 //! operation buffer and the machine-wide catalog.
 
 use super::super::view_ranges::ViewRangeSite;
-use super::{
-    OperationFrame, StructuralResults, StructuralTypeRoster, allocate_structural_result,
-    operation_result_declaration,
-};
+use super::{OperationFrame, StructuralResults, StructuralTypeRoster, allocate_structural_result};
 use crate::emission::borrowed_window::{BorrowedWindowRepairValue, WindowEvaluation};
 use crate::emission::operation_emission::buffer::StructuralBinding;
+use crate::emission::operation_emission::place_declarations::operation_result_place;
 use crate::unit::{
     CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, LoweringError, Operation,
     OperationKind, OperationResult, PlaceId, StructuralAccess, StructuralDomainId,
@@ -466,13 +464,7 @@ impl OperationFrame<'_, '_> {
         let Some(produced) = producer.result.as_structural() else {
             return unsupported("borrowed-window move established no structural value");
         };
-        let declaration = StructuralPlaceDeclaration {
-            id: moved,
-            kind: StructuralPlaceKind::OperationResult {
-                producer: producer.id,
-                structural_type: produced.structural_type,
-            },
-        };
+        let declaration = operation_result_place(moved, producer.id, produced.structural_type);
         let produced = produced.clone();
         match &mut self.results {
             StructuralResults::Dense(roster) => roster.push((Some(declaration), false)),
@@ -571,20 +563,18 @@ impl OperationFrame<'_, '_> {
         };
         self.private_places.push(declaration);
         let id = self.operations.allocate();
-        self.operations.push(Operation {
+        // A literal view's bytes are image storage: the predicate obligation
+        // belongs to the consuming store, as in `emit_literal_view`, not to
+        // this establishment.
+        self.operations.push(Operation::unsuspended(
             id,
-            static_reach_binding: None,
-            suspension_crossing: None,
-            result: OperationResult::Unit,
-            // A literal view's bytes are image storage: the predicate
-            // obligation belongs to the consuming store, as in
-            // `emit_literal_view`, not to this establishment.
-            kind: OperationKind::EstablishByteSequenceLiteral {
+            OperationResult::Unit,
+            OperationKind::EstablishByteSequenceLiteral {
                 destination,
                 bytes: bytes.to_vec(),
                 qualifications: Vec::new(),
             },
-        });
+        ));
         self.evaluation
             .current_claims
             .publish(destination, Vec::new())?;
@@ -805,7 +795,7 @@ impl OperationFrame<'_, '_> {
             OperationKind::EstablishStructuralLocal {},
         )?;
         self.results.push(
-            operation_result_declaration(home, producer, structural_type),
+            operation_result_place(home, producer, structural_type),
             *discard_result_on_return,
         );
         let produced = self
@@ -945,11 +935,9 @@ impl OperationFrame<'_, '_> {
                 // would partially move an affine parent before its next use.
                 let place = place_id(allocate_dense(self.next_place)?);
                 let producer = self.operations.allocate();
-                self.operations.push(Operation {
-                    static_reach_binding: None,
-                    suspension_crossing: None,
-                    id: producer,
-                    result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                self.operations.push(Operation::unsuspended(
+                    producer,
+                    OperationResult::Structural(terminal_psi::StructuralOperationResult {
                         place,
                         structural_type: selected,
                         multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
@@ -958,13 +946,13 @@ impl OperationFrame<'_, '_> {
                         qualification_establishments: Vec::new(),
                         claims: Vec::new(),
                     }),
-                    kind: OperationKind::StructuralLeafCopy {
+                    OperationKind::StructuralLeafCopy {
                         source: repair.place,
                         path,
                     },
-                });
+                ));
                 self.private_places
-                    .push(operation_result_declaration(place, producer, selected));
+                    .push(operation_result_place(place, producer, selected));
                 repair.place = place;
                 repair.structural_type = selected;
             } else {

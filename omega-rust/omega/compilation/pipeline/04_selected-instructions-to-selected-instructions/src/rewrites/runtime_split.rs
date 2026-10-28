@@ -103,13 +103,7 @@ impl RuntimeSplitError {
     }
 }
 
-impl std::fmt::Display for RuntimeSplitError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "invalid runtime live-range split: {self:?}")
-    }
-}
-
-impl std::error::Error for RuntimeSplitError {}
+failed_display!(RuntimeSplitError, "invalid runtime live-range split");
 
 /// Every boundary-settlement position strictly after the definition moves
 /// past the one inserted copy; positions at or before it are unchanged. The

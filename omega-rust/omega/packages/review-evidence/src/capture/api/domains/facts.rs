@@ -1,6 +1,6 @@
 use crate::capture::PackageReviewInput;
 use crate::capture::contracts::expressions::projection::project_contract_expression;
-use crate::capture::contracts::facts::ContractProjectionContext;
+use crate::capture::contracts::facts::{ContractProjectionContext, reviewed_package};
 use crate::capture::contracts::propositions::application::project_contract_proposition;
 use crate::capture::semantics::declarations::{nominal_identity, reviewed_package_owns};
 use crate::record::{PackageReviewContractFact, PackageReviewNominalIdentity};
@@ -28,15 +28,7 @@ pub(crate) fn project_domain_predicate_facts(
         lifetime_substitutions: &[],
         selection_exposure: language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
     };
-    let reviewed_package = compilation
-        .custody
-        .sources()
-        .package_identity()
-        .ok_or_else(|| {
-            vec![Diagnostic::error(
-                "domain predicate review requires package-aware checked compilation",
-            )]
-        })?;
+    let reviewed_package = reviewed_package(compilation, "domain predicate")?;
     let mut projected = Vec::new();
     for fact_handle in definition.facts.handles() {
         require_exact_checked_domain_fact(compilation, definition.symbol, fact_handle, identity)?;

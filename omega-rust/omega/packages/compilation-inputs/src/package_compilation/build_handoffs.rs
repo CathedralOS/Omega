@@ -40,6 +40,7 @@ struct PackageBuildHandoffContents {
     provider_selections:
         Arc<[build_time_evaluation::provider_declarations::RetainedProviderSelection]>,
     selection_observation: Option<[u8; 32]>,
+    native: super::native_bindings::NativeBuildOutputs,
 }
 
 impl PackageBuildHandoff {
@@ -84,6 +85,7 @@ impl PackageBuildHandoff {
                 sources,
                 provider_selections: Arc::from([]),
                 selection_observation: None,
+                native: Default::default(),
             }),
         }
     }
@@ -152,6 +154,51 @@ impl PackageBuildHandoff {
         &self.contents.provider_selections
     }
 
+    pub fn native_declarations(
+        &self,
+    ) -> &[language_semantics::declaration_selection::CapturedNativeDeclaration] {
+        &self.contents.native.declarations
+    }
+
+    pub fn native_intents(
+        &self,
+    ) -> &[language_semantics::declaration_selection::CapturedNativeIntent] {
+        &self.contents.native.intents
+    }
+
+    pub fn native_evaluation(&self) -> Option<&Arc<super::NativeBuildEvaluation>> {
+        self.contents.native.evaluation.as_ref()
+    }
+
+    #[doc(hidden)]
+    pub fn with_native_binding_outputs(
+        self,
+        declarations: Vec<language_semantics::declaration_selection::CapturedNativeDeclaration>,
+        intents: Vec<language_semantics::declaration_selection::CapturedNativeIntent>,
+        evaluation: Option<Arc<super::NativeBuildEvaluation>>,
+    ) -> Result<Self, String> {
+        if let (Some(provider_observation), Some(native)) =
+            (self.selection_observation(), evaluation.as_ref())
+        {
+            if provider_observation != native.observation_digest {
+                return Err(
+                    "one package handoff mixes different original Build observations".into(),
+                );
+            }
+        }
+        let native = super::native_bindings::NativeBuildOutputs::checked(
+            self.package(),
+            declarations,
+            intents,
+            evaluation,
+        )?;
+        let mut contents = Arc::unwrap_or_clone(self.contents);
+        contents.native = native;
+        Ok(Self {
+            contents: Arc::new(contents),
+        })
+    }
+
     pub fn selection_observation(&self) -> Option<[u8; 32]> {
         self.contents.selection_observation
     }
@@ -162,6 +209,12 @@ impl PackageBuildHandoff {
         selections: Vec<build_time_evaluation::provider_declarations::RetainedProviderSelection>,
         observation: Option<[u8; 32]>,
     ) -> Result<Self, &'static str> {
+        if let (Some(provider_observation), Some(native)) = (observation, self.native_evaluation())
+        {
+            if provider_observation != native.observation_digest {
+                return Err("one package handoff mixes different original Build observations");
+            }
+        }
         if !selections.is_empty() && observation.is_none() {
             return Err("package provider choices have no original Build observation");
         }
@@ -310,7 +363,7 @@ impl PackageCompilationInputs {
     }
 
     #[doc(hidden)]
-    pub(crate) fn dependency_build_handoffs(&self) -> impl Iterator<Item = &PackageBuildHandoff> {
+    pub fn dependency_build_handoffs(&self) -> impl Iterator<Item = &PackageBuildHandoff> {
         self.target.dependency_build_handoffs.values()
     }
 

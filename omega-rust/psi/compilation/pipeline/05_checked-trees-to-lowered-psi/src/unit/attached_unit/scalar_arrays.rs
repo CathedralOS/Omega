@@ -4,10 +4,10 @@
 //! module owns array shape and storage.
 use super::{
     LoweringError, Operation, OperationKind, StructuralMultiplicity, StructuralPlaceDeclaration,
-    StructuralPlaceKind, StructuralTypeId, ValueDeclaration, allocate_dense, lookup_type_id,
-    place_id,
+    StructuralTypeId, ValueDeclaration, allocate_dense, lookup_type_id, place_id,
 };
 use crate::emission::operation_emission::buffer::{OperationBuffer, structural_result_declaration};
+use crate::emission::operation_emission::place_declarations::operation_result_place;
 use checked_trees::CheckedUnitStructuralResultBindingPlan;
 
 pub(super) fn emit(
@@ -28,20 +28,12 @@ pub(super) fn emit(
     if let terminal_psi::OperationResult::Structural(result) = &mut result {
         result.qualifications = qualifications;
     }
-    operations.push(Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
+    operations.push(Operation::unsuspended(
         id,
         result,
-        kind: OperationKind::EstablishScalarArray {
+        OperationKind::EstablishScalarArray {
             elements: elements.iter().map(|element| element.id).collect(),
         },
-    });
-    Ok(StructuralPlaceDeclaration {
-        id: place,
-        kind: StructuralPlaceKind::OperationResult {
-            producer: id,
-            structural_type,
-        },
-    })
+    ));
+    Ok(operation_result_place(place, id, structural_type))
 }

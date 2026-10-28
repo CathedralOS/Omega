@@ -456,6 +456,7 @@ fn referent_pointer(
     if let Some(scalar) = thin_scalar {
         crate::selection::reference_input::validate_scalar_foreign_export(
             source,
+            builder.backings,
             semantic,
             scalar,
             target.shape.byte_size,

@@ -385,13 +385,11 @@ impl OperationFrame<'_, '_> {
         let id = self.operations.allocate();
         let (returned, declaration) =
             self.prepare_structural_call_result(identities, call, shape, id)?;
-        self.operations.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
+        self.operations.push(Operation::unsuspended(
             id,
-            result: OperationResult::Structural(returned.clone()),
+            OperationResult::Structural(returned.clone()),
             kind,
-        });
+        ));
         // The dense route registers the completed value here; a composed
         // state registers it, with its local, when publishing.
         if matches!(self.results, StructuralResults::Dense(_)) {

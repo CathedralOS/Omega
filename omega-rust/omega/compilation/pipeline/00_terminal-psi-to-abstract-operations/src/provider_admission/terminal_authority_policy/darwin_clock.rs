@@ -41,18 +41,6 @@ const DARWIN_CLOCK_TRAIT: &str = "DarwinClock";
 /// The install name every reviewed `DarwinClock` leaf imports from.
 const LIBSYSTEM_INSTALL_NAME: &[u8] = b"/usr/lib/libSystem.B.dylib";
 
-/// The named requirement has no settled canonical `DarwinClock` disposition.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum UnsettledDarwinClockRequirement {
-    /// The schema is not the `DarwinClock` boundary, or the method is not one
-    /// of its canonical requirements. No disposition is inferred from a
-    /// readable name alone.
-    UnknownRequirement,
-    /// The member is canonical, but the mechanism is not the exact libSystem
-    /// import it was reviewed against.
-    UnreviewedMechanism,
-}
-
 /// The exact libSystem symbol a canonical `DarwinClock` member was reviewed
 /// against, or `None` outside the cohort.
 fn reviewed_symbol(schema: &ServiceSchema, method: &ServiceMethod) -> Option<&'static [u8]> {
@@ -97,14 +85,9 @@ pub(crate) fn darwin_clock_mechanism_row(
     mechanism: TerminalMechanismIdentity,
     schema: &ServiceSchema,
     method: &ServiceMethod,
-) -> Result<TerminalAuthorityPolicyRow, UnsettledDarwinClockRequirement> {
-    let symbol = reviewed_symbol(schema, method)
-        .ok_or(UnsettledDarwinClockRequirement::UnknownRequirement)?;
-    if !is_reviewed_import(mechanism, symbol) {
-        return Err(UnsettledDarwinClockRequirement::UnreviewedMechanism);
-    }
-    Ok(TerminalAuthorityPolicyRow::new(
-        mechanism,
-        TerminalAuthorityDisposition::from_classes([]),
-    ))
+) -> Option<TerminalAuthorityPolicyRow> {
+    let symbol = reviewed_symbol(schema, method)?;
+    is_reviewed_import(mechanism, symbol).then(|| {
+        TerminalAuthorityPolicyRow::new(mechanism, TerminalAuthorityDisposition::from_classes([]))
+    })
 }

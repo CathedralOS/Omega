@@ -62,7 +62,7 @@ impl<'facts> FactContextView<'facts> {
         }
         self.facts().any(|fact| {
             let (fact_domain, fact_place) = match fact.payload {
-                crate::domain_membership_symbol_pattern!(domain_symbol) => {
+                crate::domain_membership_pattern!(domain_symbol) => {
                     let Some(place) = fact.place.as_place() else {
                         return false;
                     };

@@ -361,7 +361,6 @@ failed_display!(
     PressureRematerializationError,
     "terminal pressure rematerialization failed"
 );
-impl std::error::Error for PressureRematerializationError {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PressureRematerializationDecodeError {
@@ -381,11 +380,10 @@ pub enum PressureRematerializationDecodeError {
     TrailingBytes,
     IdentityMismatch,
 }
-impl std::fmt::Display for PressureRematerializationDecodeError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "invalid terminal pressure rematerialization: {self:?}")
-    }
-}
+failed_display!(
+    PressureRematerializationDecodeError,
+    "invalid terminal pressure rematerialization"
+);
 impl std::error::Error for PressureRematerializationDecodeError {}
 
 fn decode_constraint_key(

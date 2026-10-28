@@ -14,6 +14,8 @@
 //! This stage never inspects rewrite history or selects a different
 //! construction route.
 
+#[macro_use]
+mod accessors;
 mod optimization;
 mod plan;
 mod post_allocation_machine;

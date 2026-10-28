@@ -329,9 +329,32 @@ pub(crate) fn boundary_structural_signature_matches(
                 .structural_parameters
                 .get(requirement.argument_index as usize)
                 .is_some_and(|parameter| {
-                    domains
-                        .get(&requirement.domain)
-                        .is_some_and(|domain| domain.carrier == parameter.structural_type)
+                    domains.get(&requirement.domain).is_some_and(|domain| {
+                        terminal_semantics::qualification_path_carrier(
+                            types.values().copied(),
+                            parameter.structural_type,
+                            &requirement.path,
+                        ) == Some(domain.carrier)
+                    })
+                })
+        })
+        && boundary
+            .normal_qualifications
+            .windows(2)
+            .all(|pair| pair[0] < pair[1])
+        && boundary.normal_qualifications.iter().all(|guarantee| {
+            boundary
+                .structural_parameters
+                .get(guarantee.argument_index as usize)
+                .is_some_and(|parameter| {
+                    parameter.access == terminal_psi::StructuralAccess::MutableBorrow
+                        && domains.get(&guarantee.domain).is_some_and(|domain| {
+                            terminal_semantics::qualification_path_carrier(
+                                types.values().copied(),
+                                parameter.structural_type,
+                                &guarantee.path,
+                            ) == Some(domain.carrier)
+                        })
                 })
         })
 }

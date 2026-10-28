@@ -86,17 +86,7 @@ pub(crate) fn encode_terminal_pressure_rematerialization_content(
                     &mut bytes,
                     action.result_virtual_register.0.to_le_bytes(),
                 );
-                bytes.push(match action.materialize_constraint.family {
-                    register_model::RegisterConstraintFamily::Call => 0,
-                    register_model::RegisterConstraintFamily::Return => 1,
-                    register_model::RegisterConstraintFamily::SystemCall => 2,
-                    register_model::RegisterConstraintFamily::InlineAssembly => 3,
-                    register_model::RegisterConstraintFamily::Instruction => 4,
-                });
-                crate::codec_bytes::push_encoded(
-                    &mut bytes,
-                    action.materialize_constraint.variant.to_le_bytes(),
-                );
+                register_model::encode_constraint_key(&mut bytes, action.materialize_constraint);
             }
         }
     }

@@ -5,6 +5,7 @@ use crate::record::PackageReviewOperatorCoordinate;
 use crate::record::PackageReviewSignatureParameter;
 use crate::record::PackageReviewTypeIdentity;
 use crate::record::PackageReviewTypeParameter;
+use crate::record::accessors::field_projection_accessors;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewConstShape {
@@ -27,8 +28,6 @@ pub(crate) struct PackageReviewOperatorShape {
 }
 
 impl PackageReviewConstShape {
-    crate::record::accessors::record_accessors!(identity);
-    pub const fn declared_type(&self) -> &PackageReviewTypeIdentity {
-        &self.declared_type
-    }
+    field_projection_accessors!(borrowed identity: &PackageReviewNominalIdentity);
+    field_projection_accessors!(borrowed declared_type: &PackageReviewTypeIdentity);
 }

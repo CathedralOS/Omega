@@ -14,11 +14,11 @@ use crate::emission::operation_emission::boundary_calls::result_policy::{
 };
 use crate::emission::operation_emission::boundary_calls::{BoundaryOperands, complete_operands};
 use crate::emission::operation_emission::buffer::SourceCallCoordinate;
+use crate::emission::operation_emission::place_declarations::operation_result_place;
 use crate::unit::{
     CheckedBoundaryMachineResultPlan, CheckedUnitEffectOperationPlan, LoweringError, Operation,
-    OperationResult, StructuralOperationResult, StructuralPlaceDeclaration, StructuralPlaceKind,
-    ValueDeclaration, allocate_dense, lookup_type_id, place_id, terminal_scalar_type, unsupported,
-    value_id,
+    OperationResult, StructuralOperationResult, StructuralPlaceDeclaration, ValueDeclaration,
+    allocate_dense, lookup_type_id, place_id, terminal_scalar_type, unsupported, value_id,
 };
 
 impl OperationFrame<'_, '_> {
@@ -60,13 +60,11 @@ impl OperationFrame<'_, '_> {
             id,
             call.target.machine,
         )?;
-        self.operations.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
+        self.operations.push(Operation::unsuspended(
             id,
-            result: OperationResult::Unit,
-            kind: operands.into_kind(),
-        });
+            OperationResult::Unit,
+            operands.into_kind(),
+        ));
         Ok(())
     }
 
@@ -130,13 +128,11 @@ impl OperationFrame<'_, '_> {
             id,
             *target_machine,
         )?;
-        self.operations.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
+        self.operations.push(Operation::unsuspended(
             id,
-            result: OperationResult::Scalar(value),
-            kind: operands.into_kind(),
-        });
+            OperationResult::Scalar(value),
+            operands.into_kind(),
+        ));
         result_policy::emit(policy, value, self.next_value, self.operations)
     }
 
@@ -180,13 +176,7 @@ impl OperationFrame<'_, '_> {
         };
         let structural_type = lookup_type_id(self.type_ids, type_identity)?;
         let result_place = place_id(allocate_dense(self.next_place)?);
-        let result_declaration = StructuralPlaceDeclaration {
-            id: result_place,
-            kind: StructuralPlaceKind::OperationResult {
-                producer: id,
-                structural_type,
-            },
-        };
+        let result_declaration = operation_result_place(result_place, id, structural_type);
         let returned = super::super::call_results::prepare(
             identities,
             checked,

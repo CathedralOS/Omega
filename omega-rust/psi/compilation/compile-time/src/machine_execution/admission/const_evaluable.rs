@@ -6,10 +6,10 @@
 //! separate judgments.
 
 use language_semantics::{DataSupplyMode, Multiplicity};
-use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::data::{DataDefinition, DataMember, DataShapeKind, TypeParameterKind};
 use typed_trees::machine::Machine;
+use typed_trees::type_identity::TypeIdentityId;
 use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 use crate::BuildTimeValue;
@@ -58,7 +58,7 @@ fn check_value(
     type_reference: TypeReferenceHandle,
     value: &BuildTimeValue,
     path: &str,
-    active_data: &mut Vec<SymbolHandle>,
+    active_data: &mut Vec<TypeIdentityId>,
 ) -> Result<(), String> {
     if !type_reference.is_valid() {
         return Err(format!("{path} has an invalid declared type"));
@@ -73,7 +73,7 @@ fn check_value(
         TypeReferenceNode::Unit => expect_value(path, value, "Unit", |value| {
             matches!(value, BuildTimeValue::Unit)
         }),
-        TypeReferenceNode::Named { symbol, name } => {
+        TypeReferenceNode::Named { name, .. } => {
             if name.as_str().starts_with("Atomic") {
                 return Err(format!(
                     "{path} has interior-mutable type `{name}`, which is not const-copy eligible"
@@ -82,7 +82,14 @@ fn check_value(
             if let Some(primitive) = PrimitiveType::from_name(name.as_str()) {
                 return check_primitive(path, primitive, value);
             }
-            check_named_data(program, *symbol, name.as_str(), value, path, active_data)
+            check_data(
+                program,
+                type_reference,
+                name.as_str(),
+                value,
+                path,
+                active_data,
+            )
         }
         TypeReferenceNode::FixedArray {
             element_type,
@@ -130,9 +137,14 @@ fn check_value(
         TypeReferenceNode::Constrained { base_type, .. } => {
             check_value(program, *base_type, value, path, active_data)
         }
-        TypeReferenceNode::Generic { .. } => Err(format!(
-            "{path} has an open or generic aggregate type and is not a closed const type"
-        )),
+        TypeReferenceNode::Generic { base_name, .. } => check_data(
+            program,
+            type_reference,
+            base_name.as_str(),
+            value,
+            path,
+            active_data,
+        ),
         TypeReferenceNode::ConstExpression(_) => Err(format!(
             "{path} has a proof-static expression type, not a runtime const value type"
         )),
@@ -182,63 +194,69 @@ fn consistent_nominal_spelling(recorded: &str, declared: &str) -> bool {
             .is_some_and(|prefix| prefix.ends_with("::"))
 }
 
-fn check_named_data(
-    program: &TypedTrees,
-    symbol: SymbolHandle,
+/// Consume the producer-retained closed shape of either spelling. A retained
+/// generic declaration need not be copied into another nominal declaration for
+/// its exact closed application to cross the const boundary.
+fn closed_data<'program>(
+    program: &'program TypedTrees,
+    reference: TypeReferenceHandle,
     name: &str,
-    value: &BuildTimeValue,
     path: &str,
-    active_data: &mut Vec<SymbolHandle>,
-) -> Result<(), String> {
-    if !symbol.is_valid() {
-        return Err(format!(
-            "{path} names `{name}` without an exact nominal type identity"
-        ));
-    }
-    let mut definitions = program
-        .data_definitions()
-        .iter()
-        .filter(|definition| definition.symbol == symbol);
-    let definition = definitions
-        .next()
-        .ok_or_else(|| format!("{path} names unknown data type `{name}`"))?;
-    if definitions.next().is_some() {
-        return Err(format!(
-            "{path} has ambiguous nominal type identity for `{name}`"
-        ));
-    }
-    if !consistent_nominal_spelling(name, definition.name.as_str()) {
+) -> Result<&'program DataDefinition, String> {
+    let definition = program.closed_data_definition(reference).ok_or_else(|| {
+        format!("{path} has an open or generic aggregate type and is not a closed const type")
+    })?;
+    if matches!(
+        program.type_reference_table.type_reference(reference),
+        TypeReferenceNode::Named { .. }
+    ) && !consistent_nominal_spelling(name, definition.name.as_str())
+    {
         return Err(format!(
             "{path} has inconsistent nominal type spelling `{name}` for `{}`",
             definition.name
         ));
     }
-    require_closed_data_shape(program, definition, path)?;
-    if active_data.contains(&symbol) {
+    Ok(definition)
+}
+
+fn check_data(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    name: &str,
+    value: &BuildTimeValue,
+    path: &str,
+    active_data: &mut Vec<TypeIdentityId>,
+) -> Result<(), String> {
+    let definition = closed_data(program, reference, name, path)?;
+    let identity = program.normalized_type_identity(reference);
+    if !identity.is_valid() || active_data.contains(&identity) {
         return Err(format!(
-            "{path} reaches recursive data `{name}`, which is outside the closed aggregate const boundary"
+            "{path} reaches recursive or unresolved data `{name}`, which is outside the closed aggregate const boundary"
         ));
     }
-    active_data.push(symbol);
-    let result = match DataDefinition::shape_kind_from_members(program.data_members(definition)) {
-        DataShapeKind::Empty | DataShapeKind::Record => {
-            if definition.properties.multiplicity == Multiplicity::Unrestricted {
-                check_record(program, definition, value, path, active_data)
-            } else {
-                Err(format!(
-                    "{path} has affine or linear type `{}`; ConstEvaluable record results must be freely copyable",
-                    definition.name
-                ))
+    active_data.push(identity);
+    let result = (|| {
+        require_closed_data_shape(program, definition, path, active_data)?;
+        match DataDefinition::shape_kind_from_members(program.data_members(definition)) {
+            DataShapeKind::Empty | DataShapeKind::Record => {
+                if definition.properties.multiplicity == Multiplicity::Unrestricted {
+                    check_record(program, definition, value, path, active_data)
+                } else {
+                    Err(format!(
+                        "{path} has affine or linear type `{}`; ConstEvaluable record results must be freely copyable",
+                        definition.name
+                    ))
+                }
             }
+            // Sum admission is intentionally value-sensitive: only the realized
+            // case and its payload cross the boundary. An inactive reference/Text
+            // case must not contaminate an otherwise closed copy-eligible result.
+            DataShapeKind::Enum => check_sum(program, definition, value, path, active_data),
+            DataShapeKind::Mixed => Err(format!(
+                "{path} has mixed record/sum shape `{name}`, which is outside this ConstEvaluable stage"
+            )),
         }
-        // Sum admission is intentionally value-sensitive: only the realized
-        // case and its payload cross the boundary. An inactive reference/Text
-        // case must not contaminate an otherwise closed copy-eligible result.
-        DataShapeKind::Enum => check_sum(program, definition, value, path, active_data),
-        DataShapeKind::Mixed => Err(format!(
-            "{path} has mixed record/sum shape `{name}`, which is outside this ConstEvaluable stage"
-        )),
-    };
+    })();
     active_data.pop();
     result
 }
@@ -247,6 +265,7 @@ fn require_closed_data_shape(
     program: &TypedTrees,
     definition: &DataDefinition,
     path: &str,
+    active_data: &mut Vec<TypeIdentityId>,
 ) -> Result<(), String> {
     if definition.supply_mode != DataSupplyMode::CheckedShape {
         return Err(format!(
@@ -269,7 +288,7 @@ fn require_closed_data_shape(
     // every argument a closed const atom or closed type. Anything else means
     // the value's identity still mentions an open construct.
     if let Some(application) = definition.generic_instance {
-        require_closed_generic_application(program, definition, application, path)?;
+        require_closed_generic_application(program, definition, application, path, active_data)?;
     }
     if definition.quotient.is_some() {
         return Err(format!(
@@ -285,15 +304,14 @@ fn require_closed_data_shape(
 /// the open generic template, lifetime arguments must already be erased, and
 /// each argument must satisfy its parameter kind — a closed const literal for
 /// `const`/`value` parameters, a closed type for `type` parameters. Machine
-/// parameters can never supply a const-evaluable argument. Layout-plan
-/// materialization admission reuses this same judgment so a substituted
-/// literal member — a `const N` array length, say — keeps one closed-argument
-/// rule across the interpreter and materialization boundaries.
-pub(crate) fn require_closed_generic_application(
+/// parameters can never supply a const-evaluable argument. Substituted field
+/// shapes and nested argument types share this closed-application judgment.
+fn require_closed_generic_application(
     program: &TypedTrees,
     definition: &DataDefinition,
     application: TypeReferenceHandle,
     path: &str,
+    active_data: &mut Vec<TypeIdentityId>,
 ) -> Result<(), String> {
     let TypeReferenceNode::Generic {
         base_symbol,
@@ -350,14 +368,13 @@ pub(crate) fn require_closed_generic_application(
             parameters.len()
         ));
     }
-    let mut active_data = Vec::new();
     for (parameter, argument) in parameters.iter().zip(arguments.iter()) {
         require_closed_argument(
             program,
             &parameter.kind,
             *argument,
             &format!("{path} parameter `{}`", parameter.name),
-            &mut active_data,
+            active_data,
         )?;
     }
     Ok(())
@@ -372,7 +389,7 @@ fn require_closed_argument(
     kind: &TypeParameterKind,
     argument: TypeReferenceHandle,
     path: &str,
-    active_data: &mut Vec<SymbolHandle>,
+    active_data: &mut Vec<TypeIdentityId>,
 ) -> Result<(), String> {
     match kind {
         TypeParameterKind::Type => require_closed_type(program, argument, path, active_data),
@@ -406,14 +423,14 @@ fn require_closed_type(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
     path: &str,
-    active_data: &mut Vec<SymbolHandle>,
+    active_data: &mut Vec<TypeIdentityId>,
 ) -> Result<(), String> {
     if !type_reference.is_valid() {
         return Err(format!("{path} has an invalid argument type"));
     }
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Unit => Ok(()),
-        TypeReferenceNode::Named { symbol, name } => {
+        TypeReferenceNode::Named { name, .. } => {
             if name.as_str().starts_with("Atomic") {
                 return Err(format!(
                     "{path} has interior-mutable type `{name}`, which is not const-copy eligible"
@@ -422,62 +439,15 @@ fn require_closed_type(
             if PrimitiveType::from_name(name.as_str()).is_some() {
                 return Ok(());
             }
-            if !symbol.is_valid() {
-                return Err(format!(
-                    "{path} names `{name}` without an exact nominal type identity"
-                ));
-            }
-            let mut definitions = program
-                .data_definitions()
-                .iter()
-                .filter(|candidate| candidate.symbol == *symbol);
-            let definition = definitions
-                .next()
-                .ok_or_else(|| format!("{path} names unknown data type `{name}`"))?;
-            if definitions.next().is_some() {
-                return Err(format!(
-                    "{path} has ambiguous nominal type identity for `{name}`"
-                ));
-            }
-            if !consistent_nominal_spelling(name.as_str(), definition.name.as_str()) {
-                return Err(format!(
-                    "{path} has inconsistent nominal type spelling `{name}` for `{}`",
-                    definition.name
-                ));
-            }
-            require_closed_data_shape(program, definition, path)?;
-            if active_data.contains(symbol) {
-                return Err(format!(
-                    "{path} reaches recursive data `{name}` through a generic argument"
-                ));
-            }
-            active_data.push(*symbol);
-            let result = (|| {
-                for member in program.data_members(definition) {
-                    match member {
-                        DataMember::Field(field) => require_closed_type(
-                            program,
-                            field.type_reference,
-                            &format!("{path}.{}", field.name),
-                            active_data,
-                        )?,
-                        DataMember::Variant(variant) => {
-                            for field in program.data_payload_fields(variant) {
-                                require_closed_type(
-                                    program,
-                                    field.type_reference,
-                                    &format!("{path}::{}.{}", variant.name, field.name),
-                                    active_data,
-                                )?;
-                            }
-                        }
-                    }
-                }
-                Ok(())
-            })();
-            active_data.pop();
-            result
+            require_closed_data_type(program, type_reference, name.as_str(), path, active_data)
         }
+        TypeReferenceNode::Generic { base_name, .. } => require_closed_data_type(
+            program,
+            type_reference,
+            base_name.as_str(),
+            path,
+            active_data,
+        ),
         TypeReferenceNode::FixedArray {
             element_type,
             length,
@@ -494,9 +464,7 @@ fn require_closed_type(
         }
         TypeReferenceNode::Reference { .. } => Err(format!("{path} has reference type")),
         TypeReferenceNode::Slice { .. } => Err(format!("{path} has slice type")),
-        TypeReferenceNode::Generic { .. } => Err(format!(
-            "{path} has an open or generic aggregate type and is not a closed const type"
-        )),
+
         TypeReferenceNode::ConstExpression(_) => Err(format!(
             "{path} has a proof-static expression type, not a runtime const value type"
         )),
@@ -504,12 +472,55 @@ fn require_closed_type(
     }
 }
 
+fn require_closed_data_type(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    name: &str,
+    path: &str,
+    active_data: &mut Vec<TypeIdentityId>,
+) -> Result<(), String> {
+    let definition = closed_data(program, reference, name, path)?;
+    let identity = program.normalized_type_identity(reference);
+    if !identity.is_valid() || active_data.contains(&identity) {
+        return Err(format!(
+            "{path} reaches recursive or unresolved data `{name}` through a generic argument"
+        ));
+    }
+    active_data.push(identity);
+    let result = (|| {
+        require_closed_data_shape(program, definition, path, active_data)?;
+        for member in program.data_members(definition) {
+            match member {
+                DataMember::Field(field) => require_closed_type(
+                    program,
+                    field.type_reference,
+                    &format!("{path}.{}", field.name),
+                    active_data,
+                )?,
+                DataMember::Variant(variant) => {
+                    for field in program.data_payload_fields(variant) {
+                        require_closed_type(
+                            program,
+                            field.type_reference,
+                            &format!("{path}::{}.{}", variant.name, field.name),
+                            active_data,
+                        )?;
+                    }
+                }
+            }
+        }
+        Ok(())
+    })();
+    active_data.pop();
+    result
+}
+
 fn check_record(
     program: &TypedTrees,
     definition: &DataDefinition,
     value: &BuildTimeValue,
     path: &str,
-    active_data: &mut Vec<SymbolHandle>,
+    active_data: &mut Vec<TypeIdentityId>,
 ) -> Result<(), String> {
     let BuildTimeValue::Struct { type_name, fields } = value else {
         return Err(format!(
@@ -571,7 +582,7 @@ fn check_sum(
     definition: &DataDefinition,
     value: &BuildTimeValue,
     path: &str,
-    active_data: &mut Vec<SymbolHandle>,
+    active_data: &mut Vec<TypeIdentityId>,
 ) -> Result<(), String> {
     let BuildTimeValue::Case { variant, payload } = value else {
         return Err(format!(

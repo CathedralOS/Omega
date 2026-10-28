@@ -223,11 +223,10 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
             }
         }
     }
-    // Owned lifetime carriers can return a suspended original referent even
-    // though this invocation has no direct &mut formal for that storage.
-    // Reintroduce declared value predicates, never extra root constraints or
-    // routed authority. Normal borrow/resource checking still validates the
-    // exact carrier consumption and full cohort before publication.
+    // The consumed holder returns its exact captured source. Pure declared
+    // predicates follow the normal typed handback; routed descendants also
+    // require every historical input supply's exact membership. The same
+    // immutable receipt is independently replayed by content admission.
     for returned in crate::flow::retained_borrows::handbacks(
         program,
         borrow,
@@ -237,15 +236,19 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
         borrow_call,
         argument_sources,
     ) {
-        for (path, domain, identity) in
-            validation::field_domains::declared_result_field_domain_paths(
-                program,
-                returned.reference,
-            )
-        {
-            if crate::checks::contracts::value_provable_domain(program, domain) {
-                rows.push((returned.place.clone(), path, domain, identity));
-            }
+        for membership in crate::flow::retained_borrows::memberships(
+            program,
+            semantic,
+            &build.contexts,
+            &build.control,
+            &returned,
+        ) {
+            rows.push((
+                membership.place,
+                Vec::new(),
+                membership.domain,
+                membership.instance,
+            ));
         }
     }
     // Invalidation deliberately forgets which concrete element a runtime
@@ -344,7 +347,12 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
                     continue;
                 }
                 if !is_subslice_byte_domain
-                    && !guarantees.can_restore_place(program, &place, domain_symbol, semantic_domain)
+                    && !guarantees.can_restore_place(
+                        program,
+                        &place,
+                        domain_symbol,
+                        semantic_domain,
+                    )
                 {
                     continue;
                 }
@@ -370,7 +378,8 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
                     };
                     affected = true;
                     let write = &contribution.write;
-                    let Some(crate::flow::mutation::StorageRegion::Declared(source)) = &write.source
+                    let Some(crate::flow::mutation::StorageRegion::Declared(source)) =
+                        &write.source
                     else {
                         return false;
                     };

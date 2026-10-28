@@ -1848,13 +1848,11 @@ impl MachineEmission<'_> {
             return Ok(());
         };
         let id = self.operations.allocate();
-        self.operations.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
+        self.operations.push(Operation::unsuspended(
             id,
-            result: terminal_psi::OperationResult::Unit,
+            terminal_psi::OperationResult::Unit,
             kind,
-        });
+        ));
         Ok(())
     }
 }

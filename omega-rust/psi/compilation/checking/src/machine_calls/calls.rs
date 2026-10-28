@@ -619,11 +619,11 @@ pub(crate) fn validate_call_arguments(
         // Mutable-to-shared attenuation changes permission, not carrier or
         // domain. Keep the same type correspondence and proof checks below.
 
-        let expected_type =
-            program.display_type_reference_with_constraints(parameter.type_reference);
         let slot_context = format!("argument `{}` for state `{argument_scope}`", parameter.name);
 
         if !type_matches(*argument, parameter.type_reference) {
+            let expected_type =
+                program.display_type_reference_with_constraints(parameter.type_reference);
             if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
                 eprintln!(
                     "ARGUMENT_MISMATCH caller={} scope={} target={} formal={} actual={}",

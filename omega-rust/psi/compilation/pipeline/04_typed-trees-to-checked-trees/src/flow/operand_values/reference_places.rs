@@ -147,6 +147,31 @@ fn collect_operand_reference_places(
         }
         return Some(());
     }
+    // An owned observation can retain a completed value without replaying its
+    // constructor as expression children. Use the same descriptor selector as
+    // other completed-storage consumers, at this original capture's cut.
+    // An explicit unknown association is authoritative; neither an old source
+    // initializer nor the current descriptor can replace it.
+    if let Some(sources) = validation::completed_storage::owned_profile_reference_sources(
+        program, control, operand, projection,
+    ) {
+        let sources = sources.captures()?;
+        if sources.is_empty() {
+            return None;
+        }
+        for source in sources {
+            collect_reference_places(
+                program,
+                control,
+                source.capture,
+                source.reference,
+                &source.projection,
+                ancestors,
+                places,
+            )?;
+        }
+        return Some(());
+    }
     let (child, child_reference, consumed) =
         super::captured_operand_child_at_path(program, control, operand, reference, projection)?;
     collect_reference_places(

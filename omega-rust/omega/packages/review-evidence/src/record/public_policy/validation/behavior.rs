@@ -7,7 +7,7 @@ use crate::record::PackageReviewProgressSubject;
 use crate::record::PackageReviewSynchronousInvocation;
 use crate::record::package::callable_policy::validation::signature::owned_pair;
 use crate::record::validation::expressions;
-use crate::record::validation::ordered;
+use crate::record::validation::{ordered, ordered_by};
 
 pub(super) fn validate(
     crashes: &[PackagePolicyCrashRoute],
@@ -58,9 +58,7 @@ pub(super) fn crash(
     scope: &Scope<'_>,
     nesting: usize,
 ) -> Result {
-    if routes.windows(2).any(|pair| pair[0].cause >= pair[1].cause) {
-        return Err("public crash causes repeat or change order");
-    }
+    ordered_by(routes, |a, b| a.cause.cmp(&b.cause))?;
     let scope = Scope {
         result: false,
         ..*scope

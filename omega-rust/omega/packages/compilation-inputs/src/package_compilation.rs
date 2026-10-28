@@ -13,8 +13,15 @@ mod build_handoffs;
 mod construction;
 mod dependency_graph;
 mod errors;
+mod native_bindings;
+mod native_evaluation;
+pub mod native_output_codec;
 pub mod provider_selection_codec;
 mod provider_selections;
+pub use native_bindings::{
+    NativeBindingProducer, NativeBindingProduction, PackageNativeBindingOrigin,
+};
+pub use native_evaluation::NativeBuildEvaluation;
 
 pub use bindings::{
     IndependentComponentDescription, PackageDependencyBinding, PackageSourceBinding,

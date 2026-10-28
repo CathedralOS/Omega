@@ -1108,12 +1108,62 @@ fn project_recovery_manifest(
     .map_err(RuntimeSpillAllocationError::Manifest)
 }
 
+/// Close the recovery over the pressure prefix it just proved: seal the
+/// reanalyzed facts against the source's anchor analyses, assign the homes
+/// that verdict admits, and publish the manifest the recorded transformations
+/// describe. Every successful exit — the initial assignment, a flushed batch,
+/// a crossing spill, and the batch terminal — ends here, over whichever facts
+/// and rewrite it proved last.
+fn publish_recovery(
+    source: RuntimeSpillSource,
+    rewrite: RuntimeSpillStepRewrite,
+    facts: UnsealedRecoveryFacts,
+    home_reuse: &mut FunctionHomeReuse,
+    recorded: &[PostAllocationSelectedTransformation],
+) -> Result<RuntimeSpillAllocation, RuntimeSpillAllocationError> {
+    // The source is consumed here, so the prefix it resolves is read beside
+    // the move rather than borrowed from the caller's binding.
+    let resolved = source.resolve();
+    let environment = resolved.legality_stage.register_environment();
+    let availability = resolved.legality_stage.allocator_availability();
+    let facts = seal_recovery_facts(
+        environment,
+        availability,
+        &resolved.base,
+        resolved.liveness,
+        resolved.ranges,
+        resolved.legality,
+        facts,
+        &rewrite.selected(),
+    )?;
+    let homes = assign_reusing(
+        environment,
+        &facts.ranges,
+        &facts.legality,
+        Some(home_reuse),
+    )
+    .map_err(RuntimeSpillAllocationError::Homes)?;
+    let manifest = project_recovery_manifest(
+        &resolved.manifest,
+        recorded,
+        &facts.ranges,
+        &facts.legality,
+        &homes,
+    )?;
+    Ok(RuntimeSpillAllocation {
+        source,
+        last: RuntimeSpillStep { rewrite },
+        facts,
+        homes,
+        manifest,
+    })
+}
+
 fn recover_over(
     source: RuntimeSpillSource,
     mut home_reuse: FunctionHomeReuse,
 ) -> Result<RuntimeSpillAllocation, RuntimeSpillAllocationError> {
     let resolved = source.resolve();
-    let base = &resolved.manifest;
     let environment = resolved.legality_stage.register_environment();
     let availability = resolved.legality_stage.allocator_availability();
     let budget = resolved.legality_stage.budget_per_pass();
@@ -1146,37 +1196,7 @@ fn recover_over(
         )
     }) {
         Ok(()) => {
-            let facts = seal_recovery_facts(
-                environment,
-                availability,
-                &resolved.base,
-                resolved.liveness,
-                resolved.ranges,
-                resolved.legality,
-                initial_facts,
-                &rewrite.selected(),
-            )?;
-            let homes = assign_reusing(
-                environment,
-                &facts.ranges,
-                &facts.legality,
-                Some(&mut home_reuse),
-            )
-            .map_err(RuntimeSpillAllocationError::Homes)?;
-            let manifest = project_recovery_manifest(
-                &base,
-                &recorded,
-                &facts.ranges,
-                &facts.legality,
-                &homes,
-            )?;
-            return Ok(RuntimeSpillAllocation {
-                source,
-                last: RuntimeSpillStep { rewrite },
-                facts,
-                homes,
-                manifest,
-            });
+            return publish_recovery(source, rewrite, initial_facts, &mut home_reuse, &recorded);
         }
         Err(error) if error.admits_runtime_recovery() => error,
         Err(error) => return Err(RuntimeSpillAllocationError::Homes(error)),
@@ -1316,37 +1336,13 @@ fn recover_over(
                         environment.physical(),
                     ) {
                         Ok(()) => {
-                            let facts = seal_recovery_facts(
-                                environment,
-                                availability,
-                                &resolved.base,
-                                resolved.liveness,
-                                resolved.ranges,
-                                resolved.legality,
-                                unsealed,
-                                &selected,
-                            )?;
-                            let homes = assign_reusing(
-                                environment,
-                                &facts.ranges,
-                                &facts.legality,
-                                Some(&mut home_reuse),
-                            )
-                            .map_err(RuntimeSpillAllocationError::Homes)?;
-                            let manifest = project_recovery_manifest(
-                                &base,
-                                &recorded,
-                                &facts.ranges,
-                                &facts.legality,
-                                &homes,
-                            )?;
-                            return Ok(RuntimeSpillAllocation {
+                            return publish_recovery(
                                 source,
-                                last: RuntimeSpillStep { rewrite: current },
-                                facts,
-                                homes,
-                                manifest,
-                            });
+                                current,
+                                unsealed,
+                                &mut home_reuse,
+                                &recorded,
+                            );
                         }
                         Err(error) if error.admits_runtime_recovery() => {
                             failure = error;
@@ -1420,40 +1416,15 @@ fn recover_over(
                                     },
                                 ) {
                                     Ok(()) => {
-                                        let facts = seal_recovery_facts(
-                                            environment,
-                                            availability,
-                                            &resolved.base,
-                                            resolved.liveness,
-                                            resolved.ranges,
-                                            resolved.legality,
-                                            probe,
-                                            &SelectedProgramRef::new(&crossing),
-                                        )?;
-                                        let homes = assign_reusing(
-                                            environment,
-                                            &facts.ranges,
-                                            &facts.legality,
-                                            Some(&mut home_reuse),
-                                        )
-                                        .map_err(RuntimeSpillAllocationError::Homes)?;
                                         let rewrite = RuntimeSpillStepRewrite::Spill(crossing);
                                         recorded.push(rewrite.transformation());
-                                        let manifest = project_recovery_manifest(
-                                            &base,
-                                            &recorded,
-                                            &facts.ranges,
-                                            &facts.legality,
-                                            &homes,
-                                        )?;
-                                        let result = RuntimeSpillAllocation {
+                                        return publish_recovery(
                                             source,
-                                            last: RuntimeSpillStep { rewrite },
-                                            facts,
-                                            homes,
-                                            manifest,
-                                        };
-                                        return Ok(result);
+                                            rewrite,
+                                            probe,
+                                            &mut home_reuse,
+                                            &recorded,
+                                        );
                                     }
                                     Err(error) if error.admits_runtime_recovery() => {
                                         failed_crossing = Some(SpillPressureProbe {
@@ -1537,44 +1508,9 @@ fn recover_over(
         recorded.push(rewrite.transformation());
         match probe_result {
             Ok(()) => {
-                let (facts, homes, manifest) = phase_profile::scope(
-                    "06.1.d.05.k_seal_and_manifest",
-                    || -> Result<_, RuntimeSpillAllocationError> {
-                        let facts = seal_recovery_facts(
-                            environment,
-                            availability,
-                            &resolved.base,
-                            resolved.liveness,
-                            resolved.ranges,
-                            resolved.legality,
-                            unsealed,
-                            &rewrite.selected(),
-                        )?;
-                        let homes = assign_reusing(
-                            environment,
-                            &facts.ranges,
-                            &facts.legality,
-                            Some(&mut home_reuse),
-                        )
-                        .map_err(RuntimeSpillAllocationError::Homes)?;
-                        let manifest = project_recovery_manifest(
-                            &base,
-                            &recorded,
-                            &facts.ranges,
-                            &facts.legality,
-                            &homes,
-                        )?;
-                        Ok((facts, homes, manifest))
-                    },
-                )?;
-                let result = RuntimeSpillAllocation {
-                    source,
-                    last: RuntimeSpillStep { rewrite },
-                    facts,
-                    homes,
-                    manifest,
-                };
-                return Ok(result);
+                return phase_profile::scope("06.1.d.05.k_seal_and_manifest", || {
+                    publish_recovery(source, rewrite, unsealed, &mut home_reuse, &recorded)
+                });
             }
             Err(error) if error.admits_runtime_recovery() => {
                 failure = error;

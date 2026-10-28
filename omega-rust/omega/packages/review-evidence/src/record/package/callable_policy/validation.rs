@@ -1,6 +1,6 @@
 //! Structural policy consistency, not compiler proof or acceptance authority.
 
-use crate::record::validation::ordered;
+use crate::record::validation::{ordered, ordered_by};
 use crate::record::{
     PackagePolicyCallableRole, PackagePolicyCallables, PackageReviewCallableSupply,
     PackageReviewCheckedServiceReach, PackageReviewNominalIdentity, PackageReviewNominalOwner,
@@ -14,13 +14,7 @@ mod structural;
 
 impl PackagePolicyCallables {
     pub(crate) fn validate_canonical_structure(&self) -> Result<(), &'static str> {
-        if self
-            .callables
-            .windows(2)
-            .any(|pair| pair[0].identity >= pair[1].identity)
-        {
-            return Err("callable policy identities are repeated or out of order");
-        }
+        ordered_by(&self.callables, |a, b| a.identity.cmp(&b.identity))?;
         if self
             .callables
             .iter()
@@ -120,7 +114,9 @@ impl PackagePolicyCallables {
     }
 }
 
-fn nominal_set(values: &[PackageReviewNominalIdentity]) -> Result<(), &'static str> {
+pub(in crate::record) fn nominal_set(
+    values: &[PackageReviewNominalIdentity],
+) -> Result<(), &'static str> {
     ordered(values)?;
     for value in values {
         value.validate_resolved()?;

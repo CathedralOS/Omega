@@ -1,13 +1,13 @@
 use super::rejected;
 use crate::capture::PackageReviewInput;
 use crate::capture::semantics::{
-    declarations::{nominal_identity, trait_requirement_identity_from_symbols},
+    declarations::{
+        nominal_identity, premise_projections, premise_subject, progress_profile,
+        project_service_progress_routes,
+    },
     facts::exactly_one,
 };
-use crate::record::{
-    PackagePolicyProgressPremise, PackagePolicyServiceProgressRoute, PackagePolicyTermination,
-    PackageReviewProgressSubject,
-};
+use crate::record::{PackagePolicyProgressPremise, PackagePolicyTermination};
 use checked_trees::RealizedMachineContractEnvelope;
 use diagnostics::Diagnostic;
 use typed_trees::{machine::Machine, state::State};
@@ -82,73 +82,19 @@ fn project_guarantee(
         return Ok(PackagePolicyTermination::NoGuarantee);
     };
     let parameters = compilation.state_parameters(entry);
+    let subject = format!("reviewed callable `{}`", machine.name.as_str());
     let mut projected = Vec::new();
     for premise in premises {
-        let profile = exactly_one(
-            compilation
-                .domain_definitions()
-                .iter()
-                .filter(|domain| domain.semantic_id == premise.profile),
-            machine.name.as_str(),
-            "progress profile",
+        let profile = progress_profile(compilation, premise.profile, &subject)?;
+        let establishment_routes = project_service_progress_routes(
+            compilation,
+            profile,
+            "callable progress establishment",
         )?;
-        if profile.classification != Some(language_semantics::DomainClassification::ProgressProfile)
-        {
-            return Err(rejected(
-                "termination premise does not name an exact progress profile",
-            ));
-        }
-        let root = premise.subject.root;
-        let subject = if let Some(position) =
-            typed_trees::signature::state_parameter_position(parameters, root)
-        {
-            PackageReviewProgressSubject::Parameter(
-                u32::try_from(position)
-                    .map_err(|_| rejected("termination position exceeds portable width"))?,
-            )
-        } else if compilation
-            .data_definitions()
-            .iter()
-            .any(|data| data.symbol == root && data.is_public)
-            || compilation
-                .domain_definitions()
-                .iter()
-                .any(|domain| domain.symbol == root && domain.is_public)
-            || compilation
-                .machines()
-                .iter()
-                .any(|machine| machine.symbol == root && machine.is_public)
-        {
-            PackageReviewProgressSubject::Declaration(nominal_identity(compilation, root)?)
-        } else {
-            return Err(rejected(
-                "termination premise root is neither an entry parameter nor a public declaration",
-            ));
-        };
-        // Progress profiles project only requirement routes; exact-machine
-        // routes are ineligible for admitted boundary progress profiles.
-        let mut establishment_routes = profile.establishment_routes.iter().filter(|route| !matches!(route, language_semantics::DomainEstablishmentRoute::ExactMachine { .. })).map(|route| {
-            Ok(PackagePolicyServiceProgressRoute {
-                kind: match route {
-                    language_semantics::DomainEstablishmentRoute::CheckedRequirement {..} => effects::provider_plan::ServiceProgressEstablishmentRouteKind::CheckedRequirement,
-                    language_semantics::DomainEstablishmentRoute::BoundaryRequirement {..} => effects::provider_plan::ServiceProgressEstablishmentRouteKind::BoundaryRequirement,
-                    language_semantics::DomainEstablishmentRoute::ExactMachine { .. } => unreachable!("exact-machine routes are filtered above"),
-                },
-                requirement_owner: nominal_identity(compilation, route.source_symbol())?,
-                requirement: trait_requirement_identity_from_symbols(compilation, route.source_symbol(), route.requirement_symbol(), "callable progress establishment")?,
-            })
-        }).collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
-        establishment_routes.sort();
-        establishment_routes.dedup();
         projected.push(PackagePolicyProgressPremise {
             profile: nominal_identity(compilation, profile.symbol)?,
-            subject,
-            projections: premise
-                .subject
-                .projections
-                .iter()
-                .map(|symbol| nominal_identity(compilation, *symbol))
-                .collect::<Result<Vec<_>, _>>()?,
+            subject: premise_subject(compilation, parameters, premise.subject.root, &subject)?,
+            projections: premise_projections(compilation, premise)?,
             establishment_routes,
         });
     }

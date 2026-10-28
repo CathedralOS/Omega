@@ -49,6 +49,7 @@ pub enum ProviderSelectionProvenance {
     BuildOverride(Vec<crate::ProviderSelection>),
     TargetDefault(Vec<crate::ProviderSelection>),
     UniqueCoveringCandidate,
+    NativeBuild,
 }
 
 impl ProviderSelectionProvenance {
@@ -58,7 +59,7 @@ impl ProviderSelectionProvenance {
     /// themselves.
     pub fn composition_mode(&self) -> Result<crate::CompositionMode, String> {
         match self {
-            Self::UniqueCoveringCandidate => Ok(crate::CompositionMode::Fused),
+            Self::UniqueCoveringCandidate | Self::NativeBuild => Ok(crate::CompositionMode::Fused),
             Self::TargetDefault(declarations) => {
                 if declarations.iter().any(|declaration| {
                     declaration.composition_mode != crate::CompositionMode::Fused
@@ -102,7 +103,8 @@ pub struct SelectedProviderReviewProvenance {
     pub plan: ProviderPlan,
     pub provider: ProviderPlanProvenance,
     pub selected_by: ProviderSelectionProvenance,
-    /// Closed compiler-owned execution identity for each provider row.
+    /// Host and placement execution identity for each provider row. Numeric
+    /// rows carry None: their meaning lives in Psi's external declarations.
     ///
     /// Selection initially leaves this empty because exact execution is not
     /// settled until after checking. The compiler must replace it with one
@@ -185,7 +187,8 @@ pub(crate) fn selected_provider_plan_facts_with_independent_components(
         let declarations = match &selected_plan.selected_by {
             ProviderSelectionProvenance::BuildOverride(declarations)
             | ProviderSelectionProvenance::TargetDefault(declarations) => declarations,
-            ProviderSelectionProvenance::UniqueCoveringCandidate => continue,
+            ProviderSelectionProvenance::UniqueCoveringCandidate
+            | ProviderSelectionProvenance::NativeBuild => continue,
         };
         if declarations.is_empty() {
             diagnostics.push(diagnostics::Diagnostic::error(format!(
@@ -247,7 +250,8 @@ fn authored_selection_declarations(
     match provenance {
         ProviderSelectionProvenance::BuildOverride(declarations)
         | ProviderSelectionProvenance::TargetDefault(declarations) => declarations,
-        ProviderSelectionProvenance::UniqueCoveringCandidate => &[],
+        ProviderSelectionProvenance::UniqueCoveringCandidate
+        | ProviderSelectionProvenance::NativeBuild => &[],
     }
 }
 

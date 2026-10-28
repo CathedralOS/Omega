@@ -75,6 +75,7 @@ impl<'a> BorrowCallCollection<'a> {
                 statement_index: self.statement_index,
                 call_ordinal: *self.call_ordinal,
                 authored_expression,
+                input_reference_loans: None,
                 reference_slot_effects: Default::default(),
                 completed_reference_loans: Default::default(),
                 receiver_symbol,

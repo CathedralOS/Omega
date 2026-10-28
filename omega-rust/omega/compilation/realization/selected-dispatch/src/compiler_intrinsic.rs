@@ -2,10 +2,6 @@
 //! of one settled row (console read, write and exit, process exit) and
 //! matching an accepted binding against it.
 
-use crate::{
-    SelectedCompilerIntrinsicExecutionIdentity,
-    derive_selected_compiler_intrinsic_execution_identity,
-};
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
@@ -14,6 +10,13 @@ use provider_planning::{CompilerIntrinsicExecutionIdentity, ProviderSchemaDeclar
 use symbols::{BuiltinTypeAtom, SymbolHandle};
 use target::HostedIntrinsicBundle;
 use typed_trees::types::TypeReferenceNode;
+
+/// Every compiler path without a closed catalog child stays unsupported.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SelectedCompilerIntrinsicExecutionIdentity {
+    Closed(CompilerIntrinsicExecutionIdentity),
+    Unsupported,
+}
 
 /// Rederive one selected compiler-intrinsic row from exact checked declaration
 /// symbols and the independently selected canonical target.
@@ -28,6 +31,7 @@ use typed_trees::types::TypeReferenceNode;
 /// consumer binding must additionally own that row.
 pub fn derive_selected_compiler_intrinsic_execution_identity_for_row(
     checked: &CheckedTrees,
+    numeric: crate::NumericProviderSelection<'_>,
     plan: &ProviderPlan,
     schema: ProviderSchemaDeclaration,
     row: &ProviderPlanRow,
@@ -39,6 +43,7 @@ pub fn derive_selected_compiler_intrinsic_execution_identity_for_row(
 ) -> Result<Option<SelectedCompilerIntrinsicExecutionIdentity>, Diagnostic> {
     row_execution_identity(
         checked,
+        numeric,
         plan,
         schema,
         row,
@@ -74,6 +79,7 @@ impl<'binding> AcceptedRowBinding<'binding> {
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn row_execution_identity(
     checked: &CheckedTrees,
+    numeric: crate::NumericProviderSelection<'_>,
     plan: &ProviderPlan,
     schema: ProviderSchemaDeclaration,
     row: &ProviderPlanRow,
@@ -136,11 +142,27 @@ pub(crate) fn row_execution_identity(
                         == provider_planning::IntrinsicRequirementKind::TopLevelRequirement
                 }))
     {
-        return derive_selected_compiler_intrinsic_execution_identity(
-            checked,
-            plan,
-            requirement_symbol,
-        );
+        let requirement =
+            provider_planning::IntrinsicRequirement::by_symbol(checked, requirement_symbol)
+                .ok_or_else(|| Diagnostic::error("numeric selection has no exact requirement"))?;
+        let ([method], [selected_row]) = (plan.schema.methods.as_slice(), plan.rows.as_slice())
+        else {
+            return Err(Diagnostic::error(
+                "numeric selection must bind one schema method and row",
+            ));
+        };
+        if selected_row != row || !requirement.plan_row_binds(plan, method, row) {
+            return Err(Diagnostic::error(
+                "numeric selection differs from its exact requirement",
+            ));
+        }
+        return numeric
+            .execution(plan, row, requirement_symbol, realization_symbol)
+            .map(|execution| {
+                Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(
+                    execution,
+                ))
+            });
     }
     let ProviderSchemaDeclaration::BoundaryTrait(trait_symbol) = schema else {
         return Ok(Some(
