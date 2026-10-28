@@ -211,6 +211,8 @@ pub struct BoundaryMachineDeclaration {
     /// contract capsule without a body. Synthetic evidence has no declaration.
     /// This is the head's provenance, never a provider donation.
     pub declaration: Option<CheckedBoundaryCallable>,
+    /// Psi-owned numeric meaning, independent of any provider selection.
+    pub numeric_intrinsic: Option<language_semantics::numeric_intrinsics::NumericIntrinsic>,
     pub role: BoundaryDeclarationRole,
     pub kind: semantic_vocabulary::BoundaryRequirementKind,
     /// Exact opaque completion contract; installation must authenticate it.

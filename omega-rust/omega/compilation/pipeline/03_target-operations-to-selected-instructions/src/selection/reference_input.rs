@@ -234,10 +234,8 @@ pub(super) fn establishment(
                 &path[segment_start..position],
                 declarations,
             )?;
-        let StructuralTypeShape::Reference { referent, .. } = declarations
-            .iter()
-            .find(|declaration| declaration.id == carrier)?
-            .shape
+        let StructuralTypeShape::Reference { referent, .. } =
+            terminal_psi::find_structural_type(declarations, carrier)?.shape
         else {
             return None;
         };

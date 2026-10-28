@@ -15,6 +15,8 @@ use typed_trees::name::Identifier;
 use typed_trees::state::State;
 use typed_trees::statement::StatementNode;
 
+use super::super::unit_returns::unit_type;
+
 mod boundary_return;
 
 /// Result operations own the outer call while their operands use the shared
@@ -308,21 +310,6 @@ fn initializer_target_is_admitted(
     program.expression_table.expression_is_valid(call.receiver)
         && matches!(program.expression_table.expression(call.receiver),
             ExpressionNode::Name(path) if path.symbol == definition.symbol)
-}
-
-fn unit_type(
-    program: &dyn crate::CheckingInput,
-    mut type_reference: typed_trees::types::TypeReferenceHandle,
-) -> bool {
-    loop {
-        match program.type_reference_table.type_reference(type_reference) {
-            typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
-                type_reference = *base_type
-            }
-            typed_trees::types::TypeReferenceNode::Unit => return true,
-            _ => return false,
-        }
-    }
 }
 
 /// Every resolved local call evaluates operands before binding its result.

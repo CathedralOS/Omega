@@ -33,9 +33,7 @@ pub(super) fn policy(
     policy: &PackagePolicySelectedProviders,
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.package_identity_field("package", policy.package)?;
-    encoder.field("target", |encoder| {
-        encoder.string(policy.target.identity().as_str())
-    })?;
+    encoder.string_field("target", policy.target.identity().as_str())?;
     encoder.field("plans", |encoder| encoder.sequence(&policy.plans, plan))?;
     encoder.field("families", |encoder| {
         encoder.sequence(&policy.families, family)
@@ -53,12 +51,12 @@ fn plan(
         &plan.schema_declaration,
         encode_nominal,
     )?;
-    encoder.field("provider_type", |encoder| {
-        encoder.string(&plan.provider_type)
-    })?;
-    encoder.field("provider_type_declaration", |encoder| {
-        encoder.option(plan.provider_type_declaration.as_ref(), encode_nominal)
-    })?;
+    encoder.string_field("provider_type", &plan.provider_type)?;
+    encoder.option_field(
+        "provider_type_declaration",
+        plan.provider_type_declaration.as_ref(),
+        encode_nominal,
+    )?;
     encoder.field("target", |encoder| encoder.string(&plan.target))?;
     encoder.field("methods", |encoder| {
         encoder.sequence(&plan.methods, service::method)
@@ -86,9 +84,7 @@ fn row(
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.field("method", |encoder| encoder.string(&row.method))?;
     encoder.field_by("requirement", &row.requirement, encode_nominal)?;
-    encoder.field("realization", |encoder| {
-        encoder.option(row.realization.as_ref(), encode_nominal)
-    })?;
+    encoder.option_field("realization", row.realization.as_ref(), encode_nominal)?;
     encoder.field("requirement_lifetime_partition", |encoder| {
         encoder.sequence(&row.requirement_lifetime_partition, |encoder, ordinal| {
             encoder.u32_field("ordinal", *ordinal)?;
@@ -96,12 +92,11 @@ fn row(
         })
     })?;
     encoder.field_by("binding", &row.binding, bindings::binding)?;
-    encoder.field("compiler_intrinsic_execution", |encoder| {
-        encoder.option(
-            row.compiler_intrinsic_execution.as_ref(),
-            encode_compiler_intrinsic_execution,
-        )
-    })?;
+    encoder.option_field(
+        "compiler_intrinsic_execution",
+        row.compiler_intrinsic_execution.as_ref(),
+        encode_compiler_intrinsic_execution,
+    )?;
     encoder.field("installation_reach", |encoder| {
         encoder.option(row.installation_reach.as_ref(), |encoder, reach| {
             encoder.field("upper_bound", |encoder| {
@@ -125,9 +120,7 @@ fn family(
         &family.provider_type_declaration,
         encode_nominal,
     )?;
-    encoder.field("target", |encoder| {
-        encoder.string(family.target.identity().as_str())
-    })?;
+    encoder.string_field("target", family.target.identity().as_str())?;
     encoder.field("authority", |encoder| {
         match family.authority {
             PackageReviewProviderSelectionAuthority::BuildOverride => {
@@ -149,9 +142,7 @@ fn family(
     })?;
     encoder.field("coordinates", |encoder| {
         encoder.sequence(&family.coordinates, |encoder, coordinate| {
-            encoder.field("requirement_identity", |encoder| {
-                encoder.string(&coordinate.requirement_identity)
-            })?;
+            encoder.string_field("requirement_identity", &coordinate.requirement_identity)?;
             encoder.field_by(
                 "operator_declaration",
                 &coordinate.operator_declaration,

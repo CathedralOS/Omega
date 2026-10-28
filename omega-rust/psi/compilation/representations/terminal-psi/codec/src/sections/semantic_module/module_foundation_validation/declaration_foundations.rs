@@ -95,6 +95,8 @@ pub(super) fn validate_boundary_machine(
     module: &TerminalModule,
     boundary: &BoundaryMachineDeclaration,
 ) -> Result<(), CodecError> {
+    terminal_psi::validate_numeric_intrinsic_signature(boundary, &module.structural_types)
+        .map_err(CodecError::MalformedStructuralFoundation)?;
     terminal_semantics::closed_conformances::validate_boundary_callable(module, boundary)
         .map_err(CodecError::MalformedStructuralFoundation)?;
     if module

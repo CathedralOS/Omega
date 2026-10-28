@@ -7,6 +7,7 @@ use super::{
     VirtualRegisterId,
 };
 use crate::SelectedInstructionError;
+use crate::selection::construction::scalar_graph::structural::operation_provenance;
 use semantic_vocabulary::{IeeeFloatComparisonOperation as Relation, IeeeFloatFormat, IntegerType};
 
 pub(super) fn emit(
@@ -48,12 +49,7 @@ pub(super) fn emit(
         state,
         value: result.value,
         site: result.definition_site,
-        provenance: SelectedInstructionProvenance {
-            operations: vec![operation.operation],
-            values: vec![left, right, result.value],
-            fuel: operation.fuel.clone(),
-            ..Default::default()
-        },
+        provenance: operation_provenance(operation, vec![left, right, result.value]),
     };
     let zero = emitter.constant(0)?;
     let sign_register = emitter.constant(sign)?;

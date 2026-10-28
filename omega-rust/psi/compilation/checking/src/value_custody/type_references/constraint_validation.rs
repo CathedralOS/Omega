@@ -3,6 +3,7 @@ use super::{
     StateSignatureOwner, TypeParameterScope, TypeReferenceOwner, type_reference_label,
     type_references_match,
 };
+use crate::value_custody::places::collection_operations::type_reference_is_collection;
 use diagnostics::Diagnostic;
 use typed_trees::dependent_ranges::DependentBoundClass;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -552,7 +553,7 @@ fn dependent_state_parameter_range_error(
                 program.state_parameters(state).iter().any(|parameter| {
                     parameter.name.as_str() == sibling.sibling.as_str()
                         && parameter.type_reference.is_valid()
-                        && type_reference_is_sliceable(program, parameter.type_reference)
+                        && type_reference_is_collection(program, parameter.type_reference)
                 })
             });
         if !sibling_is_sliceable {
@@ -714,20 +715,4 @@ fn scoped_maximum_error(
             ""
         },
     ))
-}
-
-fn type_reference_is_sliceable(
-    program: &dyn crate::CheckingInput,
-    handle: TypeReferenceHandle,
-) -> bool {
-    match program.type_reference_table.type_reference(handle) {
-        TypeReferenceNode::Reference { referee, .. } => {
-            type_reference_is_sliceable(program, *referee)
-        }
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            type_reference_is_sliceable(program, *base_type)
-        }
-        TypeReferenceNode::Slice { .. } | TypeReferenceNode::FixedArray { .. } => true,
-        _ => false,
-    }
 }

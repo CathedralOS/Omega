@@ -61,6 +61,7 @@ mod hosted_unit_entry;
 mod image_output;
 mod installation_record;
 mod object_artifact;
+mod order;
 mod private_object_composition;
 
 pub use function_fragments::FunctionFragmentObjectArtifactError;

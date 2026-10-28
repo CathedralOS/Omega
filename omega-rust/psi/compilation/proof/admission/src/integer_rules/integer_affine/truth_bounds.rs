@@ -1,11 +1,11 @@
 //! The truth bounds an integer affine form admits, in i128 arithmetic.
 
-use crate::integer_rules::fixed_integer::integer_value_as_i128;
+use crate::integer_rules::fixed_integer::{fixed_integer_term, integer_value_as_i128};
 use crate::integer_rules::integer_affine::witness_checking::CheckedIntegerEndpointStep;
 use crate::integer_rules::integer_affine::{
     CheckedIntegerAffineForm, IntegerAffineBoundConversionError,
 };
-use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, Proposition, ScalarTerm};
+use semantic_vocabulary::{IntegerSign, Proposition};
 
 /// Derive the two endpoint relations for a checked word with a total image
 /// over the root carrier: for example, a landed nonzero divide, remainder,
@@ -155,20 +155,12 @@ pub fn integer_affine_truth_bounds(
     if !saw_total_image {
         return Err(IntegerAffineBoundConversionError::TruthRootWithoutTotalImage);
     }
-    let minimum = scalar_integer_from_i128(form.integer_type(), minimum)?;
-    let maximum = scalar_integer_from_i128(form.integer_type(), maximum)?;
+    let minimum = fixed_integer_term(form.integer_type(), minimum)
+        .ok_or(IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)?;
+    let maximum = fixed_integer_term(form.integer_type(), maximum)
+        .ok_or(IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)?;
     Ok(vec![
         Proposition::LessOrEqual(minimum, form.target().clone()),
         Proposition::LessOrEqual(form.target().clone(), maximum),
     ])
-}
-
-fn scalar_integer_from_i128(
-    integer_type: IntegerType,
-    value: i128,
-) -> Result<ScalarTerm, IntegerAffineBoundConversionError> {
-    let value = IntegerValue::for_sign(integer_type.sign(), value)
-        .map_err(|_| IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)?;
-    ScalarTerm::integer(integer_type, value)
-        .map_err(|_| IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)
 }

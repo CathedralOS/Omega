@@ -16,8 +16,8 @@ use crate::FixedViewCopyDecodeError;
 use super::provenance::{decode_provenance, encode_provenance};
 use crate::register_homes::recovery::fixed_view_copy::codec::{
     primitives::{
-        Cursor, decode_accepted_fact, decode_id, decode_option_u16, decode_u16s, encode_option_u16,
-        encode_u16s, length,
+        Cursor, decode_accepted_fact, decode_id, decode_list, decode_option_u16, decode_u16s,
+        encode_option_u16, encode_u16s, length,
     },
     values::{decode_access, decode_bool, decode_constraint_key, decode_integer},
 };
@@ -48,10 +48,8 @@ pub(super) fn decode_instruction(
     let id = SelectedInstructionId(cursor.u32()?);
     let kind = decode_kind(cursor)?;
     let constraint = decode_constraint_key(cursor)?;
-    let operand_count = cursor.length()?;
-    let mut operands = Vec::with_capacity(operand_count.min(cursor.remaining()));
-    for _ in 0..operand_count {
-        operands.push(SelectedOperand {
+    let operands = decode_list::<_, FixedViewCopyDecodeError>(cursor, |cursor| {
+        Ok(SelectedOperand {
             operand: cursor.u16()?,
             virtual_register: VirtualRegisterId(cursor.u32()?),
             access: decode_access(cursor)?,
@@ -59,8 +57,8 @@ pub(super) fn decode_instruction(
             fixed_view: decode_option_u16(cursor)?.map(RegisterViewId),
             tied_to: decode_option_u16(cursor)?,
             early_clobber: decode_bool(cursor)?,
-        });
-    }
+        })
+    })?;
     Ok(SelectedInstruction {
         id,
         kind,

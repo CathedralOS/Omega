@@ -15,8 +15,6 @@ pub struct NativeProgramEntrySettlement<'entry> {
     pub(crate) semantic_calling_application: Option<&'entry BoundaryCallingApplication>,
     pub(crate) physical_calling_application: Option<&'entry BoundaryCallingApplication>,
     pub(crate) storage_entry: Option<&'entry program_entry_plan::SelectedProgramStorageEntryPlan>,
-    pub(crate) fused_service_establishments:
-        &'entry [program_entry_plan::ProgramEntryFusedServiceEstablishment],
 }
 
 impl<'entry> NativeProgramEntrySettlement<'entry> {
@@ -27,9 +25,6 @@ impl<'entry> NativeProgramEntrySettlement<'entry> {
             &'entry BoundaryCallingApplication,
             &'entry program_entry_plan::SelectedProgramStorageEntryPlan,
         )>,
-        fused_service_establishments: &'entry [
-            program_entry_plan::ProgramEntryFusedServiceEstablishment
-        ],
     ) -> Self {
         let (semantic_calling_application, physical_calling_application, storage_entry) =
             match calling_plans {
@@ -45,7 +40,6 @@ impl<'entry> NativeProgramEntrySettlement<'entry> {
             semantic_calling_application,
             physical_calling_application,
             storage_entry,
-            fused_service_establishments,
         }
     }
 
@@ -90,47 +84,6 @@ impl<'entry> NativeProgramEntrySettlement<'entry> {
         self.storage_entry
     }
 
-    pub const fn fused_service_establishments(
-        self,
-    ) -> &'entry [program_entry_plan::ProgramEntryFusedServiceEstablishment] {
-        self.fused_service_establishments
-    }
-
-    /// Receiving obligations remain deployment roots even when a field is
-    /// forwarded to a helper with another invocation telescope. This only
-    /// retains canonical candidates; ordinary installation still admits them.
-    pub fn receiving_provider_roots(
-        self,
-        artifact: &terminal_codec::CanonicalTerminalArtifact,
-    ) -> Result<Vec<semantic_vocabulary::BoundaryMachineId>, &'static str> {
-        let mut roots = Vec::new();
-        for establishment in self.fused_service_establishments {
-            if !establishment.receiving_requirements().is_empty()
-                && self.checked_entry.is_none_or(|checked| {
-                    checked.terminal_psi_identity() != artifact.view().identity()
-                })
-            {
-                return Err("receiving provider roots have no same-artifact checked entry");
-            }
-            for row in establishment.receiving_requirements() {
-                let module = artifact.semantic_module();
-                let mut matching = module.provider_candidates.iter().filter(|candidate| {
-                    row.matches_candidate(candidate, &module.identities, self.source.identities())
-                });
-                let candidate = matching
-                    .next()
-                    .ok_or("receiving provider root has no exact canonical candidate")?;
-                if matching.next().is_some() {
-                    return Err("receiving provider root has multiple canonical candidates");
-                }
-                roots.push(candidate.boundary);
-            }
-        }
-        roots.sort_unstable();
-        roots.dedup();
-        Ok(roots)
-    }
-
     /// Check the target and calling-contract custody before native lowering.
     /// This validates declarations only; Terminal replay, storage provisioning,
     /// and installation authority remain independent requirements.
@@ -146,7 +99,6 @@ impl<'entry> NativeProgramEntrySettlement<'entry> {
                 slot.owner.target_name(),
             ));
         }
-        self.validate_fused_service_establishments_for_target()?;
         let declares_two_surfaces = slot.boundary_schema.is_some()
             || slot.physical_arrival_requirement.is_some()
             || slot.physical_contract_package.is_some()
@@ -168,13 +120,6 @@ impl<'entry> NativeProgramEntrySettlement<'entry> {
                     .into(),
             ),
         }
-    }
-
-    pub(crate) fn validate_fused_service_establishments_for_target(self) -> Result<(), String> {
-        if !self.fused_service_establishments.is_empty() {
-            return Err("ProgramEntry cannot synthesize application record service fields".into());
-        }
-        Ok(())
     }
 }
 
@@ -203,8 +148,6 @@ pub struct ValidatedNativeProgramEntrySettlement {
     pub(crate) admitted_calling_plans: Option<ValidatedNativeProgramEntryCallingPlans>,
     pub(crate) physical_calling_application: Option<BoundaryCallingApplication>,
     pub(crate) storage_entry: Option<program_entry_plan::SelectedProgramStorageEntryPlan>,
-    pub(crate) fused_service_establishments:
-        Vec<program_entry_plan::ProgramEntryFusedServiceEstablishment>,
     /// Provider establishments bound to the entry machine's placed-view
     /// roster rows, in roster order. The executable input boundary joined
     /// each supply to its declared row before settlement replayed the
@@ -227,7 +170,6 @@ impl ValidatedNativeProgramEntrySettlement {
             semantic_calling_application: self.semantic_calling_application.as_ref(),
             physical_calling_application: self.physical_calling_application.as_ref(),
             storage_entry: self.storage_entry.as_ref(),
-            fused_service_establishments: &self.fused_service_establishments,
         }
     }
 
@@ -279,12 +221,6 @@ impl ValidatedNativeProgramEntrySettlement {
         self.storage_entry.as_ref()
     }
 
-    pub fn fused_service_establishments(
-        &self,
-    ) -> &[program_entry_plan::ProgramEntryFusedServiceEstablishment] {
-        &self.fused_service_establishments
-    }
-
     /// The provider establishments bound to this entry's placed-view roster
     /// rows, in roster order. Empty when the entry declared no placed-view
     /// inputs.
@@ -331,7 +267,6 @@ pub enum NativeProgramEntrySettlementError {
     TerminalPsiSubstitution,
     TerminalEntrySubstitution,
     TerminalEntryMultiplicity(usize),
-    FusedServiceEstablishmentDrift,
 }
 
 diagnostics::debug_display!(NativeProgramEntrySettlementError);

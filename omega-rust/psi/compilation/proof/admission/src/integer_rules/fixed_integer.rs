@@ -51,3 +51,13 @@ pub(crate) fn fixed_integer_as_i128(term: &ScalarTerm, integer_type: IntegerType
         .then(|| integer_value_as_i128(value))
         .flatten()
 }
+
+/// The carrier-typed term for one exact mathematical integer, or `None` when
+/// the value has no representation in that carrier. Every rule that turns a
+/// computed endpoint back into a term builds it here, so a carrier-policy
+/// change cannot leave one route spelling a literal another way. Each caller
+/// maps the `None` into its own refusal.
+pub(crate) fn fixed_integer_term(integer_type: IntegerType, value: i128) -> Option<ScalarTerm> {
+    let value = IntegerValue::for_sign(integer_type.sign(), value).ok()?;
+    ScalarTerm::integer(integer_type, value).ok()
+}

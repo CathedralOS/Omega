@@ -20,7 +20,7 @@ use syntax_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReference
 
 use crate::preparation::declaration_selection::ConstantSelection;
 
-pub(in crate::preparation) fn normalize(
+pub(crate) fn normalize(
     syntax: &mut SyntaxTrees,
     selection: Option<&ConstantSelection>,
 ) -> Result<(), Vec<Diagnostic>> {

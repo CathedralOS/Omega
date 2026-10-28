@@ -178,9 +178,8 @@ pub(crate) fn install_import_thunks(
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PeImportTable {
     pub(crate) bytes: Vec<u8>,
-    pub(crate) iat_rvas: Vec<u32>,
-    /// Each thunk's IAT slot offset within `bytes`, in input thunk order —
-    /// the section-relative coordinate placed custody needs.
+    /// Each thunk's IAT slot offset within `bytes`, in input thunk order; the
+    /// slot's address is this offset over the table's own RVA.
     pub(crate) iat_table_offsets: Vec<usize>,
     pub(crate) import_directory_rva: u32,
     pub(crate) import_directory_size: usize,
@@ -197,7 +196,6 @@ pub(crate) fn build_import_table(imports: &[PeImportThunk], rdata_rva: u32) -> P
     if imports.is_empty() {
         return PeImportTable {
             bytes: Vec::new(),
-            iat_rvas: Vec::new(),
             iat_table_offsets: Vec::new(),
             import_directory_rva: 0,
             import_directory_size: 0,
@@ -212,8 +210,8 @@ pub(crate) fn build_import_table(imports: &[PeImportThunk], rdata_rva: u32) -> P
     //   [ILT_dll1][ILT_dll2]...      (each (count+1) * 8)
     //   [IAT_dll1][IAT_dll2]...      (contiguous, so ONE directory entry covers all)
     //   [dll names][hint/name entries]
-    // `iat_rvas` is returned in the INPUT thunk order (patch_import_thunks zips
-    // it against the same slice).
+    // `iat_table_offsets` is filled in INPUT thunk order (patch_import_thunks
+    // zips it against the same slice).
     let mut libraries: Vec<(&[u8], Vec<usize>)> = Vec::new();
     for (index, import) in imports.iter().enumerate() {
         let library = import.library.as_slice();
@@ -256,6 +254,7 @@ pub(crate) fn build_import_table(imports: &[PeImportThunk], rdata_rva: u32) -> P
 
     let mut bytes = vec![0; cursor];
 
+    let mut iat_table_offsets = vec![0usize; imports.len()];
     for (library_index, (library, members)) in libraries.iter().enumerate() {
         let descriptor_offset = library_index * 20;
         let ilt_rva = rdata_rva + ilt_offsets[library_index] as u32;
@@ -279,20 +278,14 @@ pub(crate) fn build_import_table(imports: &[PeImportThunk], rdata_rva: u32) -> P
                 }
                 _ => unreachable!("PE import lookup layout must match its retained case"),
             };
+            let slot_offset = iat_offsets[library_index] + slot * 8;
+            iat_table_offsets[*import_index] = slot_offset;
             write_u64_at(&mut bytes, ilt_offsets[library_index] + slot * 8, lookup);
-            write_u64_at(&mut bytes, iat_offsets[library_index] + slot * 8, lookup);
+            write_u64_at(&mut bytes, slot_offset, lookup);
         }
     }
 
-    // Hint/name entries + per-thunk IAT rvas and table offsets in INPUT order.
-    let mut iat_rvas = vec![0u32; imports.len()];
-    let mut iat_table_offsets = vec![0usize; imports.len()];
-    for (library_index, (_, members)) in libraries.iter().enumerate() {
-        for (slot, import_index) in members.iter().enumerate() {
-            iat_rvas[*import_index] = rdata_rva + (iat_offsets[library_index] + slot * 8) as u32;
-            iat_table_offsets[*import_index] = iat_offsets[library_index] + slot * 8;
-        }
-    }
+    // Hint/name entries, in INPUT thunk order.
     for (index, import) in imports.iter().enumerate() {
         let (PeImportLookup::ByName(export), Some(name_offset)) =
             (&import.lookup, hint_name_offsets[index])
@@ -306,7 +299,6 @@ pub(crate) fn build_import_table(imports: &[PeImportThunk], rdata_rva: u32) -> P
 
     PeImportTable {
         bytes,
-        iat_rvas,
         iat_table_offsets,
         import_directory_rva: rdata_rva,
         import_directory_size: descriptor_table_size,
@@ -319,12 +311,14 @@ pub(crate) fn patch_import_thunks(
     image: &mut FinalImage,
     layout: &FinalImageLayout,
     thunks: &[PeImportThunk],
-    iat_rvas: &[u32],
+    table: &PeImportTable,
 ) -> Result<(), Diagnostic> {
-    for (thunk, iat_rva) in thunks.iter().zip(iat_rvas.iter().copied()) {
+    // One base plus the retained slot offset is the slot's address.
+    let table_rva = table.import_directory_rva;
+    for (thunk, &slot_offset) in thunks.iter().zip(table.iat_table_offsets.iter()) {
         let instruction_address = layout.text_address + thunk.text_offset as u64;
         let next_instruction = instruction_address + 6;
-        let iat_address = IMAGE_BASE + u64::from(iat_rva);
+        let iat_address = IMAGE_BASE + u64::from(table_rva) + slot_offset as u64;
         let delta = iat_address as i64 - next_instruction as i64;
         let displacement = i32::try_from(delta).map_err(|_| {
             Diagnostic::error(format!(
@@ -403,8 +397,9 @@ mod tests {
     };
     use target::{ForeignLocatorCandidate, NativeTarget, TargetProfile, normalize_foreign_locator};
 
-    #[test]
-    fn installed_import_thunks_enter_the_executable_region_inventory() {
+    /// A final image carrying one import row: the fixture shape every
+    /// bootstrap-import test in this module starts from.
+    fn image_with_import(name: &str, import: FinalImageImportPlan) -> FinalImage {
         let mut image = FinalImage::with_capacity(
             NativeTarget::windows_x64(),
             Default::default(),
@@ -414,16 +409,29 @@ mod tests {
             0,
         );
         let symbol = image.symbol_table.symbols.insert(FinalImageSymbol {
-            name: "ExitProcess".into(),
+            name: name.into(),
             kind: object_file::SymbolKind::Import,
             ..FinalImageSymbol::default()
         });
         image.symbol_table.imports.insert(FinalImageImport {
             symbol_handle: symbol,
-            import: FinalImageImportPlan::StringBackedBootstrap {
+            import,
+        });
+        image
+    }
+
+    fn bootstrap_import_image(name: &str) -> FinalImage {
+        image_with_import(
+            name,
+            FinalImageImportPlan::StringBackedBootstrap {
                 library: "KERNEL32.dll".into(),
             },
-        });
+        )
+    }
+
+    #[test]
+    fn installed_import_thunks_enter_the_executable_region_inventory() {
+        let mut image = bootstrap_import_image("ExitProcess");
 
         let thunks = install_import_thunks(&mut image, 3).expect("valid bootstrap import");
         validate_import_thunk_footprints(&mut image, &thunks)
@@ -442,25 +450,7 @@ mod tests {
 
     #[test]
     fn mutated_import_thunk_opcode_rejects_final_validation() {
-        let mut image = FinalImage::with_capacity(
-            NativeTarget::windows_x64(),
-            Default::default(),
-            Handle::invalid(),
-            1,
-            1,
-            0,
-        );
-        let symbol = image.symbol_table.symbols.insert(FinalImageSymbol {
-            name: "ExitProcess".into(),
-            kind: object_file::SymbolKind::Import,
-            ..FinalImageSymbol::default()
-        });
-        image.symbol_table.imports.insert(FinalImageImport {
-            symbol_handle: symbol,
-            import: FinalImageImportPlan::StringBackedBootstrap {
-                library: "KERNEL32.dll".into(),
-            },
-        });
+        let mut image = bootstrap_import_image("ExitProcess");
         let thunks = install_import_thunks(&mut image, 3).expect("valid bootstrap import");
         image.memory.text[0] = 0x90;
 
@@ -476,7 +466,7 @@ mod tests {
         // zeros -- a clean import-free PE32+, not a lone null descriptor.
         let table = build_import_table(&[], 0x3000);
         assert!(table.bytes.is_empty());
-        assert!(table.iat_rvas.is_empty());
+        assert!(table.iat_table_offsets.is_empty());
         assert_eq!(table.import_directory_rva, 0);
         assert_eq!(table.import_directory_size, 0);
         assert_eq!(table.iat_rva, 0);
@@ -503,7 +493,7 @@ mod tests {
         ];
         let table = build_import_table(&thunks, 0x3000);
         assert!(!table.bytes.is_empty());
-        assert_eq!(table.iat_rvas.len(), 2);
+        assert_eq!(table.iat_table_offsets.len(), 2);
         assert_eq!(table.import_directory_rva, 0x3000);
         assert!(table.import_directory_size > 0);
         assert!(table.iat_size > 0);
@@ -649,23 +639,7 @@ mod tests {
             "rejection must precede thunk mutation"
         );
 
-        let mut missing = FinalImage::with_capacity(
-            NativeTarget::windows_x64(),
-            Default::default(),
-            Handle::invalid(),
-            1,
-            1,
-            0,
-        );
-        let symbol = missing.symbol_table.symbols.insert(FinalImageSymbol {
-            name: "missing-plan".into(),
-            kind: object_file::SymbolKind::Import,
-            ..FinalImageSymbol::default()
-        });
-        missing.symbol_table.imports.insert(FinalImageImport {
-            symbol_handle: symbol,
-            import: FinalImageImportPlan::None,
-        });
+        let mut missing = image_with_import("missing-plan", FinalImageImportPlan::None);
         let diagnostic = install_import_thunks(&mut missing, 3)
             .expect_err("an import symbol without retained coordinates must reject");
         assert!(

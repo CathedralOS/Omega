@@ -345,3 +345,75 @@ pub(crate) fn exactly_one_row_for_tag<'row, R>(
     }
     Ok(row)
 }
+
+/// One operation-semantic cohort's derived surface, generated from the tag list
+/// its own row table states: the cohort's operation-tag roster, its membership
+/// gate, the unexpected-row refusal, and the exact row lookup.
+///
+/// A cohort states each operation tag once, in the row table that also carries
+/// its schema. The tag roster, the membership test and the lookup that gates on
+/// it all project that one statement, so a cohort cannot answer a tag its table
+/// does not declare and cannot restate a tag list beside the table.
+///
+/// Rejected alternatives: a hand-written tag array per cohort beside the table
+/// (two statements of one roster, which drift), and one invocation per derived
+/// item (three tag lists that can disagree). `semantic_rows` itself is not a
+/// cohort: every operation tag has a row there, so it has no membership gate.
+macro_rules! operation_semantic_cohort {
+    (
+        rows: $row:ty,
+        tags: $tags:ident,
+        is_tag: $is_tag:ident,
+        exact_row: $exact_row:ident,
+        reject_unexpected: $reject_unexpected:ident,
+        missing: $missing:ident,
+        duplicate: $duplicate:ident,
+        unexpected: $unexpected:ident,
+        $( $tag:ident ),+ $(,)?
+    ) => {
+        const $tags: [OperationSemanticTag;
+            $crate::semantic_rows::operation_semantic_cohort!(@count $( $tag )+)] = [
+            $( OperationSemanticTag::$tag ),+
+        ];
+
+        const fn $is_tag(tag: OperationSemanticTag) -> bool {
+            matches!(tag, $( OperationSemanticTag::$tag )|+)
+        }
+
+        /// Exactly one row carries a tag this cohort declares; a tag outside the
+        /// cohort has no row here and is not the caller's answer.
+        pub fn $exact_row(
+            tag: OperationSemanticTag,
+            rows: &[$row],
+        ) -> Result<Option<&$row>, OperationSemanticError> {
+            if !$is_tag(tag) {
+                return Ok(None);
+            }
+            $crate::semantic_rows::exactly_one_row_for_tag(
+                rows,
+                tag,
+                |row| row.tag,
+                OperationSemanticError::$missing,
+                OperationSemanticError::$duplicate,
+            )
+            .map(Some)
+        }
+
+        /// A row this cohort's table does not declare is a caller error: the
+        /// roster is closed, so an outside tag is refused rather than ignored.
+        fn $reject_unexpected(rows: &[$row]) -> Result<(), OperationSemanticError> {
+            for row in rows {
+                if !$is_tag(row.tag) {
+                    return Err(OperationSemanticError::$unexpected(row.tag));
+                }
+            }
+            Ok(())
+        }
+    };
+    (@count $( $variant:ident )+) => {
+        <[()]>::len(&[ $( $crate::semantic_rows::operation_semantic_cohort!(@unit $variant) ),+ ])
+    };
+    (@unit $variant:ident) => { () };
+}
+
+pub(crate) use operation_semantic_cohort;

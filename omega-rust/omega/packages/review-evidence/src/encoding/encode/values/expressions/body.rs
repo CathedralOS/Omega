@@ -55,9 +55,7 @@ pub(super) fn encode_contract_expression_body(
         PackageReviewContractExpression::Constructor { data, case, fields } => {
             encoder.tag("constructor", 15);
             encoder.field("data", |encoder| encode_nominal(encoder, data))?;
-            encoder.field("case", |encoder| {
-                encoder.option(case.as_ref(), encode_nominal)
-            })?;
+            encoder.option_field("case", case.as_ref(), encode_nominal)?;
             encoder.field("fields", |encoder| {
                 encoder.sequence(fields, |encoder, field| {
                     encoder.field("field", |encoder| encode_nominal(encoder, &field.field))?;
@@ -81,12 +79,8 @@ pub(super) fn encode_contract_expression_body(
             end_inclusive,
         } => {
             encoder.tag("range", 17);
-            encoder.field("start", |encoder| {
-                encoder.option(start.as_deref(), encode_contract_expression)
-            })?;
-            encoder.field("end", |encoder| {
-                encoder.option(end.as_deref(), encode_contract_expression)
-            })?;
+            encoder.option_field("start", start.as_deref(), encode_contract_expression)?;
+            encoder.option_field("end", end.as_deref(), encode_contract_expression)?;
             encoder.boolean_field("end_inclusive", *end_inclusive)?;
         }
         PackageReviewContractExpression::ByteSequence(value) => {
@@ -165,9 +159,7 @@ pub(super) fn encode_contract_expression_body(
             encoder.tag("member", 8);
             encoder.field_by("receiver", &**receiver, encode_contract_expression)?;
             encoder.field("member", |encoder| encode_nominal(encoder, member))?;
-            encoder.field("case_variant", |encoder| {
-                encoder.option(case_variant.as_ref(), encode_nominal)
-            })?;
+            encoder.option_field("case_variant", case_variant.as_ref(), encode_nominal)?;
         }
         PackageReviewContractExpression::Cast {
             value,
@@ -189,9 +181,7 @@ pub(super) fn encode_contract_expression_body(
                 };
                 Ok(())
             })?;
-            encoder.field("semantic_domain", |encoder| {
-                encoder.option(semantic_domain.as_ref(), encode_nominal)
-            })?;
+            encoder.option_field("semantic_domain", semantic_domain.as_ref(), encode_nominal)?;
             encoder.field("semantic_domain_arguments", |encoder| {
                 encoder.sequence(semantic_domain_arguments, encode_type_identity)
             })?;
@@ -221,9 +211,7 @@ pub(super) fn encode_contract_expression_body(
             arguments,
         } => {
             encoder.tag("call", 11);
-            encoder.field("receiver", |encoder| {
-                encoder.option(receiver.as_deref(), encode_contract_expression)
-            })?;
+            encoder.option_field("receiver", receiver.as_deref(), encode_contract_expression)?;
             encoder.field("target", |encoder| {
                 match target {
                     PackageReviewContractCallTarget::Nominal(identity) => {
@@ -339,9 +327,11 @@ pub(super) fn encode_contract_expression_body(
             encoder.field_by("subject", &**subject, encode_contract_expression)?;
             encoder.field("arms", |encoder| {
                 encoder.sequence(arms, |encoder, arm| {
-                    encoder.field("pattern", |encoder| {
-                        encoder.option(arm.pattern.as_ref(), encode_contract_expression)
-                    })?;
+                    encoder.option_field(
+                        "pattern",
+                        arm.pattern.as_ref(),
+                        encode_contract_expression,
+                    )?;
                     encoder.field_by("value", &arm.value, encode_contract_expression)
                 })
             })?;

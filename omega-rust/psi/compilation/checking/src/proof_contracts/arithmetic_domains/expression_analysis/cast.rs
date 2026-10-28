@@ -286,7 +286,6 @@ fn require_exact_integer_fit(
     };
     let fits = integer_interval_fits_primitive(source.interval, source_primitive, target)
         || (walk.checks_occurrence_fit
-            && (source_primitive == PrimitiveType::Addr || target == PrimitiveType::Addr)
             && walk
                 .machine
                 .zip(walk.state)

@@ -1,6 +1,7 @@
 //! Select register effects through ordinary scalar input and result definitions.
-use super::{Builder, SelectedInstructionKind, SelectedInstructionProvenance};
+use super::{Builder, SelectedInstructionKind};
 use crate::SelectedInstructionError;
+use crate::selection::construction::scalar_graph::structural::operation_provenance;
 use legalized_operations::{LegalizedScalarInstruction, LegalizedScalarInstructionKind};
 use semantic_vocabulary::{IntegerSign, ScalarType};
 use terminal_psi::RegisterOperation;
@@ -61,16 +62,14 @@ pub(super) fn emit(
         SelectedInstructionKind::RegisterAccess { operation },
         key,
         &registers,
-        SelectedInstructionProvenance {
-            operations: vec![row.operation],
-            values: event
+        operation_provenance(
+            row,
+            event
                 .inputs()
                 .copied()
                 .chain(output.map(|(result, _)| result.value))
                 .collect(),
-            fuel: row.fuel.clone(),
-            ..Default::default()
-        },
+        ),
     )?;
     if let Some((result, register)) = output {
         builder.definitions.push((

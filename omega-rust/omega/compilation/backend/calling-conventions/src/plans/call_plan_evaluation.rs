@@ -492,29 +492,11 @@ fn evaluate_microsoft_x64(signature: &CallSignature) -> Result<CallPlan, PlanDia
         });
     }
     let stack_parameter_slots = (parameter_slot_base + parameters.len()).saturating_sub(4);
-    let mut copy_stack_offset = 32 + (stack_parameter_slots * 8) as u32;
-    for placement in &mut parameters {
-        if let [
-            ValueLocation::Indirect {
-                copy_stack_byte_offset,
-                byte_size,
-                alignment,
-                ..
-            },
-        ] = placement.locations.as_mut_slice()
-        {
-            // Microsoft requires caller-owned temporaries for indirectly
-            // passed aggregates to be 16-byte aligned, even when the source
-            // type itself has a smaller natural alignment.
-            copy_stack_offset = align_up(copy_stack_offset, 16)?;
-            if !borrowed_class(placement.shape.class) {
-                *copy_stack_byte_offset = Some(copy_stack_offset);
-                copy_stack_offset = stack_end(copy_stack_offset, align_up(*byte_size, 8)?)?;
-                copy_stack_offset =
-                    stack_end(copy_stack_offset, u32::from(alignment.saturating_sub(16)))?;
-            }
-        }
-    }
+    let copy_stack_offset = 32 + (stack_parameter_slots * 8) as u32;
+    // Microsoft requires caller-owned temporaries for indirectly passed
+    // aggregates to be 16-byte aligned, even when the source type itself has
+    // a smaller natural alignment.
+    reserve_indirect_copies(&mut parameters, copy_stack_offset, |_| 16, 16)?;
     Ok(CallPlan {
         policy: CallingPolicy::MicrosoftX64,
         parameters,
@@ -573,11 +555,9 @@ fn evaluate_system_v_amd64(signature: &CallSignature) -> Result<CallPlan, PlanDi
                 result.shape.alignment,
             )]
         } else {
-            integer_register_fragment_locations(
-                result.shape,
-                &[MachineRegister::X86Rax, MachineRegister::X86Rdx],
-                0,
-            )
+            register_fragments(result.shape, 8, 0, |index| {
+                [MachineRegister::X86Rax, MachineRegister::X86Rdx][usize::from(index)]
+            })
         };
     }
     if let Some(result) = plan.result.as_mut()
@@ -586,7 +566,7 @@ fn evaluate_system_v_amd64(signature: &CallSignature) -> Result<CallPlan, PlanDi
             ValueClass::HomogeneousFloatAggregate { .. }
         )
     {
-        result.locations = sysv_sse_fragment_locations(result.shape, 0);
+        result.locations = register_fragments(result.shape, 8, 0, MachineRegister::X86Xmm);
     }
     Ok(plan)
 }
@@ -614,7 +594,8 @@ fn evaluate_aapcs64(signature: &CallSignature) -> Result<CallPlan, PlanDiagnosti
                 result.shape.alignment,
             )];
         } else if result.shape.byte_size > 8 {
-            result.locations = integer_register_fragment_locations(result.shape, &integer, 0);
+            result.locations =
+                register_fragments(result.shape, 8, 0, |index| integer[usize::from(index)]);
         }
     }
     Ok(plan)
@@ -651,19 +632,8 @@ fn evaluate_split_bank_call(
     for shape in signature.parameters.iter().copied() {
         let mut locations = Vec::new();
         if borrowed_class(shape.class) {
-            let pointer = if integer_index < integer_registers.len() {
-                let register = integer_registers[integer_index];
-                integer_index += 1;
-                IndirectPointerLocation::Register(register)
-            } else {
-                stack_offset = align_up(stack_offset, 8)?;
-                let pointer = IndirectPointerLocation::Stack {
-                    stack_byte_offset: stack_offset,
-                    alignment: 8,
-                };
-                stack_offset = stack_end(stack_offset, 8)?;
-                pointer
-            };
+            let pointer =
+                indirect_pointer(integer_registers, &mut integer_index, &mut stack_offset)?;
             locations.push(ValueLocation::indirect(
                 pointer,
                 None,
@@ -712,9 +682,7 @@ fn evaluate_split_bank_call(
                 integer_index = aggregate_integer_index;
                 float_index = aggregate_float_index;
             } else {
-                stack_offset = align_up(stack_offset, u32::from(shape.alignment.clamp(8, 16)))?;
-                locations.extend(integer_stack_fragment_locations(shape, stack_offset)?);
-                stack_offset = stack_end(stack_offset, align_up(shape.byte_size, 8)?)?;
+                spill_integer_fragments(shape, &mut stack_offset, &mut locations)?;
             }
             parameters.push(ValuePlacement { shape, locations });
             continue;
@@ -743,34 +711,26 @@ fn evaluate_split_bank_call(
             if policy == CallingPolicy::SystemVAMD64
                 && matches!(shape.class, ValueClass::HomogeneousFloatAggregate { .. })
             {
-                locations.extend(sysv_sse_fragment_locations(shape, float_index));
+                locations.extend(register_fragments(
+                    shape,
+                    8,
+                    float_index,
+                    MachineRegister::X86Xmm,
+                ));
             } else {
                 let members = float_members.expect("float register count came from members");
-                let member_size = shape.byte_size / u32::from(members);
-                for member in 0..members {
-                    locations.push(ValueLocation::register(
-                        float_register(float_index + member),
-                        u32::from(member) * member_size,
-                        member_size,
-                    ));
-                }
+                locations.extend(register_fragments(
+                    shape,
+                    shape.byte_size / u32::from(members),
+                    float_index,
+                    float_register,
+                ));
             }
             float_index += registers_needed;
         } else if float_members.is_none() && shape.byte_size > 16 {
             if policy == CallingPolicy::Aapcs64 {
-                let pointer = if integer_index < integer_registers.len() {
-                    let register = integer_registers[integer_index];
-                    integer_index += 1;
-                    IndirectPointerLocation::Register(register)
-                } else {
-                    stack_offset = align_up(stack_offset, 8)?;
-                    let pointer = IndirectPointerLocation::Stack {
-                        stack_byte_offset: stack_offset,
-                        alignment: 8,
-                    };
-                    stack_offset = stack_end(stack_offset, 8)?;
-                    pointer
-                };
+                let pointer =
+                    indirect_pointer(integer_registers, &mut integer_index, &mut stack_offset)?;
                 locations.push(ValueLocation::indirect(
                     pointer,
                     None,
@@ -779,9 +739,7 @@ fn evaluate_split_bank_call(
                 ));
             } else {
                 debug_assert_eq!(policy, CallingPolicy::SystemVAMD64);
-                stack_offset = align_up(stack_offset, u32::from(shape.alignment.clamp(8, 16)))?;
-                locations.extend(integer_stack_fragment_locations(shape, stack_offset)?);
-                stack_offset = stack_end(stack_offset, align_up(shape.byte_size, 8)?)?;
+                spill_integer_fragments(shape, &mut stack_offset, &mut locations)?;
             }
         } else if float_members.is_none() && shape.byte_size > 8 {
             // Integer-class aggregates up to two eightbytes stay whole: use
@@ -792,11 +750,9 @@ fn evaluate_split_bank_call(
                 integer_index = integer_index.next_multiple_of(2);
             }
             if integer_index + register_count <= integer_registers.len() {
-                locations.extend(integer_register_fragment_locations(
-                    shape,
-                    integer_registers,
-                    integer_index,
-                ));
+                locations.extend(register_fragments(shape, 8, integer_index as u8, |index| {
+                    integer_registers[usize::from(index)]
+                }));
                 integer_index += register_count;
             } else {
                 // AAPCS64 advances NGRN to eight after a register-exhausted
@@ -805,14 +761,10 @@ fn evaluate_split_bank_call(
                 if policy == CallingPolicy::Aapcs64 {
                     integer_index = integer_registers.len();
                 }
-                stack_offset = align_up(stack_offset, u32::from(shape.alignment.clamp(8, 16)))?;
-                locations.extend(integer_stack_fragment_locations(shape, stack_offset)?);
-                stack_offset = stack_end(stack_offset, align_up(shape.byte_size, 8)?)?;
+                spill_integer_fragments(shape, &mut stack_offset, &mut locations)?;
             }
         } else if float_members.is_some() && policy == CallingPolicy::SystemVAMD64 {
-            stack_offset = align_up(stack_offset, u32::from(shape.alignment.clamp(8, 16)))?;
-            locations.extend(integer_stack_fragment_locations(shape, stack_offset)?);
-            stack_offset = stack_end(stack_offset, align_up(shape.byte_size, 8)?)?;
+            spill_integer_fragments(shape, &mut stack_offset, &mut locations)?;
         } else if float_members.is_none() && integer_index < integer_registers.len() {
             locations.push(register_location(integer_registers[integer_index], shape));
             integer_index += 1;
@@ -823,27 +775,12 @@ fn evaluate_split_bank_call(
         }
         parameters.push(ValuePlacement { shape, locations });
     }
-    for placement in &mut parameters {
-        if let [
-            ValueLocation::Indirect {
-                copy_stack_byte_offset,
-                alignment,
-                byte_size,
-                ..
-            },
-        ] = placement.locations.as_mut_slice()
-        {
-            stack_offset = align_up(stack_offset, u32::from((*alignment).clamp(8, 16)))?;
-            if !borrowed_class(placement.shape.class) {
-                *copy_stack_byte_offset = Some(stack_offset);
-                stack_offset = stack_end(stack_offset, align_up(*byte_size, 8)?)?;
-                stack_offset = stack_end(
-                    stack_offset,
-                    u32::from(alignment.saturating_sub(stack_alignment)),
-                )?;
-            }
-        }
-    }
+    reserve_indirect_copies(
+        &mut parameters,
+        stack_offset,
+        |alignment| u32::from(alignment.clamp(8, 16)),
+        stack_alignment,
+    )?;
     Ok(CallPlan {
         policy,
         parameters,
@@ -856,52 +793,107 @@ fn evaluate_split_bank_call(
     })
 }
 
-fn integer_register_fragment_locations(
+/// Spread `shape` over consecutive registers of one bank as `fragment_bytes`
+/// sized fragments, each fragment's payload clipped to the value's remaining
+/// extent; `register` maps an absolute bank index to its machine register.
+fn register_fragments(
     shape: ValueShape,
-    registers: &[MachineRegister],
-    first_register: usize,
+    fragment_bytes: u32,
+    first_index: u8,
+    register: impl Fn(u8) -> MachineRegister,
 ) -> Vec<ValueLocation> {
-    (0..(shape.byte_size.div_ceil(8) as usize))
+    (0..shape.byte_size.div_ceil(fragment_bytes))
         .map(|fragment| {
-            let value_byte_offset = fragment * 8;
+            let value_byte_offset = fragment * fragment_bytes;
             ValueLocation::register(
-                registers[first_register + fragment],
-                value_byte_offset as u32,
-                ((shape.byte_size as usize) - value_byte_offset).min(8) as u32,
-            )
-        })
-        .collect()
-}
-
-fn integer_stack_fragment_locations(
-    shape: ValueShape,
-    first_stack_byte_offset: u32,
-) -> Result<Vec<ValueLocation>, PlanDiagnostic> {
-    stack_end(first_stack_byte_offset, align_up(shape.byte_size, 8)?)?;
-    Ok((0..(shape.byte_size.div_ceil(8) as usize))
-        .map(|fragment| {
-            let value_byte_offset = fragment * 8;
-            ValueLocation::stack(
-                first_stack_byte_offset + value_byte_offset as u32,
-                value_byte_offset as u32,
-                ((shape.byte_size as usize) - value_byte_offset).min(8) as u32,
-                8,
-            )
-        })
-        .collect())
-}
-
-fn sysv_sse_fragment_locations(shape: ValueShape, first_register: u8) -> Vec<ValueLocation> {
-    (0..shape.byte_size.div_ceil(8))
-        .map(|fragment| {
-            let value_byte_offset = fragment * 8;
-            ValueLocation::register(
-                MachineRegister::X86Xmm(first_register + fragment as u8),
+                register(first_index + fragment as u8),
                 value_byte_offset,
-                (shape.byte_size - value_byte_offset).min(8),
+                (shape.byte_size - value_byte_offset).min(fragment_bytes),
             )
         })
         .collect()
+}
+
+/// Spread one value over the outgoing stack area as eightbyte fragments:
+/// align the area, emit the fragments, then advance past the padded extent.
+/// The extent is checked before any fragment offset is formed, so a cursor
+/// near the 32-bit ceiling fails instead of wrapping.
+fn spill_integer_fragments(
+    shape: ValueShape,
+    stack_offset: &mut u32,
+    locations: &mut Vec<ValueLocation>,
+) -> Result<(), PlanDiagnostic> {
+    let first = align_up(*stack_offset, u32::from(shape.alignment.clamp(8, 16)))?;
+    let end = stack_end(first, align_up(shape.byte_size, 8)?)?;
+    locations.extend((0..(shape.byte_size.div_ceil(8) as usize)).map(|fragment| {
+        let value_byte_offset = fragment * 8;
+        ValueLocation::stack(
+            first + value_byte_offset as u32,
+            value_byte_offset as u32,
+            ((shape.byte_size as usize) - value_byte_offset).min(8) as u32,
+            8,
+        )
+    }));
+    *stack_offset = end;
+    Ok(())
+}
+
+/// Where one indirectly passed value's pointer travels: the next integer-bank
+/// register, or a stack word once that bank is exhausted.
+fn indirect_pointer(
+    integer_registers: &[MachineRegister],
+    integer_index: &mut usize,
+    stack_offset: &mut u32,
+) -> Result<IndirectPointerLocation, PlanDiagnostic> {
+    if let Some(register) = integer_registers.get(*integer_index) {
+        *integer_index += 1;
+        return Ok(IndirectPointerLocation::Register(*register));
+    }
+    *stack_offset = align_up(*stack_offset, 8)?;
+    let pointer = IndirectPointerLocation::Stack {
+        stack_byte_offset: *stack_offset,
+        alignment: 8,
+    };
+    *stack_offset = stack_end(*stack_offset, 8)?;
+    Ok(pointer)
+}
+
+/// Reserve the caller-owned copy slot every indirectly passed parameter needs,
+/// in declaration order, once its register or stack placement is fixed.
+/// `copy_alignment` is the ABI's rule for where a copy may begin — Microsoft
+/// x64 rounds every temporary to sixteen bytes even when its source type is
+/// only eight-byte aligned, while SysV AMD64 and AAPCS64 use the value's own
+/// alignment clamped to the outgoing area's range — and `stack_alignment`
+/// bounds the over-alignment padding that follows the payload. A borrowed
+/// value keeps its caller-owned carrier, so it reserves no copy.
+fn reserve_indirect_copies(
+    parameters: &mut [ValuePlacement],
+    mut stack_offset: u32,
+    copy_alignment: impl Fn(u16) -> u32,
+    stack_alignment: u16,
+) -> Result<(), PlanDiagnostic> {
+    for placement in parameters {
+        if let [
+            ValueLocation::Indirect {
+                copy_stack_byte_offset,
+                byte_size,
+                alignment,
+                ..
+            },
+        ] = placement.locations.as_mut_slice()
+        {
+            stack_offset = align_up(stack_offset, copy_alignment(*alignment))?;
+            if !borrowed_class(placement.shape.class) {
+                *copy_stack_byte_offset = Some(stack_offset);
+                stack_offset = stack_end(stack_offset, align_up(*byte_size, 8)?)?;
+                stack_offset = stack_end(
+                    stack_offset,
+                    u32::from(alignment.saturating_sub(stack_alignment)),
+                )?;
+            }
+        }
+    }
+    Ok(())
 }
 
 fn evaluate_linux_syscall_x86_64(signature: &CallSignature) -> Result<CallPlan, PlanDiagnostic> {
@@ -1030,18 +1022,12 @@ fn result_placement(
                 "borrowed references cannot be call results".into(),
             ));
         }
-        ValueClass::HomogeneousFloatAggregate { members } => {
-            let member_size = shape.byte_size / u32::from(members);
-            (0..members)
-                .map(|member| {
-                    ValueLocation::register(
-                        float_register(member),
-                        u32::from(member) * member_size,
-                        member_size,
-                    )
-                })
-                .collect()
-        }
+        ValueClass::HomogeneousFloatAggregate { members } => register_fragments(
+            shape,
+            shape.byte_size / u32::from(members),
+            0,
+            float_register,
+        ),
         ValueClass::SystemVAggregate { first, second } => {
             let classes = [first, second];
             let mut integer_index = 0usize;

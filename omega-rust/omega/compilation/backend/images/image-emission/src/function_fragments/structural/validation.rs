@@ -6,8 +6,9 @@ use super::{
     OperationId, PlaceId, SelectedBoundarySettlement, SelectedFunction, SelectedMemoryAccessRole,
     SemanticCodeAttribution, SemanticCodeSite, StagedOptimizedRelocationFreeObjectContainer,
     StructuralSourceLocation, ValueLocation, ValuePlacement, attribution, byte_input, byte_output,
-    established_views, fragment, host, inline_owned_placement, primitive_locals, process_exit,
-    published_call, scalar_result, scalar_type, selected, semantic_code_site, source,
+    established_views, fragment, host, inline_owned_placement, placed_text_offset,
+    primitive_locals, process_exit, published_call, scalar_result, scalar_type, selected,
+    semantic_code_site, source,
 };
 pub(in crate::function_fragments) fn validate_function(
     source: &StagedOptimizedRelocationFreeObjectContainer,
@@ -483,10 +484,7 @@ pub(in crate::function_fragments) fn validate_settlements(
             let row = &actual.settlement;
             validate_settlement_position(function, fragment, located, row.code_offset)?;
             if actual.machine != placed.machine
-                || actual.text_offset
-                    != host(placed.section_offset)?
-                        .checked_add(row.code_offset)
-                        .ok_or(Error::Overflow)?
+                || actual.text_offset != placed_text_offset(placed.section_offset, row.code_offset)?
                 || row.invocation_site != expected.operation.into()
                 || row.boundary != expected.boundary
                 || row.execution

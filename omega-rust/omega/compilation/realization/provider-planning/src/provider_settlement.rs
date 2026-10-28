@@ -448,7 +448,7 @@ pub fn settle_checked_providers(
             &target_provider_defaults,
             build_provider_selections,
         ),
-        provider_selection_target,
+        planning_target.unwrap_or_else(target::TargetProfile::host),
         &target_provider_defaults,
         build_provider_selections,
     )?;

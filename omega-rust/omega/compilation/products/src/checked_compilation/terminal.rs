@@ -81,7 +81,6 @@ impl CheckedCompilation {
                         &plans.physical_calling_application,
                         &plans.storage_entry,
                     )),
-                    entry.fused_service_establishments(),
                 )
             }),
             application: self.build_admission().native_application_metadata(

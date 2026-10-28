@@ -1,6 +1,5 @@
 //! Complete text record rendering and recovery through existing graph validation.
 
-use super::super::validation::validate_subject;
 use super::super::{
     CanonicalDependencySourceSelection, CanonicalSourceClosureSubject,
     CanonicalSourceClosureSubjectError as Error, CanonicalSourceClosureSubjectLimits as Limits,
@@ -31,29 +30,13 @@ impl CanonicalSourceClosureSubject {
     /// granting acceptance or changing its binary identity.
     pub fn canonical_text(&self, limits: Limits) -> Result<String, Error> {
         let limits = limits.compiler_bounded();
-        if self.canonical_bytes().len() > limits.maximum_record_bytes {
-            return Err(Error::new(
-                "source-closure subject exceeds its record-byte limit",
-            ));
-        }
-        validate_subject(
-            &self.root,
-            &self.packages,
-            &self.package_navigations,
-            &self.package_dependency_projections,
-            &self.dependency_requests,
-            limits,
-        )?;
-        super::super::catalog::validate(
-            self,
-            &self.catalog_dependencies,
-            limits,
-            &mut Budget::new(usize::MAX),
-        )?;
+        // Retention, graph, catalog and record-byte checks under this caller's
+        // possibly tighter ceilings are the retention-limit owner's obligation.
+        self.validate_recovery_limits(limits)?;
         // The binary field encoder owns the existing identity/request limits
-        // (including target, navigation, aliases, and named selections). Reuse
-        // those checks under this caller's possibly tighter ceilings.
-        let encoded_length = super::super::encoding::encode_subject(
+        // (including target, navigation, aliases, and named selections) and the
+        // record-byte ceiling; rendering never re-derives them field by field.
+        super::super::encoding::encode_subject(
             self.target_profile,
             &self.root,
             &self.packages,
@@ -62,13 +45,8 @@ impl CanonicalSourceClosureSubject {
             &self.dependency_requests,
             &self.catalog_dependencies,
             limits,
-        )?
-        .len();
-        if encoded_length > limits.maximum_record_bytes {
-            return Err(Error::new(
-                "source-closure subject exceeds its record-byte limit",
-            ));
-        }
+            &mut Budget::new(usize::MAX),
+        )?;
         let mut writer = Writer::new(limits.maximum_record_bytes, Budget::new(usize::MAX));
         self.write_text(
             &mut writer,
@@ -345,7 +323,7 @@ impl CanonicalSourceClosureSubject {
         reader.budget.usage.authored_dependency_requests +=
             total_authored + catalog_dependencies.len();
         reader.budget.usage.dependency_requests += edges.len() + catalog_dependencies.len();
-        let subject = Self::finish_with_budget(
+        let subject = Self::finish(
             target,
             root,
             packages,

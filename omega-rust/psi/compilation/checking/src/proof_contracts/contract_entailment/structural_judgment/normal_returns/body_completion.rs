@@ -10,6 +10,36 @@ use super::super::super::structural_case_arms::{
 use super::*;
 
 impl<'program> StructuralJudge<'program> {
+    /// Complete a non-calling terminal arm or an implicit fallthrough. Unit
+    /// closes one normal path just as a scalar result does; it is not an
+    /// unsupported transfer that can invalidate observations of other arms.
+    pub(in crate::proof_contracts::contract_entailment) fn terminal_completion_paths(
+        &self,
+        target: &typed_trees::statement::TransitionTargetNode,
+        environment: &[(String, StructuralTerm)],
+        scope: ValueScope<'_>,
+    ) -> Option<Vec<NormalReturnPath<'program>>> {
+        match target {
+            typed_trees::statement::TransitionTargetNode::Value(expression) => {
+                self.normal_return_paths(*expression, environment, scope)
+            }
+            typed_trees::statement::TransitionTargetNode::Terminal
+                if matches!(
+                    self.program.type_reference_table.type_reference(scope.2),
+                    typed_trees::types::TypeReferenceNode::Unit
+                ) =>
+            {
+                Some(vec![NormalReturnPath::observed(
+                    StructuralTerm::Opaque("()".to_owned()),
+                    self.clone(),
+                )])
+            }
+            // An unresolved named invocation is not a completion, and Unit
+            // cannot supply a result whose declared carrier is non-Unit.
+            _ => None,
+        }
+    }
+
     pub(super) fn completed_body_paths(
         &self,
         expression: ExpressionHandle,
@@ -74,25 +104,27 @@ impl<'program> StructuralJudge<'program> {
             .map(|parameter| parameter.name.to_string())
             .collect::<Vec<_>>();
         let mut diagnostics = Vec::new();
-        let arms = recognize_structural_state_leaves(
-            program,
-            theorem,
-            &captured,
-            &classification,
-            &mut diagnostics,
-            program.machine_states(callee),
-            entry,
-            &parameter_names,
-            incoming,
-            Vec::new(),
-            Vec::new(),
-            Vec::new(),
-            true,
-            &mut Vec::new(),
-            &mut 0,
-            &mut None,
-            CitationFacts::default(),
-        )?;
+        let arms = phase_profile::scope("05.bc.recognize", || {
+            recognize_structural_state_leaves(
+                program,
+                theorem,
+                &captured,
+                &classification,
+                &mut diagnostics,
+                program.machine_states(callee),
+                entry,
+                &parameter_names,
+                incoming,
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+                true,
+                &mut Vec::new(),
+                &mut 0,
+                &mut None,
+                CitationFacts::default(),
+            )
+        })?;
         if !diagnostics.is_empty() {
             return None;
         }

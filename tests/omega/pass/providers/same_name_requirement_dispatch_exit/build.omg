@@ -1,7 +1,15 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "same_name_requirement_dispatch_exit");
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-    Build::select_provider<left::Sink, left::ProviderSinkImplementation>(builder);
+    Build::select_provider<left::Sink, left::ProviderSinkImplementation>(builder, linux_arm64);
+    Build::select_provider<left::Sink, left::ProviderSinkImplementation>(builder, linux_x86_64);
+    Build::select_provider<left::Sink, left::ProviderSinkImplementation>(builder, macos_arm64);
+    Build::select_provider<left::Sink, left::ProviderSinkImplementation>(builder, macos_x86_64);
+    Build::select_provider<left::Sink, left::ProviderSinkImplementation>(builder, windows_x86_64);
+    Build::select_provider<left::Sink, left::ProviderSinkImplementation>(builder, uefi_x86_64);
+    Build::select_provider<left::Sink, left::ProviderSinkImplementation>(builder, cross_platform_cli);
+    Build::select_provider<left::Sink, left::ProviderSinkImplementation>(builder, local_unchecked);
+    Build::select_provider<left::Sink, left::ProviderSinkImplementation>(builder, alpha_bootstrap);
     Build::bind(builder, windows_x86_64::ProgramEntry, left::Runner::run);
     Build::bind(builder, linux_x86_64::ProgramEntry, left::Runner::run);
     Build::bind(builder, linux_arm64::ProgramEntry, left::Runner::run);

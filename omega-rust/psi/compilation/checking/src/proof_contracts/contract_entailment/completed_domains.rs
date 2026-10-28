@@ -5,6 +5,8 @@
 //! public call equations in evaluation order. Unsupported conjuncts stay
 //! unknown and cannot hide another conjunct that is independently false.
 
+use std::ops::ControlFlow;
+
 use super::refuted_requires::instantiated_selected_fact_judgment;
 use super::structural_judgment::StructuralJudgment;
 use symbols::SymbolHandle;
@@ -152,12 +154,17 @@ fn completed_bound_domain_judgment(
         expression,
         reference,
         initial,
-        |judgment, judge, value| {
+        |judgment| judgment.proven,
+        |judgment, observation| {
+            let Some((judge, value)) = observation else {
+                judgment.proven = false;
+                return ControlFlow::Continue(());
+            };
             let Some(projected_reference) =
                 crate::project_type_reference_from_segments(program, reference, projection)
             else {
                 judgment.proven = false;
-                return;
+                return ControlFlow::Continue(());
             };
             let parameters = [typed_trees::signature::StateParameter {
                 symbol: domain.subject_symbol,
@@ -172,7 +179,7 @@ fn completed_bound_domain_judgment(
                 program, reference, value, projection,
             ) else {
                 judgment.proven = false;
-                return;
+                return ControlFlow::Continue(());
             };
             let bindings = [(domain.subject_name.to_string(), value)];
             // Positive callers supply the declared predicate (or a Boolean
@@ -199,6 +206,7 @@ fn completed_bound_domain_judgment(
                 judgment.proven &= matches!(predicate_judgment, StructuralJudgment::Proven);
                 judgment.refuted |= matches!(predicate_judgment, StructuralJudgment::Refuted);
             }
+            ControlFlow::Continue(())
         },
     );
     let Some(result) = result else {

@@ -106,7 +106,5 @@ pub(crate) fn encode_producer(
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.field_by("declaration", &producer.declaration, encode_nominal)?;
     encoder.optional_package_identity_field("package", producer.package)?;
-    encoder.field("callable_identity", |encoder| {
-        encoder.string(&producer.callable_identity)
-    })
+    encoder.string_field("callable_identity", &producer.callable_identity)
 }

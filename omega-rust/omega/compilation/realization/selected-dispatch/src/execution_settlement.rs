@@ -1,7 +1,8 @@
-//! Close execution dispatch, accepted host bindings, task activation and entry
-//! establishment for one selected realization. Target/entry custody and x86
-//! FMA associations leave with the program they were settled against. The
-//! compiler neither projects service roles nor completes this result afterward.
+//! Close accepted host bindings and entry
+//! establishment for one selected realization. Target/entry custody leaves with
+//! the selected program; native provider admission checks optional ISA features
+//! against actual Terminal demand. The compiler neither projects service roles
+//! nor completes this result afterward.
 
 use crate::provider_binding::CheckedProviderProgram;
 use checked_trees::CheckedTrees as CheckedProgram;
@@ -16,16 +17,11 @@ use std::sync::Arc;
 pub struct SelectedExecution {
     pub program: Arc<CheckedProgram>,
     pub native_provider_sources: Result<Arc<backend_plan::NativeProviderSources>, Vec<Diagnostic>>,
-    /// Target execution associations, never written into portable checked facts.
-    pub dispatch: crate::selected_dispatch::SelectedExecutionDispatch,
     pub selected_target_profile: Option<target::TargetProfile>,
     pub selected_program_entry:
         Option<provider_planning::program_entry::SelectedCompilerProgramEntry>,
     /// Exact admitted deployment provider; absence retains the SSE2 baseline.
     pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
-    /// Exact source demands joined to that provider, never fabricated by admission.
-    pub x86_scalar_fma_plan_associations:
-        Vec<provider_planning::x86_fma_plan_association::CheckedX86ScalarFmaPlanAssociation>,
     pub selected_provider_plan_facts: effects::SelectedProviderPlanFacts,
     /// Authored Build grants resolved to the exact selected plans.
     pub selected_provider_grants: Vec<trust_model::ResolvedAuthoredSelectedProviderGrant>,
@@ -36,7 +32,6 @@ pub struct SelectedExecution {
     pub accepted_template_classifications: trust_model::AcceptedTemplateClassifications,
     pub selected_provider_provenance: Vec<provider_planning::SelectedProviderReviewProvenance>,
     pub resolved_semantic_bindings: Vec<crate::ResolvedAcceptedSemanticBinding>,
-    pub task_activations: task_plans::TaskActivationPlanSet,
 }
 
 impl SelectedExecution {
@@ -171,8 +166,6 @@ pub struct SelectedExecutionRequest<'a> {
     pub package_inputs: Option<&'a package_compilation::PackageCompilationInputs>,
     pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
     pub selected_provider_provenance: Vec<provider_planning::SelectedProviderReviewProvenance>,
-    pub opaque_representation_selections:
-        &'a [representation_planning::OpaqueRepresentationSelection],
 }
 
 /// Consume a complete checked surface and settle every selected execution
@@ -188,12 +181,6 @@ pub fn settle_selected_execution(
             "selected deployment target differs from retained provider planning target",
         )]);
     }
-    let dispatch = crate::settle_selected_execution_dispatch(
-        &checked.program,
-        settlement.calling_plans,
-        &checked.selected_provider_plan_facts,
-        &settlement.selected_provider_provenance,
-    )?;
     let accepted_binding = |role| {
         settlement
             .package_inputs
@@ -248,34 +235,12 @@ pub fn settle_selected_execution(
             .map(package_compilation::program_entry_semantic_binding_role)
             .and_then(accepted_binding),
     )?;
-    let task_activations = provider_planning::task_plans::elaborate_task_activation_plans(
-        &checked.program,
-        &checked.program.facts,
-        &checked.selected_provider_plan_facts,
-        settlement
-            .selected_target_profile
-            .map(target::TargetProfile::native_target)
-            .unwrap_or_else(target::NativeTarget::host),
-        settlement.opaque_representation_selections,
-    )?;
-
-    let x86_scalar_fma_plan_associations =
-        provider_planning::x86_fma_plan_association::bind_checked_x86_scalar_fma_plan_associations(
-            &checked.program,
-            &checked.program.facts,
-            &checked.selected_provider_plan_facts,
-            &settlement.selected_provider_provenance,
-            settlement.x86_scalar_fma_provider,
-            settlement.selected_target_profile,
-        )?;
     Ok(SelectedExecution {
         native_provider_sources: checked.native_provider_sources,
         program: checked.program,
-        dispatch,
         selected_target_profile: settlement.selected_target_profile,
         selected_program_entry: settlement.selected_program_entry,
         x86_scalar_fma_provider: settlement.x86_scalar_fma_provider,
-        x86_scalar_fma_plan_associations,
         selected_provider_plan_facts: checked.selected_provider_plan_facts,
         selected_provider_grants: checked.selected_provider_grants,
         callback_placements: checked.callback_placements,
@@ -287,6 +252,5 @@ pub fn settle_selected_execution(
             .chain(resolved_time_host_binding)
             .chain(resolved_entry_binding)
             .collect(),
-        task_activations,
     })
 }

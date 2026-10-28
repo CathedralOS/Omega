@@ -93,29 +93,57 @@ rule_rows![
     (STATE_ARGUMENT_SPECIALIZATION, b"omega.psi-rule.state-argument-specialization.v1", &[ScalarConstants, StronglyConnectedComponents], &[ControlFlowGraph, Dominators, PostDominators, LoopForest, StronglyConnectedComponents, UseDefinition, ExecutableEdges, ScalarConstants, ValueRanges, EffectSummaries, ValueLiveness], StructuralIdentity, None),
 ];
 
-/// Admit one candidate against its rule's row: the input it was built from,
-/// the rule it names, both analysis rosters, the safety class it claims, and —
-/// where the row pins one — the saving it predicts.
-pub(crate) fn admit(
+/// Admit the candidate's origin: the unit independently validated against, and
+/// the identity the candidate names as the unit it was proposed from.
+pub(crate) fn admit_origin(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
-    contract: &RuleContract,
 ) -> Result<(), OptimizationUnitValidationError> {
     validate_psi_optimization_unit(input)?;
     if candidate.input() != input.identity {
         return Err(OptimizationUnitValidationError::CandidateInputMismatch);
     }
-    if candidate.rule() != OptimizationRuleIdentity::from_canonical_bytes(contract.rule_domain)
-        || candidate.required_analyses()
-            != AnalysisSet::new(contract.required_analyses.iter().copied())
+    Ok(())
+}
+
+/// Admit the candidate's analysis roster: the analyses it reads, the ones it
+/// invalidates, the safety class it claims, and — where the family pins one —
+/// the saving it predicts. [`admit`] is this comparison behind a roster row; a
+/// family whose own catalog already pinned its rule names the fields here.
+pub(crate) fn admit_roster(
+    candidate: &PsiRewriteCandidate,
+    required_analyses: &[AnalysisKind],
+    invalidated_analyses: &[AnalysisKind],
+    safety_class: OptimizationSafetyClass,
+    predicted_cost_delta: Option<i64>,
+) -> Result<(), OptimizationUnitValidationError> {
+    if candidate.required_analyses() != AnalysisSet::new(required_analyses.iter().copied())
         || candidate.invalidated_analyses()
-            != AnalysisInvalidationSet::new(contract.invalidated_analyses.iter().copied())
-        || candidate.safety_class() != contract.safety_class
-        || contract
-            .predicted_cost_delta
-            .is_some_and(|delta| candidate.predicted_cost_delta() != delta)
+            != AnalysisInvalidationSet::new(invalidated_analyses.iter().copied())
+        || candidate.safety_class() != safety_class
+        || predicted_cost_delta.is_some_and(|delta| candidate.predicted_cost_delta() != delta)
     {
         return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
     }
     Ok(())
+}
+
+/// Admit one candidate against its rule's row: the origin it was proposed from,
+/// the rule it names, both rosters, the safety class it claims, and the saving.
+pub(crate) fn admit(
+    input: &PsiOptimizationUnit,
+    candidate: &PsiRewriteCandidate,
+    contract: &RuleContract,
+) -> Result<(), OptimizationUnitValidationError> {
+    admit_origin(input, candidate)?;
+    if candidate.rule() != OptimizationRuleIdentity::from_canonical_bytes(contract.rule_domain) {
+        return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
+    }
+    admit_roster(
+        candidate,
+        contract.required_analyses,
+        contract.invalidated_analyses,
+        contract.safety_class,
+        contract.predicted_cost_delta,
+    )
 }

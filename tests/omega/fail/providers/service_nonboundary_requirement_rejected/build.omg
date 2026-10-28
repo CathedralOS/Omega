@@ -1,4 +1,12 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "service_nonboundary_requirement_rejected");
-    Build::select_provider<Local, LocalProvider>(builder);
+    Build::select_provider<Local, LocalProvider>(builder, linux_arm64);
+    Build::select_provider<Local, LocalProvider>(builder, linux_x86_64);
+    Build::select_provider<Local, LocalProvider>(builder, macos_arm64);
+    Build::select_provider<Local, LocalProvider>(builder, macos_x86_64);
+    Build::select_provider<Local, LocalProvider>(builder, windows_x86_64);
+    Build::select_provider<Local, LocalProvider>(builder, uefi_x86_64);
+    Build::select_provider<Local, LocalProvider>(builder, cross_platform_cli);
+    Build::select_provider<Local, LocalProvider>(builder, local_unchecked);
+    Build::select_provider<Local, LocalProvider>(builder, alpha_bootstrap);
 }

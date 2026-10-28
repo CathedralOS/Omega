@@ -276,6 +276,8 @@ pub enum ExecutedBuildSelection {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExecutedProductSelection {
+    /// Exact evaluated deployment key; only provider choices carry a target.
+    pub target: Option<super::ProductTarget>,
     pub request: std::sync::Arc<ProductDeclarationRequest>,
     pub selecting_machine: Option<source::SourceSpan>,
     /// Provider choices retain the actual evaluated mode. Representation

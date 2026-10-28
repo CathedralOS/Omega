@@ -18,7 +18,10 @@
 //! exactly, rebuilds the output itself, and reconstructs the exact node
 //! custody the folded observations carry.
 
-use crate::candidates::provenance_realized_at;
+use crate::candidates::candidate_block;
+use crate::candidates::candidate_function;
+use crate::candidates::candidate_node;
+use crate::candidates::realized_at_own_site;
 use crate::candidates::state_specialization::cyclic_machines;
 use crate::candidates::structural_bindings::bound_place;
 use crate::candidates::{accept_region_rewrite, canonicalize_provenance, land_folded_nodes};
@@ -160,12 +163,7 @@ fn folded_node(
     unit: &PsiOptimizationUnit,
     function: &PsiOptimizationFunction,
 ) -> Result<OptimizationNode, OptimizationUnitValidationError> {
-    let index = usize::try_from(row.site.node)
-        .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
-    let node = function
-        .block(row.site.block)
-        .and_then(|block| block.nodes.get(index))
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let node = candidate_node(candidate_block(function, row.site.block)?, row.site.node)?;
     let O::StructuralCaseMembership {
         psi_operation,
         result,
@@ -249,19 +247,9 @@ fn accepted_provenance(
 ) -> Result<Vec<ProvenanceRewrite>, OptimizationUnitValidationError> {
     let mut provenance = Vec::new();
     for row in rows {
-        let index = usize::try_from(row.site.node)
-            .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
-        let node = function
-            .block(row.site.block)
-            .and_then(|block| block.nodes.get(index))
-            .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+        let node = candidate_node(candidate_block(function, row.site.block)?, row.site.node)?;
         let site = PsiRealizationSite::Node(row.site);
-        provenance.push(provenance_realized_at(
-            site,
-            site,
-            &node.provenance,
-            &node.fuel,
-        ));
+        provenance.push(realized_at_own_site(site, &node.provenance, &node.fuel));
     }
     canonicalize_provenance(&mut provenance);
     Ok(provenance)
@@ -289,9 +277,7 @@ pub(super) fn validate(
     if cyclic_machines(input).contains(&patch.machine) {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
-    let function = input
-        .function(patch.machine)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let function = candidate_function(input, patch.machine)?;
     let Some(evidence) = membership_evidence(input, function, patch.place) else {
         return Err(OptimizationUnitValidationError::CandidateLocationMissing);
     };

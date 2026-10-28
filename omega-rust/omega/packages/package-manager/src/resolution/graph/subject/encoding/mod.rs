@@ -9,4 +9,4 @@ mod selection;
 mod source;
 
 pub(super) use framing::{encode_hex, fingerprint};
-pub(super) use selection::{encode_subject, encode_subject_with_budget};
+pub(super) use selection::encode_subject;

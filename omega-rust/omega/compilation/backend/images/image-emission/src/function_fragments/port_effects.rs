@@ -1,7 +1,7 @@
 //! Bind checked port events to the exact selected instruction span.
 //! This retains source service custody across placement; downstream physical
 //! review independently rejoins the same event and checks final image bytes.
-use super::{Error, attribution, host, source};
+use super::{Error, attribution, host, source, structural::placed_text_offset};
 use crate::ObjectPortEffect;
 use abstract_operations::AbstractOperation;
 use machine_code::{PortEffectRecord, SemanticCodeSite};
@@ -46,9 +46,7 @@ pub(super) fn produce(
             let code_offset = host(span.offset)?;
             effects.push(ObjectPortEffect {
                 machine: placed.machine,
-                text_offset: host(placed.section_offset)?
-                    .checked_add(code_offset)
-                    .ok_or(Error::Overflow)?,
+                text_offset: placed_text_offset(placed.section_offset, code_offset)?,
                 effect: PortEffectRecord {
                     psi_operation: *psi_operation,
                     service: *service,

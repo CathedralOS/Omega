@@ -19,7 +19,39 @@ machine build(builder: &mut Build) {
     Build::select_provider<
         StartupAcknowledgementProtocol,
         StartupConfirmationProvider
-    >(builder);
+    >(builder, linux_arm64);
+    Build::select_provider<
+        StartupAcknowledgementProtocol,
+        StartupConfirmationProvider
+    >(builder, linux_x86_64);
+    Build::select_provider<
+        StartupAcknowledgementProtocol,
+        StartupConfirmationProvider
+    >(builder, macos_arm64);
+    Build::select_provider<
+        StartupAcknowledgementProtocol,
+        StartupConfirmationProvider
+    >(builder, macos_x86_64);
+    Build::select_provider<
+        StartupAcknowledgementProtocol,
+        StartupConfirmationProvider
+    >(builder, windows_x86_64);
+    Build::select_provider<
+        StartupAcknowledgementProtocol,
+        StartupConfirmationProvider
+    >(builder, uefi_x86_64);
+    Build::select_provider<
+        StartupAcknowledgementProtocol,
+        StartupConfirmationProvider
+    >(builder, cross_platform_cli);
+    Build::select_provider<
+        StartupAcknowledgementProtocol,
+        StartupConfirmationProvider
+    >(builder, local_unchecked);
+    Build::select_provider<
+        StartupAcknowledgementProtocol,
+        StartupConfirmationProvider
+    >(builder, alpha_bootstrap);
     Build::select_representation<StartupOccurrence, StartupOccurrenceRepresentation>(builder);
     Build::select_representation<StartupVector, StartupVectorRepresentation>(builder);
 }

@@ -169,8 +169,8 @@ impl<'a> CandidateViews<'a> {
         fixed: Option<RegisterViewId>,
     ) -> Result<&[RegisterViewId], AllocationLegalityError> {
         let class_idx = usize::from(class.id.0);
-        let cell = self.boundaries_by_class[class_idx]
-            .partition_point(|boundary| *boundary <= point);
+        let cell =
+            self.boundaries_by_class[class_idx].partition_point(|boundary| *boundary <= point);
         self.candidates_at_cell(
             function_index,
             register,
@@ -211,7 +211,10 @@ impl<'a> CandidateViews<'a> {
             );
         }
         let class_idx = usize::from(class.id.0);
-        if matches!(self.cells_by_class[class_idx][cell], CellCandidates::Unknown) {
+        if matches!(
+            self.cells_by_class[class_idx][cell],
+            CellCandidates::Unknown
+        ) {
             let arch_units = &self.arch_units_by_class[class_idx];
             let any_active_at_point = arch_units.iter().any(|&unit_idx| {
                 unit_active_at_point(&self.function.architectural_units[unit_idx], point)
@@ -386,20 +389,6 @@ fn conflicts(
         else {
             return false;
         };
-        let row = &function.architectural_units[unit_idx];
-        let frag_pos = row
-            .fragments
-            .partition_point(|fragment| fragment.start <= point);
-        if frag_pos > 0 {
-            let fragment = &row.fragments[frag_pos - 1];
-            if fragment.block == block && point < fragment.end {
-                return true;
-            }
-        }
-        let act_pos = row.actions.partition_point(|action| action.point < point);
-        row.actions[act_pos..]
-            .iter()
-            .take_while(|action| action.point == point)
-            .any(|action| action.block == block)
+        unit_active_in_block_at_point(&function.architectural_units[unit_idx], block, point)
     })
 }

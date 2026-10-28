@@ -4,7 +4,10 @@
 //! residences. Every argument is a sealed recipe's original allocation. Only
 //! after normal return does the adapter observe those same bytes on FD 3.
 
-use super::{HostedReceiverBinding, ReceiverStorage, install_entry_text, invalid};
+use super::{
+    HostedReceiverBinding, ReceiverStorage, install_entry_text, invalid,
+    recipe_index_for_runtime_position,
+};
 use diagnostics::Diagnostic;
 use object_file::{ObjectPlan, ObjectSymbolHandle};
 
@@ -71,10 +74,7 @@ pub(super) fn prepare(
         initialize(&mut words, &mut addresses, *symbol, recipe.contents());
     }
     for ordinal in 0..binding.private_entry_ram.len() {
-        let index = binding
-            .private_entry_ram
-            .iter()
-            .position(|recipe| recipe.input().runtime_position as usize == ordinal)
+        let index = recipe_index_for_runtime_position(&binding.private_entry_ram, ordinal)
             .ok_or_else(invalid)?;
         if ordinal >= 8 {
             return Err(invalid());

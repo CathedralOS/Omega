@@ -127,18 +127,12 @@ impl OptimizationPassManifestRecord {
         let input = OptimizationUnitIdentity::from_bytes(cursor.array()?);
         let output = OptimizationUnitIdentity::from_bytes(cursor.array()?);
         let ordered_rule_set = OptimizationRuleSetIdentity::from_bytes(cursor.array()?);
-        let rule_count = cursor.u32()? as usize;
-        if rule_count > cursor.remaining() / 32 {
-            return Err(OptimizationManifestDecodeError::Truncated);
-        }
+        let rule_count = cursor.counted(32)?;
         let mut ordered_rules = Vec::with_capacity(rule_count);
         for _ in 0..rule_count {
             ordered_rules.push(OptimizationRuleIdentity::from_bytes(cursor.array()?));
         }
-        let decision_count = cursor.u32()? as usize;
-        if decision_count > cursor.remaining() / (4 + DECISION_FIXED_WIDTH) {
-            return Err(OptimizationManifestDecodeError::Truncated);
-        }
+        let decision_count = cursor.counted(4 + DECISION_FIXED_WIDTH)?;
         let mut decisions = Vec::with_capacity(decision_count);
         for _ in 0..decision_count {
             let length = cursor.u32()? as usize;

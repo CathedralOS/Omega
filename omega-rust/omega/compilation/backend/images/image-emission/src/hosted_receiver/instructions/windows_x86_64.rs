@@ -1,5 +1,7 @@
 //! Independent reader for Microsoft x64 entry construction and exact pipe writes.
-use super::{HostedReceiverPartitions, expected_addresses, rip_relative};
+use super::{
+    HostedReceiverPartitions, expected_addresses, recipe_index_for_runtime_position, rip_relative,
+};
 use diagnostics::Diagnostic;
 
 struct Reader<'bytes> {
@@ -199,10 +201,7 @@ pub(in crate::hosted_receiver) fn validate(
         return Err(invalid());
     }
     for ordinal in 0..recipes.len() {
-        let index = recipes
-            .iter()
-            .position(|recipe| recipe.input().runtime_position as usize == ordinal)
-            .ok_or_else(invalid)?;
+        let index = recipe_index_for_runtime_position(recipes, ordinal).ok_or_else(invalid)?;
         let prefix = match ordinal {
             0 => [0x48, 0x8d, 0x0d],
             1 => [0x48, 0x8d, 0x15],

@@ -456,6 +456,7 @@ struct ActiveStatePrefixPath<'a> {
     judge: StructuralJudge<'a>,
     environment: Vec<(String, StructuralTerm)>,
     established_guarantees: CitationFacts,
+    checked_contradiction_state: Option<(usize, usize)>,
 }
 
 /// Evaluate all requested statement-entry prefix visitors (`in_transition_target == false`)
@@ -495,6 +496,7 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
         judge: initial_judge,
         environment,
         established_guarantees: CitationFacts::default(),
+        checked_contradiction_state: None,
     }];
     let mut transitions = Vec::new();
     let mut saw_transition = false;
@@ -522,19 +524,55 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                     && visitor.site().statement_index == statement_index
                     && !visitor.site().in_transition_target
                 {
-                    for path in &active_paths {
+                    let mut idx = 0;
+                    while idx < active_paths.len() {
                         if visitor.is_complete() {
                             break;
                         }
-                        visitor.visit(
-                            program,
-                            machine,
-                            &path.judge,
-                            &path.environment,
-                            &[],
-                            &[],
-                            &path.established_guarantees,
+                        let current_state = (
+                            active_paths[idx].judge.integer_premise_revision(),
+                            active_paths[idx].established_guarantees.equations.len(),
                         );
+                        if active_paths[idx].checked_contradiction_state != Some(current_state) {
+                            let is_contradictory = if active_paths[idx]
+                                .established_guarantees
+                                .equations
+                                .is_empty()
+                            {
+                                active_paths[idx].judge.hypotheses_contradictory
+                                    || phase_profile::scope("05.num.visit.2_contra", || {
+                                        active_paths[idx].judge.integer_premises_contradictory()
+                                    })
+                            } else {
+                                let mut check_judge = active_paths[idx].judge.clone();
+                                if !check_judge.hypotheses_contradictory {
+                                    active_paths[idx].established_guarantees.intake(&mut check_judge);
+                                }
+                                check_judge.hypotheses_contradictory
+                                    || phase_profile::scope("05.num.visit.2_contra", || {
+                                        check_judge.integer_premises_contradictory()
+                                    })
+                            };
+                            if is_contradictory {
+                                visitor.entered();
+                                active_paths.remove(idx);
+                                continue;
+                            }
+                            active_paths[idx].checked_contradiction_state = Some(current_state);
+                        }
+                        let path = &active_paths[idx];
+                        phase_profile::scope("05.num.2a_visitor_visit", || {
+                            visitor.visit_non_contradictory(
+                                program,
+                                machine,
+                                &path.judge,
+                                &path.environment,
+                                &[],
+                                &[],
+                                &path.established_guarantees,
+                            );
+                        });
+                        idx += 1;
                     }
                     valid[visitor_idx] = true;
                 }
@@ -560,6 +598,8 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
         if saw_transition {
             return valid;
         }
+        let _step_guard = phase_profile::guard("05.num.2b_step_statement");
+        phase_profile::count("05.num.2b_active_paths_stepped", active_paths.len() as u64);
         let call_write_frame = if let StatementNode::Call(call) = statement
             && active_paths
                 .first()
@@ -599,7 +639,8 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
             if citation_preserves_values
                 && (!path.judge.has_runtime_body_values()
                     || matches!(statement, StatementNode::Call(_)))
-                && let Some((target, arguments)) = citation_call_in_statement(program, statement)
+                && let Some((target, arguments)) =
+                    citation_call_in_statement(program, machine.symbol, statement)
                 && super::citations::can_establish_citation(
                     program,
                     classification,
@@ -733,6 +774,7 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                             judge: outcome_judge,
                             environment,
                             established_guarantees: path.established_guarantees.clone(),
+                            checked_contradiction_state: path.checked_contradiction_state,
                         });
                     }
                 }
@@ -749,6 +791,7 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                             judge: outcome.judge,
                             environment: path.environment.clone(),
                             established_guarantees: path.established_guarantees.clone(),
+                            checked_contradiction_state: path.checked_contradiction_state,
                         });
                     }
                 }
@@ -789,6 +832,7 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                                 judge: rejoined,
                                 environment: path.environment.clone(),
                                 established_guarantees: path.established_guarantees.clone(),
+                                checked_contradiction_state: path.checked_contradiction_state,
                             });
                         } else {
                             for outcome in outcomes {
@@ -796,6 +840,7 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                                     judge: outcome.judge,
                                     environment: path.environment.clone(),
                                     established_guarantees: path.established_guarantees.clone(),
+                                    checked_contradiction_state: path.checked_contradiction_state,
                                 });
                             }
                         }
@@ -805,7 +850,13 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                     next_paths.push(path);
                 }
                 StatementNode::Call(call)
-                    if is_citation_statement(program, classification, machine, call) =>
+                    if is_citation_statement(
+                        program,
+                        classification,
+                        machine,
+                        machine.symbol,
+                        call,
+                    ) =>
                 {
                     next_paths.push(path);
                 }
@@ -846,29 +897,59 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
     }
 
     // Step active_paths through transitions in order.
-    let mut remaining_paths = active_paths
-        .into_iter()
-        .map(|path| (path, Vec::<(StructuralTerm, StructuralTerm)>::new()))
-        .collect::<Vec<_>>();
+    let mut remaining_paths = active_paths;
     for (statement_index, transition) in transitions {
         for (visitor_idx, visitor) in visitors.iter_mut().enumerate() {
             if visitor.site().state == state.symbol
                 && visitor.site().statement_index == statement_index
                 && !visitor.site().in_transition_target
             {
-                for (path, remaining_equations) in &remaining_paths {
+                for path in &mut remaining_paths {
                     if visitor.is_complete() {
                         break;
                     }
-                    visitor.visit(
-                        program,
-                        machine,
-                        &path.judge,
-                        &path.environment,
-                        &[],
-                        remaining_equations,
-                        &path.established_guarantees,
+                    let current_contra_state = (
+                        path.judge.integer_premise_revision(),
+                        path.established_guarantees.equations.len(),
                     );
+                    if path.checked_contradiction_state == Some(current_contra_state) {
+                        visitor.visit_non_contradictory(
+                            program,
+                            machine,
+                            &path.judge,
+                            &path.environment,
+                            &[],
+                            &[],
+                            &path.established_guarantees,
+                        );
+                    } else {
+                        let is_contradictory = if path.established_guarantees.equations.is_empty() {
+                            path.judge.hypotheses_contradictory
+                                || phase_profile::scope("05.num.visit.2_contra", || {
+                                    path.judge.integer_premises_contradictory()
+                                })
+                        } else {
+                            let mut probe_judge = path.judge.clone();
+                            path.established_guarantees.intake(&mut probe_judge);
+                            probe_judge.hypotheses_contradictory
+                                || phase_profile::scope("05.num.visit.2_contra", || {
+                                    probe_judge.integer_premises_contradictory()
+                                })
+                        };
+                        if is_contradictory {
+                            continue;
+                        }
+                        path.checked_contradiction_state = Some(current_contra_state);
+                        visitor.visit_non_contradictory(
+                            program,
+                            machine,
+                            &path.judge,
+                            &path.environment,
+                            &[],
+                            &[],
+                            &path.established_guarantees,
+                        );
+                    }
                 }
                 valid[visitor_idx] = true;
             }
@@ -881,7 +962,7 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
             return valid;
         }
         let mut next_remaining = Vec::new();
-        for (path, remaining_equations) in remaining_paths {
+        for path in remaining_paths {
             let TransitionGuardNode::When(guard) = transition.guard else {
                 continue;
             };
@@ -892,13 +973,12 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                 .is_some_and(|paths| paths.is_empty());
             if path.judge.requires_value_preservation() && !guard_preserves_values {
                 return valid;
-            }
+            };
             let Some((subject_expression, constructor)) =
                 guard_observation(program, machine, state, guard, &mut fresh)
             else {
                 return valid;
             };
-            let observed = structural_arm_judge(program, &path.judge, &[], &remaining_equations);
             let subject_type = crate::expression_result_type_reference(
                 program,
                 machine,
@@ -906,7 +986,7 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                 subject_expression,
             )
             .unwrap_or_default();
-            let Some(outcomes) = observed.normal_return_paths(
+            let Some(outcomes) = path.judge.normal_return_paths(
                 subject_expression,
                 &path.environment,
                 (machine, state, subject_type),
@@ -915,7 +995,6 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
             };
             for outcome in outcomes {
                 let subject = outcome.value;
-                let mut skipped_equations = remaining_equations.clone();
                 let truth = guard_preserves_values
                     .then(|| {
                         let StructuralTerm::Constructor { data, case, fields } = &constructor
@@ -937,24 +1016,30 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                     )
                 });
                 if !matches!(subject_judgment, Some(StructuralJudgment::Proven)) {
-                    if let Some(truth) = truth {
-                        skipped_equations.push((
+                    let (next_judge, next_contra_state) = if let Some(truth) = truth {
+                        let skipped_eq = [(
                             subject.clone(),
                             StructuralTerm::Constructor {
                                 data: "bool".to_owned(),
                                 case: (!truth).to_string(),
                                 fields: Vec::new(),
                             },
-                        ));
-                    }
-                    next_remaining.push((
-                        ActiveStatePrefixPath {
-                            judge: outcome.judge,
-                            environment: path.environment.clone(),
-                            established_guarantees: path.established_guarantees.clone(),
-                        },
-                        skipped_equations,
-                    ));
+                        )];
+                        let next_judge =
+                            structural_arm_judge(program, &outcome.judge, &[], &skipped_eq);
+                        if next_judge.hypotheses_contradictory {
+                            continue;
+                        }
+                        (next_judge, None)
+                    } else {
+                        (outcome.judge, path.checked_contradiction_state)
+                    };
+                    next_remaining.push(ActiveStatePrefixPath {
+                        judge: next_judge,
+                        environment: path.environment.clone(),
+                        established_guarantees: path.established_guarantees.clone(),
+                        checked_contradiction_state: next_contra_state,
+                    });
                 }
             }
         }
@@ -1178,11 +1263,12 @@ fn recognize_structural_state_leaves_from<'a>(
                 citation_preserves_values = complete && writes.is_empty();
                 judge.observe_storage_effects(state, complete.then_some(writes.as_slice()))?;
             }
-            if requirement.is_some()
+            if (requirement.is_some() || judge.has_runtime_body_values())
                 && citation_preserves_values
                 && !saw_transition
                 && (!judge.has_runtime_body_values() || matches!(statement, StatementNode::Call(_)))
-                && let Some((target, arguments)) = citation_call_in_statement(program, statement)
+                && let Some((target, arguments)) =
+                    citation_call_in_statement(program, invocation.symbol, statement)
                 && super::citations::can_establish_citation(
                     program,
                     classification,
@@ -1297,11 +1383,8 @@ fn recognize_structural_state_leaves_from<'a>(
                             let rejoined =
                                 judge.rejoin_pure_outcomes(&judge_refs, Some(local.initial_value));
                             outcomes = vec![(None, rejoined)];
-                        } else if requirement
-                            .as_deref()
-                            .is_some_and(|observer| observer.site().state == state.symbol)
-                            && program.primitive_type_reference(local.type_reference)
-                                == Some(typed_trees::types::PrimitiveType::Bool)
+                        } else if program.primitive_type_reference(local.type_reference)
+                            == Some(typed_trees::types::PrimitiveType::Bool)
                             && local_symbol_is_never_branched_on_in_remaining_prefix(
                                 program,
                                 statements,
@@ -1309,7 +1392,8 @@ fn recognize_structural_state_leaves_from<'a>(
                                 execution_position + 1,
                                 local.symbol,
                                 requirement.as_deref().is_some_and(|observer| {
-                                    !observer.site().in_transition_target
+                                    observer.site().state == state.symbol
+                                        && !observer.site().in_transition_target
                                         && observer.site().statement_index < statements.len()
                                         && !matches!(
                                             statements[observer.site().statement_index],
@@ -1340,7 +1424,7 @@ fn recognize_structural_state_leaves_from<'a>(
                         if collect_citations
                             && !judge.has_runtime_body_values()
                             && let Some((target, argument_handles)) =
-                                citation_call_in_statement(program, statement)
+                                citation_call_in_statement(program, invocation.symbol, statement)
                         {
                             stage_citation_argument_terms(
                                 program,
@@ -1446,11 +1530,20 @@ fn recognize_structural_state_leaves_from<'a>(
                         *expression,
                     )
                     .unwrap_or_default();
-                    let outcomes = judge.normal_completion_paths(
+                    let mut outcomes = judge.normal_completion_paths(
                         *expression,
                         &environment,
                         (invocation, state, result_type),
                     )?;
+                    if outcomes.len() > 1
+                        && outcomes.iter().all(|outcome| {
+                            outcome.has_no_new_effects_or_guarantees_since(&judge)
+                        })
+                    {
+                        let judge_refs: Vec<_> = outcomes.iter().collect();
+                        let rejoined = judge.rejoin_pure_outcomes(&judge_refs, Some(*expression));
+                        outcomes = vec![rejoined];
+                    }
                     let mut leaves = Vec::new();
                     for completed in outcomes {
                         leaves.extend(recognize_structural_state_leaves_from(
@@ -1476,36 +1569,48 @@ fn recognize_structural_state_leaves_from<'a>(
                     }
                     return Some(leaves);
                 }
-                StatementNode::Call(_)
-                    if !saw_transition && collect_citations && citation_preserves_values =>
-                {
-                    // The legacy citation route has no post-state actuals.
-                    // A writing call already retired its live observations;
-                    // staging them now would either revive old referents or
-                    // discard this prefix when those referents are opaque.
-                    let (target, argument_handles) =
-                        citation_call_in_statement(program, statement)?;
-                    stage_citation_argument_terms(
-                        program,
-                        judge,
-                        invocation,
-                        state,
-                        &environment,
-                        &target,
-                        &argument_handles,
-                        &mut pending_citations,
-                    )?;
-                }
-                StatementNode::Call(_)
-                    if !saw_transition && judge.requires_value_preservation() =>
-                {
-                    // The shared effect step above retired affected storage.
-                }
-                StatementNode::Call(call)
-                    if !saw_transition
-                        && is_citation_statement(program, classification, machine, call) =>
-                {
-                    // Entry citations were already intaken machine-wide.
+                StatementNode::Call(call) if !saw_transition => {
+                    if judge.requires_value_preservation() {
+                        // Runtime completion already applied this statement's
+                        // effects and optional selected tag guarantees above.
+                        // An ordinary call need not be a theorem citation.
+                    } else {
+                        let (target, arguments) =
+                            citation_call_in_statement(program, invocation.symbol, statement)?;
+                        let eligible = super::citations::can_establish_citation(
+                            program,
+                            classification,
+                            machine,
+                            &target,
+                            arguments.len(),
+                            false,
+                        );
+                        if !eligible
+                            && !is_citation_statement(
+                                program,
+                                classification,
+                                machine,
+                                invocation.symbol,
+                                call,
+                            )
+                        {
+                            return None;
+                        }
+                        if collect_citations && citation_preserves_values && eligible {
+                            // Only erased proof arms defer citations until the
+                            // independently licensed induction hypotheses exist.
+                            stage_citation_argument_terms(
+                                program,
+                                judge,
+                                invocation,
+                                state,
+                                &environment,
+                                &target,
+                                &arguments,
+                                &mut pending_citations,
+                            )?;
+                        }
+                    }
                 }
                 StatementNode::Transition(transition) => {
                     saw_transition = true;
@@ -1558,26 +1663,30 @@ fn recognize_structural_state_leaves_from<'a>(
             if requirement.is_some() {
                 return Some(Vec::new());
             }
-            if !matches!(
-                program
-                    .type_reference_table
-                    .type_reference(state.return_type),
-                typed_trees::types::TypeReferenceNode::Unit
-            ) {
-                return None;
-            }
-            return Some(vec![finalize_structural_case_arm(
-                program,
-                machine,
-                judge,
-                classification,
-                diagnostics,
-                parameter_names,
-                case_hypotheses,
-                case_equations,
-                pending_citations,
-                StructuralTerm::Opaque("()".to_owned()),
-            )]);
+            let completions = judge.terminal_completion_paths(
+                &TransitionTargetNode::Terminal,
+                &environment,
+                (invocation, state, state.return_type),
+            )?;
+            return Some(
+                completions
+                    .into_iter()
+                    .map(|outcome| {
+                        finalize_structural_case_arm(
+                            program,
+                            machine,
+                            &outcome.judge,
+                            classification,
+                            diagnostics,
+                            parameter_names,
+                            case_hypotheses.clone(),
+                            case_equations.clone(),
+                            pending_citations.clone(),
+                            outcome.value,
+                        )
+                    })
+                    .collect(),
+            );
         }
         // Arms test their guards in order. A later arm observes each earlier
         // Boolean guard as false, while the chosen arm alone receives its
@@ -1633,12 +1742,6 @@ fn recognize_structural_state_leaves_from<'a>(
                     subject_expression,
                     None,
                 );
-                let observed = structural_arm_judge(
-                    program,
-                    &incoming,
-                    &case_hypotheses,
-                    &remaining_equations,
-                );
                 let subject_type = crate::expression_result_type_reference(
                     program,
                     invocation,
@@ -1646,7 +1749,7 @@ fn recognize_structural_state_leaves_from<'a>(
                     subject_expression,
                 )
                 .unwrap_or_default();
-                for mut outcome in observed.normal_return_paths(
+                for mut outcome in incoming.normal_return_paths(
                     subject_expression,
                     &environment,
                     (invocation, state, subject_type),
@@ -1680,17 +1783,30 @@ fn recognize_structural_state_leaves_from<'a>(
                     // retain their selected tag but do not invent a single
                     // constructor for the complement of a multi-case type.
                     if !matches!(subject_judgment, Some(StructuralJudgment::Proven)) {
-                        if let Some(truth) = truth {
-                            skipped_equations.push((
+                        let next_judge = if let Some(truth) = truth {
+                            let skipped_eq = (
                                 subject.clone(),
                                 StructuralTerm::Constructor {
                                     data: "bool".to_owned(),
                                     case: (!truth).to_string(),
                                     fields: Vec::new(),
                                 },
-                            ));
-                        }
-                        next_remaining.push((outcome.judge.clone(), skipped_equations));
+                            );
+                            let next_judge = structural_arm_judge(
+                                program,
+                                &outcome.judge,
+                                &[],
+                                std::slice::from_ref(&skipped_eq),
+                            );
+                            if next_judge.hypotheses_contradictory {
+                                continue;
+                            }
+                            skipped_equations.push(skipped_eq);
+                            next_judge
+                        } else {
+                            outcome.judge.clone()
+                        };
+                        next_remaining.push((next_judge, skipped_equations));
                     }
                     if matches!(subject_judgment, Some(StructuralJudgment::Refuted)) {
                         continue;
@@ -1720,12 +1836,30 @@ fn recognize_structural_state_leaves_from<'a>(
                             &environment,
                         );
                     }
-                    match subject {
+                    let taken_judge = match subject {
                         StructuralTerm::Variable(subject) => {
-                            branch_hypotheses.push((subject, constructor.clone()));
+                            let new_hyp = (subject, constructor.clone());
+                            let taken = structural_arm_judge(
+                                program,
+                                &outcome.judge,
+                                std::slice::from_ref(&new_hyp),
+                                &[],
+                            );
+                            branch_hypotheses.push(new_hyp);
+                            taken
                         }
-                        subject => branch_equations.push((subject, constructor.clone())),
-                    }
+                        subject => {
+                            let new_eq = (subject, constructor.clone());
+                            let taken = structural_arm_judge(
+                                program,
+                                &outcome.judge,
+                                &[],
+                                std::slice::from_ref(&new_eq),
+                            );
+                            branch_equations.push(new_eq);
+                            taken
+                        }
+                    };
                     if let Some(StructuralTerm::Variable(raw_name)) = &raw_subject {
                         let (_, binding) = branch_environment
                             .iter_mut()
@@ -1733,7 +1867,7 @@ fn recognize_structural_state_leaves_from<'a>(
                         *binding = constructor.clone();
                     }
                     selected_paths.push((
-                        outcome.judge,
+                        taken_judge,
                         branch_environment,
                         branch_hypotheses,
                         branch_equations,
@@ -1809,9 +1943,6 @@ fn recognize_structural_state_leaves_from<'a>(
                         // arrival separately owes its state contract.
                         continue;
                     }
-                    let mut branch_judge =
-                        structural_arm_judge(program, judge, &branch_hypotheses, &branch_equations);
-                    let judge = &mut branch_judge;
                     let target_parameters = program.state_parameters(target_state);
                     let target_frames =
                         if let Some(expression) = call_expression {
@@ -1911,20 +2042,21 @@ fn recognize_structural_state_leaves_from<'a>(
                         leaves.extend(completed);
                     }
                 } else {
-                    let TransitionTargetNode::Value(value) = target else {
-                        return None;
-                    };
+                    if requirement.is_some() && matches!(target, TransitionTargetNode::Value(_)) {
+                        continue;
+                    }
+                    let completions = judge.terminal_completion_paths(
+                        target,
+                        &branch_environment,
+                        (invocation, state, state.return_type),
+                    )?;
+                    // A non-calling Unit arm closes only its own path. Keep
+                    // visiting every alternative that can reach the queried
+                    // occurrence, including repeated visits to one call site.
                     if requirement.is_some() {
                         continue;
                     }
-                    let mut branch_judge =
-                        structural_arm_judge(program, judge, &branch_hypotheses, &branch_equations);
-                    let judge = &mut branch_judge;
-                    for outcome in judge.normal_return_paths(
-                        *value,
-                        &branch_environment,
-                        (invocation, state, state.return_type),
-                    )? {
+                    for outcome in completions {
                         leaves.push(finalize_structural_case_arm(
                             program,
                             machine,
@@ -2016,9 +2148,9 @@ fn state_prefix_reachability_destinations(
         .statement_table
         .indexed_statements(state.statement_nodes)
     {
-        for site in
-            crate::machine_calls::calls::collect_call_sites_in_statement(program, owner, state, index)
-        {
+        for site in crate::machine_calls::calls::collect_call_sites_in_statement(
+            program, owner, state, index,
+        ) {
             let selected = site.target_symbol(program);
             if selected.is_valid()
                 && matches!(
@@ -2213,7 +2345,7 @@ fn finalize_structural_case_arm<'program>(
     pending_citations: Vec<PendingStructuralCitation>,
     value: StructuralTerm,
 ) -> StructuralCaseArm<'program> {
-    let mut arm_judge = structural_arm_judge(program, judge, &case_hypotheses, &case_equations);
+    let mut arm_judge = judge.clone();
     let vacuous = arm_judge.hypotheses_contradictory;
 
     // The induction hypothesis is available before an authored citation only

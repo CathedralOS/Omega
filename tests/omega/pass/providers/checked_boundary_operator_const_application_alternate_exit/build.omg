@@ -2,7 +2,15 @@
 
 machine build(builder: &mut Build) {
     Build::application(builder, "checked_boundary_operator_const_application_alternate_exit");
-    Build::select_provider<Math::remainder, AltProvider>(builder);
+    Build::select_provider<Math::remainder, AltProvider>(builder, linux_arm64);
+    Build::select_provider<Math::remainder, AltProvider>(builder, linux_x86_64);
+    Build::select_provider<Math::remainder, AltProvider>(builder, macos_arm64);
+    Build::select_provider<Math::remainder, AltProvider>(builder, macos_x86_64);
+    Build::select_provider<Math::remainder, AltProvider>(builder, windows_x86_64);
+    Build::select_provider<Math::remainder, AltProvider>(builder, uefi_x86_64);
+    Build::select_provider<Math::remainder, AltProvider>(builder, cross_platform_cli);
+    Build::select_provider<Math::remainder, AltProvider>(builder, local_unchecked);
+    Build::select_provider<Math::remainder, AltProvider>(builder, alpha_bootstrap);
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);

@@ -28,6 +28,8 @@ pub use proof_dependencies::{
 
 pub(super) use observed_contracts::{ObservedContentEquation, call_content_guarantees};
 
+use std::ops::ControlFlow;
+
 use super::structural_judgment::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use language_semantics::content::{
     ContentAlgebraIdentity, ContentArithmeticOperator, ContentConservationPlan,
@@ -162,7 +164,12 @@ pub fn completed_value_content_conservation_dependencies(
         expression,
         reference,
         (true, Vec::new()),
-        |(complete, dependencies), judge, value| {
+        |(complete, _)| *complete,
+        |(complete, dependencies), observation| {
+            let Some((judge, value)) = observation else {
+                *complete = false;
+                return ControlFlow::Break(());
+            };
             let (judgment, conditional) = judge_content_conservation_with_dependencies(
                 program,
                 judge,
@@ -173,8 +180,12 @@ pub fn completed_value_content_conservation_dependencies(
             match (judgment, conditional) {
                 (StructuralJudgment::Proven, _) => {}
                 (_, Some(proof)) => dependencies.push(proof),
-                _ => *complete = false,
+                _ => {
+                    *complete = false;
+                    return ControlFlow::Break(());
+                }
             }
+            ControlFlow::Continue(())
         },
     );
     let result = result?;
@@ -270,13 +281,18 @@ pub fn completed_value_preserves_entry_projection(
         expression,
         reference,
         true,
-        |proven, judge, _| {
+        |proven| *proven,
+        |proven, observation| {
+            let Some((judge, _)) = observation else {
+                *proven = false;
+                return ControlFlow::Break(());
+            };
             let (Some(current), Some(entry)) = (
                 judge.captured_place_projection(current, ContentPlaceVersion::Current),
                 judge.captured_place_projection(entry, ContentPlaceVersion::Entry),
             ) else {
                 *proven = false;
-                return;
+                return ControlFlow::Break(());
             };
             let embed = |value, reference| StructuralTerm::IntegerEmbedding {
                 reference,
@@ -293,6 +309,11 @@ pub fn completed_value_preserves_entry_projection(
                 ),
                 StructuralJudgment::Proven
             );
+            if *proven {
+                ControlFlow::Continue(())
+            } else {
+                ControlFlow::Break(())
+            }
         },
     );
     result.is_some_and(|result| result.complete && result.state)
@@ -363,7 +384,11 @@ pub fn completed_value_proves_backing_addresses(
         expression,
         reference,
         vec![true; goals.len()],
-        |proven, judge, value| {
+        |proven| proven.iter().all(|proven| *proven),
+        |proven, observation| {
+            let Some((judge, value)) = observation else {
+                return ControlFlow::Break(());
+            };
             for ((goal, (entry_reference, current_reference)), proven) in
                 goals.iter().zip(&references).zip(proven)
             {
@@ -407,6 +432,7 @@ pub fn completed_value_proves_backing_addresses(
                             )
                         });
             }
+            ControlFlow::Continue(())
         },
     );
     let result = result

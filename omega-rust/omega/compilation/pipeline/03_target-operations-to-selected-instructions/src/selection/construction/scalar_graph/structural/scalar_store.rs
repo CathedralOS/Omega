@@ -4,10 +4,10 @@
 //! applies the static offset.
 use super::{
     Builder, LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
-    SelectedInstructionProvenance,
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
+use crate::selection::construction::scalar_graph::structural::operation_provenance;
 use crate::structural_inputs::structural_reference_input::runtime_indices_match;
 
 pub(super) fn emit(
@@ -280,16 +280,14 @@ pub(super) fn emit(
         u8::try_from(byte_size).map_err(|_| invalid())?,
         address,
         register,
-        SelectedInstructionProvenance {
-            operations: vec![row.operation],
-            values: indices
+        operation_provenance(
+            row,
+            indices
                 .iter()
                 .map(|index| index.operand.value)
                 .chain([value.value])
                 .collect(),
-            fuel: row.fuel.clone(),
-            ..Default::default()
-        },
+        ),
     )?;
     Ok(())
 }

@@ -38,13 +38,15 @@ pub(crate) fn prove_ready(
     defer_unproved(&mut probe);
     let Some(selection) =
         syntax_trees_to_symbol_resolved_trees::pre_resolution::prepare_const_qualification_selection(
-            context.resolution_request(probe.clone()),
+            context.resolution_request(probe),
             &syntax,
             candidates.iter().map(|(_, definition)| definition),
         )?
     else {
         return Ok(syntax);
     };
+    let mut probe = syntax.clone();
+    defer_unproved(&mut probe);
     let mut pending = Vec::new();
     for (item, mut definition) in candidates {
         // The initializer owner distinguishes completed case names from pending

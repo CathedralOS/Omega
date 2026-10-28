@@ -1,4 +1,4 @@
-//! Local state arrivals evaluate arguments in authored order and capture scalar
+//! Terminal invocations evaluate arguments in authored order and capture scalar
 //! snapshots before committing the arrival transfer of existing reference carriers. A copied observation through that carrier's own route
 //! does not create a competing successor loan. This follows state_contracts.md
 //! (Bindings and arrivals) and expressions.md (Evaluation schedule), independent
@@ -193,10 +193,11 @@ pub(super) fn copied_read_before_reference_transfer(
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     call: &BorrowCallFact,
+    boundary: Option<&InvocationBoundary>,
     transferred: &BorrowArgumentAccessFact,
     copied: &BorrowArgumentAccessFact,
 ) -> bool {
-    if super::super::statements::local_jump(program, state_flow, call).is_none()
+    if !boundary.is_some_and(|boundary| boundary.ends_source_path)
         || transferred.kind != BorrowAccessKind::Mutable
         || transferred.end_before_access.is_some()
         || copied.kind != BorrowAccessKind::Read

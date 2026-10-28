@@ -175,6 +175,28 @@ pub(crate) fn provenance_realized_at(
     }
 }
 
+/// One realized-at rewrite for a value that lands where it already is: the
+/// input coordinate and the realization coordinate are the same site, so the
+/// family names it once. [`provenance_realized_at`] keeps the two-site form for
+/// values whose custody actually moves.
+pub(crate) fn realized_at_own_site(
+    site: optimization_unit::PsiRealizationSite,
+    sources: &[optimization_unit::PsiProvenance],
+    fuel: &[optimization_unit::FuelSettlement],
+) -> ProvenanceRewrite {
+    provenance_realized_at(site, site, sources, fuel)
+}
+
+/// The proven-unreachable mirror of [`realized_at_own_site`]: a site the
+/// candidate proved dead rather than landed, stamped at its own coordinate.
+pub(crate) fn proven_unreachable_at_own_site(
+    site: optimization_unit::PsiRealizationSite,
+    sources: &[optimization_unit::PsiProvenance],
+    fuel: &[optimization_unit::FuelSettlement],
+) -> ProvenanceRewrite {
+    provenance_proven_unreachable_at(site, site, sources, fuel)
+}
+
 /// One proven-unreachable rewrite: the mirror of `provenance_realized_at` for
 /// sites a candidate family proved dead rather than landed.
 pub(crate) fn provenance_proven_unreachable_at(
@@ -356,12 +378,7 @@ pub(crate) fn realize_node_provenance<'node>(
             block,
             node: u32::try_from(node_index).ok()?,
         });
-        realized.push(provenance_realized_at(
-            site,
-            site,
-            &node.provenance,
-            &node.fuel,
-        ));
+        realized.push(realized_at_own_site(site, &node.provenance, &node.fuel));
     }
     Some(())
 }

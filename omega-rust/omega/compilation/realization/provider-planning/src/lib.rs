@@ -41,8 +41,6 @@ pub mod service_schema;
 #[cfg(test)]
 mod source_guards;
 pub mod target_machines;
-pub mod task_plans;
-pub mod x86_fma_plan_association;
 
 pub(crate) use provider_settlement::SettledTargetMachineDeclarations;
 pub use provider_settlement::{

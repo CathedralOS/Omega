@@ -53,6 +53,13 @@ pub(crate) fn encode_boundary_machine(
             terminal_psi::CheckedBoundaryExecution::PlacementView => 3,
         });
     }
+    writer.boolean(declaration.numeric_intrinsic.is_some());
+    if let Some(meaning) = declaration.numeric_intrinsic {
+        let Some(bytes) = meaning.canonical_encoding() else {
+            return crate::codec_error::malformed("unsupported numeric intrinsic meaning");
+        };
+        writer.bytes(&bytes);
+    }
     writer.u32(declaration.identity.0);
     writer.u32(declaration.owner.identity().0);
     writer.u8(match declaration.role {
@@ -285,6 +292,21 @@ pub(crate) fn decode_boundary_machine(
                     tag => return Err(CodecError::InvalidTag("checked boundary execution", tag)),
                 },
             })
+        } else {
+            None
+        },
+        numeric_intrinsic: if reader.boolean()? {
+            let bytes = [reader.u8()?, reader.u8()?, reader.u8()?, reader.u8()?];
+            Some(
+                language_semantics::numeric_intrinsics::NumericIntrinsic::from_canonical_encoding(
+                    bytes,
+                )
+                .ok_or_else(|| {
+                    CodecError::MalformedStructuralFoundation(
+                        "invalid numeric intrinsic meaning".into(),
+                    )
+                })?,
+            )
         } else {
             None
         },

@@ -175,6 +175,25 @@ impl SelectedProductTarget {
     }
 
     pub(crate) fn install(self) -> Result<CheckedCompilation, Vec<Diagnostic>> {
+        let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+        let demands = psi_compiler::lower_task_activation_demands(
+            &self.custody.checked.program,
+            &mut identities,
+        )?;
+        task_plans::realize_task_activations(
+            &demands,
+            &identities.build(),
+            &self.custody.checked.selected_provider_plan_facts,
+            self.custody
+                .selected_target_profile
+                .unwrap_or_else(target::TargetProfile::host),
+        )?;
+        self.install_after_terminal()
+    }
+
+    /// Executable products discharge task demands against their produced
+    /// Terminal artifact in native-proposal construction, never source again.
+    pub(crate) fn install_after_terminal(self) -> Result<CheckedCompilation, Vec<Diagnostic>> {
         install_selected_target(
             self.custody,
             self.retained_checks,
@@ -414,7 +433,6 @@ pub(crate) fn install_selected_target(
                 x86_scalar_fma_provider,
                 selected_provider_provenance,
                 direct_boundary_candidates: &mut settlement.direct_boundary_leaves,
-                opaque_representation_selections: &build.config.opaque_representation_selections,
             },
         )
     });

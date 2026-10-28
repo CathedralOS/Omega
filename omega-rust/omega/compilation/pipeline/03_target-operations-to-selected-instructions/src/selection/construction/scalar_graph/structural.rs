@@ -576,6 +576,22 @@ pub(super) fn provenance(
 ) -> SelectedInstructionProvenance {
     super::call_arguments::invocation_provenance(row)
 }
+
+/// Provenance for an instruction emitted from one legalized row that names the
+/// values it consumes or produces. The row's operation and the fuel that
+/// operation settles travel with those values; an emission site states the
+/// values and never re-lists the operation and fuel fields beside them.
+pub(super) fn operation_provenance(
+    row: &LegalizedScalarInstruction,
+    values: Vec<ValueId>,
+) -> SelectedInstructionProvenance {
+    SelectedInstructionProvenance {
+        operations: vec![row.operation],
+        values,
+        fuel: row.fuel.clone(),
+        ..Default::default()
+    }
+}
 /// Zero an established structural result before its tag and payloads publish:
 /// one zero register fills the whole extent through descending-width stores.
 pub(super) fn zeroed_slot(

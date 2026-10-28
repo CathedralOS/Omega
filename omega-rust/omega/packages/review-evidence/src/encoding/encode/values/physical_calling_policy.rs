@@ -38,15 +38,10 @@ pub(crate) fn encode_physical(
     encoder.field("parameters", |encoder| {
         encoder.sequence(physical.parameters(), encode_value_placement)
     })?;
-    encoder.field("result", |encoder| {
-        encoder.option(physical.result(), encode_value_placement)
-    })?;
+    encoder.option_field("result", physical.result(), encode_value_placement)?;
     encoder.field("ordinary_clobbers", |encoder| {
         encoder.sequence(physical.ordinary_clobbers(), |encoder, register| {
-            encoder.field("register", |encoder| {
-                encode_machine_register(encoder, *register);
-                Ok(())
-            })?;
+            encoder.field_by("register", *register, encode_machine_register)?;
             Ok(())
         })
     })?;
@@ -60,10 +55,7 @@ pub(crate) fn encode_physical(
                 immediate,
             } => {
                 encoder.tag("supervisor_call", 1);
-                encoder.field("number_register", |encoder| {
-                    encode_machine_register(encoder, number_register);
-                    Ok(())
-                })?;
+                encoder.field_by("number_register", number_register, encode_machine_register)?;
                 encoder.u16_field("immediate", immediate)?;
             }
             PackagePolicyEntryControl::InterruptReturn => encoder.tag("interrupt_return", 2),

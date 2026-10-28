@@ -90,6 +90,7 @@ use imports::{
     build_import_table, install_import_thunks, patch_import_thunks,
     validate_import_thunk_footprints,
 };
+use layout::align_to;
 use sections::{plan_pe_sections, rdata_rva_after_text};
 
 pub(crate) enum PeImageKind {
@@ -120,13 +121,10 @@ pub(crate) fn emit_pe_x86_64(
     let (export_bytes, export_directory_rva, export_directory_size) = match &kind {
         PeImageKind::Executable => (Vec::new(), 0, 0),
         PeImageKind::SharedComponent { exports } => {
-            let aligned = import_table.bytes.len().div_ceil(4) * 4;
-            let directory_rva = rdata_rva
-                .checked_add(
-                    u32::try_from(aligned)
-                        .map_err(|_| Diagnostic::error("PE export directory RVA overflows"))?,
-                )
-                .ok_or_else(|| Diagnostic::error("PE export directory RVA overflows"))?;
+            // The directory is appended after the import table, four-byte
+            // aligned, and every RVA it names is that offset over `.rdata`.
+            let aligned = align_to(import_table.bytes.len(), 4);
+            let directory_rva = shared_component::directory_rva_of(rdata_rva, aligned)?;
             let bytes = shared_component::export_directory_bytes(&image, exports, directory_rva)?;
             let size = bytes.len();
             (bytes, directory_rva, size)
@@ -134,13 +132,13 @@ pub(crate) fn emit_pe_x86_64(
     };
     let mut rdata_bytes = import_table.bytes.clone();
     if !export_bytes.is_empty() {
-        rdata_bytes.resize(rdata_bytes.len().div_ceil(4) * 4, 0);
+        rdata_bytes.resize(align_to(rdata_bytes.len(), 4), 0);
         rdata_bytes.extend_from_slice(&export_bytes);
     }
     let sections = plan_pe_sections(&image, rdata_bytes.len());
     let layout = sections.final_image_layout();
 
-    patch_import_thunks(&mut image, &layout, &import_thunks, &import_table.iat_rvas)?;
+    patch_import_thunks(&mut image, &layout, &import_thunks, &import_table)?;
     apply_relocations(&mut image, &layout, "PE direct executable")?;
     validate_import_thunk_footprints(&mut image, &import_thunks)?;
     let executable_regions = place_executable_regions(&image, layout)?;

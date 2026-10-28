@@ -143,6 +143,91 @@ impl<'program> StructuralJudge<'program> {
         self.normal_results.as_slice()
     }
 
+    /// Authenticate a whole scalar before descriptive equations replace it.
+    /// Captured values are minted only by normal completion; raw arithmetic
+    /// descriptions qualify only when retained in this occurrence's completed
+    /// result roster. Reference descriptors never authenticate stored contents.
+    pub(in crate::proof_contracts::contract_entailment) fn completed_scalar_observation(
+        &self,
+        value: &StructuralTerm,
+        primitive: typed_trees::types::PrimitiveType,
+    ) -> Option<(StructuralTerm, numerics::arithmetic::ArithmeticDomain)> {
+        if !self.runtime_body_values || self.case_facts_only {
+            return None;
+        }
+        let mut identity = value.clone();
+        for _ in 0..32 {
+            match &identity {
+                StructuralTerm::ObservedValue {
+                    observed_type,
+                    value,
+                    descriptor,
+                } => {
+                    if descriptor.is_some()
+                        || crate::reference_shell(self.program, *observed_type).is_some()
+                        || self.program.primitive_type_reference(*observed_type) != Some(primitive)
+                    {
+                        return None;
+                    }
+                    identity = value.as_ref().clone();
+                }
+                StructuralTerm::Variable(name) => {
+                    identity = self
+                        .substitutions
+                        .iter()
+                        .find(|(variable, _)| variable == name)?
+                        .1
+                        .clone();
+                }
+                StructuralTerm::CapturedValue { result_type, .. } => {
+                    let policy = self
+                        .program
+                        .arithmetic_domain_for_type_reference(*result_type);
+                    return (crate::reference_shell(self.program, *result_type).is_none()
+                        && self.program.primitive_type_reference(*result_type) == Some(primitive))
+                    .then_some((identity, policy));
+                }
+                StructuralTerm::ScalarBinary {
+                    operator, meaning, ..
+                } if typed_trees::operator::builtin_integer_result_carrier(
+                    *operator,
+                    meaning.map(|(primitive, _)| primitive),
+                ) == Some(primitive) =>
+                {
+                    let policy =
+                        super::super::arithmetic_judgment::Engine::integer_operation_policy(
+                            *operator, *meaning,
+                        )?;
+                    return self
+                        .normal_results
+                        .iter()
+                        .any(|(_, observed)| {
+                            let observed = match observed {
+                                StructuralTerm::ObservedValue {
+                                    observed_type,
+                                    value,
+                                    descriptor,
+                                } if descriptor.is_none()
+                                    && crate::reference_shell(self.program, *observed_type)
+                                        .is_none()
+                                    && self.program.primitive_type_reference(*observed_type)
+                                        == Some(primitive) =>
+                                {
+                                    value.as_ref()
+                                }
+                                StructuralTerm::ScalarBinary { .. } => observed,
+                                _ => return false,
+                            };
+                            observed == &identity
+                        })
+                        .then_some((identity, policy));
+                }
+                _ => return None,
+            }
+        }
+        None
+    }
+
     /// Projection demands carried by this exact completed result's public
     /// equations. The consumer authenticates each field against its declared
     /// type; unrelated captures, hypotheses and private bodies contribute none.
@@ -204,6 +289,9 @@ impl<'program> StructuralJudge<'program> {
         &self,
         value: StructuralTerm,
     ) -> StructuralTerm {
+        if self.captured_result_equations.is_empty() {
+            return value;
+        }
         self.completed_value_identity_at(value, 0)
     }
 
@@ -212,6 +300,16 @@ impl<'program> StructuralJudge<'program> {
             return value;
         }
         let value = match value {
+            StructuralTerm::Variable(ref name) => {
+                if let Some((_, replacement)) = self
+                    .substitutions
+                    .iter()
+                    .find(|(variable, _)| variable == name)
+                {
+                    return self.completed_value_identity_at(replacement.clone(), depth + 1);
+                }
+                value
+            }
             StructuralTerm::IntegerEmbedding { reference, value } => {
                 StructuralTerm::IntegerEmbedding {
                     reference,
@@ -2624,6 +2722,30 @@ impl<'program> StructuralJudge<'program> {
             ));
         }
         for (left, right) in equations {
+            let max_premise_occ = self.rewrites.max_premise_occurrence();
+            let pattern_occ = match (
+                Self::term_max_captured_occurrence(&left),
+                Self::term_max_captured_occurrence(&right),
+            ) {
+                (Some(l), Some(r)) => {
+                    if l > r {
+                        Some(l)
+                    } else if r > l {
+                        Some(r)
+                    } else {
+                        None
+                    }
+                }
+                (Some(l), None) => Some(l),
+                (None, Some(r)) => Some(r),
+                (None, None) => None,
+            };
+            if let Some(occ) = pattern_occ
+                && occ <= max_premise_occ
+            {
+                std::sync::Arc::make_mut(&mut self.rewrites)
+                    .bump_integer_premise_revision_for_occurrences(occ);
+            }
             std::sync::Arc::make_mut(&mut self.captured_result_equations)
                 .push((left.clone(), right.clone()));
             std::sync::Arc::make_mut(&mut self.normal_guarantees)

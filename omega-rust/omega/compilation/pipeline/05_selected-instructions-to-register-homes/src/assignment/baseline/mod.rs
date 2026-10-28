@@ -105,19 +105,12 @@ impl StagedOptimizedRegisterHomes {
     pub const fn legality(&self) -> &ValidatedAllocationLegality {
         self.legality.legality()
     }
-    /// The retained optimized-target proof input, kept as replay evidence;
-    /// downstream custody checks compare the owner handle by identity.
-    pub fn optimized_target_owner(
-        &self,
-    ) -> &std::sync::Arc<abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations>
-    {
-        self.legality
+    assignment_context_accessors!(
+        legality
             .live_range_stage()
             .liveness_stage()
             .selected_stage()
-            .optimized_target_owner()
-    }
-    assignment_context_accessors!();
+    );
     receipt_accessor_rows!(ref StagedOptimizedRegisterHomes {
         custody: StagedOptimizedRegisterHomeCustodyReceipt,
     });
@@ -212,21 +205,14 @@ impl StagedOptimizedRegisterHomesAfterFixedViewCopies {
     pub const fn legality(&self) -> &ValidatedAllocationLegality {
         self.reanalysis.legality()
     }
-    /// The retained optimized-target proof input, kept as replay evidence;
-    /// downstream custody checks compare the owner handle by identity.
-    pub fn optimized_target_owner(
-        &self,
-    ) -> &std::sync::Arc<abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations>
-    {
-        self.reanalysis
+    assignment_context_accessors!(
+        reanalysis
             .transformation_stage()
             .source_legality_stage()
             .live_range_stage()
             .liveness_stage()
             .selected_stage()
-            .optimized_target_owner()
-    }
-    assignment_context_accessors!();
+    );
     receipt_accessor_rows!(ref StagedOptimizedRegisterHomesAfterFixedViewCopies {
         custody: StagedOptimizedPostCopyRegisterHomeCustodyReceipt,
     });

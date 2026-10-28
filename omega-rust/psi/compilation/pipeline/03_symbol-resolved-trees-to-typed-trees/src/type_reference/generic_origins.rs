@@ -30,7 +30,7 @@ pub(crate) fn validate_range_arguments(
     // Lowering retained source operands needs mutable construction storage.
     // One private replay copy retains complete operator meaning without adding
     // duplicate operands or warning occurrences to the published typed program.
-    let mut replay = typed.clone();
+    let mut replay = None;
     let mut definitions = source
         .data_definitions
         .iter()
@@ -111,7 +111,10 @@ pub(crate) fn validate_range_arguments(
         {
             previous = Some(validate_origin(
                 source,
-                Some(&mut replay),
+                Some(ReplayTyped::Lazy {
+                    base: typed,
+                    replay: &mut replay,
+                }),
                 name,
                 member,
                 definition,
@@ -240,7 +243,7 @@ pub(super) fn application<'source>(
         };
         selected = Some(validate_origin(
             source,
-            typed.as_deref_mut(),
+            typed.as_deref_mut().map(ReplayTyped::Direct),
             name,
             origin,
             definition,
@@ -304,7 +307,7 @@ fn application_scanned<'source>(
         };
         selected = Some(validate_origin(
             source,
-            typed.as_deref_mut(),
+            typed.as_deref_mut().map(ReplayTyped::Direct),
             name,
             origin,
             definition,
@@ -323,9 +326,36 @@ fn application_scanned<'source>(
     Ok(selected)
 }
 
+enum ReplayTyped<'typed> {
+    Direct(&'typed mut typed::TypedTrees),
+    Lazy {
+        base: &'typed typed::TypedTrees,
+        replay: &'typed mut Option<typed::TypedTrees>,
+    },
+}
+
+impl<'typed> ReplayTyped<'typed> {
+    fn reborrow(&mut self) -> ReplayTyped<'_> {
+        match self {
+            Self::Direct(typed) => ReplayTyped::Direct(typed),
+            Self::Lazy { base, replay } => ReplayTyped::Lazy {
+                base: *base,
+                replay,
+            },
+        }
+    }
+
+    fn get_mut(&mut self) -> &mut typed::TypedTrees {
+        match self {
+            Self::Direct(typed) => typed,
+            Self::Lazy { base, replay } => replay.get_or_insert_with(|| (*base).clone()),
+        }
+    }
+}
+
 fn validate_origin<'source>(
     source: &'source resolved::SymbolResolvedTrees,
-    mut typed: Option<&mut typed::TypedTrees>,
+    mut typed: Option<ReplayTyped<'_>>,
     name: &resolved::name::DiagnosticName,
     origin: &resolved::types::GenericApplicationOrigin,
     definition: &'source resolved::data::DataDefinition,
@@ -354,7 +384,7 @@ fn validate_origin<'source>(
     };
     let mut equality = Equality {
         source,
-        typed: typed.as_deref_mut(),
+        typed: typed.as_mut().map(ReplayTyped::reborrow),
         active: Vec::new(),
         canonical_lifetimes: &definition.lifetime_parameters,
         actual_lifetimes: &arguments.lifetime_arguments,
@@ -403,7 +433,7 @@ fn mismatch(name: &resolved::name::DiagnosticName) -> Diagnostic {
 
 struct Equality<'source, 'typed> {
     source: &'source resolved::SymbolResolvedTrees,
-    typed: Option<&'typed mut typed::TypedTrees>,
+    typed: Option<ReplayTyped<'typed>>,
     active: Vec<(Handle<TypeReference>, Handle<TypeReference>)>,
     canonical_lifetimes: &'source [resolved::name::DiagnosticName],
     actual_lifetimes: &'source [resolved::name::DiagnosticName],
@@ -597,7 +627,7 @@ impl Equality<'_, '_> {
         end_inclusive: bool,
     ) -> Option<(numerics::bignum::BigInt, numerics::bignum::BigInt)> {
         let expressions = &self.source.tables.bodies.expressions;
-        let typed = self.typed.as_deref_mut()?;
+        let typed = self.typed.as_mut()?.get_mut();
         let minimum = crate::expressions::expression::lower_expression_handle_from_table(
             expressions,
             typed,

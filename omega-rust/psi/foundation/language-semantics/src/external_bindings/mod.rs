@@ -44,7 +44,7 @@ impl ExternalBindingMechanism {
 /// values are interned directly; no display rendering is parsed or compared.
 /// An import has no spelling here: a foreign locator is evaluated as a typed
 /// `Binding` value through a `via` producer, never as authored strings.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ExternalBindingIdentity {
     Syscall { number: i64 },
     CompilerIntrinsic,

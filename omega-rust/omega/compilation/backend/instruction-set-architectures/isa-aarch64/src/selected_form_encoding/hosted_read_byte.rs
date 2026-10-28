@@ -184,14 +184,7 @@ pub fn validate_aarch64_selected_hosted_read_byte_form(
 
 /// Decode the complete target-specific read leaf, returning its structural home byte offset.
 pub fn decode_aarch64_selected_hosted_read_byte(target: NativeTarget, bytes: &[u8]) -> Option<u32> {
-    let (word_bytes, tail) = bytes.as_chunks::<4>();
-    if !tail.is_empty() {
-        return None;
-    }
-    let words = word_bytes
-        .iter()
-        .map(|word| u32::from_le_bytes(*word))
-        .collect::<Vec<_>>();
+    let words = super::word_stream(bytes)?;
     // The payload address in `x1`: one unshifted `add x1, sp, #imm`, or
     // shifted page steps followed by their nonzero unshifted remainder. The
     // prefix ends at the first word that is not an `add` into `x1`; the tag

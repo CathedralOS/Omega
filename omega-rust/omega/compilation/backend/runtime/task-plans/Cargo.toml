@@ -9,10 +9,13 @@ name = "task_plans"
 path = "src/lib.rs"
 
 [dependencies]
+calling-conventions = { path = "../../calling-conventions" }
+diagnostics = { path = "../../../../../psi/foundation/diagnostics" }
+effects = { path = "../../plans/provider-evidence" }
+target = { path = "../../target" }
 language-core = { path = "../../../../../psi/foundation/language-core" }
 optimization-core = { path = "../../../../foundation/optimization-core" }
 semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
-symbols = { path = "../../../../../psi/foundation/symbols" }
 terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi" }
 
 [dev-dependencies]

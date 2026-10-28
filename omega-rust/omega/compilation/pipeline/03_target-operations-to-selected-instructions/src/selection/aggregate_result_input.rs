@@ -12,6 +12,8 @@
 //! A home lookup preserves the result's domain metadata without interpreting
 //! it as a storage restriction: an authorized boundary result occupies the
 //! same home as any other value of its declared representation.
+use crate::selection::place_declaration::declares_block_parameter;
+
 use legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
 };
@@ -1252,14 +1254,7 @@ pub(super) fn block_home(
     let signature = source.structural.as_ref()?;
     if matching.next().is_some()
         || parameter.access != StructuralAccess::Owned
-        || !signature.structural_places.iter().any(|declaration| {
-            declaration.id == place
-                && declaration.kind
-                    == semantic_vocabulary::StructuralPlaceKind::BlockParameter {
-                        block,
-                        position: parameter.position,
-                    }
-        })
+        || !declares_block_parameter(signature, place, block, parameter.position)
     {
         return None;
     }

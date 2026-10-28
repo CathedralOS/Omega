@@ -22,6 +22,8 @@ mod retained;
 
 pub use proposals::CompilerIntrinsicPlanProvenance;
 pub(crate) use proposals::derive_selected_intrinsic_settlement_proposals;
+mod external_satisfaction;
+pub(crate) use external_satisfaction::{selected_execution, validate_external_provider_owners};
 pub(crate) use retained::prepare_retained_compiler_builtins;
 pub use retained::{TerminalCompilerBuiltinProposal, TerminalCompilerBuiltinSettlement};
 
@@ -80,6 +82,7 @@ pub(super) fn settle_compiler_builtins<'request>(
     if !unsettled.is_empty() {
         return Err(unsettled);
     }
+    admit_x86_fma_features(request)?;
     let mut admitted = Vec::with_capacity(request.compiler_builtins.len());
     let mut mechanisms = Vec::with_capacity(request.compiler_builtins.len());
     for proposal in request.compiler_builtins {
@@ -276,6 +279,53 @@ pub(super) fn settle_compiler_builtins<'request>(
         });
     }
     Ok((admitted, mechanisms))
+}
+
+/// Feature admission follows the actual Terminal execution demand, not source
+/// uses in other target bodies. The normal builtin proposal already binds the
+/// exact boundary and provider row; no separate FMA association is retained.
+fn admit_x86_fma_features(
+    request: &ProviderAdmissionRequest<'_, '_>,
+) -> Result<(), Vec<Diagnostic>> {
+    let Some(requirement) = target::X86FeatureRequirement::scalar_fma(request.profile) else {
+        return Ok(());
+    };
+    let mut diagnostics = Vec::new();
+    for proposal in request.compiler_builtins {
+        let TerminalCompilerBuiltinSettlement::Execution(
+            CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
+                operation: target_operations::IeeeFloatArithmeticOperation::FusedMultiplyAdd,
+                format,
+            },
+        ) = proposal.settlement
+        else {
+            continue;
+        };
+        let slot = match format {
+            semantic_vocabulary::IeeeFloatFormat::Binary32 => target::X86ScalarFmaSlot::Binary32,
+            semantic_vocabulary::IeeeFloatFormat::Binary64 => target::X86ScalarFmaSlot::Binary64,
+        };
+        let Some(provider) = request.x86_scalar_fma_provider else {
+            diagnostics.push(Diagnostic::error(format!(
+                "selected x86 scalar FMA ProviderPlan `{}` requires explicit AVX+FMA3 admission for slot `{}`",
+                proposal.provider_plan.name,
+                slot.requirement_identity(),
+            )));
+            continue;
+        };
+        if provider.profile() != request.profile || !provider.admits(requirement, slot) {
+            diagnostics.push(Diagnostic::error(format!(
+                "x86 scalar FMA admission does not match exact selected profile `{}` for slot `{}`",
+                request.profile.target_name(),
+                slot.requirement_identity(),
+            )));
+        }
+    }
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
 }
 
 /// Compare the retained requirement premise with the exact selected schema row.

@@ -1,11 +1,9 @@
 //! Candidate contract, shape, evidence, and accounting join.
+use crate::candidates::contract;
 use crate::candidates::rewrite_accounting::scalar_identity::reconstruct_total_scalar_identity_accounting;
 use crate::candidates::sparse_conditional_constant_propagation::scalar_value_definition;
-use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
-use optimization_core::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationRuleIdentity,
-    OptimizationSafetyClass,
-};
+use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
+use optimization_core::{AnalysisKind, OptimizationRuleIdentity, OptimizationSafetyClass};
 use optimization_unit::{
     OptimizationFact, PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch,
     ScalarSubstitution, TotalScalarIdentityKind,
@@ -38,26 +36,18 @@ pub(crate) fn validate_total_scalar_identity_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
-    validate_psi_optimization_unit(input)?;
-    if candidate.input() != input.identity {
-        return Err(OptimizationUnitValidationError::CandidateInputMismatch);
-    }
-    if candidate.required_analyses()
-        != AnalysisSet::new([
+    contract::admit_origin(input, candidate)?;
+    contract::admit_roster(
+        candidate,
+        &[
             AnalysisKind::ScalarConstants,
             AnalysisKind::UseDefinition,
             AnalysisKind::EffectSummaries,
-        ])
-        || candidate.invalidated_analyses()
-            != AnalysisInvalidationSet::new([
-                AnalysisKind::UseDefinition,
-                AnalysisKind::EffectSummaries,
-            ])
-        || candidate.safety_class() != OptimizationSafetyClass::ExactOperationSemantics
-        || candidate.predicted_cost_delta() != -1
-    {
-        return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
-    }
+        ],
+        contract::USE_DEFINITION_AND_EFFECT_SUMMARIES,
+        OptimizationSafetyClass::ExactOperationSemantics,
+        Some(-1),
+    )?;
     let PsiRewritePatch::EliminateTotalScalarIdentity(patch) = candidate.patch() else {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     };

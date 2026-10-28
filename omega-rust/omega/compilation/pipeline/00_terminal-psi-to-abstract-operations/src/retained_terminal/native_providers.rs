@@ -78,7 +78,6 @@ impl PreparedRetainedNativeProviders<'_> {
     ) -> crate::NativeAdmissionRequest<'request, 'request> {
         let proposal = self.proposal;
         crate::NativeAdmissionRequest {
-            receiving_provider_roots: &[],
             private_entry_ram: &[],
             entry: terminal_psi::TargetMachineCallable::Machine(
                 proposal.program_entry().checked_entry().terminal_entry(),
@@ -155,9 +154,6 @@ impl TerminalNativeRealizationProposal {
             ),
             |adapter| terminal_psi::TargetMachineCallable::Machine(adapter.machine()),
         );
-        let roots = entry
-            .receiving_provider_roots(artifact)
-            .map_err(|reason| vec![Diagnostic::error(reason)])?;
         let semantic_call = crate::SelectedProgramEntryCall::bind(
             artifact,
             self.program_entry(),
@@ -182,7 +178,6 @@ impl TerminalNativeRealizationProposal {
             self.target_profile(),
             &local_adapters,
             &self.providers().selection,
-            &roots,
             &self.occurrences().callbacks,
         )
         .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
@@ -214,7 +209,6 @@ impl TerminalNativeRealizationProposal {
             self.target_profile(),
             &self.providers().checked_adapters,
             &self.providers().selection,
-            &[],
             &self.occurrences().callbacks,
         )
         .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
@@ -381,6 +375,7 @@ impl TerminalNativeRealizationProposal {
                 intrinsic_provenance.into_iter(),
                 &demands,
                 &module.boundary_machines,
+                &module.external_providers,
                 &module.identities,
             )?;
         // Builtin occurrences bind the actual boundary IDs, including family

@@ -41,6 +41,7 @@ pub struct SelectedCleanupEntryMismatch {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoweringError {
+    TaskActivation(Vec<Diagnostic>),
     MachineNotFound(String),
     AmbiguousMachineName(String),
     /// A closure names storage absent from its retained type catalog.

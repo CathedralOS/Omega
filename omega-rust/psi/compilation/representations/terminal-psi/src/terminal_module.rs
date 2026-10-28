@@ -6,43 +6,16 @@
 //! consumers compare, while `identity` names the exact published vocabulary.
 //! No target layout, selected installation, or transformation history lives here.
 
+// Every submodule publishes its own vocabulary in its `mod.rs`; this facade
+// re-exports that list instead of re-spelling it, so a name added to a module
+// is reachable at the module root without a second edit. `control_flow` and
+// `types` keep explicit lists because each publishes one name this root does
+// not adopt.
 pub mod boundary;
+pub use boundary::*;
 pub mod folded_constants;
-pub use folded_constants::{
-    FoldedConstantCandidate, FoldedConstantClosure, FoldedConstantDependency,
-};
+pub use folded_constants::*;
 pub mod control_flow;
-pub mod identity;
-pub mod observation;
-pub mod ownership;
-pub mod proof;
-pub mod quotients;
-mod task_activation;
-pub mod types;
-pub mod values;
-
-pub use boundary::{
-    BoundaryApplication, BoundaryApplicationArgument, BoundaryApplicationCandidate,
-    BoundaryContentGuarantee, BoundaryDeclarationRole, BoundaryLifetimeDependency,
-    BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryOperatorRequirement,
-    BoundaryParameterKind, BoundaryReferenceDestination, BoundaryReferenceOutput,
-    BoundaryStructuralResultDeclaration, BoundaryTypeIdentity, CheckedBoundaryCallable,
-    CheckedBoundaryExecution, ClosedConformanceApplication, ClosedConformanceApplicationCommitment,
-    ClosedConformanceCallableResult, ClosedConformanceParameterBinding,
-    ClosedConformanceParameterKind, ClosedConformanceRealizationCallable, ClosedConformanceRow,
-    ClosedConformanceSchema, ClosedConformanceSchemaKind, ClosedConformanceStaticApplication,
-    ClosedReachApplication, ClosedReachArgument, ClosedReachCall, ClosedReachCallApplication,
-    ClosedReachCapture, ClosedReachMachineBinding, ClosedReachParameter, ClosedReachSchema,
-    ContentConservationGuarantee, InstallationReachDependency, ProgramLocalRootIntroductionSchema,
-    ProviderCandidateConformance, ProviderParameterRefinement, ProviderRefinement,
-    ProviderSignature, ProviderSignatureParameter, ScalarDomainRequirement, ServiceDeclaration,
-    StructuralDomainRequirement, TerminalBoundaryApplicationDemand, TerminalDynamicClaimPath,
-    TerminalDynamicDispatchCatalog, TerminalDynamicInterface, TerminalDynamicReferenceOrigin,
-    TerminalDynamicReferenceRegion, TerminalDynamicSlot, TerminalDynamicStructuralFormal,
-    TerminalDynamicTable, TerminalRootServiceReach, closed_conformance_application_commitment,
-    closed_conformance_application_report_fingerprint, find_boundary_machine,
-    program_local_root_introduction_compatibility_report_identity,
-};
 pub use control_flow::{
     AtomicAccessEvent, AtomicReadModifyWrite, Block, CrashCause, ElementViewRegion, FenceOrdering,
     FloatResultPolicy, MemoryOrdering, ModuleInvocation, ModuleInvocationInputs, Operation,
@@ -54,76 +27,18 @@ pub use control_flow::{
     TerminalRankedScc, Terminator, TrappingIntegerOperation, TrappingIntegerPrimitive,
     structural_parameter_position,
 };
-pub use identity::{
-    CheckedMachineCapture, CheckedMachineDeclaration, CheckedMachineSpecialization,
-    InvocationCodeScope, NominalDeclarationIdentity, SemanticFingerprint, TerminalIdentityIndex,
-    TerminalIdentityTable, TerminalIdentityTableBuilder, TerminalPsiIdentity, VocabularyMarker,
-};
-pub use observation::{
-    TerminalObservationSchema, TerminalOperationCrashDenotation, TerminalTraceBoundaryCrashSiteRow,
-    TerminalTraceCrashSiteRow, TerminalTraceExternalCompletionSiteRow,
-    TerminalTraceOperationCrashSiteRow, TerminalTraceOrdinaryEventKind,
-    TerminalTraceOrdinaryEventRow, TerminalTraceResultKind, TerminalTraceResultSchema,
-    TerminalTraceResultValue, TerminalTraceRootRow, TerminalTraceScalarSchema,
-    TerminalTraceScalarValue, TerminalTraceStructuralSchema, TerminalTraceStructuralValue,
-    TerminalTraceV1ConstructionError, TerminalTraceV1Event, TerminalTraceV1Outcome,
-    TerminalTraceV1Profile, TerminalTraceV1Rows, TerminalTraceV1RuntimeTrace,
-    TerminalTraceV1TraceBuilder, TerminalTraceValueComparison,
-};
-pub use ownership::{
-    ClaimTransfer, CompletionReceipt, EntryClaim, LoanCompletion, NominalAffineCleanup,
-    PlacedRamCorrespondence, PlacedRamFieldCorrespondence, PlacedScalarBoundaryDemand,
-    ResidentReferenceSource, RetainedBorrowContentProjection, RetainedBorrowCustody,
-    RetainedBorrowPlace, RetainedBorrowPlaceRoot, StructuralAccess, StructuralAffineDiscard,
-    StructuralMultiplicity, TerminalAffineCleanupAction, TerminalBorrowBoundarySource,
-    TerminalBorrowOwnerSegment, TerminalBorrowPlace, TerminalBorrowPlaceSegment,
-    TerminalPlacedAccessor, TerminalPlacedAccessorKind, TerminalPlacedFieldPlan,
-    TerminalPlacedViewInput, TerminalPlacedViewPlan, TerminalPlacementLifecycleExecution,
-    TerminalPlacementLifecycleOperation, TerminalPlacementLifecyclePlan,
-    TerminalPlacementProfileRequirement, TerminalPlacementStorage,
-    TerminalReborrowRestorationClass, TerminalReborrowRestoredCallUse,
-    TerminalReborrowSharedCohortMember, TerminalSuspensionCallPlan, TerminalSuspensionCallSite,
-    TerminalSuspensionCallTarget, TerminalSuspensionLiveValue, TerminalSuspensionLoan,
-    TerminalSuspensionLoanBacking, TerminalSuspensionLoanCapture, TerminalSuspensionLoanResource,
-    TerminalSuspensionLoans, TerminalSuspensionPlace, TerminalSuspensionStorage,
-    TerminalSuspensionValueLoans, TerminalSuspensionValueType, canonical_placed_view_identity,
-    suspension_frontier_commitment,
-};
-pub use proof::{
-    ClaimContentProjection, ContentBackingAddressTransport, ContentBodyProjectionSubstitution,
-    ContentBoundaryBodyRequirement, ContentClaimAddress, ContentClaimProjection, ContentEntryClaim,
-    ContentIdentityReshuffle, ContentLineageStep, ContentPartitionComposition,
-    ContentPlaceSubstitution, ContentTransformationCustody, ContentTransformationDerivation,
-    ContractClause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard,
-    DirectBlockFloatParameter, DirectCallFloatResult, DirectMachineFloatParameter,
-    DirectMachineFloatResult, DirectOperationFloatResult, DirectStructuralFloatLeaf,
-    EvidenceArgumentSubject, EvidenceContractLane, EvidenceContractLaneKind,
-    EvidenceInterfaceIdentity, EvidenceProjectionIdentity, EvidenceRequirementIdentity,
-    EvidenceTermDeclaration, FloatMeaningEqualityProposition, FloatMeaningProjection,
-    FloatMeaningProjectionOperation, FloatMeaningSource, FloatProjectionContractIdentity,
-    FloatProjectionInput, FloatProjectionInputId, FloatSemanticApplication,
-    FloatSemanticApplicationOperand, FloatSemanticContractIdentity, MachineContract,
-    OutcomeSpecificCallArgumentSubstitution, OutcomeSpecificCallEvidence,
-    OutcomeSpecificCallEvidenceValidity, OutcomeSpecificCallResultSubstitution,
-    OutcomeSpecificEnsure, OutcomeSpecificEvidence, OutcomeSpecificEvidenceUse,
-    OutcomeSpecificGuard, ProofOnlyValueType, ProofOutput, ProofOutputCall,
-    ProofOutputEvidenceArgument, ProofOutputRuntimeCall, ProofOutputRuntimeResult,
-    ProofPropositionId, ProofValueDeclaration, ProofValueId, PropositionApplicationIdentity,
-    PropositionBinderArgumentIdentity, PropositionBinderArgumentKind, PropositionBinderDeclaration,
-    PropositionBinderKind, PropositionDeclaration, PropositionEvidence, ScalarBlockInvariant,
-    ScalarBlockInvariantArrival, StaticRequirementDispatch, TerminalOperationCrashContract,
-    TerminalProofRankingRelation, TerminalProofRecursiveCallSite, TerminalProofRecursiveComponent,
-    TerminalProofRecursiveEdge, TerminalProofRecursiveField, TerminalProofRecursiveMember,
-    TerminalProofRecursiveTransitionLane, TerminalProofRecursiveType,
-    float_meaning_equality_proposition_id,
-};
-pub use task_activation::{
-    TerminalTaskActivationDemand, TerminalTaskActivationDemands, TerminalTaskCarryObligations,
-    TerminalTaskCarryStorage, TerminalTaskFrame, TerminalTaskFrameCall, TerminalTaskLiveCarry,
-    TerminalTaskResidentValue, TerminalTaskSignatureValue, TerminalTaskStartOperation,
-    TerminalTaskSuspensionCrossing, TerminalTaskUnresolvedCall, TerminalTaskUnresolvedCallKind,
-    TerminalTaskValueType,
-};
+pub mod identity;
+pub use identity::*;
+pub mod observation;
+pub use observation::*;
+pub mod ownership;
+pub use ownership::*;
+pub mod proof;
+pub use proof::*;
+pub mod quotients;
+mod task_activation;
+pub use task_activation::*;
+pub mod types;
 pub use types::{
     ByteSequenceCarrier, ResultQualificationEstablishment, ScalarDomainDeclaration,
     ScalarDomainEstablishmentRoute, ScalarDomainPredicate, ScalarFieldQualification,
@@ -139,14 +54,8 @@ pub use types::{
     structural_type_contains_reference_by, structural_type_has_borrowed_storage_by,
     unique_structural_declaration,
 };
-pub use values::{
-    ErasedProofFormal, OperationProjection, ReferenceOriginProjection, ReferenceOriginSource,
-    StructuralArgument, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralPlaceDeclaration, StructuralReferenceOrigin, StructuralReferenceResultSource,
-    StructuralResultDeclaration, TerminalMachineResult, ValueDeclaration,
-    is_static_structural_path, is_static_structural_scalar_store_path,
-    is_structural_scalar_store_path,
-};
+pub mod values;
+pub use values::*;
 
 use semantic_vocabulary::{MachineId, ServiceId};
 
@@ -220,6 +129,8 @@ pub struct TerminalModule {
     pub reborrow_restored_call_uses: Vec<TerminalReborrowRestoredCallUse>,
     /// Bodyless target-neutral Unit machines callable from terminal Psi.
     pub boundary_machines: Vec<BoundaryMachineDeclaration>,
+    /// Exact external satisfaction edges, including demands lowered without calls.
+    pub external_providers: Vec<ExternalProviderConformance>,
     /// Every checked, target-neutral provider candidate eligible to realize a
     /// retained Unit boundary requirement. This is a semantic catalog, not a
     /// selection: installation policy remains outside terminal-Psi identity.
@@ -365,6 +276,7 @@ impl TerminalModule {
             placement_lifecycle_plans: Vec::new(),
             reborrow_restored_call_uses: Vec::new(),
             boundary_machines: Vec::new(),
+            external_providers: Vec::new(),
             provider_candidates: Vec::new(),
             boundary_application_candidates: Vec::new(),
             callback_applications: Vec::new(),

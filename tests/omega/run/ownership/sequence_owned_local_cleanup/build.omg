@@ -1,6 +1,14 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "sequence_owned_local_cleanup");
-    Build::select_provider<Console, CleanupConsole>(builder);
+    Build::select_provider<Console, CleanupConsole>(builder, linux_arm64);
+    Build::select_provider<Console, CleanupConsole>(builder, linux_x86_64);
+    Build::select_provider<Console, CleanupConsole>(builder, macos_arm64);
+    Build::select_provider<Console, CleanupConsole>(builder, macos_x86_64);
+    Build::select_provider<Console, CleanupConsole>(builder, windows_x86_64);
+    Build::select_provider<Console, CleanupConsole>(builder, uefi_x86_64);
+    Build::select_provider<Console, CleanupConsole>(builder, cross_platform_cli);
+    Build::select_provider<Console, CleanupConsole>(builder, local_unchecked);
+    Build::select_provider<Console, CleanupConsole>(builder, alpha_bootstrap);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);
     Build::bind(builder, macos_arm64::ProgramEntry, main);

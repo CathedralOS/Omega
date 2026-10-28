@@ -8,10 +8,11 @@ use terminal_psi::OperationKind;
 pub(super) mod fragment_call;
 mod fragment_comparison;
 
+pub(super) use super::derivation::evidence::{ranges_overlap, span};
 use super::{
     NativeByteSpan, OptimizedOperatorOccurrence, PhysicalRelocationDisposition, native_byte_span,
+    sole_terminal_operation,
 };
-
 pub(super) struct OperatorPhysicalSpan {
     pub machine: NativeByteSpan,
     pub object: NativeByteSpan,
@@ -94,16 +95,8 @@ fn exact_terminal_operation<'module>(
     module: &'module terminal_psi::TerminalModule,
     occurrence: &OptimizedOperatorOccurrence,
 ) -> Result<&'module terminal_psi::Operation, &'static str> {
-    let matching = module
-        .machines
-        .iter()
-        .filter(|machine| machine.id == occurrence.machine())
-        .flat_map(|machine| machine.operations())
-        .filter(|operation| operation.id == occurrence.operation())
-        .collect::<Vec<_>>();
-    let [operation] = matching.as_slice() else {
-        return Err("D29 physical occurrence does not rejoin one Terminal operation");
-    };
+    let operation = sole_terminal_operation(module, occurrence.machine(), occurrence.operation())
+        .ok_or("D29 physical occurrence does not rejoin one Terminal operation")?;
     Ok(operation)
 }
 
@@ -365,25 +358,6 @@ fn derive_span(
         final_image_bytes_digest: sha256(final_image_bytes),
         relocation: disposition,
     })
-}
-
-fn span(bytes: &[u8], span: NativeByteSpan) -> Result<&[u8], &'static str> {
-    let end = span
-        .offset()
-        .checked_add(span.byte_count())
-        .ok_or("D29 physical child byte span overflow")?;
-    bytes
-        .get(span.offset()..end)
-        .ok_or("D29 physical child byte span is out of bounds")
-}
-
-fn ranges_overlap(
-    left_start: usize,
-    left_end: usize,
-    right_start: usize,
-    right_end: usize,
-) -> bool {
-    left_start < right_end && right_start < left_end
 }
 
 #[cfg(test)]

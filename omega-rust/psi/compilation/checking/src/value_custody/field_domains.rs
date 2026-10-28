@@ -903,9 +903,7 @@ pub fn domain_membership_implies(
     };
     // Content predicates transport across byte presentations independently of
     // layout. Neither semantic roles nor routed target authority reduce to them.
-    let bytes = |reference| {
-        is_fixed_byte_carrier(program, reference) || is_byte_slice_carrier(program, reference)
-    };
+    let bytes = |reference| is_byte_sequence_carrier(program, reference);
     if !bytes(source.target_type)
         || !bytes(target.target_type)
         || source.semantic_roles != Default::default()
@@ -923,38 +921,24 @@ pub fn domain_membership_implies(
     }
 }
 
-fn is_fixed_byte_carrier(
+/// Whether a declared type is a byte-sequence carrier — a fixed byte array or
+/// a byte slice — once its borrows and domain shells are peeled. These are the
+/// carriers whose declared domain bodies may state content byte predicates.
+fn is_byte_sequence_carrier(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Constrained { base_type, .. }
-        | TypeReferenceNode::Reference {
-            referee: base_type, ..
-        } => is_fixed_byte_carrier(program, *base_type),
-        TypeReferenceNode::FixedArray { element_type, .. } => {
-            program.type_reference_table.primitive_type(*element_type)
-                == Some(typed_trees::types::PrimitiveType::U8)
-        }
-        _ => false,
-    }
-}
-
-fn is_byte_slice_carrier(
-    program: &dyn crate::CheckingInput,
-    type_reference: TypeReferenceHandle,
-) -> bool {
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Constrained { base_type, .. }
-        | TypeReferenceNode::Reference {
-            referee: base_type, ..
-        } => is_byte_slice_carrier(program, *base_type),
-        TypeReferenceNode::Slice { element_type } => {
-            program.type_reference_table.primitive_type(*element_type)
-                == Some(typed_trees::types::PrimitiveType::U8)
-        }
-        _ => false,
-    }
+    let Some(carrier) = super::reference_shells::carrier_beneath_borrows(program, type_reference)
+    else {
+        return false;
+    };
+    let element_type = match program.type_reference_table.type_reference(carrier) {
+        TypeReferenceNode::FixedArray { element_type, .. }
+        | TypeReferenceNode::Slice { element_type } => *element_type,
+        _ => return false,
+    };
+    program.type_reference_table.primitive_type(element_type)
+        == Some(typed_trees::types::PrimitiveType::U8)
 }
 
 // --- comptime byte-predicate machinery (moved here from

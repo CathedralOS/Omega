@@ -145,22 +145,12 @@ fn exact_multiply_representability_proposition(
         right,
         |result, left, right| result == left && result == right,
     )?;
-    if let (
-        ScalarTerm::Integer {
-            value: left_value, ..
-        },
-        ScalarTerm::Integer {
-            value: right_value, ..
-        },
-    ) = (left.as_ref(), right.as_ref())
+    if let Some(proposition) =
+        literal_pair_representability(left.as_ref(), right.as_ref(), |left, right| {
+            integer_type.exact_mul(left, right)
+        })
     {
-        return Ok(
-            if integer_type.exact_mul(*left_value, *right_value).is_some() {
-                Proposition::Truth
-            } else {
-                Proposition::Falsehood
-            },
-        );
+        return Ok(proposition);
     }
     if matches!(mathematical_left, IntegerMathTerm::IntegerLiteral(literal) if literal.magnitude() == 0)
         || matches!(mathematical_right, IntegerMathTerm::IntegerLiteral(literal) if literal.magnitude() == 0)
@@ -215,25 +205,12 @@ fn exact_subtract_representability_proposition(
         right,
         IntegerType::admits_exact_subtract_operands,
     )?;
-    if let (
-        ScalarTerm::Integer {
-            value: left_value, ..
-        },
-        ScalarTerm::Integer {
-            value: right_value, ..
-        },
-    ) = (left.as_ref(), right.as_ref())
+    if let Some(proposition) =
+        literal_pair_representability(left.as_ref(), right.as_ref(), |left, right| {
+            integer_type.exact_subtract_values(left_type, left, right_type, right)
+        })
     {
-        return Ok(
-            if integer_type
-                .exact_subtract_values(left_type, *left_value, right_type, *right_value)
-                .is_some()
-            {
-                Proposition::Truth
-            } else {
-                Proposition::Falsehood
-            },
-        );
+        return Ok(proposition);
     }
     if (left_type == integer_type
         && matches!(mathematical_right, IntegerMathTerm::IntegerLiteral(literal) if literal.magnitude() == 0))
@@ -282,25 +259,12 @@ fn exact_add_representability_proposition(
         right,
         IntegerType::admits_exact_add_operands,
     )?;
-    if let (
-        ScalarTerm::Integer {
-            value: left_value, ..
-        },
-        ScalarTerm::Integer {
-            value: right_value, ..
-        },
-    ) = (left.as_ref(), right.as_ref())
+    if let Some(proposition) =
+        literal_pair_representability(left.as_ref(), right.as_ref(), |left, right| {
+            integer_type.exact_add_values(left_type, left, right_type, right)
+        })
     {
-        return Ok(
-            if integer_type
-                .exact_add_values(left_type, *left_value, right_type, *right_value)
-                .is_some()
-            {
-                Proposition::Truth
-            } else {
-                Proposition::Falsehood
-            },
-        );
+        return Ok(proposition);
     }
     // Only the surviving operand's own carrier establishes result fit. A zero
     // address plus a count is still a count-to-address geometry obligation.
@@ -418,6 +382,41 @@ fn canonical_conjunction(mut conjuncts: Vec<Proposition>) -> Proposition {
     }
 }
 
+/// The proposition an exact representation check states. A computation that
+/// yields a value leaves the goal true; one that overflows states the falsehood
+/// no discharge may rest on. Exactness is decided here, never assumed from the
+/// operand carriers.
+fn representability(representable: Option<IntegerValue>) -> Proposition {
+    if representable.is_some() {
+        Proposition::Truth
+    } else {
+        Proposition::Falsehood
+    }
+}
+
+/// Both operands name literal integers, so representability of the exact result
+/// is decided by that computation rather than stated as a bound proposition.
+/// `None` means at least one operand is not a literal and the caller owes the
+/// bound form; the caller supplies the exact operation over the two values.
+fn literal_pair_representability(
+    left: &ScalarTerm,
+    right: &ScalarTerm,
+    exact: impl FnOnce(IntegerValue, IntegerValue) -> Option<IntegerValue>,
+) -> Option<Proposition> {
+    let (
+        ScalarTerm::Integer {
+            value: left_value, ..
+        },
+        ScalarTerm::Integer {
+            value: right_value, ..
+        },
+    ) = (left, right)
+    else {
+        return None;
+    };
+    Some(representability(exact(*left_value, *right_value)))
+}
+
 fn exact_shift_left_representability_proposition(
     value_type: IntegerType,
     count_type: IntegerType,
@@ -446,19 +445,10 @@ fn exact_shift_left_representability_proposition(
     if count_proposition == Proposition::Falsehood {
         return Ok(Proposition::Falsehood);
     }
-    if let (ScalarTerm::Integer { value, .. }, ScalarTerm::Integer { value: count, .. }) =
-        (value, count)
-    {
-        return Ok(
-            if value_type
-                .exact_shift_left(*value, count_type, *count)
-                .is_some()
-            {
-                Proposition::Truth
-            } else {
-                Proposition::Falsehood
-            },
-        );
+    if let Some(proposition) = literal_pair_representability(value, count, |value, count| {
+        value_type.exact_shift_left(value, count_type, count)
+    }) {
+        return Ok(proposition);
     }
 
     let mut conjuncts = Vec::with_capacity(4);
@@ -506,16 +496,9 @@ fn exact_cast_representability_proposition(
         });
     }
     if let ScalarTerm::Integer { value, .. } = operand {
-        return Ok(
-            if source_type
-                .exact_cast_value_to(target_type, *value)
-                .is_some()
-            {
-                Proposition::Truth
-            } else {
-                Proposition::Falsehood
-            },
-        );
+        return Ok(representability(
+            source_type.exact_cast_value_to(target_type, *value),
+        ));
     }
     let ScalarTerm::Value { id, .. } = operand else {
         return Err(OperationSemanticError::ExactCastRequiresValueOrLiteralOperand);

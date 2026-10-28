@@ -1,4 +1,6 @@
-use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
+use register_model::{
+    RegisterInstructionConstraint, RegisterOperandAccess, RegisterOperandConstraint,
+};
 
 #[cfg(test)]
 mod atomic_tests;
@@ -32,14 +34,16 @@ fn has_policy_trap(semantic: MachineSemanticKind) -> bool {
         )
 }
 
-fn encoded_scalar_constraint(
+/// A positional roster: one `Use` row per input, then one early `Def` per
+/// result, each row naming its own position with no tie and no fixed view. The
+/// declared total pins the arity the arm requires, so a roster of any other
+/// length is not evidence for that row's operand shape.
+fn positional_roster(
     constraint: &register_model::RegisterInstructionConstraint,
     inputs: usize,
+    total: usize,
 ) -> bool {
-    constraint.operands.len() == 6
-        && constraint.implicit_uses.is_empty()
-        && constraint.implicit_defs.is_empty()
-        && !constraint.clobbers.is_empty()
+    constraint.operands.len() == total
         && constraint
             .operands
             .iter()
@@ -56,6 +60,51 @@ fn encoded_scalar_constraint(
                     && operand.fixed_view.is_none()
                     && operand.tied_to.is_none()
             })
+}
+
+/// The encoded scalar codec rows move six operands, declare no implicit unit
+/// dependency, and always clobber.
+fn encoded_scalar_constraint(
+    constraint: &register_model::RegisterInstructionConstraint,
+    inputs: usize,
+) -> bool {
+    constraint.implicit_uses.is_empty()
+        && constraint.implicit_defs.is_empty()
+        && !constraint.clobbers.is_empty()
+        && positional_roster(constraint, inputs, 6)
+}
+
+/// The encoded implicit unit rosters are the declared ones: no row may add,
+/// drop or reorder an implicit use, definition or clobber.
+fn implicit_roster_matches(
+    encoded: &MachineEncodedEffects,
+    constraint: &RegisterInstructionConstraint,
+) -> bool {
+    encoded.implicit_unit_uses == constraint.implicit_uses
+        && encoded.implicit_unit_defs == constraint.implicit_defs
+        && encoded.implicit_unit_clobbers == constraint.clobbers
+}
+
+/// The encoded row's external registers are exactly this call's: the leading
+/// reads name the arguments and the trailing writes name the results, in the
+/// declared order the physical plan pinned.
+fn call_roster_matches(
+    encoded: &MachineEncodedEffects,
+    constraint: &RegisterInstructionConstraint,
+    arguments: &[RegisterOperandConstraint],
+    results: &[RegisterOperandConstraint],
+) -> bool {
+    encoded
+        .external_operand_reads
+        .iter()
+        .copied()
+        .eq(arguments.iter().map(|operand| operand.operand))
+        && encoded
+            .external_operand_writes
+            .iter()
+            .copied()
+            .eq(results.iter().map(|operand| operand.operand))
+        && implicit_roster_matches(encoded, constraint)
 }
 
 pub(super) fn validate_declaration(
@@ -690,19 +739,7 @@ fn validate_encoded_effects(
                 .operands
                 .iter()
                 .any(|operand| operand.fixed_view.is_none())
-            || !encoded
-                .external_operand_reads
-                .iter()
-                .copied()
-                .eq(arguments.iter().map(|operand| operand.operand))
-            || !encoded
-                .external_operand_writes
-                .iter()
-                .copied()
-                .eq(results.iter().map(|operand| operand.operand))
-            || encoded.implicit_unit_uses != constraint.implicit_uses
-            || encoded.implicit_unit_defs != constraint.implicit_defs
-            || encoded.implicit_unit_clobbers != constraint.clobbers
+            || !call_roster_matches(encoded, constraint, arguments, results)
             || encoded.trap != MachineEncodedTrapBehavior::MayArchitecturalFaultV1
             || encoded.control != MachineEncodedControlEffect::DirectRelativeCallV1
         {
@@ -723,19 +760,7 @@ fn validate_encoded_effects(
             || results.iter().any(|operand| {
                 operand.access != RegisterOperandAccess::Def || operand.fixed_view.is_none()
             })
-            || !encoded
-                .external_operand_reads
-                .iter()
-                .copied()
-                .eq(arguments.iter().map(|operand| operand.operand))
-            || !encoded
-                .external_operand_writes
-                .iter()
-                .copied()
-                .eq(results.iter().map(|operand| operand.operand))
-            || encoded.implicit_unit_uses != constraint.implicit_uses
-            || encoded.implicit_unit_defs != constraint.implicit_defs
-            || encoded.implicit_unit_clobbers != constraint.clobbers
+            || !call_roster_matches(encoded, constraint, arguments, results)
             || encoded.trap != MachineEncodedTrapBehavior::MayArchitecturalFaultV1
             || encoded.control != MachineEncodedControlEffect::DirectRelativeCallV1
         {
@@ -748,15 +773,7 @@ fn validate_encoded_effects(
             || arguments
                 .iter()
                 .any(|argument| argument.access != RegisterOperandAccess::Use)
-            || !encoded
-                .external_operand_reads
-                .iter()
-                .copied()
-                .eq(arguments.iter().map(|argument| argument.operand))
-            || encoded.external_operand_writes != [result.operand]
-            || encoded.implicit_unit_uses != constraint.implicit_uses
-            || encoded.implicit_unit_defs != constraint.implicit_defs
-            || encoded.implicit_unit_clobbers != constraint.clobbers
+            || !call_roster_matches(encoded, constraint, arguments, std::slice::from_ref(result))
             || encoded.trap != MachineEncodedTrapBehavior::MayArchitecturalFaultV1
             || encoded.control != MachineEncodedControlEffect::DirectRelativeCallV1
         {
@@ -768,15 +785,7 @@ fn validate_encoded_effects(
             .operands
             .iter()
             .any(|operand| operand.access != RegisterOperandAccess::Use)
-            || !encoded
-                .external_operand_reads
-                .iter()
-                .copied()
-                .eq(constraint.operands.iter().map(|operand| operand.operand))
-            || !encoded.external_operand_writes.is_empty()
-            || encoded.implicit_unit_uses != constraint.implicit_uses
-            || encoded.implicit_unit_defs != constraint.implicit_defs
-            || encoded.implicit_unit_clobbers != constraint.clobbers
+            || !call_roster_matches(encoded, constraint, &constraint.operands, &[])
             || encoded.control != MachineEncodedControlEffect::DirectRelativeCallV1)
     {
         return Err(());
@@ -818,19 +827,7 @@ fn validate_encoded_effects(
             || results
                 .iter()
                 .any(|operand| operand.access != RegisterOperandAccess::Def)
-            || !encoded
-                .external_operand_reads
-                .iter()
-                .copied()
-                .eq(arguments.iter().map(|operand| operand.operand))
-            || !encoded
-                .external_operand_writes
-                .iter()
-                .copied()
-                .eq(results.iter().map(|operand| operand.operand))
-            || encoded.implicit_unit_uses != constraint.implicit_uses
-            || encoded.implicit_unit_defs != constraint.implicit_defs
-            || encoded.implicit_unit_clobbers != constraint.clobbers
+            || !call_roster_matches(encoded, constraint, arguments, results)
             || encoded.trap != MachineEncodedTrapBehavior::MayArchitecturalFaultV1
             || encoded.control != control
         {
@@ -935,9 +932,7 @@ fn validate_encoded_effects(
     ) && (!constraint.operands.is_empty()
         || !encoded.external_operand_reads.is_empty()
         || !encoded.external_operand_writes.is_empty()
-        || encoded.implicit_unit_uses != constraint.implicit_uses
-        || encoded.implicit_unit_defs != constraint.implicit_defs
-        || encoded.implicit_unit_clobbers != constraint.clobbers
+        || !implicit_roster_matches(encoded, constraint)
         || encoded.control != MachineEncodedControlEffect::FallThroughV1)
     {
         return Err(());
@@ -1001,9 +996,7 @@ fn validate_encoded_effects(
             && encoded.external_operand_writes.is_empty()
             && constraint.operands.len() == 1
             && constraint.operands[0].access == RegisterOperandAccess::Use
-            && encoded.implicit_unit_uses == constraint.implicit_uses
-            && encoded.implicit_unit_defs == constraint.implicit_defs
-            && encoded.implicit_unit_clobbers == constraint.clobbers => {}
+            && implicit_roster_matches(encoded, constraint) => {}
         (
             MachineEncodedMemoryEffect::HostedReadByteV1 { .. },
             MachineEncodedStackEffect::UnchangedV1,
@@ -1015,9 +1008,7 @@ fn validate_encoded_effects(
             && encoded.external_operand_reads.is_empty()
             && encoded.external_operand_writes.is_empty()
             && constraint.operands.is_empty()
-            && encoded.implicit_unit_uses == constraint.implicit_uses
-            && encoded.implicit_unit_defs == constraint.implicit_defs
-            && encoded.implicit_unit_clobbers == constraint.clobbers => {}
+            && implicit_roster_matches(encoded, constraint) => {}
         (
             MachineEncodedMemoryEffect::HostedWriteByteV1 { .. },
             MachineEncodedStackEffect::UnchangedV1,
@@ -1030,9 +1021,7 @@ fn validate_encoded_effects(
             && encoded.external_operand_writes.is_empty()
             && constraint.operands.len() == 1
             && constraint.operands[0].access == RegisterOperandAccess::Use
-            && encoded.implicit_unit_uses == constraint.implicit_uses
-            && encoded.implicit_unit_defs == constraint.implicit_defs
-            && encoded.implicit_unit_clobbers == constraint.clobbers => {}
+            && implicit_roster_matches(encoded, constraint) => {}
         (
             MachineEncodedMemoryEffect::CopyBytesV1 {
                 source_pointer_operand: 0,
@@ -1047,26 +1036,8 @@ fn validate_encoded_effects(
             && encoded.control == MachineEncodedControlEffect::FallThroughV1
             && encoded.external_operand_reads == [0, 1, 2]
             && encoded.external_operand_writes == [3, 4]
-            && constraint.operands.len() == 5
-            && constraint
-                .operands
-                .iter()
-                .enumerate()
-                .all(|(position, operand)| {
-                    operand.operand as usize == position
-                        && operand.access
-                            == if position < 3 {
-                                RegisterOperandAccess::Use
-                            } else {
-                                RegisterOperandAccess::Def
-                            }
-                        && operand.early_clobber == (position >= 3)
-                        && operand.fixed_view.is_none()
-                        && operand.tied_to.is_none()
-                })
-            && encoded.implicit_unit_uses == constraint.implicit_uses
-            && encoded.implicit_unit_defs == constraint.implicit_defs
-            && encoded.implicit_unit_clobbers == constraint.clobbers => {}
+            && positional_roster(constraint, 3, 5)
+            && implicit_roster_matches(encoded, constraint) => {}
         (
             MachineEncodedMemoryEffect::ZeroBytesV1 {
                 destination_pointer_operand: 0,
@@ -1080,26 +1051,8 @@ fn validate_encoded_effects(
             && encoded.control == MachineEncodedControlEffect::FallThroughV1
             && encoded.external_operand_reads == [0, 1]
             && encoded.external_operand_writes == [2]
-            && constraint.operands.len() == 3
-            && constraint
-                .operands
-                .iter()
-                .enumerate()
-                .all(|(position, operand)| {
-                    operand.operand as usize == position
-                        && operand.access
-                            == if position < 2 {
-                                RegisterOperandAccess::Use
-                            } else {
-                                RegisterOperandAccess::Def
-                            }
-                        && operand.early_clobber == (position >= 2)
-                        && operand.fixed_view.is_none()
-                        && operand.tied_to.is_none()
-                })
-            && encoded.implicit_unit_uses == constraint.implicit_uses
-            && encoded.implicit_unit_defs == constraint.implicit_defs
-            && encoded.implicit_unit_clobbers == constraint.clobbers => {}
+            && positional_roster(constraint, 2, 3)
+            && implicit_roster_matches(encoded, constraint) => {}
         (
             MachineEncodedMemoryEffect::ReadEncodedScalarV1 {
                 pointer_operand: 0,
@@ -1139,26 +1092,8 @@ fn validate_encoded_effects(
             && encoded.control == MachineEncodedControlEffect::FallThroughV1
             && encoded.external_operand_reads == [0, 1]
             && encoded.external_operand_writes == [2, 3, 4]
-            && constraint.operands.len() == 5
-            && constraint
-                .operands
-                .iter()
-                .enumerate()
-                .all(|(position, operand)| {
-                    operand.operand as usize == position
-                        && operand.access
-                            == if position < 2 {
-                                RegisterOperandAccess::Use
-                            } else {
-                                RegisterOperandAccess::Def
-                            }
-                        && operand.early_clobber == (position >= 2)
-                        && operand.fixed_view.is_none()
-                        && operand.tied_to.is_none()
-                })
-            && encoded.implicit_unit_uses == constraint.implicit_uses
-            && encoded.implicit_unit_defs == constraint.implicit_defs
-            && encoded.implicit_unit_clobbers == constraint.clobbers => {}
+            && positional_roster(constraint, 2, 5)
+            && implicit_roster_matches(encoded, constraint) => {}
         (
             MachineEncodedMemoryEffect::CompareByteSequencesV1 {
                 left_base_operand: 0,
@@ -1174,26 +1109,8 @@ fn validate_encoded_effects(
             && encoded.control == MachineEncodedControlEffect::FallThroughV1
             && encoded.external_operand_reads == [0, 1, 2, 3]
             && encoded.external_operand_writes == [4, 5, 6, 7]
-            && constraint.operands.len() == 8
-            && constraint
-                .operands
-                .iter()
-                .enumerate()
-                .all(|(position, operand)| {
-                    operand.operand as usize == position
-                        && operand.access
-                            == if position < 4 {
-                                RegisterOperandAccess::Use
-                            } else {
-                                RegisterOperandAccess::Def
-                            }
-                        && operand.early_clobber == (position >= 4)
-                        && operand.fixed_view.is_none()
-                        && operand.tied_to.is_none()
-                })
-            && encoded.implicit_unit_uses == constraint.implicit_uses
-            && encoded.implicit_unit_defs == constraint.implicit_defs
-            && encoded.implicit_unit_clobbers == constraint.clobbers => {}
+            && positional_roster(constraint, 4, 8)
+            && implicit_roster_matches(encoded, constraint) => {}
         (
             MachineEncodedMemoryEffect::ReadTableFieldV1 {
                 pointer_operand, ..

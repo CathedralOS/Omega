@@ -229,6 +229,9 @@ impl ProgramPrivateArrivalIndex {
 
 pub(crate) struct ClosedArrivals {
     pub(super) expected: Vec<Arrival>,
+    /// Successive complete cuts of the retained caller graph, nearest first.
+    /// The original lexical/cycle frontier remains the final authority.
+    pub(super) caller_frontiers: Vec<Vec<usize>>,
     pub(super) cycle_entries: Vec<SymbolHandle>,
     pub(super) bodies: Vec<SymbolHandle>,
 }
@@ -270,10 +273,7 @@ fn compute_closed_arrivals(
     let Some(member_indices) = index.members_by_root.get(&root.symbol) else {
         return Err("the callable is not a private member of the enclosing declaration");
     };
-    let members: Vec<_> = member_indices
-        .iter()
-        .map(|&idx| &machines[idx])
-        .collect();
+    let members: Vec<_> = member_indices.iter().map(|&idx| &machines[idx]).collect();
     let destination = members
         .iter()
         .position(|member| member.symbol == callee.symbol)
@@ -284,7 +284,8 @@ fn compute_closed_arrivals(
     {
         return Err("the private declaration group has an exposed callable");
     }
-    let mut expected = Vec::new();
+    let mut expected_owners: Vec<(Arrival, usize)> = Vec::new();
+    let mut caller_ownership_is_unique = true;
     let mut edges = vec![Vec::new(); members.len()];
     let mut outside = Vec::new();
     let mut declared_entries = Vec::new();
@@ -316,12 +317,31 @@ fn compute_closed_arrivals(
                     statement: site.statement,
                     expression: site.expression,
                 };
-                if !expected.contains(&arrival) {
-                    expected.push(arrival);
+                if expected_owners.iter().any(|(prior, owner)| {
+                    prior.caller == arrival.caller && *owner != site.caller_machine_index
+                }) {
+                    caller_ownership_is_unique = false;
+                }
+                if !expected_owners.iter().any(|(prior, _)| *prior == arrival) {
+                    expected_owners.push((arrival, site.caller_machine_index));
                 }
             }
         }
     }
+    let mut expected = Vec::with_capacity(expected_owners.len());
+    let mut caller_machine_indices = Vec::new();
+    for (arrival, owner) in expected_owners {
+        // The graph carries the owner; validate uniqueness once while forming
+        // this cached plan rather than rebuilding ownership for each query.
+        if !caller_owner_is_unique(program, arrival.caller, owner) {
+            caller_ownership_is_unique = false;
+        }
+        expected.push(arrival);
+        if !caller_machine_indices.contains(&owner) {
+            caller_machine_indices.push(owner);
+        }
+    }
+    let caller_machine_indices = caller_ownership_is_unique.then_some(caller_machine_indices);
     // Close backward over actual callers of the requested entry. A callback
     // that cannot reach it is independent; an escaping ancestor still matters.
     let mut needed = vec![false; members.len()];
@@ -362,14 +382,11 @@ fn compute_closed_arrivals(
     }
     let closed = target_symbols.iter().all(|symbol| {
         !index.unclosed_symbols.contains(symbol)
-            && index
-                .callable_use_owners
-                .get(symbol)
-                .is_none_or(|owners| {
-                    owners
-                        .iter()
-                        .all(|&owner| belongs_to(program, owner, root.symbol))
-                })
+            && index.callable_use_owners.get(symbol).is_none_or(|owners| {
+                owners
+                    .iter()
+                    .all(|&owner| belongs_to(program, owner, root.symbol))
+            })
     });
     if !closed {
         return Err("a private callable has a non-direct or out-of-scope use");
@@ -377,15 +394,121 @@ fn compute_closed_arrivals(
     // A recurring entry has no inherited runtime values. Its separately
     // observed prefix must establish the requested fact again from arbitrary
     // inputs; roots/initializers and a prior iteration supply no invariant.
-    let cycle_entries = super::cycles::entries(&edges, &needed, &declared_entries)
+    let cycle_entries: Vec<_> = super::cycles::entries(&edges, &needed, &declared_entries)
         .into_iter()
         .map(|index| members[index].symbol)
         .collect();
+    let caller_frontiers = progressive_caller_frontiers(
+        program,
+        root,
+        index
+            .call_sites_by_root
+            .get(&root.symbol)
+            .map(Vec::as_slice)
+            .unwrap_or(&[]),
+        caller_machine_indices,
+        &cycle_entries,
+    );
     Ok(ClosedArrivals {
         expected,
+        caller_frontiers,
         cycle_entries,
         bodies,
     })
+}
+
+/// The graph already knows the executable owner. Check ambiguous storage
+/// membership once in the cached plan; never resolve an owner by spelling.
+fn caller_owner_is_unique(
+    program: &dyn crate::CheckingInput,
+    state: SymbolHandle,
+    owner: usize,
+) -> bool {
+    let machines = program.machines();
+    let Some(caller) = machines.get(owner) else {
+        return false;
+    };
+    program
+        .machine_states(caller)
+        .iter()
+        .any(|entry| entry.symbol == state)
+        && !machines.iter().enumerate().any(|(other, machine)| {
+            other != owner
+                && program
+                    .machine_states(machine)
+                    .iter()
+                    .any(|entry| entry.symbol == state)
+        })
+}
+
+fn progressive_caller_frontiers(
+    program: &dyn crate::CheckingInput,
+    root: &Machine,
+    sites: &[SubordinateCallSite],
+    immediate: Option<Vec<usize>>,
+    cycle_entries: &[SymbolHandle],
+) -> Vec<Vec<usize>> {
+    let Some(mut frontier) = immediate else {
+        return Vec::new();
+    };
+    if frontier.is_empty() {
+        return Vec::new();
+    }
+    let machines = program.machines();
+    let mut anchors = vec![false; machines.len()];
+    let mut original = Vec::new();
+    for (index, machine) in machines.iter().enumerate() {
+        let recurrent = cycle_entries.contains(&machine.symbol);
+        anchors[index] = recurrent || is_root(program, machine, root);
+        if anchors[index] {
+            original.push(index);
+        }
+        // A prior iteration's values never establish a fresh cycle entry.
+        if recurrent {
+            frontier.push(index);
+        }
+    }
+    frontier.sort_unstable();
+    frontier.dedup();
+    let mut frontiers = Vec::new();
+    loop {
+        // The full root set is observed exactly once by the fallback. A
+        // repeated cut cannot reveal another independently available premise.
+        if frontier == original || frontiers.contains(&frontier) {
+            break;
+        }
+        frontiers.push(frontier.clone());
+        let mut expanded = Vec::new();
+        for &owner in &frontier {
+            let Some(machine) = machines.get(owner) else {
+                return frontiers;
+            };
+            if anchors[owner] {
+                expanded.push(owner);
+                continue;
+            }
+            let mut has_incoming = false;
+            for site in sites
+                .iter()
+                .filter(|site| site.target_machine == machine.symbol)
+            {
+                if !caller_owner_is_unique(program, site.caller_state, site.caller_machine_index) {
+                    return frontiers;
+                }
+                has_incoming = true;
+                expanded.push(site.caller_machine_index);
+            }
+            // An unknown or absent incoming roster cannot be dropped from a
+            // cut. Keep the previous cuts and use the original final frontier.
+            if !has_incoming {
+                return frontiers;
+            }
+        }
+        expanded.sort_unstable();
+        expanded.dedup();
+        frontier = expanded;
+    }
+    frontiers
 }
 
 fn retain_scoped_handle<Element>(
@@ -411,7 +534,12 @@ struct ProgramPrivateUses<'program> {
     owner_scopes: Vec<Option<SymbolHandle>>,
     pending_counts: symbols::SymbolKeyMap<SymbolHandle, usize>,
     seen_expressions: Vec<Vec<(Option<SymbolHandle>, ExpressionHandle)>>,
-    seen_types: Vec<Vec<(Option<SymbolHandle>, typed_trees::types::TypeReferenceHandle)>>,
+    seen_types: Vec<
+        Vec<(
+            Option<SymbolHandle>,
+            typed_trees::types::TypeReferenceHandle,
+        )>,
+    >,
     unclosed_symbols: SymbolSet,
     callable_use_owners: symbols::SymbolKeyMap<SymbolHandle, Vec<SymbolHandle>>,
 }

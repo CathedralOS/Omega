@@ -111,7 +111,7 @@ impl TargetProviderPublicationRequest<'_> {
         // A recognized profile realized outside this compiler, such as the
         // Alpha bootstrap target, publishes a named unavailable row like any
         // other unavailable realization; it is never asked for a native target.
-        let native_target = profile.native_realization().ok_or_else(|| {
+        profile.native_realization().ok_or_else(|| {
             vec![Diagnostic::error(format!(
                 "target `{target}` has no provider realization in this compiler"
             ))]
@@ -154,7 +154,7 @@ impl TargetProviderPublicationRequest<'_> {
         }
         let selected = crate::select_derived_provider_plans(
             &demanded,
-            native_target,
+            profile,
             &declarations.provider_defaults,
             self.overrides,
         )?;

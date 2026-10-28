@@ -99,12 +99,16 @@ pub fn collect_product_provider_selections(
             let mode = event.composition.ok_or_else(|| {
                 Diagnostic::error("executed provider choice lost its evaluated composition mode")
             })?;
+            let target = event.target.ok_or_else(|| {
+                Diagnostic::error("executed provider choice lost its evaluated catalog target")
+            })?;
             let (subject, provider) = identities(context, &event.request)?;
             admission::admit(
                 context,
                 subject,
                 provider,
                 mode,
+                Some(target),
                 activation,
                 context
                     .typed

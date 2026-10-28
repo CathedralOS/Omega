@@ -4,8 +4,8 @@
 //! initializer is replayed, and no callee precondition is imported as a premise.
 //! The existing scoped arithmetic engine owns entailment. This adapter owns
 //! field identity, current-value custody and selected builtin operation meaning.
-//! Polynomial terms retain Exact arithmetic. A separately marked unsigned
-//! Wrapping remainder keeps its exact operand roster through policy erasure;
+//! Polynomial terms retain Exact arithmetic. A separately marked completed
+//! unsigned remainder keeps its exact operand roster through policy erasure;
 //! the shared engine still needs independent positivity/nonnegativity premises
 //! before using its divisor-relative bound. This admits no general cast or
 //! syntax-only interpretation of an overridden operator.
@@ -686,15 +686,10 @@ pub(in crate::checks) fn scalar_term(
     expression: ExpressionHandle,
     value: impl FnMut(ExpressionHandle, PrimitiveType) -> Option<ScopedArithmeticValue>,
 ) -> Option<ScopedArithmeticValue> {
-    let admitted = admitted_scalar_expression(program, facts, callable, expression);
-    let (expression, remainder) = admitted?;
-    let term = bind_occurrences(program, facts, callable, expression, &[], value);
-    let term = term?;
-    Some(if remainder {
-        ScopedArithmeticValue::AdmittedIntegerRemainder(term)
-    } else {
-        ScopedArithmeticValue::Term(term)
-    })
+    let expression = admitted_scalar_expression(program, facts, callable, expression)?;
+    let mut term = bind_occurrences(program, facts, callable, expression, &[], value)?;
+    bind_completed_remainders(program, facts, callable, &mut term);
+    Some(ScopedArithmeticValue::Term(term))
 }
 
 /// One admission owner for scalar denotations and captured call actuals.
@@ -704,16 +699,70 @@ fn admitted_scalar_expression(
     facts: &CheckFacts,
     callable: &Callable<'_>,
     expression: ExpressionHandle,
-) -> Option<(ExpressionHandle, bool)> {
+) -> Option<ExpressionHandle> {
     if !super::super::has_builtin_operators(program, &facts.operators, expression)
         || !callable.builtin_meaning(program, expression)
         || !term(program, &facts.operators, callable, expression)
     {
         return None;
     }
-    let remainder =
-        admitted_wrapping_unsigned_remainder(program, &facts.operators, callable, expression);
-    Some((remainder.unwrap_or(expression), remainder.is_some()))
+    Some(expression)
+}
+
+/// The completed-value owner grants the operation's normal denotation, not
+/// an enclosing cast's spelling. Unsigned remainder is unchanged by every
+/// arithmetic policy; its exact selected source retains that policy and the
+/// independent formation obligation. A proposition being proved does not call
+/// this operation-publication step.
+pub(in crate::checks) fn completed_scalar_value(
+    program: &dyn ::validation::CheckingInput,
+    callable: &Callable<'_>,
+    term: ScopedArithmeticExpression,
+) -> ScopedArithmeticValue {
+    if admitted_unsigned_remainder(program, callable, term.expression) {
+        ScopedArithmeticValue::AdmittedIntegerRemainder(term)
+    } else {
+        ScopedArithmeticValue::Term(term)
+    }
+}
+
+fn bind_completed_remainders(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    callable: &Callable<'_>,
+    term: &mut ScopedArithmeticExpression,
+) {
+    let mut operations = Vec::new();
+    validation::expression_traversal::visit_post_order(
+        program,
+        term.expression,
+        &mut Vec::new(),
+        |expression, _| {
+            if admitted_unsigned_remainder(program, callable, expression)
+                && super::super::has_builtin_operators(program, &facts.operators, expression)
+            {
+                operations.push(expression);
+            }
+        },
+    );
+    for expression in operations {
+        // The supplying scope contains preceding child operations, never this
+        // operation's own occurrence binding. Copies retain these exact actuals.
+        let operation = ScopedArithmeticExpression {
+            owner: term.owner,
+            expression,
+            bindings: term
+                .bindings
+                .iter()
+                .filter(|binding| binding.binder != ScopedArithmeticBinder::Occurrence(expression))
+                .cloned()
+                .collect(),
+        };
+        term.bindings.push(ScopedArithmeticBinding {
+            binder: ScopedArithmeticBinder::Occurrence(expression),
+            value: completed_scalar_value(program, callable, operation),
+        });
+    }
 }
 
 fn bind_occurrences(
@@ -835,23 +884,18 @@ fn bind_occurrences(
         },
     );
     for argument in arguments {
-        let Some((selected, remainder)) =
-            admitted_scalar_expression(program, facts, callable, argument)
-        else {
+        let Some(selected) = admitted_scalar_expression(program, facts, callable, argument) else {
             continue;
         };
-        let term = ScopedArithmeticExpression {
+        let mut term = ScopedArithmeticExpression {
             owner: callable.target_symbol(),
             expression: selected,
             bindings: bindings.clone(),
         };
+        bind_completed_remainders(program, facts, callable, &mut term);
         bindings.push(ScopedArithmeticBinding {
             binder: ScopedArithmeticBinder::Occurrence(argument),
-            value: if remainder {
-                ScopedArithmeticValue::AdmittedIntegerRemainder(term)
-            } else {
-                ScopedArithmeticValue::Term(term)
-            },
+            value: ScopedArithmeticValue::Term(term),
         });
     }
     Some(ScopedArithmeticExpression {
@@ -923,7 +967,7 @@ fn term(
         ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::Modulo => {
             super::super::has_builtin_operators(program, operators, expression)
                 && callable.builtin_meaning(program, expression)
-                && builtin_wrapping_unsigned_remainder(program, callable, binary.left, binary.right)
+                && builtin_unsigned_remainder(program, callable, binary.left, binary.right)
                 && term(program, operators, callable, binary.left)
                 && term(program, operators, callable, binary.right)
         }
@@ -953,10 +997,9 @@ fn term(
 /// A selected builtin unsigned remainder has one mathematical value in every
 /// integer policy once division-by-zero has been discharged. This adapter does
 /// not establish that obligation: the callee's `requires` and the independent
-/// admitted remainder certificate do. It admits only the customer shape whose
-/// operands share one explicit Wrapping carrier; arbitrary computed policy
-/// mixtures stay outside this source-proof vocabulary.
-fn builtin_wrapping_unsigned_remainder(
+/// admitted remainder certificate do. The operands retain their selected
+/// policies; no signed remainder or mixed carrier is interpreted as unsigned.
+fn builtin_unsigned_remainder(
     program: &dyn ::validation::CheckingInput,
     callable: &Callable<'_>,
     left: ExpressionHandle,
@@ -974,33 +1017,21 @@ fn builtin_wrapping_unsigned_remainder(
     let Some(right_primitive) = program.primitive_type_reference(right) else {
         return false;
     };
-    left_primitive == right_primitive
-        && unsigned(left_primitive)
-        && program.arithmetic_domain_for_type_reference(left) == ArithmeticDomain::Wrapping
-        && program.arithmetic_domain_for_type_reference(right) == ArithmeticDomain::Wrapping
+    left_primitive == right_primitive && unsigned(left_primitive)
 }
 
-/// Select the exact modulo node behind the one supported policy-erasure
-/// spelling. The returned handle is authority-bearing for scoped entailment:
-/// keep every checked operator, callable meaning, carrier and cast fence here.
-fn admitted_wrapping_unsigned_remainder(
+/// Rejoin the operation selected for this exact typed source occurrence.
+fn admitted_unsigned_remainder(
     program: &dyn ::validation::CheckingInput,
-    operators: &checked_trees::CheckedOperatorFacts,
     callable: &Callable<'_>,
     expression: ExpressionHandle,
-) -> Option<ExpressionHandle> {
-    let cast = program.expression_table.cast_node(expression)?;
-    if !value_preserving_integer_coercion(program, callable, cast) {
-        return None;
-    }
-    let Some(binary) = program.expression_table.binary_node(cast.value) else {
-        return None;
+) -> bool {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
+        return false;
     };
-    (binary.operator == BinaryOperator::Modulo
-        && super::super::has_builtin_operators(program, operators, cast.value)
-        && callable.builtin_meaning(program, cast.value)
-        && builtin_wrapping_unsigned_remainder(program, callable, binary.left, binary.right))
-    .then_some(cast.value)
+    binary.operator == BinaryOperator::Modulo
+        && callable.builtin_meaning(program, expression)
+        && builtin_unsigned_remainder(program, callable, binary.left, binary.right)
 }
 
 /// An admitted authored integer coercion preserves its mathematical payload.

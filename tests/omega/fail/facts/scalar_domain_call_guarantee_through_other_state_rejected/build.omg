@@ -1,6 +1,14 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "scalar_domain_call_guarantee_through_other_state_rejected");
-    Build::select_provider<Query, Actual>(builder);
+    Build::select_provider<Query, Actual>(builder, linux_arm64);
+    Build::select_provider<Query, Actual>(builder, linux_x86_64);
+    Build::select_provider<Query, Actual>(builder, macos_arm64);
+    Build::select_provider<Query, Actual>(builder, macos_x86_64);
+    Build::select_provider<Query, Actual>(builder, windows_x86_64);
+    Build::select_provider<Query, Actual>(builder, uefi_x86_64);
+    Build::select_provider<Query, Actual>(builder, cross_platform_cli);
+    Build::select_provider<Query, Actual>(builder, local_unchecked);
+    Build::select_provider<Query, Actual>(builder, alpha_bootstrap);
     Build::bind(builder, macos_arm64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);

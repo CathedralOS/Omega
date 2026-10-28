@@ -281,13 +281,6 @@ pub struct TerminalRuntimeProvisions {
     entry: MachineId,
     source_signature_identity: [u8; 32],
     target_slot: target::ProgramEntrySlotDeclaration,
-    fused_services: Vec<program_entry_plan::ProgramEntryFusedServiceEstablishment>,
-    /// The ProgramEntry signature's plan-local identity table — establishment
-    /// rows index it, never the module's table.
-    plan_identities: terminal_psi::TerminalIdentityTable,
-    /// Parallel to `fused_services`: exact retained requirement slots of the
-    /// same admitted schema/plan, not a provider-name or trait-prefix lookup.
-    fused_service_boundary_slots: Vec<Vec<BoundaryMachineId>>,
     target_provider_proposals:
         Vec<terminal_psi_to_abstract_operations::TerminalTargetProviderProposal>,
     host_provisions: TerminalRuntimeHostProvisions,
@@ -502,14 +495,11 @@ impl TerminalRuntimeProvisions {
     /// request. This is not another admission or a runtime authority grant.
     pub fn capture_native_admission(
         checked: &terminal_psi::CheckedProgramEntryTerminalReceipt,
-        fused_services: &[program_entry_plan::ProgramEntryFusedServiceEstablishment],
         installation: Option<&terminal_installation::AdmittedProviderSelections>,
         host: Vec<TerminalRuntimeHostProvision>,
         boundaries: &[terminal_psi::BoundaryMachineDeclaration],
-        candidates: &[terminal_psi::ProviderCandidateConformance],
         selected: &effects::SelectedProviderPlanFacts,
         identities: &terminal_psi::TerminalIdentityTable,
-        plan_identities: &terminal_psi::TerminalIdentityTable,
         target_slot: target::ProgramEntrySlotDeclaration,
         external_bindings: &[calling_conventions::ExternalBindingRow],
     ) -> Result<Self, &'static str> {
@@ -521,59 +511,6 @@ impl TerminalRuntimeProvisions {
             identities,
             external_bindings,
         )?;
-        let mut fused_service_boundary_slots = Vec::with_capacity(fused_services.len());
-        for establishment in fused_services {
-            let mut matching_plans = selected.plans().iter().filter(|plan| {
-                plan.identity_digest() == establishment.selected_provider_plan_digest()
-            });
-            let plan = matching_plans
-                .next()
-                .ok_or("runtime Fused establishment lost its exact admitted plan/schema")?;
-            if matching_plans.next().is_some() {
-                return Err("runtime Fused establishment repeats its exact admitted plan/schema");
-            }
-            let receiver = plan
-                .schema
-                .receiver_applications
-                .get(establishment.receiver_application_index())
-                .ok_or("runtime Fused establishment lost its admitted receiver view")?;
-            if !establishment.receiving_requirements().is_empty() {
-                let installation = installation
-                    .filter(|installation| {
-                        installation.terminal_psi() == checked.terminal_psi_identity()
-                    })
-                    .ok_or("runtime Fused receiving roster has no same-artifact installation")?;
-                fused_service_boundary_slots.push(capture_receiving_slots(
-                    establishment,
-                    plan,
-                    receiver,
-                    candidates,
-                    selected,
-                    identities,
-                    plan_identities,
-                    installation,
-                )?);
-                continue;
-            }
-            // The native admission already authenticated these identities and
-            // contracts. Capture the existing coordinate relation before that
-            // admission is consumed; do not reconstruct semantics or authority.
-            let mut slots = Vec::new();
-            for boundary in boundaries {
-                if receiver.requirement_identities.iter().any(|requirement| {
-                    selected.selected_row_matches_requirement(
-                        identities.text(boundary.identity).unwrap_or_default(),
-                        plan.schema.identity_text(*requirement),
-                        plan.report_fingerprint(),
-                    )
-                }) {
-                    slots.push(boundary.id);
-                }
-            }
-            slots.sort_unstable();
-            slots.dedup();
-            fused_service_boundary_slots.push(slots);
-        }
         Ok(Self {
             private_entry_ram: Vec::new(),
             components: Vec::new(),
@@ -582,9 +519,6 @@ impl TerminalRuntimeProvisions {
             entry: checked.terminal_entry(),
             source_signature_identity: checked.source_signature_identity(),
             target_slot,
-            fused_services: fused_services.to_vec(),
-            plan_identities: plan_identities.clone(),
-            fused_service_boundary_slots,
             target_provider_proposals: Vec::new(),
             host_provisions,
         })
@@ -664,37 +598,10 @@ impl TerminalRuntimeProvisions {
         self.target_slot
     }
 
-    /// The signature table the establishment rows' identity indices resolve
-    /// against — rows were minted before the module's table existed.
-    pub const fn plan_identities(&self) -> &terminal_psi::TerminalIdentityTable {
-        &self.plan_identities
-    }
-
     /// The selection facts table admitted same-stack requirement indices
     /// resolve against.
     pub const fn selection_identities(&self) -> &terminal_psi::TerminalIdentityTable {
         self.host_provisions.selection_identities()
-    }
-
-    pub fn fused_services(&self) -> &[program_entry_plan::ProgramEntryFusedServiceEstablishment] {
-        &self.fused_services
-    }
-
-    /// Each actual root establishment's exact retained requirement slots.
-    /// This association identifies what the host must establish; it supplies
-    /// neither runtime Binding custody nor containing-process-domain authority.
-    pub fn fused_service_slots(
-        &self,
-    ) -> impl Iterator<
-        Item = (
-            &program_entry_plan::ProgramEntryFusedServiceEstablishment,
-            &[BoundaryMachineId],
-        ),
-    > {
-        self.fused_services
-            .iter()
-            .zip(&self.fused_service_boundary_slots)
-            .map(|(establishment, slots)| (establishment, slots.as_slice()))
     }
 
     pub const fn installation(&self) -> Option<&terminal_installation::AdmittedProviderSelections> {
@@ -704,93 +611,4 @@ impl TerminalRuntimeProvisions {
     pub fn host(&self) -> &[TerminalRuntimeHostProvision] {
         self.host_provisions.host()
     }
-}
-
-/// Capture the complete canonical roster for the checked field application.
-/// Each ancestor owns its own application key; each finite tuple owns a separate
-/// closed coordinate. A supplied subset cannot replace the artifact's roster.
-fn capture_receiving_slots(
-    establishment: &program_entry_plan::ProgramEntryFusedServiceEstablishment,
-    plan: &effects::provider_plan::ProviderPlan,
-    receiver: &effects::provider_plan::ServiceReceiverApplication,
-    candidates: &[terminal_psi::ProviderCandidateConformance],
-    selected: &effects::SelectedProviderPlanFacts,
-    identities: &terminal_psi::TerminalIdentityTable,
-    plan_identities: &terminal_psi::TerminalIdentityTable,
-    installation: &terminal_installation::AdmittedProviderSelections,
-) -> Result<Vec<BoundaryMachineId>, &'static str> {
-    let rows = establishment.receiving_requirements();
-    let first = rows.first().ok_or("runtime receiving roster is empty")?;
-    let text = |identity| plan_identities.text(identity).unwrap_or_default();
-    let regions_match =
-        |candidate: &terminal_psi::ProviderCandidateConformance,
-         row: &program_entry_plan::ProgramEntryReceivingRequirement| {
-            candidate.receiving_region_arguments.len() == row.receiving_regions.len()
-                && candidate
-                    .receiving_region_arguments
-                    .iter()
-                    .zip(&row.receiving_regions)
-                    .all(|(candidate, row)| identities.text(*candidate) == Some(text(*row)))
-        };
-    for requirement in &receiver.requirement_identities {
-        if !rows
-            .iter()
-            .any(|row| text(row.source_requirement) == plan.schema.identity_text(*requirement))
-        {
-            return Err("runtime receiving roster omitted an original requirement");
-        }
-    }
-    if rows.iter().any(|row| {
-        row.provider_declaration != first.provider_declaration
-            || row.receiving_regions != first.receiving_regions
-            || !receiver.requirement_identities.iter().any(|requirement| {
-                text(row.source_requirement) == plan.schema.identity_text(*requirement)
-            })
-    }) {
-        return Err("runtime receiving roster mixes selecting owners or provider applications");
-    }
-    let expected = candidates
-        .iter()
-        .filter(|candidate| {
-            identities.text(candidate.provider_identity) == Some(plan.provider_type.as_str())
-                && identities.text(candidate.provider_declaration.identity())
-                    == Some(text(first.provider_declaration))
-                && regions_match(candidate, first)
-                // The original declaration roster and complete map tuple,
-                // not supplied application keys, determine the expected set.
-                // Type/Const-generic provider maps are not admitted: their
-                // independent applications would need additional coordinates.
-                && receiver.requirement_identities.iter().any(|requirement| {
-                    identities.text(candidate.source_requirement_identity)
-                        == Some(plan.schema.identity_text(*requirement))
-                })
-        })
-        .collect::<Vec<_>>();
-    if expected.len() != rows.len() {
-        return Err("runtime receiving roster differs from complete canonical applications");
-    }
-    let mut slots = Vec::with_capacity(rows.len());
-    for row in rows {
-        let mut matching = expected
-            .iter()
-            .copied()
-            .filter(|candidate| row.matches_candidate(candidate, identities, plan_identities));
-        let candidate = matching
-            .next()
-            .ok_or("runtime receiving requirement has no canonical candidate")?;
-        if matching.next().is_some()
-            || slots.contains(&candidate.boundary)
-            || !installation.contains_candidate(candidate)
-            || !selected.selected_row_matches_requirement(
-                text(row.requirement),
-                text(row.source_requirement),
-                plan.report_fingerprint(),
-            )
-        {
-            return Err("runtime receiving requirement does not join one exact installed plan row");
-        }
-        slots.push(candidate.boundary);
-    }
-    slots.sort_unstable();
-    Ok(slots)
 }

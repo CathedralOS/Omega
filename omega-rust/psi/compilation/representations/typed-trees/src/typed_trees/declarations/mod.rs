@@ -7,6 +7,7 @@ pub mod data;
 pub mod domain;
 pub mod invocations;
 pub mod measure;
+pub mod numeric_intrinsics;
 pub mod operator;
 pub mod product_operand;
 pub mod trait_definition;

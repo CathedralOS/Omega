@@ -47,13 +47,40 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
         "boundary application candidates",
     )?;
     require_increasing(
-        module
-            .task_activation_demands
-            .demands
-            .iter()
-            .map(|demand| (demand.report_fingerprint, demand.machine, demand.entry)),
+        module.task_activation_demands.demands.iter().map(|demand| {
+            (
+                demand.report_fingerprint,
+                demand.machine_callable_identity,
+                demand.entry,
+            )
+        }),
         "task activation demands by report fingerprint, machine, and entry",
     )?;
+    require_increasing(
+        module
+            .task_activation_demands
+            .structural_referents
+            .iter()
+            .map(|row| row.id),
+        "task structural referents",
+    )?;
+    require_increasing(
+        module
+            .task_activation_demands
+            .target_layout_applications
+            .iter()
+            .map(|row| row.id),
+        "task target layout applications",
+    )?;
+    for application in &module.task_activation_demands.target_layout_applications {
+        require_increasing(
+            application
+                .realizations
+                .iter()
+                .map(|row| row.target.as_str()),
+            "task target layout alternatives",
+        )?;
+    }
     for demand in &module.task_activation_demands.demands {
         require_increasing(
             demand.frames.iter().map(|frame| frame.identity),

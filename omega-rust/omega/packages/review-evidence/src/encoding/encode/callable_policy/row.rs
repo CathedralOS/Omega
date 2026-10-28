@@ -48,9 +48,10 @@ pub(in crate::encoding) fn encode_callable(
             Ok(())
         })
     })?;
-    encoder.field("lifetime_parameter_count", |encoder| {
-        encoder.usize(callable.lifetime_parameter_count)
-    })?;
+    encoder.usize_field(
+        "lifetime_parameter_count",
+        callable.lifetime_parameter_count,
+    )?;
     encoder.field("type_parameters", |encoder| {
         encoder.sequence(&callable.type_parameters, encode_type_parameter)
     })?;
@@ -66,9 +67,11 @@ pub(in crate::encoding) fn encode_callable(
             Ok(())
         })
     })?;
-    encoder.field("return_type", |encoder| {
-        encoder.option(callable.return_type.as_ref(), encode_type_identity)
-    })?;
+    encoder.option_field(
+        "return_type",
+        callable.return_type.as_ref(),
+        encode_type_identity,
+    )?;
     encoder.field("conformances", |encoder| {
         encoder.sequence(&callable.conformances, encode_callable_conformance)
     })?;
@@ -177,12 +180,11 @@ pub(in crate::encoding) fn encode_callable(
             Ok(())
         })
     })?;
-    encoder.field("declared_termination", |encoder| {
-        encoder.option(
-            callable.declared_termination.as_ref(),
-            behavior::termination,
-        )
-    })?;
+    encoder.option_field(
+        "declared_termination",
+        callable.declared_termination.as_ref(),
+        behavior::termination,
+    )?;
     encoder.boolean_field("checked_may_suspend", callable.checked_may_suspend)?;
     encoder.boolean_field("checked_may_block", callable.checked_may_block)?;
     encoder.field_by(
