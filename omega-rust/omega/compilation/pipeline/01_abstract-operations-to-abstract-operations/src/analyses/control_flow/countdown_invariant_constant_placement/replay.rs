@@ -8,10 +8,10 @@ use super::{
     OptimizerUnsignedCountdownRankingCertificate, PsiOptimizationFunction, PsiOptimizationUnit,
     ScalarType, UnsignedCountdownInvariantConstantPlacements, UnsignedCountdownLoopSummary,
     ValidatedCountdownInvariantConstantAnalysis, ValidatedCountedLoopAnalysis,
-    ValidatedOptimizerCycleComponents, expected_constant, invariant_constant_row,
-    sole_provenance_node, validate_analysis_root, validate_moved_constant_locations,
+    ValidatedOptimizerCycleComponents, consumer_matches, consumer_operation, expected_constant,
+    invariant_constant_row, sole_provenance_node, validate_analysis_root,
+    validate_moved_constant_locations,
 };
-use abstract_operations::{IntegerArithmeticOperator, IntegerOverflowPolicy};
 use std::collections::BTreeMap;
 
 pub(super) fn reconstruct(
@@ -241,12 +241,7 @@ fn reconstruct_consumer(
     certificate: &OptimizerUnsignedCountdownRankingCertificate,
     constant: &CountdownInvariantIntegerConstant,
 ) -> Result<CountdownInvariantConstantConsumer, CountdownInvariantConstantPlacementAnalysisError> {
-    let operation = match constant.role {
-        CountdownInvariantConstantRole::PositiveGuardZero => certificate.guard.comparison_operation,
-        CountdownInvariantConstantRole::BackedgeDecrementOne => {
-            certificate.descent.subtract_operation
-        }
-    };
+    let operation = consumer_operation(certificate, constant.role);
     let (block, node_index, node) = sole_provenance_node(
         function
             .blocks
@@ -266,59 +261,7 @@ fn reconstruct_consumer(
     if (value_use.block, value_use.node) != (block, node_index) {
         return Err(unsupported(function.machine, operation));
     }
-    let shape_matches = match (constant.role, &node.operation) {
-        (
-            CountdownInvariantConstantRole::PositiveGuardZero,
-            O::IntegerLessThan {
-                psi_operation,
-                result,
-                left,
-                right,
-            },
-        ) => {
-            (*psi_operation, *result, *left, *right)
-                == (
-                    operation,
-                    certificate.guard.condition,
-                    constant.result,
-                    certificate.rank_parameter,
-                )
-        }
-        (
-            CountdownInvariantConstantRole::BackedgeDecrementOne,
-            O::IntegerArithmetic {
-                psi_operation,
-                result,
-                scalar_type,
-                arithmetic,
-                left,
-                right,
-            },
-        ) if (arithmetic.policy(), arithmetic.operator())
-            == (
-                IntegerOverflowPolicy::Exact,
-                IntegerArithmeticOperator::Subtract,
-            ) =>
-        {
-            (
-                *psi_operation,
-                arithmetic.obligation(),
-                *result,
-                *scalar_type,
-                *left,
-                *right,
-            ) == (
-                operation,
-                Some(certificate.descent.subtract_obligation),
-                certificate.descent.argument,
-                certificate.rank_type,
-                certificate.descent.source_parameter,
-                constant.result,
-            )
-        }
-        _ => false,
-    };
-    if !shape_matches {
+    if !consumer_matches(node, certificate, constant.role, operation, constant.result) {
         return Err(unsupported(function.machine, operation));
     }
     Ok(CountdownInvariantConstantConsumer {
