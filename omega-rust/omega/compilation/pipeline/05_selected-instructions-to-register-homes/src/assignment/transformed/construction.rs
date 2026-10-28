@@ -6,7 +6,6 @@ use selected_instructions_to_selected_instructions::{
     StagedSelectedLoweringOptimizationCustodyReceipt, StagedSelectedLoweringOptimizationRun,
 };
 
-use super::custody::{pre_allocation_home_custody_receipt, selected_lowering_home_custody_receipt};
 use super::projection::{
     pre_allocation_final_analysis, pre_allocation_transformations,
     selected_lowering_final_analysis, selected_lowering_transformations,
@@ -30,11 +29,7 @@ pub(super) fn assign_register_homes_after_pre_allocation(
     crate::assignment::home_assignment::assign_register_homes_reusing(
         legality,
         ranges,
-        environment.identity(),
-        environment.physical(),
-        environment.constraints(),
-        environment.reservations(),
-        &environment.allocation_constraint_keys(),
+        environment,
         reuse,
     )
 }
@@ -72,7 +67,11 @@ fn finish_register_homes_after_pre_allocation(
         &homes,
     )
     .map_err(OptimizedPostPreAllocationHomeCustodyError::Manifest)?;
-    let custody = pre_allocation_home_custody_receipt(source, &homes, &manifest);
+    let custody = crate::assignment::PostHomeCustodyReceipt::new(
+        source,
+        homes.receipt(),
+        manifest.record().identity,
+    );
     Ok(StagedOptimizedRegisterHomesAfterPreAllocation {
         run,
         homes,
@@ -94,11 +93,7 @@ pub(super) fn assign_register_homes_after_selected_lowering(
     crate::assignment::home_assignment::assign_register_homes_reusing(
         legality,
         ranges,
-        environment.identity(),
-        environment.physical(),
-        environment.constraints(),
-        environment.reservations(),
-        &environment.allocation_constraint_keys(),
+        environment,
         reuse,
     )
 }
@@ -136,7 +131,11 @@ fn finish_register_homes_after_selected_lowering(
         &homes,
     )
     .map_err(OptimizedPostSelectedLoweringHomeCustodyError::Manifest)?;
-    let custody = selected_lowering_home_custody_receipt(source, &homes, &manifest);
+    let custody = crate::assignment::PostHomeCustodyReceipt::new(
+        source,
+        homes.receipt(),
+        manifest.record().identity,
+    );
     Ok(StagedOptimizedRegisterHomesAfterSelectedLowering {
         run,
         homes,
