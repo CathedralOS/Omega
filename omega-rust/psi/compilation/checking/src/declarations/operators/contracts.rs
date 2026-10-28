@@ -23,7 +23,6 @@ pub fn build_operator_facts(
     values: &CheckedValueFacts,
 ) -> CheckedOperatorFacts {
     crate::build_operator_uses(program, values)
-        .with_named_requirement_uses(crate::collect_named_requirement_uses(program, values))
         .with_operator_crash_contracts(derive_checked_operator_crash_contracts(program))
         .with_operator_realization_contracts(derive_checked_operator_realization_contracts(program))
 }

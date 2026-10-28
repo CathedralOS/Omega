@@ -304,7 +304,7 @@ pub use declarations::operators::{
     validate_closed_operator_application, validate_named_operator_application,
 };
 pub use declarations::operators::{
-    build_operator_uses, checked_operator_candidate, collect_named_requirement_uses,
+    build_operator_uses, checked_operator_candidate,
     collect_pre_specialization_operator_selections, comparison_operator_spelling,
     expression_type_reference_for_origin, indexed_operand_types,
     select_pending_domain_operator_meanings, token_bound_machine_call_target,
