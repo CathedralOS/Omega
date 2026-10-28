@@ -39,8 +39,12 @@ ArmCountdown satisfies Countdown {
     }
 }
 
-machine joined(branch: bool) -> u32 ensures result == 0 {
-    match branch { true -> Countdown::run(2), false -> Countdown::run(2) }
+machine arm_result(branch: bool, selected: bool) -> u32 crashes Trap ensures result == 0 {
+    transition branch == selected { true -> Countdown::run(2) false -> wrong_arm() }
+    machine wrong_arm() -> u32 { crash Trap; }
+}
+machine joined(branch: bool) -> u32 crashes Trap ensures result == 0 {
+    match branch { true -> arm_result(branch, true), false -> arm_result(branch, false) }
 }
 machine finished() {}
 machine failed() crashes Trap { crash Trap; }
