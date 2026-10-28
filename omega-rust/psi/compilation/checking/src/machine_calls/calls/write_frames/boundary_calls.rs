@@ -410,14 +410,12 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
             applied.unwrap_or(receiver_reference)
         },
     )?;
-    let mut signatures = program
+    // Resolution already selected the complete overload. Rejoin that exact
+    // authored template instead of requiring its leaf name to be unique.
+    let declaration = program
         .trait_machine_signatures(trait_definition)
         .iter()
-        .filter(|signature| signature.name.as_str() == target);
-    let declaration = signatures.next()?;
-    if signatures.next().is_some() {
-        return None;
-    }
+        .find(|signature| signature.symbol == template && signature.name.as_str() == target)?;
     let signature = program.trait_machine_signature_by_symbol(trait_definition, target_symbol)?;
     if !trait_definition.type_parameters.is_empty()
         && !program
