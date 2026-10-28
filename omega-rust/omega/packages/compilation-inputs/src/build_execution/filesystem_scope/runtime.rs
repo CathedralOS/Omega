@@ -239,6 +239,19 @@ impl BuildFilesystemRuntime {
         result
     }
 
+    fn complete_logical_handle(&mut self, ordinal: usize, descriptor: i32) -> Result<i32, String> {
+        let handle = logical_handle(descriptor)?;
+        self.effects.attempts[ordinal].logical_handle_output =
+            Some(FilesystemLogicalHandleOutput::new(
+                FilesystemLogicalHandleKind::Descriptor,
+                handle,
+                FilesystemLogicalHandleOutputSource::Created,
+            ));
+        self.effects.attempts[ordinal].result = FilesystemOperationResult::LogicalHandle(handle);
+        self.incomplete_attempt = None;
+        Ok(descriptor)
+    }
+
     pub fn open(
         &mut self,
         root: FilesystemGrantRootIdentity,
@@ -301,16 +314,7 @@ impl BuildFilesystemRuntime {
             storage: FileStorage::Captured { cursor: 0 },
             _handle: handle,
         }));
-        self.effects.attempts[ordinal].logical_handle_output =
-            Some(FilesystemLogicalHandleOutput::new(
-                FilesystemLogicalHandleKind::Descriptor,
-                logical_handle(descriptor)?,
-                FilesystemLogicalHandleOutputSource::Created,
-            ));
-        self.effects.attempts[ordinal].result =
-            FilesystemOperationResult::LogicalHandle(logical_handle(descriptor)?);
-        self.incomplete_attempt = None;
-        Ok(descriptor)
+        self.complete_logical_handle(ordinal, descriptor)
     }
 
     pub fn read(
@@ -419,16 +423,7 @@ impl BuildFilesystemRuntime {
             },
             _handle: handle,
         }));
-        self.effects.attempts[ordinal].logical_handle_output =
-            Some(FilesystemLogicalHandleOutput::new(
-                FilesystemLogicalHandleKind::Descriptor,
-                logical_handle(descriptor)?,
-                FilesystemLogicalHandleOutputSource::Created,
-            ));
-        self.effects.attempts[ordinal].result =
-            FilesystemOperationResult::LogicalHandle(logical_handle(descriptor)?);
-        self.incomplete_attempt = None;
-        Ok(descriptor)
+        self.complete_logical_handle(ordinal, descriptor)
     }
 
     pub fn write(&mut self, descriptor: i32, bytes: &[u8]) -> Result<i64, String> {
