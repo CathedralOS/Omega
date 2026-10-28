@@ -186,8 +186,9 @@ crashes Trap
     // A reference to a whole array views it as a slice of its elements,
     // a shared view from either reference.
     machine referenced(typer: &Typer, syntax: &SyntaxTrees, wanted: TypeRow, given: TypeRow, actual: u64 in Trapping, expression: u64 in Trapping) -> Admission {
-        let write_only: bool = given.kind == TypeKind::Reference && given.access == ReferenceAccess::WriteOnly;
-        transition write_only {
+        let expands_write_only: bool = given.kind == TypeKind::Reference && given.access == ReferenceAccess::WriteOnly
+            && wanted.access != ReferenceAccess::WriteOnly;
+        transition expands_write_only {
             true -> rejected()
             false -> viewed(typer, wanted, given, actual)
         }

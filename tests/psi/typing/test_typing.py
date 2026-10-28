@@ -334,6 +334,8 @@ def nested_machine_cases(program: str) -> None:
     accepted(program, 'shared-reborrow-shared_local', source, (), adaptations=((b'cell!2', "lent"),))
     source = b'data Cell { value:u64; } machine choose(shared:&Cell, exclusive:&mut Cell, flag:bool)->&Cell { match flag { true->shared false->exclusive } }'
     accepted(program, 'shared-reborrow-shared_join', source, (), adaptations=((b'exclusive!2', "lent"),))
+    source = b'machine length(bytes: &write [u8]) -> u64 { bytes.len } machine view(bytes: &write [u8;4]) -> u64 { length(&write bytes) }'
+    accepted(program, "write-only-array-view-retains-write-only-authority", source, ())
     source = b'machine observe(bytes:&[u8])->u64{bytes.len} machine read(bytes:&write [u8;4])->u64 { observe(bytes) }'
     rejected(program, "write-only-array-view-cannot-acquire-read-authority", source, "NoMatchingMachine", b"observe(bytes)")
     source = b'data Cell { value:u64; } machine read(cell:&mut Cell) { let descriptor:& &mut Cell=cell; }'

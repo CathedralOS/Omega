@@ -503,7 +503,10 @@ Local references capture their initializer's canonical storage origin
 same origin, and replacing a mutable shared-reference binding does not
 redirect an earlier alias. Shared-reference copies retain their captured
 loans; assignment captures the replacement's loans before retiring the old
-binding's loans, preserving independent aliases and referent restrictions.
+binding's loans, preserving independent aliases and referent restrictions. Derived loans retain the lender's
+complete backing roster before their own access route, including exact places,
+exclusivity and body-owned storage; chained local reborrows cannot hide those
+backings from overlap or escape checks.
 Reference-bearing local values and their owned projections transport the
 root carrier's captured loans, and escape checks reject captured backing
 owned by the body. Projection currently retains all root loans, including
