@@ -11,7 +11,6 @@ use super::super::{CheckFacts, CheckedScalarExpressionRole, StatementNode, Symbo
 use super::collecting::{
     collect_argument_calls, collect_assignment_calls, collect_constructor_calls,
     collect_owned_root_calls, collect_range_calls, collect_root_calls,
-    collect_structural_argument_calls,
 };
 use super::{is_terminal_call_occurrence, ordered_statement_call};
 use crate::execution::terminal_unit::control::{statement_sequence, structural_operands};
@@ -138,231 +137,18 @@ pub(in crate::execution::terminal_unit) fn outer_calls_in_prefix_traced<'a>(
             if local_range.is_valid() && root.expression == local_range {
                 continue;
             }
-            let mut pending = vec![root.root];
-            let mut visited = Vec::new();
-            while let Some(value) = pending.pop() {
-                let plans = &facts.values.structural_values;
-                if !plans.nodes.is_valid(value) || visited.contains(&value) {
-                    return None;
-                }
-                visited.push(value);
-                let node = plans.nodes.get(value);
-                if matches!(
-                    node.kind,
-                    checked_trees::CheckedStructuralValueKind::Reference {
-                        storage: checked_trees::CheckedReferenceStorage::Placed
-                            | checked_trees::CheckedReferenceStorage::ResidentPlaced { .. },
-                        ..
-                    }
-                ) {
-                    let formation =
-                        validation::reference_formation_source(program, node.expression)?;
-                    if !formation.interpretation.is_placed() {
-                        return None;
-                    }
-                    let authored = program.expression_table.call_node(node.expression)?;
-                    let mut occurrences = calls
-                        .iter()
-                        .filter(|call| call.authored_expression == node.expression)
-                        .filter_map(|call| Some((facts.flow.control.calls.handle_of(call)?, call)));
-                    let (Some((handle, call)), None) = (occurrences.next(), occurrences.next())
-                    else {
-                        return None;
-                    };
-                    if call.statement_index != statement_index
-                        || call.target_symbol
-                            != validation::call_target_entry_symbol(program, authored.target_symbol)
-                        || facts.flow.control.is_retired(state.symbol, call)
-                    {
-                        return None;
-                    }
-                    // The structural producer owns this authored factory
-                    // occurrence once. Execution establishes its captured loan;
-                    // it does not also invoke the bodyless declaration.
-                    consumed.record_once(handle);
-                }
-                match node.kind {
-                    checked_trees::CheckedStructuralValueKind::NativeCodeLayout { .. } => {}
-                    checked_trees::CheckedStructuralValueKind::QuotientCall {
-                        request,
-                        ref arguments,
-                        ..
-                    } => {
-                        // The sealed request owns this exact captured source
-                        // occurrence. Its selected ordinary call is emitted by
-                        // the retained value graph, not scheduled a second time.
-                        let mut occurrences = calls
-                            .iter()
-                            .filter(|call| call.authored_expression == request)
-                            .filter_map(|call| {
-                                Some((facts.flow.control.calls.handle_of(call)?, call))
-                            });
-                        let (handle, call) = occurrences.next()?;
-                        if occurrences.next().is_some()
-                            || call.statement_index != statement_index
-                            || facts.flow.control.is_retired(state.symbol, call)
-                            || program
-                                .expression_table
-                                .call_node(request)?
-                                .quotient_operation
-                                .is_none()
-                        {
-                            return None;
-                        }
-                        consumed.record_once(handle);
-                        pending.extend(arguments.iter().rev().copied());
-                    }
-                    checked_trees::CheckedStructuralValueKind::Call { source_call } => {
-                        if !facts.flow.control.calls.is_valid(source_call) {
-                            return None;
-                        }
-                        let call = facts.flow.control.calls.get(source_call);
-                        if call.authored_expression != node.expression
-                            || call.statement_index != statement_index
-                        {
-                            return None;
-                        }
-                        // Owner and projection roots can both retain this
-                        // captured occurrence. Discovery lists it once; the
-                        // operand schedule, not the number of root references,
-                        // owns its single execution and result establishment.
-                        if consumed.contains(&source_call) {
-                            continue;
-                        }
-                        consumed.push(source_call);
-                        structural.push(call);
-                    }
-                    checked_trees::CheckedStructuralValueKind::Record { fields, .. }
-                    | checked_trees::CheckedStructuralValueKind::StructuralCase {
-                        fields, ..
-                    } => {
-                        for field in plans.record_fields.span(fields)? {
-                            if let checked_trees::CheckedStructuralRecordFieldValue::Structural(
-                                child,
-                            ) = field.value
-                            {
-                                pending.push(child);
-                            }
-                        }
-                    }
-                    checked_trees::CheckedStructuralValueKind::Dispatch { arms, .. } => {
-                        pending.extend(plans.dispatch_arms.span(arms)?.iter().map(|arm| arm.value));
-                    }
-                    checked_trees::CheckedStructuralValueKind::ViewSubslice {
-                        source,
-                        ref start,
-                        ref end,
-                        ..
-                    } => {
-                        pending.push(source);
-                        let mut visits = Vec::new();
-                        for value in start.iter().chain(end.iter()) {
-                            if let checked_trees::CheckedCallScalarArgument::Computation(root) =
-                                value
-                            {
-                                super::collecting::collect(
-                                    program,
-                                    facts,
-                                    state.symbol,
-                                    statement_index,
-                                    *root,
-                                    calls,
-                                    0,
-                                    &mut visits,
-                                    &mut consumed,
-                                )?;
-                            }
-                        }
-                    }
-                    checked_trees::CheckedStructuralValueKind::Projection {
-                        source,
-                        ref path,
-                        ref projection_evaluations,
-                        ..
-                    } => {
-                        for root in
-                            checked_trees::CheckedUnitStructuralArgumentPlan::projection_computation_operands(
-                                path, *projection_evaluations, &facts.values.scalar_computations.operands,
-                            )
-                        {
-                            super::collecting::collect_root_calls(
-                                program,
-                                facts,
-                                state.symbol,
-                                statement_index,
-                                root,
-                                calls,
-                                0,
-                                &mut consumed,
-                            )?;
-                        }
-                        pending.push(source);
-                    }
-                    checked_trees::CheckedStructuralValueKind::QuotientAdaptation {
-                        source,
-                        ..
-                    } => {
-                        pending.push(source);
-                    }
-                    checked_trees::CheckedStructuralValueKind::FixedArray { ref elements } => {
-                        pending.extend(elements.iter().copied());
-                    }
-                    checked_trees::CheckedStructuralValueKind::Reference {
-                        source_value,
-                        selectors,
-                        ..
-                    } => {
-                        if source_value.is_valid() {
-                            pending.push(source_value);
-                        }
-                        let mut visits = Vec::new();
-                        for root in facts.values.scalar_computations.operands.span(selectors)? {
-                            super::collecting::collect(
-                                program,
-                                facts,
-                                state.symbol,
-                                statement_index,
-                                *root,
-                                calls,
-                                0,
-                                &mut visits,
-                                &mut consumed,
-                            )?;
-                        }
-                    }
-                    checked_trees::CheckedStructuralValueKind::BorrowedSliceView {
-                        ref source,
-                        ..
-                    }
-                    | checked_trees::CheckedStructuralValueKind::MutableSliceView {
-                        ref source,
-                        ..
-                    }
-                    | checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace {
-                        ref source,
-                        ..
-                    }
-                    | checked_trees::CheckedStructuralValueKind::Place(ref source) => {
-                        collect_structural_argument_calls(
-                            program,
-                            facts,
-                            state.symbol,
-                            statement_index,
-                            source,
-                            calls,
-                            0,
-                            &mut Vec::new(),
-                            &mut consumed,
-                        )?;
-                    }
-                    checked_trees::CheckedStructuralValueKind::Case(_)
-                    | checked_trees::CheckedStructuralValueKind::ZeroedScalarArray { .. }
-                    | checked_trees::CheckedStructuralValueKind::ScalarArray { .. }
-                    | checked_trees::CheckedStructuralValueKind::Scalar { .. }
-                    | checked_trees::CheckedStructuralValueKind::ZeroedStructural { .. }
-                    | checked_trees::CheckedStructuralValueKind::ByteLiteralView { .. } => {}
-                }
-            }
+            super::structural_values::collect(
+                program,
+                facts,
+                machine,
+                state.symbol,
+                statement_index,
+                root.root,
+                calls,
+                0,
+                &mut consumed,
+                &mut structural,
+            )?;
         }
         collect_constructor_calls(
             program,
