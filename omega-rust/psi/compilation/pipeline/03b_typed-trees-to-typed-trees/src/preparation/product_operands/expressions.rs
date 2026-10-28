@@ -11,6 +11,7 @@ impl Lower<'_> {
         expression: ExpressionHandle,
         source_span: source::SourceSpan,
         selections: HandleSpan<ProductOperandSelection>,
+        call_target_span: Option<source::SourceSpan>,
     ) -> Result<(), Vec<Diagnostic>> {
         let retained = if selections.is_empty() {
             &[][..]
@@ -20,10 +21,8 @@ impl Lower<'_> {
             })?
         };
         let mut occurrences = Vec::with_capacity(retained.len());
-        let call_target_span = match self.program.expression_table.expression(expression) {
-            Node::Call(call) => Some(call.target.source_span()),
-            _ => None,
-        };
+        let call_target_span =
+            call_target_span.map(|span| self.program.symbols.rejoin_product_occurrence(span));
         let mut call_selection = None;
         for selection in retained {
             let kind = selection.kind.ok_or_else(|| {
@@ -139,11 +138,22 @@ impl Lower<'_> {
             )
             .ok_or_else(|| self.error("completed static actual has no ordinary const value"))?;
             let result = self.program.expression_table.insert(node);
-            self.retain_expression_source(result, value.source_span, value.authored_selections)?;
+            self.retain_expression_source(
+                result,
+                value.source_span,
+                value.authored_selections,
+                None,
+            )?;
             self.expressions.push((handle, result));
             self.active_expressions.pop();
             return Ok(result);
         }
+        let call_target_span = match &value.kind {
+            ProductExpressionKind::Call { target, .. } => {
+                Some(self.graph.names.get(*target).source_span)
+            }
+            _ => None,
+        };
         let node = match value.kind {
             ProductExpressionKind::Invalid => {
                 return Err(self.error("designated constant expression has an invalid node"));
@@ -188,6 +198,7 @@ impl Lower<'_> {
                     target,
                     value.source_span,
                     value.authored_selections,
+                    None,
                 )?;
                 self.active_expressions.pop();
                 self.expressions.push((handle, target));
@@ -448,7 +459,12 @@ impl Lower<'_> {
             )),
         };
         let target = self.program.expression_table.insert(node);
-        self.retain_expression_source(target, value.source_span, value.authored_selections)?;
+        self.retain_expression_source(
+            target,
+            value.source_span,
+            value.authored_selections,
+            call_target_span,
+        )?;
         self.active_expressions.pop();
         self.expressions.push((handle, target));
         Ok(target)
