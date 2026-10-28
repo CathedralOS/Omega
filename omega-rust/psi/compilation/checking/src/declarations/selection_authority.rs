@@ -252,18 +252,25 @@ impl RecordedDeclarationAuthority {
     /// Compare the complete owner sets of the operation's actual declaration
     /// domain. Lookup may also expose unrelated callers; availability does not
     /// make those callers requesters of an already projected operation.
-    pub fn require_current_declarations(
+    pub fn require_current_sites(
         &self,
         authority: Option<&dyn DeclarationSelectionAuthority>,
         program: &typed_trees::TypedTrees,
-        declarations: impl Iterator<Item = symbols::SymbolHandle>,
+        sites: impl Iterator<Item = source::SourceSpan>,
     ) -> Result<(), &'static str> {
-        let requesters = declarations
-            .filter_map(|symbol| program.symbols.symbol_provenance_source_span(symbol))
-            .filter_map(|span| program.symbols.source_file(span))
-            .filter(|file| file.origin != source::SourceOrigin::Toolchain)
-            .filter_map(|file| file.package_identity);
-        self.require_requesters(authority, requesters)
+        let mut requesters = std::collections::BTreeSet::new();
+        for site in sites {
+            let file = program
+                .symbols
+                .source_file(site)
+                .ok_or("retained pending invocation has no source custody")?;
+            if file.origin != source::SourceOrigin::Toolchain
+                && let Some(requester) = file.package_identity
+            {
+                requesters.insert(requester);
+            }
+        }
+        self.require_requesters(authority, requesters.into_iter())
     }
     fn require_requesters(
         &self,

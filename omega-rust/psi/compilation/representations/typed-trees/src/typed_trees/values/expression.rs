@@ -705,6 +705,15 @@ impl ExpressionTable {
         self.source_spans[source_span_index(handle)]
     }
 
+    /// Optional custody lookup for retained selection metadata. A stale or
+    /// absent occurrence cannot be used to infer its requesting package.
+    pub fn try_source_span(&self, handle: ExpressionHandle) -> Option<SourceSpan> {
+        if !self.expressions.is_valid(handle) {
+            return None;
+        }
+        self.source_spans.get(source_span_index(handle)).copied()
+    }
+
     pub fn insert_build_selection_request(
         &mut self,
         request: BuildSelectionRequest,

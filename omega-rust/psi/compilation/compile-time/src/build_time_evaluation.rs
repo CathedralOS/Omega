@@ -415,11 +415,85 @@ impl PreCheckEvaluation {
                                     provider.provider_declaration,
                                 ]
                             }));
-                    recorded.require_current_declarations(
+                    let mut sites = declarations
+                        .filter_map(|symbol| program.symbols.symbol_provenance_source_span(symbol))
+                        .collect::<Vec<_>>();
+                    let uses = self
+                        .selected_operators
+                        .iter()
+                        .map(|operator| {
+                            (
+                                operator.expression,
+                                operator.origin,
+                                operator.operands.as_slice(),
+                            )
+                        })
+                        .chain(self.provider_bodies.iter().map(|provider| {
+                            (
+                                provider.expression,
+                                provider.origin,
+                                provider.operands.as_slice(),
+                            )
+                        }));
+                    let mut needs_full_scope = false;
+                    for (expression, origin, operands) in uses {
+                        if let Some(machine) = origin.machine_symbol() {
+                            match program.symbols.symbol_provenance_source_span(machine) {
+                                Some(site) => sites.push(site),
+                                None => needs_full_scope = true,
+                            }
+                        }
+                        let parent = match origin {
+                            checked_trees::CheckedValueOrigin::NestedExpression { parent } => {
+                                Some(parent)
+                            }
+                            _ => None,
+                        };
+                        for occurrence in std::iter::once(expression)
+                            .chain(parent)
+                            .chain(operands.iter().copied())
+                        {
+                            match program.expression_table.try_source_span(occurrence) {
+                                Some(site) if site.span.start < site.span.end => sites.push(site),
+                                _ => needs_full_scope = true,
+                            }
+                        }
+                    }
+                    // A shared synthesized layout can have several callers in
+                    // different packages. Each application retains its own
+                    // requester even though the policy result has one owner.
+                    sites.extend(
+                        self.placed_view_records
+                            .iter()
+                            .flat_map(|record| record.invocation_sources.iter().copied()),
+                    );
+                    sites.extend(
+                        self.plan_laid_records
+                            .iter()
+                            .flat_map(|record| record.invocation_sources.iter().copied()),
+                    );
+                    recorded.require_current_sites(
                         authority.as_deref(),
                         program,
-                        declarations,
+                        sites.into_iter(),
                     )?;
+                    if needs_full_scope {
+                        let sources = program
+                            .symbols
+                            .source_map()
+                            .ok_or("retained selected use has no complete source context")?;
+                        recorded.require_current(authority.as_deref(), &sources)?;
+                    }
+                    // Descriptor lookup is inert, but its original source
+                    // custody still participates in the comparison. Keep that
+                    // frontier conservative until its exact demands narrow it.
+                    if let Some(frontier) = &self.domain.product_frontier {
+                        let sources = frontier
+                            .symbols
+                            .source_map()
+                            .ok_or("retained Product descriptor frontier has no source context")?;
+                        recorded.require_current(authority.as_deref(), &sources)?;
+                    }
                     authority
                 }
             };
