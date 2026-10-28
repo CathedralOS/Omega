@@ -48,6 +48,10 @@ pub fn form_product_provider_request(
     context: ProviderPlanningContext<'_>,
     request: &ProductDeclarationRequest,
 ) -> Result<(), Diagnostic> {
+    // Formation describes Product declarations while Build is checked. Use
+    // that frontier for every role/row query, rather than resolving a symbol
+    // there and testing it against the projected Build-only inventory.
+    let context = ProviderPlanningContext::new(context.typed.product_declarations(), context.scope);
     let (subject, provider) = identities(context, request)?;
     admission::form(context, subject, provider).map(|_| ())
 }
