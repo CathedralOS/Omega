@@ -352,22 +352,13 @@ fn resolve_provider_selection_slots<'selection>(
             if slot_keys.contains(&slot_key) {
                 resolved.push((slot_key, declaration.clone()));
             } else {
-                let message = match &declaration.subject {
-                    crate::ProviderSelectionSubject::BoundaryTrait(identity) => format!(
-                        "{owner} selects provider `{}` for unknown boundary slot `{}`; the slot must exist in the loaded dependency closure",
-                        declaration.provider_type.authored_path, identity.authored_path,
-                    ),
-                    crate::ProviderSelectionSubject::BoundaryRequirement(identity) => format!(
-                        "{owner} selects provider `{}` for unknown top-level boundary requirement `{}`; the requirement must exist in the loaded dependency closure",
-                        declaration.provider_type.authored_path, identity.authored_path,
-                    ),
-                    crate::ProviderSelectionSubject::BoundaryOperatorFamily(_) => format!(
-                        "{owner} selects provider `{}` for unknown boundary coordinate `{}` in subject `{}`; every selected coordinate must exist in the loaded dependency closure",
-                        declaration.provider_type.authored_path,
-                        slot_key.1,
-                        declaration.subject.authored_path(),
-                    ),
-                };
+                // These keys are derived candidate plans, not a declaration
+                // inventory. Absence here proves missing supply, never that a
+                // well-formed boundary declaration did not exist.
+                let message = format!(
+                    "{owner} selects provider `{}` for slot `{}`, but no candidate exists in the loaded dependency closure",
+                    declaration.provider_type.authored_path, slot_key.1,
+                );
                 diagnostics.push(diagnostics::Diagnostic::error(message));
             }
         }
