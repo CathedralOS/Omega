@@ -260,6 +260,8 @@ fn collect_provider_selections<'a>(
                     argument.symbol
                 };
                 ProviderSelectionIdentity {
+                    application: Default::default(),
+                    application_identity: None,
                     symbol,
                     package: typed.symbols.symbol_package_identity(symbol),
                     canonical_path: typed.symbols.display_path(symbol, "::"),

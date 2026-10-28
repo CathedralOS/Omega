@@ -117,7 +117,9 @@ pub(super) fn admit(
     if let Some(existing) = previous.iter().find(|selection| {
         selection.target == target && selection.subject.same_declaration_as(&subject)
     }) {
-        if existing.provider_type.symbol != provider_type.symbol {
+        if existing.provider_type.symbol != provider_type.symbol
+            || existing.provider_type.application_identity != provider_type.application_identity
+        {
             return Err(Diagnostic::error(format!(
                 "build selects two provider types for slot `{}`: `{}` and `{}`",
                 subject.canonical_path(),

@@ -94,6 +94,8 @@ impl RetainedProviderSelection {
                 )
                 .map_err(diagnostics::Diagnostic::error)?;
             Ok::<_, diagnostics::Diagnostic>(ProviderSelectionIdentity {
+                application: Default::default(),
+                application_identity: None,
                 symbol,
                 package: program.symbols.symbol_package_identity(symbol),
                 canonical_path: program.symbols.display_path(symbol, "::"),
