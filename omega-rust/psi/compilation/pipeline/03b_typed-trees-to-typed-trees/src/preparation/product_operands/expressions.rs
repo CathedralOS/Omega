@@ -3,6 +3,49 @@
 use super::*;
 use expr::{ExpressionHandle, ExpressionNode as Node};
 impl Lower<'_> {
+    /// Rejoin only coordinates captured from this source node's original
+    /// attachments. Every materialized node, including substituted literals,
+    /// retains those obligations for ordinary checking and finalization.
+    fn retain_expression_source(
+        &mut self,
+        expression: ExpressionHandle,
+        source_span: source::SourceSpan,
+        selections: HandleSpan<ProductOperandSelection>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let retained = if selections.is_empty() {
+            &[][..]
+        } else {
+            self.graph.selections.span(selections).ok_or_else(|| {
+                self.error("designated expression has a foreign authored-selection span")
+            })?
+        };
+        let mut occurrences = Vec::with_capacity(retained.len());
+        for selection in retained {
+            let kind = selection.kind.ok_or_else(|| {
+                self.error("designated expression lost its authored selection kind")
+            })?;
+            let span = self
+                .program
+                .symbols
+                .rejoin_product_occurrence(selection.source_span);
+            let occurrence = self
+                .program
+                .authored_declaration_selections()
+                .source_coordinate_occurrence(span, selection.exposure, kind)
+                .map_err(|reason| {
+                    vec![Diagnostic::error(reason.to_string()).with_source_span(span)]
+                })?;
+            occurrences.push(occurrence);
+        }
+        let span = self.program.symbols.rejoin_product_occurrence(source_span);
+        self.program
+            .expression_table
+            .set_source_span(expression, span);
+        self.program
+            .expression_table
+            .attach_authored_selection_occurrences(expression, occurrences);
+        Ok(())
+    }
     fn expression_optional(
         &mut self,
         handle: Handle<ProductOperandExpression>,
@@ -77,6 +120,7 @@ impl Lower<'_> {
             )
             .ok_or_else(|| self.error("completed static actual has no ordinary const value"))?;
             let result = self.program.expression_table.insert(node);
+            self.retain_expression_source(result, value.source_span, value.authored_selections)?;
             self.expressions.push((handle, result));
             self.active_expressions.pop();
             return Ok(result);
@@ -121,11 +165,11 @@ impl Lower<'_> {
                     target,
                 ));
                 let target = self.program.expression_table.insert_tree(&owned);
-                let span = self
-                    .program
-                    .symbols
-                    .rejoin_product_occurrence(value.source_span);
-                self.program.expression_table.set_source_span(target, span);
+                self.retain_expression_source(
+                    target,
+                    value.source_span,
+                    value.authored_selections,
+                )?;
                 self.active_expressions.pop();
                 self.expressions.push((handle, target));
                 return Ok(target);
@@ -354,11 +398,7 @@ impl Lower<'_> {
             )),
         };
         let target = self.program.expression_table.insert(node);
-        let span = self
-            .program
-            .symbols
-            .rejoin_product_occurrence(value.source_span);
-        self.program.expression_table.set_source_span(target, span);
+        self.retain_expression_source(target, value.source_span, value.authored_selections)?;
         self.active_expressions.pop();
         self.expressions.push((handle, target));
         Ok(target)

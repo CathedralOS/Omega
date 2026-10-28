@@ -32,7 +32,7 @@ fn parameters<'a>(
 }
 
 fn occurrence<'a>(
-    _program: &dyn crate::CheckingInput,
+    program: &dyn crate::CheckingInput,
     application: &ProductOperandApplication,
     occurrences: &'a [ProductSelectionOccurrence],
 ) -> Option<&'a ProductSelectionOccurrence> {
@@ -40,11 +40,11 @@ fn occurrence<'a>(
         // Source formation always belongs to the original template. A generated
         // clone's state cannot replace the template's own entry assumptions.
         occurrence.machine == application.owner
-            && occurrence
-                .request
-                .operands
-                .iter()
-                .any(|operand| operand == &application.operand)
+            && occurrence.request.operands.iter().any(|operand| {
+                program
+                    .typed_program()
+                    .same_product_operand_source(operand, &application.operand)
+            })
     });
     let first = matching.next()?;
     if matching.any(|other| other.state != first.state || other.expression != first.expression) {

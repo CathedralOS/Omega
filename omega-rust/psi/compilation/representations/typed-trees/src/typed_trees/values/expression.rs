@@ -847,8 +847,10 @@ impl ExpressionTable {
     /// Attach exact authored-selection occurrence identities to an expression.
     ///
     /// Associations are arena-backed and keyed by the expression handle. The
-    /// occurrence identity is semantic custody; source spans remain diagnostic
-    /// metadata and are never used to reconstruct this association.
+    /// occurrence identity is semantic custody; diagnostic spans alone never
+    /// reconstruct this association. A separately joined Product graph first
+    /// rejoins producer-issued coordinates through the current source ledger,
+    /// then attaches those receiving-world IDs here.
     pub fn attach_authored_selection_occurrences(
         &mut self,
         handle: ExpressionHandle,

@@ -86,6 +86,25 @@ pub(super) fn index_argument(
                 {
                     return rejected(context);
                 }
+                // A callable can travel through the same retained type payload
+                // as a directly authored static operand. Rejoin that exact
+                // declaration before ordinary type identity could erase its
+                // overload or treat its scoped regions as a carrier spelling.
+                if context.invalid_application.is_some()
+                    && let Ok(selected) =
+                        program.static_operand_from_type_reference(argument.type_reference)
+                    && selected.symbol.is_valid()
+                    && matches!(
+                        program.symbols.get(selected.symbol).kind,
+                        symbols::SymbolKind::Machine | symbols::SymbolKind::State
+                    )
+                {
+                    return index_argument(
+                        program,
+                        IndexIdentityArgument::StaticArgument(&selected),
+                        context,
+                    );
+                }
                 // A typed const expression is a value operand, including when
                 // supplied through a declaration substitution. Keep the same
                 // index grammar as its retained Const binding; ordinary type
@@ -116,6 +135,9 @@ pub(super) fn index_argument(
             {
                 return index_name(program, argument.symbol, spelling.as_str(), context);
             }
+            if let Some(identity) = static_callable_argument_identity(program, argument, context) {
+                return identity;
+            }
             if let Some(identity) = super::identity_context::static_nominal_argument_identity(
                 program, argument, context,
             ) {
@@ -131,12 +153,13 @@ pub(super) fn index_argument(
             compound(
                 "static-application",
                 std::iter::once(owner)
-                    .chain(
-                        application
-                            .lifetime_arguments
-                            .iter()
-                            .map(|lifetime| atom("lifetime", lifetime.as_str())),
-                    )
+                    .chain(application.lifetime_arguments.iter().map(|lifetime| {
+                        if context.invalid_application.is_some() {
+                            context.lifetime(program, lifetime.as_str())
+                        } else {
+                            atom("lifetime", lifetime.as_str())
+                        }
+                    }))
                     .chain(application.arguments.iter().map(|argument| {
                         index_argument(
                             program,
@@ -147,6 +170,90 @@ pub(super) fn index_argument(
             )
         }
     }
+}
+
+/// Project the exact selected callable through the existing static-application
+/// grammar. Exact declaration/state custody and the callable overload are
+/// independent operands: a derived declaration can replace its nominal path
+/// without replacing the overload. Machine and its entry State share one key.
+/// These are canonical identity operands, not an executable call or its actuals.
+/// Source checking independently admits the declaration and complete telescope.
+fn static_callable_argument_identity(
+    program: &TypedTrees,
+    argument: &crate::expression::StaticMachineArgument,
+    context: &TypeIdentityContext<'_>,
+) -> Option<String> {
+    if context.invalid_application.is_none()
+        || !argument.symbol.is_valid()
+        || !matches!(
+            program.symbols.get(argument.symbol).kind,
+            symbols::SymbolKind::Machine | symbols::SymbolKind::State
+        )
+    {
+        return None;
+    }
+    let machine = match program.symbols.get(argument.symbol).kind {
+        symbols::SymbolKind::Machine => program.machine_by_symbol(argument.symbol),
+        symbols::SymbolKind::State => program.machine_holding_state(argument.symbol),
+        _ => unreachable!("callable kinds checked above"),
+    };
+    let Some(machine) = machine else {
+        return Some(rejected(context));
+    };
+    let states = program.machine_states(machine);
+    let state = if argument.symbol == machine.symbol {
+        states.first()
+    } else {
+        let mut matching = states
+            .iter()
+            .filter(|state| state.symbol == argument.symbol);
+        let selected = matching.next();
+        if matching.next().is_some() {
+            return Some(rejected(context));
+        }
+        selected
+    };
+    let Some(state) = state.filter(|state| state.symbol.is_valid()) else {
+        return Some(rejected(context));
+    };
+    let Some(overload) = program.machine_callable_identity_text(machine) else {
+        return Some(rejected(context));
+    };
+    let mut operands = vec![
+        atom(
+            "const-name",
+            &context.qualify_non_binder_name(
+                program,
+                machine.symbol,
+                program.symbols.display_path(machine.symbol, "::"),
+            ),
+        ),
+        atom(
+            "const-name",
+            &context.qualify_non_binder_name(
+                program,
+                state.symbol,
+                program.symbols.display_path(state.symbol, "::"),
+            ),
+        ),
+        atom("const-name", &overload),
+    ];
+    if let Some(application) = &argument.application {
+        operands.extend(
+            application
+                .lifetime_arguments
+                .iter()
+                .map(|lifetime| context.lifetime(program, lifetime.as_str())),
+        );
+        operands.extend(application.arguments.iter().map(|argument| {
+            index_argument(
+                program,
+                IndexIdentityArgument::StaticArgument(argument),
+                context,
+            )
+        }));
+    }
+    Some(compound("static-application", operands))
 }
 
 pub(super) fn index_integer(
@@ -380,7 +487,10 @@ pub(super) fn array_length(
     )
 }
 
-fn rejected(context: &TypeIdentityContext<'_>) -> String {
+pub(super) fn rejected(context: &TypeIdentityContext<'_>) -> String {
+    if let Some(invalid) = context.invalid_application {
+        invalid.set(true);
+    }
     if let Some(invalid) = context.invalid_index_argument {
         invalid.set(true);
     }

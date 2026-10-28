@@ -65,7 +65,8 @@ impl TypedTrees {
                                 |(ordinal, operand)| {
                                     occurrence.request.operation.product_operand_role(ordinal)
                                         == Some(role)
-                                        && operand == &selected.operand
+                                        && self
+                                            .same_product_operand_source(operand, &selected.operand)
                                 },
                             )
                     })

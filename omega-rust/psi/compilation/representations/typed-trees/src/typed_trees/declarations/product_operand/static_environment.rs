@@ -386,6 +386,7 @@ impl Capture<'_> {
                             .expressions
                             .insert(ProductOperandExpression {
                                 source_span: self.owner,
+                                authored_selections: HandleSpan::empty(),
                                 kind: ProductExpressionKind::Integer(literal),
                             });
                     ProductOperandType::ConstExpression(expression)
@@ -502,6 +503,41 @@ impl Capture<'_> {
             }
         })
     }
+    fn expression_selections(
+        &mut self,
+        expression: expr::ExpressionHandle,
+    ) -> Result<HandleSpan<ProductOperandSelection>, String> {
+        let program = self.program;
+        let ledger = program.authored_declaration_selections();
+        let mut selections = Vec::new();
+        for occurrence in program
+            .expression_table
+            .authored_selection_occurrences(expression)
+        {
+            let selection = ledger
+                .get(occurrence)
+                .ok_or("Build static actual retains an unknown authored selection")?;
+            let rejoined = ledger
+                .source_coordinate_occurrence(
+                    selection.source_span(),
+                    selection.exposure(),
+                    selection.kind(),
+                )
+                .map_err(|reason| reason.to_string())?;
+            if rejoined != occurrence {
+                return Err(
+                    "Build static actual changed its exact source selection association".into(),
+                );
+            }
+            selections.push(ProductOperandSelection {
+                source_span: selection.source_span(),
+                exposure: selection.exposure(),
+                kind: Some(selection.kind()),
+            });
+        }
+        Ok(self.environment.graph.selections.insert_many(selections))
+    }
+
     fn expression(
         &mut self,
         expression: expr::ExpressionHandle,
@@ -701,12 +737,14 @@ impl Capture<'_> {
                 );
             }
         };
+        let authored_selections = self.expression_selections(expression)?;
         let value = self
             .environment
             .graph
             .expressions
             .insert(ProductOperandExpression {
                 source_span: program.expression_table.source_span(expression),
+                authored_selections,
                 kind,
             });
         self.active_expressions.pop();

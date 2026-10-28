@@ -302,6 +302,49 @@ impl Capture<'_> {
         self.captures.push((capture, value));
         Ok(value)
     }
+    fn expression_selections(
+        &mut self,
+        expression: source_expression::ExpressionHandle,
+    ) -> Result<HandleSpan<ProductOperandSelection>, Diagnostic> {
+        let source = self.source;
+        let ledger = source.authored_declaration_selections();
+        let mut selections = Vec::new();
+        for occurrence in source
+            .tables
+            .bodies
+            .expressions
+            .authored_selection_occurrences(expression)
+        {
+            let selection = ledger.get(occurrence).ok_or_else(|| {
+                Diagnostic::error(
+                    "designated source expression retains an unknown authored selection",
+                )
+                .with_source_span(source.tables.bodies.expressions.source_span(expression))
+            })?;
+            let rejoined = ledger
+                .source_coordinate_occurrence(
+                    selection.source_span(),
+                    selection.exposure(),
+                    selection.kind(),
+                )
+                .map_err(|reason| {
+                    Diagnostic::error(reason.to_string()).with_source_span(selection.source_span())
+                })?;
+            if rejoined != occurrence {
+                return Err(Diagnostic::error(
+                    "designated source expression selection changed its exact ledger association",
+                )
+                .with_source_span(selection.source_span()));
+            }
+            selections.push(ProductOperandSelection {
+                source_span: selection.source_span(),
+                exposure: selection.exposure(),
+                kind: Some(selection.kind()),
+            });
+        }
+        Ok(self.graph.selections.insert_many(selections))
+    }
+
     fn expression(
         &mut self,
         expression: source_expression::ExpressionHandle,
@@ -494,8 +537,10 @@ impl Capture<'_> {
                 }
             }
         };
+        let authored_selections = self.expression_selections(expression)?;
         let value = self.graph.expressions.insert(ProductOperandExpression {
             source_span: span,
+            authored_selections,
             kind,
         });
         self.active.pop();
