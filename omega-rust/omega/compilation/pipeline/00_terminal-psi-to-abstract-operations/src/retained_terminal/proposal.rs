@@ -193,6 +193,12 @@ fn project_terminal_native_body(
         request.provider_declarations,
     )
     .map_err(|message| vec![Diagnostic::error(message)])?;
+    crate::provider_admission::validate_numeric_realization_owners(
+        &terminal_module.numeric_realizations,
+        &terminal_module.identities,
+        request.provider_declarations,
+    )
+    .map_err(|message| vec![Diagnostic::error(message)])?;
     if selected.plans().len() != request.boundaries.selected_provider_provenance.len() {
         return Err(vec![Diagnostic::error(
             "native proposal lost selected intrinsic plan custody",
@@ -208,7 +214,13 @@ fn project_terminal_native_body(
                     "native proposal has mismatched intrinsic row custody",
                 )]);
             }
-            Ok(retained.row_executions.to_vec())
+            // Numeric meaning and external satisfaction travel in Terminal.
+            // Keep only the independent host/placement authority judgments.
+            Ok(retained
+                .row_executions
+                .iter()
+                .map(|execution| execution.filter(|execution| !execution.is_numeric()))
+                .collect())
         })
         .collect::<Result<Vec<_>, _>>()?;
     let callback_occurrences = project_callback_occurrences(

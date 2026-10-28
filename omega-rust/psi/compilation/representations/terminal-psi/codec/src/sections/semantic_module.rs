@@ -21,6 +21,7 @@ pub(crate) mod machine_wire;
 pub(crate) mod mathematical_certificate_wire;
 mod module_foundation_validation;
 pub(crate) mod module_wire;
+mod numeric_realization_wire;
 pub(crate) mod proof_declaration_wire;
 pub(crate) mod proof_term_wire;
 pub(crate) mod proposition_wire;
@@ -130,7 +131,9 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // inherited scalar memberships; neither independent marker-196 layout suffices.
 // Machines retain authored runtime ordering across scalar and structural lanes.
 // Task frames retain alternative state and crossing storage, not a flat sum.
-pub(crate) const FORMAT_MARKER: u16 = 200;
+// Normal structural guarantees also retain their exact formal-relative path;
+// this combined layout is distinct from either independent wire format.
+pub(crate) const FORMAT_MARKER: u16 = 203;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

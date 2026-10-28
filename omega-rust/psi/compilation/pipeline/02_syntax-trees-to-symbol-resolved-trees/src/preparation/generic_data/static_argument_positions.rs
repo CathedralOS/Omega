@@ -5,7 +5,7 @@
 //! every invocation before publishing a canonical value.
 
 use super::{
-    Identifier, SyntaxTrees, TypeParameterKind, TypeReferenceHandle, TypeReferenceNode,
+    HashSet, Identifier, SyntaxTrees, TypeParameterKind, TypeReferenceHandle, TypeReferenceNode,
     declaration_selection::ConstantSelection,
 };
 use syntax_trees::expression::{ExpressionNode, StaticMachineArgument};
@@ -15,16 +15,19 @@ pub(super) fn collect(
     syntax: &SyntaxTrees,
     selection: &ConstantSelection<'_>,
     positions: &[TypeReferenceHandle],
-    public_positions: &[TypeReferenceHandle],
+    public_positions: &HashSet<TypeReferenceHandle>,
     pending: &mut Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)>,
 ) {
+    let mut positions_set: Option<HashSet<TypeReferenceHandle>> = None;
     let mut visit = |name: Identifier, arguments: &[StaticMachineArgument]| {
+        let positions_set =
+            positions_set.get_or_insert_with(|| positions.iter().copied().collect());
         collect_application(
             syntax,
             selection,
             &name,
             arguments,
-            positions,
+            positions_set,
             public_positions,
             pending,
         );
@@ -103,8 +106,8 @@ fn collect_application(
     selection: &ConstantSelection<'_>,
     name: &Identifier,
     arguments: &[StaticMachineArgument],
-    positions: &[TypeReferenceHandle],
-    public_positions: &[TypeReferenceHandle],
+    positions: &HashSet<TypeReferenceHandle>,
+    public_positions: &HashSet<TypeReferenceHandle>,
     pending: &mut Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)>,
 ) {
     if arguments.iter().any(|argument| {

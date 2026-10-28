@@ -29,6 +29,83 @@ macro_rules! typed_tree_table {
 }
 pub(crate) use typed_tree_table;
 
+/// One declaration's retained column, projected out of the table that owns the
+/// rows and extended through the same names.
+///
+/// `$node.$span` is the node's `HandleSpan<$ty>` and `$column` is the table
+/// column that stores those rows. The read accessor answers "the rows this
+/// declaration owns"; the bracketed `$push` appends one. `typed_tree_table!`
+/// already generates this pair for a root column, so a declaration-node column
+/// gets the same owner: the projection and its append are one entry and cannot
+/// drift apart.
+macro_rules! declaration_columns {
+    ($( $(#[$attr:meta])* $name:ident($node:ident: $node_ty:ty) -> &[$ty:ty]
+        = $column:ident.$span:ident $( [ $push:ident ] )? ; )*) => {
+        $(
+            $(#[$attr])*
+            pub fn $name(&self, $node: &$node_ty) -> &[$ty] {
+                self.$column.span_or_empty($node.$span)
+            }
+
+            $(
+                pub fn $push(&mut self, $node: &mut $node_ty, value: $ty) {
+                    self.$column.append_to_span(&mut $node.$span, value);
+                }
+            )?
+        )*
+    };
+
+    ($( append $push:ident($node:ident: $node_ty:ty, $ty:ty)
+        = $column:ident.$span:ident ; )*) => {
+        $(
+            pub fn $push(&mut self, $node: &mut $node_ty, value: $ty) {
+                self.$column.append_to_span(&mut $node.$span, value);
+            }
+        )*
+    };
+}
+pub(crate) use declaration_columns;
+
+/// A row-aligned span column: rows appended one at a time, or reserved as a
+/// block and patched by offset.
+///
+/// `reserve` fills `count` default rows so a consumer can address them by
+/// offset while it builds them, `set` patches one of those rows, and `push`
+/// appends to a span the caller is growing. All three name one arena column, so
+/// they cannot disagree about which rows they address, and the overflow message
+/// that names the column is stated once beside it.
+///
+/// An entry spells the column and its row type as `$arena($ty)`, then the three
+/// names. The row type is bracketed rather than written after a `:` because a
+/// `ty` fragment may not precede an identifier in a matcher; the parentheses
+/// also keep the column and its row type one token tree.
+macro_rules! span_columns {
+    ($( $arena:ident($ty:ty)
+        reserve $reserve:ident($message:literal)
+        set $set:ident
+        $( push $push:ident )? ; )*) => {
+        $(
+            pub fn $reserve(&mut self, count: u32) -> HandleSpan<$ty> {
+                self.$arena.insert_many(
+                    std::iter::repeat_with(<$ty as Default>::default)
+                        .take(usize::try_from(count).expect($message)),
+                )
+            }
+
+            pub fn $set(&mut self, span: HandleSpan<$ty>, offset: u32, value: $ty) {
+                *self.$arena.get_mut(span.handle_at(offset)) = value;
+            }
+
+            $(
+                pub fn $push(&mut self, span: &mut HandleSpan<$ty>, value: $ty) {
+                    self.$arena.append_to_span(span, value);
+                }
+            )?
+        )*
+    };
+}
+pub(crate) use span_columns;
+
 mod authored_targets;
 mod build_selections;
 mod callable_applications;

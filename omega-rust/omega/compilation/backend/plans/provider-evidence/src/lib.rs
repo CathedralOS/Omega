@@ -13,6 +13,7 @@
 //! These are realization records, not the source language's effect analysis.
 
 mod fnv1a;
+pub mod numeric_realizations;
 mod provider_evidence;
 pub mod provider_grants;
 

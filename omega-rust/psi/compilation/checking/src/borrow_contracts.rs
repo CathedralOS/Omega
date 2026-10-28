@@ -70,13 +70,7 @@ pub struct ViewReturnFieldSource {
     pub kind: checked_trees::BorrowAccessKind,
 }
 
-/// Borrowing the parameter's referent and transferring a descriptor stored in
-/// it have different lifetimes, even when both have an empty structural path.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ViewReturnInputSource {
-    Referent,
-    Stored,
-}
+pub use checked_trees::ViewReturnInputSource;
 
 /// Why a view-returning signature could not be resolved to a single input.
 #[derive(Debug, Clone)]

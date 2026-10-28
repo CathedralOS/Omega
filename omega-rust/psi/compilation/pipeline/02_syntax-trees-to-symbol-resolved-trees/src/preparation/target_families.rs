@@ -63,7 +63,7 @@ impl Member<'_> {
     }
 }
 
-pub(super) fn normalize(
+pub(crate) fn normalize(
     syntax: &mut SyntaxTrees,
     sources: Option<&SourceMap>,
 ) -> Result<(), Vec<Diagnostic>> {

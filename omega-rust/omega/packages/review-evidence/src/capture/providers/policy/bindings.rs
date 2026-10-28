@@ -9,7 +9,7 @@ use diagnostics::Diagnostic;
 use effects::provider_plan::ProviderBinding;
 use symbols::SymbolHandle;
 
-pub(super) fn project(
+pub(crate) fn project(
     compilation: &PackageReviewInput<'_>,
     identities: &effects::provider_plan::ProviderIdentityTable,
     binding: &ProviderBinding,
@@ -22,55 +22,13 @@ pub(super) fn project(
         ..
     } = origin
     {
-        let mut rows = compilation
-            .custody
-            .providers()
-            .admitted_native_bindings
-            .iter()
-            .filter(|row| {
-                row.requirement == requirement
-                    && row.receipt().identity_digest() == receipt_identity
-            });
-        let row = rows
-            .next()
-            .filter(|_| rows.next().is_none())
-            .ok_or_else(|| {
-                rejected("Build-native row lost its exact admitted source occurrence")
-            })?;
+        let row = native_row(compilation, requirement, receipt_identity)?;
         if row.binding().as_ref() != Some(binding) {
             return Err(rejected(
                 "Build-native selected binding differs from its admitted locator",
             ));
         }
-        let receipt = row.receipt();
-        let producer = PackagePolicyEvaluatedBindingProducer {
-            declaration: match row.selecting_machine {
-                Some(author) => nominal_identity(compilation, author)?,
-                None => {
-                    let retained = row.retained.as_ref().ok_or_else(|| {
-                        rejected("imported native row lost original author custody")
-                    })?;
-                    let package = retained
-                        .origin
-                        .author()
-                        .source()
-                        .package_identity
-                        .ok_or_else(|| {
-                            rejected("imported native author has no immutable supplier")
-                        })?;
-                    crate::record::PackageReviewNominalIdentity {
-                        owner: crate::record::PackageReviewNominalOwner::Package(package),
-                        path: retained.author_path.clone(),
-                    }
-                }
-            },
-            package: receipt.producer_package(),
-            callable_identity: row
-                .identities
-                .text(receipt.producer_callable_identity())
-                .ok_or_else(|| rejected("Build-native receipt lost its callable identity"))?
-                .to_owned(),
-        };
+        let producer = native_producer(compilation, row)?;
         return match &row.locator {
             provider_planning::AdmittedNativeLocator::Unavailable { .. } => Err(rejected(
                 "unavailable native intent cannot supply a selected physical row",
@@ -155,4 +113,61 @@ pub(super) fn project(
             ));
         }
     })
+}
+
+/// Rejoin an exact admitted occurrence. A matching physical locator is not an
+/// origin: independent Build events retain their separate source receipts.
+pub(crate) fn native_row<'a>(
+    compilation: &'a PackageReviewInput<'_>,
+    requirement: SymbolHandle,
+    receipt_identity: [u8; 32],
+) -> Result<&'a provider_planning::AdmittedNativeBinding, Vec<Diagnostic>> {
+    let mut rows = compilation
+        .custody
+        .providers()
+        .admitted_native_bindings
+        .iter()
+        .filter(|row| {
+            row.requirement == requirement && row.receipt().identity_digest() == receipt_identity
+        });
+    let row = rows
+        .next()
+        .filter(|_| rows.next().is_none())
+        .ok_or_else(|| rejected("Build-native row lost its exact admitted source occurrence"))?;
+    Ok(row)
+}
+
+pub(crate) fn native_producer(
+    compilation: &PackageReviewInput<'_>,
+    row: &provider_planning::AdmittedNativeBinding,
+) -> Result<PackagePolicyEvaluatedBindingProducer, Vec<Diagnostic>> {
+    let receipt = row.receipt();
+    let producer = PackagePolicyEvaluatedBindingProducer {
+        declaration: match row.selecting_machine {
+            Some(author) => nominal_identity(compilation, author)?,
+            None => {
+                let retained = row
+                    .retained
+                    .as_ref()
+                    .ok_or_else(|| rejected("imported native row lost original author custody"))?;
+                let package = retained
+                    .origin
+                    .author()
+                    .source()
+                    .package_identity
+                    .ok_or_else(|| rejected("imported native author has no immutable supplier"))?;
+                crate::record::PackageReviewNominalIdentity {
+                    owner: crate::record::PackageReviewNominalOwner::Package(package),
+                    path: retained.author_path.clone(),
+                }
+            }
+        },
+        package: receipt.producer_package(),
+        callable_identity: row
+            .identities
+            .text(receipt.producer_callable_identity())
+            .ok_or_else(|| rejected("Build-native receipt lost its callable identity"))?
+            .to_owned(),
+    };
+    Ok(producer)
 }

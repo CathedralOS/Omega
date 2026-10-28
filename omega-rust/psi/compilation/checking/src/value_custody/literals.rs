@@ -344,3 +344,6 @@ pub(crate) fn validate_suffix_landings(
         }
     }
 }
+
+mod owned_bytes;
+pub use owned_bytes::land_owned_fixed_byte_literal;

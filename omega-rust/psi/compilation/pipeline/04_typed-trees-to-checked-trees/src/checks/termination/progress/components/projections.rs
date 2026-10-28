@@ -127,8 +127,7 @@ pub(super) fn finite_projection_limit(
             && let TerminationGuarantee::Terminates { premises } = selected.guarantee
         {
             for premise in premises {
-                maximum_seed_length =
-                    maximum_seed_length.max(premise.subject.projections.len());
+                maximum_seed_length = maximum_seed_length.max(premise.subject.projections.len());
             }
         }
     }

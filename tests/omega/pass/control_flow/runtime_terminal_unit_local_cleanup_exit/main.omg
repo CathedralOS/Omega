@@ -1,0 +1,19 @@
+// Expected exit: 0
+// A completed owned local keeps its exact cleanup exit after a terminal Unit call.
+data Frame { passes: u64; }
+machine create() -> Frame { Frame { passes: 41 } }
+machine drive(output: &mut u64) {
+    let mut frame: Frame = create();
+    transition { _ -> advance(output, &mut frame) }
+    machine advance(output: &mut u64, frame: &mut Frame) {
+        frame.passes = 42;
+        output = frame.passes;
+    }
+}
+machine main() crashes Trap {
+    let mut observed: u64 = 0;
+    drive(&mut observed);
+    transition observed == 42 { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

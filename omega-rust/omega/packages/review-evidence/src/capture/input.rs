@@ -20,6 +20,8 @@ pub struct PackageReviewInput<'a> {
     /// Original checked trees have a separate immutable query namespace. A
     /// supplied candidate's memo must never stand in for compiler custody.
     pub(crate) custody_checking_input: &'a dyn validation::CheckingInput,
+    pub(crate) numeric_realizations:
+        Option<&'a psi_terminal_production::NumericRealizationDeclarations>,
 }
 
 impl<'a> PackageReviewInput<'a> {
@@ -31,7 +33,25 @@ impl<'a> PackageReviewInput<'a> {
             custody,
             checking_input: program,
             custody_checking_input: &**custody,
+            numeric_realizations: None,
         }
+    }
+
+    /// Prepare one independent candidate projection at review ingress. Custody
+    /// already owns its projection from checked-provider binding.
+    pub(super) fn project_numeric_realizations(
+        &self,
+    ) -> Result<psi_terminal_production::NumericRealizationDeclarations, Vec<diagnostics::Diagnostic>>
+    {
+        psi_terminal_production::project_numeric_realization_declarations(
+            self.program,
+            self.custody.sources().exact_toolchain_sources(),
+        )
+        .map_err(|error| {
+            vec![diagnostics::Diagnostic::error(format!(
+                "package external provider declarations: {error:?}"
+            ))]
+        })
     }
 
     /// Authored deployment scope must agree with immutable compiler custody.

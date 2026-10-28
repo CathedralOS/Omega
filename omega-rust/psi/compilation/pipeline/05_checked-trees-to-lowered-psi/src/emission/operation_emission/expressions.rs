@@ -3,7 +3,9 @@
 use super::boolean::{LoweredBooleanReturnExpression, emit_boolean_expression};
 use super::buffer::OperationBuffer;
 use super::integer::LoweredIntegerBinaryKind;
-use crate::emission::operation_emission::buffer::scalar_result_declaration;
+use crate::emission::operation_emission::buffer::{
+    scalar_result_declaration, structural_result_declaration,
+};
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
 use crate::terminal_identities::mint;
@@ -677,24 +679,18 @@ pub(super) fn emit_read_source(
                     .checked_add(producer.get())
                     .expect("hoisted leaf places admit a reserved namespace"),
             );
-            operations.push(Operation {
-                static_reach_binding: None,
-                suspension_crossing: None,
-                id: producer,
-                result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
-                    qualification_establishments: Vec::new(),
+            operations.push(Operation::unsuspended(
+                producer,
+                structural_result_declaration(
                     place,
-                    structural_type: *structural_type,
-                    multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
-                    qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
-                    claims: Vec::new(),
-                }),
-                kind: OperationKind::StructuralCaseLeafCopy {
+                    *structural_type,
+                    terminal_psi::StructuralMultiplicity::Unrestricted,
+                ),
+                OperationKind::StructuralCaseLeafCopy {
                     source: *source,
                     path: path.clone(),
                 },
-            });
+            ));
             place
         }
     }
@@ -1082,13 +1078,11 @@ pub(crate) fn emit_direct_expression(
             if *formation_decided && let Some(obligation) = kind.formation_obligation(operation) {
                 operations.source_checked_obligations.push(obligation);
             }
-            operations.push(Operation {
-                static_reach_binding: None,
-                suspension_crossing: None,
-                id: operation,
-                result: scalar_result_declaration(id, *scalar_type),
-                kind: kind.operation(operation, left, right),
-            });
+            operations.push(Operation::unsuspended(
+                operation,
+                scalar_result_declaration(id, *scalar_type),
+                kind.operation(operation, left, right),
+            ));
             id
         }
         LoweredDirectExpression::IntegerBitwiseNot {
@@ -1135,16 +1129,14 @@ pub(crate) fn emit_direct_expression(
             if *formation_decided {
                 operations.source_checked_obligations.push(obligation);
             }
-            operations.push(Operation {
-                static_reach_binding: None,
-                suspension_crossing: None,
-                id: operation,
-                result: scalar_result_declaration(id, *scalar_type),
-                kind: OperationKind::IntegerExactCast {
+            operations.push(Operation::unsuspended(
+                operation,
+                scalar_result_declaration(id, *scalar_type),
+                OperationKind::IntegerExactCast {
                     operand,
                     obligation,
                 },
-            });
+            ));
             id
         }
         LoweredDirectExpression::RepresentationView {
@@ -1181,16 +1173,14 @@ pub(crate) fn emit_direct_expression(
             if let Some(obligation) = landing_obligation {
                 operations.source_checked_obligations.push(obligation);
             }
-            operations.push(Operation {
-                static_reach_binding: None,
-                suspension_crossing: None,
-                id: operation,
-                result: scalar_result_declaration(id, *scalar_type),
-                kind: OperationKind::ScalarRepresentationView {
+            operations.push(Operation::unsuspended(
+                operation,
+                scalar_result_declaration(id, *scalar_type),
+                OperationKind::ScalarRepresentationView {
                     operand,
                     landing_obligation,
                 },
-            });
+            ));
             id
         }
         LoweredDirectExpression::Boolean { expression } => {

@@ -1,9 +1,6 @@
 //! Optimizer module role: executable entrance. Transition-free physical-home assignment entrance.
 
-use register_model::{
-    TargetRegisterEnvironmentConstraintKeys, ValidatedPhysicalRegisterModel,
-    ValidatedRegisterConstraintCatalog, ValidatedRegisterReservationProfile,
-};
+use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions_to_selected_instructions::{
     ValidatedAllocationLegality, ValidatedLiveRanges,
 };
@@ -21,48 +18,26 @@ use selected_instructions::LiveRangeIdentity;
 
 /// Assign deterministic physical views for the bounded transition-free,
 /// spill-free lane. The result grants no emission or publication authority.
+///
+/// The register environment is one owner of its own parts: callers hand the
+/// validated environment over instead of re-listing its identity, physical
+/// model, constraint catalog, reservation profile and constraint keys.
 pub(crate) fn assign_register_homes(
     legality: &ValidatedAllocationLegality,
     ranges: &ValidatedLiveRanges,
-    register_environment: TargetRegisterEnvironmentIdentity,
-    physical: &ValidatedPhysicalRegisterModel,
-    constraints: &ValidatedRegisterConstraintCatalog,
-    reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
+    environment: &ValidatedTargetRegisterEnvironment,
 ) -> Result<ValidatedRegisterHomes, RegisterHomeError> {
-    assign_register_homes_reusing(
-        legality,
-        ranges,
-        register_environment,
-        physical,
-        constraints,
-        reservations,
-        selected_keys,
-        None,
-    )
+    assign_register_homes_reusing(legality, ranges, environment, None)
 }
 
 /// `assign_register_homes` reusing unchanged functions' homes from `reuse`.
 pub(crate) fn assign_register_homes_reusing(
     legality: &ValidatedAllocationLegality,
     ranges: &ValidatedLiveRanges,
-    register_environment: TargetRegisterEnvironmentIdentity,
-    physical: &ValidatedPhysicalRegisterModel,
-    constraints: &ValidatedRegisterConstraintCatalog,
-    reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
+    environment: &ValidatedTargetRegisterEnvironment,
     reuse: Option<&mut compute::FunctionHomeReuse>,
 ) -> Result<ValidatedRegisterHomes, RegisterHomeError> {
-    let plan = compute::compute_terminal_register_homes(
-        legality,
-        ranges,
-        register_environment,
-        physical,
-        constraints,
-        reservations,
-        selected_keys,
-        reuse,
-    )?;
+    let plan = compute::compute_terminal_register_homes(legality, ranges, environment, reuse)?;
     let receipt = receipt::build(&plan, ranges);
     Ok(ValidatedRegisterHomes {
         plan: plan.into(),

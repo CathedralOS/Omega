@@ -74,6 +74,42 @@ pub struct BuildConfig {
 }
 
 impl BuildConfig {
+    /// Share source checking across independently measured Build activations.
+    /// Native choices and their executed code are source inputs; accounting
+    /// counters are each activation's observations, not new source programs.
+    pub(crate) fn same_source_choices(&self, other: &Self) -> bool {
+        let Self {
+            settings,
+            grants,
+            provider_selections,
+            admitted_native_bindings,
+            package_provider_selections,
+            assumed_bindings,
+            opaque_representation_selections,
+            wire_compatibility_demands,
+            root_bindings,
+            behavior_exclusions,
+            service_audits,
+            accepted_component_assumptions,
+        } = self;
+        settings == &other.settings
+            && grants == &other.grants
+            && provider_selections == &other.provider_selections
+            && package_provider_selections == &other.package_provider_selections
+            && admitted_native_bindings.len() == other.admitted_native_bindings.len()
+            && admitted_native_bindings
+                .iter()
+                .zip(&other.admitted_native_bindings)
+                .all(|(left, right)| left.same_source_choice(right))
+            && assumed_bindings == &other.assumed_bindings
+            && opaque_representation_selections == &other.opaque_representation_selections
+            && wire_compatibility_demands == &other.wire_compatibility_demands
+            && root_bindings == &other.root_bindings
+            && behavior_exclusions == &other.behavior_exclusions
+            && service_audits == &other.service_audits
+            && accepted_component_assumptions == &other.accepted_component_assumptions
+    }
+
     /// All authored entry declarations, independently of realization targets.
     pub fn program_roots(&self) -> Vec<symbols::SymbolHandle> {
         let mut roots: Vec<_> = self
@@ -242,12 +278,26 @@ impl ComputedBuildConfig {
     /// admitted execution belong to the consuming occurrence. Replacing this
     /// product with its earlier evaluated configuration would lose completed
     /// source requirements whenever several targets share one source judgment.
-    pub fn with_execution_observation(&self, execution: &Self) -> Self {
+    pub fn with_execution_observation(&self, execution: &Self) -> Result<Self, String> {
+        if self.native_binding_requests != execution.native_binding_requests {
+            return Err("source cohort execution changed native Build intent".into());
+        }
         let mut application = self.clone();
+        application.config.admitted_native_bindings = application
+            .config
+            .admitted_native_bindings
+            .iter()
+            .map(|row| {
+                row.with_execution_observation(
+                    execution.observation_summary.as_ref(),
+                    execution.evaluation_usage,
+                )
+            })
+            .collect::<Result<_, _>>()?;
         application.evaluation_usage = execution.evaluation_usage;
         application.observation_summary = execution.observation_summary.clone();
         application.optimization_report_request = execution.optimization_report_request.clone();
-        application
+        Ok(application)
     }
 
     pub fn observation_identity(&self) -> Option<package_compilation::BuildObservationIdentity> {

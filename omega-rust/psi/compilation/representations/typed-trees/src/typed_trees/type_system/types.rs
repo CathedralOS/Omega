@@ -290,34 +290,13 @@ impl TypeReferenceTable {
         self.type_reference_handles.insert_many(type_references)
     }
 
-    pub fn reserve_type_reference_handles(
-        &mut self,
-        count: u32,
-    ) -> HandleSpan<TypeReferenceHandle> {
-        self.type_reference_handles.insert_many(
-            std::iter::repeat_with(TypeReferenceHandle::invalid)
-                .take(usize::try_from(count).expect("type reference handle span count overflow")),
-        )
-    }
-
-    pub fn set_type_reference_handle_at_offset(
-        &mut self,
-        type_references: HandleSpan<TypeReferenceHandle>,
-        offset: u32,
-        type_reference: TypeReferenceHandle,
-    ) {
-        *self
-            .type_reference_handles
-            .get_mut(type_references.handle_at(offset)) = type_reference;
-    }
-
-    pub fn push_type_reference_handle(
-        &mut self,
-        span: &mut HandleSpan<TypeReferenceHandle>,
-        type_reference: TypeReferenceHandle,
-    ) {
-        self.type_reference_handles
-            .append_to_span(span, type_reference);
+    // One entry per span column: the arena and its row type, the reserve
+    // (with its overflow message), the patch and the append.
+    crate::typed_trees::span_columns! {
+        type_reference_handles(TypeReferenceHandle)
+            reserve reserve_type_reference_handles("type reference handle span count overflow")
+            set set_type_reference_handle_at_offset
+            push push_type_reference_handle;
     }
 
     pub fn insert_constraints(
@@ -472,6 +451,16 @@ impl TypeReferenceTable {
         self.type_references.iter()
     }
 
+    /// Live type nodes with `handle.arena_index() as usize >= start_arena_index`.
+    pub fn references_from(
+        &self,
+        start_arena_index: usize,
+    ) -> impl Iterator<Item = (TypeReferenceHandle, &TypeReferenceNode)> + '_ {
+        self.type_references
+            .iter_from(start_arena_index.saturating_sub(1))
+            .filter(move |(handle, _)| handle.arena_index() as usize >= start_arena_index)
+    }
+
     /// Every NAMED type reference in the table, as `(handle, symbol)` pairs.
     /// The machine-monomorphization pass scans these for generic type-parameter
     /// references to substitute before checking/layout (a type parameter's
@@ -482,6 +471,17 @@ impl TypeReferenceTable {
     ) -> impl Iterator<Item = (TypeReferenceHandle, SymbolHandle, &str)> + '_ {
         self.type_references
             .iter()
+            .filter_map(|(handle, node)| match node {
+                TypeReferenceNode::Named { symbol, name } => Some((handle, *symbol, name.as_str())),
+                _ => None,
+            })
+    }
+
+    pub fn named_references_from(
+        &self,
+        start_arena_index: usize,
+    ) -> impl Iterator<Item = (TypeReferenceHandle, SymbolHandle, &str)> + '_ {
+        self.references_from(start_arena_index)
             .filter_map(|(handle, node)| match node {
                 TypeReferenceNode::Named { symbol, name } => Some((handle, *symbol, name.as_str())),
                 _ => None,

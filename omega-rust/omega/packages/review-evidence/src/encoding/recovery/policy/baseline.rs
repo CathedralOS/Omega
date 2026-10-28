@@ -38,6 +38,7 @@ impl PackagePolicyBaseline {
             selected_providers: selected_providers::policy(&mut reader)?,
             terminal_permissions: terminal_permissions::policy(&mut reader)?,
             representation: representation::policy(&mut reader)?,
+            native_bindings: reader.sequence(1, native_binding)?,
             external_supplies: reader.sequence(1, external::policy)?,
             dangerous_capabilities: reader.sequence(1, dependencies::dangerous_authority)?,
             slack_uses: reader.sequence(1, dependencies::slack)?,
@@ -61,4 +62,14 @@ impl PackagePolicyBaseline {
         }
         Ok((policy, reader.usage()))
     }
+}
+
+fn native_binding(
+    reader: &mut Reader<'_>,
+) -> Result<crate::record::PackagePolicyNativeBinding, Error> {
+    Ok(crate::record::PackagePolicyNativeBinding {
+        method: selected_providers::service_method(reader)?,
+        producer: super::external::producer(reader)?,
+        binding: selected_providers::bindings::binding(reader)?,
+    })
 }

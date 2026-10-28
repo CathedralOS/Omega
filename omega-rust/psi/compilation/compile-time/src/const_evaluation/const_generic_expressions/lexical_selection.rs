@@ -8,6 +8,43 @@ use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::types::ConstArgumentOrigin;
 use syntax_trees_to_symbol_resolved_trees::pre_resolution::ConstArgumentSelection;
 
+pub(crate) fn needs_resolution(syntax: &SyntaxTrees, root: ExpressionHandle) -> bool {
+    let mut pending = vec![root];
+    let mut visited = Vec::new();
+    while let Some(expression) = pending.pop() {
+        if visited.contains(&expression) {
+            continue;
+        }
+        visited.push(expression);
+        match syntax.expressions.expression(expression) {
+            ExpressionNode::Name(_) | ExpressionNode::Call(_) => return true,
+            ExpressionNode::Match(dispatch) => {
+                for arm in syntax.expressions.match_arms(dispatch.arms).iter().rev() {
+                    pending.push(arm.value);
+                    if let syntax_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                        pending.push(pattern);
+                    }
+                }
+                pending.push(dispatch.subject);
+            }
+            ExpressionNode::Unary(unary) => pending.push(unary.operand),
+            ExpressionNode::Cast(cast) => pending.push(cast.value),
+            ExpressionNode::Member(member) => pending.push(member.receiver),
+            ExpressionNode::Borrow(borrow) => pending.push(borrow.target),
+            ExpressionNode::Indexed(indexed) => {
+                pending.push(indexed.index);
+                pending.push(indexed.collection);
+            }
+            ExpressionNode::Binary(binary) => {
+                pending.push(binary.right);
+                pending.push(binary.left);
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
 pub(crate) fn retain(
     syntax: &SyntaxTrees,
     resolved: &ConstArgumentSelection,

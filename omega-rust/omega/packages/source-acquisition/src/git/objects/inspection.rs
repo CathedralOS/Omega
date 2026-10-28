@@ -30,6 +30,30 @@ pub(crate) struct AuthenticatedGitTreeInspection {
 }
 
 impl AuthenticatedGitTreeInspection {
+    /// A catalog owns its repository's supported files as Build inputs, not
+    /// the source trees of foreign gitlink edges. Retain those edges in the
+    /// authenticated graph without fetching, exposing or publishing them.
+    pub(crate) fn open_catalog_inventory(
+        &self,
+        executor: &GitExecutor,
+        repository: &VerifiedGitRepository,
+        limits: LocalSourceLimits,
+    ) -> Result<Vec<GitTreeEntry>, SourceResolveError> {
+        let mut entries = self
+            .graph
+            .entries()
+            .iter()
+            .filter(|entry| !matches!(entry.kind, super::GitTreeEntryKind::Gitlink))
+            .cloned()
+            .collect::<Vec<_>>();
+        read_git_blobs_batch(executor, repository, &mut entries, limits)?;
+        super::authentication::authenticate_git_tree_payloads(
+            self.graph.root_tree_oid(),
+            &entries,
+        )?;
+        Ok(entries)
+    }
+
     pub(crate) fn root_tree_oid(&self) -> &str {
         self.graph.root_tree_oid()
     }

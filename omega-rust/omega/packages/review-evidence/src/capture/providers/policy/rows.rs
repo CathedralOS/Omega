@@ -94,10 +94,20 @@ pub(super) fn project(
                 )?;
                 Some(realization)
             };
+            let native_build = match origin {
+                provider_planning::ProviderRowOrigin::BuildNative { receipt, .. } => {
+                    Some(bindings::native_producer(
+                        compilation,
+                        bindings::native_row(compilation, requirement_symbol, receipt)?,
+                    )?)
+                }
+                _ => None,
+            };
             Ok(PackagePolicyProviderRow {
                 method: row.method.clone(),
                 requirement: requirement.clone(),
                 realization,
+                native_build,
                 requirement_lifetime_partition: row.requirement_lifetime_partition.clone(),
                 admitted_same_stack_bytes: row.admitted_same_stack_bytes,
                 binding: bindings::project(
@@ -114,13 +124,18 @@ pub(super) fn project(
                         plan,
                         row,
                         retained.provider.schema,
+                        retained.provider.provider_type,
                         requirement_symbol,
                         realization_symbol,
                         Some(target.target_name()),
                         retained.row_compiler_intrinsic_executions[index],
                     )?
-                } else {
+                } else if retained.row_compiler_intrinsic_executions[index].is_none() {
                     None
+                } else {
+                    return Err(rejected(
+                        "native row carries an authored intrinsic execution",
+                    ));
                 },
                 installation_reach: project_selected_installation_reach(
                     compilation,

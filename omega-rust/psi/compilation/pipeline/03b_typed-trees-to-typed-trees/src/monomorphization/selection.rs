@@ -257,7 +257,10 @@ pub(super) fn collect_call_selections(
     let contract_expressions: HashSet<ExpressionHandle> =
         contract_expressions.iter().copied().collect();
     let mut covered_expressions = HashSet::new();
-    let expected_calls = validation::collect_expected_expression_calls(program);
+    let expected_calls: std::collections::HashMap<ExpressionHandle, TypeReferenceHandle> =
+        validation::collect_expected_expression_calls(program)
+            .into_iter()
+            .collect();
 
     for machine in program.machines() {
         for state in program.machine_states(machine) {
@@ -369,13 +372,11 @@ pub(super) fn collect_call_selections(
                     call.target_symbol,
                     &call.machine_arguments,
                     program.expression_table.expression_handles(call.arguments),
-                    expected_calls.iter().find_map(|(candidate, expected)| {
-                        (*candidate == expression
-                            && (program
-                                .typed_program()
-                                .callable_body_has_open_parameters(machine)
-                                || !static_bindings::names_type_binder(program, *expected)))
-                        .then_some(*expected)
+                    expected_calls.get(&expression).copied().filter(|expected| {
+                        program
+                            .typed_program()
+                            .callable_body_has_open_parameters(machine)
+                            || !static_bindings::names_type_binder(program, *expected)
                     }),
                     program
                         .typed_program()

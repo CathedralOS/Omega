@@ -143,6 +143,7 @@ pub(crate) fn call_constraint(
 pub(crate) fn validate(
     function: usize,
     source: &LegalizedScalarFunction,
+    backings: &crate::selection::foreign_scalar_backings::ForeignScalarBackings<'_>,
     call: &LegalizedNormalizedForeignCall,
     invocation_site: InvocationSite,
     result: Option<LegalizedValueDefinition>,
@@ -380,6 +381,7 @@ pub(crate) fn validate(
                         .ok_or_else(|| invalid!())?;
                     crate::selection::reference_input::validate_scalar_foreign_export(
                         source,
+                        backings,
                         &semantic,
                         scalar,
                         argument.shape.byte_size,

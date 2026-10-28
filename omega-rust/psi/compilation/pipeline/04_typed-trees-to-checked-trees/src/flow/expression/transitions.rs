@@ -96,6 +96,18 @@ impl Execution<'_, '_, '_> {
                 if normal_outgoing {
                     returned_value = self.context.control.operands.append(completed.capture);
                 }
+                // A completing machine call transfers this state's exit edge
+                // to its callee even when the callee never returns to the
+                // caller: custody, not a value, continues on that outgoing
+                // occurrence. External and unresolved targets still require
+                // the expression's own normal completion.
+                normal_outgoing = normal_outgoing
+                    || matches!(
+                        self.program.expression_table.expression(*expression),
+                        typed_trees::expression::ExpressionNode::Call(call)
+                            if validation::call_target_state(self.program, call.target_symbol)
+                                .is_some()
+                    );
             }
             TransitionTargetNode::Terminal => {}
         }

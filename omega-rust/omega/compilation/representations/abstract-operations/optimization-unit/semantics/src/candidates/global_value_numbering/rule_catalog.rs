@@ -1,6 +1,6 @@
 //! Exact GVN rule identities and the proof classes they admit.
 use crate::OptimizationUnitValidationError;
-use optimization_core::OptimizationRuleIdentity;
+use optimization_core::{AnalysisKind, OptimizationRuleIdentity, OptimizationSafetyClass};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum ScalarCseScope {
@@ -13,6 +13,30 @@ pub(super) enum ScalarCseProofClass {
     ObligationFree,
     ProofCertified,
     CompatiblePolicy,
+}
+
+/// The analyses a scalar common-subexpression proposal reads. A same-block
+/// elimination compares two rows inside one block; a dominating or
+/// phi-translated one also reconstructs the dominator or join frontier.
+pub(super) const SAME_BLOCK_ANALYSES: &[AnalysisKind] =
+    &[AnalysisKind::UseDefinition, AnalysisKind::EffectSummaries];
+pub(super) const DOMINATING_ANALYSES: &[AnalysisKind] = &[
+    AnalysisKind::ControlFlowGraph,
+    AnalysisKind::Dominators,
+    AnalysisKind::UseDefinition,
+    AnalysisKind::EffectSummaries,
+];
+
+/// The safety class one proof class claims: an obligation-free identity holds by
+/// exact operation semantics; a proof-certified or compatible-policy rewrite
+/// holds only under the proof the candidate carries.
+pub(super) fn safety_class(proof_class: ScalarCseProofClass) -> OptimizationSafetyClass {
+    match proof_class {
+        ScalarCseProofClass::ObligationFree => OptimizationSafetyClass::ExactOperationSemantics,
+        ScalarCseProofClass::ProofCertified | ScalarCseProofClass::CompatiblePolicy => {
+            OptimizationSafetyClass::ProofCertified
+        }
+    }
 }
 
 pub(super) fn scoped_proof_class(

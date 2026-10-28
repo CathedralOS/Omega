@@ -100,10 +100,10 @@ pub use proof_contracts::arithmetic_domains::{
     selected_scalar_interval,
 };
 pub use proof_contracts::collection_predicates::{
-    PredicateIntegerOperand, PredicateIntegerReadSubject, PredicateIntegerSubject,
-    exact_predicate_conjunction, exact_predicate_intervals, exact_predicate_ordering,
-    length_member, predicate_integer_operand, predicate_ordering_consequences,
-    premises_prove_expression,
+    PredicateBooleanSubject, PredicateCondition, PredicateIntegerOperand,
+    PredicateIntegerReadSubject, PredicateIntegerSubject, exact_predicate_conjunction,
+    exact_predicate_intervals, exact_predicate_ordering, length_member, predicate_integer_operand,
+    predicate_ordering_consequences, premises_prove_expression,
 };
 pub use proof_contracts::contract_entailment::call_projection_identity::{
     captured_call_argument_index_matches, captured_call_index_value,
@@ -120,6 +120,7 @@ pub use proof_contracts::contract_entailment::content_conservation::{
     completed_value_has_content_conservation_candidate, completed_value_preserves_entry_projection,
     completed_value_proves_backing_addresses, completed_value_proves_content_conservation,
 };
+pub(crate) use proof_contracts::contract_entailment::immutable_entry_boolean_projection;
 pub use proof_contracts::contract_entailment::numeric_observations::{
     CapturedIntegerOperation, CapturedNumericObservations, CapturedScalarObservation,
     NumericObservationDemand, captured_numeric_observations,
@@ -184,7 +185,8 @@ pub use value_custody::storage_contents::{
 };
 pub use value_custody::struct_literals::{
     ArrayWindowShape, array_window_shape, case_predicates_admit_zero,
-    selected_construction_field_type, validate_value_construction,
+    selected_construction_definition, selected_construction_field_type,
+    validate_value_construction,
 };
 pub use value_custody::structural_identity::{
     logical_structural_type_identity, stored_structural_type_identity, stores_reference_shape,
@@ -302,7 +304,7 @@ pub use declarations::operators::{
     validate_closed_operator_application, validate_named_operator_application,
 };
 pub use declarations::operators::{
-    build_operator_uses, checked_operator_candidate, collect_named_requirement_uses,
+    build_operator_uses, checked_operator_candidate,
     collect_pre_specialization_operator_selections, comparison_operator_spelling,
     expression_type_reference_for_origin, indexed_operand_types,
     select_pending_domain_operator_meanings, token_bound_machine_call_target,
@@ -655,3 +657,7 @@ pub use value_custody::places::storage_path_relations;
 pub use value_custody::membership_evidence;
 
 pub use machine_calls::terminal_transitions::normalize_terminal_transition_calls;
+
+pub mod native_locators;
+
+pub use value_custody::literals::land_owned_fixed_byte_literal;

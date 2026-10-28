@@ -1,28 +1,22 @@
 // A target-keyed provider call establishes total >= 1000, so exact subtraction total - 1000 preserves the selected provider result.
 // Expected exit: 0
-use reading_provider::main::Reading;
-
-boundary trait Calculation {
-    machine consume(expected_tag: u64) -> u64 reaches Reading crashes Trap;
+boundary trait Reading {
+    machine total() -> u64 reaches ensures result >= 1000u64;
 }
-FirstCalculationBody satisfies Calculation {
-    machine consume(expected_tag: u64) -> u64 reaches Reading crashes Trap {
-        transition expected_tag == 17u64 { true -> calculate() false -> bad() }
-        machine calculate() -> u64 reaches Reading { Reading::total() - 1000u64 }
-        machine bad() -> u64 { crash Trap; }
-    }
+FirstReading satisfies Reading {
+    machine total() -> u64 ensures result >= 1000u64 { 1100u64 }
 }
-SecondCalculationBody satisfies Calculation {
-    machine consume(expected_tag: u64) -> u64 reaches Reading crashes Trap {
-        transition expected_tag == 29u64 { true -> calculate() false -> bad() }
-        machine calculate() -> u64 reaches Reading { Reading::total() - 1000u64 }
-        machine bad() -> u64 { crash Trap; }
-    }
+SecondReading satisfies Reading {
+    machine total() -> u64 ensures result >= 1000u64 { 2100u64 }
 }
-machine journey(expected: u64, expected_tag: u64) reaches Calculation + Reading crashes Trap {
-    let difference: u64 = Calculation::consume(expected_tag);
+trait Calculation { machine consume() -> u64 reaches Reading; }
+CalculationBody satisfies Calculation {
+    machine consume() -> u64 reaches Reading { Reading::total() - 1000u64 }
+}
+machine journey(expected: u64) reaches Reading crashes Trap {
+    let difference: u64 = CalculationBody::consume();
     transition difference == expected { true -> done() false -> bad() }
     machine done() {} machine bad() { crash Trap; }
 }
-machine first_entry() reaches Calculation + Reading crashes Trap { journey(100u64, 17u64); }
-machine second_entry() reaches Calculation + Reading crashes Trap { journey(1100u64, 29u64); }
+machine first_entry() reaches Reading crashes Trap { journey(100u64); }
+machine second_entry() reaches Reading crashes Trap { journey(1100u64); }

@@ -106,25 +106,17 @@ impl PostAllocationMachineOptimizationRun {
         OptimizationExecutionPhase::PostAllocationMachine
     }
 
-    /// The identity of the complete build selection the phase was projected from.
-    pub const fn complete_selection(&self) -> OptimizationSelectionIdentity {
-        self.complete_selection
-    }
-
-    /// The identity of the exact post-allocation projection that executed.
-    pub const fn phase_selections(&self) -> OptimizationSelectionIdentity {
-        self.phase_selections
-    }
-
-    /// The plan identity before any rule ran.
-    pub const fn source(&self) -> PostAllocationMachineIdentity {
-        self.source
-    }
-
-    /// The plan identity after every rule ran; equal to `source` when no
-    /// rule acted.
-    pub const fn result(&self) -> PostAllocationMachineIdentity {
-        self.result
+    copied_accessors! {
+        /// The identity of the complete build selection the phase was projected from.
+        complete_selection: OptimizationSelectionIdentity,
+        /// The identity of the exact post-allocation projection that executed.
+        phase_selections: OptimizationSelectionIdentity,
+        /// The plan identity before any rule ran.
+        source: PostAllocationMachineIdentity,
+        /// The plan identity after every rule ran; equal to `source` when no
+        /// rule acted.
+        result: PostAllocationMachineIdentity,
+        usage: OptimizationWorkUsage,
     }
 
     pub fn executions(&self) -> &[PostAllocationMachineRuleExecution] {
@@ -136,10 +128,6 @@ impl PostAllocationMachineOptimizationRun {
             .iter()
             .map(|execution| execution.actions.len())
             .sum()
-    }
-
-    pub const fn usage(&self) -> OptimizationWorkUsage {
-        self.usage
     }
 }
 
@@ -153,12 +141,9 @@ pub struct PostAllocationMachineRuleExecution {
 }
 
 impl PostAllocationMachineRuleExecution {
-    pub const fn optimization(&self) -> Optimization {
-        self.optimization
-    }
-
-    pub const fn candidates(&self) -> u64 {
-        self.candidates
+    copied_accessors! {
+        optimization: Optimization,
+        candidates: u64,
     }
 
     pub fn actions(&self) -> &[PostAllocationMachineAction] {

@@ -49,6 +49,7 @@ pub enum ProviderSelectionProvenance {
     BuildOverride(Vec<crate::ProviderSelection>),
     TargetDefault(Vec<crate::ProviderSelection>),
     UniqueCoveringCandidate,
+    NativeBuild,
 }
 
 impl ProviderSelectionProvenance {
@@ -58,7 +59,7 @@ impl ProviderSelectionProvenance {
     /// themselves.
     pub fn composition_mode(&self) -> Result<crate::CompositionMode, String> {
         match self {
-            Self::UniqueCoveringCandidate => Ok(crate::CompositionMode::Fused),
+            Self::UniqueCoveringCandidate | Self::NativeBuild => Ok(crate::CompositionMode::Fused),
             Self::TargetDefault(declarations) => {
                 if declarations.iter().any(|declaration| {
                     declaration.composition_mode != crate::CompositionMode::Fused
@@ -102,7 +103,8 @@ pub struct SelectedProviderReviewProvenance {
     pub plan: ProviderPlan,
     pub provider: ProviderPlanProvenance,
     pub selected_by: ProviderSelectionProvenance,
-    /// Closed compiler-owned execution identity for each provider row.
+    /// Host and placement execution identity for each provider row. Numeric
+    /// rows carry None: their meaning lives in Psi's external declarations.
     ///
     /// Selection initially leaves this empty because exact execution is not
     /// settled until after checking. The compiler must replace it with one
@@ -185,7 +187,8 @@ pub(crate) fn selected_provider_plan_facts_with_independent_components(
         let declarations = match &selected_plan.selected_by {
             ProviderSelectionProvenance::BuildOverride(declarations)
             | ProviderSelectionProvenance::TargetDefault(declarations) => declarations,
-            ProviderSelectionProvenance::UniqueCoveringCandidate => continue,
+            ProviderSelectionProvenance::UniqueCoveringCandidate
+            | ProviderSelectionProvenance::NativeBuild => continue,
         };
         if declarations.is_empty() {
             diagnostics.push(diagnostics::Diagnostic::error(format!(
@@ -247,7 +250,8 @@ fn authored_selection_declarations(
     match provenance {
         ProviderSelectionProvenance::BuildOverride(declarations)
         | ProviderSelectionProvenance::TargetDefault(declarations) => declarations,
-        ProviderSelectionProvenance::UniqueCoveringCandidate => &[],
+        ProviderSelectionProvenance::UniqueCoveringCandidate
+        | ProviderSelectionProvenance::NativeBuild => &[],
     }
 }
 
@@ -348,22 +352,13 @@ fn resolve_provider_selection_slots<'selection>(
             if slot_keys.contains(&slot_key) {
                 resolved.push((slot_key, declaration.clone()));
             } else {
-                let message = match &declaration.subject {
-                    crate::ProviderSelectionSubject::BoundaryTrait(identity) => format!(
-                        "{owner} selects provider `{}` for unknown boundary slot `{}`; the slot must exist in the loaded dependency closure",
-                        declaration.provider_type.authored_path, identity.authored_path,
-                    ),
-                    crate::ProviderSelectionSubject::BoundaryRequirement(identity) => format!(
-                        "{owner} selects provider `{}` for unknown top-level boundary requirement `{}`; the requirement must exist in the loaded dependency closure",
-                        declaration.provider_type.authored_path, identity.authored_path,
-                    ),
-                    crate::ProviderSelectionSubject::BoundaryOperatorFamily(_) => format!(
-                        "{owner} selects provider `{}` for unknown boundary coordinate `{}` in subject `{}`; every selected coordinate must exist in the loaded dependency closure",
-                        declaration.provider_type.authored_path,
-                        slot_key.1,
-                        declaration.subject.authored_path(),
-                    ),
-                };
+                // These keys are derived candidate plans, not a declaration
+                // inventory. Absence here proves missing supply, never that a
+                // well-formed boundary declaration did not exist.
+                let message = format!(
+                    "{owner} selects provider `{}` for slot `{}`, but no candidate exists in the loaded dependency closure",
+                    declaration.provider_type.authored_path, slot_key.1,
+                );
                 diagnostics.push(diagnostics::Diagnostic::error(message));
             }
         }

@@ -1,7 +1,10 @@
 //! Contract plans, resource envelope coverage, mutation facts and closed
 //! scalar value contract plans.
 
-use crate::facts::crash_plan_facts::{build_crash_contract_capsules, build_published_crash_plan};
+use crate::facts::crash_plan_facts::{
+    build_crash_contract_capsules, build_published_crash_plan, declared_parameter_names,
+    machine_entry_parameter_names,
+};
 use crate::facts::{crash_calls, operator_crashes};
 use validation::contract_structure::{
     callable_binders, declared_callable, declared_contracts, declared_termination, generic_binders,
@@ -125,8 +128,9 @@ pub(crate) fn build_contract_plans(
             operators,
         )
     });
-    let (mut machines, mut publications) =
-        phase_profile::scope("05.d.3.c.5c.2.per_machine_plans", || {
+    let (mut machines, mut publications) = phase_profile::scope(
+        "05.d.3.c.5c.2.per_machine_plans",
+        || {
             use rayon::prelude::*;
             let results: Result<
                 Vec<(checked_trees::MachineContractPlan, ContractPublication<'_>)>,
@@ -203,17 +207,7 @@ pub(crate) fn build_contract_plans(
                         // Positional parameter normalization: a contract fact naming the
                         // machine's Nth parameter encodes as P<N>, so RENAMES never change
                         // the identity (the substitutable contract is positional).
-                        let parameter_names: Vec<String> = program
-                            .machine_states(machine)
-                            .first()
-                            .map(|entry| {
-                                program
-                                    .state_parameters(entry)
-                                    .iter()
-                                    .map(|parameter| parameter.name.as_str().to_owned())
-                                    .collect()
-                            })
-                            .unwrap_or_default();
+                        let parameter_names = machine_entry_parameter_names(program, machine);
                         let crash = build_published_crash_plan(
                             program,
                             machine,
@@ -273,7 +267,8 @@ pub(crate) fn build_contract_plans(
                     .collect()
             });
             results.map(|pairs| pairs.into_iter().unzip::<_, _, Vec<_>, Vec<_>>())
-        })?;
+        },
+    )?;
     let operator_crashes = phase_profile::scope("05.d.3.c.5c.3.operator_crashes", || {
         operator_crashes::build(program, operators, flow, semantic)
     })?;

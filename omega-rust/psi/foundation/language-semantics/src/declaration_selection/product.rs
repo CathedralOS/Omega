@@ -7,7 +7,7 @@
 //! the product join resolves them under that source's authority.
 //! These are in-process source selections, not serialized Terminal identities.
 
-use super::BuildOperation;
+use super::{BuildOperation, ProductTarget};
 
 /// Compiler-issued context for one ordinary Build selection call. Entry slots
 /// and declaration choices share activation custody, while retaining their
@@ -307,6 +307,17 @@ pub struct ExecutedProductSelection {
     /// Provider choices retain the actual evaluated mode. Representation
     /// choices carry no composition argument.
     pub composition: Option<CompositionMode>,
+}
+
+/// One reached package-local native intent. The locator is an owned checked
+/// semantic snapshot, not provider evidence or host execution authority. The
+/// Product join still resolves the exact requirement under this occurrence.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExecutedNativeBinding {
+    pub request: std::sync::Arc<ProductDeclarationRequest>,
+    pub target: super::ProductTarget,
+    pub locator: semantic_vocabulary::NativeBindingLocator,
+    pub selecting_machine: source::SourceSpan,
 }
 
 /// Inert designated operands retained under their authored lexical scope.

@@ -1,0 +1,20 @@
+// A rootless numeric library keeps checked implementations and the core
+// numeric catalogue without inventing a ProgramEntry or granting intrinsics.
+use omega::language::core::float_operations;
+
+public boundary trait NegationSlot {
+    machine negate(value: f32) -> f32 reaches;
+}
+public boundary trait DifferentSlot {
+    machine negate(value: f32) -> f32 reaches;
+}
+
+public UnusedNumericProvider satisfies DifferentSlot {
+    machine negate(value: f32) -> f32 reaches {
+        F32::negate(value)
+    }
+}
+
+public machine is_nan(value: f32) -> bool {
+    F32::is_nan(value)
+}

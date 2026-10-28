@@ -73,11 +73,8 @@ impl TypeReferenceTable {
         replacement: TypeReferenceHandle,
     ) -> usize {
         let parents: Vec<TypeReferenceHandle> = self
-            .type_references
-            .iter()
-            .filter_map(|(handle, _)| {
-                (handle.arena_index() as usize >= type_start).then_some(handle)
-            })
+            .references_from(type_start)
+            .map(|(handle, _)| handle)
             .collect();
         let mut rewritten = 0;
         for parent in parents {

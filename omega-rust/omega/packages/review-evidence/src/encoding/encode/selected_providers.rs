@@ -7,6 +7,7 @@ use crate::record::{
 };
 mod authority;
 mod bindings;
+pub(super) use bindings::binding as encode_binding;
 mod service;
 mod signature;
 pub(super) use service::method as encode_service_method;
@@ -85,6 +86,11 @@ fn row(
     encoder.field("method", |encoder| encoder.string(&row.method))?;
     encoder.field_by("requirement", &row.requirement, encode_nominal)?;
     encoder.option_field("realization", row.realization.as_ref(), encode_nominal)?;
+    encoder.option_field(
+        "native_build",
+        row.native_build.as_ref(),
+        super::values::external_policy::encode_producer,
+    )?;
     encoder.field("requirement_lifetime_partition", |encoder| {
         encoder.sequence(&row.requirement_lifetime_partition, |encoder, ordinal| {
             encoder.u32_field("ordinal", *ordinal)?;

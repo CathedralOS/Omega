@@ -3,6 +3,8 @@
 mod applications;
 mod conformances;
 mod declarations;
+mod numeric_realizations;
+pub use numeric_realizations::{NumericRealization, NumericRealizationOwner};
 mod numeric_intrinsics;
 pub use numeric_intrinsics::validate_numeric_intrinsic_signature;
 mod dynamic_dispatch;

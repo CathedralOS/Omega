@@ -1,6 +1,8 @@
 //! Bounds-checked little-endian reads and writes into a section buffer, so a
 //! relocation offset past the end is a diagnostic rather than a panic.
 
+use std::ops::Range;
+
 use diagnostics::Diagnostic;
 
 pub(crate) fn read_u32(
@@ -8,7 +10,7 @@ pub(crate) fn read_u32(
     offset: usize,
     relocation_name: &str,
 ) -> Result<u32, Diagnostic> {
-    let slice = relocation_slice(bytes, offset, 4, relocation_name)?;
+    let slice = &bytes[relocation_range(bytes.len(), offset, 4, relocation_name)?];
     Ok(u32::from_le_bytes(
         slice.try_into().expect("u32 relocation slice has length 4"),
     ))
@@ -47,41 +49,29 @@ fn write_bytes(
     value: &[u8],
     relocation_name: &str,
 ) -> Result<(), Diagnostic> {
-    let slice = relocation_slice_mut(bytes, offset, value.len(), relocation_name)?;
-    slice.copy_from_slice(value);
+    let range = relocation_range(bytes.len(), offset, value.len(), relocation_name)?;
+    bytes[range].copy_from_slice(value);
     Ok(())
 }
 
-fn relocation_slice<'a>(
-    bytes: &'a [u8],
+/// The one bounds rule for a relocation field: the half-open range a
+/// `width`-byte field at `offset` occupies, or the diagnostic that names the
+/// section it missed.
+fn relocation_range(
+    bytes_len: usize,
     offset: usize,
     width: usize,
     relocation_name: &str,
-) -> Result<&'a [u8], Diagnostic> {
+) -> Result<Range<usize>, Diagnostic> {
     let end = offset.checked_add(width).ok_or_else(|| {
         Diagnostic::error(format!("{relocation_name} relocation offset overflow"))
     })?;
-    bytes.get(offset..end).ok_or_else(|| {
-        Diagnostic::error(format!(
+    if end > bytes_len {
+        return Err(Diagnostic::error(format!(
             "{relocation_name} relocation offset {offset} is outside text section"
-        ))
-    })
-}
-
-fn relocation_slice_mut<'a>(
-    bytes: &'a mut [u8],
-    offset: usize,
-    width: usize,
-    relocation_name: &str,
-) -> Result<&'a mut [u8], Diagnostic> {
-    let end = offset.checked_add(width).ok_or_else(|| {
-        Diagnostic::error(format!("{relocation_name} relocation offset overflow"))
-    })?;
-    bytes.get_mut(offset..end).ok_or_else(|| {
-        Diagnostic::error(format!(
-            "{relocation_name} relocation offset {offset} is outside text section"
-        ))
-    })
+        )));
+    }
+    Ok(offset..end)
 }
 
 #[cfg(test)]

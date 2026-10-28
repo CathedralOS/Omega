@@ -1,0 +1,24 @@
+// Fact: a `&write` store into a record's reference leaf installs the incoming
+// descriptor — the stored target reads the new referent's 85 while the
+// displaced referent's 11 and the sibling stamp's 17 stay untouched.
+// Place: parameter. The write-only slot and incoming descriptor arrive as
+// explicit machine parameters.
+// Expected exit: 0
+data Cell { value: i64; }
+data Held { target: &Cell; stamp: i64; }
+
+machine install(slot: &write Held, incoming: &Cell) {
+    slot.target = incoming;
+}
+machine main() crashes Trap {
+    let left: Cell = Cell { value: 11 };
+    let right: Cell = Cell { value: 85 };
+    let mut held: Held = Held { target: &left, stamp: 17 };
+    install(&write held, &right);
+    transition held.target.value == 85 && held.stamp == 17 && left.value == 11 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

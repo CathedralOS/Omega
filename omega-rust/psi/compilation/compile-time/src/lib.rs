@@ -104,3 +104,6 @@ pub use build_time_evaluation::{
 pub use machine_execution::selected_target_bodies::{
     SelectedBuildTimeTargetBody, prepare_selected_target_family_calls,
 };
+
+// Source formation is shared by native Build and retained foreign producers.
+pub use validation::native_locators;

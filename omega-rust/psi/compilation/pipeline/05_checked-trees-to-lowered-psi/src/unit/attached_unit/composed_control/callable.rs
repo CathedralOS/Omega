@@ -40,8 +40,7 @@ pub(in crate::unit::attached_unit) struct SharedCatalog<'a> {
     /// result republishes the callee's qualified result through it.
     pub prepared_scalar_qualifications:
         &'a crate::expression_preparation::qualifications::PreparedScalarQualifications,
-    pub dynamic_dispatch:
-        &'a std::sync::Arc<crate::unit::dynamic_dispatch::DynamicDispatchIndex>,
+    pub dynamic_dispatch: &'a std::sync::Arc<crate::unit::dynamic_dispatch::DynamicDispatchIndex>,
 }
 
 pub(in crate::unit::attached_unit) struct EmissionCounters<'a> {

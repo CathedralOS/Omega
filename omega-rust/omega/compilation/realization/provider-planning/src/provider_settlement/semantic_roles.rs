@@ -40,16 +40,11 @@ pub(super) fn validate_proposed(
                 selected
                     .row_external_completion_leaves
                     .get(*index)
-                    .is_some_and(|leaves| !leaves.is_empty())
-                    && provenance.row_requirements.get(*index) == Some(&declaration.requirement)
-                    && provenance
-                        .row_realizations
-                        .get(*index)
-                        .is_some_and(|realization| {
-                            realization.machine().is_some_and(|machine| {
-                                typed.symbols.symbol_package_identity(machine) == Some(package)
-                            })
+                    .is_some_and(|realization| {
+                        realization.iter().any(|&machine| {
+                            typed.symbols.symbol_package_identity(machine) == Some(package)
                         })
+                    })
             })
             .count();
         if external_rows > 1 {

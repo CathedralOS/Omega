@@ -1,0 +1,7 @@
+machine build(builder: &mut Build) {
+    Build::package(builder, "rootless_numeric_provider_missing_satisfaction");
+    Build::select_provider<NegationSlot, UnusedNumericProvider>(builder, macos_arm64);
+    Build::select_provider<NegationSlot, UnusedNumericProvider>(builder, linux_arm64);
+    Build::select_provider<NegationSlot, UnusedNumericProvider>(builder, linux_x86_64);
+    Build::select_provider<NegationSlot, UnusedNumericProvider>(builder, windows_x86_64);
+}

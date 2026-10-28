@@ -24,8 +24,12 @@ machine Control::main(control: &mut Control) crashes Trap {
         let fourth: i32 = owned_field_snapshot(&mut control);
         control.count = 9;
         let fifth: i32 = borrowed_field_snapshot(&mut control);
+        control.count = 15;
+        let sixth: i32 = nonlocal_snapshot(&mut control);
+        control.count = 17;
+        let seventh: i32 = nested_observation_snapshot(&mut control);
         control.observed = third;
-        transition first == 5 && second == 6 && third == 7 && fourth == 8 && fifth == 9 && control.count == 14 { true -> {} _ -> bad() }
+        transition first == 5 && second == 6 && third == 7 && fourth == 8 && fifth == 9 && sixth == 15 && seventh == 17 && control.count == 16 { true -> {} _ -> bad() }
     }
     machine bad() { crash Trap; }
 }
@@ -41,6 +45,18 @@ machine field_snapshot(control: &mut Control) -> i32 {
     machine done(reference: &mut Control, value: i32) -> i32 { reference.count = 11; transition { _ -> value } }
 }
 machine count(control: &Control) -> i32 { transition { _ -> control.count } }
+// Lexical nesting is irrelevant to the transfer. The later read completes
+// before invocation and supplies a value, not a retained overlapping loan.
+machine nonlocal_snapshot(control: &mut Control) -> i32 {
+    transition { _ -> receive_snapshot(control, control.count) }
+}
+machine nested_observation_snapshot(control: &mut Control) -> i32 {
+    transition { _ -> receive_snapshot(control, count(control)) }
+}
+machine receive_snapshot(control: &mut Control, value: i32) -> i32 {
+    control.count = 16;
+    transition { _ -> value }
+}
 machine identity(control: &mut Control) -> &mut Control { transition { _ -> control } }
 machine result_snapshot(control: &mut Control) -> i32 {
     let reference: &mut Control = identity(&mut control);

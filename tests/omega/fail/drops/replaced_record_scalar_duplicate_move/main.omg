@@ -1,0 +1,22 @@
+// A constructed affine style moves into its consumer once after local updates.
+// Expected rejection: the second owned transfer uses a consumed record.
+data Mode [copy] { case Fit; case Fixed; }
+data Edges { top: i32; }
+data Style { padding: Edges; width_mode: Mode; width: i32; height_mode: Mode; height: i32; }
+machine edges() -> Edges { Edges { top: 0 } }
+machine make() -> Style { Style { padding: edges(), width_mode: Mode::Fit, width: 1, height_mode: Mode::Fit, height: 1 } }
+machine consume(sink: &mut i32, style: Style) -> i32 { sink = style.height; style.width }
+machine verify() -> bool {
+ let mut sink: i32;
+ let mut style: Style = make();
+ style.width_mode = Mode::Fixed; style.width = 7;
+ style.height_mode = Mode::Fixed; style.height = 10;
+ let result: i32 = consume(&mut sink, style);
+ let repeated: i32 = consume(&mut sink, style);
+ result == 7 && sink == 10
+}
+
+machine main() crashes Trap {
+ transition verify() { true -> done() false -> bad() }
+ machine done() {} machine bad() crashes Trap { crash Trap; }
+}

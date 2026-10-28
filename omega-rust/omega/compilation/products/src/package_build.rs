@@ -42,10 +42,6 @@ impl PreparedPackageBuild {
         let execution = self.prepared.build_sources.build_execution_profile;
         package_compilation::SourceAssemblyInputs::new(Some(inputs), execution)
             == package_compilation::SourceAssemblyInputs::new(Some(&self.inputs), execution)
-            && inputs.semantic_role_discovery() == self.inputs.semantic_role_discovery()
-            && inputs
-                .accepted_semantic_bindings()
-                .eq(self.inputs.accepted_semantic_bindings())
     }
     /// Select a realization context from one completed Build. The source
     /// continuation, executed effects and charges remain shared. Target-local
@@ -83,7 +79,7 @@ impl PreparedPackageBuild {
             && self.prepared.build_sources == other.prepared.build_sources
             // Execution receipts and charges remain on each activation. They
             // cannot partition source work, nor be replaced by a sibling's.
-            && build.config == other_build.config
+            && build.config.same_source_choices(&other_build.config)
             && build.root_binding_requests == other_build.root_binding_requests
             && build.declared_product_selections == other_build.declared_product_selections
             && build.native_binding_requests == other_build.native_binding_requests

@@ -4,6 +4,7 @@
 
 use crate::capture::PackageReviewInput;
 use crate::capture::behavior::project_service_row;
+use crate::capture::refusal;
 use crate::capture::semantics::declarations::nominal_identity;
 use crate::capture::semantics::facts::exactly_one;
 use crate::capture::semantics::signatures::callable_declaration_scope;
@@ -123,6 +124,4 @@ pub(super) fn project(
     })
 }
 
-fn rejected(message: &str) -> Vec<Diagnostic> {
-    vec![Diagnostic::error(message)]
-}
+refusal!(message, "{message}");

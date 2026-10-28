@@ -4,7 +4,9 @@ use std::sync::Arc;
 
 mod evaluation;
 pub(crate) use evaluation::PreparedEvaluationInputs;
-pub(crate) use evaluation::{prepare_evaluation, prepare_owned_probe_evaluation};
+pub(crate) use evaluation::{
+    prepare_call_free_probe_typing, prepare_evaluation, prepare_owned_probe_evaluation,
+};
 
 /// A provisional index supplies a carrier, not membership in the indexed domain.
 /// Remove only affected constant qualifications in this private probe forest.

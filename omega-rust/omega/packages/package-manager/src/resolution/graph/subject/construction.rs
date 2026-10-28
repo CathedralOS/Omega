@@ -10,9 +10,9 @@ use crate::resolution::graph::{ExactTargetPackageSourceClosure, ResolvedSourceId
 use crate::resolution::source::PackageSourceNavigation;
 use target::TargetProfile;
 
-use super::encoding::{encode_subject_with_budget, fingerprint};
+use super::encoding::{encode_subject, fingerprint};
 use super::usage::Budget;
-use super::validation::{canonical_root_request, validate_subject_with_budget};
+use super::validation::{canonical_root_request, validate_subject};
 
 impl CanonicalSourceClosureSubject {
     /// Recheck caller limits over retained typed fields without recovering or
@@ -28,7 +28,7 @@ impl CanonicalSourceClosureSubject {
             ));
         }
         let mut budget = Budget::new(usize::MAX);
-        validate_subject_with_budget(
+        validate_subject(
             &self.root,
             &self.packages,
             &self.package_navigations,
@@ -106,7 +106,7 @@ impl CanonicalSourceClosureSubject {
                 .then(left.purpose.cmp(&right.purpose))
                 .then(left.dependency_index.cmp(&right.dependency_index))
         });
-        Self::finish_with_projections(
+        Self::finish(
             target_closure.target_profile(),
             root,
             packages,
@@ -114,6 +114,7 @@ impl CanonicalSourceClosureSubject {
             package_dependency_projections,
             dependency_requests,
             limits,
+            &mut Budget::new(usize::MAX),
         )
     }
 
@@ -128,28 +129,7 @@ impl CanonicalSourceClosureSubject {
         Ok(self == &Self::from_resolved(target_closure, limits)?)
     }
 
-    pub(super) fn finish_with_projections(
-        target_profile: TargetProfile,
-        root: CanonicalRootSourceSelection,
-        packages: Vec<ResolvedSourceIdentity>,
-        package_navigations: Vec<PackageSourceNavigation>,
-        package_dependency_projections: Vec<DependencyProjections>,
-        dependency_requests: Vec<CanonicalDependencySourceSelection>,
-        limits: CanonicalSourceClosureSubjectLimits,
-    ) -> Result<Self, CanonicalSourceClosureSubjectError> {
-        Self::finish_with_budget(
-            target_profile,
-            root,
-            packages,
-            package_navigations,
-            package_dependency_projections,
-            dependency_requests,
-            limits,
-            &mut Budget::new(usize::MAX),
-        )
-    }
-
-    pub(super) fn finish_with_budget(
+    pub(super) fn finish(
         target_profile: TargetProfile,
         root: CanonicalRootSourceSelection,
         packages: Vec<ResolvedSourceIdentity>,
@@ -160,7 +140,7 @@ impl CanonicalSourceClosureSubject {
         budget: &mut Budget,
     ) -> Result<Self, CanonicalSourceClosureSubjectError> {
         let limits = limits.compiler_bounded();
-        validate_subject_with_budget(
+        validate_subject(
             &root,
             &packages,
             &package_navigations,
@@ -169,7 +149,7 @@ impl CanonicalSourceClosureSubject {
             limits,
             budget,
         )?;
-        let canonical_bytes = encode_subject_with_budget(
+        let canonical_bytes = encode_subject(
             target_profile,
             &root,
             &packages,
@@ -180,11 +160,6 @@ impl CanonicalSourceClosureSubject {
             limits,
             budget,
         )?;
-        if canonical_bytes.len() > limits.maximum_record_bytes {
-            return Err(CanonicalSourceClosureSubjectError::new(
-                "source-closure subject exceeds its record-byte limit",
-            ));
-        }
         let fingerprint = fingerprint(&canonical_bytes);
         Ok(Self {
             target_profile,
@@ -209,7 +184,7 @@ impl CanonicalSourceClosureSubject {
         if dependencies.is_empty() {
             return Ok(self);
         }
-        let bytes = encode_subject_with_budget(
+        let bytes = encode_subject(
             self.target_profile,
             &self.root,
             &self.packages,
@@ -220,11 +195,6 @@ impl CanonicalSourceClosureSubject {
             limits,
             budget,
         )?;
-        if bytes.len() > limits.maximum_record_bytes {
-            return Err(CanonicalSourceClosureSubjectError::new(
-                "source-closure subject exceeds its record-byte limit",
-            ));
-        }
         self.fingerprint = fingerprint(&bytes);
         self.canonical_bytes = bytes;
         self.catalog_dependencies = dependencies;

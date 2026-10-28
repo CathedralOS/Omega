@@ -237,6 +237,23 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
     }
     declaration_foundations::validate_domains(module)?;
     declaration_foundations::validate_services(module)?;
+    if !strictly_increasing(module.numeric_realizations.iter()) {
+        return malformed("external provider conformances must be canonical and unique");
+    }
+    for candidate in &module.numeric_realizations {
+        candidate
+            .validate(&module.identities)
+            .map_err(CodecError::MalformedStructuralFoundation)?;
+        for boundary in module
+            .boundary_machines
+            .iter()
+            .filter(|boundary| boundary.identity == candidate.requirement_identity)
+        {
+            if boundary.numeric_intrinsic != Some(candidate.numeric_intrinsic) {
+                return malformed("external provider disagrees with boundary numeric meaning");
+            }
+        }
+    }
     for boundary in &module.boundary_machines {
         declaration_foundations::validate_boundary_machine(module, boundary)?;
     }

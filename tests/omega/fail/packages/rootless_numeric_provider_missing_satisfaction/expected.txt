@@ -1,0 +1,3 @@
+build selects provider `UnusedNumericProvider` for slot
+NegationSlot
+no candidate exists in the loaded dependency closure

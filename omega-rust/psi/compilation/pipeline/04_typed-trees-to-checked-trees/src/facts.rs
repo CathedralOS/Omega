@@ -47,7 +47,7 @@ pub(crate) use crash_calls::{
 };
 pub(crate) use crash_plan_facts::{
     canonical_crash_binary_path_predicate, canonical_crash_contract_predicate,
-    canonical_crash_operand_identity, canonical_crash_path_predicate,
+    canonical_crash_operand_identity, canonical_crash_path_predicate, declared_parameter_names,
     derive_authored_machine_crash_buckets, derive_authored_operator_crash_buckets,
     derive_authored_signature_crash_buckets, machine_entry_parameter_names,
 };
@@ -288,16 +288,13 @@ pub(crate) fn build_check_facts(
         ) {
             continue;
         }
-        if !phase_profile::scope(
-            "05.d.3.b.flow_fixed_point.infer_entry_requirements",
-            || {
-                contextual_cleanup::infer_entry_requirements(
-                    program,
-                    &mut prepared,
-                    call_frames.as_ref(),
-                )
-            },
-        )? {
+        if !phase_profile::scope("05.d.3.b.flow_fixed_point.infer_entry_requirements", || {
+            contextual_cleanup::infer_entry_requirements(
+                program,
+                &mut prepared,
+                call_frames.as_ref(),
+            )
+        })? {
             break;
         }
     }

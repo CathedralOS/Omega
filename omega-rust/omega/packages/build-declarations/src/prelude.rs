@@ -22,7 +22,7 @@ public data Subsystem {
     case Unspecified(value: u16);
 }
 // Compiler-owned composition choice for one exact provider selection. The
-// omitted `select_provider` argument means Fused; Independent is never
+// omitted `select_provider` composition argument means Fused; Independent is never
 // inferred from provider source.
 public data CompositionMode [copy] {
     case Fused;

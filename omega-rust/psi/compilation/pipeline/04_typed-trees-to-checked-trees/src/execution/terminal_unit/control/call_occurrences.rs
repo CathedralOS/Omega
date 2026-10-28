@@ -66,6 +66,7 @@ impl CallOccurrenceLedger {
 /// Return the authored identity to join captured occurrences; the call builder
 /// separately resolves the callee's executable entry and signature.
 mod collecting;
+mod structural_values;
 mod traced;
 
 pub(in crate::execution::terminal_unit) use collecting::call_owns_statement_computations;

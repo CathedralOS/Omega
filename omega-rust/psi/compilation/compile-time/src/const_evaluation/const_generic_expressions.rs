@@ -133,11 +133,19 @@ pub(crate) fn evaluate(
             Some((*argument, *expression, *destination, *public))
         })
         .collect::<Vec<_>>();
-    let need_lexical = pending
-        .iter()
-        .any(|(argument, _, _, _)| lexical_arguments.contains(argument));
+    let need_aggregate_resolution = aggregate_arguments.iter().any(|(argument, _)| {
+        matches!(
+            syntax.type_references.type_reference(*argument),
+            TypeReferenceNode::ConstExpression(expression)
+                if lexical_selection::needs_resolution(&syntax, *expression)
+        )
+    });
+    let need_lexical_resolution = pending.iter().any(|(argument, expression, _, _)| {
+        lexical_arguments.contains(argument)
+            && lexical_selection::needs_resolution(&syntax, *expression)
+    });
     let mut lexical_origins = Vec::new();
-    if !aggregate_arguments.is_empty() || need_lexical {
+    if need_aggregate_resolution || need_lexical_resolution {
         // Resolve the original machine owners before placeholder synthesis.
         // Their runtime bodies are neither typed as probes nor executed here.
         let resolved = syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_const_argument_selection(
@@ -146,6 +154,7 @@ pub(crate) fn evaluate(
         for (argument, original) in aggregate_arguments {
             if let TypeReferenceNode::ConstExpression(expression) =
                 syntax.type_references.type_reference(argument)
+                && lexical_selection::needs_resolution(&syntax, *expression)
             {
                 lexical_selection::retain(&syntax, &resolved, *expression).map_err(|reason| {
                     vec![
@@ -158,18 +167,32 @@ pub(crate) fn evaluate(
                 .type_references
                 .replace_type_reference(argument, original);
         }
-        if need_lexical {
-            for (argument, expression, _, _) in &pending {
-                if lexical_arguments.contains(argument) {
-                    let origins = lexical_selection::retain(&syntax, &resolved, *expression)
-                        .map_err(|reason| {
+        for (argument, expression, _, _) in &pending {
+            if lexical_arguments.contains(argument) {
+                let origins = if lexical_selection::needs_resolution(&syntax, *expression) {
+                    lexical_selection::retain(&syntax, &resolved, *expression).map_err(
+                        |reason| {
                             vec![
                                 Diagnostic::error(format!("const argument expression: {reason}"))
                                     .with_source_span(syntax.expressions.source_span(*expression)),
                             ]
-                        })?;
-                    lexical_origins.push((*argument, origins));
-                }
+                        },
+                    )?
+                } else {
+                    Vec::new()
+                };
+                lexical_origins.push((*argument, origins));
+            }
+        }
+    } else {
+        for (argument, original) in aggregate_arguments {
+            syntax
+                .type_references
+                .replace_type_reference(argument, original);
+        }
+        for (argument, _, _, _) in &pending {
+            if lexical_arguments.contains(argument) {
+                lexical_origins.push((*argument, Vec::new()));
             }
         }
     }
@@ -222,13 +245,11 @@ pub(crate) fn evaluate(
         .iter()
         .map(|owner| owner.resolve(frontier.trees()))
         .collect::<Result<Vec<_>, _>>()?;
-    let prepared = crate::syntax_probes::prepare_owned_probe_evaluation(
+    let typed = crate::syntax_probes::prepare_call_free_probe_typing(
         frontier,
         &owner_symbols,
-        &[],
         context.predecessor.clone(),
     )?;
-    let typed = prepared.typed;
 
     for ((argument, original, _, public), owner) in pending.into_iter().zip(owner_symbols) {
         let reference = syntax.expressions.source_span(original);

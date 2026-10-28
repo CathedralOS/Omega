@@ -82,7 +82,7 @@ pub(crate) fn request(
         }
     {
         return Err(Diagnostic::error(format!(
-            "{} requires {} and its explicit mutable Build argument",
+            "{} requires {} and {}",
             operation.authored_spelling(),
             match operation {
                 BuildOperation::NativeBinding
@@ -92,6 +92,13 @@ pub(crate) fn request(
                 BuildOperation::WireCompatibilityRequest =>
                     "four schema declaration operands and compatibility facts",
                 _ => "two bare declaration operands",
+            },
+            if operation == BuildOperation::NativeBinding {
+                "its explicit mutable Build, catalog target and owned native locator arguments"
+            } else if operation == BuildOperation::ProviderSelection {
+                "its explicit mutable Build and catalog target arguments (plus an optional composition mode)"
+            } else {
+                "its explicit mutable Build argument"
             },
         ))
         .with_source_span(span));

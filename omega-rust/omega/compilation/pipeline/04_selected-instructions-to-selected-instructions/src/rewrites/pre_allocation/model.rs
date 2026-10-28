@@ -627,5 +627,3 @@ failed_display!(
     OptimizedPreAllocationCustodyError,
     "optimized pre-allocation staging failed"
 );
-
-impl std::error::Error for OptimizedPreAllocationCustodyError {}

@@ -12,6 +12,7 @@
 pub(crate) mod boundary_predicates;
 pub(crate) mod byte_buffers;
 pub(crate) mod crash_outcome;
+pub(crate) mod normal_qualifications;
 pub(crate) mod original_storage;
 pub(crate) mod results;
 pub(crate) mod scalar_loans;

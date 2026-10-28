@@ -91,39 +91,22 @@ impl RedundantExtensionReceipt {
     /// The rewritten extension instruction's source-side identity.
         extension: SelectedInstructionId,
     });
-    /// The durable transformation identity the post-allocation manifest
-    /// ledger records: the receipt's exact fields under the
-    /// redundant-extension domain separator.
-    pub fn identity(&self) -> RedundantExtensionIdentity {
-        redundant_extension_identity(self)
-    }
 }
 
 receipt_selected_identities!(RedundantExtensionReceipt);
 
-/// Canonical identity of one validated redundant-extension removal: every
-/// receipt field — the coordinate, both plan identities, and the proof
-/// inputs — is part of the durable record, so two removals of the same
-/// instruction under different sources stay distinct transformations.
-pub(crate) fn redundant_extension_identity(
-    receipt: &RedundantExtensionReceipt,
-) -> RedundantExtensionIdentity {
-    RedundantExtensionIdentity::from_canonical_bytes(&crate::rewrites::rewrite_bytes(
-        b"omega.terminal-redundant-extension-removal.v1\0",
-        &receipt.source_selected.bytes(),
-        &receipt.transformed_selected.bytes(),
-        &receipt.optimization_unit.bytes(),
-        |bytes| {
-            crate::codec_bytes::push_encoded(bytes, receipt.fuel_schedule.marker().to_le_bytes());
-            bytes.extend_from_slice(
-                &u64::try_from(receipt.function_index)
-                    .expect("redundant-extension function index fits u64")
-                    .to_le_bytes(),
-            );
-            crate::codec_bytes::push_encoded(bytes, receipt.extension.0.to_le_bytes());
-        },
-    ))
-}
+// Canonical identity of one validated redundant-extension removal: every
+// receipt field — the coordinate, both plan identities, and the proof
+// inputs — is part of the durable record, so two removals of the same
+// instruction under different sources stay distinct transformations.
+rewrite_receipt_identity!(
+    redundant_extension_identity,
+    RedundantExtensionIdentity,
+    RedundantExtensionReceipt,
+    b"omega.terminal-redundant-extension-removal.v1\0",
+    "redundant-extension",
+    extension,
+);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RedundantExtensionError {
@@ -137,10 +120,7 @@ pub enum RedundantExtensionError {
     ReplayMismatch,
 }
 
-impl std::fmt::Display for RedundantExtensionError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "invalid redundant-extension removal: {self:?}")
-    }
-}
-
-impl std::error::Error for RedundantExtensionError {}
+failed_display!(
+    RedundantExtensionError,
+    "invalid redundant-extension removal"
+);

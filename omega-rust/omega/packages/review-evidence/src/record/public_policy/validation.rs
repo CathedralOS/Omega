@@ -29,13 +29,7 @@ impl PackagePolicyPublicApi {
         roots(&self.propositions, package, |value| &value.identity)?;
         roots(&self.consts, package, |value| &value.identity)?;
         roots(&self.data, package, |value| &value.identity)?;
-        if self
-            .operators
-            .windows(2)
-            .any(|pair| pair[0].coordinate >= pair[1].coordinate)
-        {
-            return Err("public operators repeat or change canonical coordinate order");
-        }
+        ordered_by(&self.operators, |a, b| a.coordinate.cmp(&b.coordinate))?;
         for value in &self.operators {
             root(&value.coordinate.identity, package)?;
             shared::operator(&value.coordinate)?;
@@ -69,12 +63,7 @@ fn roots<T>(
     package: PackageKeyIdentity,
     identity: impl Fn(&T) -> &PackageReviewNominalIdentity,
 ) -> Result {
-    if values
-        .windows(2)
-        .any(|pair| identity(&pair[0]) >= identity(&pair[1]))
-    {
-        return Err("public declarations repeat or change canonical identity order");
-    }
+    ordered_by(values, |a, b| identity(a).cmp(identity(b)))?;
     for value in values {
         root(identity(value), package)?;
     }
@@ -92,12 +81,24 @@ fn root(identity: &PackageReviewNominalIdentity, package: PackageKeyIdentity) ->
 /// The shared strict canonical-order predicate: every policy family that
 /// keeps a sorted set consumes this one statement of the rule instead of
 /// restating it, and the recovery readers agree with the policy writer on it.
-pub(in crate::record) fn ordered<T: Ord>(values: &[T]) -> Result {
-    if values.windows(2).any(|pair| pair[0] >= pair[1]) {
+/// A set whose canonical key is a projection of the row supplies that key's
+/// comparison instead of deriving a sortable shadow type.
+pub(in crate::record) fn ordered_by<T>(
+    values: &[T],
+    compare: impl Fn(&T, &T) -> std::cmp::Ordering,
+) -> Result {
+    if values
+        .windows(2)
+        .any(|pair| compare(&pair[0], &pair[1]).is_ge())
+    {
         Err("policy set repeats or changes canonical order")
     } else {
         Ok(())
     }
+}
+
+pub(in crate::record) fn ordered<T: Ord>(values: &[T]) -> Result {
+    ordered_by(values, T::cmp)
 }
 
 pub(in crate::record) fn scope(

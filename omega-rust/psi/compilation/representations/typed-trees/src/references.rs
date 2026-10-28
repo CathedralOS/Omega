@@ -196,6 +196,8 @@ struct ReferenceCollector {
     descriptor_symbols: HashSet<SymbolHandle>,
     classify_static_arguments: Option<StaticArgumentClassifier>,
     expressions: HashSet<ExpressionHandle>,
+    track_new_expressions: bool,
+    new_expressions: HashSet<ExpressionHandle>,
     types: HashSet<TypeReferenceHandle>,
     facts: HashSet<arena::Handle<ProofFact>>,
     mathematical_types: HashSet<crate::mathematical::MathematicalTypeHandle>,
@@ -244,7 +246,11 @@ impl TypedReferences for ReferenceCollector {
         true
     }
     fn expression(&mut self, handle: ExpressionHandle) -> bool {
-        self.expressions.insert(handle)
+        let inserted = self.expressions.insert(handle);
+        if inserted && self.track_new_expressions {
+            self.new_expressions.insert(handle);
+        }
+        inserted
     }
     fn type_reference(&mut self, handle: TypeReferenceHandle) -> bool {
         self.types.insert(handle)
@@ -718,6 +724,141 @@ pub fn visit_program(program: &TypedTrees, roots: &mut impl TypedReferences) {
             let sidecars = sidecars.get_or_insert_with(|| MachineSidecarIndex::build(program));
             visit_machine_with_sidecars(program, roots, machine, Some(sidecars));
         }
+    }
+}
+
+pub fn collect_expression_source_owners(
+    program: &TypedTrees,
+    expression_sources: &[source::SourceSpan],
+) -> DeclarationSelection {
+    if expression_sources.is_empty() {
+        return DeclarationSelection::from_symbols([]);
+    }
+    struct OwnerVisitor<'a> {
+        program: &'a TypedTrees,
+        sources: &'a [source::SourceSpan],
+        current: SymbolHandle,
+        matched: bool,
+        owners: DeclarationSelection,
+        expressions: HashSet<ExpressionHandle>,
+        types: HashSet<TypeReferenceHandle>,
+        facts: HashSet<arena::Handle<ProofFact>>,
+        mathematical_types: HashSet<crate::mathematical::MathematicalTypeHandle>,
+    }
+    impl Extend<SymbolHandle> for OwnerVisitor<'_> {
+        fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, _: T) {}
+    }
+    impl TypedReferences for OwnerVisitor<'_> {
+        fn declaration(&mut self, symbol: SymbolHandle) -> bool {
+            if self.owners.contains(symbol) {
+                self.matched = true;
+                return false;
+            }
+            if self.current != symbol {
+                self.current = symbol;
+                self.expressions.clear();
+                self.types.clear();
+                self.facts.clear();
+                self.mathematical_types.clear();
+            }
+            self.matched = false;
+            true
+        }
+        fn expression(&mut self, handle: ExpressionHandle) -> bool {
+            if self.matched || !self.expressions.insert(handle) {
+                return false;
+            }
+            if self
+                .sources
+                .contains(&self.program.expression_table.source_span(handle))
+            {
+                self.owners.include(self.current);
+                self.matched = true;
+                return false;
+            }
+            true
+        }
+        fn type_reference(&mut self, handle: TypeReferenceHandle) -> bool {
+            !self.matched && self.types.insert(handle)
+        }
+        fn proof_fact(&mut self, handle: arena::Handle<ProofFact>) -> bool {
+            !self.matched && self.facts.insert(handle)
+        }
+        fn mathematical_type(
+            &mut self,
+            handle: crate::mathematical::MathematicalTypeHandle,
+        ) -> bool {
+            !self.matched && self.mathematical_types.insert(handle)
+        }
+    }
+    let mut visitor = OwnerVisitor {
+        program,
+        sources: expression_sources,
+        current: SymbolHandle::invalid(),
+        matched: false,
+        owners: DeclarationSelection::from_symbols([]),
+        expressions: HashSet::default(),
+        types: HashSet::default(),
+        facts: HashSet::default(),
+        mathematical_types: HashSet::default(),
+    };
+    visit_program(program, &mut visitor);
+    visitor.owners
+}
+
+pub struct ReferenceClosure {
+    sidecars: Option<MachineSidecarIndex>,
+    visited_declarations: DeclarationSelection,
+    collector: ReferenceCollector,
+}
+
+impl Default for ReferenceClosure {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ReferenceClosure {
+    pub fn new() -> Self {
+        Self {
+            sidecars: None,
+            visited_declarations: DeclarationSelection::from_symbols([]),
+            collector: ReferenceCollector {
+                track_new_expressions: true,
+                ..ReferenceCollector::default()
+            },
+        }
+    }
+
+    pub fn extend(
+        &mut self,
+        program: &TypedTrees,
+        selection: &DeclarationSelection,
+    ) -> (
+        std::collections::HashSet<SymbolHandle, symbols::BuildSymbolHasher>,
+        std::collections::HashSet<ExpressionHandle, symbols::BuildSymbolHasher>,
+    ) {
+        let delta = selection.excluding(&self.visited_declarations);
+        if delta.symbols.is_empty() && !delta.excluded {
+            return (HashSet::default(), HashSet::default());
+        }
+        for &symbol in &delta.symbols {
+            self.visited_declarations.include(symbol);
+        }
+        self.collector.selection = delta;
+        visit_declarations(program, &mut self.collector);
+        for machine in program.machines() {
+            if self.collector.declaration(machine.symbol) {
+                let sidecars = self
+                    .sidecars
+                    .get_or_insert_with(|| MachineSidecarIndex::build(program));
+                visit_machine_with_sidecars(program, &mut self.collector, machine, Some(sidecars));
+            }
+        }
+        (
+            std::mem::take(&mut self.collector.symbols),
+            std::mem::take(&mut self.collector.new_expressions),
+        )
     }
 }
 

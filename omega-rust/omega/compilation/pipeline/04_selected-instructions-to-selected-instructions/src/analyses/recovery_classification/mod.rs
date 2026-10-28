@@ -117,5 +117,3 @@ failed_display!(
     RecoveryClassificationError,
     "Terminal recovery classification failed"
 );
-
-impl std::error::Error for RecoveryClassificationError {}

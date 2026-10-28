@@ -4,13 +4,12 @@
 
 use checked_trees::typed_trees::TypedTrees;
 use effects::provider_plan::{
-    EvaluatedBindingEvaluationDigest, EvaluatedBindingMaterializationDigest,
-    EvaluatedBindingProducerClosureDigest, EvaluatedBindingReceipt, EvaluatedBindingUsage,
-    EvaluatedForeignImport, EvaluatedForeignSyscall, ProviderBinding,
+    EvaluatedBindingReceipt, EvaluatedForeignImport, EvaluatedForeignSyscall, ProviderBinding,
 };
 use language_semantics::declaration_selection::{ExecutedNativeBinding, NativeBindingValue};
 use symbols::SymbolHandle;
 
+mod receipt;
 mod retention;
 pub use retention::{
     capture_package_native_bindings, rejoin_package_native_bindings,
@@ -53,6 +52,7 @@ pub struct NativeSameStackDemand {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AdmittedNativeBinding {
+    receipt_source: Option<std::sync::Arc<receipt::ReceiptSource>>,
     pub closed_requirement: Option<SymbolHandle>,
     pub trait_scope: Option<checked_trees::typed_trees::trait_definition::RetainedTraitScope>,
     pub same_stack_demand: Option<NativeSameStackDemand>,
@@ -73,6 +73,78 @@ pub struct AdmittedNativeBinding {
 }
 
 impl AdmittedNativeBinding {
+    /// Compare checked native choices independently of invocation accounting.
+    /// The closure digest covers exact source, static actuals and producer;
+    /// evaluated/materialization digests retain the separate activation.
+    pub fn same_source_choice(&self, other: &Self) -> bool {
+        self.closed_requirement == other.closed_requirement
+            && self.trait_scope == other.trait_scope
+            && self.same_stack_demand == other.same_stack_demand
+            && self.raw_locator == other.raw_locator
+            && self.widths == other.widths
+            && self.requirement == other.requirement
+            && self.selecting_machine == other.selecting_machine
+            && self.source_span == other.source_span
+            && self.event_ordinal == other.event_ordinal
+            && self.target == other.target
+            && self.receipt().producer_package() == other.receipt().producer_package()
+            && self.receipt().producer_closure_digest() == other.receipt().producer_closure_digest()
+            && self.receipt().locator_identity_digest() == other.receipt().locator_identity_digest()
+    }
+
+    /// Materialize only this activation's own choices. Imported package rows
+    /// retain their original producer's observation and accounting.
+    pub fn with_execution_observation(
+        &self,
+        observation: Option<&package_compilation::BuildObservationSummary>,
+        usage: Option<package_compilation::BuildEvaluationUsage>,
+    ) -> Result<Self, String> {
+        let Some(source) = &self.receipt_source else {
+            return Ok(self.clone());
+        };
+        let observation = observation
+            .ok_or("source cohort native choice lost its current activation observation")?;
+        let usage =
+            usage.ok_or("source cohort native choice lost its current activation accounting")?;
+        let mut row = self.clone();
+        let mut identities = self.identities.clone().into_builder();
+        let receipt = source.materialize(observation, usage, &mut identities)?;
+        row.locator = match &self.locator {
+            AdmittedNativeLocator::Unavailable { reason, .. } => {
+                AdmittedNativeLocator::Unavailable {
+                    reason: reason.clone(),
+                    receipt,
+                }
+            }
+            AdmittedNativeLocator::Import(value) => AdmittedNativeLocator::Import(
+                EvaluatedForeignImport::from_retained_evidence(value.locator().clone(), receipt)?,
+            ),
+            AdmittedNativeLocator::Syscall(value) => {
+                AdmittedNativeLocator::Syscall(EvaluatedForeignSyscall::from_retained_evidence(
+                    self.target,
+                    u64::try_from(value.number())
+                        .map_err(|_| "admitted native syscall became negative")?,
+                    receipt,
+                )?)
+            }
+            AdmittedNativeLocator::Table {
+                identity,
+                table_name,
+                field_name,
+                drops_receiver,
+                ..
+            } => AdmittedNativeLocator::Table {
+                identity: *identity,
+                table_name: table_name.clone(),
+                field_name: field_name.clone(),
+                drops_receiver: *drops_receiver,
+                receipt,
+            },
+        };
+        row.identities = identities.build();
+        Ok(row)
+    }
+
     pub fn binding(&self) -> Option<ProviderBinding> {
         Some(match &self.locator {
             AdmittedNativeLocator::Unavailable { .. } => return None,
@@ -171,9 +243,8 @@ pub fn admit_native_binding(
         .strip_prefix(&source.package_root)
         .map_err(|_| "native binding source is outside its immutable package")?;
     let mut hash = crate::digest_encoder::DomainDigestEncoder::new(
-        b"omega.build-native-binding.invocation.sha256.v3\0",
+        b"omega.build-native-binding.source.sha256.v4\0",
     );
-    hash.raw(observation.identity().as_bytes());
     hash.bytes(producer.as_bytes());
     hash.bytes(requirement_identity.as_bytes());
     match &event.static_environment {
@@ -203,14 +274,6 @@ pub fn admit_native_binding(
     } else {
         hash.byte(0);
     }
-    // Commit the complete engine-tagged accounting record, including sponsor
-    // ceilings, rather than relabeling Terminal measurements as tree steps.
-    let mut measured = Vec::new();
-    package_compilation::build_execution::build_record_codec::encode_build_evaluation_usage(
-        &usage,
-        &mut measured,
-    );
-    hash.bytes(&measured);
     let table = if matches!(
         event.locator,
         NativeBindingValue::TableFunction | NativeBindingValue::VtableField
@@ -285,7 +348,7 @@ pub fn admit_native_binding(
         hash.byte(0);
     }
     hash_native_value(&mut hash, &event.locator);
-    let invocation = hash.finish();
+    let source_digest = hash.finish();
     let candidate = match &event.locator {
         NativeBindingValue::PeByName { library, export } => {
             Some(ForeignLocatorCandidate::PeByName {
@@ -356,38 +419,15 @@ pub fn admit_native_binding(
         (_, Some(number)) => {
             effects::provider_plan::evaluated_syscall_identity_digest(target, number)
         }
-        _ => target::ForeignLocatorIdentityDigest::from_digest(invocation),
+        _ => target::ForeignLocatorIdentityDigest::from_digest(source_digest),
     };
-    let mut materialization = crate::digest_encoder::DomainDigestEncoder::new(
-        b"omega.build-native-binding.materialization.sha256.v3\0",
-    );
-    materialization.raw(&invocation);
-    materialization.raw(&locator_identity.as_bytes());
-    let materialization = materialization.finish();
-    let retained_usage = EvaluatedBindingUsage::from_evaluator(
-        usage.usage_schema_version,
-        usage.step_schedule_marker,
-        usage.fuel_units,
-        usage.invocation_fuel_ceiling,
-        usage.build_log_bytes,
-        usage.filesystem_operation_attempts,
-        usage.peak_live_storage_cells,
-        usage.peak_live_payload_bytes,
-        usage.result_storage_cells,
-        usage.result_payload_bytes,
-    )?;
-    let receipt = EvaluatedBindingReceipt::from_evaluation(
+    let receipt_source = std::sync::Arc::new(receipt::ReceiptSource::new(
         typed.symbols.symbol_package_identity(selecting_machine),
-        &producer,
-        identities,
-        EvaluatedBindingProducerClosureDigest::from_bytes(invocation)?,
-        2, // Schema 2: the authenticated, engine-tagged sponsoring Build context.
-        retained_usage,
-        EvaluatedBindingEvaluationDigest::from_bytes(invocation)?,
-        3,
-        EvaluatedBindingMaterializationDigest::from_bytes(materialization)?,
+        producer,
+        source_digest,
         locator_identity,
-    )?;
+    ));
+    let receipt = receipt_source.materialize(observation, usage, identities)?;
     let locator = if let Some(reason) = unavailable {
         AdmittedNativeLocator::Unavailable { reason, receipt }
     } else {
@@ -416,6 +456,7 @@ pub fn admit_native_binding(
         }
     };
     Ok(AdmittedNativeBinding {
+        receipt_source: Some(receipt_source),
         trait_scope: None,
         closed_requirement: None,
         same_stack_demand,

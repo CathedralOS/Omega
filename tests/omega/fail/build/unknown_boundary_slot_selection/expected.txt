@@ -1,1 +1,3 @@
-build selects provider `LatchProvider` for unknown boundary slot `Gate`
+build selects provider `LatchProvider` for slot
+Gate
+no candidate exists in the loaded dependency closure

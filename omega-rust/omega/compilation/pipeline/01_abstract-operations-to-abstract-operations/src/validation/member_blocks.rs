@@ -5,7 +5,8 @@
 
 use super::invariant_operations::admissible_invariant_scalar_computation;
 use optimization_unit::{
-    OptimizationNode, OptimizerCycleComponent, PsiOptimizationFunction, ValueDefinitionSite,
+    OptimizationEdge, OptimizationNode, OptimizerCycleComponent, PsiOptimizationFunction,
+    ValueDefinitionSite,
 };
 use semantic_vocabulary::{BlockId, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -142,6 +143,95 @@ pub(crate) fn guaranteed_executed_member_blocks(
         .collect()
 }
 
+/// One member parameter's resolution during the fixed point. `Unresolved` may
+/// promote once its deferred dependencies resolve; `Representative` can still
+/// degrade to `LoopCarried` when a deferred dependency resolves to a
+/// conflicting or carried value, and `LoopCarried` is final.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum MemberParameterResolution<K> {
+    Unresolved,
+    Representative(K),
+    LoopCarried,
+}
+
+/// The fixed point every member-parameter resolution runs: walk the edges
+/// reaching each member block, let `contribution` classify one edge's binding
+/// for one parameter against the resolutions so far, and keep the parameter
+/// only when every reaching edge agrees on one representative and none is
+/// carried. Iteration continues until no parameter changes state, so a
+/// parameter carried across a member-to-member edge resolves to the value its
+/// chain anchors on; pure self-carried cycles stay unresolved.
+///
+/// The scalar operand resolution and its place analog differ only in what a
+/// binding is (a value or a structural root) and how one binding classifies
+/// against the member roster, so those two decisions are the caller's and the
+/// convergence is stated once here.
+pub(crate) fn resolve_member_parameters<K: Copy + Ord>(
+    function: &PsiOptimizationFunction,
+    parameters: &[(K, BlockId)],
+    contribution: impl Fn(
+        &OptimizationEdge,
+        K,
+        &BTreeMap<K, MemberParameterResolution<K>>,
+    ) -> MemberParameterResolution<K>,
+) -> BTreeMap<K, K> {
+    let mut resolutions = parameters
+        .iter()
+        .map(|(parameter, _)| (*parameter, MemberParameterResolution::Unresolved))
+        .collect::<BTreeMap<_, _>>();
+    loop {
+        let mut progressed = false;
+        for (parameter, block) in parameters {
+            if resolutions[parameter] == MemberParameterResolution::LoopCarried {
+                continue;
+            }
+            let mut anchor = None;
+            let mut loop_carried = false;
+            for edge in function.block_edges().filter(|edge| edge.target == *block) {
+                match contribution(edge, *parameter, &resolutions) {
+                    MemberParameterResolution::Unresolved => {}
+                    MemberParameterResolution::Representative(value) => match anchor {
+                        None => anchor = Some(value),
+                        Some(anchor) if anchor == value => {}
+                        Some(_) => {
+                            loop_carried = true;
+                            break;
+                        }
+                    },
+                    MemberParameterResolution::LoopCarried => {
+                        loop_carried = true;
+                        break;
+                    }
+                }
+            }
+            let next = if loop_carried {
+                MemberParameterResolution::LoopCarried
+            } else {
+                match anchor {
+                    Some(value) => MemberParameterResolution::Representative(value),
+                    None => MemberParameterResolution::Unresolved,
+                }
+            };
+            if resolutions[parameter] != next {
+                resolutions.insert(*parameter, next);
+                progressed = true;
+            }
+        }
+        if !progressed {
+            break;
+        }
+    }
+    resolutions
+        .into_iter()
+        .filter_map(|(parameter, resolution)| match resolution {
+            MemberParameterResolution::Representative(representative) => {
+                Some((parameter, representative))
+            }
+            MemberParameterResolution::Unresolved | MemberParameterResolution::LoopCarried => None,
+        })
+        .collect()
+}
+
 /// Parameters of `component`'s member blocks whose value is provably the same
 /// on every iteration. A member parameter qualifies when every edge reaching
 /// its block binds it to itself, to a member parameter that resolves to the
@@ -160,17 +250,6 @@ pub(crate) fn invariant_member_parameters(
     function: &PsiOptimizationFunction,
     component: &OptimizerCycleComponent,
 ) -> BTreeMap<ValueId, ValueId> {
-    /// Resolution states during the fixed point. `Unresolved` may promote once
-    /// its deferred dependencies resolve; `Representative` can still degrade
-    /// to `LoopCarried` when a deferred dependency resolves to a conflicting
-    /// or carried value, and `LoopCarried` is final.
-    #[derive(Clone, Copy, PartialEq, Eq)]
-    enum Resolution {
-        Unresolved,
-        Representative(ValueId),
-        LoopCarried,
-    }
-
     let members: BTreeSet<BlockId> = component.members.iter().copied().collect();
     let sites = value_definition_sites(function);
     let mut parameters = Vec::new();
@@ -184,90 +263,38 @@ pub(crate) fn invariant_member_parameters(
             );
         }
     }
-    let mut resolutions: BTreeMap<ValueId, Resolution> = parameters
-        .iter()
-        .map(|(parameter, _)| (*parameter, Resolution::Unresolved))
-        .collect();
-    loop {
-        let mut progressed = false;
-        for (parameter, block) in &parameters {
-            if resolutions[parameter] == Resolution::LoopCarried {
-                continue;
-            }
-            let mut anchor = None;
-            let mut loop_carried = false;
-            for edge in function.block_edges().filter(|edge| edge.target == *block) {
-                let Some(binding) = edge.binding(*parameter) else {
-                    loop_carried = true;
-                    break;
-                };
-                if binding.argument == *parameter {
-                    // A binding that re-spells the parameter preserves whatever
-                    // the other edges establish.
-                    continue;
-                }
-                let contribution = match sites.get(&binding.argument) {
-                    Some(ValueDefinitionSite::FunctionParameter(_)) => {
-                        Resolution::Representative(binding.argument)
-                    }
-                    Some(ValueDefinitionSite::BlockParameter { block: site, .. })
-                        if members.contains(site) =>
-                    {
-                        // A member parameter contributes its own resolution;
-                        // an unresolved dependency defers to a later pass.
-                        resolutions
-                            .get(&binding.argument)
-                            .copied()
-                            .unwrap_or(Resolution::LoopCarried)
-                    }
-                    Some(ValueDefinitionSite::BlockParameter { block: site, .. })
-                    | Some(ValueDefinitionSite::Node { block: site, .. })
-                        if !members.contains(site) =>
-                    {
-                        Resolution::Representative(binding.argument)
-                    }
-                    _ => Resolution::LoopCarried,
-                };
-                match contribution {
-                    Resolution::Unresolved => {}
-                    Resolution::Representative(value) => match anchor {
-                        None => anchor = Some(value),
-                        Some(anchor) if anchor == value => {}
-                        Some(_) => {
-                            loop_carried = true;
-                            break;
-                        }
-                    },
-                    Resolution::LoopCarried => {
-                        loop_carried = true;
-                        break;
-                    }
-                }
-            }
-            let next = if loop_carried {
-                Resolution::LoopCarried
-            } else {
-                match anchor {
-                    Some(value) => Resolution::Representative(value),
-                    None => Resolution::Unresolved,
-                }
-            };
-            if resolutions[parameter] != next {
-                resolutions.insert(*parameter, next);
-                progressed = true;
-            }
+    resolve_member_parameters(function, &parameters, |edge, parameter, resolutions| {
+        let Some(binding) = edge.binding(parameter) else {
+            return MemberParameterResolution::LoopCarried;
+        };
+        if binding.argument == parameter {
+            // A binding that re-spells the parameter preserves whatever
+            // the other edges establish.
+            return MemberParameterResolution::Unresolved;
         }
-        if !progressed {
-            break;
+        match sites.get(&binding.argument) {
+            Some(ValueDefinitionSite::FunctionParameter(_)) => {
+                MemberParameterResolution::Representative(binding.argument)
+            }
+            Some(ValueDefinitionSite::BlockParameter { block: site, .. })
+                if members.contains(site) =>
+            {
+                // A member parameter contributes its own resolution;
+                // an unresolved dependency defers to a later pass.
+                resolutions
+                    .get(&binding.argument)
+                    .copied()
+                    .unwrap_or(MemberParameterResolution::LoopCarried)
+            }
+            Some(ValueDefinitionSite::BlockParameter { block: site, .. })
+            | Some(ValueDefinitionSite::Node { block: site, .. })
+                if !members.contains(site) =>
+            {
+                MemberParameterResolution::Representative(binding.argument)
+            }
+            _ => MemberParameterResolution::LoopCarried,
         }
-    }
-    resolutions
-        .into_iter()
-        .filter_map(|(parameter, resolution)| match resolution {
-            Resolution::Representative(representative) => Some((parameter, representative)),
-            Resolution::Unresolved | Resolution::LoopCarried => None,
-        })
-        .collect()
+    })
 }
 
 /// The operand substitution a relocated invariant scalar computation needs, or

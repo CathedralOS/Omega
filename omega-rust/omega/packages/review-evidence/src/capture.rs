@@ -25,6 +25,23 @@ pub use semantic_bindings::{
 mod source;
 mod terminal_authority_permissions;
 
+/// The refusal constructor every projection module states in its own sentence:
+/// the module keeps its exact diagnostic vocabulary and stops restating the
+/// constructor around it.
+macro_rules! refusal {
+    ($parameter:ident, $sentence:literal) => {
+        fn rejected($parameter: &str) -> Vec<diagnostics::Diagnostic> {
+            vec![diagnostics::Diagnostic::error(format!($sentence))]
+        }
+    };
+    ($visibility:vis $parameter:ident, $sentence:literal) => {
+        $visibility fn rejected($parameter: &str) -> Vec<diagnostics::Diagnostic> {
+            vec![diagnostics::Diagnostic::error(format!($sentence))]
+        }
+    };
+}
+pub(crate) use refusal;
+
 pub(crate) use callables::project_checked_callable_policy;
 pub(crate) use input::PackageReviewInput;
 pub use package_policy::project_checked_package_policy;

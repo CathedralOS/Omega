@@ -141,13 +141,11 @@ impl OperationFrame<'_, '_> {
             )?,
         };
         let id = self.operations.allocate();
-        self.operations.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
+        self.operations.push(Operation::unsuspended(
             id,
-            result: OperationResult::Scalar(value),
+            OperationResult::Scalar(value),
             kind,
-        });
+        ));
         self.bind_scalar_result(identities, coordinate, value)
     }
 }

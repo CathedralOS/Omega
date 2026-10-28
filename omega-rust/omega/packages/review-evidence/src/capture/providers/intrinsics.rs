@@ -14,6 +14,7 @@ pub(crate) fn project_compiler_intrinsic_execution(
     plan: &ProviderPlan,
     row: &ProviderPlanRow,
     schema: ProviderSchemaDeclaration,
+    provider: Option<SymbolHandle>,
     requirement_symbol: SymbolHandle,
     realization_symbol: SymbolHandle,
     selected_target: Option<&str>,
@@ -26,6 +27,15 @@ pub(crate) fn project_compiler_intrinsic_execution(
     }
     let derived = derive_selected_compiler_intrinsic_execution_identity_for_row(
         compilation,
+        selected_dispatch::NumericProviderSelection {
+            candidate: compilation.numeric_realizations.ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "package review has no candidate external-provider projection",
+                )]
+            })?,
+            custody: &compilation.custody.execution().numeric_realizations,
+            provider,
+        },
         plan,
         schema,
         row,
@@ -185,6 +195,16 @@ fn reconcile_compiler_intrinsic_execution(
         };
     }
     match derived {
+        Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(expected))
+            if expected.is_numeric() =>
+        {
+            if retained.is_some() {
+                return Err(format!(
+                    "selected provider plan `{plan_name}` retains a redundant numeric execution sidecar"
+                ));
+            }
+            Ok(Some(expected))
+        }
         Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(expected)) => match retained {
             Some(actual) if actual == expected => Ok(Some(expected)),
             None => Err(format!(

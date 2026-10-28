@@ -350,6 +350,7 @@ pub fn rejoin_package_native_bindings(
                 .symbol_source_span(requirement)
                 .ok_or("retained native requirement lost current source custody")?;
             Ok(AdmittedNativeBinding {
+                receipt_source: None,
                 requirement,
                 trait_scope: None,
                 closed_requirement: None,

@@ -391,12 +391,17 @@ pub(super) fn lower_unit_structural_types_including(
 > {
     let mut roots = additional_roots.to_vec();
     let mut literal_view = false;
-    for symbol in closure {
+    let sources = plans.source_machines(checked, closure)?;
+    // Fused dispatch identities do not replace the declaration owners of
+    // retained computations. Publish every producer's complete requirements.
+    for symbol in &sources {
         let operands = crate::scalar_lowering::computations::operand_types::type_requirements(
             checked, *symbol,
         )?;
         roots.extend(operands.identities);
         literal_view |= operands.literal_view;
+    }
+    for symbol in closure {
         let body = UnitBody::find(plans, *symbol)?;
         place_types::collect(checked, plans, body, &mut roots)?;
         if let checked_trees::CheckedControlResultPlan::Structural(result) = body.result()? {
@@ -457,10 +462,14 @@ pub(super) fn lower_unit_structural_types_including(
         // Scalar computations can own structural producers and their operand
         // temporaries. Their operation dependencies need the same catalog walk
         // as statement-owned operations, not just their call signatures.
-        let value_operations =
-            crate::expression_preparation::computation_graph::value_call_operations(
-                checked, *symbol, None,
-            )?;
+        let mut value_operations = Vec::new();
+        for source in plans.source_machines(checked, &[*symbol])? {
+            value_operations.extend(
+                crate::expression_preparation::computation_graph::value_call_operations(
+                    checked, source, None,
+                )?,
+            );
+        }
         for operation in body.operations().chain(value_operations) {
             collect_operation_type_roots(checked, plans, operation, &mut roots)?;
             match operation {
@@ -588,7 +597,9 @@ pub(super) fn lower_unit_structural_types_including(
                     crate::scalar_lowering::computations::fields::prepare_place_observations(
                         identities,
                         checked,
-                        *machine,
+                        crate::declarations::state_declaration(checked, state)?
+                            .0
+                            .symbol,
                         state,
                         &declarations,
                     );
@@ -1065,8 +1076,9 @@ pub(super) fn lower_unit_structural_domains(
     LoweringError,
 > {
     let mut selected = Vec::new();
+    let sources = plans.source_machines(checked, closure)?;
     for (_, region) in checked.facts.flow.ownership.loan_completions.iter() {
-        if !closure.contains(&region.machine) {
+        if !sources.contains(&region.machine) {
             continue;
         }
         for fact in crate::emission::loan_completions::qualification_facts(checked, region) {
@@ -1139,23 +1151,12 @@ pub(super) fn lower_unit_structural_domains(
                 }
             }
         }
-        for operation in body.operations() {
+        for (state, operation) in body.operations_with_states() {
+            let (owner, _) = crate::declarations::state_declaration(checked, state)?;
             crate::expression_preparation::structural_value_requirements::collect_operation_requirements(
                 checked,
-                *symbol,
+                owner.symbol,
                 operation,
-                &mut selected,
-            )?;
-        }
-        // Values the body's computed operands construct carry the
-        // memberships checking decided for them, as operation values do.
-        for value in crate::expression_preparation::computation_graph::reachable_structural_values(
-            checked, *symbol,
-        )? {
-            crate::expression_preparation::structural_value_requirements::collect_value_requirements(
-                checked,
-                *symbol,
-                value,
                 &mut selected,
             )?;
         }
@@ -1214,6 +1215,20 @@ pub(super) fn lower_unit_structural_domains(
             if !selected.contains(&domain) {
                 selected.push(domain);
             }
+        }
+    }
+    // Computed producers keep their original machine namespace after fusion,
+    // including the complete membership roster checked on each produced value.
+    for source in sources {
+        for value in crate::expression_preparation::computation_graph::reachable_structural_values(
+            checked, source,
+        )? {
+            crate::expression_preparation::structural_value_requirements::collect_value_requirements(
+                checked,
+                source,
+                value,
+                &mut selected,
+            )?;
         }
     }
     for (boundary, _) in boundaries {
@@ -1650,7 +1665,7 @@ pub(super) fn lower_establishment_routes(
             .ok_or(LoweringError::Unsupported(
                 "domain establishment route names an absent requirement",
             ))?;
-        for signature in checked.requirement_machine_instances(declared) {
+        for signature in checked.executable_requirement_machine_instances(declared) {
             let mut application = *route;
             match &mut application {
                 language_semantics::DomainEstablishmentRoute::CheckedRequirement {
@@ -1986,7 +2001,7 @@ pub(crate) fn lower_root_service_reach(
                 .flat_map(|owner| {
                     checked
                         .typed
-                        .trait_machine_instances(owner)
+                        .executable_trait_machine_instances(owner)
                         .filter(move |requirement| requirement.symbol == dependency.requirement)
                         .map(move |requirement| (owner, requirement))
                 })

@@ -163,7 +163,21 @@ pub fn expression_normal_completion_possible(
     program: &dyn crate::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<bool> {
-    match expression_completion_target(program, expression) {
+    let typed_trees::expression::ExpressionNode::Call(call) =
+        program.expression_table.expression(expression)
+    else {
+        return Some(true);
+    };
+    target_normal_completion_possible(program, call.target_symbol)
+}
+
+/// A statement call and an expression call have the same declaration-owned
+/// completion. A reach ceiling alone does not establish nonreturn.
+pub(crate) fn target_normal_completion_possible(
+    program: &dyn crate::CheckingInput,
+    target: SymbolHandle,
+) -> Option<bool> {
+    match completion_target(program, target) {
         CompletionTarget::External => Some(false),
         CompletionTarget::Body(target) => normal_completion_possible(program, target),
         CompletionTarget::Unknown => Some(true),

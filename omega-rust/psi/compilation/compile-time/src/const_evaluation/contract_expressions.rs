@@ -51,24 +51,9 @@ pub(super) fn roots(
         if !closed(program, expression, &mut Vec::new()) {
             continue;
         }
-        let integer =
-            validation::parameter_expression_result_type_reference(program, owner, &[], expression)
-                .and_then(|reference| program.primitive_type_reference(reference))
-                .is_some_and(|primitive| primitive.is_integer());
-        if integer {
-            candidates.push(expression);
-        }
-    }
-    if candidates.is_empty() {
-        return Vec::new();
-    }
-    // Ordinary symbolic applications retain their denotation route. Only a
-    // selected-realization dependency requests this deferred value job; an
-    // axiom never becomes a demanded integer merely by appearing in a clause.
-    let admission = crate::BuildTimeAdmissionPlan::infer(program, None);
-    let selections = validation::derive_pre_flow_operator_selections(program);
-    let mut roots = Vec::new();
-    for expression in candidates {
+        let has_recipe = program
+            .constant_recipe_for_contract_expression(expression)
+            .is_valid();
         let invocations = subtree(program, expression)
             .into_iter()
             .filter_map(|call_expression| {
@@ -83,16 +68,43 @@ pub(super) fn roots(
                 })
             })
             .collect::<Vec<_>>();
+        if !has_recipe && invocations.is_empty() {
+            continue;
+        }
+        let integer =
+            validation::parameter_expression_result_type_reference(program, owner, &[], expression)
+                .and_then(|reference| program.primitive_type_reference(reference))
+                .is_some_and(|primitive| primitive.is_integer());
+        if integer {
+            candidates.push((expression, has_recipe, invocations));
+        }
+    }
+    if candidates.is_empty() {
+        return Vec::new();
+    }
+    // Ordinary symbolic applications retain their denotation route. Only a
+    // selected-realization dependency requests this deferred value job; an
+    // axiom never becomes a demanded integer merely by appearing in a clause.
+    let mut admission_and_selections = None;
+    let mut roots = Vec::new();
+    for (expression, has_recipe, invocations) in candidates {
         // Selecting an exact checked body may make the dependency graph look
         // independent. Its retained work root still owes evaluation: body
         // selection settles a dependency, never cancels the value job.
-        if program
-            .constant_recipe_for_contract_expression(expression)
-            .is_valid()
-            || invocations.iter().any(|call| {
-                admission.closure_needs_execution_preparation(program, call.machine, &selections)
+        let keep = if has_recipe {
+            true
+        } else {
+            let (admission, selections) = admission_and_selections.get_or_insert_with(|| {
+                (
+                    crate::BuildTimeAdmissionPlan::infer(program, None),
+                    validation::derive_pre_flow_operator_selections(program),
+                )
+            });
+            invocations.iter().any(|call| {
+                admission.closure_needs_execution_preparation(program, call.machine, selections)
             })
-        {
+        };
+        if keep {
             roots.push(ContractRoot {
                 expression,
                 invocations,

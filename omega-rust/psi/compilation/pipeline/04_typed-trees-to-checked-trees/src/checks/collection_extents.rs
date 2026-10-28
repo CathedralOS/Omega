@@ -128,13 +128,12 @@ pub(crate) fn from_live_loans(
                 return None;
             }
             rows.iter()
-                .map(|referent| CanonicalPlace {
-                    root: referent.root,
-                    segments: flow
-                        .control
-                        .operand_referent_segments
-                        .span_or_empty(referent.segments)
-                        .to_vec(),
+                .map(|referent| {
+                    super::places::place_or_root_in(
+                        &flow.control.operand_referent_segments,
+                        referent.root,
+                        referent.segments,
+                    )
                 })
                 .collect::<Vec<_>>()
         } else {

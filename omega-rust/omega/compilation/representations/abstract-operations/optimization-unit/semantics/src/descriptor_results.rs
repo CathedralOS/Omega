@@ -7,8 +7,8 @@ use semantic_vocabulary::{MachineId, PlaceId, StructuralPlaceKind};
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
-    BoundaryMachineDeclaration, StructuralAccess, StructuralPathSegment, StructuralTypeDeclaration,
-    StructuralTypeShape,
+    BoundaryMachineDeclaration, StructuralAccess, StructuralArgument, StructuralPathSegment,
+    StructuralTypeDeclaration, StructuralTypeShape,
 };
 use terminal_semantics::borrowed_storage::Projection;
 use terminal_semantics::descriptor_lifetimes::{
@@ -317,6 +317,41 @@ pub(crate) fn owned_aggregate_descriptor_returns_with_graph(
                     location.root,
                 )
         })
+}
+
+/// The escape tail every unavailable or unpreserved invocation shares: an
+/// invocation whose reachable indirect contents may change is recorded as an
+/// unresolved contents write, and every writable slot it can still reach is
+/// defined. Unknown replacement invalidates contained slots; it never invents
+/// a source for their later reads.
+fn record_escaped_invocation(
+    place_types: &BTreeMap<semantic_vocabulary::PlaceId, semantic_vocabulary::StructuralTypeId>,
+    unresolved_contents_writes: &mut BTreeSet<(semantic_vocabulary::BlockId, u32)>,
+    step: &mut DescriptorFlowStep,
+    types: &[StructuralTypeDeclaration],
+    structural_arguments: &[StructuralArgument],
+    slot_kind: kernel::DescriptorSlotKind,
+    position: (semantic_vocabulary::BlockId, u32),
+) -> Option<()> {
+    if structural_arguments.iter().any(|actual| {
+        place_types.get(&actual.place).is_none_or(|root_type| {
+            slot_kind.may_write_indirect_contents(types, *root_type, actual)
+        })
+    }) {
+        unresolved_contents_writes.insert(position);
+    }
+    for actual in structural_arguments
+        .iter()
+        .filter(|actual| actual.access != StructuralAccess::SharedBorrow)
+    {
+        step.definitions.extend(writable_descriptor_slots(
+            types,
+            place_types,
+            actual,
+            slot_kind,
+        )?);
+    }
+    Some(())
 }
 
 fn adapt(
@@ -1372,28 +1407,15 @@ fn adapt(
                         );
                         if !exact_arguments {
                             step.may_escape = true;
-                            if structural_arguments.iter().any(|actual| {
-                                graph
-                                    .place_types
-                                    .get(&actual.place)
-                                    .is_none_or(|root_type| {
-                                        slot_kind
-                                            .may_write_indirect_contents(types, *root_type, actual)
-                                    })
-                            }) {
-                                graph.unresolved_contents_writes.insert(position);
-                            }
-                            for actual in structural_arguments
-                                .iter()
-                                .filter(|actual| actual.access != StructuralAccess::SharedBorrow)
-                            {
-                                step.definitions.extend(writable_descriptor_slots(
-                                    types,
-                                    &graph.place_types,
-                                    actual,
-                                    slot_kind,
-                                )?);
-                            }
+                            record_escaped_invocation(
+                                &graph.place_types,
+                                &mut graph.unresolved_contents_writes,
+                                &mut step,
+                                types,
+                                structural_arguments,
+                                slot_kind,
+                                position,
+                            )?;
                         }
                     } else {
                         // An unavailable body supplies no stored-origin summary.
@@ -1419,29 +1441,15 @@ fn adapt(
                                     })
                             });
                         step.may_escape |= !closed;
-                        if structural_arguments.iter().any(|actual| {
-                            graph
-                                .place_types
-                                .get(&actual.place)
-                                .is_none_or(|root_type| {
-                                    slot_kind.may_write_indirect_contents(types, *root_type, actual)
-                                })
-                        }) {
-                            graph.unresolved_contents_writes.insert(position);
-                        }
-                        for actual in structural_arguments
-                            .iter()
-                            .filter(|actual| actual.access != StructuralAccess::SharedBorrow)
-                        {
-                            // Unknown replacement invalidates contained slots;
-                            // it never invents a source for their later reads.
-                            step.definitions.extend(writable_descriptor_slots(
-                                types,
-                                &graph.place_types,
-                                actual,
-                                slot_kind,
-                            )?);
-                        }
+                        record_escaped_invocation(
+                            &graph.place_types,
+                            &mut graph.unresolved_contents_writes,
+                            &mut step,
+                            types,
+                            structural_arguments,
+                            slot_kind,
+                            position,
+                        )?;
                     }
                 }
                 O::BoundaryCall {
@@ -1517,27 +1525,15 @@ fn adapt(
                         || (slot_kind.tracks_references() && preserves_boundary(function, node));
                     if !preserved {
                         step.may_escape = true;
-                        if structural_arguments.iter().any(|actual| {
-                            graph
-                                .place_types
-                                .get(&actual.place)
-                                .is_none_or(|root_type| {
-                                    slot_kind.may_write_indirect_contents(types, *root_type, actual)
-                                })
-                        }) {
-                            graph.unresolved_contents_writes.insert(position);
-                        }
-                        for actual in structural_arguments
-                            .iter()
-                            .filter(|actual| actual.access != StructuralAccess::SharedBorrow)
-                        {
-                            step.definitions.extend(writable_descriptor_slots(
-                                types,
-                                &graph.place_types,
-                                actual,
-                                slot_kind,
-                            )?);
-                        }
+                        record_escaped_invocation(
+                            &graph.place_types,
+                            &mut graph.unresolved_contents_writes,
+                            &mut step,
+                            types,
+                            structural_arguments,
+                            slot_kind,
+                            position,
+                        )?;
                     }
                     let mut declarations = boundaries
                         .iter()

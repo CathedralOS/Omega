@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 pub struct CheckedProviderProgram {
     pub program: Arc<CheckedProgram>,
+    pub numeric_realizations: Arc<psi_terminal_production::NumericRealizationDeclarations>,
     /// Source identities close with the bound program, before Terminal
     /// publication. Only a native handoff demands this result; retaining a
     /// failure here does not add a native-only obligation to checking stops.
@@ -65,6 +66,17 @@ pub fn bind_checked_providers(
             settlement.boundary_calling_plan_realizations,
         )?;
     Ok(CheckedProviderProgram {
+        numeric_realizations: Arc::new(
+            psi_terminal_production::project_numeric_realization_declarations(
+                &program,
+                settlement.exact_toolchain_sources,
+            )
+            .map_err(|error| {
+                vec![Diagnostic::error(format!(
+                    "external provider declarations: {error:?}"
+                ))]
+            })?,
+        ),
         native_provider_sources: provider_planning::prepare_native_provider_sources(
             provider_planning::ProviderPlanningContext::new(
                 &program.typed,

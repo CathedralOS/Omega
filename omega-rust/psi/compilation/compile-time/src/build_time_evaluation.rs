@@ -185,6 +185,7 @@ pub fn evaluate_pre_resolution(
     )?;
     let placed_view_records =
         placed_views::desugar_placed_views(&mut syntax_trees, source_context.clone())?;
+    let roots_before_generic = syntax_trees.root_item_handles().len();
     let mut syntax_trees = crate::syntax_probes::normalize_generic_data(
         syntax_trees,
         source_context.sources.clone(),
@@ -195,9 +196,11 @@ pub fn evaluate_pre_resolution(
     // Generic field extents become owned constant uses only after their exact
     // instance tuple has been copied. Close them through the same expression
     // and invocation admission used by ordinary static arguments.
-    syntax_trees = const_generic_expressions::evaluate(syntax_trees, &source_context)?;
-    syntax_trees =
-        const_generic_calls::evaluate_const_generic_calls(syntax_trees, source_context.clone())?;
+    if syntax_trees.root_item_handles().len() > roots_before_generic {
+        syntax_trees = const_generic_expressions::evaluate(syntax_trees, &source_context)?;
+        syntax_trees =
+            const_generic_calls::evaluate_const_generic_calls(syntax_trees, source_context.clone())?;
+    }
     let plan_laid_records = plan_laid::desugar_plan_laid_value_types(&mut syntax_trees)?;
     Ok(PreResolutionEvaluation {
         syntax_trees,

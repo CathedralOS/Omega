@@ -293,6 +293,20 @@ Preparation retains a refusal as data until the native handoff demands it, so a
 checking-only stop does not acquire native-only obligations. Physical family
 membership and receiving admission still belong to the Terminal consumer.
 
+Numeric meaning and external satisfaction have one Psi declaration producer,
+shared by Terminal retention and rootless package projection. Checked-provider
+binding retains that projection before selection. Package review prepares its
+supplied candidate independently, then joins nominal requirement, realization
+and selecting-owner identities against immutable custody. A library needs no
+ProgramEntry or executable lowering to review its uncalled supplied declarations.
+Private checking-only coordinates remain invocation-local, never portable owners.
+The selected row no longer duplicates numeric execution identity: review and
+native settlement consume the checked meaning through the shared source-free
+external-satisfaction join. Host/placement authority remains independent.
+Exact source schema association, earlier typed constant/comparison evaluation
+and direct-leaf execution records remain migration work; this does not claim
+that selected dispatch as a whole is source-free.
+
 The source-producing operation returns each Terminal application with its exact
 Build provider companion. It closes those proposals against the emitted demand
 catalog before returning the product: selecting against all source candidates
@@ -340,9 +354,15 @@ that classification; diagnostic strings do not gate support. Package review
 still independently rejoins its supplied candidate to retained selection
 custody. Psi publishes numeric meaning and its exact IEEE format in canonical
 Terminal boundary declarations; native proposal creation consumes that meaning
-and reconciles it with selected-provider custody rather than inferring the format
-from a result or parameter. Portable decoding validates the complete numeric
-signature. This meaning does not select or authorize a provider. Review-only
+and joins the selected external realization to canonical checked satisfaction
+edges. The module-level catalog is independent of executable call shapes, so
+directly lowered comparisons retain the same relation. It retains requirement,
+realization and selecting-owner
+declarations, authored target membership, package identities and structural binding mechanisms independently
+of target selection. Native retention omits the duplicate numeric execution
+sidecar; host and placement authority judgments remain separate. Portable
+decoding validates declaration coordinates and the complete numeric signature.
+This meaning does not select or authorize a provider. Review-only
 products still use checked source custody: moving their complete conformance
 evidence to Terminal remains part of provider-settlement migration.
 Provider selection and target geometry still originate outside Psi. This is not

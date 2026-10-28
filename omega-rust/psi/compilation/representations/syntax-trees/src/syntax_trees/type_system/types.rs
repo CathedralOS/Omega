@@ -1,21 +1,23 @@
 use crate::identifier::Identifier;
-use arena::{Handle, HandleSpan, PagedArenaFrontier, PagedArenaSet as Arena};
+use crate::syntax_trees::paged_roster::paged_roster;
+use arena::{Handle, HandleSpan, PagedArenaFrontier};
 
 pub type TypeReferenceHandle = Handle<TypeReferenceNode>;
 pub type TypeReferenceFrontier = PagedArenaFrontier<TypeReferenceNode>;
 
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
-pub struct TypeReferenceTable {
-    type_references: Arena<TypeReferenceNode>,
-    type_reference_handles: Arena<TypeReferenceHandle>,
-    constraints: Arena<TypeConstraintNode>,
-    generic_application_origins: Arena<GenericApplicationOrigin>,
-    const_argument_normalizations: Arena<RetainedConstArgumentNormalization>,
-    const_argument_origins: Arena<ConstArgumentOrigin>,
-    const_argument_builtin_operators: Arena<source::SourceSpan>,
-    integer_range_normalizations: Arena<RetainedIntegerRangeNormalization>,
-    pending_const_arguments: Arena<PendingConstArgument>,
-    supplied_operand_owners: Arena<SuppliedOperandOwner>,
+paged_roster! {
+    pub struct TypeReferenceTable => pub(crate) TypeReferenceTableAppendCheckpoint {
+        arena type_references: TypeReferenceNode,
+        arena type_reference_handles: TypeReferenceHandle,
+        arena constraints: TypeConstraintNode,
+        arena generic_application_origins: GenericApplicationOrigin,
+        arena const_argument_normalizations: RetainedConstArgumentNormalization,
+        arena const_argument_origins: ConstArgumentOrigin,
+        arena const_argument_builtin_operators: source::SourceSpan,
+        arena integer_range_normalizations: RetainedIntegerRangeNormalization,
+        arena pending_const_arguments: PendingConstArgument,
+        arena supplied_operand_owners: SuppliedOperandOwner,
+    }
 }
 
 /// The exact declaration supplying a substituted operand. This is syntax
@@ -88,121 +90,9 @@ struct GenericApplicationOrigin {
     application: TypeReferenceHandle,
 }
 
-pub(crate) struct TypeReferenceTableAppendCheckpoint {
-    type_references: arena::PagedArenaFrontier<TypeReferenceNode>,
-    type_reference_handles: arena::PagedArenaFrontier<TypeReferenceHandle>,
-    constraints: arena::PagedArenaFrontier<TypeConstraintNode>,
-    generic_application_origins: arena::PagedArenaFrontier<GenericApplicationOrigin>,
-    const_argument_normalizations: arena::PagedArenaFrontier<RetainedConstArgumentNormalization>,
-    const_argument_origins: arena::PagedArenaFrontier<ConstArgumentOrigin>,
-    const_argument_builtin_operators: arena::PagedArenaFrontier<source::SourceSpan>,
-    integer_range_normalizations: arena::PagedArenaFrontier<RetainedIntegerRangeNormalization>,
-    pending_const_arguments: arena::PagedArenaFrontier<PendingConstArgument>,
-    supplied_operand_owners: arena::PagedArenaFrontier<SuppliedOperandOwner>,
-}
-
 impl TypeReferenceTable {
-    pub(crate) fn append_checkpoint(&self) -> TypeReferenceTableAppendCheckpoint {
-        TypeReferenceTableAppendCheckpoint {
-            type_references: self.type_references.frontier(),
-            type_reference_handles: self.type_reference_handles.frontier(),
-            constraints: self.constraints.frontier(),
-            generic_application_origins: self.generic_application_origins.frontier(),
-            const_argument_normalizations: self.const_argument_normalizations.frontier(),
-            const_argument_origins: self.const_argument_origins.frontier(),
-            const_argument_builtin_operators: self.const_argument_builtin_operators.frontier(),
-            integer_range_normalizations: self.integer_range_normalizations.frontier(),
-            pending_const_arguments: self.pending_const_arguments.frontier(),
-            supplied_operand_owners: self.supplied_operand_owners.frontier(),
-        }
-    }
-
-    pub(crate) fn rewind_appended(&mut self, checkpoint: TypeReferenceTableAppendCheckpoint) {
-        self.type_references
-            .rewind_appended(checkpoint.type_references);
-        self.type_reference_handles
-            .rewind_appended(checkpoint.type_reference_handles);
-        self.constraints.rewind_appended(checkpoint.constraints);
-        self.generic_application_origins
-            .rewind_appended(checkpoint.generic_application_origins);
-        self.const_argument_normalizations
-            .rewind_appended(checkpoint.const_argument_normalizations);
-        self.const_argument_origins
-            .rewind_appended(checkpoint.const_argument_origins);
-        self.const_argument_builtin_operators
-            .rewind_appended(checkpoint.const_argument_builtin_operators);
-        self.integer_range_normalizations
-            .rewind_appended(checkpoint.integer_range_normalizations);
-        self.pending_const_arguments
-            .rewind_appended(checkpoint.pending_const_arguments);
-        self.supplied_operand_owners
-            .rewind_appended(checkpoint.supplied_operand_owners);
-    }
-
-    pub(crate) fn share_pages(&mut self) {
-        self.type_references.share_pages();
-        self.type_reference_handles.share_pages();
-        self.constraints.share_pages();
-        self.generic_application_origins.share_pages();
-        self.const_argument_normalizations.share_pages();
-        self.const_argument_origins.share_pages();
-        self.const_argument_builtin_operators.share_pages();
-        self.integer_range_normalizations.share_pages();
-        self.pending_const_arguments.share_pages();
-        self.supplied_operand_owners.share_pages();
-    }
-
     pub fn new() -> Self {
         Self::new_with_generation(1)
-    }
-
-    pub fn new_with_generation(generation: u32) -> Self {
-        Self {
-            type_references: Arena::with_generation(generation),
-            type_reference_handles: Arena::with_generation(generation),
-            constraints: Arena::with_generation(generation),
-            generic_application_origins: Arena::with_generation(generation),
-            const_argument_normalizations: Arena::with_generation(generation),
-            const_argument_origins: Arena::with_generation(generation),
-            const_argument_builtin_operators: Arena::with_generation(generation),
-            integer_range_normalizations: Arena::with_generation(generation),
-            pending_const_arguments: Arena::with_generation(generation),
-            supplied_operand_owners: Arena::with_generation(generation),
-        }
-    }
-
-    pub(crate) fn adopt(&mut self, other: Self) {
-        self.type_references.adopt(other.type_references);
-        self.type_reference_handles
-            .adopt(other.type_reference_handles);
-        self.constraints.adopt(other.constraints);
-        self.generic_application_origins
-            .adopt(other.generic_application_origins);
-        self.const_argument_normalizations
-            .adopt(other.const_argument_normalizations);
-        self.const_argument_origins
-            .adopt(other.const_argument_origins);
-        self.const_argument_builtin_operators
-            .adopt(other.const_argument_builtin_operators);
-        self.integer_range_normalizations
-            .adopt(other.integer_range_normalizations);
-        self.pending_const_arguments
-            .adopt(other.pending_const_arguments);
-        self.supplied_operand_owners
-            .adopt(other.supplied_operand_owners);
-    }
-
-    pub(crate) fn begin_page(&mut self, generation: u32) {
-        self.type_references.begin_page(generation);
-        self.type_reference_handles.begin_page(generation);
-        self.constraints.begin_page(generation);
-        self.generic_application_origins.begin_page(generation);
-        self.const_argument_normalizations.begin_page(generation);
-        self.const_argument_origins.begin_page(generation);
-        self.const_argument_builtin_operators.begin_page(generation);
-        self.integer_range_normalizations.begin_page(generation);
-        self.pending_const_arguments.begin_page(generation);
-        self.supplied_operand_owners.begin_page(generation);
     }
 
     pub fn insert(&mut self, type_reference: TypeReferenceNode) -> TypeReferenceHandle {

@@ -412,15 +412,16 @@ impl<'pass> PackageReviewRound<'pass> {
             ..
         } = *occurrence;
         let closure = self.closure;
+        // Every refusal below is this occurrence's: the row it names may be a
+        // dependency's, but the inputs that failed to assemble are the
+        // occurrence's own.
+        let refused = |errors: Vec<PackageCompilationInputError>| {
+            CompileResolvedPackageReviewsError::compilation_inputs(key, errors)
+        };
         let inputs = scope
             .compilation_inputs_reusing(&mut self.source_bindings.root_bindings[position])
             .and_then(|inputs| inputs.with_compilation_purpose(purpose))
-            .map_err(
-                |errors| CompileResolvedPackageReviewsError::CompilationInputs {
-                    package: key.clone(),
-                    errors,
-                },
-            )?;
+            .map_err(refused)?;
         let mut semantic_bindings = self
             .semantic_bindings_by_consumer
             .get(&(key.clone(), purpose))
@@ -458,12 +459,7 @@ impl<'pass> PackageReviewRound<'pass> {
         let inputs = inputs
             .with_semantic_role_discovery(self.discovery == TargetEntryDiscovery::Dependencies)
             .with_accepted_semantic_bindings(semantic_bindings)
-            .map_err(
-                |errors| CompileResolvedPackageReviewsError::CompilationInputs {
-                    package: key.clone(),
-                    errors,
-                },
-            )?;
+            .map_err(refused)?;
         let required_instances = inputs.required_dependency_source_instances();
         let mut dependency_bundles = Vec::with_capacity(required_instances.len());
         for dependency in scope
@@ -1055,10 +1051,7 @@ impl PackageReviewCompletion<'_> {
         &self,
         errors: Vec<PackageCompilationInputError>,
     ) -> CompileResolvedPackageReviewsError {
-        CompileResolvedPackageReviewsError::CompilationInputs {
-            package: self.occurrence.key.clone(),
-            errors,
-        }
+        CompileResolvedPackageReviewsError::compilation_inputs(self.occurrence.key, errors)
     }
 
     pub fn review_failure(

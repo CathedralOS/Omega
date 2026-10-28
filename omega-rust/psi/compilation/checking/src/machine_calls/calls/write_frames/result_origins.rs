@@ -160,8 +160,9 @@ fn call_body_result_origins(
 }
 
 /// Complete result relation in the requested state's own parameter namespace.
-/// Internal transitions share one finite solve; actual machine invocations keep
-/// their active-body guard and cannot borrow provisional state summaries.
+/// Selected terminal successors share one finite solve across declaration
+/// owners. Ordinary invocations keep their active-body guard and cannot borrow
+/// provisional relations from an unfinished query.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn state_result_origins<'program>(
     program: &'program dyn crate::CheckingInput,
@@ -183,7 +184,6 @@ pub(super) fn state_result_origins<'program>(
     inference.active_states.push(state.symbol);
     let result = state_equations::solve(
         program,
-        machine,
         state,
         expected_result,
         symbols,
@@ -311,20 +311,36 @@ fn state_equation<'program>(
                             relative: &mut AggregateOrigins,
                             edges: &mut Vec<state_equations::Edge<'program>>,
                             inference: &mut FrameInference| {
+            // A normalized whole completion call and a named terminal target
+            // contribute the same result equation. Keep calls inside operands
+            // in the prefix walk; neither this edge nor its provisional relation
+            // supplies a runtime tail classification or borrow permission.
             if let Some(transfer) =
                 crate::completing_call_transfer(program, result).filter(|transfer| {
                     program
                         .machine_holding_state(transfer.state.symbol)
-                        .is_some_and(|owner| owner.symbol == machine.symbol)
+                        .is_some_and(|owner| {
+                            owner.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
+                                && owner.body_is_present
+                                && program
+                                    .expression_table
+                                    .call_node(result)
+                                    .is_some_and(|call| {
+                                        unchanged_static_arguments(
+                                            program,
+                                            machine,
+                                            owner,
+                                            &call.machine_arguments,
+                                        )
+                                    })
+                        })
                 })
             {
-                if !super::isolation::aggregate_storage_types_match(
-                    program,
-                    transfer.state.return_type,
-                    expected_result,
-                ) {
-                    return None;
-                }
+                // Each equation reads its own declared result. The edge applies
+                // its exact runtime actuals before the returned leaves enter
+                // this namespace. Raw type equality here would compare foreign
+                // dependent subjects before that substitution; ordinary call
+                // admission independently checks applied result compatibility.
                 edges.push(state_equations::Edge {
                     target: transfer.state,
                     statement_index: index,
@@ -385,17 +401,11 @@ fn state_equation<'program>(
                                 program,
                                 machine,
                                 state,
-                                statement,
                                 index,
                                 edge,
                                 *arguments,
                                 expected_result,
-                                &mut relative,
-                                symbols,
-                                inference,
-                                include_shared,
                                 &mut edges,
-                                &mut returns,
                                 prefixes.get(index).and_then(Option::as_ref),
                             )?,
                             // Terminal arms return nothing.
@@ -416,6 +426,38 @@ fn state_equation<'program>(
         inference.active_states.pop();
     }
     result
+}
+
+/// Equations substitute runtime actuals. Their declaration types remain valid
+/// without another static substitution only when every selected binder is the
+/// same binder already in the source context. Closed, specialized calls have
+/// an empty telescope; identity forwarding retains its exact type/value/const symbols.
+fn unchanged_static_arguments(
+    program: &dyn crate::CheckingInput,
+    source: &Machine,
+    target: &Machine,
+    arguments: &[typed_trees::expression::StaticMachineArgument],
+) -> bool {
+    let parameters = program.machine_type_parameters(target);
+    parameters.len() == arguments.len()
+        && parameters.iter().zip(arguments).all(|(parameter, argument)| {
+            program.machine_type_parameters(source).iter().any(|in_scope| {
+                in_scope.symbol == parameter.symbol
+            }) && argument.application.is_none()
+                && argument.const_literal.is_none()
+                && argument.evidence_projection.is_none()
+                && if argument.type_reference.is_valid() {
+                    !argument.symbol.is_valid()
+                        && argument.path.is_empty()
+                        && matches!(
+                            program.type_reference_table.type_reference(argument.type_reference),
+                            typed_trees::types::TypeReferenceNode::Named { symbol, .. }
+                                if *symbol == parameter.symbol
+                        )
+                } else {
+                    argument.symbol == parameter.symbol
+                }
+        })
 }
 
 /// Evaluate one result expression against the prefix context immediately before
@@ -764,24 +806,18 @@ fn merge_named_edge<'program>(
     program: &'program dyn crate::CheckingInput,
     machine: &'program Machine,
     source_state: &'program State,
-    boundary: &StatementNode,
     boundary_index: usize,
     edge: TransitionTargetHandle,
     edge_arguments: arena::HandleSpan<ExpressionHandle>,
     expected_result: TypeReferenceHandle,
-    relative: &mut AggregateOrigins,
-    symbols: &TopLevelSymbols<'_>,
-    inference: &mut FrameInference,
-    include_shared: bool,
     edges: &mut Vec<state_equations::Edge<'program>>,
-    returns: &mut bool,
     boundary_prefix: Option<&CollectedStatementPrefix>,
 ) -> Option<()> {
     let TransitionTargetNode::Named { .. } = program.statement_table.transition_target(edge) else {
         return None;
     };
     let call_target = super::terminal_calls::target(program, machine, edge);
-    let (target_machine, target_state) = if call_target.is_valid() {
+    let target_state = if call_target.is_valid() {
         let (callee, state) = machine_state_by_symbol(program, call_target)?;
         // A terminal invocation uses the same body-derived origin authority as
         // an expression call. Requirement signatures and recursive bodies do
@@ -797,12 +833,9 @@ fn merge_named_edge<'program>(
         {
             return None;
         }
-        (callee, state)
+        state
     } else {
-        (
-            machine,
-            named_transition_target_state(program, machine, source_state, edge)?,
-        )
+        named_transition_target_state(program, machine, source_state, edge)?
     };
     let arguments = program.statement_table.expression_handles(edge_arguments);
     let parameters = program.state_parameters(target_state);
@@ -822,40 +855,13 @@ fn merge_named_edge<'program>(
         return None;
     }
     let context = boundary_prefix?;
-    if !call_target.is_valid() {
-        edges.push(state_equations::Edge {
-            target: target_state,
-            statement_index: boundary_index,
-            arguments,
-            prefix: context.clone(),
-        });
-        return Some(());
-    }
-    let mut target_relative = state_result_origins(
-        program,
-        target_machine,
-        target_state,
-        expected_result,
-        symbols,
-        inference,
-        include_shared,
-    )?;
-    *returns = true;
-    instantiate_edge_origins(
-        program,
-        machine,
-        source_state,
-        target_state,
-        boundary,
-        boundary_index,
+    edges.push(state_equations::Edge {
+        target: target_state,
+        statement_index: boundary_index,
         arguments,
-        &mut target_relative,
-        context,
-        relative,
-        symbols,
-        inference,
-        include_shared,
-    )
+        prefix: context.clone(),
+    });
+    Some(())
 }
 
 /// Substitute a retained target relation at its exact captured source boundary.

@@ -32,6 +32,9 @@ pub use build_requests::{
     TerminalBuildRequestCall, TerminalBuildRequestOperation, TerminalBuildRequests,
 };
 pub use checked_trees_to_lowered_psi::lower_task_activation_demands;
+pub use checked_trees_to_lowered_psi::{
+    NumericRealizationDeclarations, project_numeric_realization_declarations,
+};
 pub use checked_trees_to_lowered_psi::{TerminalMachineSelection, TerminalProgramRoots};
 pub use composition_admission::TerminalCompositionAdmission;
 pub use custody::{ProducedTerminalProgram, TerminalApplicationCustody, TerminalProductionCustody};

@@ -247,6 +247,10 @@ pub struct ProviderSettlement {
     /// Every derived candidate plan plus toolchain-settled plans; trust
     /// replays each selected plan against exactly one of these.
     pub provider_plans: Vec<ProviderPlan>,
+    /// Original checked candidate provenance, including private and unused
+    /// native choices. Review borrows the producer's inventory rather than
+    /// reconstructing a candidate from a selected physical binding.
+    pub provider_candidates: Vec<crate::DerivedProviderPlan>,
     /// Exact common producer namespace for every native receipt. No source
     /// evaluator or former forwarding declaration participates in recovery.
     binding_identities: terminal_psi::TerminalIdentityTable,
@@ -843,6 +847,7 @@ pub fn settle_checked_providers(
             boundary_calling_plan_realizations,
             component_calling_applications,
             provider_plans,
+            provider_candidates: derived_provider_plans,
             binding_identities: admitted_native_bindings
                 .first()
                 .map(|binding| binding.identities.clone())

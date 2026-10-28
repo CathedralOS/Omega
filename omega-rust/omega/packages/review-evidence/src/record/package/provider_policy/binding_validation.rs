@@ -7,6 +7,44 @@ use crate::record::{
 use target::TargetProfile;
 
 impl PackagePolicyProviderBinding {
+    pub(crate) fn validate_native(&self, target: TargetProfile) -> Result<(), &'static str> {
+        match self {
+            Self::Import {
+                target: selected,
+                producer,
+                locator,
+            } if selected == target.identity().as_str() => {
+                validate_producer(producer)?;
+                validate_locator(locator, target)
+            }
+            Self::Syscall {
+                number,
+                evaluated: Some(evaluated),
+            } if evaluated.target == target.identity().as_str()
+                && matches!(target, TargetProfile::LinuxArm64 | TargetProfile::LinuxX64)
+                && u32::try_from(*number).is_ok() =>
+            {
+                validate_producer(&evaluated.producer)
+            }
+            Self::VtableField {
+                table,
+                field,
+                table_declaration,
+            }
+            | Self::TableFunction {
+                table,
+                field,
+                table_declaration,
+            } => {
+                table_declaration.validate_resolved()?;
+                if table.is_empty() || field.is_empty() {
+                    return Err("native table binding has an empty field coordinate");
+                }
+                Ok(())
+            }
+            _ => Err("native inventory has an invalid target, coordinate or producer"),
+        }
+    }
     pub(super) fn validate_canonical_structure(
         &self,
         target: TargetProfile,

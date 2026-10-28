@@ -431,7 +431,9 @@ impl<'program> Evaluator<'program> {
             // position are parse errors (probed in tests/coverage.rs). Decline defensively
             // in case a future frontend starts emitting them elsewhere.
             ExpressionNode::Range(_) => unsupported("range expression outside index position"),
-            ExpressionNode::StructLiteral(literal) => self.eval_struct_literal(&literal, frame),
+            ExpressionNode::StructLiteral(literal) => {
+                self.eval_struct_literal(handle, &literal, frame)
+            }
             ExpressionNode::ZeroValue(_) => {
                 unsupported("proof-only zero_value<T>() reached runtime evaluation")
             }

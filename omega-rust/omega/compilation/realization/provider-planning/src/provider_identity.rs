@@ -161,29 +161,14 @@ pub(crate) fn provider_owner_symbol(
     typed: &checked_trees::typed_trees::TypedTrees,
     machine: &checked_trees::typed_trees::machine::Machine,
 ) -> Option<symbols::SymbolHandle> {
-    if machine.attached_data.is_none() {
-        let owner = typed.symbols.symbol_module(machine.symbol);
-        return (owner.is_valid() && typed.symbols.get(owner).kind == symbols::SymbolKind::Module)
-            .then_some(owner);
-    }
-    let attached_data = machine.attached_data.as_ref()?;
-    let mut owners = typed.data_definitions().iter().filter(|definition| {
-        definition.symbol == machine.attached_data_symbol && definition.name == *attached_data
-    });
-    let owner = owners.next()?;
-    owners.next().is_none().then_some(owner.symbol)
+    typed.machine_code_owner_symbol(machine)
 }
 
 pub(crate) fn provider_owner_path(
     typed: &checked_trees::typed_trees::TypedTrees,
     machine: &checked_trees::typed_trees::machine::Machine,
 ) -> Option<String> {
-    let owner = provider_owner_symbol(typed, machine)?;
-    if typed.symbols.get(owner).kind == symbols::SymbolKind::Module {
-        Some(typed.symbols.display_path(owner, "::"))
-    } else {
-        typed.attached_data_path(machine)
-    }
+    typed.machine_code_owner_path(machine)
 }
 
 pub(crate) fn provider_owner_package_identity(

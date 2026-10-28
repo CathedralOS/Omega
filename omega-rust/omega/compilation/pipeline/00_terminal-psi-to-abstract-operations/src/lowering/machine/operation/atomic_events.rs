@@ -29,9 +29,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use abstract_operations::atomic::AbstractAtomicLocation;
-use abstract_operations::{
-    AbstractAtomicEvent, AbstractOperation, AtomicModificationAfter, AtomicReadsFrom,
-};
+use abstract_operations::{AbstractAtomicEvent, AbstractOperation, AtomicResidencyEdge};
 use semantic_vocabulary::{OperationId, PlaceId, ScalarType};
 use terminal_psi::{
     AtomicAccessEvent, Operation, OperationKind, StructuralTypeDeclaration, TerminalMachine,
@@ -165,25 +163,26 @@ pub(super) fn lower(
         }
         _ => Err(LoweringError::UnsupportedAtomicCoherence(operation.id)),
     };
-    let reads_from = if lowered.observes_resident() {
-        Some(match edge(&reached)? {
-            Reaching::Initial => AtomicReadsFrom::InitialResidency,
-            Reaching::Atomic(operation) => AtomicReadsFrom::Write { operation },
-            Reaching::Effect(operation) => AtomicReadsFrom::AfterEffect { operation },
+    // One retained residency edge carries both coherence claims: whichever
+    // roster admits it, the edge answers the same reaching fact.
+    let retained = match (
+        lowered.observes_resident(),
+        lowered.joins_modification_order(),
+    ) {
+        (false, false) => None,
+        _ => Some(match edge(&reached)? {
+            Reaching::Initial => AtomicResidencyEdge::InitialResidency,
+            Reaching::Atomic(operation) => AtomicResidencyEdge::Write { operation },
+            Reaching::Effect(operation) => AtomicResidencyEdge::AfterEffect { operation },
             Reaching::Unknown => return Err(malformed()),
-        })
-    } else {
-        None
+        }),
     };
-    let modification_after = if lowered.joins_modification_order() {
-        Some(match edge(&reached)? {
-            Reaching::Initial => AtomicModificationAfter::InitialResidency,
-            Reaching::Atomic(operation) => AtomicModificationAfter::Write { operation },
-            Reaching::Effect(operation) => AtomicModificationAfter::AfterEffect { operation },
-            Reaching::Unknown => return Err(malformed()),
-        })
-    } else {
-        None
+    let (reads_from, modification_after) = match retained {
+        None => (None, None),
+        Some(edge) => (
+            lowered.observes_resident().then_some(edge),
+            lowered.joins_modification_order().then_some(edge),
+        ),
     };
     Ok(AbstractOperation::AtomicEvent {
         psi_operation: operation.id,

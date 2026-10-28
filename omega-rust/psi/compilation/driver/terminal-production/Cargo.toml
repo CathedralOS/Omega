@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+validation = { path = "../../checking" }
 language-semantics = { path = "../../../foundation/language-semantics" }
 typed-trees = { path = "../../representations/typed-trees" }
 lowered-psi = { path = "../../representations/lowered-psi" }
@@ -19,4 +20,3 @@ diagnostics = { path = "../../../foundation/diagnostics" }
 source = { path = "../../../foundation/source" }
 symbols = { path = "../../../foundation/symbols" }
 semantic-vocabulary = { path = "../../../foundation/semantic-vocabulary" }
-validation = { path = "../../checking" }

@@ -411,6 +411,8 @@ pub(crate) fn desugar_generic_data_instances_in(
                 false,
             );
         }
+        let storage_positions: std::collections::HashSet<_> =
+            storage_positions.into_iter().collect();
         let mut rewrites: Vec<PendingRewrite> = Vec::new();
         let mut instantiations: Vec<Instantiation> = Vec::new();
         for position in identity_positions {

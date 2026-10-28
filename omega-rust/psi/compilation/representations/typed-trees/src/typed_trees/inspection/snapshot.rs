@@ -167,6 +167,7 @@ fn authored_declaration_selection_intrinsic_name(
 ) -> (&'static str, Option<String>) {
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
     match intrinsic {
+        Intrinsic::BuildNativeBinding => ("build_native_binding", None),
         Intrinsic::StorageAddress => ("storage_address", None),
         Intrinsic::BuiltinOperator => ("builtin_operator", None),
         Intrinsic::CarryPermission(permission) => {

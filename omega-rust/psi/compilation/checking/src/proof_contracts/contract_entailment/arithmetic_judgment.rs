@@ -9,7 +9,7 @@ mod integer_policy;
 mod intervals;
 mod lower_bound_queries;
 use crate::proof_contracts::arithmetic_domains::BigIntInterval as Interval;
-pub(super) use lower_bound_queries::LowerBoundQueries;
+pub(super) use lower_bound_queries::{LowerBoundQueries, PreparedLowerBoundIndex};
 mod captured_calls;
 mod mathematical_terms;
 mod strict_bindings;
@@ -313,7 +313,7 @@ pub(super) struct Engine<'program> {
     /// applied to fixpoint during normalization.
     pub(super) substitutions: BTreeMap<String, Polynomial>,
     /// Lower bounds: each entry means `polynomial >= bound`.
-    bounds: Vec<(Polynomial, BigInt)>,
+    pub(super) bounds: Vec<(Polynomial, BigInt)>,
     /// Exact integer disequalities retained by strict adapters. A nonzero
     /// difference has no sign; it can establish disequality, not an order bound.
     nonzero_differences: Vec<Polynomial>,
@@ -395,6 +395,128 @@ impl<'program> Engine<'program> {
             self.arithmetic_intervals.len(),
             self.bounds.len(),
         )
+    }
+
+    pub(super) fn has_opaque_terms(&self) -> bool {
+        !self.opaque_terms.is_empty()
+    }
+
+    pub(super) fn truncate_opaque_terms_since(&mut self, start: usize) -> bool {
+        let mut removed_existing_interval = false;
+        while self.opaque_terms.len() > start {
+            if let Some((atom, _)) = self.opaque_terms.pop()
+                && self.arithmetic_intervals.remove(&atom).is_some()
+                && self
+                    .opaque_terms
+                    .iter()
+                    .any(|(existing, _)| *existing == atom)
+            {
+                removed_existing_interval = true;
+            }
+        }
+        removed_existing_interval
+    }
+
+    pub(super) fn restore_matrix_from(&mut self, source: &Self) {
+        self.matrix = source.matrix.clone();
+        self.requires_unsatisfiable = source.requires_unsatisfiable;
+    }
+
+    pub(super) fn restore_intervals_from(&mut self, source: &Self) {
+        self.arithmetic_intervals = source.arithmetic_intervals.clone();
+    }
+
+    pub(super) fn opaque_term_name_if_uncorrelated(&self, index: usize) -> Option<&str> {
+        self.opaque_terms
+            .get(index)
+            .and_then(|(name, term)| match term {
+                OpaqueTerm::IntegerPolicy { .. }
+                | OpaqueTerm::ShiftLeft { .. }
+                | OpaqueTerm::Bitwise { .. } => Some(name.as_str()),
+                OpaqueTerm::Quotient { .. }
+                | OpaqueTerm::Remainder { .. }
+                | OpaqueTerm::ShiftRight { .. } => None,
+            })
+    }
+
+    pub(super) fn opaque_term_name_if_uncorrelated_with_queries(
+        &self,
+        index: usize,
+        queries: &LowerBoundQueries<'_, 'program>,
+    ) -> Option<&str> {
+        self.opaque_terms
+            .get(index)
+            .and_then(|(name, term)| match term {
+                OpaqueTerm::IntegerPolicy { .. }
+                | OpaqueTerm::ShiftLeft { .. }
+                | OpaqueTerm::Bitwise { .. } => Some(name.as_str()),
+                OpaqueTerm::Quotient { dividend, .. }
+                | OpaqueTerm::Remainder { modulus: dividend, .. }
+                | OpaqueTerm::ShiftRight { value: dividend, .. } => {
+                    let interval = self.arithmetic_intervals.get(name.as_str())?;
+                    let Some(low) = &interval.low else {
+                        return Some(name.as_str());
+                    };
+                    if interval.high.as_ref() == Some(low) {
+                        return None;
+                    }
+                    let upper_bound_poly = match term {
+                        OpaqueTerm::Quotient { .. } => self.substituted(dividend),
+                        OpaqueTerm::Remainder { .. } | OpaqueTerm::ShiftRight { .. } => {
+                            self.substituted(dividend).sub(&Polynomial::constant(BigInt::from_i64(1)))
+                        }
+                        _ => unreachable!(),
+                    };
+                    let proves_upper_le_low = queries.prove_at_least(
+                        &Polynomial::constant(low.clone()).sub(&upper_bound_poly),
+                        &BigInt::zero(),
+                    );
+                    (!proves_upper_le_low).then_some(name.as_str())
+                }
+            })
+    }
+
+    pub(super) fn opaque_terms_since_mention(&self, start: usize, atom: &str) -> bool {
+        let poly_mentions = |poly: &Polynomial| {
+            poly.terms
+                .keys()
+                .any(|monomial| monomial.contains_key(atom))
+        };
+        self.opaque_terms.get(start..).is_some_and(|terms| {
+            terms.iter().any(|(_, term)| match term {
+                OpaqueTerm::IntegerPolicy { value, .. } => poly_mentions(value),
+                OpaqueTerm::Remainder {
+                    operand, modulus, ..
+                } => poly_mentions(operand) || poly_mentions(modulus),
+                OpaqueTerm::Quotient { dividend, divisor } => {
+                    poly_mentions(dividend) || poly_mentions(divisor)
+                }
+                OpaqueTerm::ShiftLeft { value, count, .. }
+                | OpaqueTerm::ShiftRight { value, count, .. } => {
+                    poly_mentions(value) || poly_mentions(count)
+                }
+                OpaqueTerm::Bitwise { left, right, .. } => {
+                    poly_mentions(left) || poly_mentions(right)
+                }
+            })
+        })
+    }
+
+    pub(super) fn opaque_terms_since_only_wrapping_or_bitwise(&self, start: usize) -> bool {
+        self.opaque_terms.get(start..).is_some_and(|terms| {
+            terms.iter().all(|(_, term)| {
+                matches!(
+                    term,
+                    OpaqueTerm::IntegerPolicy {
+                        domain: numerics::arithmetic::ArithmeticDomain::Wrapping,
+                        ..
+                    } | OpaqueTerm::Bitwise {
+                        operator: BinaryOperator::BitwiseOr | BinaryOperator::BitwiseXor,
+                        ..
+                    }
+                )
+            })
+        })
     }
 
     /// Declare one atom identity: every declared atom is a parameter atom, and
@@ -892,8 +1014,17 @@ impl<'program> Engine<'program> {
                 self.nonzero_differences.push(difference.clone());
             }
             let opposite = difference.neg();
-            let nonnegative = self.prove_at_least(&difference, &BigInt::zero());
-            let nonpositive = self.prove_at_least(&opposite, &BigInt::zero());
+            let (nonnegative, nonpositive) = {
+                // These two reads share one immutable premise snapshot. The
+                // prepared proportional-support index avoids rescanning unrelated
+                // captures for every residual. Drop it before installing the next
+                // directed bound so later disequalities retain the same live facts.
+                let queries = self.lower_bound_queries();
+                (
+                    queries.prove_at_least(&difference, &BigInt::zero()),
+                    queries.prove_at_least(&opposite, &BigInt::zero()),
+                )
+            };
             match (nonnegative, nonpositive) {
                 (true, true) => self.requires_unsatisfiable = true,
                 (true, false) => self.bounds.push((difference, BigInt::from_i64(1))),
@@ -1101,19 +1232,12 @@ impl<'program> Engine<'program> {
         if !self.selected_binary_meaning(fact, &binary) {
             return None;
         }
-        match binary.operator {
-            BinaryOperator::Equal
-            | BinaryOperator::NotEqual
-            | BinaryOperator::Less
-            | BinaryOperator::LessOrEqual
-            | BinaryOperator::Greater
-            | BinaryOperator::GreaterOrEqual => {
-                let left = self.normalize(binary.left)?;
-                let right = self.normalize(binary.right)?;
-                Some((binary.operator, left, right))
-            }
-            _ => None,
+        if !binary.operator.is_comparison() {
+            return None;
         }
+        let left = self.normalize(binary.left)?;
+        let right = self.normalize(binary.right)?;
+        Some((binary.operator, left, right))
     }
 
     /// Normalize a TERM expression to a polynomial. `None` = outside the

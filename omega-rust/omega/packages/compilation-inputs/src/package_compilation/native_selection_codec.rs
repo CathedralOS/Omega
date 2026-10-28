@@ -15,7 +15,7 @@ use language_semantics::declaration_selection::{
     BuildSelectionOrigin, NativeBindingValue, ProductTarget,
 };
 
-const MAGIC: &[u8] = b"OMG-BUILD-NATIVE-CHOICES\x01";
+const MAGIC: &[u8] = b"OMG-BUILD-NATIVE-CHOICES\x02";
 
 fn pool(rows: &[RetainedNativeBinding]) -> SelectionSources {
     let mut sources = Vec::new();
@@ -48,7 +48,7 @@ pub fn encode_package_native_bindings(rows: &[RetainedNativeBinding]) -> Vec<u8>
 pub fn package_native_bindings_digest(rows: &[RetainedNativeBinding]) -> [u8; 32] {
     let pool = pool(rows);
     let mut digest =
-        crate::digest_encoder::DomainDigestEncoder::new(b"omega-package-native-choices-v1\0");
+        crate::digest_encoder::DomainDigestEncoder::new(b"omega-package-native-choices-v2\0");
     digest.u64(pool.sources.len() as u64);
     for source in &pool.sources {
         let relative = source

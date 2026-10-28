@@ -181,6 +181,12 @@ pub fn lower_machine(
         )
     })
     .map_err(LoweringError::Unsupported)?;
+    crate::retention::numeric_realizations::retain(
+        &mut identities,
+        checked,
+        exact_toolchain_sources,
+        &mut lowered.semantic_module,
+    )?;
     phase_profile::scope("05.callback_applications", || {
         callback_applications::retain(
             &mut identities,
@@ -386,48 +392,54 @@ fn lower_terminal_selection(
             &mut lowered.semantic_module,
         )
     })?;
-    phase_profile::scope("05.05_reborrow_restored_call_use", || -> Result<_, LoweringError> {
-        for (source_machine, terminal_machine) in &source_machine_ids {
-            reborrow_restored_call_use::retain_selected_reborrow_restored_call_uses(
+    phase_profile::scope(
+        "05.05_reborrow_restored_call_use",
+        || -> Result<_, LoweringError> {
+            for (source_machine, terminal_machine) in &source_machine_ids {
+                reborrow_restored_call_use::retain_selected_reborrow_restored_call_uses(
+                    identities,
+                    checked,
+                    *source_machine,
+                    *terminal_machine,
+                    &lowered.source_call_occurrences,
+                    &lowered.semantic_module.machines,
+                    &mut lowered.semantic_module.reborrow_restored_call_uses,
+                )?;
+            }
+            Ok(())
+        },
+    )?;
+    phase_profile::scope(
+        "05.06_placed_and_suspension",
+        || -> Result<_, LoweringError> {
+            crate::retention::placed_view_plans::retain(
                 identities,
                 checked,
-                *source_machine,
-                *terminal_machine,
-                &lowered.source_call_occurrences,
-                &lowered.semantic_module.machines,
-                &mut lowered.semantic_module.reborrow_restored_call_uses,
+                exact_toolchain_sources,
+                &mut lowered.semantic_module,
             )?;
-        }
-        Ok(())
-    })?;
-    phase_profile::scope("05.06_placed_and_suspension", || -> Result<_, LoweringError> {
-        crate::retention::placed_view_plans::retain(
-            identities,
-            checked,
-            exact_toolchain_sources,
-            &mut lowered.semantic_module,
-        )?;
-        crate::retention::placement_lifecycles::retain(
-            identities,
-            checked,
-            exact_toolchain_sources,
-            &mut lowered,
-        )?;
-        suspension_call_plan::retain_suspension_call_plans(
-            identities,
-            checked,
-            &source_machines,
-            &lowered.source_call_occurrences,
-            &mut lowered.semantic_module,
-        )?;
-        retained_borrow_custody::retain_foreign_borrow_custodies(
-            identities,
-            checked,
-            exact_toolchain_sources,
-            &mut lowered.semantic_module,
-        )?;
-        Ok(())
-    })?;
+            crate::retention::placement_lifecycles::retain(
+                identities,
+                checked,
+                exact_toolchain_sources,
+                &mut lowered,
+            )?;
+            suspension_call_plan::retain_suspension_call_plans(
+                identities,
+                checked,
+                &source_machines,
+                &lowered.source_call_occurrences,
+                &mut lowered.semantic_module,
+            )?;
+            retained_borrow_custody::retain_foreign_borrow_custodies(
+                identities,
+                checked,
+                exact_toolchain_sources,
+                &mut lowered.semantic_module,
+            )?;
+            Ok(())
+        },
+    )?;
     // Selected operator invocations carry their crash contract beside the
     // exact emitted operation; a named invocation's carrier is its own
     // boundary call's declaration, verified through the same projection
@@ -445,24 +457,31 @@ fn lower_terminal_selection(
     // Guarded guarantees are admitted from the finished closure: whether the
     // entry returns one exact payloadless case is a fact of its lowered body,
     // whichever producer emitted it.
-    phase_profile::scope("05.08_conformance_and_dyn", || -> Result<_, LoweringError> {
-        reject_unguarded_outcome_guarantees(checked, &source_machine_ids, &lowered.semantic_module)?;
-        crate::retention::conformance_applications::lower_closed_conformance_applications(
-            identities,
-            checked,
-            &source_machines,
-            &source_boundary_ids,
-            &mut lowered.semantic_module,
-        )?;
-        crate::unit::dynamic_dispatch::lower_dynamic_dispatch_catalog(
-            identities,
-            checked,
-            &source_machines,
-            &mut lowered.semantic_module,
-        )?;
-        retain_float_meanings(identities, checked, &source_machine_ids, &mut lowered)?;
-        Ok(())
-    })?;
+    phase_profile::scope(
+        "05.08_conformance_and_dyn",
+        || -> Result<_, LoweringError> {
+            reject_unguarded_outcome_guarantees(
+                checked,
+                &source_machine_ids,
+                &lowered.semantic_module,
+            )?;
+            crate::retention::conformance_applications::lower_closed_conformance_applications(
+                identities,
+                checked,
+                &source_machines,
+                &source_boundary_ids,
+                &mut lowered.semantic_module,
+            )?;
+            crate::unit::dynamic_dispatch::lower_dynamic_dispatch_catalog(
+                identities,
+                checked,
+                &source_machines,
+                &mut lowered.semantic_module,
+            )?;
+            retain_float_meanings(identities, checked, &source_machine_ids, &mut lowered)?;
+            Ok(())
+        },
+    )?;
     lowered.build_provider_requirements = phase_profile::scope("05.09_build_providers", || {
         build_providers::retain(
             identities,
@@ -476,14 +495,17 @@ fn lower_terminal_selection(
     // Copies emitted while composing values can allocate after frame reservation.
     // Retain their ordinary place declarations before publishing the module;
     // quotient adaptations keep their separate exact occurrence licenses.
-    phase_profile::scope("05.10_reconcile_and_residences", || -> Result<_, LoweringError> {
-        crate::emission::operation_emission::place_declarations::reconcile_leaf_copy_place_declarations(
+    phase_profile::scope(
+        "05.10_reconcile_and_residences",
+        || -> Result<_, LoweringError> {
+            crate::emission::operation_emission::place_declarations::reconcile_leaf_copy_place_declarations(
             &mut lowered.semantic_module,
         );
-        crate::emission::descriptor_residences::complete(&mut lowered.semantic_module)?;
-        crate::retention::payload_memberships::retain(&mut lowered.semantic_module)?;
-        Ok(())
-    })?;
+            crate::emission::descriptor_residences::complete(&mut lowered.semantic_module)?;
+            crate::retention::payload_memberships::retain(&mut lowered.semantic_module)?;
+            Ok(())
+        },
+    )?;
     phase_profile::scope("05.11_evidence_artifacts", || {
         lower_and_install_evidence_artifacts(identities, checked, &source_machine_ids, &mut lowered)
     })?;

@@ -141,13 +141,40 @@ fn collect_call_targets(
 ) -> Result<Vec<symbols::SymbolHandle>, LoweringError> {
     let plans = &checked.facts.values.scalar_computations;
     let roots = plans.roots_for_machine(machine);
+    // A completing application retained by source checking can become a
+    // successor in the checked control graph. Its arguments still execute,
+    // but the application itself is no longer a callable dependency. Match
+    // the exact source coordinate, never the target alone: another occurrence
+    // calling that same machine may still require an invocation frame.
+    let transfers = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(machine)
+        .into_iter()
+        .flat_map(|graph| &graph.states)
+        .flat_map(|state| {
+            state.successors().into_iter().filter_map(|edge| {
+                if edge.is_continuation {
+                    return None;
+                }
+                plans
+                    .root_at(
+                        state.state,
+                        edge.statement_ordinal,
+                        checked_trees::CheckedScalarExpressionRole::Return,
+                    )
+                    .map(|root| (root.root, edge.target_state))
+            })
+        })
+        .collect::<Vec<_>>();
     let mut targets = Vec::new();
     for handle in reachable_nodes(checked, &roots)? {
         if let CheckedScalarComputationKind::Call {
             callee:
                 checked_trees::CheckedScalarCallee::Body {
                     machine: target_machine,
-                    ..
+                    state: target_state,
                 },
             structural_arguments,
             ..
@@ -159,7 +186,9 @@ fn collect_call_targets(
                 .ok_or(LoweringError::Unsupported(
                     "scalar computation closure has invalid structural arguments",
                 ))?;
-            if !structural_only || !arguments.is_empty() {
+            if !transfers.contains(&(handle, target_state))
+                && (!structural_only || !arguments.is_empty())
+            {
                 targets.push(target_machine);
             }
         }

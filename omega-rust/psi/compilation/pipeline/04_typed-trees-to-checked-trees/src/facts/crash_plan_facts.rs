@@ -65,10 +65,7 @@ pub(crate) fn build_crash_contract_capsules(
         .into_iter()
         .map(|(target_machine, target_state, signature)| {
             let parameters = program.state_signature_parameters(signature);
-            let parameter_names = parameters
-                .iter()
-                .map(|parameter| parameter.name.as_str().to_owned())
-                .collect::<Vec<_>>();
+            let parameter_names = declared_parameter_names(parameters);
             let contracts = program.state_signature_contracts(signature);
             let published = build_published_crash_buckets(
                 program,
@@ -425,14 +422,20 @@ pub(crate) fn machine_entry_parameter_names(
     program
         .machine_states(machine)
         .first()
-        .map(|entry| {
-            program
-                .state_parameters(entry)
-                .iter()
-                .map(|parameter| parameter.name.as_str().to_owned())
-                .collect::<Vec<_>>()
-        })
+        .map(|entry| declared_parameter_names(program.state_parameters(entry)))
         .unwrap_or_default()
+}
+
+/// The declared names of one parameter telescope, in declaration order. A
+/// source contract names its positions by parameter name, so every contract
+/// and crash surface reads the same positional row from here.
+pub(crate) fn declared_parameter_names(
+    parameters: &[typed_trees::signature::StateParameter],
+) -> Vec<String> {
+    parameters
+        .iter()
+        .map(|parameter| parameter.name.as_str().to_owned())
+        .collect()
 }
 
 pub(crate) fn derive_authored_machine_crash_buckets(
@@ -456,11 +459,7 @@ pub(crate) fn derive_authored_signature_crash_buckets(
     program: &dyn ::validation::CheckingInput,
     signature: &typed_trees::signature::StateSignature,
 ) -> Result<Vec<checked_trees::CrashRouteBucket>, diagnostics::Diagnostic> {
-    let parameter_names = program
-        .state_signature_parameters(signature)
-        .iter()
-        .map(|parameter| parameter.name.as_str().to_owned())
-        .collect::<Vec<_>>();
+    let parameter_names = declared_parameter_names(program.state_signature_parameters(signature));
     let conservation = validation::content_conservation_plans(program);
     build_published_crash_buckets(
         program,
@@ -484,11 +483,7 @@ pub(crate) fn derive_authored_operator_crash_buckets(
     operators: &checked_trees::CheckedOperatorFacts,
     content_conservation: &[validation::ContentConservationSourcePlan],
 ) -> Result<Vec<checked_trees::CrashRouteBucket>, diagnostics::Diagnostic> {
-    let parameter_names = program
-        .operator_parameters(operator)
-        .iter()
-        .map(|parameter| parameter.name.as_str().to_owned())
-        .collect::<Vec<_>>();
+    let parameter_names = declared_parameter_names(program.operator_parameters(operator));
     build_published_crash_buckets(
         program,
         program

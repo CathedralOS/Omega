@@ -1,13 +1,16 @@
-//! Whole conjunctions of authored integer observations. Candidate atoms grant
+//! Whole conjunctions of typed Boolean and integer observations. Candidate atoms grant
 //! nothing: every atom owes necessity, the complete conjunction owes its own
 //! converse, and partial reads must form from preceding guards without P.
-use super::super::{PredicateApplication, PredicateIntegerOperand, PredicateOrderingConsequence};
+use super::super::{
+    PredicateApplication, PredicateBooleanSubject, PredicateCondition, PredicateIntegerOperand,
+    PredicateOrderingConsequence,
+};
 use super::*;
 
 pub(in crate::proof_contracts::collection_predicates) fn exact_conjunction(
     program: &dyn crate::CheckingInput,
     application: &PredicateApplication<'_>,
-) -> Option<Vec<PredicateOrderingConsequence>> {
+) -> Option<Vec<PredicateCondition>> {
     let machine = program.machines().get(application.machine)?;
     let entry = program.machine_states(machine).first()?;
     let parameters = program.state_parameters(entry);
@@ -49,8 +52,28 @@ pub(in crate::proof_contracts::collection_predicates) fn exact_conjunction(
     }
     let mut candidates = Vec::new();
     let mut seen = Vec::new();
+    let mut seen_booleans = Vec::new();
     for expression in &expressions {
         proof.spend()?;
+        if let Some(subject) = super::super::predicate_boolean_subject(
+            program,
+            machine.symbol,
+            application.arguments,
+            *expression,
+        ) {
+            let identity =
+                crate::immutable_entry_boolean_projection(program, machine.symbol, *expression)?;
+            if !seen_booleans.contains(&identity) {
+                seen_booleans.push(identity);
+                for holds in [true, false] {
+                    candidates.push(Candidate::Boolean {
+                        expression: *expression,
+                        subject: subject.clone(),
+                        holds,
+                    });
+                }
+            }
+        }
         let Some(binary) = program.expression_table.binary_node(*expression) else {
             continue;
         };
@@ -84,7 +107,7 @@ pub(in crate::proof_contracts::collection_predicates) fn exact_conjunction(
             continue;
         };
         seen.push(*expression);
-        candidates.push(Candidate {
+        candidates.push(Candidate::Ordering {
             left: binary.left,
             right: binary.right,
             condition: PredicateOrderingConsequence {
@@ -109,7 +132,7 @@ pub(in crate::proof_contracts::collection_predicates) fn exact_conjunction(
             &candidate,
         )? {
             paths = proof.form_condition(&frame, &paths, &candidate)?;
-            selected.push(candidate.condition);
+            selected.push(candidate.into_condition());
         }
     }
     if sufficient(&mut proof, application, &arguments, &paths)? {
@@ -187,7 +210,7 @@ pub(in crate::proof_contracts::collection_predicates) fn exact_conjunction(
                 BinaryOperator::GreaterOrEqual,
             ] {
                 proof.spend()?;
-                let candidate = Candidate {
+                let candidate = Candidate::Ordering {
                     left: subjects[left].expression,
                     right: subjects[right].expression,
                     condition: PredicateOrderingConsequence {
@@ -207,7 +230,7 @@ pub(in crate::proof_contracts::collection_predicates) fn exact_conjunction(
                     continue;
                 }
                 paths = proof.form_condition(&frame, &paths, &candidate)?;
-                selected.push(candidate.condition);
+                selected.push(candidate.into_condition());
                 if sufficient(&mut proof, application, &arguments, &paths)? {
                     return Some(selected);
                 }
@@ -217,15 +240,33 @@ pub(in crate::proof_contracts::collection_predicates) fn exact_conjunction(
     None
 }
 
-struct Candidate {
-    left: ExpressionHandle,
-    right: ExpressionHandle,
-    condition: PredicateOrderingConsequence,
+enum Candidate {
+    Ordering {
+        left: ExpressionHandle,
+        right: ExpressionHandle,
+        condition: PredicateOrderingConsequence,
+    },
+    Boolean {
+        expression: ExpressionHandle,
+        subject: PredicateBooleanSubject,
+        holds: bool,
+    },
 }
 impl Candidate {
     fn has_reads(&self) -> bool {
-        matches!(self.condition.left, PredicateIntegerOperand::Read(_))
-            || matches!(self.condition.right, PredicateIntegerOperand::Read(_))
+        match self {
+            Self::Ordering { condition, .. } => {
+                matches!(condition.left, PredicateIntegerOperand::Read(_))
+                    || matches!(condition.right, PredicateIntegerOperand::Read(_))
+            }
+            Self::Boolean { .. } => false,
+        }
+    }
+    fn into_condition(self) -> PredicateCondition {
+        match self {
+            Self::Ordering { condition, .. } => PredicateCondition::Ordering(condition),
+            Self::Boolean { subject, holds, .. } => PredicateCondition::Boolean { subject, holds },
+        }
     }
 }
 #[derive(PartialEq, Eq)]
@@ -321,12 +362,42 @@ impl Implication<'_> {
         candidate: &Candidate,
         inert: bool,
     ) -> Option<Vec<(Path, Boolean)>> {
+        if let Candidate::Boolean {
+            expression, holds, ..
+        } = candidate
+        {
+            return self
+                .expression(frame, path, *expression, 0)?
+                .into_iter()
+                .map(|(path, value)| {
+                    let Value::Boolean(value) = value else {
+                        return None;
+                    };
+                    Some((
+                        path,
+                        if *holds {
+                            value
+                        } else {
+                            Boolean::Not(Box::new(value))
+                        },
+                    ))
+                })
+                .collect();
+        }
+        let Candidate::Ordering {
+            left,
+            right,
+            condition,
+        } = candidate
+        else {
+            return None;
+        };
         let mut rows = Vec::new();
-        for (path, left) in self.condition_integer(frame, path, candidate.left, inert)? {
-            for (path, right) in self.condition_integer(frame, path, candidate.right, inert)? {
+        for (path, left) in self.condition_integer(frame, path, *left, inert)? {
+            for (path, right) in self.condition_integer(frame, path, *right, inert)? {
                 rows.push((
                     path,
-                    Boolean::Comparison(compare(candidate.condition.operator, left.clone(), right)),
+                    Boolean::Comparison(compare(condition.operator, left.clone(), right)),
                 ));
             }
         }

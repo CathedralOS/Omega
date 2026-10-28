@@ -27,44 +27,49 @@ use physical_instructions::{
 };
 use selected_instructions_to_register_homes::ValidatedPreAllocationMachineEffects;
 
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn compute_terminal_post_allocation_machine_plan<S: ValidatedSelectedAnalysis>(
-    selected: &S,
-    effects: &ValidatedPreAllocationMachineEffects,
-    ranges: &ValidatedLiveRanges,
-    legality: &ValidatedAllocationLegality,
-    homes: &ValidatedRegisterHomes,
-    manifest: &ValidatedPostAllocationOptimizationManifest,
-    register_environment: TargetRegisterEnvironmentIdentity,
-    physical: &ValidatedPhysicalRegisterModel,
-    constraints: &ValidatedRegisterConstraintCatalog,
+/// The validated sources one plan construction reads, named once. Every layer
+/// of the construction carries this owner instead of re-declaring the argument
+/// tuple, and admission reads the same fields the assembly does.
+pub(crate) struct PlanSources<'a, S: ValidatedSelectedAnalysis> {
+    pub(crate) selected: &'a S,
+    pub(crate) effects: &'a ValidatedPreAllocationMachineEffects,
+    pub(crate) ranges: &'a ValidatedLiveRanges,
+    pub(crate) legality: &'a ValidatedAllocationLegality,
+    pub(crate) homes: &'a ValidatedRegisterHomes,
+    pub(crate) manifest: &'a ValidatedPostAllocationOptimizationManifest,
+    pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
+    pub(crate) physical: &'a ValidatedPhysicalRegisterModel,
+    pub(crate) constraints: &'a ValidatedRegisterConstraintCatalog,
+}
+
+/// Join one validated selected CFG, its pre-allocation machine effects, and its
+/// independently validated physical homes into the unsealed baseline plan.
+/// Target applicability must identify exactly one legal alternative for every
+/// instruction; optimizer-selected alternatives wait for the phase.
+pub(crate) fn compute_post_allocation_machine_plan<S: ValidatedSelectedAnalysis>(
+    sources: &PlanSources<'_, S>,
 ) -> Result<PostAllocationMachinePlan, PostAllocationMachineError> {
-    roots::validate(
-        selected,
-        effects,
-        ranges,
-        legality,
-        homes,
-        manifest,
-        register_environment,
-        physical,
-        constraints,
+    roots::validate(sources)?;
+    let selected_plan = sources.selected.selected_plan();
+    let functions = ordinary::build_functions(
+        selected_plan,
+        sources.effects,
+        sources.homes,
+        sources.physical,
     )?;
-    let selected_plan = selected.selected_plan();
-    let functions = ordinary::build_functions(selected_plan, effects, homes, physical)?;
     let mut plan = PostAllocationMachinePlan {
         identity: PostAllocationMachineIdentity::from_bytes([0; 32]),
-        selected: selected.selected_identity(),
-        effects: effects.receipt().identity(),
-        ranges: ranges.receipt().identity(),
-        legality: legality.receipt().identity(),
-        homes: homes.receipt().identity(),
-        post_allocation_manifest: manifest.record().identity,
+        selected: sources.selected.selected_identity(),
+        effects: sources.effects.receipt().identity(),
+        ranges: sources.ranges.receipt().identity(),
+        legality: sources.legality.receipt().identity(),
+        homes: sources.homes.receipt().identity(),
+        post_allocation_manifest: sources.manifest.record().identity,
         target: selected_plan.target,
-        register_environment,
-        physical_register_model: physical.identity(),
-        register_constraints: effects.plan().register_constraints,
-        machine_effect_catalog: effects.plan().machine_effect_catalog,
+        register_environment: sources.register_environment,
+        physical_register_model: sources.physical.identity(),
+        register_constraints: sources.effects.plan().register_constraints,
+        machine_effect_catalog: sources.effects.plan().machine_effect_catalog,
         choice_rule: MachineAlternativeChoiceRule::UniqueApplicableInCatalogOrderV1,
         functions,
     };
