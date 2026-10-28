@@ -88,7 +88,7 @@ python tools/corpus_gate.py --filter facts/unsigned_32bit_division_remainder_bou
   - **Checked-to-Terminal Psi lowering (`Psi 05–07`)** ([product](../../../../wiki/spec/terminal-psi/product.md), [encoding](../../../../wiki/spec/terminal-psi/encoding.md), [calls and outcomes](../../../../wiki/spec/terminal-psi/calls_and_outcomes.md), [control flow](../../../../wiki/spec/terminal-psi/control_flow.md), [integer certificates](../../../../wiki/spec/terminal-psi/integer_certificates.md)): Unsigned remainder lowers into target-neutral Terminal Psi (`PSITERM\0`) integer operations with unsigned remainder certificates (`rem < divisor`). Proof obligations for non-zero divisor and interval boundaries are satisfied and erased while preserving executable semantics. All 10 positive programs execute in the Terminal Psi interpreter (`omega run --both`), observing exit 0.
   - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`)** ([provider selection](../../../../wiki/spec/build/provider_selection.md), [layout plans](../../../../wiki/spec/layouts/plans.md), [calling plans](../../../../wiki/spec/build/calling_plans.md)): `ProgramEntry` settles across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Scalar layout geometry validates 4-byte stored width for `u32` (`size_of = 4`, align 4). Calling plans allocate 32-bit registers (`ecx`/`edx` on Windows x86_64, `edi`/`esi` on Linux x86_64, `w0`/`w1` on AArch64) according to target ABIs.
   - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`)** ([storage](../../../../wiki/spec/resources/storage.md), [activation storage](../../../../wiki/spec/resources/activation_storage.md), [machine-state evidence](../../../../wiki/spec/build/machine_state_evidence.md)): Backend lowering selects 32-bit unsigned division and remainder instructions: on x86_64, clearing `edx` (`xor edx, edx`) followed by `div r32` operating on `edx:eax`, where remainder is returned directly in `edx`; on AArch64, `udiv w-quot, w-dividend, w-divisor` followed by `msub w-rem, w-quot, w-divisor, w-dividend` (`rem = dividend - quot * divisor`). Register allocation assigns 32-bit registers with zero-extended register semantics and bounded activation claims.
-  - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission)** ([machine-state evidence](../../../../wiki/spec/build/machine_state_evidence.md), [executable installation](../../../../wiki/spec/build/executable_installation.md), [calling plans](../../../../wiki/spec/build/calling_plans.md)): Basic blocks and conditional jumps relax with offset reflow. Transitive machine-state footprints validate within host ceilings, and native executable images (PE/ELF/Mach-O) are emitted. Native execution and Terminal Psi interpretation achieve exact agreement (`omega run --both`, exit 0) across all four hosted targets.
+  - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission)** ([machine-state evidence](../../../../wiki/spec/build/machine_state_evidence.md), [executable installation](../../../../wiki/spec/build/executable_installation.md), [calling plans](../../../../wiki/spec/build/calling_plans.md)): Basic blocks and conditional jumps relax with offset reflow. Transitive machine-state footprints validate within host ceilings, and native executable images (PE/ELF/Mach-O) are emitted. The four hosted bindings remain authored. Native/Terminal execution claims apply only to the hosts identified by the retained run records; the fresh capture below covers `macos_arm64`.
 
 ## What remains open
 
@@ -115,6 +115,12 @@ partial operation. Both sources are pinned under `tests/omega/{pass,fail}/facts/
 This control belongs to the DOMAIN-DEFAULT-PREDICATE-UNIFICATION native-harness
 prerequisite. The retained `177a9d65` baseline rejects the valid local return's
 postcondition and rejects the twin for the intended definedness obligation.
-Current-candidate Source, native/Terminal exit-70 agreement and the existing
-nine-place remainder row still require exact-producer validation; these
-source records do not claim those results. No input bound or operation changes.
+Actual optimized producer `4588a029b629f69684409fae92a91cbcd6986b60` on
+`macos_arm64` accepts both inline and local forms; each executes with native
+and Terminal exit 70. The local control also passes a fresh copied-project
+run and canonical Terminal artifact reload. All nine existing remainder places
+execute with native/Terminal exit 0, and their source reject twins retain their
+intended diagnostics in the affected comparison. The zero-operand control
+rejects its own remainder-by-zero obligation. These records establish only the
+named host execution; the owning qualification retains exact producer, source
+and artifact identities. No input bound, operation or oracle changes.

@@ -88,10 +88,27 @@ invalid controls refuse at the same exact-cast gate. Raw streams, source hashes
 and producer bindings are retained in the owning evidence; baseline refusal is
 not candidate acceptance.
 
-The row remains pending fresh source/runtime/canonical and reject qualification.
-It closes neither product subject migration nor the full owning task. Other
-integer conversions, floating conversion policies and higher-order or cyclic
-private inference retain their own acceptance; there is no count/width matrix.
+Actual optimized producer `4588a029b629f69684409fae92a91cbcd6986b60`
+on `macos_arm64` accepts the twelve positive programs and rejects all thirteen
+controls for their intended obligations. All twelve execute with native and
+Terminal exit 0; thirteen fresh copied-project runs, including the companion
+Wrapping remainder control, also retain and reload their canonical Terminal
+artifacts. Corpus records pin this row and its controls. Four authored target
+bindings establish no execution claim for the other three hosts.
+
+This completes the narrowing row and its computed-value controls. It closes
+neither Product subject migration nor the full owning task. Other integer
+conversions, floating conversion policies and higher-order or cyclic private
+inference retain their own acceptance; there is no count/width matrix.
+
+Selected mathematical descriptions remain query-owned recipes until child
+formation, operand definedness and result landing independently succeed. An
+authenticated normal Trapping value retains its opaque identity when optional
+mathematical unfolding cannot be proved. Wrapping and Saturating keep their
+selected node results and count rules; raw legacy range normalization retains
+its separate formation checks. The owning qualification distinguishes the fresh
+4588 observations from retained 4c99 comparisons and the reviewed one-line lint
+change.
 
 ## Selected-operation formation controls
 
