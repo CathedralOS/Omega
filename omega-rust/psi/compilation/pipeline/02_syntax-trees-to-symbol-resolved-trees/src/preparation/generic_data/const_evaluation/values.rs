@@ -1573,6 +1573,18 @@ fn canonicalize_selected_data_const_expression_with_admission(
                     ));
                 }
             }
+            // A case literal supplies one complete active value: the common
+            // record fields plus this case's payload, never sibling payloads.
+            let common_fields = syntax
+                .tables
+                .items
+                .data_members(definition.members)
+                .iter()
+                .filter_map(|member| match member {
+                    DataMember::Field(field) => Some(field),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
             if let Some(case_name) = &case_name {
                 let variant = syntax
                     .tables
@@ -1590,11 +1602,9 @@ fn canonicalize_selected_data_const_expression_with_admission(
                     .ok_or_else(|| {
                         format!("`{type_name}` has no case `{}`", case_name.as_str(syntax))
                     })?;
-                let declared_fields = syntax
-                    .tables
-                    .items
-                    .data_payload_fields(variant.payload)
-                    .iter()
+                let declared_fields = common_fields
+                    .into_iter()
+                    .chain(syntax.tables.items.data_payload_fields(variant.payload))
                     .collect::<Vec<_>>();
                 let fields = canonicalize_named_fields_with_admission(
                     syntax,
@@ -1621,19 +1631,9 @@ fn canonicalize_selected_data_const_expression_with_admission(
                         "`{type_name}` is case data; its const value must name one case"
                     ));
                 }
-                let declared_fields = syntax
-                    .tables
-                    .items
-                    .data_members(definition.members)
-                    .iter()
-                    .filter_map(|member| match member {
-                        DataMember::Field(field) => Some(field),
-                        _ => None,
-                    })
-                    .collect::<Vec<_>>();
                 let fields = canonicalize_named_fields_with_admission(
                     syntax,
-                    &declared_fields,
+                    &common_fields,
                     literal.fields,
                     selection,
                     substitution,
@@ -1728,20 +1728,37 @@ fn canonicalize_named_fields_with_admission(
     admission: ConstPredicateAdmission,
 ) -> Result<Vec<(String, CanonicalConstNode)>, String> {
     let authored = syntax.expressions.struct_fields(literal_fields);
-    let mut canonical = Vec::with_capacity(declared_fields.len());
+    // Establish the exact roster before evaluating any component. A missing
+    // common field, duplicate name or inactive payload is not a partial value.
     for declared in declared_fields {
         let matches = authored
             .iter()
             .filter(|field| field.name.as_str(syntax) == declared.name.as_str(syntax))
-            .collect::<Vec<_>>();
-        let [field] = matches.as_slice() else {
-            return Err(if matches.is_empty() {
+            .count();
+        if matches != 1 {
+            return Err(if matches == 0 {
                 format!("missing const field `{}`", declared.name.as_str(syntax))
             } else {
                 format!("duplicate const field `{}`", declared.name.as_str(syntax))
             });
-        };
-        canonical.push((
+        }
+    }
+    let selected_fields = authored
+        .iter()
+        .map(|field| {
+            declared_fields
+                .iter()
+                .enumerate()
+                .find(|(_, declared)| declared.name.as_str(syntax) == field.name.as_str(syntax))
+                .map(|(position, declared)| (position, *declared, field))
+                .ok_or_else(|| format!("unknown const field `{}`", field.name.as_str(syntax)))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    // Evaluation follows authored order exactly once. Canonical field order
+    // remains declaration-derived, independently of constructor spelling.
+    let mut canonical = vec![None; declared_fields.len()];
+    for (position, declared, field) in selected_fields {
+        canonical[position] = Some((
             declared.name.as_str(syntax).to_owned(),
             canonicalize_const_expression_with_admission(
                 syntax,
@@ -1753,18 +1770,10 @@ fn canonicalize_named_fields_with_admission(
             )?,
         ));
     }
-    for field in authored {
-        if !declared_fields
-            .iter()
-            .any(|declared| declared.name.as_str(syntax) == field.name.as_str(syntax))
-        {
-            return Err(format!(
-                "unknown const field `{}`",
-                field.name.as_str(syntax)
-            ));
-        }
-    }
-    Ok(canonical)
+    canonical
+        .into_iter()
+        .collect::<Option<Vec<_>>>()
+        .ok_or_else(|| "const construction lost a validated active field".to_owned())
 }
 
 pub(in crate::preparation::generic_data) fn validate_syntax_integer_range(
