@@ -333,124 +333,25 @@ impl<'program> Evaluator<'program> {
         {
             return Ok(Value::Unit);
         }
-        if let Some(value) = self.try_component_assumption_acceptance(
-            call.target_symbol,
-            self.program
-                .statement_table
-                .expression_handles(call.arguments),
-            frame,
-        )? {
-            return Ok(value);
+        // The resolved-toolchain facet ladder, shared with the expression
+        // position: a call statement discards whatever a facet query returns.
+        if self
+            .try_build_facet_routes(
+                call.target_symbol,
+                self.program
+                    .statement_table
+                    .expression_handles(call.arguments),
+                call.source_span,
+                frame,
+            )?
+            .is_some()
+        {
+            return Ok(Value::Unit);
         }
         // Exclusions include exact static Build calls: their authority is an
         // explicit argument, so namespace classification cannot bypass them.
         if let Some(value) = self.try_behavior_exclusion_statement(statement, call, frame)? {
             return Ok(value);
-        }
-        // Discarding an entry description still performs the exact query;
-        // its explicit facet cannot be bypassed by namespace classification.
-        if self
-            .try_build_product_entry_call(
-                call.target_symbol,
-                self.program
-                    .statement_table
-                    .expression_handles(call.arguments),
-                call.source_span,
-                frame,
-            )?
-            .is_some()
-        {
-            return Ok(Value::Unit);
-        }
-        if self
-            .try_build_product_schema_call(
-                call.target_symbol,
-                self.program
-                    .statement_table
-                    .expression_handles(call.arguments),
-                call.source_span,
-                frame,
-            )?
-            .is_some()
-        {
-            return Ok(Value::Unit);
-        }
-        if self
-            .try_build_product_provider_call(
-                call.target_symbol,
-                self.program
-                    .statement_table
-                    .expression_handles(call.arguments),
-                call.source_span,
-                frame,
-            )?
-            .is_some()
-        {
-            return Ok(Value::Unit);
-        }
-        if self
-            .try_product_description_path_call(
-                call.target_symbol,
-                self.program
-                    .statement_table
-                    .expression_handles(call.arguments),
-                frame,
-            )?
-            .is_some()
-        {
-            return Ok(Value::Unit);
-        }
-        if let Some(value) = self.try_build_path_call(
-            call.target_symbol,
-            self.program
-                .statement_table
-                .expression_handles(call.arguments),
-            frame,
-        )? {
-            return Ok(value);
-        }
-        // `BuildOutput::require(&mut builder.output, name);` still issues the
-        // obligation when the marker result is dropped, and `complete`/`fail`
-        // still settle their operand obligation. Both take the facet as an
-        // explicit operand, so neither depends on a receiver place.
-        if self
-            .try_build_output_obligation_call(
-                call.target_symbol,
-                self.program
-                    .statement_table
-                    .expression_handles(call.arguments),
-                frame,
-            )?
-            .is_some()
-        {
-            return Ok(Value::Unit);
-        }
-        if self
-            .try_required_output_path_call(
-                call.target_symbol,
-                self.program
-                    .statement_table
-                    .expression_handles(call.arguments),
-                frame,
-            )?
-            .is_some()
-        {
-            return Ok(Value::Unit);
-        }
-        // Build logging takes the activation's log facet as an explicit
-        // operand, so it is selected here by resolved toolchain identity
-        // beside the other facet families rather than by receiver shape.
-        if self
-            .try_build_log_write_line_call(
-                call.target_symbol,
-                self.program
-                    .statement_table
-                    .expression_handles(call.arguments),
-                frame,
-            )?
-            .is_some()
-        {
-            return Ok(Value::Unit);
         }
         // Host boundary call? (e.g. self.console.exit_process(70))
         if let Some(value) = self.try_host_call(call, frame)? {

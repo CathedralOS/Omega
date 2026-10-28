@@ -141,90 +141,20 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             return Ok(value);
         }
 
-        // Build paths are selected by exact toolchain identity; the explicit
-        // facet operand, not a declaration namespace, carries runtime authority.
-        if let Some(value) = self.try_build_path_call(
+        // The resolved-toolchain facet ladder: every Build facet family is
+        // selected by the declaration identity the compiler attached, so the
+        // same ladder also serves the discarded call statement.
+        if let Some(value) = self.try_build_facet_routes(
             call.target_symbol,
             self.program
                 .expression_table
                 .expression_handles(call.arguments),
+            self.program.expression_table.source_span(handle),
             frame,
         )? {
             if self.guard_depth > 0 {
                 frame.record_guard_call_result(handle, &value);
             }
-            return Ok(value);
-        }
-
-        // Product selection takes its authority as an ordinary explicit
-        // argument, before namespace classification of the selected call.
-        if let Some(value) = self.try_build_product_entry_call(
-            call.target_symbol,
-            self.program
-                .expression_table
-                .expression_handles(call.arguments),
-            self.program.expression_table.source_span(handle),
-            frame,
-        )? {
-            return Ok(value);
-        }
-        if let Some(value) = self.try_build_product_schema_call(
-            call.target_symbol,
-            self.program
-                .expression_table
-                .expression_handles(call.arguments),
-            self.program.expression_table.source_span(handle),
-            frame,
-        )? {
-            return Ok(value);
-        }
-        if let Some(value) = self.try_build_product_provider_call(
-            call.target_symbol,
-            self.program
-                .expression_table
-                .expression_handles(call.arguments),
-            self.program.expression_table.source_span(handle),
-            frame,
-        )? {
-            return Ok(value);
-        }
-        if let Some(value) = self.try_product_description_path_call(
-            call.target_symbol,
-            self.program
-                .expression_table
-                .expression_handles(call.arguments),
-            frame,
-        )? {
-            return Ok(value);
-        }
-        // Required-output custody takes the activation facet and the issued
-        // obligation as ordinary explicit operands, so it is selected here by
-        // resolved toolchain identity rather than below by receiver shape.
-        if let Some(value) = self.try_build_output_obligation_call(
-            call.target_symbol,
-            self.program
-                .expression_table
-                .expression_handles(call.arguments),
-            frame,
-        )? {
-            return Ok(value);
-        }
-        if let Some(value) = self.try_required_output_path_call(
-            call.target_symbol,
-            self.program
-                .expression_table
-                .expression_handles(call.arguments),
-            frame,
-        )? {
-            return Ok(value);
-        }
-        if let Some(value) = self.try_build_log_write_line_call(
-            call.target_symbol,
-            self.program
-                .expression_table
-                .expression_handles(call.arguments),
-            frame,
-        )? {
             return Ok(value);
         }
         let target = call.target.as_str();
@@ -286,18 +216,6 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             return Ok(Value::Unit);
         }
         if let Some(value) = self.try_build_selection_value_call(handle, call, frame)? {
-            if self.guard_depth > 0 {
-                frame.record_guard_call_result(handle, &value);
-            }
-            return Ok(value);
-        }
-        if let Some(value) = self.try_component_assumption_acceptance(
-            call.target_symbol,
-            self.program
-                .expression_table
-                .expression_handles(call.arguments),
-            frame,
-        )? {
             if self.guard_depth > 0 {
                 frame.record_guard_call_result(handle, &value);
             }
