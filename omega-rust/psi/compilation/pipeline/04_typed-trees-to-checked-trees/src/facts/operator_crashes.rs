@@ -4,6 +4,7 @@
 use super::crash_entry_values::{
     entry_operand_projected, formal_member_projection, substitute_entry_projected,
 };
+use super::declared_parameter_names;
 
 use checked_trees::{
     CheckedCrashOperatorSite, CheckedOperatorFacts, CheckedOperatorOccurrence,
@@ -294,10 +295,7 @@ fn retained_operator_crash_routes(
         operators,
         content_conservation,
     )?;
-    let parameter_names = parameters
-        .iter()
-        .map(|parameter| parameter.name.as_str().to_owned())
-        .collect::<Vec<_>>();
+    let parameter_names = declared_parameter_names(parameters);
     // A `Parameter` leaf below a member spine asks only for the operand's
     // provenance at that projection: a mutable carrier written only in a
     // sibling field still supplies the read field's entry operand, so the
