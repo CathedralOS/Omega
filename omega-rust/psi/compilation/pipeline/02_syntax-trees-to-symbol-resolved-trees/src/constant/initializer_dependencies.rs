@@ -422,13 +422,13 @@ pub(crate) fn bind_named_implementation_const_calls(
     Ok(())
 }
 
-/// Named-implementation routing publishes the trait requirement on every
-/// machine-reachable call after constant selection has already recorded the
-/// owned entry. A use copied into a machine shares that callee token, so
-/// routing moves the copy while the selection stays the entry. Constant
-/// custody compares the two. Put the recorded entry back on every copy of
-/// that initializer call. Other machine-body calls keep the requirement.
-pub(crate) fn restore_const_named_implementation_call_targets(
+/// Preserve reconciled source targets on retained initializer expressions.
+/// Ordinary overload selection initially needs the evaluator's typed owner;
+/// re-lowering its saved source after materialization leaves that target open.
+/// The declaration's own resolved selection supplies the original target here.
+/// Named-implementation routing can also move machine-reachable copies to the
+/// trait requirement; those copies retain the existing owned-entry restoration.
+pub(crate) fn restore_const_call_targets(
     program: &mut SymbolResolvedTrees,
     work: &[ExpressionHandle],
 ) {
@@ -440,6 +440,7 @@ pub(crate) fn restore_const_named_implementation_call_targets(
         .collect::<Vec<_>>();
     let mut initializer_expressions = Vec::new();
     collect_expression_handles(program, &roots, &mut initializer_expressions);
+    let mut initializer_targets = Vec::new();
     let mut recorded = Vec::new();
     for expression in &initializer_expressions {
         let node = program
@@ -461,6 +462,7 @@ pub(crate) fn restore_const_named_implementation_call_targets(
         {
             continue;
         }
+        initializer_targets.push((*expression, symbol));
         let span = call.target.source_span();
         if let Some((_, existing)) = recorded.iter().find(|(bound, _)| *bound == span) {
             if *existing != symbol {
@@ -489,16 +491,30 @@ pub(crate) fn restore_const_named_implementation_call_targets(
             .expressions
             .name_path_node(call.receiver)
             .map_or_else(SymbolHandle::invalid, |path| path.symbol);
-        if program.symbols.get(receiver_symbol).kind != SymbolKind::Conformance {
-            continue;
-        }
-        let Some((_, symbol)) = recorded
-            .iter()
-            .find(|(span, _)| *span == call.target.source_span())
-        else {
+        // An ordinary unresolved call must be the exact declaration-owned
+        // expression carrying the reconciled selection. Equal source spans on
+        // other expressions do not authorize filling their targets. Keep a
+        // conflicting nonempty ordinary target for the custody checker to reject.
+        let initializer_target = (!call.target_symbol.is_valid())
+            .then(|| {
+                initializer_targets
+                    .iter()
+                    .find(|(owner, _)| *owner == expression)
+            })
+            .flatten()
+            .map(|(_, symbol)| *symbol);
+        let routed_target = (program.symbols.get(receiver_symbol).kind == SymbolKind::Conformance)
+            .then(|| {
+                recorded
+                    .iter()
+                    .find(|(span, _)| *span == call.target.source_span())
+            })
+            .flatten()
+            .map(|(_, symbol)| *symbol);
+        let Some(symbol) = initializer_target.or(routed_target) else {
             continue;
         };
-        if call.target_symbol == *symbol {
+        if call.target_symbol == symbol {
             continue;
         }
         let ExpressionNode::Call(call) =
@@ -506,7 +522,7 @@ pub(crate) fn restore_const_named_implementation_call_targets(
         else {
             continue;
         };
-        call.target_symbol = *symbol;
+        call.target_symbol = symbol;
     }
 }
 
