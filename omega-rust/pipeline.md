@@ -612,7 +612,16 @@ accepted through `omega.lock`. Pipeline execution does not load or mutate a
 separate admissions file.
 
 [`omega/compilation/realization/provider-planning/`](omega/compilation/realization/provider-planning/README.md)
-owns provider choices and calling, component and task planning.
+owns provider choices and calling and component planning.
+Psi projects checked task activation requirements, exact specialization and
+carry evidence, and the reachable frame graph into Terminal Psi. State-resident
+storage and staged arguments at each suspension crossing remain separate
+alternatives. Native proposal construction joins those demands to exact selected
+runtime plans and target geometry without reopening source. Checking-only stops
+request that same portable projection without executable body lowering and use
+the same source-free join. Instruction lowering and task storage share the
+backend calling-conventions geometry owner. This closes static activation
+planning; it does not implement a task executor.
 [`selected-dispatch/`](omega/compilation/realization/selected-dispatch/README.md) owns selected
 execution preparation and settlement.
 It imports no Psi transform: the source coordinator owns stage requests and

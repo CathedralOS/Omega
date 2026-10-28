@@ -243,8 +243,9 @@ impl RequestedTerminalCompilation {
         self,
         produced: TerminalApplication,
     ) -> Result<CompilationOutput, CompilationProductError> {
-        let checked =
-            phase_profile::scope("06.0.a_realization_install", || self.realization.install())?;
+        let checked = phase_profile::scope("06.0.a_realization_install", || {
+            self.realization.install_after_terminal()
+        })?;
         phase_profile::scope(
             "06.0.b_admit_permissions_and_trust",
             || -> Result<_, CompilationProductError> {

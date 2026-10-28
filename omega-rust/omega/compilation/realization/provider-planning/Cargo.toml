@@ -19,7 +19,6 @@ package-compilation = { path = "../../../packages/compilation-inputs" }
 program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
 representation-planning = { path = "../../../../psi/compilation/checking/representation-planning" }
 target = { path = "../../backend/target" }
-task-plans = { path = "../../backend/runtime/task-plans" }
 arena = { path = "../../../../psi/foundation/arena" }
 build-time-evaluation = { path = "../../../../psi/compilation/compile-time" }
 checked-trees = { path = "../../../../psi/compilation/representations/checked-trees" }

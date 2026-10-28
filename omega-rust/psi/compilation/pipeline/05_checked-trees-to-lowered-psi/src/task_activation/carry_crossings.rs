@@ -3,9 +3,10 @@
 
 use diagnostics::Diagnostic;
 use language_semantics::{CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension};
-use task_plans::{
-    ActivationCarryObligations, CanonicalSuspensionCrossing, LiveCarryDemand, LiveCarryPlaceId,
-    LiveCarryStorage, LiveCarryTypeId,
+use terminal_psi::{
+    TerminalTaskCarryObligations as ActivationCarryObligations,
+    TerminalTaskCarryStorage as LiveCarryStorage, TerminalTaskLiveCarry as LiveCarryDemand,
+    TerminalTaskSuspensionCrossing as CanonicalSuspensionCrossing,
 };
 
 pub(crate) fn exact_activation_wide_carry<'program>(
@@ -161,13 +162,13 @@ pub(crate) fn canonical_suspension_crossing(
         live_carry.push(live_carry_demand(typed, crossing, live)?);
     }
     Ok(CanonicalSuspensionCrossing {
-        identity: checked_trees::canonical_suspension_crossing_id(typed, crossing).ok_or_else(
-            || {
+        identity: checked_trees::canonical_suspension_crossing_id(typed, crossing)
+            .ok_or_else(|| {
                 vec![Diagnostic::error(
                     "task activation carry crossing source identity must resolve exactly",
                 )]
-            },
-        )?,
+            })?
+            .get(),
         suspension_allowed: crossing.effective.suspension == CarrySuspension::Allowed,
         preserve_cpu: crossing.effective.cpu == CarryCpu::Origin,
         preserve_host_thread: crossing.effective.host_thread == CarryHostThread::Origin,
@@ -184,15 +185,20 @@ fn live_carry_demand(
     crossing: &checked_trees::SuspensionCrossingCarryFact,
     live: &checked_trees::SuspensionCrossingLiveValueFact,
 ) -> Result<LiveCarryDemand, Vec<Diagnostic>> {
+    let mut claims = live
+        .claims
+        .iter()
+        .map(|claim| live_claim_identity(typed, claim))
+        .collect::<Result<Vec<_>, _>>()?;
+    claims.sort_unstable();
+    if claims.windows(2).any(|pair| pair[0] == pair[1]) {
+        return Err(vec![Diagnostic::error(
+            "task carry frontier repeats a live claim",
+        )]);
+    }
     Ok(LiveCarryDemand {
-        place: super::normalized_id(
-            live_place_identity(typed, crossing, live),
-            LiveCarryPlaceId::from_normalized_identity,
-        )?,
-        ty: super::normalized_id(
-            live_type_identity(typed, live),
-            LiveCarryTypeId::from_normalized_identity,
-        )?,
+        place: live_place_identity(typed, crossing, live),
+        value_type: live_type_identity(typed, live),
         storage: match live.storage {
             checked_trees::SuspensionCrossingStorage::Parameter => LiveCarryStorage::Parameter,
             checked_trees::SuspensionCrossingStorage::Local => LiveCarryStorage::Local,
@@ -200,11 +206,7 @@ fn live_carry_demand(
                 LiveCarryStorage::CallArgument
             }
         },
-        claims: live
-            .claims
-            .iter()
-            .map(|claim| live_claim_identity(typed, claim))
-            .collect::<Result<_, _>>()?,
+        claims,
         effective: live.effective,
     })
 }
@@ -218,7 +220,7 @@ fn live_place_identity(
     crossing: &checked_trees::SuspensionCrossingCarryFact,
     live: &checked_trees::SuspensionCrossingLiveValueFact,
 ) -> u64 {
-    let mut hash = crate::fnv1a::Fnv1a::new();
+    let mut hash = semantic_vocabulary::Fnv1a::new();
     hash.byte(0x4c);
     hash.string_terminated(&typed.symbols.display_path(crossing.machine, "::"));
     hash.string_terminated(&typed.symbols.display_path(crossing.state, "::"));
@@ -254,7 +256,7 @@ fn live_type_identity(
     typed: &checked_trees::typed_trees::TypedTrees,
     live: &checked_trees::SuspensionCrossingLiveValueFact,
 ) -> u64 {
-    let mut hash = crate::fnv1a::Fnv1a::new();
+    let mut hash = semantic_vocabulary::Fnv1a::new();
     hash.byte(0x54);
     hash.string_terminated(&typed.normalized_type_identity_text(live.type_reference));
     hash.finish_or(1)
@@ -267,7 +269,7 @@ fn live_type_identity(
 fn live_claim_identity(
     typed: &checked_trees::typed_trees::TypedTrees,
     claim: &language_semantics::PermissionClaimIdentity,
-) -> Result<semantic_vocabulary::ClaimId, Vec<Diagnostic>> {
+) -> Result<u64, Vec<Diagnostic>> {
     let language_semantics::PermissionClaimIdentity::Established {
         machine_symbol,
         state_symbol,
@@ -279,7 +281,7 @@ fn live_claim_identity(
             "task activation carry crossing retains a live claim whose identity never resolved",
         )]);
     };
-    let mut hash = crate::fnv1a::Fnv1a::new();
+    let mut hash = semantic_vocabulary::Fnv1a::new();
     hash.byte(0x43);
     hash.string_terminated(&typed.symbols.display_path(machine_symbol, "::"));
     hash.string_terminated(&typed.symbols.display_path(state_symbol, "::"));
@@ -312,10 +314,5 @@ fn live_claim_identity(
         }
     }
     hash.u64(u64::from(ordinal));
-    semantic_vocabulary::ClaimId::new(hash.finish_or(1)).ok_or_else(|| {
-        vec![Diagnostic::error(
-            "task activation carry crossing claim identity resolved to the reserved zero \
-             coordinate",
-        )]
-    })
+    Ok(hash.finish_or(1))
 }
