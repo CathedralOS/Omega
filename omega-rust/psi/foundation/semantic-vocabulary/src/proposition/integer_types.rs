@@ -660,6 +660,20 @@ impl IntegerType {
         }
     }
 
+    fn exact_shift_count(self, count: IntegerValue) -> Option<u32> {
+        match count {
+            IntegerValue::Unsigned(count) if count < u128::from(self.bits) => {
+                u32::try_from(count).ok()
+            }
+            IntegerValue::Signed(count)
+                if count >= 0 && (count as u128) < u128::from(self.bits) =>
+            {
+                u32::try_from(count).ok()
+            }
+            _ => None,
+        }
+    }
+
     /// Shift an admitted value right by an independently typed count whose
     /// mathematical value is inside `[0, width)`. Unlike the wrapping form,
     /// an out-of-range or negative count has no exact value.
@@ -672,17 +686,7 @@ impl IntegerType {
         if !self.admits(value) || !count_type.admits(count) {
             return None;
         }
-        let count = match count {
-            IntegerValue::Unsigned(count) if count < u128::from(self.bits) => {
-                u32::try_from(count).ok()?
-            }
-            IntegerValue::Signed(count)
-                if count >= 0 && (count as u128) < u128::from(self.bits) =>
-            {
-                u32::try_from(count).ok()?
-            }
-            _ => return None,
-        };
+        let count = self.exact_shift_count(count)?;
         match (self.sign, value) {
             (IntegerSign::Unsigned, IntegerValue::Unsigned(value)) => {
                 Some(IntegerValue::Unsigned(value >> count))
@@ -769,17 +773,7 @@ impl IntegerType {
         if !self.admits(value) || !count_type.admits(count) {
             return None;
         }
-        let count = match count {
-            IntegerValue::Unsigned(count) if count < u128::from(self.bits) => {
-                u32::try_from(count).ok()?
-            }
-            IntegerValue::Signed(count)
-                if count >= 0 && (count as u128) < u128::from(self.bits) =>
-            {
-                u32::try_from(count).ok()?
-            }
-            _ => return None,
-        };
+        let count = self.exact_shift_count(count)?;
         match (self.sign, value) {
             (IntegerSign::Unsigned, IntegerValue::Unsigned(value)) => {
                 let maximum = match self.maximum_value() {
