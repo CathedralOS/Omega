@@ -1,5 +1,6 @@
 //! Review publishes source-free evidence under the caller's exact byte budget.
 
+mod external_provider_reload;
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 

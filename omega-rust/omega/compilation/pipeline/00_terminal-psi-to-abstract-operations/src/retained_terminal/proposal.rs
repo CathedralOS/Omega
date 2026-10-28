@@ -193,6 +193,12 @@ fn project_terminal_native_body(
         request.provider_declarations,
     )
     .map_err(|message| vec![Diagnostic::error(message)])?;
+    crate::provider_admission::validate_external_provider_owners(
+        &terminal_module.external_providers,
+        &terminal_module.identities,
+        request.provider_declarations,
+    )
+    .map_err(|message| vec![Diagnostic::error(message)])?;
     if selected.plans().len() != request.boundaries.selected_provider_provenance.len() {
         return Err(vec![Diagnostic::error(
             "native proposal lost selected intrinsic plan custody",
