@@ -2,9 +2,12 @@ module main;
 public boundary trait Reading<const Tag: u64> {
     machine total() -> u64 reaches ensures result >= 999u64;
 }
-FirstReading<const Tag: u64> satisfies Reading<Tag> {
+FirstReading<T, const Tag: u64> satisfies Reading<Tag> {
     machine total() -> u64 ensures result >= 1000u64 { match Tag { 17u64 -> 1100u64, _ -> 1129u64 } }
 }
-SecondReading<const Tag: u64> satisfies Reading<Tag> {
+SecondReading<T, const Tag: u64> satisfies Reading<Tag> {
     machine total() -> u64 ensures result >= 1000u64 { match Tag { 17u64 -> 2100u64, _ -> 2129u64 } }
 }
+
+// Private type actuals remain part of each selected implementation identity.
+data Holder<T> { value: T; }
