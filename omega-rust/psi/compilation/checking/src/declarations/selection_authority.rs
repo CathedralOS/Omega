@@ -249,16 +249,16 @@ impl RecordedDeclarationAuthority {
                 .filter_map(|file| file.package_identity),
         )
     }
-    /// A projected pending job belongs only to the retained declarations. The
-    /// symbol table may also expose new caller files for future resolution;
-    /// those files do not become old requesters merely by joining lookup.
-    pub fn require_current_program(
+    /// Compare the complete owner sets of the operation's actual declaration
+    /// domain. Lookup may also expose unrelated callers; availability does not
+    /// make those callers requesters of an already projected operation.
+    pub fn require_current_declarations(
         &self,
         authority: Option<&dyn DeclarationSelectionAuthority>,
         program: &typed_trees::TypedTrees,
+        declarations: impl Iterator<Item = symbols::SymbolHandle>,
     ) -> Result<(), &'static str> {
-        let requesters = typed_trees::references::collect_program_declarations(program)
-            .into_iter()
+        let requesters = declarations
             .filter_map(|symbol| program.symbols.symbol_provenance_source_span(symbol))
             .filter_map(|span| program.symbols.source_file(span))
             .filter(|file| file.origin != source::SourceOrigin::Toolchain)

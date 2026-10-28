@@ -390,7 +390,36 @@ impl PreCheckEvaluation {
                 // a wildcard in that outer comparison.
                 validation::RecordedDeclarationAuthority::Absent => None,
                 validation::RecordedDeclarationAuthority::Packages(_) => {
-                    recorded.require_current_program(authority.as_deref(), program)?;
+                    // Inherited jobs keep their projected work and executable
+                    // roster when another source adds Product declarations.
+                    // Compare every requester in both rosters, including any
+                    // explicit selected realization outside those roots. An
+                    // All execution roster deliberately remains conservative.
+                    let declarations =
+                        typed_trees::references::collect_program_declarations(program)
+                            .into_iter()
+                            .filter(|symbol| {
+                                self.domain.work.contains(*symbol)
+                                    || self.domain.execution.contains(*symbol)
+                            })
+                            .chain(
+                                self.selected_operators
+                                    .iter()
+                                    .map(|operator| operator.requirement),
+                            )
+                            .chain(self.provider_bodies.iter().flat_map(|provider| {
+                                [
+                                    provider.requirement,
+                                    provider.provider_machine,
+                                    provider.provider_state,
+                                    provider.provider_declaration,
+                                ]
+                            }));
+                    recorded.require_current_declarations(
+                        authority.as_deref(),
+                        program,
+                        declarations,
+                    )?;
                     authority
                 }
             };
