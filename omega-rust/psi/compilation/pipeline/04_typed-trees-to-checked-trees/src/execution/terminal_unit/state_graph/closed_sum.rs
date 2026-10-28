@@ -376,7 +376,18 @@ pub(super) fn build(
         // each selected case retains that same plan. Replanning here used to
         // give one wildcard call several generated result identities, defeating
         // the emitter's common completion and duplicating its source coordinate.
+        // Completion position belongs to the resolved invocation, not to
+        // Named versus Value syntax. An internal machine invocation remains a
+        // successor, including a value-shaped call produced by source typing;
+        // evaluating it as a scalar return would allocate a recursive frame.
+        let internal_transfer =
+            validation::completing_transition_transfer(program, transition.target).filter(
+                |transfer| {
+                    super::fused::fused_target_index(program, fused, transfer.target).is_some()
+                },
+            );
         let returning_arm = match program.statement_table.transition_target(transition.target) {
+            _ if internal_transfer.is_some() => None,
             _ if terminal_calls::external_callable(program, machine, fused, transition)
                 .is_some() =>
             {
@@ -474,20 +485,11 @@ pub(super) fn build(
                     Vec::new(),
                 )
             } else {
-                let TransitionTargetNode::Named {
-                    path, arguments, ..
-                } = program.statement_table.transition_target(transition.target)
-                else {
-                    return None;
-                };
+                let transfer = internal_transfer.as_ref()?;
                 let target_index =
-                    crate::execution::terminal_unit::state_graph::fused_target_index(
-                        program,
-                        fused,
-                        path.symbol,
-                    )?;
+                    super::fused::fused_target_index(program, fused, transfer.target)?;
                 let &(_, target) = fused.get(target_index)?;
-                let arguments = program.statement_table.expression_handles(*arguments);
+                let arguments = transfer.arguments;
                 let target_parameters = program.state_parameters(target);
                 let mut payloads = Vec::new();
                 for (parameter_index, parameter) in signatures[target_index].1.iter().enumerate() {

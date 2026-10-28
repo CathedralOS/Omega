@@ -325,9 +325,9 @@ pub use machine_calls::effects::{
     AsmAuthorityAdmission, validate_asm_discharge, validate_behavior_plan,
 };
 pub use machine_calls::machine_parameters::{
-    ValidatedNominalMachineUse, ValidatedNominalMachineUseSite,
-    ValidatedRequirementCallMachineSelection, ValidatedRequirementCallSpecialization,
-    ValidatedRequirementCallTypeBinding, ValidatedStaticMachineSelections,
+    PreparedStaticMachineSelections, StaticMachineContractObligation, ValidatedNominalMachineUse,
+    ValidatedNominalMachineUseSite, ValidatedRequirementCallMachineSelection,
+    ValidatedRequirementCallSpecialization, ValidatedRequirementCallTypeBinding,
     closed_static_call_type_bindings, validate_static_machine_selections,
 };
 pub use machine_calls::machine_specialization_identity::machine_specialization_matches_template_identity;
@@ -567,15 +567,16 @@ pub use machine_calls::calls::{
     call_site_argument_expressions, call_site_evidence_arguments, call_target_entry_symbol,
     call_target_parameters, call_target_return_type, call_target_state, call_target_symbol,
     call_target_type_parameters, collect_call_sites_in_statement, completing_call_transfer,
-    completing_transition_invocation, completing_transition_transfer,
-    expression_normal_completion_possible, find_call_site, find_call_site_in_state, find_machine,
-    find_machine_by_entry_state, find_machine_head, find_state, find_state_for_exit,
-    find_state_in_machine, find_state_on_machine, invocation_output_parameter,
-    machine_parameter_signature_symbol, machine_state_by_symbols, machine_state_count,
-    normal_completion_possible, receiver_can_dispatch_to_machine, resolve_name_path_member_symbol,
-    resolve_state_call_target, statement_call_can_dispatch_to_machine,
-    statement_call_receiver_members, statement_call_receiver_path, terminal_callable_target,
-    trait_machine_signature_symbol, transition_call_target,
+    completing_transition_invocation, completing_transition_invocations,
+    completing_transition_transfer, expression_normal_completion_possible, find_call_site,
+    find_call_site_in_state, find_machine, find_machine_by_entry_state, find_machine_head,
+    find_state, find_state_for_exit, find_state_in_machine, find_state_on_machine,
+    invocation_output_parameter, machine_parameter_signature_symbol, machine_state_by_symbols,
+    machine_state_count, normal_completion_possible, receiver_can_dispatch_to_machine,
+    resolve_name_path_member_symbol, resolve_state_call_target,
+    statement_call_can_dispatch_to_machine, statement_call_receiver_members,
+    statement_call_receiver_path, terminal_callable_target, trait_machine_signature_symbol,
+    transition_call_target,
 };
 pub use value_custody::places::{
     CanonicalPlace, RuntimeFieldSubject, StorageObservationTypePath,

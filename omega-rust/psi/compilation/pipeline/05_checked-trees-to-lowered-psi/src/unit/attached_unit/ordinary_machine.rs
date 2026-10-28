@@ -599,6 +599,7 @@ pub(super) fn emit(
             &claim_bindings,
             checked,
             super::completion_cleanup::NormalExitSource {
+                completion: plan.normal_exit_cleanups.completion,
                 cleanups: checked
                     .facts
                     .flow
@@ -772,6 +773,7 @@ pub(super) fn emit(
             &claim_bindings,
             checked,
             super::completion_cleanup::NormalExitSource {
+                completion: plan.normal_exit_cleanups.completion,
                 cleanups: cleanup_control.normal_exits(plan.normal_exit_cleanups),
                 // Existing local eligibility keeps its establishment order
                 // in the ordinary completion roster below.

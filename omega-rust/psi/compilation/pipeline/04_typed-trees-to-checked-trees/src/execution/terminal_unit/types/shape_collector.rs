@@ -46,9 +46,7 @@ pub(crate) struct ShapeCollector<'program> {
     // Compiler-owned handles select arena slots; the small bucket retains
     // exact generation/telescope/substitution contexts for that source row.
     // This is a collector-local query memo, never a semantic type identity.
-    completed_requests:
-        Vec<Vec<(TypeShapeRequest, typed_trees::type_identity::TypeIdentityId)>>,
-    measured_cache_hits: usize,
+    completed_requests: Vec<Vec<(TypeShapeRequest, typed_trees::type_identity::TypeIdentityId)>>,
     in_progress: BTreeSet<typed_trees::type_identity::TypeIdentityId>,
     domains_in_progress: BTreeSet<(u32, typed_trees::type_identity::TypeIdentityId)>,
     /// The element rows registered beside borrowed byte views. A byte
@@ -70,7 +68,6 @@ impl<'program> ShapeCollector<'program> {
             domains: Vec::new(),
             cleanup_control: Default::default(),
             completed_requests: Vec::new(),
-            measured_cache_hits: 0,
             in_progress: BTreeSet::new(),
             domains_in_progress: BTreeSet::new(),
             byte_view_elements: BTreeSet::new(),
@@ -699,7 +696,6 @@ impl<'program> ShapeCollector<'program> {
             })
         }) && self.types.contains_key(&identity)
         {
-            self.measured_cache_hits += 1;
             return (!self.in_progress.contains(&identity)).then_some(identity);
         }
         let identity = self.collect_type(type_reference, binders, substitutions)?;
@@ -1713,23 +1709,7 @@ impl<'program> ShapeCollector<'program> {
         // A completed request may also have registered logical backing and
         // domain rows beyond its stored identity. Pruning ends that collection
         // epoch; a later demand must re-establish its complete footprint.
-        if std::env::var_os("OMEGA_SHAPE_CACHE_TRACE").is_some() {
-            let requests = self.completed_requests.iter().map(Vec::len).sum::<usize>();
-            let context_capacity = self.completed_requests.iter().map(Vec::capacity).sum::<usize>();
-            let context_bytes = self.completed_requests.iter().flatten().map(|(request, _)| {
-                request.binders.capacity() * std::mem::size_of::<(SymbolHandle, String)>()
-                    + request.binders.iter().map(|(_, name)| name.capacity()).sum::<usize>()
-                    + request.substitutions.capacity() * std::mem::size_of::<(SymbolHandle, TypeReferenceHandle)>()
-            }).sum::<usize>();
-            let allocated_bytes = self.completed_requests.capacity()
-                * std::mem::size_of::<Vec<(TypeShapeRequest, typed_trees::type_identity::TypeIdentityId)>>()
-                + context_capacity * std::mem::size_of::<(TypeShapeRequest, typed_trees::type_identity::TypeIdentityId)>()
-                + context_bytes;
-            eprintln!("SHAPE cache slots={} requests={} hits={} allocated_bytes={allocated_bytes}",
-                self.completed_requests.len(), requests, self.measured_cache_hits);
-        }
         self.completed_requests.clear();
-        self.measured_cache_hits = 0;
         self.types.retain(|identity, _| retained.contains(identity));
         self.domains
             .retain(|domain| retained.contains(&domain.carrier_type_identity));

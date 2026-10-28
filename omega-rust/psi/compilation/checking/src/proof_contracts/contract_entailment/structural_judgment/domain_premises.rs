@@ -591,7 +591,10 @@ impl StructuralJudge<'_> {
             });
             bindings.push((name, index));
         }
-        let has_where_facts = !program.proof_facts.span_or_empty(definition.where_facts).is_empty();
+        let has_where_facts = !program
+            .proof_facts
+            .span_or_empty(definition.where_facts)
+            .is_empty();
         // Unknown case identity admits only common fields. Payload predicates
         // enter through the separately authenticated selected-case arm; reading
         // every variant here would project inactive same-named payloads onto
@@ -655,7 +658,10 @@ impl StructuralJudge<'_> {
         if active.contains(&definition.symbol) {
             return false;
         }
-        if !program.proof_facts.span_or_empty(definition.where_facts).is_empty()
+        if !program
+            .proof_facts
+            .span_or_empty(definition.where_facts)
+            .is_empty()
             || !program.data_application_value_fields(reference).is_empty()
         {
             return true;
@@ -669,10 +675,11 @@ impl StructuralJudge<'_> {
                 let path = [facts::PlaceSegment::Field {
                     symbol: field.symbol,
                 }];
-                crate::project_type_reference_from_segments(program, reference, &path)
-                    .is_some_and(|projected_type| {
+                crate::project_type_reference_from_segments(program, reference, &path).is_some_and(
+                    |projected_type| {
                         Self::nominal_type_has_data_predicates(program, projected_type, active)
-                    })
+                    },
+                )
             });
         active.pop();
         has_nested

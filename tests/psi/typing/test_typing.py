@@ -9,8 +9,8 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-# Tags are declaration ordinals, mirrored from source/psi/types/types.omg and
-# source/psi/resolution/resolution.omg.
+# Type tags follow the owning declaration ordinals. Diagnostic and selection
+# tags are the stable wire values explicitly written by TypingHarness.
 KINDS = (
     "Absent", "Builtin", "Data", "Reference", "Array", "Slice", "GenericParameter",
     "StaticInteger", "Unit", "AnonymousInteger", "AnonymousFloat", "AnonymousChoice",
@@ -22,20 +22,50 @@ BUILTIN_SPELLINGS = (
     "UInt", "Int", "AtomicBool", "AtomicU32", "AtomicU64",
 )
 DOMAINS = ("", "Wrapping", "Saturating", "Trapping", "Finite")
-DIAGNOSTICS = (
-    "None", "TypeCapacityExceeded", "UnsupportedTypeForm", "GenericArgumentCount",
-    "UnsupportedArrayLength", "UnsupportedDomain", "MismatchedTypes", "LiteralOutOfRange",
-    "UnsupportedLiteral", "AnonymousValueOutOfRange", "AnonymousRemainder", "UnknownField",
-    "ProjectionOfNonData", "IndexOfNonCollection", "NonIntegerIndex", "OperandMismatch",
-    "NotBoolean", "UnsupportedEquality", "NoMatchingMachine", "AmbiguousMachine",
-    "NotCallable", "NotAValue", "UnknownConstructionField",
-    "DuplicateConstructionField", "NotConstructible", "CaseOfOtherData", "UnknownPatternField",
-    "InvalidCast", "NotAPlace", "TerminalResultMismatch", "AnonymousFraction",
-    "UnsupportedExpression", "TargetArgumentCount", "UninferredGenericArgument",
-    "SatisfierMismatch", "SilentDiscard", "DiscardsNoCall", "PropositionArgumentCount",
-    "UncoveredDispatch", "ImmutablePlace", "ImplicitAttenuation",
-    "MissingPatternField", "DuplicatePatternField",
-)
+DIAGNOSTICS = {
+    0: 'None',
+    1: 'TypeCapacityExceeded',
+    2: 'UnsupportedTypeForm',
+    3: 'GenericArgumentCount',
+    4: 'UnsupportedArrayLength',
+    5: 'UnsupportedDomain',
+    6: 'MismatchedTypes',
+    7: 'LiteralOutOfRange',
+    8: 'UnsupportedLiteral',
+    9: 'AnonymousValueOutOfRange',
+    10: 'AnonymousRemainder',
+    11: 'UnknownField',
+    12: 'ProjectionOfNonData',
+    13: 'IndexOfNonCollection',
+    14: 'NonIntegerIndex',
+    15: 'OperandMismatch',
+    16: 'NotBoolean',
+    17: 'UnsupportedEquality',
+    18: 'NoMatchingMachine',
+    19: 'AmbiguousMachine',
+    20: 'NotCallable',
+    21: 'NotAValue',
+    22: 'UnknownConstructionField',
+    23: 'DuplicateConstructionField',
+    24: 'NotConstructible',
+    25: 'CaseOfOtherData',
+    26: 'UnknownPatternField',
+    27: 'InvalidCast',
+    28: 'NotAPlace',
+    29: 'TerminalResultMismatch',
+    30: 'AnonymousFraction',
+    31: 'UnsupportedExpression',
+    33: 'UninferredGenericArgument',
+    34: 'SatisfierMismatch',
+    35: 'SilentDiscard',
+    36: 'DiscardsNoCall',
+    37: 'PropositionArgumentCount',
+    38: 'UncoveredDispatch',
+    39: 'ImmutablePlace',
+    40: 'ImplicitAttenuation',
+    41: 'MissingPatternField',
+    42: 'DuplicatePatternField',
+}
 SELECTIONS = {0: "none", 1: "machine", 3: "field", 4: "length", 5: "binder"}
 ADAPTATIONS = ("", "landed", "lent", "qualified", "read")
 
@@ -480,7 +510,7 @@ def main() -> None:
         b"        value\n"
         b"    }\n"
         b"}",
-        ((b"got(v)", "()"), (b"v!3", "u8"), (b"true", "bool"), (b"0", "u8"), (b"value!2", "u8")),
+        ((b"got(v)", "u8"), (b"v!3", "u8"), (b"true", "bool"), (b"0", "u8"), (b"value!2", "u8")),
         selections=((b"got(v)", "machine", 1), (b"got(0)", "machine", 1)),
     )
     assert observation.render(observation.binders[0]) == "u8", "case-patterns-bind-payload-types: binder"
@@ -617,7 +647,7 @@ def main() -> None:
         b"machine wrap(x: u16) -> Opt<u16> { Opt::Some { v: x } }",
         (
             (b"Pair { first: x, second: true }", "D1<u16, bool>"),
-            (b"got(v)", "()"),
+            (b"got(v)", "u16"),
             (b"Opt::Some { v: x }", "D0<u16>"),
         ),
     )
@@ -940,9 +970,9 @@ def main() -> None:
     )
     rejected(
         program,
-        "target-argument-count",
+        "terminal-call-uses-ordinary-machine-arity",
         b"machine f() { transition { _ -> g(1) } machine g() {} }",
-        "TargetArgumentCount",
+        "NoMatchingMachine",
         b"g(1)",
     )
 

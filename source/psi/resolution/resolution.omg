@@ -144,7 +144,7 @@ public data PathBinding [copy] {
 // conformance member, its container's range, which the member's own shadow.
 public data TypeScope [copy] {
     // Declaration handle plus one, never a runtime environment.
-    lexical_parent: u64 in Trapping;
+    lexical_machine: u64 in Trapping;
     first_generic_parameter: u64 in Trapping;
     generic_parameter_count: u64 in Trapping;
     first_outer_parameter: u64 in Trapping;
@@ -302,10 +302,6 @@ where
     // For each component of a lexicographic measure, by member handle, the
     // field handle of its owner it names, plus one; zero for none.
     component_fields: [u64; 32000];
-    // For each state parameter of a ranked machine, by parameter handle, the
-    // offset among its machine's entry parameters of the one of the same
-    // spelling, plus one; zero for none.
-    rank_carriers: [u64; 32768];
     diagnostic: ResolveDiagnostic;
     accepted: bool;
 }
@@ -556,7 +552,7 @@ crashes Trap
 public machine NameResolution::path_binding_at(resolution: &NameResolution, handle: u64 in Trapping) -> PathBinding
 crashes Trap
 {
-    transition handle < 10240 {
+    transition handle < 2048 {
         true -> read(resolution, handle)
         _ -> invalid()
     }
@@ -646,8 +642,7 @@ crashes Trap
     }
 }
 
-// The offset of the entry parameter state parameter `parameter` carries,
-// plus one; zero for none or a parameter beyond the table.
+// The exact declared measure selected by this witness clause.
 public machine NameResolution::ranking_measure(resolution: &NameResolution, clause: u64 in Trapping) -> u64 in Trapping {
     transition clause < 2048 {
         true -> read(resolution, clause)
@@ -713,42 +708,6 @@ crashes Trap
     requires member < 32000
     {
         resolution.component_fields[member] = bound as u64;
-    }
-
-    machine invalid() {
-        crash Trap;
-    }
-}
-
-public machine NameResolution::rank_carrier(resolution: &NameResolution, parameter: u64 in Trapping) -> u64 in Trapping {
-    transition parameter < 32768 {
-        true -> read(resolution, parameter)
-        _ -> none()
-    }
-
-    machine read(resolution: &NameResolution, parameter: u64 in Trapping) -> u64 in Trapping
-    requires parameter < 32768
-    {
-        resolution.rank_carriers[parameter] as u64 in Trapping
-    }
-
-    machine none() -> u64 in Trapping {
-        0
-    }
-}
-
-public machine NameResolution::set_rank_carrier(resolution: &mut NameResolution, parameter: u64 in Trapping, carried: u64 in Trapping)
-crashes Trap
-{
-    transition parameter < 32768 {
-        true -> write(resolution, parameter, carried)
-        _ -> invalid()
-    }
-
-    machine write(resolution: &mut NameResolution, parameter: u64 in Trapping, carried: u64 in Trapping)
-    requires parameter < 32768
-    {
-        resolution.rank_carriers[parameter] = carried as u64;
     }
 
     machine invalid() {

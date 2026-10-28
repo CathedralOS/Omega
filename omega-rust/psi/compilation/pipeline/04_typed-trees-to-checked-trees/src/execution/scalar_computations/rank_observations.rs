@@ -345,6 +345,7 @@ fn distance(
         template(1),
         ArithmeticDomain::Exact,
         true,
+        false,
     )?;
     let operands = builder.plans.operands.insert_many([ceiling, lower]);
     Some(builder.insert(

@@ -1,18 +1,22 @@
 use psi::checking::aliases;
 use psi::checking::arrivals;
 use psi::checking::constructions;
+use psi::checking::completions;
+use psi::checking::invocations;
 use psi::checking::contracts;
 use psi::checking::demand;
 use psi::checking::domains;
 use psi::checking::evaluation;
 use psi::checking::flow;
 use psi::checking::frames;
+use psi::checking::holds;
 use psi::checking::matches;
 use psi::checking::obligations;
 use psi::checking::ownership;
 use psi::checking::places;
 use psi::checking::qualification;
 use psi::checking::references;
+use psi::checking::ranking;
 use psi::checking::snapshots;
 use psi::checking::supply;
 use psi::checking::termination;
@@ -155,6 +159,15 @@ public data Checker {
     stashed: Zone;
     trap_route: bool;
     abort_route: bool;
+    // Universal, own-entry completion queries share the exact invocation graph.
+    invocations: InvocationGraph;
+    completions: [NumericCompletion; 10240];
+    entry_rank: NormalizedRank;
+    entry_rank_bounds: RankBounds;
+    entry_rank_has_range: bool;
+    collecting_completion: bool;
+    completion_seen: bool;
+    completion_value: Value;
     // Machine calls, caller and callee, for settling crash routes.
     callers: [u64; 32768];
     callees: [u64; 32768];
@@ -170,19 +183,11 @@ public data Checker {
     whole_writes: [bool; 32768];
     unknown_writes: [bool; 10240];
     field_writes: [bool; 2097152];
-    // The body's local control graph (termination.omg): node 0 its entry
-    // and node `k + 1` its declaration `k`, edge `from -> to` at
-    // `from * 129 + to`, closed into reachability before the checking walk.
-    edges: [bool; 16641];
-    // Per machine (termination.omg): whether its body has a local cycle,
-    // whether it calls a machine binder, whether it terminates as its
-    // callers may rely on, and the settlement's scratch: whether its own
-    // graph is acyclic or ranked, and whether a callee does not terminate.
-    cyclic: [bool; 10240];
+    // Per declaration, completed global component/termination summaries.
     binder_calls: [bool; 10240];
     terminating: [bool; 10240];
-    locally_ranked: [bool; 10240];
-    blocked: [bool; 10240];
+    components_done: [bool; 10240];
+    rank_reported: [bool; 10240];
     // The ownership walk of the body being checked (ownership.omg).
     ownership: Ownership;
     // Boolean aliases (aliases.omg): each aliased place, the condition it
@@ -200,6 +205,7 @@ crashes Trap
     Checker::clear(checker, syntax);
     Checker::initialize_terminal_calls(checker, syntax);
     Checker::derive_frames(checker, syntax, resolution, typing);
+    Checker::derive_completions(checker, syntax, resolution, typing);
     transition { _ -> next_machine(checker, syntax, resolution, typing, 0) }
 
     machine next_machine(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping) {
@@ -311,28 +317,7 @@ crashes Trap
 {
     let item: MachineItem = SyntaxTrees::machine_item(syntax, index);
     Checks::open_machine(&mut checker.output);
-    // A previous machine's rejection may have stopped its walk inside a
-    // context, frame or substitution.
-    checker.saved_count = 0;
-    checker.frame_count = 0;
-    checker.context_count = 0;
-    checker.match_count = 0;
-    checker.replay = false;
-    checker.write_epoch = 0;
-    checker.retained_values = 0;
-    checker.substituting = false;
-    checker.returning = false;
-    checker.subjecting = false;
-    checker.subject_literal = false;
-    checker.minting = false;
-    checker.exact_body = item.container == MachineContainer::Measure;
-    checker.field_values = false;
-    checker.payload_values = false;
-    checker.domains_pending = false;
-    checker.fields_parent = 0;
-    checker.machine = index;
-    checker.graph_root = index;
-    checker.overflowed = false;
+    Checker::prepare_body(checker, item, index);
     Checker::collect_bodies(checker, syntax, index);
     checker.trap_route = false;
     checker.abort_route = false;
@@ -345,7 +330,6 @@ crashes Trap
     }
 
     machine cleared(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem) {
-        Checker::clear_edges(checker, checker.body_count + 1);
         transition { _ -> arrivals(checker, syntax, resolution, typing, index, item, 0) }
     }
 
@@ -378,7 +362,6 @@ crashes Trap
     // The fact-gathering walks took every edge the checking walk can.
     machine closed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem) {
         checker.machine = index;
-        Checker::close_edges(checker, index, checker.body_count + 1);
         transition { _ -> check_entry(checker, syntax, resolution, typing, index, item) }
     }
 
@@ -445,9 +428,37 @@ crashes Trap
     machine done() {}
 }
 
+// Every independent abstract walk starts with the same body-local scratch.
+public machine Checker::prepare_body(checker: &mut Checker, item: MachineItem, index: u64 in Trapping) {
+    // A previous machine's rejection may have stopped its walk inside a
+    // context, frame or substitution.
+    checker.saved_count = 0;
+    checker.frame_count = 0;
+    checker.context_count = 0;
+    checker.match_count = 0;
+    checker.replay = false;
+    checker.write_epoch = 0;
+    checker.retained_values = 0;
+    checker.substituting = false;
+    checker.returning = false;
+    checker.subjecting = false;
+    checker.subject_literal = false;
+    checker.minting = false;
+    checker.exact_body = item.container == MachineContainer::Measure;
+    checker.field_values = false;
+    checker.payload_values = false;
+    checker.domains_pending = false;
+    checker.fields_parent = 0;
+    checker.machine = index;
+    checker.graph_root = index;
+    checker.overflowed = false;
+    checker.entry_rank.valid = false;
+    checker.entry_rank_has_range = false;
+}
+
 // The entry body's places: its parameters, each integer one in its
 // carrier's range, under the machine's `requires` facts.
-machine Checker::open_entry(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem)
+public machine Checker::open_entry(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem)
 crashes Trap
 {
     checker.walking = 0;
@@ -522,7 +533,8 @@ crashes Trap
             declaration.statement_count,
             declaration.source_span
         );
-        Checker::publish_body_routes(checker, checker.machine);
+        let machine: u64 in Trapping = checker.machine;
+        Checker::publish_body_routes(checker, machine);
     }
 
     machine done() {}
@@ -1466,7 +1478,7 @@ crashes Trap
     requires slot < 128
     {
         transition checker.bodies[slot] == handle {
-            true -> slot + 1
+            true -> (slot + 1)
             false -> candidate(checker, handle, slot + 1)
         }
     }

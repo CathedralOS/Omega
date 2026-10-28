@@ -464,7 +464,7 @@ pub(super) fn validate(
         if edge.psi_edge != case.psi_edge
             || edge.target != case.target
             || !edge.bindings.is_empty()
-            || !edge.structural_bindings.is_empty()
+            || edge.structural_bindings != case.structural_bindings
             || edge.cleanup_actions != case.cleanup_actions
             || edge.provenance != [PsiProvenance::Edge(case.psi_edge)]
             || edge.fuel.is_empty()

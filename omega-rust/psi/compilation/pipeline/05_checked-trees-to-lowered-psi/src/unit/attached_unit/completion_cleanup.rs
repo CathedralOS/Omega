@@ -17,11 +17,24 @@ use terminal_psi::StructuralParameterDeclaration;
 /// Borrowed source authority common to sequence and graph completion.
 #[derive(Clone, Copy)]
 pub(crate) struct NormalExitSource<'a> {
+    pub(crate) completion: checked_trees::CheckedNormalCompletion,
     pub(crate) cleanups: &'a [checked_trees::CheckedNormalExitCleanupPlan],
     /// Existing checked no-code dispositions of leading constructor locals.
     pub(crate) trivial_affine_discards: &'a [semantic_vocabulary::PlaceId],
     pub(crate) operations: &'a [checked_trees::CheckedUnitEffectOperationPlan],
     pub(crate) parameters: &'a [checked_trees::CheckedUnitStructuralParameterPlan],
+}
+
+/// A physical graph edge does not manufacture a normal completion. NoNormal
+/// authorizes no cleanup actions and must carry an empty normal-exit roster.
+pub(crate) fn has_normal_completion(source: NormalExitSource<'_>) -> Result<bool, LoweringError> {
+    match source.completion {
+        checked_trees::CheckedNormalCompletion::Possible => Ok(true),
+        checked_trees::CheckedNormalCompletion::NoNormal if source.cleanups.is_empty() => Ok(false),
+        checked_trees::CheckedNormalCompletion::NoNormal => Err(LoweringError::Unsupported(
+            "no-normal completion carries normal cleanup receipts",
+        )),
+    }
 }
 
 /// Existing callable/storage identities used to materialize checked dispositions.
@@ -120,6 +133,11 @@ pub(crate) fn coordinate(
     statement_index: usize,
     continuation: bool,
 ) -> Result<FlowClaimJoinExit, LoweringError> {
+    if !has_normal_completion(source)? {
+        return Err(LoweringError::Unsupported(
+            "normal exit requested from a no-normal invocation",
+        ));
+    }
     let mut rows = source.cleanups.iter().filter(|row| {
         row.exit.statement_index == statement_index
             && if continuation {

@@ -600,9 +600,10 @@ impl CapturedLoans {
                                 when_false.structural_arguments.as_slice(),
                             ),
                         ],
-                        Terminator::StructuralCase { cases, .. } => {
-                            cases.iter().map(|arm| (arm.target, &[][..])).collect()
-                        }
+                        Terminator::StructuralCase { cases, .. } => cases
+                            .iter()
+                            .map(|arm| (arm.target, arm.structural_arguments.as_slice()))
+                            .collect(),
                         _ => Vec::new(),
                     };
                     for (target, arguments) in arrivals {
@@ -690,7 +691,11 @@ impl CapturedLoans {
                         }
                         Terminator::StructuralCase { cases, .. } => {
                             for arm in cases {
-                                retire(arm.target, &[], &mut arm.cleanup_actions);
+                                retire(
+                                    arm.target,
+                                    &arm.structural_arguments,
+                                    &mut arm.cleanup_actions,
+                                );
                             }
                         }
                         terminal_psi::terminator_return_pair_pattern!(cleanup_actions, ..)

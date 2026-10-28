@@ -31,14 +31,13 @@ pub fn successors(machine: &TerminalMachine) -> BTreeMap<BlockId, Vec<(EdgeId, B
 /// One control edge that forwards the predecessor's operands positionally into
 /// a target block's parameter roster.
 ///
-/// A `StructuralCase` edge binds payload fields where the target expects
-/// forwarded parameters, so it never appears here; [`reaches_by_case`] answers
-/// its reach, and a consumer that needs forwarded operands abandons the fact on
-/// that path instead of projecting a payload as a parameter.
+/// Case edges forward structural arguments but produce scalar payloads rather
+/// than forwarding scalar values. Their absent scalar roster makes that
+/// distinction explicit; it cannot be read as an empty scalar telescope.
 #[derive(Debug, Clone, Copy)]
 pub struct ForwardedBinding<'block> {
     pub target: BlockId,
-    pub arguments: &'block [ValueId],
+    pub arguments: Option<&'block [ValueId]>,
     pub structural_arguments: &'block [StructuralArgument],
 }
 
@@ -54,7 +53,7 @@ pub fn forwarded_bindings(block: &Block) -> Vec<ForwardedBinding<'_>> {
             ..
         } => vec![ForwardedBinding {
             target: *target,
-            arguments: arguments.as_slice(),
+            arguments: Some(arguments.as_slice()),
             structural_arguments: structural_arguments.as_slice(),
         }],
         Terminator::Conditional {
@@ -65,8 +64,16 @@ pub fn forwarded_bindings(block: &Block) -> Vec<ForwardedBinding<'_>> {
             .into_iter()
             .map(|successor| ForwardedBinding {
                 target: successor.target,
-                arguments: successor.arguments.as_slice(),
+                arguments: Some(successor.arguments.as_slice()),
                 structural_arguments: successor.structural_arguments.as_slice(),
+            })
+            .collect(),
+        Terminator::StructuralCase { cases, .. } => cases
+            .iter()
+            .map(|successor| ForwardedBinding {
+                target: successor.target,
+                arguments: None,
+                structural_arguments: &successor.structural_arguments,
             })
             .collect(),
         _ => Vec::new(),

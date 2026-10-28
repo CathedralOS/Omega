@@ -181,6 +181,7 @@ pub(crate) fn lower_scalar_call(
     // summary. Its structured-term checks and independent callee substitution
     // still reject an unsupported or mismatched executable continuation.
     Ok(LoweredDirectCallBinding {
+        caller_types: scalar_bindings.published_structural_types()?,
         loan_completions,
         source_coordinate: SourceCallCoordinate {
             state: caller_state,

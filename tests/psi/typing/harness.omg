@@ -36,6 +36,16 @@ data HarnessWord [copy] {
 // shared syntax tables in order, so its position is its `SourceId`; the
 // whole set then resolves and types. Malformed framing exits 253, and a set its
 // provisions cannot hold 252, without an observation.
+machine main()
+reaches Console
+invokes Console;
+crashes Trap
+blocks;
+{
+    let mut harness: TypingHarness;
+    block TypingHarness::main(&mut harness);
+}
+
 public machine TypingHarness::main(typing_harness: &mut TypingHarness)
 reaches Console
 invokes Console;
@@ -48,14 +58,14 @@ blocks;
     Parser::initialize(&mut parser);
     let count: HarnessWord = block TypingHarness::read_u32(typing_harness);
     transition count.complete {
-        true -> packages(typing_harness, &mut sources, &mut parser, count.value)
+        true -> block packages(typing_harness, &mut sources, &mut parser, count.value)
         _ -> malformed(typing_harness)
     }
 
     machine packages(typing_harness: &mut TypingHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
         transition remaining > 0 {
-            true -> package_row(typing_harness, sources, parser, remaining)
-            _ -> dependencies(typing_harness, sources, parser)
+            true -> block package_row(typing_harness, sources, parser, remaining)
+            _ -> block dependencies(typing_harness, sources, parser)
         }
     }
 
@@ -65,7 +75,7 @@ blocks;
         ModulePath::clear(&mut name);
         let read: bool = block TypingHarness::read_path(typing_harness, &mut name);
         transition toolchain.complete && toolchain.value < 2 && read {
-            true -> add_package(typing_harness, sources, parser, remaining, toolchain.value == 1, &name)
+            true -> block add_package(typing_harness, sources, parser, remaining, toolchain.value == 1, &name)
             _ -> malformed(typing_harness)
         }
     }
@@ -80,7 +90,7 @@ blocks;
     ) {
         let added: bool = SourceSet::add_package(sources, name, toolchain);
         transition added {
-            true -> packages(typing_harness, sources, parser, remaining - 1)
+            true -> block packages(typing_harness, sources, parser, remaining - 1)
             _ -> source_full(typing_harness)
         }
     }
@@ -88,15 +98,15 @@ blocks;
     machine dependencies(typing_harness: &mut TypingHarness, sources: &mut SourceSet, parser: &mut Parser) {
         let count: HarnessWord = block TypingHarness::read_u32(typing_harness);
         transition count.complete {
-            true -> dependency(typing_harness, sources, parser, count.value)
+            true -> block dependency(typing_harness, sources, parser, count.value)
             _ -> malformed(typing_harness)
         }
     }
 
     machine dependency(typing_harness: &mut TypingHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
         transition remaining > 0 {
-            true -> dependency_row(typing_harness, sources, parser, remaining)
-            _ -> units(typing_harness, sources, parser)
+            true -> block dependency_row(typing_harness, sources, parser, remaining)
+            _ -> block units(typing_harness, sources, parser)
         }
     }
 
@@ -110,7 +120,7 @@ blocks;
         transition requester.complete && scope.complete && read && target.complete
             && (scope.value == 1 || scope.value == 2)
             && requester.value < sources.package_count && target.value < sources.package_count {
-            true -> dependency_scope(typing_harness, sources, parser, remaining, requester.value, scope.value == 2, &alias, target.value)
+            true -> block dependency_scope(typing_harness, sources, parser, remaining, requester.value, scope.value == 2, &alias, target.value)
             _ -> malformed(typing_harness)
         }
     }
@@ -126,8 +136,8 @@ blocks;
         target: u64 in Trapping
     ) {
         transition build {
-            true -> add_dependency(typing_harness, sources, parser, remaining, requester, DependencyScope::Build, alias, target)
-            _ -> add_dependency(typing_harness, sources, parser, remaining, requester, DependencyScope::Product, alias, target)
+            true -> block add_dependency(typing_harness, sources, parser, remaining, requester, DependencyScope::Build, alias, target)
+            _ -> block add_dependency(typing_harness, sources, parser, remaining, requester, DependencyScope::Product, alias, target)
         }
     }
 
@@ -143,7 +153,7 @@ blocks;
     ) {
         let added: bool = SourceSet::add_dependency(sources, requester, scope, alias, target);
         transition added {
-            true -> dependency(typing_harness, sources, parser, remaining - 1)
+            true -> block dependency(typing_harness, sources, parser, remaining - 1)
             _ -> source_full(typing_harness)
         }
     }
@@ -151,14 +161,14 @@ blocks;
     machine units(typing_harness: &mut TypingHarness, sources: &mut SourceSet, parser: &mut Parser) {
         let count: HarnessWord = block TypingHarness::read_u32(typing_harness);
         transition count.complete {
-            true -> unit(typing_harness, sources, parser, count.value)
+            true -> block unit(typing_harness, sources, parser, count.value)
             _ -> malformed(typing_harness)
         }
     }
 
     machine unit(typing_harness: &mut TypingHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
         transition remaining > 0 {
-            true -> unit_row(typing_harness, sources, parser, remaining)
+            true -> block unit_row(typing_harness, sources, parser, remaining)
             _ -> prepare_resolve(typing_harness, sources, parser)
         }
     }
@@ -169,7 +179,7 @@ blocks;
         ModulePath::clear(&mut module_path);
         let read: bool = block TypingHarness::read_path(typing_harness, &mut module_path);
         transition unit_package.complete && read && unit_package.value < sources.package_count {
-            true -> source(typing_harness, sources, parser, remaining, unit_package.value, &module_path)
+            true -> block source(typing_harness, sources, parser, remaining, unit_package.value, &module_path)
             _ -> malformed(typing_harness)
         }
     }
@@ -186,7 +196,7 @@ blocks;
         let mut lexer: Lexer;
         Lexer::initialize(&mut lexer, sources.unit_count as u32 in Trapping);
         transition length.complete {
-            true -> source_byte(typing_harness, sources, parser, remaining, unit_package, module_path, &mut lexer, length.value)
+            true -> block source_byte(typing_harness, sources, parser, remaining, unit_package, module_path, &mut lexer, length.value)
             _ -> malformed(typing_harness)
         }
     }
@@ -202,8 +212,8 @@ blocks;
         left: u64 in Trapping
     ) {
         transition left > 0 {
-            true -> source_read(typing_harness, sources, parser, remaining, unit_package, module_path, lexer, left)
-            _ -> tokenize(typing_harness, sources, parser, remaining, unit_package, module_path, lexer)
+            true -> block source_read(typing_harness, sources, parser, remaining, unit_package, module_path, lexer, left)
+            _ -> block tokenize(typing_harness, sources, parser, remaining, unit_package, module_path, lexer)
         }
     }
 
@@ -219,7 +229,7 @@ blocks;
     ) {
         let input: ByteRead = block Console::read_byte();
         transition input {
-            ByteRead::Byte { value } -> source_store(typing_harness, sources, parser, remaining, unit_package, module_path, lexer, left, value)
+            ByteRead::Byte { value } -> block source_store(typing_harness, sources, parser, remaining, unit_package, module_path, lexer, left, value)
             _ -> malformed(typing_harness)
         }
     }
@@ -237,7 +247,7 @@ blocks;
     ) {
         Lexer::append_source_byte(lexer, value as u8);
         transition lexer.source.last_retained {
-            true -> source_byte(typing_harness, sources, parser, remaining, unit_package, module_path, lexer, left - 1)
+            true -> block source_byte(typing_harness, sources, parser, remaining, unit_package, module_path, lexer, left - 1)
             _ -> source_full(typing_harness)
         }
     }
@@ -253,7 +263,7 @@ blocks;
     ) {
         Lexer::tokenize(lexer);
         transition lexer.output.accepted {
-            true -> parse(typing_harness, sources, parser, remaining, unit_package, module_path, lexer)
+            true -> block parse(typing_harness, sources, parser, remaining, unit_package, module_path, lexer)
             _ -> lex_rejected(typing_harness)
         }
     }
@@ -269,7 +279,7 @@ blocks;
     ) {
         Parser::parse(parser, lexer.source.id, lexer.source.length as u64 in Trapping, &lexer.output);
         transition parser.output.accepted {
-            true -> add(typing_harness, sources, parser, remaining, unit_package, module_path, lexer)
+            true -> block add(typing_harness, sources, parser, remaining, unit_package, module_path, lexer)
             _ -> parse_rejected(typing_harness)
         }
     }
@@ -285,7 +295,7 @@ blocks;
     ) {
         let added: bool = SourceSet::add(sources, &lexer.source, unit_package, module_path);
         transition added {
-            true -> unit(typing_harness, sources, parser, remaining - 1)
+            true -> block unit(typing_harness, sources, parser, remaining - 1)
             _ -> source_full(typing_harness)
         }
     }
@@ -363,11 +373,11 @@ reaches Console
 crashes Trap
 blocks;
 {
-    transition { _ -> next(typing_harness, 0, 0, 1) }
+    transition { _ -> block next(typing_harness, 0, 0, 1) }
 
     machine next(typing_harness: &mut TypingHarness, read: u64 in Trapping, value: u64 in Trapping, scale: u64 in Trapping) -> HarnessWord {
         transition read < 4 {
-            true -> byte(typing_harness, read, value, scale)
+            true -> block byte(typing_harness, read, value, scale)
             _ -> word(value)
         }
     }
@@ -375,7 +385,7 @@ blocks;
     machine byte(typing_harness: &mut TypingHarness, read: u64 in Trapping, value: u64 in Trapping, scale: u64 in Trapping) -> HarnessWord {
         let input: ByteRead = block Console::read_byte();
         transition input {
-            ByteRead::Byte { value as byte } -> next(typing_harness, read + 1, value + (byte as u64 in Trapping) * scale, scale * 256)
+            ByteRead::Byte { value as byte } -> block next(typing_harness, read + 1, value + (byte as u64 in Trapping) * scale, scale * 256)
             _ -> ended()
         }
     }
@@ -398,13 +408,13 @@ blocks;
 {
     let length: HarnessWord = block TypingHarness::read_u32(typing_harness);
     transition length.complete {
-        true -> byte(typing_harness, path, length.value)
+        true -> block byte(typing_harness, path, length.value)
         _ -> failed()
     }
 
     machine byte(typing_harness: &mut TypingHarness, path: &mut ModulePath, left: u64 in Trapping) -> bool {
         transition left > 0 {
-            true -> read(typing_harness, path, left)
+            true -> block read(typing_harness, path, left)
             _ -> complete()
         }
     }
@@ -412,7 +422,7 @@ blocks;
     machine read(typing_harness: &mut TypingHarness, path: &mut ModulePath, left: u64 in Trapping) -> bool {
         let input: ByteRead = block Console::read_byte();
         transition input {
-            ByteRead::Byte { value } -> store(typing_harness, path, left, value)
+            ByteRead::Byte { value } -> block store(typing_harness, path, left, value)
             _ -> failed()
         }
     }
@@ -420,7 +430,7 @@ blocks;
     machine store(typing_harness: &mut TypingHarness, path: &mut ModulePath, left: u64 in Trapping, value: i32) -> bool {
         let kept: bool = ModulePath::append(path, value as u8);
         transition kept {
-            true -> byte(typing_harness, path, left - 1)
+            true -> block byte(typing_harness, path, left - 1)
             _ -> failed()
         }
     }
@@ -590,8 +600,8 @@ crashes Trap
     TypingHarness::write_u64(typing_harness, expression.source_span.span.end);
 }
 
-// A selection: its tag (0 none, 1 machine, 2 state, 3 field, 4 length,
-// 5 machine binder) and handle.
+// Stable wire selection tags: 0 none, 1 machine, 3 field, 4 length,
+// 5 machine binder. Tag 2 is unassigned and the decoder rejects it.
 machine TypingHarness::write_selection(typing_harness: &mut TypingHarness, selection: Selection) reaches Console {
     transition selection {
         Selection::None -> write(typing_harness, 0, 0)
@@ -747,7 +757,6 @@ machine TypingHarness::diagnostic_tag(value: TypeDiagnosticCode) -> u8 {
         TypeDiagnosticCode::TerminalResultMismatch -> tag(29)
         TypeDiagnosticCode::AnonymousFraction -> tag(30)
         TypeDiagnosticCode::UnsupportedExpression -> tag(31)
-        TypeDiagnosticCode::TargetArgumentCount -> tag(32)
         TypeDiagnosticCode::UninferredGenericArgument -> tag(33)
         TypeDiagnosticCode::SatisfierMismatch -> tag(34)
         TypeDiagnosticCode::SilentDiscard -> tag(35)

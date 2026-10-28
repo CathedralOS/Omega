@@ -584,6 +584,46 @@ impl<'plans> FlowBuildContext<'plans> {
         Some(predicate)
     }
 
+    /// Rebase the actual completed bindings at this operand-write cut. A saved
+    /// copy keeps its own place; an unresolved copy never falls back to newer
+    /// storage at the source spelling. Every original-entry observation must
+    /// independently survive the evaluated prefix before it can be published.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn entry_predicate_at(
+        &self,
+        program: &dyn validation::CheckingInput,
+        state: SymbolHandle,
+        statement: usize,
+        predicate: &crate::facts::boolean_predicates::BoundPredicate,
+        writes: arena::HandleSpan<checked_trees::FlowOperandReferent>,
+        unknown_write: bool,
+    ) -> Option<checked_trees::CheckedBooleanExpression> {
+        let (machine, _) = validation::find_state(program, state)?;
+        crate::facts::boolean_predicates::entry_expression_with(
+            program,
+            machine.symbol,
+            predicate,
+            |place| {
+                if !super::entry_origin_is_stable(
+                    program,
+                    &self.control,
+                    writes,
+                    unknown_write,
+                    place,
+                ) {
+                    return None;
+                }
+                crate::facts::entry_parameter_place_before_statement(
+                    program,
+                    machine.symbol,
+                    state,
+                    statement,
+                    place,
+                )
+            },
+        )
+    }
+
     /// Current value identity differs from address syntax when an arm has
     /// already copied its payload. Reference descendants keep their saved
     /// descriptor's actual referent, whose contents remain subject to writes.

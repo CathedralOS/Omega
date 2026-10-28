@@ -59,6 +59,7 @@ mod domain_exclusions;
 pub(crate) mod domain_intervals;
 mod expression_analysis;
 pub(crate) use declaration_values::{LocalValueFormation, validate_declaration_value_range};
+pub(crate) use expression_analysis::TrappingReceiptDemand;
 mod float_arithmetic;
 mod float_contracts;
 pub use float_contracts::{float_return_postcondition, normal_return_float_predicates};
@@ -130,7 +131,7 @@ pub(crate) use integer_ranges::{
     integer_bit_width, integer_source_bounds, literal_i64, primitive_range,
     validate_anonymous_address_landing, validate_anonymous_integer_primitive_range,
     validate_anonymous_integer_range, validate_value_range,
-    validate_value_range_retaining_decisions,
+    validate_value_range_retaining_decisions, validate_value_range_retaining_obligations,
 };
 pub(crate) use invariant_bounds::{
     call_result_interval, immutable_integer_expression_interval, standing_integer_interval,

@@ -719,7 +719,7 @@ machine Resolver::data_scope(item: DataItem) -> TypeScope {
 // A declaration's own generic parameters as a scope with no container.
 public machine Resolver::scope(first: u64 in Trapping, count: u64 in Trapping) -> TypeScope {
     TypeScope {
-        lexical_parent: 0,
+        lexical_machine: 0,
         first_generic_parameter: first,
         generic_parameter_count: count,
         first_outer_parameter: 0,
@@ -765,13 +765,13 @@ machine Resolver::same_generic_coordinate(left: GenericCoordinate, right: Generi
         GenericCoordinate::Lexical { parameter } -> lexical(parameter, right)
     }
     machine declaration(position: u64 in Trapping, right: GenericCoordinate) -> bool {
-        transition right { GenericCoordinate::Declaration { position: other } -> equal(position, other) _ -> different() }
+        transition right { GenericCoordinate::Declaration { position as other } -> equal(position, other) _ -> different() }
     }
     machine container(position: u64 in Trapping, right: GenericCoordinate) -> bool {
-        transition right { GenericCoordinate::Container { position: other } -> equal(position, other) _ -> different() }
+        transition right { GenericCoordinate::Container { position as other } -> equal(position, other) _ -> different() }
     }
     machine lexical(parameter: u64 in Trapping, right: GenericCoordinate) -> bool {
-        transition right { GenericCoordinate::Lexical { parameter: other } -> equal(parameter, other) _ -> different() }
+        transition right { GenericCoordinate::Lexical { parameter as other } -> equal(parameter, other) _ -> different() }
     }
     machine equal(left: u64 in Trapping, right: u64 in Trapping) -> bool { left == right }
     machine different() -> bool { false }
@@ -1116,11 +1116,11 @@ crashes Trap
     }
 
     machine machine_argument(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, row: u64 in Trapping, type_reference: TypeReference) {
-        let lookup: Lookup = Resolver::machine_named(&resolver.output, sources, syntax, false, type_reference.name.source_span, type_reference.name.source_span);
-        transition lookup {
-            Lookup::Found { handle } -> bounded(resolver, sources, syntax, scope, row, type_reference, TypeBinding::Machine { handle: handle })
-            Lookup::Ambiguous -> reject(resolver, ResolveDiagnosticCode::AmbiguousName, type_reference.name)
-            Lookup::Absent -> reject(resolver, ResolveDiagnosticCode::UnknownDataType, type_reference.name)
+        let binding: ValueBinding = Resolver::declaration_callee(&resolver.output, sources, syntax, scope.lexical_machine, type_reference.name.source_span);
+        transition binding {
+            ValueBinding::Machine { handle } -> bounded(resolver, sources, syntax, scope, row, type_reference, TypeBinding::Machine { handle: handle })
+            ValueBinding::Ambiguous -> reject(resolver, ResolveDiagnosticCode::AmbiguousName, type_reference.name)
+            _ -> reject(resolver, ResolveDiagnosticCode::UnknownDataType, type_reference.name)
         }
     }
 
@@ -2670,7 +2670,7 @@ machine Resolver::lifetime_named(sources: &SourceSet, syntax: &SyntaxTrees, scop
 crashes Trap
 {
     let own: bool = Resolver::lifetime_among(sources, syntax, scope.first_generic_parameter, scope.generic_parameter_count, name);
-    let outer: bool = Resolver::scoped_lifetime_named(sources, syntax, scope, name, scope.lexical_parent);
+    let outer: bool = Resolver::scoped_lifetime_named(sources, syntax, scope, name, Resolver::scope_parent(syntax, scope));
     own || outer
 }
 
@@ -2741,7 +2741,7 @@ crashes Trap
 public machine Resolver::scoped_generic_named(sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, name: SourceSpan) -> Lookup
 crashes Trap
 {
-    transition { _ -> ancestor(sources, syntax, scope, name, scope.lexical_parent) }
+    transition { _ -> ancestor(sources, syntax, scope, name, Resolver::scope_parent(syntax, scope)) }
     machine ancestor(sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, name: SourceSpan, parent: u64 in Trapping) -> Lookup {
         transition parent > 0 {
             true -> declared(sources, syntax, scope, name, parent - 1)
@@ -2773,7 +2773,23 @@ crashes Trap
         let present: bool = Resolver::lifetime_among(sources, syntax, item.first_generic_parameter, item.generic_parameter_count, name);
         transition present {
             true -> true
-            false -> scoped_lifetime_named(sources, syntax, scope, name, item.parent)
+            false -> Resolver::scoped_lifetime_named(sources, syntax, scope, name, item.parent)
         }
+    }
+}
+
+// The scope retains its exact declaration, including when it owns no binders.
+// Generic lookup already searched that declaration's own span; ancestry starts
+// at its parent. Non-machine scopes have no lexical declaration context.
+machine Resolver::scope_parent(syntax: &SyntaxTrees, scope: TypeScope) -> u64 in Trapping
+crashes Trap
+{
+    transition scope.lexical_machine > 0 {
+        true -> declared(syntax, scope.lexical_machine - 1)
+        false -> 0
+    }
+    machine declared(syntax: &SyntaxTrees, handle: u64 in Trapping) -> u64 in Trapping {
+        let item: MachineItem = SyntaxTrees::machine_item(syntax, handle);
+        item.parent
     }
 }

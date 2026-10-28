@@ -492,6 +492,7 @@ fn emit_reserved_boolean_guard_decision_blocks(
                     };
                     let edge = mint(next_edge_identity, edge_id);
                     StructuralCaseSuccessorEdge {
+                        structural_arguments: Vec::new(),
                         edge,
                         target,
                         case: *case,

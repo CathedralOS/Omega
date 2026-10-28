@@ -147,6 +147,15 @@ impl EntryPaths {
         contexts: &[FactContextHandle],
         machine: SymbolHandle,
     ) -> Self {
+        Self::retained_with_knowledge(semantic, contexts, machine, PathKnowledge::Complete)
+    }
+
+    fn retained_with_knowledge(
+        semantic: &FactPlan,
+        contexts: &[FactContextHandle],
+        machine: SymbolHandle,
+        knowledge: PathKnowledge,
+    ) -> Self {
         let mut result = Self::unconditional();
         for context in contexts {
             for fact in semantic
@@ -165,7 +174,14 @@ impl EntryPaths {
                 }
                 match predicate.role {
                     BooleanPredicateRole::CurrentObservation => {}
-                    BooleanPredicateRole::UnknownEntryPathCondition => return Self::unknown(),
+                    BooleanPredicateRole::UnknownEntryPathCondition => {
+                        if matches!(knowledge, PathKnowledge::Complete) {
+                            return Self::unknown();
+                        }
+                        // This row records an unprojectable conjunct, not a
+                        // false condition. Independently retained conjuncts
+                        // still hold on every execution of this same path.
+                    }
                     BooleanPredicateRole::EntryPathCondition => {
                         result =
                             result.intersect(&Self::from_expression(&predicate.expression, false))
@@ -175,6 +191,12 @@ impl EntryPaths {
         }
         result
     }
+}
+
+#[derive(Clone, Copy)]
+enum PathKnowledge {
+    Complete,
+    Necessary,
 }
 
 fn opposite(left: &Boolean, right: &Boolean) -> bool {
@@ -188,6 +210,20 @@ pub(crate) fn entry_path_condition(
     machine: SymbolHandle,
 ) -> Option<Boolean> {
     EntryPaths::retained(semantic, contexts, machine).expression()
+}
+
+/// A necessary condition on the live path: execution implies the returned
+/// formula. Crash possibilities need this overapproximation, not a complete
+/// reconstruction of every guard. An unknown conjunct adds no restriction;
+/// current-storage observations add none either. The complete-path query and
+/// its union across alternative arrivals retain their original semantics.
+pub(crate) fn entry_path_necessary_condition(
+    semantic: &FactPlan,
+    contexts: &[FactContextHandle],
+    machine: SymbolHandle,
+) -> Option<Boolean> {
+    EntryPaths::retained_with_knowledge(semantic, contexts, machine, PathKnowledge::Necessary)
+        .expression()
 }
 
 pub(crate) fn seed_entry_paths(
@@ -239,13 +275,35 @@ pub(crate) fn capture_entry_guard(
     )>,
 ) -> Option<FactContextHandle> {
     let (machine, state) = validation::find_state(program, state_symbol)?;
-    let entry_index = validation::activation_target_state_index(program, machine, machine.symbol)?;
-    let entry = program.machine_states(machine).get(entry_index)?;
-    let paths = crate::values::lower_entry_predicate(
+    let expression = crate::values::lower_entry_predicate(
         program, operators, machine, state, expression, subjects,
     )
-    .map(|expression| EntryPaths::from_expression(&expression, !value))
-    .unwrap_or_else(EntryPaths::unknown);
+    .map(|expression| {
+        if value {
+            expression
+        } else {
+            Boolean::Not(Box::new(expression))
+        }
+    });
+    capture_entry_expression(program, semantic, state_symbol, expression, point)
+}
+
+/// Publish an already authenticated original-entry proposition. A failed
+/// projection stays explicitly unknown, never a false path. Callers that have
+/// no new observation may omit this capture and keep their earlier facts.
+pub(crate) fn capture_entry_expression(
+    program: &dyn ::validation::CheckingInput,
+    semantic: &mut FactPlan,
+    state_symbol: SymbolHandle,
+    expression: Option<Boolean>,
+    point: ProgramPoint,
+) -> Option<FactContextHandle> {
+    let (machine, _) = validation::find_state(program, state_symbol)?;
+    let entry_index = validation::activation_target_state_index(program, machine, machine.symbol)?;
+    let entry = program.machine_states(machine).get(entry_index)?;
+    let paths = expression
+        .map(|expression| EntryPaths::from_expression(&expression, false))
+        .unwrap_or_else(EntryPaths::unknown);
     Some(seed_entry_paths(
         semantic,
         machine.symbol,

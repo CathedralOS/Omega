@@ -82,6 +82,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
                     bytes.id(payload.field);
                     encode_scalar_type(bytes, payload.scalar_type);
                 }
+                bytes.slice(&case.structural_bindings, encode_structural_binding);
                 bytes.slice(&case.cleanup_actions, encode_cleanup);
             }
         }

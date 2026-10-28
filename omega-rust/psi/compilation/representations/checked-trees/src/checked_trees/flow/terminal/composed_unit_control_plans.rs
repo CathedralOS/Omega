@@ -211,7 +211,7 @@ pub struct CheckedComposedUnitControlStatePlan {
     /// completion captures its records through it, and a structural return
     /// completes at its last statement.
     pub statement_count: u32,
-    pub normal_exit_cleanups: arena::HandleSpan<super::CheckedNormalExitCleanupPlan>,
+    pub normal_exit_cleanups: super::CheckedNormalExitCleanups,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

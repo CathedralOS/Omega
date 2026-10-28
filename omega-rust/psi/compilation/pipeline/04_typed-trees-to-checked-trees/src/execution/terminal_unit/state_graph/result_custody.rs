@@ -52,12 +52,12 @@ pub(super) fn account<'calls>(
     )],
     operations: &mut [CheckedUnitEffectOperationPlan],
     terminator: &CheckedComposedUnitControlTerminatorPlan,
+    completion: checked_trees::CheckedNormalCompletion,
     trace: &control::LocalConstructionTrace,
 ) -> Option<()> {
     let statements = program.statement_table.statements(state.statement_nodes);
     trace.phase("state graph: result custody accounting");
-    let has_normal_continuation =
-        terminator.has_normal_continuation(operations, &facts.flow.guarded_exits)?;
+    let has_normal_continuation = completion == checked_trees::CheckedNormalCompletion::Possible;
     // The first guard executes before selecting any exit. Later ordered
     // guards execute only on a remaining path; their transfers cannot stand
     // in for unconditional ownership. The retained computation itself owns

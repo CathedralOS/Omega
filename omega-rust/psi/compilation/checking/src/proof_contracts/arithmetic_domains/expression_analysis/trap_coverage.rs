@@ -38,7 +38,7 @@ use crate::proof_contracts::arithmetic_domains::{
 use typed_trees::signature::CrashCause;
 
 /// What a machine's crash interface permits for a Trap.
-enum TrapCeiling {
+pub(super) enum TrapCeiling {
     /// An inferred body summary, or an unconditional `crashes Trap` route.
     Permitted,
     /// The guarded `crashes Trap` alternatives; empty when the published
@@ -46,7 +46,7 @@ enum TrapCeiling {
     Guarded(Vec<ExpressionHandle>),
 }
 
-fn trap_ceiling(program: &dyn crate::CheckingInput, machine: &Machine) -> TrapCeiling {
+pub(super) fn trap_ceiling(program: &dyn crate::CheckingInput, machine: &Machine) -> TrapCeiling {
     if !program.machine_publishes_crash_ceiling(machine) {
         return TrapCeiling::Permitted;
     }

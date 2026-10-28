@@ -171,12 +171,13 @@ fn retire_borrowed_descriptor_arrivals(
                     scheduled_deaths.insert(*source);
                 }
             }
-            let record_owned = |argument: &terminal_psi::StructuralArgument,
-                                set: &mut std::collections::HashSet<PlaceId>| {
-                if argument.path.is_empty() && argument.access == StructuralAccess::Owned {
-                    set.insert(argument.place);
-                }
-            };
+            let record_owned =
+                |argument: &terminal_psi::StructuralArgument,
+                 set: &mut std::collections::HashSet<PlaceId>| {
+                    if argument.path.is_empty() && argument.access == StructuralAccess::Owned {
+                        set.insert(argument.place);
+                    }
+                };
             match &block.terminator {
                 Terminator::Jump {
                     structural_arguments,
@@ -203,6 +204,11 @@ fn retire_borrowed_descriptor_arrivals(
                         record_owned(arg, &mut scheduled_deaths);
                     }
                 }
+                Terminator::StructuralCase { cases, .. } => {
+                    for arg in cases.iter().flat_map(|case| &case.structural_arguments) {
+                        record_owned(arg, &mut scheduled_deaths);
+                    }
+                }
                 _ => {}
             }
         }
@@ -218,7 +224,8 @@ fn retire_borrowed_descriptor_arrivals(
             while cursor < reachable.len() {
                 let current = reachable[cursor];
                 cursor += 1;
-                let Some(block_index) = blocks.binary_search_by_key(&current, |block| block.id).ok()
+                let Some(block_index) =
+                    blocks.binary_search_by_key(&current, |block| block.id).ok()
                 else {
                     continue;
                 };

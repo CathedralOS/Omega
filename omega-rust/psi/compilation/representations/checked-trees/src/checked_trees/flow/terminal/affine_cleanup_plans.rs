@@ -64,16 +64,13 @@ impl CheckedCleanupControlPlans {
         )
     }
 
-    pub fn normal_exits(
-        &self,
-        rows: arena::HandleSpan<CheckedNormalExitCleanupPlan>,
-    ) -> &[CheckedNormalExitCleanupPlan] {
-        self.normal_exit_rows.span_or_empty(rows)
+    pub fn normal_exits(&self, rows: CheckedNormalExitCleanups) -> &[CheckedNormalExitCleanupPlan] {
+        self.normal_exit_rows.span_or_empty(rows.rows)
     }
 
     pub fn normal_actions(
         &self,
-        rows: arena::HandleSpan<CheckedNormalExitCleanupPlan>,
+        rows: CheckedNormalExitCleanups,
     ) -> impl Iterator<Item = &CheckedNormalCleanupAction> {
         self.normal_exits(rows)
             .iter()
@@ -364,6 +361,23 @@ impl CheckedUnitNominalAffineCleanupPlan {
             _ => None,
         }
     }
+}
+
+/// Normal completion is independent of a physical successor. Fusion may
+/// retain jumps inside an invocation that cannot return normally.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum CheckedNormalCompletion {
+    #[default]
+    Possible,
+    NoNormal,
+}
+
+/// The completed invocation outcome travels with its exact cleanup roster.
+/// NoNormal publishes no synthetic normal exit or disposition receipt.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct CheckedNormalExitCleanups {
+    pub completion: CheckedNormalCompletion,
+    pub rows: arena::HandleSpan<CheckedNormalExitCleanupPlan>,
 }
 
 /// Exact source outgoing coordinate, including the selected continuation arm.

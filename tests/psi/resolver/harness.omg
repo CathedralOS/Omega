@@ -32,6 +32,16 @@ data HarnessWord [copy] {
 // shared syntax tables in order, so its position is its `SourceId`; the
 // whole set then resolves. Malformed framing exits 253, and a set its
 // provisions cannot hold 252, without an observation.
+machine main()
+reaches Console
+invokes Console;
+crashes Trap
+blocks;
+{
+    let mut harness: ResolverHarness;
+    block ResolverHarness::main(&mut harness);
+}
+
 public machine ResolverHarness::main(resolver_harness: &mut ResolverHarness)
 reaches Console
 invokes Console;
@@ -44,14 +54,14 @@ blocks;
     Parser::initialize(&mut parser);
     let count: HarnessWord = block ResolverHarness::read_u32(resolver_harness);
     transition count.complete {
-        true -> packages(resolver_harness, &mut sources, &mut parser, count.value)
+        true -> block packages(resolver_harness, &mut sources, &mut parser, count.value)
         _ -> malformed(resolver_harness)
     }
 
     machine packages(resolver_harness: &mut ResolverHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
         transition remaining > 0 {
-            true -> package_row(resolver_harness, sources, parser, remaining)
-            _ -> dependencies(resolver_harness, sources, parser)
+            true -> block package_row(resolver_harness, sources, parser, remaining)
+            _ -> block dependencies(resolver_harness, sources, parser)
         }
     }
 
@@ -61,7 +71,7 @@ blocks;
         ModulePath::clear(&mut name);
         let read: bool = block ResolverHarness::read_path(resolver_harness, &mut name);
         transition toolchain.complete && toolchain.value < 2 && read {
-            true -> add_package(resolver_harness, sources, parser, remaining, toolchain.value == 1, &name)
+            true -> block add_package(resolver_harness, sources, parser, remaining, toolchain.value == 1, &name)
             _ -> malformed(resolver_harness)
         }
     }
@@ -76,7 +86,7 @@ blocks;
     ) {
         let added: bool = SourceSet::add_package(sources, name, toolchain);
         transition added {
-            true -> packages(resolver_harness, sources, parser, remaining - 1)
+            true -> block packages(resolver_harness, sources, parser, remaining - 1)
             _ -> source_full(resolver_harness)
         }
     }
@@ -84,15 +94,15 @@ blocks;
     machine dependencies(resolver_harness: &mut ResolverHarness, sources: &mut SourceSet, parser: &mut Parser) {
         let count: HarnessWord = block ResolverHarness::read_u32(resolver_harness);
         transition count.complete {
-            true -> dependency(resolver_harness, sources, parser, count.value)
+            true -> block dependency(resolver_harness, sources, parser, count.value)
             _ -> malformed(resolver_harness)
         }
     }
 
     machine dependency(resolver_harness: &mut ResolverHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
         transition remaining > 0 {
-            true -> dependency_row(resolver_harness, sources, parser, remaining)
-            _ -> units(resolver_harness, sources, parser)
+            true -> block dependency_row(resolver_harness, sources, parser, remaining)
+            _ -> block units(resolver_harness, sources, parser)
         }
     }
 
@@ -106,7 +116,7 @@ blocks;
         transition requester.complete && scope.complete && read && target.complete
             && (scope.value == 1 || scope.value == 2)
             && requester.value < sources.package_count && target.value < sources.package_count {
-            true -> dependency_scope(resolver_harness, sources, parser, remaining, requester.value, scope.value == 2, &alias, target.value)
+            true -> block dependency_scope(resolver_harness, sources, parser, remaining, requester.value, scope.value == 2, &alias, target.value)
             _ -> malformed(resolver_harness)
         }
     }
@@ -122,8 +132,8 @@ blocks;
         target: u64 in Trapping
     ) {
         transition build {
-            true -> add_dependency(resolver_harness, sources, parser, remaining, requester, DependencyScope::Build, alias, target)
-            _ -> add_dependency(resolver_harness, sources, parser, remaining, requester, DependencyScope::Product, alias, target)
+            true -> block add_dependency(resolver_harness, sources, parser, remaining, requester, DependencyScope::Build, alias, target)
+            _ -> block add_dependency(resolver_harness, sources, parser, remaining, requester, DependencyScope::Product, alias, target)
         }
     }
 
@@ -139,7 +149,7 @@ blocks;
     ) {
         let added: bool = SourceSet::add_dependency(sources, requester, scope, alias, target);
         transition added {
-            true -> dependency(resolver_harness, sources, parser, remaining - 1)
+            true -> block dependency(resolver_harness, sources, parser, remaining - 1)
             _ -> source_full(resolver_harness)
         }
     }
@@ -147,14 +157,14 @@ blocks;
     machine units(resolver_harness: &mut ResolverHarness, sources: &mut SourceSet, parser: &mut Parser) {
         let count: HarnessWord = block ResolverHarness::read_u32(resolver_harness);
         transition count.complete {
-            true -> unit(resolver_harness, sources, parser, count.value)
+            true -> block unit(resolver_harness, sources, parser, count.value)
             _ -> malformed(resolver_harness)
         }
     }
 
     machine unit(resolver_harness: &mut ResolverHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
         transition remaining > 0 {
-            true -> unit_row(resolver_harness, sources, parser, remaining)
+            true -> block unit_row(resolver_harness, sources, parser, remaining)
             _ -> prepare_resolve(resolver_harness, sources, parser)
         }
     }
@@ -165,7 +175,7 @@ blocks;
         ModulePath::clear(&mut module_path);
         let read: bool = block ResolverHarness::read_path(resolver_harness, &mut module_path);
         transition unit_package.complete && read && unit_package.value < sources.package_count {
-            true -> source(resolver_harness, sources, parser, remaining, unit_package.value, &module_path)
+            true -> block source(resolver_harness, sources, parser, remaining, unit_package.value, &module_path)
             _ -> malformed(resolver_harness)
         }
     }
@@ -182,7 +192,7 @@ blocks;
         let mut lexer: Lexer;
         Lexer::initialize(&mut lexer, sources.unit_count as u32 in Trapping);
         transition length.complete {
-            true -> source_byte(resolver_harness, sources, parser, remaining, unit_package, module_path, &mut lexer, length.value)
+            true -> block source_byte(resolver_harness, sources, parser, remaining, unit_package, module_path, &mut lexer, length.value)
             _ -> malformed(resolver_harness)
         }
     }
@@ -198,8 +208,8 @@ blocks;
         left: u64 in Trapping
     ) {
         transition left > 0 {
-            true -> source_read(resolver_harness, sources, parser, remaining, unit_package, module_path, lexer, left)
-            _ -> tokenize(resolver_harness, sources, parser, remaining, unit_package, module_path, lexer)
+            true -> block source_read(resolver_harness, sources, parser, remaining, unit_package, module_path, lexer, left)
+            _ -> block tokenize(resolver_harness, sources, parser, remaining, unit_package, module_path, lexer)
         }
     }
 
@@ -215,7 +225,7 @@ blocks;
     ) {
         let input: ByteRead = block Console::read_byte();
         transition input {
-            ByteRead::Byte { value } -> source_store(resolver_harness, sources, parser, remaining, unit_package, module_path, lexer, left, value)
+            ByteRead::Byte { value } -> block source_store(resolver_harness, sources, parser, remaining, unit_package, module_path, lexer, left, value)
             _ -> malformed(resolver_harness)
         }
     }
@@ -233,7 +243,7 @@ blocks;
     ) {
         Lexer::append_source_byte(lexer, value as u8);
         transition lexer.source.last_retained {
-            true -> source_byte(resolver_harness, sources, parser, remaining, unit_package, module_path, lexer, left - 1)
+            true -> block source_byte(resolver_harness, sources, parser, remaining, unit_package, module_path, lexer, left - 1)
             _ -> source_full(resolver_harness)
         }
     }
@@ -249,7 +259,7 @@ blocks;
     ) {
         Lexer::tokenize(lexer);
         transition lexer.output.accepted {
-            true -> parse(resolver_harness, sources, parser, remaining, unit_package, module_path, lexer)
+            true -> block parse(resolver_harness, sources, parser, remaining, unit_package, module_path, lexer)
             _ -> lex_rejected(resolver_harness)
         }
     }
@@ -265,7 +275,7 @@ blocks;
     ) {
         Parser::parse(parser, lexer.source.id, lexer.source.length as u64 in Trapping, &lexer.output);
         transition parser.output.accepted {
-            true -> add(resolver_harness, sources, parser, remaining, unit_package, module_path, lexer)
+            true -> block add(resolver_harness, sources, parser, remaining, unit_package, module_path, lexer)
             _ -> parse_rejected(resolver_harness)
         }
     }
@@ -281,7 +291,7 @@ blocks;
     ) {
         let added: bool = SourceSet::add(sources, &lexer.source, unit_package, module_path);
         transition added {
-            true -> unit(resolver_harness, sources, parser, remaining - 1)
+            true -> block unit(resolver_harness, sources, parser, remaining - 1)
             _ -> source_full(resolver_harness)
         }
     }
@@ -336,11 +346,11 @@ reaches Console
 crashes Trap
 blocks;
 {
-    transition { _ -> next(resolver_harness, 0, 0, 1) }
+    transition { _ -> block next(resolver_harness, 0, 0, 1) }
 
     machine next(resolver_harness: &mut ResolverHarness, read: u64 in Trapping, value: u64 in Trapping, scale: u64 in Trapping) -> HarnessWord {
         transition read < 4 {
-            true -> byte(resolver_harness, read, value, scale)
+            true -> block byte(resolver_harness, read, value, scale)
             _ -> word(value)
         }
     }
@@ -348,7 +358,7 @@ blocks;
     machine byte(resolver_harness: &mut ResolverHarness, read: u64 in Trapping, value: u64 in Trapping, scale: u64 in Trapping) -> HarnessWord {
         let input: ByteRead = block Console::read_byte();
         transition input {
-            ByteRead::Byte { value as byte } -> next(resolver_harness, read + 1, value + (byte as u64 in Trapping) * scale, scale * 256)
+            ByteRead::Byte { value as byte } -> block next(resolver_harness, read + 1, value + (byte as u64 in Trapping) * scale, scale * 256)
             _ -> ended()
         }
     }
@@ -371,13 +381,13 @@ blocks;
 {
     let length: HarnessWord = block ResolverHarness::read_u32(resolver_harness);
     transition length.complete {
-        true -> byte(resolver_harness, path, length.value)
+        true -> block byte(resolver_harness, path, length.value)
         _ -> failed()
     }
 
     machine byte(resolver_harness: &mut ResolverHarness, path: &mut ModulePath, left: u64 in Trapping) -> bool {
         transition left > 0 {
-            true -> read(resolver_harness, path, left)
+            true -> block read(resolver_harness, path, left)
             _ -> complete()
         }
     }
@@ -385,7 +395,7 @@ blocks;
     machine read(resolver_harness: &mut ResolverHarness, path: &mut ModulePath, left: u64 in Trapping) -> bool {
         let input: ByteRead = block Console::read_byte();
         transition input {
-            ByteRead::Byte { value } -> store(resolver_harness, path, left, value)
+            ByteRead::Byte { value } -> block store(resolver_harness, path, left, value)
             _ -> failed()
         }
     }
@@ -393,7 +403,7 @@ blocks;
     machine store(resolver_harness: &mut ResolverHarness, path: &mut ModulePath, left: u64 in Trapping, value: i32) -> bool {
         let kept: bool = ModulePath::append(path, value as u8);
         transition kept {
-            true -> byte(resolver_harness, path, left - 1)
+            true -> block byte(resolver_harness, path, left - 1)
             _ -> failed()
         }
     }

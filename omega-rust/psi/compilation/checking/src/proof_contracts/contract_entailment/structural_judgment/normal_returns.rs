@@ -1739,14 +1739,25 @@ impl<'program> StructuralJudge<'program> {
                     let [(_, left), (_, right)] = inputs.as_slice() else {
                         return None;
                     };
-                    value = super::super::structural_terms::binary_term_in_scope(
+                    if let Some(term) = super::super::structural_terms::binary_term_in_scope(
                         program,
                         Some(scope),
                         None,
                         expression,
                         left.observed_value()?.clone(),
                         right.observed_value()?.clone(),
-                    )?;
+                    ) {
+                        value = term;
+                    } else if !judge.runtime_body_values
+                        || !discarded_value_has_no_own_effects(program, scope, expression)
+                    {
+                        return None;
+                    }
+                    // A completed builtin may have no structural denotation
+                    // (for example nominal equality). Its fresh typed result
+                    // carries no operand equation, but cannot erase unrelated
+                    // prefix premises. Selected call effects retain their
+                    // separate operation owner and do not use this path.
                 }
                 if let ExpressionNode::Unary(_) = node {
                     let [(_, operand)] = inputs.as_slice() else {

@@ -8,7 +8,9 @@
 mod private_arrivals;
 
 pub(super) use private_arrivals::observe_private_arrivals;
-pub(crate) use private_arrivals::{ClosedArrivals, ProgramPrivateArrivalIndex};
+pub(crate) use private_arrivals::{
+    ClosedArrivals, ProgramPrivateArrivalIndex, private_invocation_index,
+};
 
 use super::citations::{CitationFacts, machine_requires_facts};
 use super::structural_case_arms::{

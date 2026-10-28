@@ -668,8 +668,8 @@ def main() -> None:
     accepted(
         program,
         "machine-signature-types",
-        b"machine f(a: u8, b: &mut D) -> u64 { machine s(x: D) {} }\ndata D { y: u8; }",
-        (builtin("u8"), data(0), REFERENCE_ROW, builtin("u64"), data(0), builtin("u8")),
+        b'machine f(a: u8, b: &mut D) -> u64 { machine s(x: D) -> u64 {} }\ndata D { y: u8; }',
+        (builtin("u8"), data(0), REFERENCE_ROW, builtin("u64"), data(0), builtin("u64"), builtin("u8")),
     )
     accepted(
         program,
@@ -1068,8 +1068,8 @@ def main() -> None:
     accepted(
         program,
         "generic-machine-signature",
-        b"machine Vec::as_slice<T>(items: &Vec<T>) -> &[T] { machine s(x: T) {} }\ndata Vec<T> { v: T; }",
-        (generic(0), data(0), REFERENCE_ROW, generic(0), SLICE_ROW, REFERENCE_ROW, generic(0), generic(1)),
+        b'machine Vec::as_slice<T>(items: &Vec<T>) -> &[T] { machine s(x: T) -> &[T] {} }\ndata Vec<T> { v: T; }',
+        (generic(0), data(0), REFERENCE_ROW, generic(0), SLICE_ROW, REFERENCE_ROW, generic(0), generic(0), SLICE_ROW, REFERENCE_ROW, generic(1)),
     )
     accepted(
         program,
@@ -1165,7 +1165,7 @@ def main() -> None:
     # Source sets: a unit sees its own module, a sibling unit of the same
     # module, and each module it imports; imports are not transitive, and two
     # visible declarations of one spelling are ambiguous.
-    shapes = (b"shapes", b"pub data D { x: u8; }\npub machine g(d: D) {}")
+    shapes = (b"shapes", b'public data D { x: u8; }\npublic machine g(d: D) {}')
     accepted_units(
         program,
         "import-binds-types-and-callees",
@@ -1357,7 +1357,7 @@ def main() -> None:
     rejected_units(
         program,
         "operator-home-in-another-package",
-        ((1, b"shapes", b"pub data D { x: u8; }"), (0, b"", b"use geo::shapes;\nmachine + D::add(a: D, b: D) -> D { a }")),
+        ((1, b"shapes", b'public data D { x: u8; }'), (0, b"", b"use geo::shapes;\nmachine + D::add(a: D, b: D) -> D { a }")),
         FOREIGN_OPERATOR_HOME,
         1,
         b"D",
@@ -1655,7 +1655,7 @@ def main() -> None:
     accepted(
         program,
         "generic-boundary-data-binds",
-        b"pub boundary data Ptr<T> [linear];\ndata A { p: Ptr<u8>; }",
+        b'public boundary data Ptr<T> [linear];\ndata A { p: Ptr<u8>; }',
         (builtin("u8"), data(0)),
     )
 
@@ -1798,7 +1798,7 @@ def main() -> None:
     accepted_units(
         program,
         "imported-trait-requirement-callee",
-        ((b"shapes", b"pub trait Shape { machine area() -> u64; }"), (b"", b"use shapes;\nmachine f() -> u64 { Shape::area() }")),
+        ((b"shapes", b'public trait Shape { machine area() -> u64; }'), (b"", b"use shapes;\nmachine f() -> u64 { Shape::area() }")),
         (builtin("u64"), builtin("u64")),
         (machine(0), NOT_A_NAME),
     )
@@ -1972,7 +1972,7 @@ def main() -> None:
     rejected_units(
         program,
         "case-and-constant-compete-across-modules",
-        ((b"left", b"pub data E { case A; }"), (b"right", b"pub const E::A: u64 = 1;"),
+        ((b"left", b'public data E { case A; }'), (b"right", b'public const E::A: u64 = 1;'),
          (b"", b"use left;\nuse right;\nmachine f() { let x: u64 = E::A; }")),
         AMBIGUOUS_NAME,
         2,
@@ -2108,7 +2108,7 @@ def main() -> None:
     accepted_units(
         program,
         "aliased-import-resolves",
-        ((1, b"shapes", b"pub data D { x: u8; }\npub machine g(d: D) {}"),
+        ((1, b"shapes", b'public data D { x: u8; }\npublic machine g(d: D) {}'),
          (0, b"", b"use geo::shapes;\nmachine f(d: D) { g(d); }")),
         (builtin("u8"), data(0), data(0)),
         (machine(0), parameter(1), NOT_A_NAME),
@@ -2124,7 +2124,7 @@ def main() -> None:
     rejected_units(
         program,
         "package-name-without-alias-rejects",
-        ((1, b"shapes", b"pub data D { x: u8; }"), (0, b"", b"use geometry::shapes;\nmachine f() {}")),
+        ((1, b"shapes", b'public data D { x: u8; }'), (0, b"", b"use geometry::shapes;\nmachine f() {}")),
         UNDECLARED_DEPENDENCY,
         1,
         b"use geometry::shapes;",
@@ -2134,7 +2134,7 @@ def main() -> None:
     rejected_units(
         program,
         "build-alias-authorizes-no-product-import",
-        ((1, b"shapes", b"pub data D { x: u8; }"), (0, b"", b"use geo::shapes;\nmachine f() {}")),
+        ((1, b"shapes", b'public data D { x: u8; }'), (0, b"", b"use geo::shapes;\nmachine f() {}")),
         UNDECLARED_DEPENDENCY,
         1,
         b"use geo::shapes;",
@@ -2144,7 +2144,7 @@ def main() -> None:
     rejected_units(
         program,
         "another-requesters-alias-authorizes-nothing",
-        ((2, b"m", b"pub data D { x: u8; }"), (0, b"", b"use lib::m;\nmachine f() {}")),
+        ((2, b"m", b'public data D { x: u8; }'), (0, b"", b"use lib::m;\nmachine f() {}")),
         UNRESOLVED_IMPORT,
         1,
         b"use lib::m;",
@@ -2154,7 +2154,7 @@ def main() -> None:
     rejected_units(
         program,
         "dependency-lacks-the-module",
-        ((1, b"shapes", b"pub data D { x: u8; }"), (0, b"", b"use geo::circles;\nmachine f() {}")),
+        ((1, b"shapes", b'public data D { x: u8; }'), (0, b"", b"use geo::circles;\nmachine f() {}")),
         UNRESOLVED_IMPORT,
         1,
         b"use geo::circles;",
@@ -2164,7 +2164,7 @@ def main() -> None:
     rejected_units(
         program,
         "alias-alone-names-no-module",
-        ((1, b"shapes", b"pub data D { x: u8; }"), (0, b"", b"use geo;\nmachine f() {}")),
+        ((1, b"shapes", b'public data D { x: u8; }'), (0, b"", b"use geo;\nmachine f() {}")),
         UNRESOLVED_IMPORT,
         1,
         b"use geo;",
@@ -2184,7 +2184,7 @@ def main() -> None:
     rejected_units(
         program,
         "private-machine-across-packages",
-        ((1, b"shapes", b"pub data D { x: u8; }\nmachine g(d: D) {}"),
+        ((1, b"shapes", b'public data D { x: u8; }\nmachine g(d: D) {}'),
          (0, b"", b"use geo::shapes;\nmachine f(d: D) { g(d); }")),
         UNKNOWN_NAME,
         1,
@@ -2196,7 +2196,7 @@ def main() -> None:
     accepted_units(
         program,
         "public-trait-requirement-across-packages",
-        ((1, b"shapes", b"pub trait Shape { machine area(x: u8) -> u8; }"),
+        ((1, b"shapes", b'public trait Shape { machine area(x: u8) -> u8; }'),
          (0, b"", b"use geo::shapes;\nmachine f() { Shape::area(1); }")),
         (builtin("u8"), builtin("u8")),
         (machine(0), NOT_A_NAME, NOT_A_NAME),
@@ -2217,7 +2217,7 @@ def main() -> None:
     accepted_units(
         program,
         "public-domain-across-packages",
-        ((1, b"limits", b"pub domain u64::Small(value) requires value < 4;"),
+        ((1, b"limits", b'public domain u64::Small(value) requires value < 4;'),
          (0, b"", b"use geo::limits;\nmachine f(x: u64 in Small) {}")),
         (builtin("u64"), in_domain(builtin("u64"), 0)),
         packages=app_geometry,
@@ -2234,7 +2234,7 @@ def main() -> None:
         packages=app_geometry,
         dependencies=geo,
     )
-    same_spelled = ((0, b"shapes", b"data D { x: u8; }"), (1, b"shapes", b"pub data D { y: u16; }"))
+    same_spelled = ((0, b"shapes", b"data D { x: u8; }"), (1, b"shapes", b'public data D { y: u16; }'))
     accepted_units(
         program,
         "same-spelled-modules-of-two-packages",
@@ -2256,7 +2256,7 @@ def main() -> None:
     accepted_units(
         program,
         "alias-precedes-a-local-module",
-        ((0, b"geo::shapes", b"data D { x: u8; }"), (1, b"shapes", b"pub data D { y: u16; }"),
+        ((0, b"geo::shapes", b"data D { x: u8; }"), (1, b"shapes", b'public data D { y: u16; }'),
          (0, b"", b"use geo::shapes;\nmachine f(d: D) {}")),
         (builtin("u8"), builtin("u16"), data(1)),
         packages=app_geometry,
@@ -2266,8 +2266,8 @@ def main() -> None:
     accepted_units(
         program,
         "toolchain-mount",
-        ((1, b"nat", b"pub data Nat { x: u8; }"),
-         (1, b"rat", b"use omega::language::core::nat;\npub data Rat { n: Nat; }"),
+        ((1, b"nat", b'public data Nat { x: u8; }'),
+         (1, b"rat", b'use omega::language::core::nat;\npublic data Rat { n: Nat; }'),
          (0, b"", b"use omega::language::core::rat;\nmachine f(r: Rat) {}")),
         (builtin("u8"), data(0), data(1)),
         packages=toolchain,

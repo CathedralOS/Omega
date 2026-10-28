@@ -9,14 +9,13 @@ use psi::syntax::syntax;
 // Expression names. Every name and path in a machine body, and in a
 // constant's value, binds in the order of
 // wiki/spec/language/modules.md#resolution: a local binding, then the body's
-// parameters (a state sees only its own, never the entry's), then the
+// parameters (each declaration sees only its own runtime inputs), then the
 // machine's generic parameters (a trait or conformance member's own, then
 // its container's), then the unit's declarations. Where the name stands
 // decides which declarations it may name: a value names a value binder
 // (`Count: u32`, `const N: u64`) or a constant, a call's callee a machine
 // binder, then a fellow member of the enclosing trait or conformance, then a
-// machine or a proposition, a call-shaped transition target a state of its
-// machine before any callee, a construction's path a data declaration or
+// machine or a proposition, a construction's path a data declaration or
 // `Type::Case`, a case pattern's path a case, and a path in value position a
 // case, an owned constant (`Owner::NAME`) or an owned machine. A callee path names a
 // machine through its owner, so `Trait::requirement` names a trait
@@ -364,7 +363,7 @@ crashes Trap
 
 // A guard or literal pattern binds as a value; a case pattern's path names a
 // case and its field values bind as values. The arm's target then binds with
-// the pattern's binders in scope, its callee naming a state or a machine.
+// the pattern's binders in scope, its callee naming a visible machine.
 machine Resolver::bind_arm(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, handle: u64 in Trapping)
 crashes Trap
 {
@@ -1004,27 +1003,39 @@ crashes Trap
 {
     let binder: ValueBinding = Resolver::generic_name(resolution, sources, syntax, scope, name, true);
     transition binder {
-        ValueBinding::GenericParameter { parameter } -> found(binder)
+        ValueBinding::GenericParameter { parameter } -> binder
         _ -> enclosing(resolution, sources, syntax, scope, name)
     }
-
     machine enclosing(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, name: SourceSpan) -> ValueBinding {
         transition scope.has_machine {
-            true -> lexical(resolution, sources, syntax, scope, name)
-            _ -> free_machine(resolution, sources, syntax, name)
+            true -> Resolver::declaration_callee(resolution, sources, syntax, scope.machine + 1, name)
+            false -> Resolver::declaration_callee(resolution, sources, syntax, 0, name)
         }
     }
+}
 
-    machine lexical(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, name: SourceSpan) -> ValueBinding {
-        let local: ValueBinding = Resolver::lexical_callee(sources, syntax, scope.machine, name);
+// Ordinary invocations and static machine arguments share declaration lookup.
+// The optional exact owner is a machine handle plus one, never runtime data.
+// Whole qualified spellings remain intact; lexical lookup cannot turn a
+// sibling's descendant into a bare visible declaration.
+public machine Resolver::declaration_callee(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, lexical_machine: u64 in Trapping, name: SourceSpan) -> ValueBinding
+crashes Trap
+{
+    transition lexical_machine > 0 {
+        true -> lexical(resolution, sources, syntax, lexical_machine - 1, name)
+        false -> free_machine(resolution, sources, syntax, name)
+    }
+
+    machine lexical(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, machine: u64 in Trapping, name: SourceSpan) -> ValueBinding {
+        let local: ValueBinding = Resolver::lexical_callee(sources, syntax, machine, name);
         transition local {
-            ValueBinding::Unresolved -> container(resolution, sources, syntax, scope, name)
+            ValueBinding::Unresolved -> container(resolution, sources, syntax, machine, name)
             _ -> found(local)
         }
     }
 
-    machine container(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, name: SourceSpan) -> ValueBinding {
-        let root: u64 in Trapping = Resolver::lexical_root(syntax, scope.machine);
+    machine container(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, machine: u64 in Trapping, name: SourceSpan) -> ValueBinding {
+        let root: u64 in Trapping = Resolver::lexical_root(syntax, machine);
         let owner: MachineOwner = NameResolution::machine_owner(resolution, root);
         transition owner.container == MachineContainer::Root || owner.container == MachineContainer::Measure {
             true -> free_machine(resolution, sources, syntax, name)

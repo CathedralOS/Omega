@@ -40,6 +40,7 @@ mod requirement_call_specializations;
 pub(crate) mod resolved_types;
 pub(crate) mod review_sources;
 pub(crate) mod state_locals;
+mod static_callable_crashes;
 
 pub(crate) use ::validation::field_domains::domain_is_vacuous;
 pub(crate) use crash_calls::{
@@ -151,6 +152,7 @@ pub(crate) fn build_check_facts(
     let mut operators = build_operator_facts(program, &values);
     operators.exact_integer_casts = validation_facts.exact_integer_casts.clone();
     operators.decided_formations = validation_facts.decided_formations.clone();
+    operators.trap_free_expressions = validation_facts.trap_free_expressions.clone();
     let mut proof = build_proof_facts(program, proof_plan, &borrow, &operators)?;
     for decision in integer_assignments {
         let proof::obligations::ProofObligation::BoundedAssignment(assignment) =
@@ -288,16 +290,13 @@ pub(crate) fn build_check_facts(
         ) {
             continue;
         }
-        if !phase_profile::scope(
-            "05.d.3.b.flow_fixed_point.infer_entry_requirements",
-            || {
-                contextual_cleanup::infer_entry_requirements(
-                    program,
-                    &mut prepared,
-                    call_frames.as_ref(),
-                )
-            },
-        )? {
+        if !phase_profile::scope("05.d.3.b.flow_fixed_point.infer_entry_requirements", || {
+            contextual_cleanup::infer_entry_requirements(
+                program,
+                &mut prepared,
+                call_frames.as_ref(),
+            )
+        })? {
             break;
         }
     }
@@ -444,25 +443,33 @@ pub(crate) fn build_check_facts(
     });
     // STR4 checked plans: the normalized machine contracts (published
     // halves + fingerprint; prover-independent by construction).
-    let contract_plans = phase_profile::scope("05.d.3.c.5c.contract_plans", || {
-        build_contract_plans(
-            program,
-            &service_reaches,
-            &synchronous_invocations,
-            &suspensions,
-            &blocking,
-            &termination,
-            &mutation,
-            &capabilities,
-            &flow,
-            &operators,
-            &semantic,
-            &validation_facts.exact_integer_casts,
-            &values.scalar_expressions,
-            &values.scalar_computations,
-            &values.structural_values,
-        )
-    })?;
+    let (contract_plans, completed_crashes) =
+        phase_profile::scope("05.d.3.c.5c.contract_plans", || {
+            build_contract_plans(
+                program,
+                &service_reaches,
+                &synchronous_invocations,
+                &suspensions,
+                &blocking,
+                &termination,
+                &mutation,
+                &capabilities,
+                &flow,
+                &operators,
+                &semantic,
+                &validation_facts.exact_integer_casts,
+                &values.scalar_expressions,
+                &values.scalar_computations,
+                &values.structural_values,
+            )
+        })?;
+    static_callable_crashes::validate(
+        program,
+        &operators,
+        &static_machine_selections.crash_refinements,
+        &contract_plans,
+        &completed_crashes,
+    )?;
     let nominal_machine_uses = build_nominal_machine_use_facts(
         program,
         static_machine_selections.nominal_uses,

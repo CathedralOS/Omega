@@ -152,7 +152,6 @@ pub(crate) fn operation_place_accesses(operation: &O) -> Vec<PlaceId> {
         O::ElementViewWrite { destination, .. } => vec![destination.place],
         O::ReleaseReference { source, .. } => vec![*source],
         abstract_operations::primitive_storage_observation_pattern!(source, ..)
-        | O::StructuralCase { source, .. }
         | O::ByteSequenceRead { source, .. }
         | O::ByteSequenceWrite {
             destination: source,
@@ -168,6 +167,14 @@ pub(crate) fn operation_place_accesses(operation: &O) -> Vec<PlaceId> {
         | O::ReturnStructural { source, .. } => {
             vec![*source]
         }
+        O::StructuralCase { source, cases, .. } => std::iter::once(*source)
+            .chain(
+                cases
+                    .iter()
+                    .flat_map(|case| &case.structural_bindings)
+                    .map(|binding| binding.argument.place),
+            )
+            .collect(),
         _ => Vec::new(),
     }
 }

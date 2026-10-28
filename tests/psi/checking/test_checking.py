@@ -187,6 +187,56 @@ def nested_machine_cases(program: str) -> None:
     rejected(program, "returning-call-retains-ordinary-exclusive-window", ordinary, "OverlappingArguments", b"cell!7")
 
 
+def invocation_component_cases(program: str) -> None:
+    # Frozen own-contract controls: ancestry supplies neither a witness nor
+    # input authority. Reordering the component preserves every obligation.
+    cases = (
+        ('ordinary_continuation_contract/positive', b'machine outer(items: &[u8; 4], index: u64) -> u8 {\n    transition index < 4 { true -> read(items, index) false -> (0) }\n    machine read(items: &[u8; 4], index: u64) -> u8 requires index < 4 {\n        let slot: u64 = helper(index);\n        items[slot]\n        machine helper(value: u64) -> u64\n        requires value < 4\n        ensures result < 4\n        { value }\n    }\n}\n', None),
+        ('ordinary_continuation_contract/invalid', b'machine outer(items: &[u8; 4], index: u64) -> u8 {\n    transition index <= 4 { true -> read(items, index) false -> (0) }\n    machine read(items: &[u8; 4], index: u64) -> u8 requires index < 4 {\n        let slot: u64 = helper(index);\n        items[slot]\n        machine helper(value: u64) -> u64\n        requires value < 4\n        ensures result < 4\n        { value }\n    }\n}\n', 'RequirementUnproven'),
+        ('own_crash_marker/positive', b'machine outer() -> u8\ncrashes Trap\ncrashes Abort\n{\n    child()\n    machine child() -> u8 crashes Trap { crash Trap; }\n}\n', None),
+        ('own_crash_marker/invalid', b'machine outer() -> u8\ncrashes Trap\ncrashes Abort\n{\n    child()\n    machine child() -> u8 crashes Abort { crash Trap; }\n}\n', 'CrashNotDeclared'),
+        ('own_loan_result/positive', b'data Score { points: i32; }\nmachine outer(score: &Score) -> &i32 {\n    child(score)\n    machine child(item: &Score) -> &i32 { &item.points }\n}\n', None),
+        ('own_loan_result/invalid', b'data Score { points: i32; }\nmachine outer(score: &Score) -> &i32 {\n    child(score)\n    machine child(item: &Score) -> &i32 { let local: Score = Score { points: 1 }; &local.points }\n}\n', 'LoanEscapes'),
+        ('own_linear_custody/positive', b'data Receipt [linear] { code: i32; }\nmachine finish(receipt: Receipt) -> i32;\nmachine outer(receipt: Receipt) -> i32 {\n    child(receipt)\n    machine child(owned: Receipt) -> i32 { finish(owned) }\n}\n', None),
+        ('own_linear_custody/invalid', b'data Receipt [linear] { code: i32; }\nmachine finish(receipt: Receipt) -> i32;\nmachine outer(receipt: Receipt) -> i32 {\n    child(receipt)\n    machine child(owned: Receipt) -> i32 { let code: i32 = owned.code; code }\n}\n', 'LinearUnconsumed'),
+        ('joint_terminal_component/positive', b'machine left(remaining: u64, canary: u64) -> u64\nterminates by remaining;\n{\n    transition { _ -> right(canary, remaining) }\n}\nmachine right(stamp: u64, pending: u64) -> u64\nterminates by pending;\n{\n    transition pending > 0 {\n        true -> left(pending - 1, stamp)\n        false -> stamp\n    }\n}\n', None),
+        ('joint_terminal_component/invalid', b'machine left(remaining: u64, canary: u64) -> u64\nterminates by remaining;\n{\n    transition { _ -> right(canary, remaining) }\n}\nmachine right(stamp: u64, pending: u64) -> u64\nterminates by pending;\n{\n    transition pending > 0 {\n        true -> left(pending, stamp)\n        false -> stamp\n    }\n}\n', 'RankUnproven'),
+        ('joint_terminal_component/positive_reordered', b'machine right(stamp: u64, pending: u64) -> u64\nterminates by pending;\n{\n    transition pending > 0 {\n        true -> left(pending - 1, stamp)\n        false -> stamp\n    }\n}\nmachine left(remaining: u64, canary: u64) -> u64\nterminates by remaining;\n{\n    transition { _ -> right(canary, remaining) }\n}\n', None),
+        ('joint_terminal_component/invalid_reordered', b'machine right(stamp: u64, pending: u64) -> u64\nterminates by pending;\n{\n    transition pending > 0 {\n        true -> left(pending, stamp)\n        false -> stamp\n    }\n}\nmachine left(remaining: u64, canary: u64) -> u64\nterminates by remaining;\n{\n    transition { _ -> right(canary, remaining) }\n}\n', 'RankUnproven'),
+        ('rank_initial_and_backedge/positive', b'machine outer(start: u64, bound: u64) -> u64\nrequires start <= bound\nterminates by start in 0..=bound;\n{\n    transition { _ -> child(start, bound) }\n    machine child(pending: u64, limit: u64) -> u64\n    requires pending <= limit\n    terminates by pending in 0..=limit;\n    {\n        transition pending > 0 {\n            true -> child(pending - 1, limit)\n            false -> (0)\n        }\n    }\n}\n', None),
+        ('rank_initial_and_backedge/invalid', b'machine outer(start: u64, bound: u64) -> u64\nrequires start <= bound\nterminates by start in 0..=bound;\n{\n    transition { _ -> child(start, 0) }\n    machine child(pending: u64, limit: u64) -> u64\n    requires pending <= limit\n    terminates by pending in 0..=limit;\n    {\n        transition pending > 0 {\n            true -> child(pending - 1, limit)\n            false -> (0)\n        }\n    }\n}\n', 'RequirementUnproven'),
+        ('rank_initial_and_backedge/invalid_backedge', b'machine outer(start: u64, bound: u64) -> u64\nrequires start <= bound\nterminates by start in 0..=bound;\n{\n    transition { _ -> child(start, bound) }\n    machine child(pending: u64, limit: u64) -> u64\n    requires pending <= limit\n    terminates by pending in 0..=limit;\n    {\n        transition pending > 0 {\n            true -> child(pending - 1, 0)\n            false -> (0)\n        }\n    }\n}\n', 'RequirementUnproven'),
+        ('outer_termination_promise/positive', b'machine outer(n: u64) -> u64\nterminates;\n{\n    child(n)\n    machine child(remaining: u64) -> u64\n    terminates by remaining;\n    {\n        transition remaining > 0 {\n            true -> child(remaining - 1)\n            false -> (0)\n        }\n    }\n}\n', None),
+        ('outer_termination_promise/invalid', b'machine outer(n: u64) -> u64\nterminates;\n{\n    child(n)\n    machine child(remaining: u64) -> u64\n    {\n        transition remaining > 0 {\n            true -> child(remaining - 1)\n            false -> (0)\n        }\n    }\n}\n', 'ProgressUnproven'),
+        ('full_lexicographic_arity/positive', b'data Progress { outer: u64; middle: u64; inner: u64; }\nmeasure Progress::Steps lexicographic { outer, middle, inner }\nmachine scan(progress: Progress) -> u64\nterminates by progress -> Progress::Steps;\n{\n    transition progress.inner > 0 {\n        true -> scan(Progress { outer: progress.outer, middle: progress.middle, inner: progress.inner - 1 })\n        false -> progress.outer\n    }\n}\n', None),
+        ('full_lexicographic_arity/invalid', b'data Progress { outer: u64; middle: u64; inner: u64; }\nmeasure Progress::Steps lexicographic { outer, middle, inner }\nmachine scan(progress: Progress) -> u64\nterminates by progress -> Progress::Steps;\n{\n    transition progress.inner > 0 {\n        true -> scan(Progress { outer: progress.outer, middle: progress.middle, inner: progress.inner })\n        false -> progress.outer\n    }\n}\n', 'RankUnproven'),
+        ('numeric_completion/original_clamp', b'machine clamp(x: u64) -> u64 ensures result <= 10 { transition x <= 10 { true -> (x) _ -> capped() } machine capped() -> u64 { 10 } }', None),
+        ('numeric_completion/capped_eleven', b'machine clamp(x: u64) -> u64 ensures result <= 10 { transition x <= 10 { true -> (x) _ -> capped() } machine capped() -> u64 { 11 } }', 'GuaranteeUnproven'),
+        ('numeric_completion/mixed_returns', b'machine clamp(flag: bool) -> u64 ensures result <= 10 { capped(flag) machine capped(flag: bool) -> u64 { transition flag { true -> 10 false -> 11 } } }', 'GuaranteeUnproven'),
+        ('numeric_completion/forward_chain', b'machine clamp() -> u64 ensures result <= 10 { middle() machine middle() -> u64 { final() } machine final() -> u64 { 10 } }', None),
+        ('numeric_completion/own_requirement', b'machine helper(value: u64) -> u64 requires value <= 10 { value } machine clamp(value: u64) -> u64 requires value <= 10 ensures result <= 10 { helper(value) }', None),
+        ('numeric_completion/wider_requirement', b'machine helper(value: u64) -> u64 requires value <= 11 { value } machine clamp(value: u64) -> u64 requires value <= 11 ensures result <= 10 { helper(value) }', 'GuaranteeUnproven'),
+        ('numeric_completion/false_own_guarantee', b'machine clamp() -> u64 ensures result <= 10 { helper() machine helper() -> u64 ensures result <= 10 { 11 } }', 'GuaranteeUnproven'),
+        ('numeric_completion/saved_result_after_write', b'data Cell { value: u64; } machine ten() -> u64 { 10 } machine clamp(cell: &mut Cell) -> u64 ensures result <= 10 { let saved: u64 = ten(); cell.value = 20; saved }', None),
+        ('numeric_completion/reread_after_write', b'data Cell { value: u64; } machine ten() -> u64 { 10 } machine clamp(cell: &mut Cell) -> u64 ensures result <= 10 { let saved: u64 = ten(); cell.value = 20; cell.value }', 'GuaranteeUnproven'),
+        ('terminal_match_position/positive', b'data Cell { value: u64; }\nmachine observe(cell: &Cell) -> u64 { cell.value }\nmachine update(cell: &mut Cell, before: u64) -> u64 { cell.value = 73; before }\nmachine forward(cell: &mut Cell, flag: bool) -> u64 {\n    transition { _ -> match flag { true -> update(cell, observe(cell)), false -> update(cell, observe(cell)) } }\n}\n', None),
+        ('terminal_match_position/ordinary', b'data Cell { value: u64; }\nmachine observe(cell: &Cell) -> u64 { cell.value }\nmachine update(cell: &mut Cell, before: u64) -> u64 { cell.value = 73; before }\nmachine forward(cell: &mut Cell, flag: bool) -> u64 {\n    let saved: u64 = match flag { true -> update(cell, observe(cell)), false -> update(cell, observe(cell)) };\n    saved\n}\n', 'OverlappingArguments'),
+        ('terminal_match_position/fresh_mutable', b'data Cell { value: u64; }\nmachine observe(cell: &Cell) -> u64 { cell.value }\nmachine update(cell: &mut Cell, before: u64) -> u64 { cell.value = 73; before }\nmachine forward(flag: bool) -> u64 {\n    let mut cell: Cell = Cell { value: 1 };\n    transition { _ -> match flag { true -> update(&mut cell, observe(&cell)), false -> 0 } }\n}\n', 'OverlappingArguments'),
+        ('signed_snapshot/positive', b'machine shifted(value: &mut i64) -> u8\nrequires value == -7\nensures result == 1\n{\n    transition ((value + 8) as u8) == 1 {\n        true -> 1\n        false -> 2\n    }\n}\n', None),
+        ('signed_snapshot/invalid', b'machine shifted(value: &mut i64) -> u8\nrequires value == -7\nensures result == 2\n{\n    transition ((value + 8) as u8) == 1 {\n        true -> 1\n        false -> 2\n    }\n}\n', 'GuaranteeUnproven'),
+        ('assignment_entry_rank/positive-local', b'machine countdown(remaining: u64) -> u64\nrequires remaining <= 100\nterminates by remaining;\n{\n    transition remaining > 0 {\n        true -> lower(remaining)\n        false -> 0\n    }\n    machine lower(value: u64) -> u64\n    requires value > 0 && value <= 100\n    terminates by value;\n    {\n        let mut next: u64 = value;\n        next = next - 1;\n        transition { _ -> countdown(next) }\n    }\n}\n', None),
+        ('assignment_entry_rank/invalid-local', b'machine countdown(remaining: u64) -> u64\nrequires remaining <= 100\nterminates by remaining;\n{\n    transition remaining > 0 {\n        true -> lower(remaining)\n        false -> 0\n    }\n    machine lower(value: u64) -> u64\n    requires value > 0 && value <= 100\n    terminates by value;\n    {\n        let mut next: u64 = value;\n        next = next;\n        transition { _ -> countdown(next) }\n    }\n}\n', 'RankUnproven'),
+        ('assignment_entry_rank/invalid-formation', b'machine countdown(remaining: u64) -> u64\nrequires remaining <= 100\nterminates by remaining;\n{\n    transition remaining > 0 {\n        true -> lower(remaining)\n        false -> 0\n    }\n    machine lower(value: u64) -> u64\n    requires value > 0 && value <= 100\n    terminates by value;\n    {\n        let mut next: u64 = value;\n        next = next - (value + 1);\n        transition { _ -> countdown(next) }\n    }\n}\n', 'ArithmeticOverflow'),
+    )
+    for name, source, diagnostic in cases:
+        status, payload = run(program, source)
+        observation = decode(payload)
+        if diagnostic is None:
+            assert status == 0 and observation.accepted, f"{name}: {observation}"
+        else:
+            assert status == 247 and not observation.accepted, f"{name}: status {status}"
+            assert any(code == diagnostic for code, span in observation.rejections), f"{name}: {observation}"
+
 def main() -> None:
     if len(sys.argv) != 2:
         raise SystemExit("usage: test_checking.py <checking-harness-executable>")
@@ -823,49 +873,47 @@ def main() -> None:
     accepted(
         program,
         "declared-trapping-site",
-        b"pub machine next(x: u64 in Trapping) -> u64 in Trapping\ncrashes Trap\n{ x + 1 }",
+        b'public machine next(x: u64 in Trapping) -> u64 in Trapping\ncrashes Trap\n{ x + 1 }',
         {0: "T/T"},
     )
     rejected(
         program,
         "undeclared-trapping-site",
-        b"pub machine next(x: u64 in Trapping) -> u64 in Trapping { x + 1 }",
+        b'public machine next(x: u64 in Trapping) -> u64 in Trapping { x + 1 }',
         "CrashNotDeclared",
-        b"pub machine next(x: u64 in Trapping) -> u64 in Trapping { x + 1 }",
+        b'public machine next(x: u64 in Trapping) -> u64 in Trapping { x + 1 }',
     )
     accepted(
         program,
         "disproved-trapping-site",
-        b"pub machine next(x: u8) -> u64 in Trapping { (x as u64 in Trapping) + 1 }",
+        b'public machine next(x: u8) -> u64 in Trapping { (x as u64 in Trapping) + 1 }',
         {0: "/"},
     )
     accepted(
         program,
         "private-machine-infers-and-callers-derive",
-        b"machine bump(x: u64 in Trapping) -> u64 in Trapping { x + 1 }\n"
-        b"pub machine outer(x: u64 in Trapping) -> u64 in Trapping\ncrashes Trap\n{ bump(x) }",
+        b'machine bump(x: u64 in Trapping) -> u64 in Trapping { x + 1 }\npublic machine outer(x: u64 in Trapping) -> u64 in Trapping\ncrashes Trap\n{ bump(x) }',
         {0: "?/T", 1: "T/T"},
     )
     rejected(
         program,
         "public-caller-must-declare-a-callee-cause",
-        b"machine bump(x: u64 in Trapping) -> u64 in Trapping { x + 1 }\n"
-        b"pub machine bare(x: u64 in Trapping) -> u64 in Trapping { bump(x) }",
+        b'machine bump(x: u64 in Trapping) -> u64 in Trapping { x + 1 }\npublic machine bare(x: u64 in Trapping) -> u64 in Trapping { bump(x) }',
         "CrashNotDeclared",
-        b"pub machine bare(x: u64 in Trapping) -> u64 in Trapping { bump(x) }",
+        b'public machine bare(x: u64 in Trapping) -> u64 in Trapping { bump(x) }',
     )
     accepted(
         program,
         "crash-statement",
-        b"pub machine stop()\ncrashes Abort\n{ crash Abort; }",
+        b'public machine stop()\ncrashes Abort\n{ crash Abort; }',
         {0: "A/A"},
     )
     rejected(
         program,
         "undeclared-crash-statement",
-        b"pub machine stop()\ncrashes Trap\n{ crash Abort; }",
+        b'public machine stop()\ncrashes Trap\n{ crash Abort; }',
         "CrashNotDeclared",
-        b"pub machine stop()\ncrashes Trap\n{ crash Abort; }",
+        b'public machine stop()\ncrashes Trap\n{ crash Abort; }',
     )
 
     # Contract facts: `requires` facts hold in their body and are owed at
@@ -1050,20 +1098,15 @@ def main() -> None:
     accepted(
         program,
         "static-machine-argument-within-contract-crash-causes",
-        b"machine bump(x: u64 in Trapping) -> u64 in Trapping { x + 1 }\n"
-        b"machine apply<machine F>(x: u64 in Trapping) -> u64 in Trapping\n"
-        b"where machine F(value: u64 in Trapping) -> u64 in Trapping crashes Trap;\n{ F(x) }\n"
-        b"pub machine outer(x: u64 in Trapping) -> u64 in Trapping\ncrashes Trap\n{ apply<bump>(x) }",
+        b'machine bump(x: u64 in Trapping) -> u64 in Trapping { x + 1 }\nmachine apply<machine F>(x: u64 in Trapping) -> u64 in Trapping\nwhere machine F(value: u64 in Trapping) -> u64 in Trapping crashes Trap;\n{ F(x) }\npublic machine outer(x: u64 in Trapping) -> u64 in Trapping\ncrashes Trap\n{ apply<bump>(x) }',
         {0: "?/T", 1: "?/T", 2: "T/T"},
     )
     rejected(
         program,
         "binder-crash-causes-are-declared",
-        b"pub machine apply<machine F>(x: u64 in Trapping) -> u64 in Trapping\n"
-        b"where machine F(value: u64 in Trapping) -> u64 in Trapping crashes Trap;\n{ F(x) }",
+        b'public machine apply<machine F>(x: u64 in Trapping) -> u64 in Trapping\nwhere machine F(value: u64 in Trapping) -> u64 in Trapping crashes Trap;\n{ F(x) }',
         "CrashNotDeclared",
-        b"pub machine apply<machine F>(x: u64 in Trapping) -> u64 in Trapping\n"
-        b"where machine F(value: u64 in Trapping) -> u64 in Trapping crashes Trap;\n{ F(x) }",
+        b'public machine apply<machine F>(x: u64 in Trapping) -> u64 in Trapping\nwhere machine F(value: u64 in Trapping) -> u64 in Trapping crashes Trap;\n{ F(x) }',
     )
     rejected(
         program,
@@ -1380,12 +1423,10 @@ def main() -> None:
         b"items[0]",
     )
 
-    # Termination: a `terminates by` witness strictly descends on every
-    # cyclic transition (a machine cycle or a self call), each subject read in
-    # the source as its machine formal of that name and after the edge as the
-    # argument its target formal receives; a bare `terminates;` promise
-    # needs a witness for any cycle and terminating callees; a productive
-    # loop that promises nothing owes no rank.
+    # Each declaration owns its witness. Exact invocation components compare
+    # own entry snapshots with target witnesses over evaluated actuals. Every
+    # complete cycle must descend; an ordinary promise also needs terminating
+    # callees. An unpromised productive cycle owes no rank.
     countdown = (
         b"machine count(n: u64) -> u64\nterminates by n;\n{\n"
         b"    transition n > 0 {\n"
@@ -1393,7 +1434,7 @@ def main() -> None:
         b"        _ -> done()\n"
         b"    }\n"
         b"\n"
-        b"    machine step(n: u64) -> u64 {\n"
+        b"    machine step(n: u64) -> u64\n    terminates by n;\n    {\n"
         b"        transition n > 0 {\n"
         b"            true -> STEP\n"
         b"            _ -> done()\n"
@@ -1414,9 +1455,9 @@ def main() -> None:
     rejected(
         program,
         "promised-cycle-needs-a-witness",
-        countdown.replace(b"terminates by n;", b"terminates;").replace(b"STEP", b"step(n - 1)"),
-        "RankUnproven",
-        b"step(n - 1)!2",
+        countdown.replace(b"terminates by n;", b"terminates;", 1).replace(b"    terminates by n;\n", b"").replace(b"STEP", b"step(n - 1)"),
+        "ProgressUnproven",
+        b"terminates;",
     )
     accepted(
         program,
@@ -1484,7 +1525,7 @@ def main() -> None:
         b"machine count(n: u64, limit: u64) -> u64\nREQUIRES"
         b"terminates by n in 0..=limit;\n{\n"
         b"    transition n > 0 {\n        true -> step(n - 1, NEXT)\n        _ -> done()\n    }\n\n"
-        b"    machine step(n: u64, limit: u64) -> u64 {\n"
+        b"    machine step(n: u64, limit: u64) -> u64\n    requires n <= limit\n    terminates by n in 0..=limit;\n    {\n"
         b"        transition n > 0 {\n            true -> step(n - 1, limit)\n            _ -> done()\n        }\n    }\n\n"
         b"    machine done() -> u64 { 0 }\n}"
     )
@@ -1499,9 +1540,9 @@ def main() -> None:
     rejected(
         program,
         "ranked-range-endpoints-are-pinned",
-        ranged.replace(b"REQUIRES", b"requires n <= limit\n").replace(b"NEXT", b"0"),
+        ranged.replace(b"REQUIRES", b"requires n <= limit\n").replace(b"NEXT", b"limit").replace(b"        transition n > 0 {\n            true -> step(n - 1, limit)", b"        transition n > 0 {\n            true -> step(n - 1, limit - 1)"),
         "RankRangeUnproven",
-        b"step(n - 1, limit)",
+        b"step(n - 1, limit - 1)",
     )
     # A rank range is proved under the subject's data `where` facts, a
     # distance view's rank lies within its limit by construction, and a
@@ -1645,36 +1686,26 @@ def main() -> None:
         b"    transition remaining > 0 {\n        true -> walk(remaining - 1)\n        false -> remaining\n    }\n}",
     )
     rejected(program, "an-ordinary-body-owes-its-carrier", b"machine shift(value: u8) -> u8 { value + 1 }", "ArithmeticOverflow", b"value + 1")
-    # A machine formal carries the entry subject every arrival passes it,
-    # whatever its spelling (wiki/spec/language/termination.md#subject-preservation);
-    # a formal receiving another parameter carries no subject.
+    # Every declaration ranks its own explicit arguments. Passing another
+    # caller parameter changes the invocation value, never the callee witness.
+    # Lexical ancestry supplies no runtime subject or ranking contract.
     carried = (
-        b"data Countdown { remaining: u64; }\n"
-        b"machine walk(countdown: Countdown, other: Countdown)\nterminates by countdown.remaining;\n-> u64 {\n"
-        b"    transition { _ -> iterate(ARRIVAL) }\n"
-        b"    machine iterate(pending: Countdown) {\n        transition pending.remaining > 0 {\n"
-        b"            true -> iterate(Countdown { remaining: pending.remaining - 1 })\n            false -> pending.remaining\n        }\n    }\n}"
+        b'data Countdown { remaining: u64; }\nmachine walk(countdown: Countdown, other: Countdown)\nterminates by countdown.remaining;\n-> u64 {\n    transition { _ -> iterate(ARRIVAL) }\n    machine iterate(pending: Countdown) -> u64\n    terminates by pending.remaining;\n    {\n        transition pending.remaining > 0 {\n            true -> iterate(Countdown { remaining: pending.remaining - 1 })\n            false -> pending.remaining\n        }\n    }\n}'
     )
-    accepted(program, "a-state-formal-carries-the-subject-it-receives", carried.replace(b"ARRIVAL", b"countdown"))
-    rejected(program, "a-state-formal-receiving-another-parameter-ranks-nothing", carried.replace(b"ARRIVAL", b"other"), "RankUnproven", b"iterate(Countdown { remaining: pending.remaining - 1 })")
+    accepted(program, "an-own-rank-uses-the-explicit-record-argument", carried.replace(b"ARRIVAL", b"countdown"))
+    accepted(program, "an-own-rank-is-independent-of-the-caller-parameter", carried.replace(b"ARRIVAL", b"other"))
+    rejected(program, "an-own-record-rank-must-descend", carried.replace(b"ARRIVAL", b"other").replace(b"pending.remaining - 1", b"pending.remaining"), "RankUnproven", b"iterate(Countdown { remaining: pending.remaining })")
     accepted(
         program,
         "a-formal-carries-through-another-formal",
-        b"machine walk(count: u64)\nterminates by count;\n-> u64 {\n    transition { _ -> first(count) }\n"
-        b"    machine first(pending: u64) {\n        transition { _ -> second(pending) }\n    }\n"
-        b"    machine second(left: u64) {\n        transition left > 0 {\n            true -> second(left - 1)\n            false -> left\n        }\n    }\n}",
+        b'machine walk(count: u64)\nterminates by count;\n-> u64 {\n    transition { _ -> first(count) }\n    machine first(pending: u64) -> u64\n    terminates by pending;\n    {\n        transition { _ -> second(pending) }\n    }\n    machine second(left: u64) -> u64\n    terminates by left;\n    {\n        transition left > 0 {\n            true -> second(left - 1)\n            false -> left\n        }\n    }\n}',
     )
     # A `Slice::Length` witness rooted at a field path ranks the record's
     # slice by its live length. A rebuilt record's field takes the paths
     # below the view it was written from, so the view's shorter length
-    # arrives in the state's formal.
+    # arrives in the child's own formal.
     rebuilt = (
-        b"data Bag { items: &[u32]; }\n"
-        b"machine walk(bag: Bag, capacity: u64)\nrequires bag.items.len <= capacity;\n"
-        b"terminates by bag.items -> Slice::Length in 0..=capacity;\n-> u64 {\n"
-        b"    transition { _ -> step(bag, capacity) }\n"
-        b"    machine step(current: Bag, bound: u64) {\n        transition current.items.len > 0 {\n"
-        b"            true -> step(Bag { items: current.items[RANGE] }, bound)\n            false -> 0\n        }\n    }\n}"
+        b'data Bag { items: &[u32]; }\nmachine walk(bag: Bag, capacity: u64)\nrequires bag.items.len <= capacity;\nterminates by bag.items -> Slice::Length in 0..=capacity;\n-> u64 {\n    transition { _ -> step(bag, capacity) }\n    machine step(current: Bag, bound: u64) -> u64\n    requires current.items.len <= bound\n    terminates by current.items -> Slice::Length in 0..=bound;\n    {\n        transition current.items.len > 0 {\n            true -> step(Bag { items: current.items[RANGE] }, bound)\n            false -> 0\n        }\n    }\n}'
     )
     accepted(program, "a-rebuilt-record-field-ranks-by-its-view-length", rebuilt.replace(b"RANGE", b"1.."))
     rejected(
@@ -1687,11 +1718,7 @@ def main() -> None:
     accepted(
         program,
         "a-nested-rebuilt-record-field-ranks-by-its-view-length",
-        b"data Inner { items: &[u32]; }\ndata Outer { inner: Inner; }\n"
-        b"machine walk(outer: Outer)\nterminates by outer.inner.items -> Slice::Length;\n-> u64 {\n"
-        b"    transition { _ -> step(outer) }\n"
-        b"    machine step(current: Outer) {\n        transition current.inner.items.len > 0 {\n"
-        b"            true -> step(Outer { inner: Inner { items: current.inner.items[1..] } })\n            false -> 0\n        }\n    }\n}",
+        b'data Inner { items: &[u32]; }\ndata Outer { inner: Inner; }\nmachine walk(outer: Outer)\nterminates by outer.inner.items -> Slice::Length;\n-> u64 {\n    transition { _ -> step(outer) }\n    machine step(current: Outer) -> u64\n    terminates by current.inner.items -> Slice::Length;\n    {\n        transition current.inner.items.len > 0 {\n            true -> step(Outer { inner: Inner { items: current.inner.items[1..] } })\n            false -> 0\n        }\n    }\n}',
     )
     # A recast borrows its operand's storage under another shape
     # (wiki/spec/layouts/recasts.md): a write through the view reaches the
@@ -1874,7 +1901,7 @@ def main() -> None:
         b"        _ -> done()\n"
         b"    }\n"
         b"\n"
-        b"    machine emit(bytes: &[u8]) -> u64 {\n"
+        b"    machine emit(bytes: &[u8]) -> u64\n    terminates by bytes -> Slice::Length;\n    {\n"
         b"        transition bytes.len > 0 {\n"
         b"            true -> TAIL\n"
         b"            _ -> done()\n"
@@ -1883,6 +1910,22 @@ def main() -> None:
         b"\n"
         b"    machine done() -> u64 { 0 }\n"
         b"}"
+    )
+    # Ranking creates the synthetic length before the guard. Its captured
+    # value retains the admitted scalar type and equality to that live length.
+    accepted(
+        program,
+        "a-ranked-slice-keeps-its-captured-length",
+        b"machine f(bytes: &[u8]) -> &[u8] terminates by bytes -> Slice::Length; "
+        b"{ transition bytes.len > 0 { true -> bytes[1..] false -> bytes } }",
+    )
+    rejected(
+        program,
+        "a-ranked-slice-still-needs-a-bound",
+        b"machine f(bytes: &[u8]) -> &[u8] terminates by bytes -> Slice::Length; "
+        b"{ bytes[1..] }",
+        "IndexOutOfBounds",
+        b"bytes[1..]",
     )
     accepted(program, "slice-length-shrinks", shrink.replace(b"TAIL", b"emit(bytes[1..])"))
     rejected(
@@ -2137,11 +2180,7 @@ def main() -> None:
     # Machines check independently: each pass (bodies, then crash routes)
     # records the first rejection of every machine it rejects, in order.
     every = (
-        b"machine first(a: &[u8; 4], i: u64) -> u8 { a[i] }\n"
-        b"machine fine(a: &[u8; 4]) -> u8 { a[0] }\n"
-        b"pub machine leaks(x: u64 in Trapping) -> u64 in Trapping { x + 1 }\n"
-        b"machine second(x: u64, y: u64) -> u64 { x / y }\n"
-        b"machine twice(a: &[u8; 4], i: u64, x: u64) -> u64 { let b: u8 = a[i]; x / i }"
+        b'machine first(a: &[u8; 4], i: u64) -> u8 { a[i] }\nmachine fine(a: &[u8; 4]) -> u8 { a[0] }\npublic machine leaks(x: u64 in Trapping) -> u64 in Trapping { x + 1 }\nmachine second(x: u64, y: u64) -> u64 { x / y }\nmachine twice(a: &[u8; 4], i: u64, x: u64) -> u64 { let b: u8 = a[i]; x / i }'
     )
     status, payload = run(program, every)
     observation = decode(payload)
@@ -2149,7 +2188,7 @@ def main() -> None:
         ("IndexOutOfBounds", located(every, b"a[i]")),
         ("DivisorMayBeZero", located(every, b"x / y")),
         ("IndexOutOfBounds", located(every, b"a[i]!2")),
-        ("CrashNotDeclared", located(every, b"pub machine leaks(x: u64 in Trapping) -> u64 in Trapping { x + 1 }")),
+        ("CrashNotDeclared", located(every, b'public machine leaks(x: u64 in Trapping) -> u64 in Trapping { x + 1 }')),
     )
     assert status == 247 and observation.rejections == expected, (
         f"every-machine-first-rejection: status {status}, {observation.rejections}"
@@ -3494,6 +3533,7 @@ def main() -> None:
     phase_rejected(program, "resolution-rejection-has-no-observation", b"data A { x: Q; }", 248)
 
     nested_machine_cases(program)
+    invocation_component_cases(program)
 
     determinism = b"machine read(a: &[u8; 4], i: u64) -> u8 { a[i] }"
     first = run(program, determinism)

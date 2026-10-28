@@ -1081,7 +1081,7 @@ pub struct CheckedUnitEffectMachinePlan {
     /// A body with no normal completion still retains its complete signature.
     pub result: super::CheckedControlResultPlan,
     /// Source-owned normal exits, selected individually by scalar control completion.
-    pub normal_exit_cleanups: arena::HandleSpan<super::CheckedNormalExitCleanupPlan>,
+    pub normal_exit_cleanups: super::CheckedNormalExitCleanups,
     /// Final ordinary scalar binding, mutually exclusive with the other completions.
     pub scalar_result: Option<CheckedUnitScalarResultBindingPlan>,
     /// Scalar control completion, mutually exclusive with either result binding.

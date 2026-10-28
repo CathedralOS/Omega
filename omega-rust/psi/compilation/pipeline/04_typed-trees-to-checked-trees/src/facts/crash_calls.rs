@@ -17,6 +17,7 @@ mod route_substitution;
 mod summary_predicates;
 
 mod entry_equations;
+mod entry_paths;
 mod float_observations;
 
 use crate::facts::crash_calls::private_summaries::{
@@ -206,6 +207,34 @@ fn predicate_expression(
     }
 }
 
+/// One completed private fixed point, shared by direct invocation attachment and
+/// universal callable refinement. Absence is unresolved; a present empty row is
+/// a proved negative guarantee. These implementation rows never enter authored
+/// contract fingerprints.
+pub(crate) struct CompletedBodyCrashSummaries {
+    rows: Vec<(SymbolHandle, Vec<SummaryCrashBucket>)>,
+}
+
+impl CompletedBodyCrashSummaries {
+    pub(crate) fn checked_buckets(
+        &self,
+        machine: SymbolHandle,
+    ) -> Option<Vec<checked_trees::CrashRouteBucket>> {
+        let mut rows = self.rows.iter().filter(|(owner, _)| *owner == machine);
+        let (_, buckets) = rows.next()?;
+        if rows.next().is_some() {
+            return None;
+        }
+        Some(
+            buckets
+                .iter()
+                .cloned()
+                .filter_map(SummaryCrashBucket::into_checked)
+                .collect(),
+        )
+    }
+}
+
 /// Materialize direct invocation-specific crash refinement while the typed
 /// expressions are still available. Selection uses a published ceiling when
 /// one exists and a conservative monotone checked-body summary for same-unit
@@ -224,18 +253,20 @@ pub(super) fn attach_checked_crash_calls(
     crash_capsules: &[checked_trees::CrashContractCapsule],
     plans: &mut [checked_trees::MachineContractPlan],
     summary_graph: &PreparedCrashSummaryGraph,
-) {
-    let inferred_body_summaries = infer_private_body_summaries(
-        program,
-        operators,
-        exact_integer_casts,
-        semantic,
-        flow,
-        content_conservation,
-        crash_capsules,
-        plans,
-        Some(summary_graph),
-    );
+) -> CompletedBodyCrashSummaries {
+    let inferred_body_summaries = CompletedBodyCrashSummaries {
+        rows: infer_private_body_summaries(
+            program,
+            operators,
+            exact_integer_casts,
+            semantic,
+            flow,
+            content_conservation,
+            crash_capsules,
+            plans,
+            Some(summary_graph),
+        ),
+    };
     let mut plan_indices = symbols::SymbolKeyMap::<SymbolHandle, usize>::default();
     let mut plan_entry_parameter_names = Vec::with_capacity(plans.len());
     for (index, plan) in plans.iter().enumerate() {
@@ -264,7 +295,7 @@ pub(super) fn attach_checked_crash_calls(
     }
     let mut summary_by_machine =
         symbols::SymbolKeyMap::<SymbolHandle, &[SummaryCrashBucket]>::default();
-    for (machine, summary) in &inferred_body_summaries {
+    for (machine, summary) in &inferred_body_summaries.rows {
         summary_by_machine
             .entry(*machine)
             .or_insert(summary.as_slice());
@@ -449,6 +480,9 @@ pub(super) fn attach_checked_crash_calls(
                             }
                             SelectedTargetCrashRoutes::Empty => Vec::new(),
                         };
+                        let entry_conditions = entry_paths::EntryConditions::new(program, semantic, flow);
+                        let path = entry_conditions.for_machine(state_flow.machine_symbol).at_call(call_flow);
+                        surviving_summary = surviving_summary.into_iter().map(|bucket| bucket.on_path(&path)).collect();
                         if let Some(caller) = program.machine_by_symbol(state_flow.machine_symbol) {
                             entry_equations::refine(
                                 program,
@@ -504,6 +538,7 @@ pub(super) fn attach_checked_crash_calls(
             .with_checked_calls(checked_calls)
             .expect("one checked crash-call record occupies each invocation coordinate");
     }
+    inferred_body_summaries
 }
 
 pub(crate) fn infer_checked_machine_crash_causes(

@@ -1,0 +1,7 @@
+// Expected exit: 0
+machine run(index: u64 in Trapping) { transition index < 16 { true -> candidate(index) false -> {} }
+ machine candidate(index: u64 in Trapping) requires index < 16 { transition { _ -> find(index, 0) } }
+ machine find(index: u64 in Trapping, offset: u64 in Trapping) { transition offset < 16 { true -> compare(index, offset) false -> {} } }
+ machine compare(index: u64 in Trapping, offset: u64 in Trapping) requires index < 16, offset < 16 { transition { _ -> find(index, offset + 1) } }
+}
+machine main() {run(3);}

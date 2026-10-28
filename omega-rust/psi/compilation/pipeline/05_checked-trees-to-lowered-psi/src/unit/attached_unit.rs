@@ -435,8 +435,9 @@ pub(crate) fn lower_unit_closure(
     let mut next_call_obligation = TERMINAL_UNIT_CALL_OBLIGATION_BASE;
     let mut machines = Vec::with_capacity(closure.len());
     let mut occurrences = ClosureOccurrences::default();
-    let dynamic_dispatch =
-        std::sync::Arc::new(crate::unit::dynamic_dispatch::DynamicDispatchIndex::new(checked));
+    let dynamic_dispatch = std::sync::Arc::new(
+        crate::unit::dynamic_dispatch::DynamicDispatchIndex::new(checked),
+    );
     let catalog = ordinary_machine::ClosureCatalog {
         type_ids: &type_ids,
         domain_ids: &domain_ids,

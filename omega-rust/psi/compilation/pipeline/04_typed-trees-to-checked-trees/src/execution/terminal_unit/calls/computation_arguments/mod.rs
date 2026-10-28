@@ -95,8 +95,7 @@ pub(crate) fn structural_computation_argument(
             | CheckedStructuralAccess::MutableBorrow
             | CheckedStructuralAccess::WriteOnlyBorrow
     ) && let Some(argument) = borrowed_storage_argument(
-        program,
-        shapes, borrow, machine, state, call, &place, target, selectors,
+        program, shapes, borrow, machine, state, call, &place, target, selectors,
     ) {
         return Some(argument);
     }
@@ -228,13 +227,7 @@ pub(crate) fn subslice_computation_argument(
     } else if owner.attached_data.is_some() {
         super::ambient_self_scalar_signature(program, state)?.0
     } else {
-        super::free_structural_scalar_signature(
-            program,
-            shapes,
-            state,
-            &[],
-        )?
-        .0
+        super::free_structural_scalar_signature(program, shapes, state, &[])?.0
     };
     let subslice = super::view_subslice::admit_resolved(
         program,

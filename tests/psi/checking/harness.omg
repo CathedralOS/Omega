@@ -37,6 +37,16 @@ data HarnessWord [copy] {
 // shared syntax tables in order, so its position is its `SourceId`; the
 // whole set then resolves, types and checks. Malformed framing exits 253,
 // and a set its provisions cannot hold 252, without an observation.
+machine main()
+reaches Console
+invokes Console;
+crashes Trap
+blocks;
+{
+    let mut harness: CheckingHarness;
+    block CheckingHarness::main(&mut harness);
+}
+
 public machine CheckingHarness::main(checking_harness: &mut CheckingHarness)
 reaches Console
 invokes Console;
@@ -49,14 +59,14 @@ blocks;
     Parser::initialize(&mut parser);
     let count: HarnessWord = block CheckingHarness::read_u32(checking_harness);
     transition count.complete {
-        true -> packages(checking_harness, &mut sources, &mut parser, count.value)
+        true -> block packages(checking_harness, &mut sources, &mut parser, count.value)
         _ -> malformed(checking_harness)
     }
 
     machine packages(checking_harness: &mut CheckingHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
         transition remaining > 0 {
-            true -> package_row(checking_harness, sources, parser, remaining)
-            _ -> dependencies(checking_harness, sources, parser)
+            true -> block package_row(checking_harness, sources, parser, remaining)
+            _ -> block dependencies(checking_harness, sources, parser)
         }
     }
 
@@ -66,7 +76,7 @@ blocks;
         ModulePath::clear(&mut name);
         let read: bool = block CheckingHarness::read_path(checking_harness, &mut name);
         transition toolchain.complete && toolchain.value < 2 && read {
-            true -> add_package(checking_harness, sources, parser, remaining, toolchain.value == 1, &name)
+            true -> block add_package(checking_harness, sources, parser, remaining, toolchain.value == 1, &name)
             _ -> malformed(checking_harness)
         }
     }
@@ -81,7 +91,7 @@ blocks;
     ) {
         let added: bool = SourceSet::add_package(sources, name, toolchain);
         transition added {
-            true -> packages(checking_harness, sources, parser, remaining - 1)
+            true -> block packages(checking_harness, sources, parser, remaining - 1)
             _ -> source_full(checking_harness)
         }
     }
@@ -89,15 +99,15 @@ blocks;
     machine dependencies(checking_harness: &mut CheckingHarness, sources: &mut SourceSet, parser: &mut Parser) {
         let count: HarnessWord = block CheckingHarness::read_u32(checking_harness);
         transition count.complete {
-            true -> dependency(checking_harness, sources, parser, count.value)
+            true -> block dependency(checking_harness, sources, parser, count.value)
             _ -> malformed(checking_harness)
         }
     }
 
     machine dependency(checking_harness: &mut CheckingHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
         transition remaining > 0 {
-            true -> dependency_row(checking_harness, sources, parser, remaining)
-            _ -> units(checking_harness, sources, parser)
+            true -> block dependency_row(checking_harness, sources, parser, remaining)
+            _ -> block units(checking_harness, sources, parser)
         }
     }
 
@@ -111,7 +121,7 @@ blocks;
         transition requester.complete && scope.complete && read && target.complete
             && (scope.value == 1 || scope.value == 2)
             && requester.value < sources.package_count && target.value < sources.package_count {
-            true -> dependency_scope(checking_harness, sources, parser, remaining, requester.value, scope.value == 2, &alias, target.value)
+            true -> block dependency_scope(checking_harness, sources, parser, remaining, requester.value, scope.value == 2, &alias, target.value)
             _ -> malformed(checking_harness)
         }
     }
@@ -127,8 +137,8 @@ blocks;
         target: u64 in Trapping
     ) {
         transition build {
-            true -> add_dependency(checking_harness, sources, parser, remaining, requester, DependencyScope::Build, alias, target)
-            _ -> add_dependency(checking_harness, sources, parser, remaining, requester, DependencyScope::Product, alias, target)
+            true -> block add_dependency(checking_harness, sources, parser, remaining, requester, DependencyScope::Build, alias, target)
+            _ -> block add_dependency(checking_harness, sources, parser, remaining, requester, DependencyScope::Product, alias, target)
         }
     }
 
@@ -144,7 +154,7 @@ blocks;
     ) {
         let added: bool = SourceSet::add_dependency(sources, requester, scope, alias, target);
         transition added {
-            true -> dependency(checking_harness, sources, parser, remaining - 1)
+            true -> block dependency(checking_harness, sources, parser, remaining - 1)
             _ -> source_full(checking_harness)
         }
     }
@@ -152,14 +162,14 @@ blocks;
     machine units(checking_harness: &mut CheckingHarness, sources: &mut SourceSet, parser: &mut Parser) {
         let count: HarnessWord = block CheckingHarness::read_u32(checking_harness);
         transition count.complete {
-            true -> unit(checking_harness, sources, parser, count.value)
+            true -> block unit(checking_harness, sources, parser, count.value)
             _ -> malformed(checking_harness)
         }
     }
 
     machine unit(checking_harness: &mut CheckingHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
         transition remaining > 0 {
-            true -> unit_row(checking_harness, sources, parser, remaining)
+            true -> block unit_row(checking_harness, sources, parser, remaining)
             _ -> prepare_resolve(checking_harness, sources, parser)
         }
     }
@@ -170,7 +180,7 @@ blocks;
         ModulePath::clear(&mut module_path);
         let read: bool = block CheckingHarness::read_path(checking_harness, &mut module_path);
         transition unit_package.complete && read && unit_package.value < sources.package_count {
-            true -> source(checking_harness, sources, parser, remaining, unit_package.value, &module_path)
+            true -> block source(checking_harness, sources, parser, remaining, unit_package.value, &module_path)
             _ -> malformed(checking_harness)
         }
     }
@@ -187,7 +197,7 @@ blocks;
         let mut lexer: Lexer;
         Lexer::initialize(&mut lexer, sources.unit_count as u32 in Trapping);
         transition length.complete {
-            true -> source_byte(checking_harness, sources, parser, remaining, unit_package, module_path, &mut lexer, length.value)
+            true -> block source_byte(checking_harness, sources, parser, remaining, unit_package, module_path, &mut lexer, length.value)
             _ -> malformed(checking_harness)
         }
     }
@@ -203,8 +213,8 @@ blocks;
         left: u64 in Trapping
     ) {
         transition left > 0 {
-            true -> source_read(checking_harness, sources, parser, remaining, unit_package, module_path, lexer, left)
-            _ -> tokenize(checking_harness, sources, parser, remaining, unit_package, module_path, lexer)
+            true -> block source_read(checking_harness, sources, parser, remaining, unit_package, module_path, lexer, left)
+            _ -> block tokenize(checking_harness, sources, parser, remaining, unit_package, module_path, lexer)
         }
     }
 
@@ -220,7 +230,7 @@ blocks;
     ) {
         let input: ByteRead = block Console::read_byte();
         transition input {
-            ByteRead::Byte { value } -> source_store(checking_harness, sources, parser, remaining, unit_package, module_path, lexer, left, value)
+            ByteRead::Byte { value } -> block source_store(checking_harness, sources, parser, remaining, unit_package, module_path, lexer, left, value)
             _ -> malformed(checking_harness)
         }
     }
@@ -238,7 +248,7 @@ blocks;
     ) {
         Lexer::append_source_byte(lexer, value as u8);
         transition lexer.source.last_retained {
-            true -> source_byte(checking_harness, sources, parser, remaining, unit_package, module_path, lexer, left - 1)
+            true -> block source_byte(checking_harness, sources, parser, remaining, unit_package, module_path, lexer, left - 1)
             _ -> source_full(checking_harness)
         }
     }
@@ -254,7 +264,7 @@ blocks;
     ) {
         Lexer::tokenize(lexer);
         transition lexer.output.accepted {
-            true -> parse(checking_harness, sources, parser, remaining, unit_package, module_path, lexer)
+            true -> block parse(checking_harness, sources, parser, remaining, unit_package, module_path, lexer)
             _ -> lex_rejected(checking_harness)
         }
     }
@@ -270,7 +280,7 @@ blocks;
     ) {
         Parser::parse(parser, lexer.source.id, lexer.source.length as u64 in Trapping, &lexer.output);
         transition parser.output.accepted {
-            true -> add(checking_harness, sources, parser, remaining, unit_package, module_path, lexer)
+            true -> block add(checking_harness, sources, parser, remaining, unit_package, module_path, lexer)
             _ -> parse_rejected(checking_harness)
         }
     }
@@ -286,7 +296,7 @@ blocks;
     ) {
         let added: bool = SourceSet::add(sources, &lexer.source, unit_package, module_path);
         transition added {
-            true -> unit(checking_harness, sources, parser, remaining - 1)
+            true -> block unit(checking_harness, sources, parser, remaining - 1)
             _ -> source_full(checking_harness)
         }
     }
@@ -381,11 +391,11 @@ reaches Console
 crashes Trap
 blocks;
 {
-    transition { _ -> next(checking_harness, 0, 0, 1) }
+    transition { _ -> block next(checking_harness, 0, 0, 1) }
 
     machine next(checking_harness: &mut CheckingHarness, read: u64 in Trapping, value: u64 in Trapping, scale: u64 in Trapping) -> HarnessWord {
         transition read < 4 {
-            true -> byte(checking_harness, read, value, scale)
+            true -> block byte(checking_harness, read, value, scale)
             _ -> word(value)
         }
     }
@@ -393,7 +403,7 @@ blocks;
     machine byte(checking_harness: &mut CheckingHarness, read: u64 in Trapping, value: u64 in Trapping, scale: u64 in Trapping) -> HarnessWord {
         let input: ByteRead = block Console::read_byte();
         transition input {
-            ByteRead::Byte { value as byte } -> next(checking_harness, read + 1, value + (byte as u64 in Trapping) * scale, scale * 256)
+            ByteRead::Byte { value as byte } -> block next(checking_harness, read + 1, value + (byte as u64 in Trapping) * scale, scale * 256)
             _ -> ended()
         }
     }
@@ -416,13 +426,13 @@ blocks;
 {
     let length: HarnessWord = block CheckingHarness::read_u32(checking_harness);
     transition length.complete {
-        true -> byte(checking_harness, path, length.value)
+        true -> block byte(checking_harness, path, length.value)
         _ -> failed()
     }
 
     machine byte(checking_harness: &mut CheckingHarness, path: &mut ModulePath, left: u64 in Trapping) -> bool {
         transition left > 0 {
-            true -> read(checking_harness, path, left)
+            true -> block read(checking_harness, path, left)
             _ -> complete()
         }
     }
@@ -430,7 +440,7 @@ blocks;
     machine read(checking_harness: &mut CheckingHarness, path: &mut ModulePath, left: u64 in Trapping) -> bool {
         let input: ByteRead = block Console::read_byte();
         transition input {
-            ByteRead::Byte { value } -> store(checking_harness, path, left, value)
+            ByteRead::Byte { value } -> block store(checking_harness, path, left, value)
             _ -> failed()
         }
     }
@@ -438,7 +448,7 @@ blocks;
     machine store(checking_harness: &mut CheckingHarness, path: &mut ModulePath, left: u64 in Trapping, value: i32) -> bool {
         let kept: bool = ModulePath::append(path, value as u8);
         transition kept {
-            true -> byte(checking_harness, path, left - 1)
+            true -> block byte(checking_harness, path, left - 1)
             _ -> failed()
         }
     }

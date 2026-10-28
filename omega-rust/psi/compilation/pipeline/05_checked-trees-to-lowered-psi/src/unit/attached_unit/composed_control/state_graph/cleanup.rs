@@ -25,11 +25,19 @@ fn source<'a>(
     control: &'a checked_trees::CheckedCleanupControlPlans,
 ) -> NormalExitSource<'a> {
     NormalExitSource {
+        completion: state.normal_exit_cleanups.completion,
         cleanups: control.normal_exits(state.normal_exit_cleanups),
         trivial_affine_discards: &[],
         operations: &state.operations,
         parameters: &state.structural_parameters,
     }
+}
+
+pub(super) fn has_normal_completion(
+    control: &checked_trees::CheckedCleanupControlPlans,
+    state: &CheckedComposedUnitControlStatePlan,
+) -> Result<bool, LoweringError> {
+    completion_cleanup::has_normal_completion(source(state, control))
 }
 
 pub(super) fn destination(

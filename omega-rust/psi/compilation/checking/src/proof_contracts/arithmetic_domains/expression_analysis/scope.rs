@@ -97,6 +97,7 @@ impl ExpressionWalk<'_> {
 
     pub(super) fn division_formation(
         &self,
+        expression: ExpressionHandle,
         binary: &typed_trees::expression::TableBinaryExpression,
         domain: ArithmeticDomain,
         primitive: PrimitiveType,
@@ -110,6 +111,7 @@ impl ExpressionWalk<'_> {
                 machine,
                 self.state,
                 self.environment,
+                expression,
                 binary,
                 domain,
                 primitive,

@@ -397,7 +397,7 @@ machine Checker::forwards_reference(syntax: &SyntaxTrees, resolution: &NameResol
 crashes Trap
 {
     let expression: Expression = SyntaxTrees::expression(syntax, argument);
-    let declared: bool = expression.kind == ExpressionKind::Name || expression.kind == ExpressionKind::Member || expression.kind == ExpressionKind::Indexed;
+    let declared: bool = expression.kind == ExpressionKind::Name || expression.kind == ExpressionKind::Field || expression.kind == ExpressionKind::Index;
     let row: TypeRow = TypeTable::row(&typing.types, Typing::expression_type(typing, argument));
     declared && row.kind == TypeKind::Reference && row.access == ReferenceAccess::Mutable
         && Typing::adaptation(typing, argument) != Adaptation::Read
@@ -554,8 +554,12 @@ crashes Trap
     }
 }
 
-// One source-position roster serves every selected call. An acknowledgement
-// wraps exactly one target; nested calls inside its arguments remain ordinary.
+// One completion-position roster serves every selected invocation. A terminal
+// transition forwards through dispatch result alternatives and acknowledgement
+// wrappers. Call operands, dispatch subjects and pattern tests remain ordinary:
+// they still have an enclosing evaluation to resume. The expression arena is
+// child-before-parent, so one reverse pass propagates completion without a
+// recursive parser stack or any lexical/state-specific call permission.
 public machine Checker::initialize_terminal_calls(checker: &mut Checker, syntax: &SyntaxTrees)
 crashes Trap
 {
@@ -575,36 +579,91 @@ crashes Trap
     machine arm(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.arm_count {
             true -> target(checker, syntax, index)
-            false -> done()
+            false -> initialized(checker, syntax)
         }
     }
     machine target(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping) {
         let arm: TransitionArm = SyntaxTrees::arm(syntax, index);
-        transition arm.target_kind == ArmTargetKind::Call {
-            true -> observe(checker, syntax, index, arm.target)
-            false -> arm(checker, syntax, index + 1)
+        transition arm.target_kind == ArmTargetKind::Unit {
+            true -> arm(checker, syntax, index + 1)
+            false -> seed(checker, syntax, index, arm.target)
         }
     }
-    machine observe(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping, target: u64 in Trapping) {
-        let expression: Expression = SyntaxTrees::expression(syntax, target);
-        let acknowledged: bool = expression.kind == ExpressionKind::Unary
-            && (expression.operator == OperatorKind::Suspend || expression.operator == OperatorKind::Block || expression.operator == OperatorKind::SuspendBlock);
-        transition acknowledged {
-            true -> observe(checker, syntax, index, expression.left)
-            false -> retained(checker, syntax, index, target)
-        }
+    machine seed(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping, target: u64 in Trapping) {
+        mark(checker, syntax, target);
+        transition { _ -> arm(checker, syntax, index + 1) }
     }
-    machine retained(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping, target: u64 in Trapping) {
-        transition target < 131072 {
-            true -> bounded(checker, syntax, index, target)
+    machine initialized(checker: &mut Checker, syntax: &SyntaxTrees) {
+        let remaining: u64 in Trapping = syntax.expression_count as u64 in Trapping;
+        transition { _ -> propagate(checker, syntax, remaining) }
+    }
+    machine propagate(checker: &mut Checker, syntax: &SyntaxTrees, remaining: u64 in Trapping) {
+        transition remaining > 0 {
+            true -> position(checker, syntax, remaining - 1)
             false -> done()
         }
     }
-    machine bounded(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping, target: u64 in Trapping)
+    machine position(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping) {
+        transition index < 131072 {
+            true -> selected(checker, syntax, index)
+            false -> done()
+        }
+    }
+    machine selected(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping)
+    requires index < 131072
+    {
+        transition checker.terminal_calls[index] {
+            true -> expression(checker, syntax, index)
+            false -> propagate(checker, syntax, index)
+        }
+    }
+    machine expression(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping) {
+        let expression: Expression = SyntaxTrees::expression(syntax, index);
+        let acknowledged: bool = expression.kind == ExpressionKind::Unary
+            && (expression.operator == OperatorKind::Suspend || expression.operator == OperatorKind::Block || expression.operator == OperatorKind::SuspendBlock);
+        transition acknowledged {
+            true -> wrapped(checker, syntax, index, expression.left)
+            false -> dispatch(checker, syntax, index, expression)
+        }
+    }
+    machine wrapped(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping, target: u64 in Trapping) {
+        mark(checker, syntax, target);
+        transition { _ -> propagate(checker, syntax, index) }
+    }
+    machine dispatch(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression) {
+        transition expression.kind == ExpressionKind::Match {
+            true -> alternative(checker, syntax, index, expression, 0)
+            false -> propagate(checker, syntax, index)
+        }
+    }
+    machine alternative(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, offset: u64 in Trapping) {
+        transition offset < expression.count {
+            true -> result(checker, syntax, index, expression, offset)
+            false -> propagate(checker, syntax, index)
+        }
+    }
+    machine result(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, offset: u64 in Trapping) {
+        let arm: TransitionArm = SyntaxTrees::match_arm(syntax, expression.first + offset);
+        transition arm.target_kind == ArmTargetKind::Unit {
+            true -> alternative(checker, syntax, index, expression, offset + 1)
+            false -> valued(checker, syntax, index, expression, offset, arm.target)
+        }
+    }
+    machine valued(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, offset: u64 in Trapping, target: u64 in Trapping) {
+        mark(checker, syntax, target);
+        transition { _ -> alternative(checker, syntax, index, expression, offset + 1) }
+    }
+    // A malformed/missing coordinate gains no terminal borrowing permission.
+    machine mark(checker: &mut Checker, syntax: &SyntaxTrees, target: u64 in Trapping) {
+        transition target < syntax.expression_count && target < 131072 {
+            true -> bounded(checker, target)
+            false -> done()
+        }
+    }
+    machine bounded(checker: &mut Checker, target: u64 in Trapping)
     requires target < 131072
     {
         checker.terminal_calls[target] = true;
-        transition { _ -> arm(checker, syntax, index + 1) }
     }
     machine done() {}
 }

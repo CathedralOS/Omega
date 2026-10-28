@@ -151,7 +151,7 @@ crashes Trap
     let owner: MachineOwner = NameResolution::machine_owner(resolution, root);
     let outer: TypeScope = Resolver::container_scope(syntax, owner);
     TypeScope {
-        lexical_parent: item.parent,
+        lexical_machine: handle + 1,
         first_generic_parameter: item.first_generic_parameter,
         generic_parameter_count: item.generic_parameter_count,
         first_outer_parameter: outer.first_generic_parameter,

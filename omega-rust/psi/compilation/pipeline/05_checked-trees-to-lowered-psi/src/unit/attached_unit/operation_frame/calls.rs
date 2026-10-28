@@ -689,6 +689,20 @@ impl OperationFrame<'_, '_> {
         let earlier =
             self.results
                 .earlier(structural_arguments, self.operations, self.evaluation)?;
+        let caller_bindings = self.evaluation.completed_bindings(
+            self.operations,
+            self.caller
+                .local_places
+                .iter()
+                .cloned()
+                .chain(earlier.iter().filter_map(|(place, _)| place.clone()))
+                .chain(
+                    self.primitive_locals
+                        .iter()
+                        .map(|local| local.declaration.clone()),
+                )
+                .chain(self.private_places.iter().cloned()),
+        );
         let prepared = ordinary_calls::prepare(
             identities,
             checked,
@@ -707,7 +721,7 @@ impl OperationFrame<'_, '_> {
             &earlier,
             self.primitive_locals,
             &self.evaluation.structural_locals,
-            &self.evaluation.scalar_bindings,
+            &caller_bindings,
             self.structural_types.declarations(),
             inputs.byte_places,
             self.calls,
@@ -851,6 +865,20 @@ impl OperationFrame<'_, '_> {
         let earlier =
             self.results
                 .earlier(&call.structural_arguments, self.operations, self.evaluation)?;
+        let caller_bindings = self.evaluation.completed_bindings(
+            self.operations,
+            self.caller
+                .local_places
+                .iter()
+                .cloned()
+                .chain(earlier.iter().filter_map(|(place, _)| place.clone()))
+                .chain(
+                    self.primitive_locals
+                        .iter()
+                        .map(|local| local.declaration.clone()),
+                )
+                .chain(self.private_places.iter().cloned()),
+        );
         let prepared = ordinary_calls::prepare(
             identities,
             checked,
@@ -869,7 +897,7 @@ impl OperationFrame<'_, '_> {
             &earlier,
             self.primitive_locals,
             &self.evaluation.structural_locals,
-            &self.evaluation.scalar_bindings,
+            &caller_bindings,
             self.structural_types.declarations(),
             inputs.byte_places,
             self.calls,

@@ -85,7 +85,6 @@ crashes Trap
     }
 
     machine ranked(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
-        Resolver::bind_rank_carriers(resolver, sources, syntax, item);
         transition { _ -> next_clause(resolver, sources, syntax, index, item, offset + 1) }
     }
 
@@ -406,25 +405,6 @@ crashes Trap
     machine unknown() -> ViewSpelling {
         ViewSpelling { known: false, view: RankingView::Default }
     }
-}
-
-// Ranking formals retain their own invocation coordinates. Lexical ancestors
-// contribute neither an entry subject nor a live value to this declaration.
-machine Resolver::bind_rank_carriers(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, item: MachineItem)
-crashes Trap
-{
-    transition { _ -> parameter(resolver, item, 0) }
-    machine parameter(resolver: &mut Resolver, item: MachineItem, index: u64 in Trapping) {
-        transition index < item.parameter_count {
-            true -> retain(resolver, item, index)
-            false -> done()
-        }
-    }
-    machine retain(resolver: &mut Resolver, item: MachineItem, index: u64 in Trapping) {
-        NameResolution::set_rank_carrier(&mut resolver.output, item.first_parameter + index, index + 1);
-        transition { _ -> parameter(resolver, item, index + 1) }
-    }
-    machine done() {}
 }
 
 machine Resolver::set_requirement(resolver: &mut Resolver, clause: u64 in Trapping, binding: ValueBinding)

@@ -26,6 +26,7 @@ pub struct AbstractStructuralCaseSuccessor {
     pub target: BlockId,
     pub case: StructuralCaseId,
     pub payloads: Vec<AbstractStructuralCasePayloadBinding>,
+    pub structural_bindings: Vec<AbstractStructuralBinding>,
     pub cleanup_actions: Vec<terminal_psi::TerminalAffineCleanupAction>,
 }
 

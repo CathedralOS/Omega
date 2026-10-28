@@ -418,6 +418,7 @@ fn operand_interval(
             super::ArithmeticDomain::Exact,
             "normal-return contract",
             false,
+            false,
             &mut diagnostics,
         );
         return diagnostics
