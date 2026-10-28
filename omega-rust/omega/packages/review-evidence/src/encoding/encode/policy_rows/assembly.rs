@@ -120,9 +120,7 @@ pub(super) fn project(
         |_| Ok(()),
         |encoder| {
             encoder.package_identity_field("package", *package)?;
-            encoder.field("target", |encoder| {
-                encoder.string(target.identity().as_str())
-            })
+            encoder.string_field("target", target.identity().as_str())
         },
     )?;
     for (ordinal, row) in assumed_bindings.iter().enumerate() {

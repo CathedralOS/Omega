@@ -70,35 +70,28 @@ pub(crate) fn encode_compiler_intrinsic_execution(
         }
         PackageReviewCompilerIntrinsicExecution::PrimitiveFloatBinary { operation, format } => {
             encoder.tag("primitive_float_binary", 3);
-            encoder.field("operation", |encoder| {
-                encode_primitive_float_binary_operation(encoder, *operation);
-                Ok(())
-            })?;
-            encoder.field("format", |encoder| {
-                encode_float_format(encoder, *format);
-                Ok(())
-            })?;
+            encoder.field_by(
+                "operation",
+                *operation,
+                encode_primitive_float_binary_operation,
+            )?;
+            encoder.field_by("format", *format, encode_float_format)?;
         }
         PackageReviewCompilerIntrinsicExecution::PrimitiveIntegerComparison {
             operation,
             integer_type,
         } => {
             encoder.tag("primitive_integer_comparison", 7);
-            encoder.field("operation", |encoder| {
-                encode_primitive_integer_comparison_operation(encoder, *operation);
-                Ok(())
-            })?;
-            encoder.field("integer_type", |encoder| {
-                encode_compiler_numeric_type(encoder, *integer_type);
-                Ok(())
-            })?;
+            encoder.field_by(
+                "operation",
+                *operation,
+                encode_primitive_integer_comparison_operation,
+            )?;
+            encoder.field_by("integer_type", *integer_type, encode_compiler_numeric_type)?;
         }
         PackageReviewCompilerIntrinsicExecution::NamedFloatNegation(format) => {
             encoder.tag("named_float_negation", 1);
-            encoder.field("format", |encoder| {
-                encode_float_format(encoder, *format);
-                Ok(())
-            })?;
+            encoder.field_by("format", *format, encode_float_format)?;
         }
         PackageReviewCompilerIntrinsicExecution::NamedFloatConversion {
             source,
@@ -106,18 +99,9 @@ pub(crate) fn encode_compiler_intrinsic_execution(
             domain,
         } => {
             encoder.tag("named_float_conversion", 2);
-            encoder.field("source", |encoder| {
-                encode_compiler_numeric_type(encoder, *source);
-                Ok(())
-            })?;
-            encoder.field("target", |encoder| {
-                encode_compiler_numeric_type(encoder, *target);
-                Ok(())
-            })?;
-            encoder.field("domain", |encoder| {
-                encode_compiler_arithmetic_domain(encoder, *domain);
-                Ok(())
-            })?;
+            encoder.field_by("source", *source, encode_compiler_numeric_type)?;
+            encoder.field_by("target", *target, encode_compiler_numeric_type)?;
+            encoder.field_by("domain", *domain, encode_compiler_arithmetic_domain)?;
         }
     }
     Ok(())
