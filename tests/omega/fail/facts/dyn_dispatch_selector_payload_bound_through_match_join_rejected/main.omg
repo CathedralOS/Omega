@@ -13,14 +13,20 @@ ActualEvaluator satisfies PayloadEvaluator {
     }
 }
 
-machine main() crashes Trap {
-    let selector: dyn PayloadEvaluator = match true {
+machine alternate_value() -> u64 ensures result <= 89u64 { 89u64 }
+AlternateEvaluator satisfies PayloadEvaluator {
+    machine compute(base: u64) -> u64 ensures result <= 89u64 { alternate_value() }
+}
+machine evaluate(condition: bool) -> u64 {
+    let selector: dyn PayloadEvaluator = match condition {
         true -> ActualEvaluator as dyn PayloadEvaluator,
-        false -> ActualEvaluator as dyn PayloadEvaluator,
+        false -> AlternateEvaluator as dyn PayloadEvaluator,
     };
     let result: u64 = PayloadEvaluator::compute(selector, 10u64);
-    let diff: u64 = 88u64 - result;
-    transition diff == 0u64 {
+    88u64 - result
+}
+machine main() crashes Trap {
+    transition evaluate(true) == 50u64 && evaluate(false) == 40u64 {
         true -> done()
         false -> bad()
     }
