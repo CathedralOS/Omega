@@ -375,6 +375,23 @@ impl Lower<'_> {
                     self.error("designated expression lost its certified builtin function")
                 });
         }
+        // Inert Product operands may intentionally precede ordinary name
+        // resolution. Rejoin compiler atoms with the ordinary source-scoped
+        // type resolver, including data declarations so a same-spelled package
+        // type cannot be reclassified as a builtin by its diagnostic text.
+        if name.declaration.is_none()
+            && let Some(symbol) = self
+                .program
+                .symbols
+                .find_top_level_by_name_and_kinds_from_source(
+                    &name.text,
+                    &[symbols::SymbolKind::BuiltinType, symbols::SymbolKind::Data],
+                    name.source_span,
+                )
+            && self.program.symbols.builtin_type_atom(symbol).is_some()
+        {
+            return Ok(symbol);
+        }
         let candidates = self
             .candidates()
             .into_iter()

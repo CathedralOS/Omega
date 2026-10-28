@@ -211,6 +211,7 @@ pub(crate) fn evaluate(
         sources.clone(),
         bindings,
         context.retained_base(),
+        context.template_context,
         &declarations,
     )?;
     let frontier =

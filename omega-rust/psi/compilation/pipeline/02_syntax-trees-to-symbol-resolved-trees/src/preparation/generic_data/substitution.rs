@@ -1033,17 +1033,31 @@ pub(super) fn substitute_cleanup_selection(
     warnings: &mut Vec<Diagnostic>,
 ) -> syntax_trees::expression::StaticMachineArgument {
     if selection.type_reference.is_valid() {
-        selection.type_reference = substitute_type_reference(syntax, snapshot,
-            selection.type_reference, substitution, const_values, warnings);
+        selection.type_reference = substitute_type_reference(
+            syntax,
+            snapshot,
+            selection.type_reference,
+            substitution,
+            const_values,
+            warnings,
+        );
     } else if let [name] = selection.path.as_ref()
         && selection.application.is_none()
-        && let Some(actual) = substitution.get(name.as_str(syntax)) {
+        && let Some(actual) = substitution.get(name.as_str(syntax))
+    {
         selection.type_reference = *actual;
         selection.path = Box::default();
     }
     if let Some(application) = &mut selection.application {
         for argument in application.arguments.iter_mut() {
-            *argument = substitute_cleanup_selection(syntax, snapshot, argument.clone(), substitution, const_values, warnings);
+            *argument = substitute_cleanup_selection(
+                syntax,
+                snapshot,
+                argument.clone(),
+                substitution,
+                const_values,
+                warnings,
+            );
         }
     }
     selection

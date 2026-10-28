@@ -116,7 +116,9 @@ impl ActivatedSource {
         &self,
         syntax: &mut SyntaxTrees,
         source_items: &[(SourceId, Vec<syntax_trees::item::ItemHandle>)],
-    ) {
+    ) -> SyntaxTrees {
+        let complete_items = syntax.roots.items.clone();
+        let complete_mathematics = syntax.roots.mathematical_definitions.clone();
         let retained = source_items
             .iter()
             .filter(|(source, _)| self.sources.source_is_selected(*source))
@@ -143,6 +145,26 @@ impl ActivatedSource {
             let copied = syntax.copy_expression_from(&selected, *expression);
             syntax.roots.constant_extent_probes.push((copied, *public));
         }
+        // Keep the original parsed declarations solely as generic lookup
+        // context. No prior body, constant job or layout request becomes new
+        // work in this activation; only the generic normalizer borrows it.
+        let mut context = selected;
+        context.roots.items = complete_items;
+        context.roots.items.retain(|item| retained.contains(item));
+        context.roots.mathematical_definitions = complete_mathematics;
+        context.roots.mathematical_definitions.retain(|handle| {
+            self.sources.source_is_selected(
+                context
+                    .tables
+                    .items
+                    .mathematical_definition(*handle)
+                    .name
+                    .source_span()
+                    .source_id,
+            )
+        });
+        context.roots.constant_extent_probes.clear();
+        context
     }
 }
 

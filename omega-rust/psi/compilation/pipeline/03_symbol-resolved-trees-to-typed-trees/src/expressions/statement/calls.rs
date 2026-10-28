@@ -68,10 +68,7 @@ pub(super) fn lower_call_statement(
                     .iter()
                     .filter(|selection| {
                         request.designated_operands().iter().any(|operand| {
-                            let span = selection.source_span();
-                            span.source_id == operand.source_span.source_id
-                                && span.span.start >= operand.source_span.span.start
-                                && span.span.end <= operand.source_span.span.end
+                            operand.owns_selection_occurrence(selection.source_span())
                         })
                     })
                     .map(|selection| selection.occurrence_id()),

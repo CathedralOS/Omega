@@ -704,6 +704,14 @@ pub fn collect_machine_references(
 /// backing-arena nodes are not additional source or executable occurrences.
 pub fn visit_program(program: &TypedTrees, roots: &mut impl TypedReferences) {
     visit_declarations(program, roots);
+    // Designated Product arguments remain ordinary source formation even when
+    // no invocation consumes the selected requirement. Their lexical owner is
+    // not a callable-use demand and cannot select a provider.
+    for argument in program.designated_static_type_arguments() {
+        roots.enter_lexical_scope(argument.owner);
+        visit_type_reference(program, roots, argument.reference);
+        roots.leave_lexical_scope();
+    }
     let mut sidecars = None;
     for machine in program.machines() {
         if roots.declaration(machine.symbol) {

@@ -190,6 +190,7 @@ pub fn evaluate_pre_resolution(
         source_context.sources.clone(),
         source_context.source_scoped_top_level_bindings,
         source_context.retained_base(),
+        source_context.template_context,
     )?;
     // Generic field extents become owned constant uses only after their exact
     // instance tuple has been copied. Close them through the same expression
@@ -236,6 +237,9 @@ pub struct BuildTimeSources<'a> {
     pub source_scoped_top_level_bindings: &'a [symbols::SourceScopedTopLevelBinding],
     pub selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
     pub predecessor: Option<symbol_resolved_trees_to_typed_trees::SeededTypingBase>,
+    /// Immutable parsed declarations used only by generic normalization, not
+    /// another build-time execution or source-checking work roster.
+    pub template_context: Option<&'a syntax_trees::SyntaxTrees>,
 }
 
 impl BuildTimeSources<'_> {
@@ -637,13 +641,16 @@ impl PreCheckEvaluation {
         typed: &mut typed_trees::TypedTrees,
     ) -> Result<EvaluatedPreCheck, Vec<diagnostics::Diagnostic>> {
         let _g = phase_profile::guard("evaluate_or_defer.evaluate_work");
-        phase_profile::scope("evaluate_or_defer.evaluate_work.const_array_lengths", || {
-            const_lengths::evaluate_const_array_lengths_in(
-                typed,
-                self.selection_authority.clone(),
-                &self.domain,
-            )
-        })?;
+        phase_profile::scope(
+            "evaluate_or_defer.evaluate_work.const_array_lengths",
+            || {
+                const_lengths::evaluate_const_array_lengths_in(
+                    typed,
+                    self.selection_authority.clone(),
+                    &self.domain,
+                )
+            },
+        )?;
         phase_profile::scope("evaluate_or_defer.evaluate_work.range_endpoints", || {
             range_endpoints::evaluate_selected_range_endpoints(
                 typed,
@@ -706,9 +713,10 @@ impl PreCheckEvaluation {
         typed.retain_symbolic_constant_recipes();
         // Installed view plans bind their accessor targets before any later
         // continuation consumes them; initializer settlement waits for queries.
-        phase_profile::scope("evaluate_or_defer.evaluate_work.dynamic_call_targets", || {
-            validation::resolve_selected_dynamic_call_targets(typed, self.domain.work())
-        })?;
+        phase_profile::scope(
+            "evaluate_or_defer.evaluate_work.dynamic_call_targets",
+            || validation::resolve_selected_dynamic_call_targets(typed, self.domain.work()),
+        )?;
         Ok(EvaluatedPreCheck {
             domain: self.domain,
             selection_authority: self.selection_authority,

@@ -70,6 +70,7 @@ pub(crate) fn normalize_generic_data(
     sources: Option<Arc<source::SourceMap>>,
     source_scoped_top_level_bindings: &[symbols::SourceScopedTopLevelBinding],
     retained_base: Option<&symbol_resolved_trees::SymbolResolvedTrees>,
+    template_context: Option<&syntax_trees::SyntaxTrees>,
 ) -> Result<syntax_trees::SyntaxTrees, Vec<diagnostics::Diagnostic>> {
     let _profile = phase_profile::guard("pre_resolution.generic_data");
     syntax_trees_to_symbol_resolved_trees::pre_resolution::normalize_generic_data(
@@ -78,6 +79,7 @@ pub(crate) fn normalize_generic_data(
             sources,
             source_scoped_top_level_bindings,
             retained_base,
+            template_context,
         ),
     )
 }
@@ -91,6 +93,7 @@ pub(crate) fn normalize_initializer_probe_data(
     sources: Option<Arc<source::SourceMap>>,
     source_scoped_top_level_bindings: &[symbols::SourceScopedTopLevelBinding],
     retained_base: Option<&symbol_resolved_trees::SymbolResolvedTrees>,
+    template_context: Option<&syntax_trees::SyntaxTrees>,
     declarations: &[syntax_trees::item::ItemHandle],
 ) -> Result<syntax_trees::SyntaxTrees, Vec<diagnostics::Diagnostic>> {
     syntax_trees_to_symbol_resolved_trees::pre_resolution::normalize_initializer_probe_data(
@@ -99,6 +102,7 @@ pub(crate) fn normalize_initializer_probe_data(
             sources,
             source_scoped_top_level_bindings,
             retained_base,
+            template_context,
         ),
         declarations,
     )
@@ -174,6 +178,7 @@ fn normalization_request<'base>(
     sources: Option<Arc<source::SourceMap>>,
     bindings: &[symbols::SourceScopedTopLevelBinding],
     retained_base: Option<&'base symbol_resolved_trees::SymbolResolvedTrees>,
+    template_context: Option<&'base syntax_trees::SyntaxTrees>,
 ) -> syntax_trees_to_symbol_resolved_trees::pre_resolution::GenericDataRequest<'base> {
     let has_sources = sources.is_some();
     syntax_trees_to_symbol_resolved_trees::pre_resolution::GenericDataRequest {
@@ -185,5 +190,6 @@ fn normalization_request<'base>(
             Vec::new()
         },
         retained_base: if has_sources { retained_base } else { None },
+        template_context: if has_sources { template_context } else { None },
     }
 }

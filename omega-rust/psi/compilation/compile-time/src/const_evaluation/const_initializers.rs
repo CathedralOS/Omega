@@ -254,6 +254,7 @@ pub(crate) fn evaluate(
             sources.clone(),
             bindings.to_vec(),
             context.retained_base(),
+
         )?;
     crate::syntax_probes::defer_pending_const_qualifications(
         &mut selection_syntax,
@@ -504,6 +505,7 @@ pub(crate) fn evaluate(
             sources.clone(),
             bindings,
             context.retained_base(),
+            context.template_context,
             &probe_declarations,
         )?;
         let frontier = syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_deferred_initializer_probe(

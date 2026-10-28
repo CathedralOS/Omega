@@ -660,17 +660,13 @@ pub fn product_request_operand_occurrences(
             let Some(selection) = program.authored_declaration_selections().get(occurrence) else {
                 continue;
             };
-            if !matches!(
-                selection.kind(),
-                Kind::StaticArgument | Kind::StaticPathSegment | Kind::Conformance
-            ) {
-                continue;
-            }
-            let span = selection.source_span();
             if request.designated_operands().iter().any(|operand| {
-                span.source_id == operand.source_span.source_id
-                    && span.span.start >= operand.source_span.span.start
-                    && span.span.end <= operand.source_span.span.end
+                let bare_kind = matches!(
+                    selection.kind(),
+                    Kind::StaticArgument | Kind::StaticPathSegment | Kind::Conformance
+                );
+                (bare_kind || operand.application.is_some())
+                    && operand.owns_selection_occurrence(selection.source_span())
             }) {
                 occurrences.insert(occurrence);
             }

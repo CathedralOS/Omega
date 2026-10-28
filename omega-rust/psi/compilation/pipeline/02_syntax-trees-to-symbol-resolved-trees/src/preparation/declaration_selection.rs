@@ -16,7 +16,7 @@ use symbols::{
     builtin_function_symbols, builtin_type_symbols,
 };
 use syntax_trees::SyntaxTrees;
-use syntax_trees::identifier::Identifier;
+use syntax_trees::identifier::{Identifier, JoinedSyntaxPath};
 use syntax_trees::item::{ConstDefinition, DataDefinition, DataMember, Item};
 
 /// Private selection state; transient symbols never escape into normalized syntax.
@@ -179,10 +179,63 @@ impl<'base> ConstantSelection<'base> {
                         ));
                     }
                 }
-                Item::Module(module) => namespaces.record_module(syntax, module.path),
+                Item::Module(module) => {
+                    let members = syntax.items.identifier_path_members(module.path);
+                    let retained_module =
+                        retained
+                            .zip(sources.as_deref())
+                            .is_some_and(|(base, sources)| {
+                                let Some(first) = members.first() else {
+                                    return false;
+                                };
+                                let span = first.source_span();
+                                let existing = base.symbols.source_module(span.source_id);
+                                existing.is_valid()
+                                    && members.iter().all(|member| {
+                                        member.source_span().source_id == span.source_id
+                                    })
+                                    && base
+                                        .symbols
+                                        .source_file(span)
+                                        .zip(sources.file_at(span))
+                                        .is_some_and(|(before, current)| before == current)
+                                    && base.symbols.display_path(existing, "::")
+                                        == members.joined_path_in(syntax)
+                            });
+                    // A copied lookup header does not redeclare its unchanged
+                    // source module. New/different source bytes or namespaces
+                    // still take the ordinary duplicate-module diagnostic.
+                    if !retained_module {
+                        namespaces.record_module(syntax, module.path);
+                    }
+                }
                 Item::Use(import) => namespaces.record_import(syntax, import.path),
                 _ => {}
             }
+        }
+        if let (Some(base), Some(sources)) = (retained, sources.as_deref()) {
+            let headers = base
+                .symbols
+                .child_handles(base.symbols.root())
+                .into_iter()
+                .flatten()
+                .filter_map(|symbol| {
+                    symbols::RetainedDeclaration::capture(&base.symbols, symbol)
+                        .ok()
+                        .map(|header| (symbol, header))
+                })
+                .collect::<Vec<_>>();
+            // Prior parsed templates are lookup context, not another symbol
+            // allocation. Reuse only exact immutable declaration custody.
+            declarations.retain(|(kind, name, span, _)| {
+                let Some(source) = sources.file_at(*span) else {
+                    return true;
+                };
+                !headers.iter().any(|(symbol, header)| {
+                    base.symbols.name(*symbol) == name
+                        && header.matches_source(*kind, source, span.span)
+                })
+            });
         }
         let header_names = || {
             declarations.iter().map(|(kind, name, span, _)| {

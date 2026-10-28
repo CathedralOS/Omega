@@ -121,6 +121,7 @@ pub(crate) fn prove_ready(
         context.sources.clone(),
         context.source_scoped_top_level_bindings,
         context.retained_base(),
+        context.template_context,
         &probe_declarations,
     )?;
     let frontier =

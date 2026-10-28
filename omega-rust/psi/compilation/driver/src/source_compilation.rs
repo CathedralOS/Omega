@@ -89,9 +89,9 @@ impl SourceCompilationRequest {
             build_helper_identity: self.build_helper_identity,
         };
         let activation = activation::select_retained_source(&self, &context, observer)?;
-        if let Some(activation) = &activation {
-            activation.remove_retained_syntax(&mut self.syntax, &self.source_items);
-        }
+        let template_context = activation.as_ref().map(|activation| {
+            activation.remove_retained_syntax(&mut self.syntax, &self.source_items)
+        });
         let retained_program = activation
             .as_ref()
             .map(|activation| activation.typing.typed().clone());
@@ -112,6 +112,7 @@ impl SourceCompilationRequest {
                     source_scoped_top_level_bindings: &self.top_level_bindings,
                     selection_authority: self.selection_authority,
                     predecessor: retained.clone(),
+                    template_context: template_context.as_ref(),
                 },
             },
         )?;
@@ -450,6 +451,7 @@ impl CompletedSource {
                     source_scoped_top_level_bindings: &[],
                     selection_authority: Some(extension.selection_authority),
                     predecessor: Some(self.typing.clone()),
+                    template_context: None,
                 },
             )?;
         let seeded = observer.record_result(PsiCompilationStage::Resolution, || {

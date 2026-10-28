@@ -387,7 +387,8 @@ fn collect_closed_const_arguments(
             let Some(first) = members.first() else {
                 continue;
             };
-            let concrete = concrete.get_or_insert_with(|| concrete_machine_expression_handles(syntax));
+            let concrete =
+                concrete.get_or_insert_with(|| concrete_machine_expression_handles(syntax));
             if !concrete.contains(handle) {
                 continue;
             }
@@ -591,9 +592,11 @@ pub struct GenericDataRequest<'a> {
     pub sources: Option<std::sync::Arc<source::SourceMap>>,
     pub top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
     /// A generated unit's immutable predecessor, whose retained nominal
-    /// arguments the unit may name without owning their syntax. Templates
-    /// still come only from this unit. Requires `sources`.
+    /// arguments the unit may name without owning their syntax. Requires sources.
     pub retained_base: Option<&'a symbol_resolved_trees::SymbolResolvedTrees>,
+    /// Prior parsed declarations are lookup context only. The current unit and
+    /// its synthesized descendants own every normalization mutation/output.
+    pub template_context: Option<&'a SyntaxTrees>,
 }
 
 impl GenericDataRequest<'_> {
@@ -604,6 +607,7 @@ impl GenericDataRequest<'_> {
             sources: None,
             top_level_bindings: Vec::new(),
             retained_base: None,
+            template_context: None,
         }
     }
 }
@@ -654,9 +658,33 @@ fn normalize_generic_data_in_mode(
         sources,
         top_level_bindings,
         retained_base,
+        template_context,
     } = request;
+    let current_declarations = syntax.root_item_handles().to_vec();
+    let mut lookup_declarations = Vec::new();
+    let mut lookup_mathematics = Vec::new();
+    if let Some(context) = template_context {
+        let frontier = syntax.root_item_handles().len();
+        let mathematics_frontier = syntax.roots.mathematical_definitions.len();
+        syntax.extend_from(context);
+        lookup_declarations.extend_from_slice(&syntax.root_item_handles()[frontier..]);
+        lookup_mathematics
+            .extend_from_slice(&syntax.roots.mathematical_definitions[mathematics_frontier..]);
+    }
+    let domain = match (domain, template_context.is_some()) {
+        (
+            GenericDataWorkDomain::All {
+                additional_type_roots,
+            },
+            true,
+        ) => GenericDataWorkDomain::Selected {
+            type_roots: additional_type_roots,
+            declarations: &current_declarations,
+        },
+        (domain, _) => domain,
+    };
     let Some(sources) = sources else {
-        if retained_base.is_some() || !top_level_bindings.is_empty() {
+        if retained_base.is_some() || template_context.is_some() || !top_level_bindings.is_empty() {
             return Err(vec![Diagnostic::error(
                 "generic data normalization against a retained base or scoped bindings requires source custody",
             )]);
@@ -690,6 +718,15 @@ fn normalize_generic_data_in_mode(
     for warning in warnings {
         eprintln!("{warning}");
     }
+    // Parsed lookup headers never become a second resolved declaration set.
+    syntax
+        .roots
+        .items
+        .retain(|item| !lookup_declarations.contains(item));
+    syntax
+        .roots
+        .mathematical_definitions
+        .retain(|item| !lookup_mathematics.contains(item));
     Ok(syntax)
 }
 

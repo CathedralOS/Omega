@@ -389,3 +389,27 @@ pub struct ExecutedRootBinding {
     pub slot: String,
     pub implementation: RootBindingSelection,
 }
+
+impl ProductDeclarationOperand {
+    /// Exact syntax retained by this inert operand. Descendants belong to
+    /// Product formation, not to the running Build activation. Ordinary
+    /// locator/value arguments are not in this owned graph.
+    pub fn owns_selection_occurrence(&self, occurrence: source::SourceSpan) -> bool {
+        let contains = |owner: source::SourceSpan| {
+            owner.source_id == occurrence.source_id
+                && owner.span.start <= occurrence.span.start
+                && occurrence.span.end <= owner.span.end
+        };
+        contains(self.source_span)
+            || self.application.as_deref().is_some_and(|graph| {
+                graph
+                    .names
+                    .iter()
+                    .any(|(_, name)| contains(name.source_span))
+                    || graph
+                        .expressions
+                        .iter()
+                        .any(|(_, expression)| contains(expression.source_span))
+            })
+    }
+}
