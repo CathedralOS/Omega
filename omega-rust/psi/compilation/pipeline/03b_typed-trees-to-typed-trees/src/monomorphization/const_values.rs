@@ -11,9 +11,7 @@
 
 use super::Candidate;
 use diagnostics::Diagnostic;
-use language_semantics::const_value::{
-    CanonicalConstValue, boolean_literal_spelling,
-};
+use language_semantics::const_value::{CanonicalConstValue, boolean_literal_spelling};
 use numerics::literals::{IntegerLanding, IntegerLiteral};
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
