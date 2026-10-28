@@ -683,9 +683,10 @@ fn loans_live_at_call(
         .collect()
 }
 
-/// A named jump to a sibling state: the transition target names a state of the
-/// caller's own machine with no receiver operand. Calls in the transition's
-/// guard or arguments are ordinary calls, not the jump.
+/// A jump to a sibling state: the transition's own target invocation enters a
+/// state of the caller's own machine or a machine nested directly inside it,
+/// with no receiver operand. Calls in the transition's guard or arguments are
+/// ordinary calls, not the jump.
 pub(super) struct LocalJump<'program> {
     pub(super) target: &'program typed_trees::state::State,
     pub(super) site: validation::CallSite<'program>,
@@ -696,21 +697,91 @@ pub(super) fn local_jump<'program>(
     flow: &FlowStateFact,
     call: &checked_trees::BorrowCallFact,
 ) -> Option<LocalJump<'program>> {
-    let target = find_state_in_machine(program, flow.machine_symbol, call.target_symbol)?;
-    let site = validation::find_call_site(
+    let source = find_state_in_machine(program, flow.machine_symbol, flow.state_symbol)?;
+    let machine = program.machine_by_symbol(flow.machine_symbol)?;
+    // The same transfer reaches a sibling state of this machine or the head
+    // of a machine inside its enclosing-machine family; both leave the source
+    // scope when the transition's invocation completes. A machine head outside
+    // that family stays an ordinary call.
+    let target = find_state_in_machine(program, flow.machine_symbol, call.target_symbol)
+        .or_else(|| {
+            validation::find_machine_head(program, call.target_symbol)
+                .filter(|(destination, _)| {
+                    machine_in_frame_family(
+                        program,
+                        flow.machine_symbol,
+                        destination.symbol,
+                    )
+                })
+                .map(|(_, entry)| entry)
+        })?;
+    let site = validation::find_call_site_in_state(
         program,
-        flow.machine_symbol,
-        flow.state_symbol,
+        machine,
+        source,
         call.statement_index,
         call.call_ordinal,
     )?;
-    let validation::CallSite::TransitionNamed { path, .. } = &site else {
-        return None;
-    };
-    // A local state name has no explicit receiver; its head is the target
-    // symbol, not a borrowed receiver alias.
-    (path.members.count() == 1 && path.head_symbol == target.symbol)
-        .then_some(LocalJump { target, site })
+    match &site {
+        validation::CallSite::TransitionNamed { path, .. } => {
+            // A local jump name has no explicit receiver; its head resolves
+            // to the entered body, not a borrowed receiver alias. A machine
+            // head's name reaches that body through its entry state.
+            (path.members.count() == 1
+                && validation::call_target_entry_symbol(program, path.head_symbol)
+                    == target.symbol)
+                .then_some(LocalJump { target, site })
+        }
+        validation::CallSite::Expression { call: invoked, .. } => {
+            // The same edge lowered as the arm's call operand. Only the
+            // arm's whole invocation completes it; calls inside its guard
+            // or operands evaluate in the source state and stay ordinary
+            // calls. A declaration qualifier carries no runtime receiver.
+            let completes = validation::transition_call_target(
+                program,
+                machine,
+                source,
+                call.statement_index,
+                call.call_ordinal,
+            )
+            .is_some_and(|arm| {
+                arm.is_valid() && site.completes_transition(program, arm)
+            });
+            (completes
+                && program.call_has_no_runtime_receiver_for_target(invoked)
+                && validation::call_target_entry_symbol(
+                    program,
+                    site.target_symbol(program),
+                ) == target.symbol)
+                .then_some(LocalJump { target, site })
+        }
+        _ => None,
+    }
+}
+
+/// Whether `callee` is the caller's machine, one of its enclosing machine
+/// ancestors, or a machine declared directly inside one of them. Sibling and
+/// nested machines carry the same transition-transfer semantics their states
+/// did before the nested-machine migration; an ancestor's head is re-entered
+/// as the same family's own transfer.
+fn machine_in_frame_family(
+    program: &dyn ::validation::CheckingInput,
+    caller: symbols::SymbolHandle,
+    callee: symbols::SymbolHandle,
+) -> bool {
+    let mut scope = caller;
+    loop {
+        if callee == scope || program.symbols.get(callee).parent == scope {
+            return true;
+        }
+        let parent = program.symbols.get(scope).parent;
+        if !parent.is_valid()
+            || program.symbols.get(parent).kind != symbols::SymbolKind::Machine
+        {
+            return false;
+        }
+        scope = parent;
+    }
 }
 
 /// A named jump enters another state only after the caller's local scope ends.

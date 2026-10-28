@@ -496,12 +496,21 @@ impl Resolver<'_> {
             let alternatives = profile.alternatives.handles().collect::<Vec<_>>();
             let selected = alternatives
                 .into_iter()
-                .map(|profile| {
-                    self.profile_descriptor(profile, reference, path)
-                        .unwrap_or(Selection::Unavailable)
-                })
-                .collect();
-            return Some(join(selected));
+                .map(|profile| self.profile_descriptor(profile, reference, path))
+                .collect::<Vec<_>>();
+            // A roots-only alternative keeps lifetime debt without recording
+            // a path association. When no alternative resolves one, this
+            // profile does not decide the slot; other operand evidence may
+            // still resolve the incoming place uniformly.
+            if selected.iter().all(Option::is_none) {
+                return None;
+            }
+            return Some(join(
+                selected
+                    .into_iter()
+                    .map(|selected| selected.unwrap_or(Selection::Unavailable))
+                    .collect(),
+            ));
         }
         if profile.descriptor.is_valid() {
             return Some(self.select(profile.descriptor, path));
