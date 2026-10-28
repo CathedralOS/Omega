@@ -347,7 +347,15 @@ fn state_equation<'program>(
                 crate::completing_call_transfer(program, result).filter(|transfer| {
                     program
                         .machine_holding_state(transfer.state.symbol)
-                        .is_some_and(|owner| owner.symbol == machine.symbol)
+                        .is_some_and(|owner| {
+                            owner.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
+                                && owner.body_is_present
+                                && program.machine_type_parameters(owner).is_empty()
+                        })
+                        && program
+                            .expression_table
+                            .call_node(result)
+                            .is_some_and(|call| call.machine_arguments.is_empty())
                 })
             {
                 if !super::isolation::aggregate_storage_types_match(
@@ -355,6 +363,7 @@ fn state_equation<'program>(
                     transfer.state.return_type,
                     expected_result,
                 ) {
+                    trace_refusal("completing-result-correspondence");
                     return None;
                 }
                 edges.push(state_equations::Edge {
