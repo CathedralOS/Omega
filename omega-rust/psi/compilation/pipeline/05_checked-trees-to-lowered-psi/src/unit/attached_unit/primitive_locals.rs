@@ -350,22 +350,12 @@ impl OperationFrame<'_, '_> {
         // computation evaluates its calls and selections in authored order
         // before the storage exists, so it can never read its own local.
         let initializer = {
-            let (mut environment, emission) = self.reborrow().split();
-            emission.evaluation.source_value(
+            let (mut environment, mut emission) = self.reborrow().split();
+            emission.source_value(
                 identities,
-                environment.checked,
-                environment.machine,
-                environment.state,
                 *statement_index,
                 CheckedScalarExpressionRole::StorageInitializer,
                 value,
-                emission.source_value_count,
-                emission.values,
-                emission.next_value,
-                emission.next_block,
-                emission.next_edge,
-                emission.operations,
-                emission.calls,
                 &mut environment,
             )
         }?;

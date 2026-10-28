@@ -64,21 +64,8 @@ pub(super) fn evaluate(
                 operations,
             },
             |frame| {
-                let (mut environment, emission) = frame.split();
-                emission.evaluation.arguments(
-                    identities,
-                    checked,
-                    machine,
-                    state,
-                    operation,
-                    emission.values,
-                    emission.next_value,
-                    emission.next_block,
-                    emission.next_edge,
-                    emission.operations,
-                    emission.calls,
-                    &mut environment,
-                )
+                let (mut environment, mut emission) = frame.split();
+                emission.arguments(identities, operation, &mut environment)
             },
         )?;
         return Ok((arguments, Vec::new()));
@@ -192,21 +179,11 @@ pub(super) fn evaluate(
                     operations,
                 },
                 |frame| {
-                    let (mut environment, emission) = frame.split();
-                    emission.evaluation.argument_at(
+                    let (mut environment, mut emission) = frame.split();
+                    emission.argument_at(
                         identities,
-                        checked,
-                        machine,
-                        state,
                         operation,
                         scalar_slots.len(),
-                        source_value_count,
-                        emission.values,
-                        emission.next_value,
-                        emission.next_block,
-                        emission.next_edge,
-                        emission.operations,
-                        emission.calls,
                         &mut environment,
                     )
                 },

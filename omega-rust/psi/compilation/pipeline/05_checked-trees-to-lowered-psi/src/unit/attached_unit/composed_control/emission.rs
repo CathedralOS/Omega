@@ -383,21 +383,11 @@ pub(super) fn emit_call_operations(
                         operations,
                     },
                     |frame| {
-                        let (mut environment, emission) = frame.split();
-                        emission.evaluation.argument_at(
+                        let (mut environment, mut emission) = frame.split();
+                        emission.argument_at(
                             identities,
-                            checked,
-                            machine,
-                            state.state,
                             &planned_operations[operation],
                             ordinal,
-                            source_value_count,
-                            emission.values,
-                            emission.next_value,
-                            emission.next_block,
-                            emission.next_edge,
-                            emission.operations,
-                            emission.calls,
                             &mut environment,
                         )
                     },
@@ -428,22 +418,12 @@ pub(super) fn emit_call_operations(
                         operations,
                     },
                     |frame| {
-                        let (mut environment, emission) = frame.split();
-                        emission.evaluation.call_selector(
+                        let (mut environment, mut emission) = frame.split();
+                        emission.call_selector(
                             identities,
-                            checked,
-                            machine,
-                            state.state,
                             &planned_operations[operation],
                             argument,
                             segment,
-                            source_value_count,
-                            emission.values,
-                            emission.next_value,
-                            emission.next_block,
-                            emission.next_edge,
-                            emission.operations,
-                            emission.calls,
                             &mut environment,
                         )
                     },
@@ -525,21 +505,11 @@ pub(super) fn emit_call_operations(
                         operations,
                     },
                     |frame| {
-                        let (mut environment, emission) = frame.split();
-                        emission.evaluation.window_endpoints(
+                        let (mut environment, mut emission) = frame.split();
+                        emission.window_endpoints(
                             identities,
-                            checked,
-                            machine,
-                            state.state,
                             &planned_operations[operation],
                             argument,
-                            source_value_count,
-                            emission.values,
-                            emission.next_value,
-                            emission.next_block,
-                            emission.next_edge,
-                            emission.operations,
-                            emission.calls,
                             &mut environment,
                         )
                     },

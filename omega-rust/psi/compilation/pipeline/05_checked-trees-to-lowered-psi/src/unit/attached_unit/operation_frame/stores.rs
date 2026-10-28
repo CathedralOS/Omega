@@ -199,22 +199,12 @@ impl OperationFrame<'_, '_> {
             // field stores. A recast loan never invents another owned home.
             let destination = self.prepare_loaned_byte_store(identities, statement_index, &loan)?;
             let value = {
-                let (mut environment, emission) = self.reborrow().split();
-                emission.evaluation.source_value(
+                let (mut environment, mut emission) = self.reborrow().split();
+                emission.source_value(
                     identities,
-                    environment.checked,
-                    environment.machine,
-                    environment.state,
                     statement_index,
                     role,
                     authored_value,
-                    emission.source_value_count,
-                    emission.values,
-                    emission.next_value,
-                    emission.next_block,
-                    emission.next_edge,
-                    emission.operations,
-                    emission.calls,
                     &mut environment,
                 )
             }?;
@@ -1123,19 +1113,8 @@ impl OperationFrame<'_, '_> {
             .find(|row| row.field == lowered.field)
             .map(|row| row.value_type);
         let value = if let Some(receiving_type) = receiving_type {
-            let (mut environment, emission) = self.reborrow().split();
-            emission.evaluation.receiving_value(
-                identities,
-                value,
-                receiving_type,
-                emission.values,
-                emission.next_value,
-                emission.next_block,
-                emission.next_edge,
-                emission.operations,
-                emission.calls,
-                &mut environment,
-            )?
+            let (mut environment, mut emission) = self.reborrow().split();
+            emission.receiving_value(identities, value, receiving_type, &mut environment)?
         } else {
             value
         };

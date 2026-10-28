@@ -76,7 +76,6 @@ pub(crate) fn emit_assignment(
     emission: &mut crate::unit::attached_unit::OperationEmission<'_, '_>,
     environment: &mut crate::unit::attached_unit::OperationEnvironment<'_>,
 ) -> Result<OperationKind, LoweringError> {
-    let checked = environment.checked;
     let machine = environment.machine;
     let state = environment.state;
     let structural_types = environment.structural_types;
@@ -130,23 +129,7 @@ pub(crate) fn emit_assignment(
                 unreachable!("captured call result")
             }
         };
-        emission.evaluation.source_value(
-            identities,
-            checked,
-            machine,
-            state,
-            statement_index,
-            role,
-            &value,
-            emission.source_value_count,
-            emission.values,
-            emission.next_value,
-            emission.next_block,
-            emission.next_edge,
-            emission.operations,
-            emission.calls,
-            environment,
-        )?
+        emission.source_value(identities, statement_index, role, &value, environment)?
     };
     let path = super::runtime_elements::complete_path(
         destination.path,
@@ -178,18 +161,7 @@ pub(crate) fn emit_assignment(
             .map(|row| row.value_type)
     });
     let value = if let Some(receiving_type) = receiving_type {
-        emission.evaluation.receiving_value(
-            identities,
-            value,
-            receiving_type,
-            emission.values,
-            emission.next_value,
-            emission.next_block,
-            emission.next_edge,
-            emission.operations,
-            emission.calls,
-            environment,
-        )?
+        emission.receiving_value(identities, value, receiving_type, environment)?
     } else {
         value
     };

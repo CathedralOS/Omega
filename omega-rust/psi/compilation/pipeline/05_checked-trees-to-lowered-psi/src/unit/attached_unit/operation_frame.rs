@@ -224,6 +224,180 @@ pub(crate) struct OperationEmission<'f, 'c> {
     pub(crate) operations: &'f mut OperationBuffer,
 }
 
+/// The active frame is also the operand-evaluation surface: `Evaluation`
+/// advances exactly this value namespace, so a site hands over the frame it
+/// split instead of re-listing that namespace beside it. `Evaluation` keeps
+/// the judgments; these methods only name the namespace they run in.
+impl OperationEmission<'_, '_> {
+    /// Complete one checked scalar source value at its authored statement.
+    pub(crate) fn source_value(
+        &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        statement_index: u32,
+        role: checked_trees::CheckedScalarExpressionRole,
+        value: &checked_trees::CheckedCallScalarArgument,
+        environment: &mut OperationEnvironment<'_>,
+    ) -> Result<ValueDeclaration, LoweringError> {
+        let checked = environment.checked;
+        let machine = environment.machine;
+        let state = environment.state;
+        self.evaluation.source_value(
+            identities,
+            checked,
+            machine,
+            state,
+            statement_index,
+            role,
+            value,
+            self.source_value_count,
+            self.values,
+            self.next_value,
+            self.next_block,
+            self.next_edge,
+            self.operations,
+            self.calls,
+            environment,
+        )
+    }
+
+    /// Present a completed value at a receiving scalar type.
+    pub(crate) fn receiving_value(
+        &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        value: ValueDeclaration,
+        receiving_type: semantic_vocabulary::QualifiedScalarType,
+        environment: &mut OperationEnvironment<'_>,
+    ) -> Result<ValueDeclaration, LoweringError> {
+        self.evaluation.receiving_value(
+            identities,
+            value,
+            receiving_type,
+            self.values,
+            self.next_value,
+            self.next_block,
+            self.next_edge,
+            self.operations,
+            self.calls,
+            environment,
+        )
+    }
+
+    /// Evaluate every dense scalar operand of one call, in authored order.
+    pub(crate) fn arguments(
+        &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        operation: &CheckedUnitEffectOperationPlan,
+        environment: &mut OperationEnvironment<'_>,
+    ) -> Result<Option<Vec<ValueDeclaration>>, LoweringError> {
+        let checked = environment.checked;
+        let machine = environment.machine;
+        let state = environment.state;
+        self.evaluation.arguments(
+            identities,
+            checked,
+            machine,
+            state,
+            operation,
+            self.values,
+            self.next_value,
+            self.next_block,
+            self.next_edge,
+            self.operations,
+            self.calls,
+            environment,
+        )
+    }
+
+    /// Evaluate one dense scalar operand at its original call coordinate.
+    pub(crate) fn argument_at(
+        &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        operation: &CheckedUnitEffectOperationPlan,
+        argument_ordinal: usize,
+        environment: &mut OperationEnvironment<'_>,
+    ) -> Result<ValueDeclaration, LoweringError> {
+        let checked = environment.checked;
+        let machine = environment.machine;
+        let state = environment.state;
+        self.evaluation.argument_at(
+            identities,
+            checked,
+            machine,
+            state,
+            operation,
+            argument_ordinal,
+            self.source_value_count,
+            self.values,
+            self.next_value,
+            self.next_block,
+            self.next_edge,
+            self.operations,
+            self.calls,
+            environment,
+        )
+    }
+
+    /// Evaluate one call argument's selector at its authored position.
+    pub(crate) fn call_selector(
+        &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        operation: &CheckedUnitEffectOperationPlan,
+        argument: usize,
+        segment: usize,
+        environment: &mut OperationEnvironment<'_>,
+    ) -> Result<ValueDeclaration, LoweringError> {
+        let checked = environment.checked;
+        let machine = environment.machine;
+        let state = environment.state;
+        self.evaluation.call_selector(
+            identities,
+            checked,
+            machine,
+            state,
+            operation,
+            argument,
+            segment,
+            self.source_value_count,
+            self.values,
+            self.next_value,
+            self.next_block,
+            self.next_edge,
+            self.operations,
+            self.calls,
+            environment,
+        )
+    }
+
+    /// Run a folded structural argument's recorded window endpoints.
+    pub(crate) fn window_endpoints(
+        &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        operation: &CheckedUnitEffectOperationPlan,
+        argument: usize,
+        environment: &mut OperationEnvironment<'_>,
+    ) -> Result<(), LoweringError> {
+        let checked = environment.checked;
+        let machine = environment.machine;
+        let state = environment.state;
+        self.evaluation.window_endpoints(
+            identities,
+            checked,
+            machine,
+            state,
+            operation,
+            argument,
+            self.source_value_count,
+            self.values,
+            self.next_value,
+            self.next_block,
+            self.next_edge,
+            self.operations,
+            self.calls,
+            environment,
+        )
+    }
+}
+
 impl<'f, 'c> OperationFrame<'f, 'c> {
     pub(super) fn reborrow(&mut self) -> OperationFrame<'_, 'c> {
         OperationFrame {

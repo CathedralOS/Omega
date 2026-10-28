@@ -1532,21 +1532,11 @@ impl MachineEmission<'_> {
                     return unsupported("staged scalar argument ordinals are not dense");
                 }
                 let value = {
-                    let (mut environment, emission) = self.frame(source_value_count).split();
-                    emission.evaluation.argument_at(
+                    let (mut environment, mut emission) = self.frame(source_value_count).split();
+                    emission.argument_at(
                         identities,
-                        checked,
-                        plan.machine,
-                        plan.state,
                         &plan.operations[operation],
                         ordinal,
-                        source_value_count,
-                        emission.values,
-                        emission.next_value,
-                        emission.next_block,
-                        emission.next_edge,
-                        emission.operations,
-                        emission.calls,
                         &mut environment,
                     )
                 }?;
@@ -1566,22 +1556,12 @@ impl MachineEmission<'_> {
                             "selector staging has no source prefix",
                         ))?;
                 let value = {
-                    let (mut environment, emission) = self.frame(source_value_count).split();
-                    emission.evaluation.call_selector(
+                    let (mut environment, mut emission) = self.frame(source_value_count).split();
+                    emission.call_selector(
                         identities,
-                        checked,
-                        plan.machine,
-                        plan.state,
                         &plan.operations[operation],
                         argument,
                         segment,
-                        source_value_count,
-                        emission.values,
-                        emission.next_value,
-                        emission.next_block,
-                        emission.next_edge,
-                        emission.operations,
-                        emission.calls,
                         &mut environment,
                     )
                 }?;
@@ -1637,21 +1617,11 @@ impl MachineEmission<'_> {
                             "endpoint staging has no source prefix",
                         ))?;
                 {
-                    let (mut environment, emission) = self.frame(source_value_count).split();
-                    emission.evaluation.window_endpoints(
+                    let (mut environment, mut emission) = self.frame(source_value_count).split();
+                    emission.window_endpoints(
                         identities,
-                        checked,
-                        plan.machine,
-                        plan.state,
                         &plan.operations[operation],
                         argument,
-                        source_value_count,
-                        emission.values,
-                        emission.next_value,
-                        emission.next_block,
-                        emission.next_edge,
-                        emission.operations,
-                        emission.calls,
                         &mut environment,
                     )
                 }?;
@@ -1757,21 +1727,8 @@ impl MachineEmission<'_> {
             )
         } else {
             {
-                let (mut environment, emission) = self.frame(source_value_count).split();
-                emission.evaluation.arguments(
-                    identities,
-                    checked,
-                    plan.machine,
-                    plan.state,
-                    operation,
-                    emission.values,
-                    emission.next_value,
-                    emission.next_block,
-                    emission.next_edge,
-                    emission.operations,
-                    emission.calls,
-                    &mut environment,
-                )
+                let (mut environment, mut emission) = self.frame(source_value_count).split();
+                emission.arguments(identities, operation, &mut environment)
             }?
         };
         self.next_call_obligation = self.scalar_calls.next_obligation_identity;

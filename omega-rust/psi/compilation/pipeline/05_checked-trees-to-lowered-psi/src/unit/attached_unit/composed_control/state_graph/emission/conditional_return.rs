@@ -286,22 +286,12 @@ impl StateGraphEmission<'_, '_> {
                             operations,
                         },
                         |frame| {
-                            let (mut environment, emission) = frame.split();
-                            emission.evaluation.source_value(
+                            let (mut environment, mut emission) = frame.split();
+                            emission.source_value(
                                 identities,
-                                checked,
-                                owner,
-                                state.state,
                                 *statement_ordinal,
                                 role,
                                 &retained,
-                                emission.source_value_count,
-                                emission.values,
-                                emission.next_value,
-                                emission.next_block,
-                                emission.next_edge,
-                                emission.operations,
-                                emission.calls,
                                 &mut environment,
                             )
                         },

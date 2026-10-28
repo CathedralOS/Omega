@@ -75,22 +75,12 @@ impl OperationFrame<'_, '_> {
             }
         };
         let lowered = {
-            let (mut environment, emission) = self.reborrow().split();
-            emission.evaluation.source_value(
+            let (mut environment, mut emission) = self.reborrow().split();
+            emission.source_value(
                 identities,
-                environment.checked,
-                environment.machine,
-                environment.state,
                 result.statement_index,
                 role,
                 value,
-                emission.source_value_count,
-                emission.values,
-                emission.next_value,
-                emission.next_block,
-                emission.next_edge,
-                emission.operations,
-                emission.calls,
                 &mut environment,
             )
         }?;
@@ -108,19 +98,8 @@ impl OperationFrame<'_, '_> {
                 .evaluation
                 .shared_qualifications
                 .signature_value_type(self.checked, local.declared_type)?;
-            let (mut environment, emission) = self.reborrow().split();
-            emission.evaluation.receiving_value(
-                identities,
-                lowered,
-                receiving_type,
-                emission.values,
-                emission.next_value,
-                emission.next_block,
-                emission.next_edge,
-                emission.operations,
-                emission.calls,
-                &mut environment,
-            )?
+            let (mut environment, mut emission) = self.reborrow().split();
+            emission.receiving_value(identities, lowered, receiving_type, &mut environment)?
         } else {
             lowered
         };
@@ -236,25 +215,15 @@ impl OperationFrame<'_, '_> {
             let element_ordinal = u32::try_from(ordinal)
                 .map_err(|_| LoweringError::Unsupported("array element ordinal exceeds u32"))?;
             let value = {
-                let (mut environment, emission) = self.reborrow().split();
-                emission.evaluation.source_value(
+                let (mut environment, mut emission) = self.reborrow().split();
+                emission.source_value(
                     identities,
-                    environment.checked,
-                    environment.machine,
-                    environment.state,
                     result.statement_index,
                     CheckedScalarExpressionRole::ArrayElement {
                         source: *source,
                         element_ordinal,
                     },
                     element,
-                    emission.source_value_count,
-                    emission.values,
-                    emission.next_value,
-                    emission.next_block,
-                    emission.next_edge,
-                    emission.operations,
-                    emission.calls,
                     &mut environment,
                 )
             }?;

@@ -135,7 +135,6 @@ pub(crate) fn evaluate_selectors(
     environment: &mut crate::unit::attached_unit::OperationEnvironment<'_>,
 ) -> Result<Vec<EvaluatedSelector>, LoweringError> {
     let checked = environment.checked;
-    let machine = environment.machine;
     let state = environment.state;
     let mut indexes = Vec::new();
     for step in steps {
@@ -153,21 +152,11 @@ pub(crate) fn evaluate_selectors(
                     .facts
                     .assignment_index_is_proven(state, statement_index, *depth);
 
-                let index = emission.evaluation.source_value(
+                let index = emission.source_value(
                     identities,
-                    checked,
-                    machine,
-                    state,
                     statement_index,
                     role,
                     &source,
-                    emission.source_value_count,
-                    emission.values,
-                    emission.next_value,
-                    emission.next_block,
-                    emission.next_edge,
-                    emission.operations,
-                    emission.calls,
                     environment,
                 )?;
                 (index.id, index.scalar_type)

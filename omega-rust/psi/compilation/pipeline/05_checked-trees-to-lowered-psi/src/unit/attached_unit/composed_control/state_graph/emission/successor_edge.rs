@@ -468,23 +468,13 @@ impl StateGraphEmission<'_, '_> {
                                                                         operations,
                                                                     },
                                                                     |frame| {
-                                                                        let (mut environment, emission) = frame.split();
-                                                                        emission.evaluation.source_value(
+                                                                        let (mut environment, mut emission) = frame.split();
+                                                                        emission.source_value(
                                                                             identities,
-                                                                            checked,
-                                                                            owner,
-                                                                            state.state,
                                                                             edge.statement_ordinal,
                                                                             root.role,
                                                                             &checked_trees::CheckedCallScalarArgument::Computation(*handle),
-                                                                            source_value_count,
-                                                                            emission.values,
-                                                                            emission.next_value,
-                                                                            emission.next_block,
-                                                                            emission.next_edge,
-                                                                            emission.operations,
-                                                                            emission.calls,
-                                                                            &mut environment,
+                                                                            &mut environment
                                                                         )
                                                                     },
                                                                 )?;
@@ -1112,24 +1102,14 @@ impl StateGraphEmission<'_, '_> {
                                     operations,
                                 },
                                 |frame| {
-                                    let (mut environment, emission) = frame.split();
-                                    emission.evaluation.source_value(
+                                    let (mut environment, mut emission) = frame.split();
+                                    emission.source_value(
                                         identities,
-                                        checked,
-                                        owner,
-                                        state.state,
                                         edge.statement_ordinal,
                                         CheckedScalarExpressionRole::TransitionArgument {
                                             argument_ordinal: transfer.argument_ordinal,
                                         },
                                         &value,
-                                        emission.source_value_count,
-                                        emission.values,
-                                        emission.next_value,
-                                        emission.next_block,
-                                        emission.next_edge,
-                                        emission.operations,
-                                        emission.calls,
                                         &mut environment,
                                     )
                                 },

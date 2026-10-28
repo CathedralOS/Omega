@@ -91,22 +91,12 @@ impl OperationFrame<'_, '_> {
                 })?,
             };
             let value = {
-                let (mut environment, emission) = self.reborrow().split();
-                emission.evaluation.source_value(
+                let (mut environment, mut emission) = self.reborrow().split();
+                emission.source_value(
                     identities,
-                    environment.checked,
-                    environment.machine,
-                    environment.state,
                     access.statement_index,
                     role,
                     operand,
-                    emission.source_value_count,
-                    emission.values,
-                    emission.next_value,
-                    emission.next_block,
-                    emission.next_edge,
-                    emission.operations,
-                    emission.calls,
                     &mut environment,
                 )
             }?;
