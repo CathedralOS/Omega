@@ -1,7 +1,15 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "runtime_boundary_loop_projected_subslice_exit");
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-    Build::select_provider<Fill, FillProvider>(builder);
+    Build::select_provider<Fill, FillProvider>(builder, linux_arm64);
+    Build::select_provider<Fill, FillProvider>(builder, linux_x86_64);
+    Build::select_provider<Fill, FillProvider>(builder, macos_arm64);
+    Build::select_provider<Fill, FillProvider>(builder, macos_x86_64);
+    Build::select_provider<Fill, FillProvider>(builder, windows_x86_64);
+    Build::select_provider<Fill, FillProvider>(builder, uefi_x86_64);
+    Build::select_provider<Fill, FillProvider>(builder, cross_platform_cli);
+    Build::select_provider<Fill, FillProvider>(builder, local_unchecked);
+    Build::select_provider<Fill, FillProvider>(builder, alpha_bootstrap);
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);

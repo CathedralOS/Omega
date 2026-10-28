@@ -1,7 +1,15 @@
 
 machine build(builder: &mut Build) {
     Build::application(builder, "provider_type_target_default_override");
-    Build::select_provider<Pick, SecondProvider>(builder);
+    Build::select_provider<Pick, SecondProvider>(builder, linux_arm64);
+    Build::select_provider<Pick, SecondProvider>(builder, linux_x86_64);
+    Build::select_provider<Pick, SecondProvider>(builder, macos_arm64);
+    Build::select_provider<Pick, SecondProvider>(builder, macos_x86_64);
+    Build::select_provider<Pick, SecondProvider>(builder, windows_x86_64);
+    Build::select_provider<Pick, SecondProvider>(builder, uefi_x86_64);
+    Build::select_provider<Pick, SecondProvider>(builder, cross_platform_cli);
+    Build::select_provider<Pick, SecondProvider>(builder, local_unchecked);
+    Build::select_provider<Pick, SecondProvider>(builder, alpha_bootstrap);
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);

@@ -1,5 +1,13 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "checked_provider_unissued_result");
-    Build::select_provider<Source, FabricatedSource>(builder);
+    Build::select_provider<Source, FabricatedSource>(builder, linux_arm64);
+    Build::select_provider<Source, FabricatedSource>(builder, linux_x86_64);
+    Build::select_provider<Source, FabricatedSource>(builder, macos_arm64);
+    Build::select_provider<Source, FabricatedSource>(builder, macos_x86_64);
+    Build::select_provider<Source, FabricatedSource>(builder, windows_x86_64);
+    Build::select_provider<Source, FabricatedSource>(builder, uefi_x86_64);
+    Build::select_provider<Source, FabricatedSource>(builder, cross_platform_cli);
+    Build::select_provider<Source, FabricatedSource>(builder, local_unchecked);
+    Build::select_provider<Source, FabricatedSource>(builder, alpha_bootstrap);
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
 }

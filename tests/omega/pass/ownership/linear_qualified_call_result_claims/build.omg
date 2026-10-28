@@ -1,6 +1,14 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "linear_qualified_call_result_claims");
-    Build::select_provider<Acknowledgement, Acknowledged>(builder);
+    Build::select_provider<Acknowledgement, Acknowledged>(builder, linux_arm64);
+    Build::select_provider<Acknowledgement, Acknowledged>(builder, linux_x86_64);
+    Build::select_provider<Acknowledgement, Acknowledged>(builder, macos_arm64);
+    Build::select_provider<Acknowledgement, Acknowledged>(builder, macos_x86_64);
+    Build::select_provider<Acknowledgement, Acknowledged>(builder, windows_x86_64);
+    Build::select_provider<Acknowledgement, Acknowledged>(builder, uefi_x86_64);
+    Build::select_provider<Acknowledgement, Acknowledged>(builder, cross_platform_cli);
+    Build::select_provider<Acknowledgement, Acknowledged>(builder, local_unchecked);
+    Build::select_provider<Acknowledgement, Acknowledged>(builder, alpha_bootstrap);
     Build::bind(builder, macos_arm64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);

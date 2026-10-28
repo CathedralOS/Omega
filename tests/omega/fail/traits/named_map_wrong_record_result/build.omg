@@ -1,4 +1,12 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "named_map_wrong_record_result");
-    Build::select_provider<Reports, WrongReports>(builder);
+    Build::select_provider<Reports, WrongReports>(builder, linux_arm64);
+    Build::select_provider<Reports, WrongReports>(builder, linux_x86_64);
+    Build::select_provider<Reports, WrongReports>(builder, macos_arm64);
+    Build::select_provider<Reports, WrongReports>(builder, macos_x86_64);
+    Build::select_provider<Reports, WrongReports>(builder, windows_x86_64);
+    Build::select_provider<Reports, WrongReports>(builder, uefi_x86_64);
+    Build::select_provider<Reports, WrongReports>(builder, cross_platform_cli);
+    Build::select_provider<Reports, WrongReports>(builder, local_unchecked);
+    Build::select_provider<Reports, WrongReports>(builder, alpha_bootstrap);
 }
