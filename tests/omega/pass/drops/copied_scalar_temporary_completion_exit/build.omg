@@ -1,6 +1,14 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "copied_scalar_temporary_completion_exit");
-    Build::select_provider<Reader, Provider>(builder);
+    Build::select_provider<Reader, Provider>(builder, linux_arm64);
+    Build::select_provider<Reader, Provider>(builder, linux_x86_64);
+    Build::select_provider<Reader, Provider>(builder, macos_arm64);
+    Build::select_provider<Reader, Provider>(builder, macos_x86_64);
+    Build::select_provider<Reader, Provider>(builder, windows_x86_64);
+    Build::select_provider<Reader, Provider>(builder, uefi_x86_64);
+    Build::select_provider<Reader, Provider>(builder, cross_platform_cli);
+    Build::select_provider<Reader, Provider>(builder, local_unchecked);
+    Build::select_provider<Reader, Provider>(builder, alpha_bootstrap);
     Build::bind(builder, macos_arm64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);

@@ -21,7 +21,7 @@ pub use integer_math::{CheckedIntegerMathExpression, CheckedIntegerMathTerm};
 /// another subslice). A view local is an established view place exactly as a whole
 /// view parameter is, so lengths, element reads and subslices take this one
 /// root instead of a parameter-only coordinate plus a local-only twin.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedStorageRoot {
     /// A structural state parameter, numbered in the holder's own parameter
     /// namespace: subslice sources count the dense structural parameter
@@ -54,7 +54,7 @@ impl CheckedStorageRoot {
 /// operands can select different extents. Generated selectors use the zero
 /// handle and cannot consume an authored bounds decision. Source plans retain
 /// these rows without interning them by value.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedScalarSelector {
     pub expression: CheckedScalarExpression,
     pub occurrence: typed_trees::expression::ExpressionHandle,
@@ -63,7 +63,7 @@ pub struct CheckedScalarSelector {
 /// Scalar read paths retain evaluated selectors beside static member geometry.
 /// This is executable occurrence custody, not the canonical geometry used as
 /// a fact key. Member-separated and consecutive indexes take the same path.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedScalarReadProjection {
     Static(CheckedStructuralPredicatePathSegment),
     RuntimeIndex(CheckedScalarSelector),
@@ -89,7 +89,7 @@ impl CheckedScalarReadProjection {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedScalarExpression {
     /// Exact u64 live count at one storage projection, never its capacity.
     /// The root counts authored structural positions; selectors keep their
@@ -388,7 +388,7 @@ impl CheckedScalarExpression {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedIntegerBinaryKind {
     ExactAdd,
     ExactSubtract,
@@ -446,7 +446,7 @@ impl CheckedIntegerBinaryKind {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedBooleanExpression {
     StorageRead {
         symbol: SymbolHandle,
@@ -601,7 +601,7 @@ impl CheckedBooleanExpression {
 
 pub use semantic_vocabulary::IeeeFloatComparisonKind as CheckedIeeeFloatComparisonKind;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct CheckedStructuralParameterField {
     pub parameter_position: u32,
     pub path: Vec<CheckedStructuralPredicatePathSegment>,
@@ -611,7 +611,7 @@ pub struct CheckedStructuralParameterField {
 /// whether a parameter, local record or local view supplies that storage.
 /// Entry-contract facts can project this to a parameter field; local runtime
 /// observations cannot acquire entry provenance through that conversion.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedByteSequenceOperand {
     pub root: CheckedStorageRoot,
     pub path: Vec<CheckedStructuralPredicatePathSegment>,
@@ -640,13 +640,13 @@ impl CheckedByteSequenceOperand {
 
 /// Case facts name storage, not a dense scalar operand. A normal-return result
 /// has its own declared place; it must never alias an entry parameter ordinal.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum CheckedStructuralCaseRoot {
     Parameter { position: u32 },
     Result,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct CheckedStructuralCaseSubject {
     pub root: CheckedStructuralCaseRoot,
     pub path: Vec<CheckedStructuralPredicatePathSegment>,
@@ -676,7 +676,7 @@ impl CheckedStructuralCaseSubject {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum CheckedStructuralPredicatePathSegment {
     /// One exact readable stored-reference crossing retained by the producer.
     /// Borrowed formal entry presentation is carried by the root, separately.
@@ -699,7 +699,7 @@ impl Default for CheckedStructuralPredicatePathSegment {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedIntegerComparisonKind {
     Equal,
     LessThan,
@@ -713,7 +713,7 @@ pub enum CheckedIntegerComparisonKind {
 /// before the operation (the caller's published requires for an entry
 /// parameter, a dominating guard, a stored field's snapshot). Restating an
 /// interval here would be a second, trusted copy of that evidence.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub enum CheckedRuntimeIndex {
     /// Read one established mutable integer home at the selector's program
     /// point. Loan formation snapshots this value; later writes to this home

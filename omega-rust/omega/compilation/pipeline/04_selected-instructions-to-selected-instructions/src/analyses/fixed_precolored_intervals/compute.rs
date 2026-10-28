@@ -238,15 +238,7 @@ fn interval_key(row: &FixedPrecoloredInterval) -> (u32, u8, u32, u32, u16, u8) {
             point.0,
             instruction.0,
             operand,
-            access_key(access),
+            access.access_tag(),
         ),
-    }
-}
-
-fn access_key(access: register_model::RegisterOperandAccess) -> u8 {
-    match access {
-        register_model::RegisterOperandAccess::Use => 0,
-        register_model::RegisterOperandAccess::Def => 1,
-        register_model::RegisterOperandAccess::UseDef => 2,
     }
 }

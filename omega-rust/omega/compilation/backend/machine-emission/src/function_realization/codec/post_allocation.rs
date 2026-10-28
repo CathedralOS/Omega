@@ -1,5 +1,5 @@
-use super::cursor::Cursor;
 use super::error::FunctionRelativeOptimizationRealizationManifestDecodeError as Error;
+use optimization_core::cursor::Cursor;
 use optimization_core::{Optimization, OptimizationSelectionIdentity};
 use physical_instructions::PostAllocationMachineOptimizationCustody;
 

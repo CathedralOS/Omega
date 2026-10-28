@@ -1,0 +1,15 @@
+// A target-keyed provider call establishes total >= 1000, so exact subtraction total - 1000 preserves the selected provider result.
+// Expected exit: 0
+use reading_provider::main::Reading;
+data Carrier [copy] { total: u64; tag: u64; }
+machine journey(expected: u64, select: bool, expected_tag: u64) reaches Reading crashes Trap {
+    let carrier: Carrier = match select {
+        true -> Carrier { total: Reading::total(), tag: 17u64 }
+        false -> Carrier { total: Reading::total(), tag: 29u64 }
+    };
+    let difference: u64 = carrier.total - 1000u64;
+    transition difference == expected && carrier.tag == expected_tag { true -> done() false -> bad() }
+    machine done() {} machine bad() { crash Trap; }
+}
+machine first_entry() reaches Reading crashes Trap { journey(100u64, true, 17u64); journey(100u64, false, 29u64); }
+machine second_entry() reaches Reading crashes Trap { journey(1100u64, true, 17u64); journey(1100u64, false, 29u64); }

@@ -75,14 +75,12 @@ fn captured_places(facts: &CheckFacts, operand: &FlowOperandFact) -> Option<Vec<
     }
     Some(
         rows.iter()
-            .map(|row| CanonicalPlace {
-                root: row.root,
-                segments: facts
-                    .flow
-                    .control
-                    .operand_referent_segments
-                    .span_or_empty(row.segments)
-                    .to_vec(),
+            .map(|row| {
+                crate::checks::places::place_or_root_in(
+                    &facts.flow.control.operand_referent_segments,
+                    row.root,
+                    row.segments,
+                )
             })
             .collect(),
     )

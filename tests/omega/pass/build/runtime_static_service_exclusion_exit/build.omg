@@ -10,7 +10,15 @@ machine build(builder: &mut Build) {
 
 machine configure(builder: &mut Build) {
     let selected: u32 = Ordinary::exclude_service<u32>(7);
-    Build::select_provider<logger_kit::main::Sink, logger_kit::main::QuietSinkProvider>(builder);
+    Build::select_provider<logger_kit::main::Sink, logger_kit::main::QuietSinkProvider>(builder, linux_arm64);
+    Build::select_provider<logger_kit::main::Sink, logger_kit::main::QuietSinkProvider>(builder, linux_x86_64);
+    Build::select_provider<logger_kit::main::Sink, logger_kit::main::QuietSinkProvider>(builder, macos_arm64);
+    Build::select_provider<logger_kit::main::Sink, logger_kit::main::QuietSinkProvider>(builder, macos_x86_64);
+    Build::select_provider<logger_kit::main::Sink, logger_kit::main::QuietSinkProvider>(builder, windows_x86_64);
+    Build::select_provider<logger_kit::main::Sink, logger_kit::main::QuietSinkProvider>(builder, uefi_x86_64);
+    Build::select_provider<logger_kit::main::Sink, logger_kit::main::QuietSinkProvider>(builder, cross_platform_cli);
+    Build::select_provider<logger_kit::main::Sink, logger_kit::main::QuietSinkProvider>(builder, local_unchecked);
+    Build::select_provider<logger_kit::main::Sink, logger_kit::main::QuietSinkProvider>(builder, alpha_bootstrap);
     Build::exclude_service<logger_kit::main::Sink>(builder);
 }
 

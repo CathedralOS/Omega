@@ -9,6 +9,7 @@ name = "typed_trees_to_checked_trees"
 path = "src/lib.rs"
 
 [dependencies]
+compiler-storage = { path = "../../../foundation/compiler-storage" }
 optimization = { path = "../../../foundation/optimization-selections" }
 typed-trees-to-typed-trees = { path = "../03b_typed-trees-to-typed-trees" }
 arena = { path = "../../../foundation/arena" }

@@ -77,10 +77,11 @@
 //! roster are eligible: a machine containing a verified cyclic component is
 //! frozen byte-exact under `validate_frozen_component_blocks`.
 //!
-//! This family owns admission and the plan only. `propose::plan` derives one
-//! place's complete `FieldValueSpecializationRewrite` — every proven
-//! observation with its site, custody identity, path, field, proof basis, and
-//! resolution — and `accounting::plan_accounting` derives the block region
+//! This family owns the plan only. `propose::plan` derives one place's
+//! complete `FieldValueSpecializationRewrite` from the shared
+//! `optimization_unit::field_value_reads` roster — every proven observation
+//! with its site, custody identity, path, field, proof basis, and resolution —
+//! and `optimization_unit::field_value_accounting` derives the block region
 //! and node custody that plan carries. `rules::field_value_specialization`
 //! publishes the plan as a `PsiRewriteCandidate`, and
 //! `optimization_unit_semantics::validate_field_value_specialization_candidate`
@@ -88,13 +89,4 @@
 //! independently, so a forged or stale row fails by recomputation rather
 //! than trust. There is no second proposal or application route.
 
-use optimization_unit::{
-    FieldValueResolution, FieldValueRow, FieldValueSpecializationRewrite, NodeLocation,
-    ProvenanceDisposition, ProvenanceRewrite, PsiOptimizationFunction, PsiOptimizationUnit,
-    PsiRealizationSite,
-};
-use semantic_vocabulary::{PlaceId, ScalarType};
-
-pub(crate) mod accounting;
-mod admission;
 pub(crate) mod propose;

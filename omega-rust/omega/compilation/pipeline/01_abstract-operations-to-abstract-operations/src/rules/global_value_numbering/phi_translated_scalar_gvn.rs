@@ -17,8 +17,6 @@ psi_rule_contract!(
     ),
     propose = propose_phi_translated,
     super::total_cse_phi_rows,
-    super::expression_keys::TotalScalarExpressionKey::references_any,
-    |key, translation| key.translate(translation),
 );
 
 psi_rule_contract!(
@@ -30,8 +28,6 @@ psi_rule_contract!(
     ),
     propose = propose_phi_translated,
     super::proof_certified_cse_phi_rows,
-    super::expression_keys::ProofCertifiedScalarExpressionKey::references_any,
-    |key, translation| Some(key.translate(translation)),
 );
 
 psi_rule_contract!(
@@ -44,6 +40,4 @@ psi_rule_contract!(
     ),
     propose = propose_phi_translated,
     super::compatible_policy_cse_phi_rows,
-    super::expression_keys::CompatiblePolicyScalarExpressionKey::references_any,
-    |key, translation| Some(key.translate(translation)),
 );

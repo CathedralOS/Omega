@@ -68,6 +68,14 @@ macro_rules! index_cache {
         #[derive(Clone, Default)]
         pub(super) struct $cache(pub(super) Arc<std::sync::OnceLock<$index>>);
 
+        // Lookup is derived from the owning symbol/source tables, including
+        // inactive selection. A restored graph starts with a cold local index.
+        impl compiler_storage::Record for $cache {
+            fn write(&self, _: &mut compiler_storage::RecordWriter) -> Result<(), compiler_storage::RecordError> { Ok(()) }
+            fn read<Context>(_: &mut compiler_storage::RecordReader<'_, Context>) -> Result<Self, compiler_storage::RecordError> { Ok(Self::default()) }
+        }
+
+
         impl $cache {
             pub(super) fn clear(&mut self) {
                 if let Some(cell) = Arc::get_mut(&mut self.0) {

@@ -301,6 +301,8 @@ fn expression_places_resolve_attached_data_members() {
     program.push_data_definition(typed_trees::data::DataDefinition {
         symbol: player_type_symbol,
         name: Identifier::generated("Player"),
+        predicate_subject_symbol: SymbolHandle::invalid(),
+        predicate_subject_type: TypeReferenceHandle::invalid(),
         is_public: false,
         supply_mode: Default::default(),
         lifetime_parameters: Vec::new(),
@@ -317,6 +319,8 @@ fn expression_places_resolve_attached_data_members() {
     let mut main_data = typed_trees::data::DataDefinition {
         symbol: main_data_symbol,
         name: Identifier::generated("Main"),
+        predicate_subject_symbol: SymbolHandle::invalid(),
+        predicate_subject_type: TypeReferenceHandle::invalid(),
         is_public: false,
         supply_mode: Default::default(),
         lifetime_parameters: Vec::new(),
@@ -363,6 +367,7 @@ fn expression_places_resolve_attached_data_members() {
         lifetime_parameters: Vec::new(),
         type_parameters: HandleSpan::empty(),
         declared_type_equations: HandleSpan::empty(),
+        declared_type_predicates: HandleSpan::empty(),
         attached_data: Some(Identifier::generated("Main")),
         attached_data_symbol: main_data_symbol,
         attached_data_application: TypeReferenceHandle::invalid(),
@@ -620,55 +625,27 @@ fn expression_places_resolve_exact_local_and_collection_element_types() {
 fn shared_checkpoint_detaches_only_edited_fact_roots() {
     let mut baseline = FactPlan::default();
     macro_rules! seed_roots {
-        ($($root:ident),+ $(,)?) => {
-            $(baseline.$root.append(Default::default());)+
+        ($plan:ident, $($root:ident),+ $(,)?) => {
+            $($plan.$root.append(Default::default());)+
         };
     }
-    seed_roots!(
-        places,
-        place_segments,
-        facts,
-        scalar_values,
-        boolean_predicates,
-        boolean_predicate_bindings,
-        integer_ranges,
-        qualification_correspondences,
-        domain_definition_facts,
-        data_definition_facts,
-        instantiated_expressions,
-        refs,
-        symbol_sets,
-    );
+    fact_plan_root_roster!(seed_roots, baseline);
     let context = baseline.contexts.append(Default::default());
     baseline.share_pages();
     let mut worker = baseline.clone();
     macro_rules! assert_shared_then_detached {
-        ($($root:ident),+ $(,)?) => {
+        ($baseline:ident, $worker:ident, $($root:ident),+ $(,)?) => {
             $(
-                let handle = baseline.$root.iter().next().unwrap().0;
-                assert!(std::ptr::eq(baseline.$root.get(handle), worker.$root.get(handle)),
+                let handle = $baseline.$root.iter().next().unwrap().0;
+                assert!(std::ptr::eq($baseline.$root.get(handle), $worker.$root.get(handle)),
                     stringify!($root));
-                let _ = worker.$root.get_mut(handle);
-                assert!(!std::ptr::eq(baseline.$root.get(handle), worker.$root.get(handle)),
+                let _ = $worker.$root.get_mut(handle);
+                assert!(!std::ptr::eq($baseline.$root.get(handle), $worker.$root.get(handle)),
                     stringify!($root));
             )+
         };
     }
-    assert_shared_then_detached!(
-        places,
-        place_segments,
-        facts,
-        scalar_values,
-        boolean_predicates,
-        boolean_predicate_bindings,
-        integer_ranges,
-        qualification_correspondences,
-        domain_definition_facts,
-        data_definition_facts,
-        instantiated_expressions,
-        refs,
-        symbol_sets,
-    );
+    fact_plan_root_roster!(assert_shared_then_detached, baseline, worker);
     assert!(std::ptr::eq(
         baseline.contexts.get(context),
         worker.contexts.get(context)

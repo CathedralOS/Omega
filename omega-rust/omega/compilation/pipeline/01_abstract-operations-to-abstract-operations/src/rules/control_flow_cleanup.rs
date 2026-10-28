@@ -7,6 +7,7 @@
 //! private-machine pruning.
 
 use crate::rules::catalog::BuiltInRuleRegistration;
+use abstract_operations::{AbstractOperation as O, ValueBinding};
 use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationRuleContract,
     OptimizationSafetyClass,
@@ -15,7 +16,7 @@ use optimization_unit::{
     FuelSettlement, NodeLocation, OptimizationBlock, OptimizationNode, ProvenanceDisposition,
     ProvenanceRewrite, PsiOptimizationFunction, PsiProvenance, PsiRealizationSite,
 };
-use semantic_vocabulary::{BlockId, MachineId};
+use semantic_vocabulary::{BlockId, EdgeId, MachineId};
 use std::collections::BTreeSet;
 
 mod adjacent_block_merge;
@@ -174,6 +175,48 @@ pub(super) fn descriptor_telescope_free(function: &PsiOptimizationFunction) -> b
         .blocks
         .iter()
         .all(|block| block.structural_parameters.is_empty())
+}
+
+/// The terminal jump a block-erasing rewrite starts from: the block's last node
+/// must be a cleanup-free jump, and its own location is where the rewrite's
+/// patch begins. Every merge, fusion and thread rule begins here, so the
+/// requirement that an erased edge carries no cleanup action is stated once
+/// instead of at each rewrite's eligibility gate.
+pub(super) struct TerminalJump<'a> {
+    pub(super) location: NodeLocation,
+    pub(super) edge: EdgeId,
+    pub(super) target: BlockId,
+    pub(super) bindings: &'a [ValueBinding],
+}
+
+pub(super) fn terminal_jump<'a>(
+    function: &PsiOptimizationFunction,
+    block: &'a OptimizationBlock,
+) -> Option<TerminalJump<'a>> {
+    let (index, node) = block.nodes.iter().enumerate().last()?;
+    let O::Jump {
+        psi_edge,
+        target,
+        bindings,
+        cleanup_actions,
+        ..
+    } = &node.operation
+    else {
+        return None;
+    };
+    if !cleanup_actions.is_empty() {
+        return None;
+    }
+    Some(TerminalJump {
+        location: NodeLocation {
+            machine: function.machine,
+            block: block.id,
+            node: u32::try_from(index).ok()?,
+        },
+        edge: *psi_edge,
+        target: *target,
+        bindings,
+    })
 }
 
 /// One block's node scan against the running effect ledger: a node whose

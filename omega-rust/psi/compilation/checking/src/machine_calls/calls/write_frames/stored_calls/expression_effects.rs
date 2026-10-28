@@ -67,6 +67,112 @@ pub(super) struct CompletedTarget {
     pub context: CollectedStatementPrefix,
 }
 
+/// Arguments have completed, but an arrival's own slot effects belong to the
+/// normal-exit equations. A returned value has already completed its effects.
+pub(super) struct PreparedSlotExit<'program> {
+    pub arrival: Option<(&'program Machine, &'program typed_trees::state::State)>,
+    pub arguments: Vec<SlotArgumentCapture>,
+    pub context: CollectedStatementPrefix,
+}
+
+/// Capture outgoing entries at the same operand cuts as ordinary invocation.
+/// Only a complete checked body is deferred to the finite exit graph; nested
+/// operand calls still finish before the next operand. Unknown operands cannot
+/// become an empty transfer merely because their enclosing call is terminal.
+pub(super) fn prepare_normal_exits<'program>(
+    program: &'program dyn crate::CheckingInput,
+    machine: &'program Machine,
+    state: &typed_trees::state::State,
+    statement: &StatementNode,
+    context: &CollectedStatementPrefix,
+    symbols: &TopLevelSymbols<'_>,
+    inference: &mut FrameInference,
+) -> Option<Vec<PreparedSlotExit<'program>>> {
+    let StatementNode::Transition(transition) = statement else {
+        return None;
+    };
+    let query = Evaluation {
+        program,
+        machine,
+        state,
+        symbols,
+    };
+    let mut context = context.clone();
+    let mut effects = SlotRelationTransfer::default();
+    let empty = SlotRelationTransfer::default();
+    let mut capture = Capture::default();
+    if let TransitionGuardNode::When(guard) = transition.guard {
+        query.expression(
+            guard,
+            &mut context,
+            &mut effects,
+            inference,
+            &empty,
+            &mut capture,
+            None,
+        )?;
+    }
+    if !effects.is_complete() {
+        return None;
+    }
+    let mut exits = Vec::new();
+    for target in transition.targets() {
+        let transfer = crate::completing_transition_transfer(program, target);
+        let arrival = transfer.as_ref().and_then(|transfer| {
+            let owner = program.machine_holding_state(transfer.state.symbol)?;
+            let static_context_unchanged = if transfer.expression.is_valid() {
+                program.machine_type_parameters(owner).is_empty()
+                    && program
+                        .expression_table
+                        .call_node(transfer.expression)?
+                        .machine_arguments
+                        .is_empty()
+            } else {
+                owner.symbol == machine.symbol || program.machine_type_parameters(owner).is_empty()
+            };
+            (owner.supply_mode.is_checked_body()
+                && owner.body_is_present
+                && !owner.target_family_interface
+                && static_context_unchanged)
+                .then_some((owner, transfer.state))
+        });
+        let mut branch_context = context.clone();
+        let mut branch_inference = inference.clone();
+        let mut branch = SlotRelationTransfer::default();
+        let mut arguments = Vec::new();
+        let operands = if arrival.is_some() {
+            transfer.as_ref()?.arguments
+        } else {
+            match program.statement_table.transition_target(target) {
+                TransitionTargetNode::Value(value) => std::slice::from_ref(value),
+                TransitionTargetNode::Terminal => &[],
+                // A named arrival has no separate completed-value expression.
+                // An unavailable body cannot manufacture unchanged slot rows.
+                TransitionTargetNode::Named { .. } => return None,
+            }
+        };
+        for operand in operands {
+            arguments.push(query.observe(
+                *operand,
+                &mut branch_context,
+                &mut branch,
+                &mut branch_inference,
+                &effects,
+                &mut capture,
+            )?);
+        }
+        if !branch.is_complete() {
+            return None;
+        }
+        exits.push(PreparedSlotExit {
+            arrival,
+            arguments,
+            context: branch_context,
+        });
+    }
+    Some(exits)
+}
+
 /// Construction scratch for one requested value. A Call records its entry
 /// inventory after every actual and before its own normal-exit transfer; all
 /// other values use the ordinary completed-expression inventory. The ambient

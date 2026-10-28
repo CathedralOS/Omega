@@ -17,7 +17,7 @@ use symbols::SymbolHandle;
 use typed_trees::type_identity::TypeIdentityId;
 use typed_trees::types::PrimitiveType;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedComposedUnitControlMachinePlan {
     pub machine: SymbolHandle,
     pub result: CheckedControlResultPlan,
@@ -59,7 +59,7 @@ pub fn state_position(
     states.iter().position(|candidate| candidate.state == state)
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedControlResultPlan {
     Unit,
     Structural(CheckedStructuralResultPlan),
@@ -79,7 +79,7 @@ impl CheckedControlResultPlan {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedScalarCaseFieldPlan {
     /// Authored evaluation order, independent of declaration field order.
     pub field_ordinal: u32,
@@ -90,7 +90,7 @@ pub struct CheckedScalarCaseFieldPlan {
 
 /// One authored successor edge of a ranked graph: the transition at
 /// `statement_ordinal` of `source_state` into `target_state`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedRankEdgeCoordinate {
     pub source_state: SymbolHandle,
     pub target_state: SymbolHandle,
@@ -102,7 +102,7 @@ pub struct CheckedRankEdgeCoordinate {
 /// arguments, on every arriving successor edge; the verifier substitutes one
 /// into the other and proves each edge's comparison. `parameter` is the
 /// measured subject — for a distance, its climbing lower subject.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedStateNaturalRank {
     pub state: SymbolHandle,
     pub parameter: SymbolHandle,
@@ -132,7 +132,7 @@ impl Default for CheckedStateNaturalRank {
 /// The measures the termination checker proves, each a total function of
 /// one state's parameters. A new order the checker learns belongs here as
 /// one more measure, not as another producer route.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedNaturalRankMeasure {
     /// Exact declared view identity; executable arithmetic and projections
     /// reside in the common scalar computation graph.
@@ -164,7 +164,7 @@ pub enum CheckedNaturalRankMeasure {
 /// projection and an authored source obligation with no such projection.
 /// The latter grants no proposition: emission needs the exact checked
 /// arrival decision for every incoming edge before consuming it.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedStateContractRequirement {
     Closed(ClosedScalarContractValue),
     SourceExpression(typed_trees::expression::ExpressionHandle),
@@ -173,7 +173,7 @@ pub enum CheckedStateContractRequirement {
     SourceFact(arena::Handle<typed_trees::domain::ProofFact>),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedComposedUnitControlStatePlan {
     pub state: SymbolHandle,
     pub structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,
@@ -214,7 +214,7 @@ pub struct CheckedComposedUnitControlStatePlan {
     pub normal_exit_cleanups: super::CheckedNormalExitCleanups,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedComposedUnitControlTerminatorPlan {
     /// The operation at this exact coordinate transfers control into a module
     /// invocation without normal completion; its caller activation stays live.
@@ -561,7 +561,7 @@ impl CheckedComposedUnitControlTerminatorPlan {
 /// How a returning state of a scalar-result graph completes its value. These
 /// are the two completions an ordinary single-state body retains
 /// (`CheckedUnitEffectMachinePlan::scalar_result` and `scalar_control`).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedScalarReturnPlan {
     /// The state's final expression: its last operation binds the returned
     /// value (a pure or computed `Return`-role expression, or a returned call
@@ -633,7 +633,7 @@ impl CheckedComposedUnitControlStatePlan {
 }
 
 /// The completion arm of a `ConditionalReturn`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedConditionalReturnArm {
     /// A required operand stops before this arm's enclosing invocation enters.
     /// The exact evaluated prefix owns its calls; no parent call is published.
@@ -771,7 +771,7 @@ fn has_external_completion<'operation>(
 
 /// One guarded arm of an ordered transition chain: the exact checked scalar
 /// expression the authored guard selected and the selected edge's custody plan.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedGuardedJumpPlan {
     /// Exact checked Boolean value at `successor.statement_ordinal` under the
     /// `Guard` role: the retained pure expression or that coordinate's unique
@@ -783,7 +783,7 @@ pub struct CheckedGuardedJumpPlan {
 /// One arm of an ordered `GuardedJumps` chain — selected by its guard, the
 /// arm either transfers to its named state or returns its authored
 /// `(expression)` value exactly like the chain's fallback does.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedGuardedJumpArmPlan {
     /// A guarded transfer to the arm's selected named state.
     Jump(CheckedGuardedJumpPlan),
@@ -796,7 +796,7 @@ pub enum CheckedGuardedJumpArmPlan {
 /// A guarded chain arm that returns its authored `(expression)` value: the
 /// Boolean value observed at `statement_ordinal` under the `Guard` role and
 /// the arm's returned-value plan share the one coordinate.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedGuardedJumpReturnPlan {
     /// Exact checked Boolean value at `statement_ordinal` under the `Guard`
     /// role: the retained pure expression or that coordinate's unique
@@ -842,7 +842,7 @@ impl CheckedGuardedJumpArmPlan {
 /// `(expression)` arm that returns its value exactly like a
 /// `ConditionalReturn` arm. The shared scalar tail roster already proved the
 /// arm's coverage, so a value fallback needs no guard of its own.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedGuardedJumpFallbackPlan {
     Successor(CheckedStructuralControlSuccessorPlan),
     Return(CheckedConditionalReturnArm),
@@ -861,7 +861,7 @@ impl CheckedGuardedJumpFallbackPlan {
 }
 
 /// How a closed-case dispatch holds the sum it inspects.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedClosedSumSubjectKind {
     /// A whole parameter or an earlier immutable local that every arm names.
     #[default]
@@ -875,7 +875,7 @@ pub enum CheckedClosedSumSubjectKind {
     Computed,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedClosedSumCasePlan {
     pub case_identity: CheckedMemberIdentity,
     /// One case edge's checked outcome: an ordinary transfer to the case's
@@ -886,7 +886,7 @@ pub struct CheckedClosedSumCasePlan {
     pub payloads: Vec<CheckedClosedSumPayloadTransferPlan>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedClosedSumCaseOutcomePlan {
     Successor(CheckedStructuralControlSuccessorPlan),
     /// The arm's value or terminal call, completing the enclosing machine.
@@ -907,7 +907,7 @@ impl CheckedClosedSumCasePlan {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedClosedSumPayloadTransferPlan {
     pub field_identity: CheckedMemberIdentity,
     pub primitive_type: PrimitiveType,

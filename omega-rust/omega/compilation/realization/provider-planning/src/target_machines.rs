@@ -15,7 +15,9 @@ use target::TargetProfile;
 mod direct_body_absences;
 mod provider_publication;
 pub(crate) use direct_body_absences::DirectTargetBodyAbsences;
-pub use provider_publication::{TargetProviderPublicationRequest, provider_selection_roots};
+pub use provider_publication::{
+    PreparedTargetProviderPublication, TargetProviderPreparationRequest, provider_selection_roots,
+};
 
 /// Project retained declarations onto one realization using their exact handles.
 pub fn settle_provider_defaults(
@@ -94,7 +96,8 @@ pub fn reject_reached_inert_sibling_calls(
                 .row_requirements
                 .iter()
                 .copied()
-                .zip(selected.provider.row_realizations.iter().copied())
+                .zip(selected.provider.row_realizations.iter())
+                .filter_map(|(required, owner)| owner.authored().map(|machine| (required, machine)))
         })
         .collect();
     // Roster positions index the reach marks; the roster is fixed here.

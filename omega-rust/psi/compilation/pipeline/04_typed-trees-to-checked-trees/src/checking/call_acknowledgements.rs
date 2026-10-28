@@ -398,7 +398,7 @@ fn validate_expression(
             call_ordinal,
             diagnostics,
         ),
-        typed_trees::literal_expression_pattern!() => {}
+        ExpressionNode::TypeExpression(_) | typed_trees::literal_expression_pattern!() => {}
     }
 }
 

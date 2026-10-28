@@ -210,7 +210,9 @@ pub(crate) fn build_checked_unit_effect_plans(
                         Ok(plan) => Some(plan),
                         Err(reason) => {
                             let reason = shapes.take_unselected_opaque().map_or(
-                                CheckedUnitPlanGapReason::Unsupported(reason),
+                                CheckedUnitPlanGapReason::Unsupported(std::borrow::Cow::Borrowed(
+                                    reason,
+                                )),
                                 CheckedUnitPlanGapReason::UnselectedOpaqueRepresentation,
                             );
                             boundary_gaps.push(plan_gaps::plan_gap(
@@ -477,7 +479,9 @@ pub(crate) fn build_checked_unit_effect_plans(
                         program,
                         plan.machine,
                         GapSite::State(state),
-                        CheckedUnitPlanGapReason::Unsupported(construct),
+                        CheckedUnitPlanGapReason::Unsupported(std::borrow::Cow::Borrowed(
+                            construct,
+                        )),
                     )
                 });
             false
@@ -520,7 +524,9 @@ pub(crate) fn build_checked_unit_effect_plans(
                         program,
                         plan.machine.machine,
                         GapSite::State(plan.machine.state),
-                        CheckedUnitPlanGapReason::Unsupported("sequence cleanup actions"),
+                        CheckedUnitPlanGapReason::Unsupported(std::borrow::Cow::Borrowed(
+                            "sequence cleanup actions",
+                        )),
                     )
                 });
             false
@@ -536,7 +542,9 @@ pub(crate) fn build_checked_unit_effect_plans(
                         program,
                         plan.machine,
                         GapSite::State(plan.state),
-                        CheckedUnitPlanGapReason::Unsupported("sequence cleanup actions"),
+                        CheckedUnitPlanGapReason::Unsupported(std::borrow::Cow::Borrowed(
+                            "sequence cleanup actions",
+                        )),
                     )
                 });
             false

@@ -9,9 +9,10 @@ use optimization_unit::{
 
 use super::operation_partition::independently_validated_dead_scalar_shape;
 use crate::candidates::{
-    accept_region_rewrite, candidate_block, candidate_function, receiver_custody_distinct,
-    retirable_scalar_node, retire_node_custody, sweep_output_nodes,
+    accept_region_rewrite, candidate_block, candidate_function, retire_node_custody,
+    sweep_output_nodes,
 };
+use optimization_unit::{receiver_custody_distinct, retirable_scalar_node};
 
 pub(super) fn validate_dead_scalar_node_candidate(
     input: &PsiOptimizationUnit,

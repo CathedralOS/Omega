@@ -86,9 +86,10 @@ pub fn collect_product_provider_selections(
         )]);
     }
     let mut selections = Vec::new();
-    for event in executed
+    for (ordinal, event) in executed
         .iter()
-        .filter(|event| event.request.operation == BuildOperation::ProviderSelection)
+        .enumerate()
+        .filter(|(_, event)| event.request.operation == BuildOperation::ProviderSelection)
     {
         let result = (|| {
             if !declared.contains(&event.request) {
@@ -99,17 +100,35 @@ pub fn collect_product_provider_selections(
             let mode = event.composition.ok_or_else(|| {
                 Diagnostic::error("executed provider choice lost its evaluated composition mode")
             })?;
+            let target = event.target.ok_or_else(|| {
+                Diagnostic::error("executed provider choice lost its evaluated catalog target")
+            })?;
             let (subject, provider) = identities(context, &event.request)?;
+            let author = typed_trees::product_operand::resolve_build_request_author(
+                context.typed,
+                event.selecting_machine.ok_or_else(|| {
+                    Diagnostic::error("executed provider choice lost its lexical author")
+                })?,
+            )
+            .map_err(Diagnostic::error)?;
+            let origin = language_semantics::declaration_selection::BuildSelectionOrigin::capture(
+                &context.typed.symbols,
+                activation,
+                author,
+                context
+                    .typed
+                    .symbols
+                    .rejoin_product_occurrence(event.request.source_span),
+                Some(ordinal as u64),
+            )
+            .map_err(Diagnostic::error)?;
             admission::admit(
                 context,
                 subject,
                 provider,
                 mode,
-                activation,
-                context
-                    .typed
-                    .symbols
-                    .rejoin_product_occurrence(event.request.source_span),
+                Some(target),
+                origin,
                 &selections,
             )
         })();

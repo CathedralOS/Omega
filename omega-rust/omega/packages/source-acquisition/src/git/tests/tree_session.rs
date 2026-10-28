@@ -1,7 +1,7 @@
 //! Staged catalog reads must pin source without materializing a whole repository.
 use super::{
-    create_git_source, local_git_request, make_tree_owner_writable, run_test_git, temp_root,
-    test_system_git_executor,
+    create_git_source, local_git_request, make_tree_owner_writable, run_test_git,
+    run_test_git_with_input, temp_root, test_system_git_executor,
 };
 use crate::git::resolution::GitWorkspaceSession;
 use crate::{
@@ -9,6 +9,125 @@ use crate::{
     SourceResolveError, SourceResolver,
 };
 use std::path::PathBuf;
+
+#[test]
+fn catalog_inventory_preserves_helpers_and_assets_without_publishing_unrelated_files() {
+    let fixture = WorkspaceFixture::new();
+    std::fs::write(
+        fixture.repository.join("helper.omg"),
+        b"ordinary helper code\n",
+    )
+    .unwrap();
+    std::fs::write(
+        fixture.repository.join("omega.lock"),
+        b"project acceptance state\n",
+    )
+    .unwrap();
+    std::fs::create_dir(fixture.repository.join("build")).unwrap();
+    std::fs::write(fixture.repository.join("build/output"), b"not source\n").unwrap();
+    run_test_git(&fixture.repository, ["add", "."]);
+    run_test_git(
+        &fixture.repository,
+        ["commit", "--quiet", "-m", "catalog inputs"],
+    );
+    let session = fixture.open();
+    let captured = session.capture_inventory(&fixture.storage).unwrap();
+    assert_eq!(
+        captured
+            .tree()
+            .read_to_string(std::path::Path::new("helper.omg"))
+            .unwrap()
+            .as_ref(),
+        "ordinary helper code\n"
+    );
+    assert_eq!(
+        captured
+            .tree()
+            .read_to_string(std::path::Path::new("unrelated/0"))
+            .unwrap()
+            .len(),
+        2048
+    );
+    assert!(
+        captured
+            .tree()
+            .read_to_string(std::path::Path::new("omega.lock"))
+            .is_err()
+    );
+    assert!(
+        captured
+            .tree()
+            .read_to_string(std::path::Path::new("build/output"))
+            .is_err()
+    );
+    assert!(!captured.canonical_live_root().join("helper.omg").exists());
+    let catalog = session
+        .open_members(&fixture.storage, &[member("first"), member("oversized")])
+        .unwrap();
+    assert!(
+        catalog
+            .materialize(&fixture.storage, &member("first"))
+            .is_ok()
+    );
+    assert!(matches!(
+        catalog.materialize(&fixture.storage, &member("oversized")),
+        Err(SourceResolveError::TooManyBytes { limit: 1024 })
+    ));
+}
+
+#[test]
+fn catalog_gitlinks_remain_inert_while_selected_members_refuse_them() {
+    let fixture = WorkspaceFixture::new();
+    std::fs::write(
+        fixture.repository.join(".gitmodules"),
+        b"inert catalog data\n",
+    )
+    .unwrap();
+    run_test_git(&fixture.repository, ["add", "."]);
+    let commit = run_test_git_with_input(&fixture.repository, ["rev-parse", "HEAD"], b"");
+    let edge = format!("160000,{},foreign", commit.trim());
+    run_test_git(
+        &fixture.repository,
+        ["update-index", "--add", "--cacheinfo", &edge],
+    );
+    let selected_edge = format!("160000,{},second/foreign", commit.trim());
+    run_test_git(
+        &fixture.repository,
+        ["update-index", "--add", "--cacheinfo", &selected_edge],
+    );
+    run_test_git(
+        &fixture.repository,
+        ["commit", "--quiet", "-m", "inert edges"],
+    );
+    let session = fixture.open();
+    let captured = session.capture_inventory(&fixture.storage).unwrap();
+    assert!(
+        captured
+            .tree()
+            .canonicalize(std::path::Path::new("foreign"))
+            .is_err()
+    );
+    assert_eq!(
+        captured
+            .tree()
+            .read_to_string(std::path::Path::new(".gitmodules"))
+            .unwrap()
+            .as_ref(),
+        "inert catalog data\n"
+    );
+    let catalog = session
+        .open_members(&fixture.storage, &[member("first"), member("second")])
+        .unwrap();
+    assert!(
+        catalog
+            .materialize(&fixture.storage, &member("first"))
+            .is_ok()
+    );
+    assert!(matches!(
+        catalog.materialize(&fixture.storage, &member("second")),
+        Err(SourceResolveError::GitSubmodulesUnsupported { .. })
+    ));
+}
 
 struct WorkspaceFixture {
     repository: PathBuf,

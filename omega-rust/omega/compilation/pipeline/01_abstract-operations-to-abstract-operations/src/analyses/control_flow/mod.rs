@@ -32,6 +32,7 @@ pub(crate) use countdown_invariant_constants::validate_moved_constant_locations;
 pub(crate) use countdown_invariant_constants::{
     CountdownInvariantConstantAnalysisError, CountdownInvariantConstantRole,
     CountdownInvariantIntegerConstant, ValidatedCountdownInvariantConstantAnalysis,
+    expected_constant, invariant_constant_row, sole_provenance_node,
 };
 pub(crate) use dominance::block_dominates;
 pub(super) use dominance::dominators;

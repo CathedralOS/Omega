@@ -350,7 +350,8 @@ pub(in crate::symbols) fn lexical_value_head(
                     parameter.name.as_str() == member
                         && (matches!(
                             parameter.kind,
-                            symbol_resolved_trees::data::TypeParameterKind::Const { .. }
+                            symbol_resolved_trees::data::TypeParameterKind::Type
+                                | symbol_resolved_trees::data::TypeParameterKind::Const { .. }
                                 | symbol_resolved_trees::data::TypeParameterKind::Value { .. }
                         ) || has_suffix)
                 })

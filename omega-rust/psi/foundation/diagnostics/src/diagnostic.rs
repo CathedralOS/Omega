@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use source::SourceSpan;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct Diagnostic {
     pub severity: DiagnosticSeverity,
     pub message: String,
@@ -26,7 +26,7 @@ pub struct Diagnostic {
 /// path, its line:column, and the owning package's display name when the
 /// compilation was package-aware. The package key is deliberately not carried
 /// past this record — error paths name packages, they do not select them.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ResolvedSourceLocation {
     pub package: Option<String>,
     pub path: PathBuf,
@@ -56,7 +56,7 @@ pub struct ExceededProvision {
 /// 23): a valid construct this compiler does not implement yet. Each has limit
 /// zero and is anchored at the first canonical-source byte of the refused
 /// construct, so a refusal at one names no verdict on the source.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, compiler_storage::Record)]
 pub enum CoverageForm {
     MachineHeader,
     EntrySignature,
@@ -107,7 +107,7 @@ impl CoverageForm {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum DiagnosticSeverity {
     Error,
     /// Surfaced to the user but never fails the build. Introduced for the
@@ -159,5 +159,43 @@ impl fmt::Display for Diagnostic {
             DiagnosticSeverity::Error => write!(formatter, "error: {}", self.message),
             DiagnosticSeverity::Warning => write!(formatter, "warning: {}", self.message),
         }
+    }
+}
+
+// Recover resource names through their finite producer vocabulary; retained
+// bytes never allocate permanent string storage or invent a new provision.
+impl compiler_storage::Record for ExceededProvision {
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        use compiler_storage::Record;
+        output.record(|output| {
+            self.resource.to_owned().write(output)?;
+            self.limit.write(output)?;
+            self.requested.write(output)?;
+            self.coordinate.write(output)
+        })
+    }
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        use compiler_storage::Record;
+        input.record(|input| {
+            let resource = String::read(input)?;
+            let limit = u64::read(input)?;
+            let requested = u64::read(input)?;
+            let coordinate = u64::read(input)?;
+            let form = CoverageForm::from_resource(&resource).ok_or_else(|| {
+                input.error(format!("unknown retained provision resource `{resource}`"))
+            })?;
+            let recovered = form.exceeded(coordinate);
+            if recovered.limit != limit || recovered.requested != requested {
+                return Err(
+                    input.error("retained coverage provision has inconsistent limit or demand")
+                );
+            }
+            Ok(recovered)
+        })
     }
 }

@@ -101,6 +101,8 @@ pub(super) fn expression_reborrows_transparent_alias_binding(
             .iter()
             .any(|field| visit(field.value)),
         ExpressionNode::Range(range) => visit(range.start) || visit(range.end),
-        ExpressionNode::SavedSubject(_) | typed_trees::literal_expression_pattern!() => false,
+        ExpressionNode::TypeExpression(_)
+        | ExpressionNode::SavedSubject(_)
+        | typed_trees::literal_expression_pattern!() => false,
     }
 }

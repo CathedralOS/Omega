@@ -24,6 +24,7 @@ use super::content_wire::{
 use super::contract_wire::{decode_crash_routes, encode_crash_routes};
 use super::proposition_wire::{decode_proposition, encode_proposition};
 use super::scalar_wire::{decode_scalar_type, encode_scalar_type};
+use super::structural_place_wire::{decode_qualification_path, encode_qualification_path};
 use super::structural_result_wire::{decode_multiplicity, encode_multiplicity};
 use super::wire::{Reader, Writer};
 use crate::sections::semantic_module::wire::{
@@ -104,6 +105,7 @@ pub(crate) fn encode_boundary_machine(
     )?;
     for requirement in &declaration.requires {
         writer.u32(requirement.argument_index);
+        encode_qualification_path(writer, &requirement.path)?;
         writer.id(requirement.domain);
     }
     writer.len(
@@ -112,6 +114,7 @@ pub(crate) fn encode_boundary_machine(
     )?;
     for guarantee in &declaration.normal_qualifications {
         writer.u32(guarantee.argument_index);
+        encode_qualification_path(writer, &guarantee.path)?;
         writer.id(guarantee.domain);
     }
     writer.len(
@@ -341,12 +344,14 @@ pub(crate) fn decode_boundary_machine(
         requires: decode_counted(reader, |reader| {
             Ok(StructuralDomainRequirement {
                 argument_index: reader.u32()?,
+                path: decode_qualification_path(reader)?,
                 domain: reader.id("StructuralDomainId")?,
             })
         })?,
         normal_qualifications: decode_counted(reader, |reader| {
             Ok(StructuralDomainRequirement {
                 argument_index: reader.u32()?,
+                path: decode_qualification_path(reader)?,
                 domain: reader.id("StructuralDomainId")?,
             })
         })?,

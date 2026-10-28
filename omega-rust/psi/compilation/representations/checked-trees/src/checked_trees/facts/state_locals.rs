@@ -16,7 +16,7 @@ use symbols::SymbolHandle;
 use typed_trees::types::TypeReferenceHandle;
 
 /// One `let` a state declares.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedStateLocal {
     /// The declaring statement's position in the state body.
     pub statement_index: u32,
@@ -31,7 +31,7 @@ pub struct CheckedStateLocal {
     pub is_scalar_value: bool,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct StateLocalFacts {
     /// `spans[index]` is the range of `locals` the state whose symbol has
     /// arena index `index` declares, in statement order.

@@ -33,6 +33,20 @@ pub(super) fn derive_selected_installation_reach_resolutions(
     let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
     let provider_context =
         crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
+    let top_level_requirement_schemas = typed
+        .machines()
+        .iter()
+        .filter(|requirement| {
+            requirement.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
+        })
+        .filter_map(|requirement| {
+            let schema = crate::service_schema::from_typed_boundary_requirement(
+                provider_context,
+                requirement,
+            )?;
+            Some((requirement, schema))
+        })
+        .collect::<Vec<_>>();
     for plan in selected.plans() {
         // A sealed catalog scalar declaration publishes its own concrete reach.
         // Rejoin its whole plan rather than treating it as a trait requirement.
@@ -45,19 +59,9 @@ pub(super) fn derive_selected_installation_reach_resolutions(
             }
         }
 
-        let top_level_requirements = typed
-            .machines()
+        let top_level_requirements = top_level_requirement_schemas
             .iter()
-            .filter(|requirement| {
-                requirement.supply_mode
-                    == language_semantics::MachineSupplyMode::TopLevelRequirement
-                    && crate::service_schema::from_typed_boundary_requirement(
-                        provider_context,
-                        requirement,
-                    )
-                    .as_ref()
-                        == Some(&plan.schema)
-            })
+            .filter_map(|(requirement, schema)| (*schema == plan.schema).then_some(*requirement))
             .collect::<Vec<_>>();
         match top_level_requirements.as_slice() {
             [requirement] => {

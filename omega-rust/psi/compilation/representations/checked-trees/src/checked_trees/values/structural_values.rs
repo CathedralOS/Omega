@@ -10,7 +10,7 @@ use typed_trees::types::TypeReferenceHandle;
 
 use crate::checked_trees::keyed_rows::KeyedRows;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedStructuralValuePlans {
     pub roots: Arena<CheckedStructuralValueRoot>,
     pub nodes: Arena<CheckedStructuralValue>,
@@ -24,7 +24,7 @@ pub struct CheckedStructuralValuePlans {
     nodes_by_state: KeyedRows<SymbolHandle, CheckedStructuralValue>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 struct StructuralCallSchedule {
     value: CheckedStructuralValueHandle,
     /// Exact predecessor namespace of this independently checked value root.
@@ -43,7 +43,7 @@ pub enum CheckedValueCompletion {
     NoNormal,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedStructuralValueRoot {
     /// A completed entry copy has its own producer, independently of an
     /// authored read at the same expression occurrence. Zero names a read root.
@@ -56,7 +56,7 @@ pub struct CheckedStructuralValueRoot {
     pub root: CheckedStructuralValueHandle,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedStructuralValue {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
@@ -82,7 +82,7 @@ pub struct CheckedStructuralValue {
 /// A view borrows either the collection's existing elements or an exactly
 /// tiled byte region. The latter retains its scalar computation handle so the
 /// offset is evaluated once at formation, before any later mutation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedElementViewRegion {
     WholeCollection,
     RepresentationBytes {
@@ -93,7 +93,7 @@ pub enum CheckedElementViewRegion {
 
 /// The exact semantic edge authorizing a whole-value quotient adaptation.
 /// These are checked occurrence coordinates, never layout-based permissions.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedQuotientAdaptationLicense {
     Mint,
     Input {
@@ -105,7 +105,7 @@ pub enum CheckedQuotientAdaptationLicense {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedStructuralValueKind {
     /// Selected executable demand, not a runtime invocation or constant value.
     NativeCodeLayout {
@@ -283,7 +283,7 @@ pub enum CheckedStructuralValueKind {
     },
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedStructuralRecordField {
     pub field: SymbolHandle,
     pub expression: ExpressionHandle,
@@ -291,7 +291,7 @@ pub struct CheckedStructuralRecordField {
     pub value: CheckedStructuralRecordFieldValue,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedStructuralRecordFieldValue {
     Scalar(CheckedScalarComputationHandle),
     Structural(CheckedStructuralValueHandle),
@@ -309,7 +309,7 @@ impl Default for CheckedStructuralValueKind {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedStructuralDispatchArm {
     pub source_arm: Handle<TableMatchArm>,
     pub equality_use: Handle<CheckedOperatorUseFact>,

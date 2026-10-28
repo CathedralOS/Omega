@@ -15,7 +15,7 @@ use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
 enum RangeStep {
     #[default]
     Missing,
@@ -104,21 +104,21 @@ impl IntegerRangeRecipe {
 
 /// The endpoint meaning owned by the formation being retained. A selected
 /// address model is not a fixed integer ceiling known during shared checking.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 enum RangeRequirement {
     Fixed { minimum: BigInt, maximum: BigInt },
     AddressModel,
 }
 
 /// Exact model dependency consumed while closing one address formation.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct IntegerRangeModel {
     pub carrier: semantic_vocabulary::IntegerType,
     pub semantics_version: u32,
     pub commitment: [u8; 32],
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct IntegerRangeObligation {
     expression: ExpressionHandle,
     owner: SymbolHandle,

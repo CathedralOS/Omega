@@ -1,5 +1,6 @@
 use crate::record::PackageReviewNominalIdentity;
 use crate::record::PackageReviewTypeIdentity;
+use crate::record::accessors::field_projection_accessors;
 
 /// Closed structural identity of executable code supplied outside Omega.
 /// String fields are foreign ABI identifiers, not package-authored policy or
@@ -136,15 +137,6 @@ pub struct PackageReviewExternalCallableParameter {
 }
 
 impl PackageReviewExternalCallableParameter {
-    pub const fn type_identity(&self) -> &PackageReviewTypeIdentity {
-        &self.type_identity
-    }
-
-    pub const fn is_const(&self) -> bool {
-        self.is_const
-    }
-
-    pub const fn is_mutable(&self) -> bool {
-        self.is_mutable
-    }
+    field_projection_accessors!(borrowed type_identity: &PackageReviewTypeIdentity);
+    field_projection_accessors!(copied is_const: bool, is_mutable: bool);
 }

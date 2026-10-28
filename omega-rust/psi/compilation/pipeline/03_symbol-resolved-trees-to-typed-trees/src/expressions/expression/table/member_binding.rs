@@ -312,6 +312,13 @@ pub(super) fn declared_symbol_type(
             })
         }
         SymbolKind::Parameter
+            if program.symbols.get(declaration.parent).kind == SymbolKind::Data =>
+        {
+            let definition = program.data_definition_by_symbol(declaration.parent)?;
+            (definition.predicate_subject_symbol == symbol)
+                .then_some(&definition.predicate_subject_type)
+        }
+        SymbolKind::Parameter
             if program.symbols.get(declaration.parent).kind == SymbolKind::Measure =>
         {
             let measure = program

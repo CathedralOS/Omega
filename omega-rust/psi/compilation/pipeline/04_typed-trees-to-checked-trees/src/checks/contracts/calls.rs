@@ -778,7 +778,7 @@ fn explain_domain_requirement_failure(
     {
         let fact = facts.semantic.facts.get(invalidation.fact);
         let (fact_domain, fact_place) = match fact.payload {
-            facts::domain_membership_symbol_pattern!(domain_symbol) => {
+            facts::domain_membership_pattern!(domain_symbol) => {
                 let Some(place) = fact.place.as_place() else {
                     continue;
                 };

@@ -26,7 +26,7 @@ use super::{
 };
 use child_batches::{SupplementalChildHandles, SupplementalChildren};
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct SymbolTable {
     symbols: HierarchyArena<Symbol>,
     names: Arena<SymbolName>,
@@ -75,7 +75,7 @@ pub struct SymbolTableBuilder {
 /// The authored spelling remains unchanged. Only references originating in
 /// `reference_source` select the same-spelled declaration authored in
 /// `declaration_source`; every other source retains ordinary lookup.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct SourceScopedTopLevelBinding {
     reference_source: SourceId,
     declaration_source: SourceId,
@@ -84,7 +84,7 @@ pub struct SourceScopedTopLevelBinding {
     producer: BindingProducer,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 enum BindingProducer {
     Loader,
     AuthoredImport,

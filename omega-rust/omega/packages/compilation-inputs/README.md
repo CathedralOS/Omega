@@ -101,3 +101,12 @@ their exact content-addressed set. Publication custody is recorded only after
 the files and manifest succeed; compiler reports cannot assert a directory on
 the output owner's behalf. Scratch files and generated source are not products.
 See [observation custody](observation_custody.md) for the retained contract.
+
+[Native Build output](src/package_compilation/native_bindings.rs) extends the
+existing generated-source bundle's package, purpose, target, execution profile,
+source-consumption and dependency-closure custody. It carries checked source
+formations and completed native intent, including an empty roster. Product
+imports consume only their relative Product outputs; a Build-role instance
+cannot lend native supply to Product. The final checked Product resolves exact
+requirements once, including private requirements in the supplier's own scope.
+These outputs are inert choices, not foreign-behavior proof or execution grants.

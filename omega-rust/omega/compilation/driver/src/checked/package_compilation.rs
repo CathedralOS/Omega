@@ -234,8 +234,8 @@ impl PackageBuild {
         self.source.package_inputs()
     }
 
-    pub fn generated_source_bundle(&self) -> &package_compilation::PackageGeneratedSourceBundle {
-        self.source.generated_source_bundle()
+    pub fn build_handoff(&self) -> &package_compilation::PackageBuildHandoff {
+        self.source.build_handoff()
     }
 
     pub fn required_component_packages(&self) -> Vec<semantic_vocabulary::PackageKeyIdentity> {
@@ -364,7 +364,7 @@ impl CompilationSession {
                 .ok_or_else(|| {
                     vec![Diagnostic::error("package checking lost its selected root")]
                 })?;
-            selected.install().result
+            selected.finish_check().result
         })
     }
 
@@ -464,7 +464,7 @@ impl CompilationSession {
             }
             let mut requests = Vec::new();
             for (owner, selected) in self.select_build_batch(pending) {
-                let request = match selected.install().result {
+                let request = match selected.finish_check().result {
                     Ok(checked) => Ok(crate::product_execution::ProductRequest::Component {
                         checked,
                         retain_native_inputs: owner.2.is_some(),

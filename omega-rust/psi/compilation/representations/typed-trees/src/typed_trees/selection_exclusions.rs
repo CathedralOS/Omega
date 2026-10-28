@@ -9,7 +9,7 @@
 
 use crate::AuthoredDeclarationSelectionOccurrenceId;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct AuthoredSelectionExclusions {
     occurrences: Box<[AuthoredDeclarationSelectionOccurrenceId]>,
     fingerprint: u64,

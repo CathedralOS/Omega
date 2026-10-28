@@ -300,9 +300,10 @@ impl ProviderSelectionSubject {
 /// family.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderSelection {
+    /// None denotes a portable package default, never an evaluated Build override.
+    pub target: Option<language_semantics::declaration_selection::ProductTarget>,
     pub subject: ProviderSelectionSubject,
     pub provider_type: ProviderSelectionIdentity,
     pub composition_mode: CompositionMode,
-    pub selecting_machine: SymbolHandle,
-    pub source_span: source::SourceSpan,
+    pub origin: language_semantics::declaration_selection::BuildSelectionOrigin,
 }

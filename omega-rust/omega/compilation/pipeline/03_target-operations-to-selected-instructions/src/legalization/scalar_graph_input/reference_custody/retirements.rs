@@ -100,17 +100,40 @@ impl Custody {
             .values()
             .chain(self.retired.values().map(|retired| &retired.leaf))
         {
-            if leaf.obligations().any(|parent| {
+            if let Some(parent) = leaf.obligations().find(|parent| {
                 !identities.contains_key(parent) && !self.retired.contains_key(parent)
             }) {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                    eprintln!(
+                        "CHECKSITE custody-missing-parent occurrence={:?} parent={:?} live={:?} retired={:?}",
+                        leaf.identity,
+                        parent,
+                        self.leaves
+                            .iter()
+                            .map(|(location, leaf)| (location, &leaf.identity))
+                            .collect::<Vec<_>>(),
+                        self.retired.keys().collect::<Vec<_>>()
+                    );
+                }
                 return Err(LegalizationError::ReferenceCompletion {
                     reason: terminal_semantics::ReferenceCompletionError::MissingParent,
                 });
             }
         }
-        if super::borrowed_arrivals::obligations(self)
-            .any(|parent| !identities.contains_key(parent) && !self.retired.contains_key(parent))
+        if let Some(parent) = super::borrowed_arrivals::obligations(self)
+            .find(|parent| !identities.contains_key(parent) && !self.retired.contains_key(parent))
         {
+            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                eprintln!(
+                    "CHECKSITE custody-missing-arrival-parent parent={:?} live={:?} retired={:?}",
+                    parent,
+                    self.leaves
+                        .iter()
+                        .map(|(location, leaf)| (location, &leaf.identity))
+                        .collect::<Vec<_>>(),
+                    self.retired.keys().collect::<Vec<_>>()
+                );
+            }
             return Err(LegalizationError::ReferenceCompletion {
                 reason: terminal_semantics::ReferenceCompletionError::MissingParent,
             });

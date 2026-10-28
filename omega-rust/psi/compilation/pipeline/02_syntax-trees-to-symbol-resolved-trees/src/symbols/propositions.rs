@@ -274,7 +274,8 @@ pub(super) fn assign_expression_symbols(
             assign_struct_literal_symbols(symbols, expressions, expression);
         }
         ExpressionNode::Unary(unary) => recurse!(unary.operand),
-        ExpressionNode::ZeroValue(type_reference) => {
+        ExpressionNode::TypeExpression(type_reference)
+        | ExpressionNode::ZeroValue(type_reference) => {
             crate::symbols::type_references::reassign_type_reference_symbols(
                 symbols,
                 child_type_references,

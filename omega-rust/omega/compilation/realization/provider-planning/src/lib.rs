@@ -21,6 +21,7 @@
 
 pub mod calling_policy_plans;
 pub mod data_layout_queries;
+pub mod native_bindings;
 pub(crate) use optimization_core::digest_encoder;
 pub mod evaluated_via_bindings;
 mod fnv1a;
@@ -35,8 +36,10 @@ pub use provider_identity::{
     ProviderReceiverApplication, provider_receiver_application, provider_row_matches,
     provider_trait_application, provider_trait_requirement_matches,
 };
+pub mod intrinsic_declarations;
 mod provider_planning;
 mod provider_settlement;
+pub mod service_declarations;
 pub mod service_schema;
 #[cfg(test)]
 mod source_guards;
@@ -55,7 +58,10 @@ pub use build_time_evaluation::provider_declarations::{
 pub use intrinsic_requirements::{
     IntrinsicRequirement, IntrinsicRequirementKind, primitive_numeric_type,
 };
-pub use provider_planning::direct_boundary_leaves::DirectBoundaryCandidate;
+pub use provider_planning::provider_rows::{
+    DirectBoundaryInput, DirectBoundaryMechanism, DirectBoundarySource, PreparedProviderRows,
+    ProviderPlanCandidate, ProviderRowDeclarations, UnpreparedProviderRows,
+};
 pub use provider_planning::{
     CompilerIntrinsicExecutionIdentity, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
     CompilerPrimitiveIntegerComparisonOperation, ProviderPlanDerivation, ProviderSchemaDeclaration,
@@ -72,3 +78,5 @@ pub(crate) use provider_planning::{
 pub(crate) use provider_planning::{
     extract_native_external_binding_rows, validate_selected_synchronous_invocation_cycles,
 };
+
+pub use provider_planning::ProviderRowRealization;

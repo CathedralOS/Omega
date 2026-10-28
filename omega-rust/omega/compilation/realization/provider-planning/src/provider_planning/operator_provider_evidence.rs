@@ -10,7 +10,7 @@ use effects::provider_plan::{ProviderBinding, ProviderPlan};
 pub(crate) fn validate_selected_operator_provider_evidence(
     typed: &checked_trees::typed_trees::TypedTrees,
     check_facts: &checked_trees::CheckFacts,
-    candidates: &[ProviderPlan],
+    candidates: &[&ProviderPlan],
     selected: &effects::SelectedProviderPlanFacts,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     // Validate selected operator plans independently of use-site discovery.
@@ -117,7 +117,7 @@ pub(crate) fn validate_selected_operator_provider_evidence(
 pub(crate) fn validate_selected_requirement_provider_evidence(
     typed: &checked_trees::typed_trees::TypedTrees,
     check_facts: &checked_trees::CheckFacts,
-    candidates: &[ProviderPlan],
+    candidates: &[&ProviderPlan],
     selected: &effects::SelectedProviderPlanFacts,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let mut diagnostics = Vec::new();
@@ -140,7 +140,7 @@ pub(crate) fn validate_selected_requirement_provider_evidence(
 
 fn selected_requirement_provider_evidence(
     typed: &checked_trees::typed_trees::TypedTrees,
-    candidates: &[ProviderPlan],
+    candidates: &[&ProviderPlan],
     selected: &effects::SelectedProviderPlanFacts,
     requirement_symbol: symbols::SymbolHandle,
 ) -> Result<(), diagnostics::Diagnostic> {
@@ -211,7 +211,7 @@ fn selected_requirement_provider_evidence(
 fn selected_operator_provider_evidence(
     typed: &checked_trees::typed_trees::TypedTrees,
     check_facts: &checked_trees::CheckFacts,
-    candidates: &[ProviderPlan],
+    candidates: &[&ProviderPlan],
     selected: &effects::SelectedProviderPlanFacts,
     operator_symbol: symbols::SymbolHandle,
     use_site: Option<checked_trees::CheckedBoundaryOperatorApplicationUseSite>,

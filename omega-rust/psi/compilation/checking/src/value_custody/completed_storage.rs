@@ -70,7 +70,9 @@ pub use captures::{
     project_captured_view_place,
 };
 pub use descriptor_suppliers::descriptor_suppliers;
-pub use reference_captures::{reference_captures_at_path, reference_sources_at_path};
+pub use reference_captures::{
+    owned_profile_reference_sources, reference_captures_at_path, reference_sources_at_path,
+};
 
 mod frozen_references;
 pub use frozen_references::{FrozenReferenceSelection, frozen_reference_leaf};

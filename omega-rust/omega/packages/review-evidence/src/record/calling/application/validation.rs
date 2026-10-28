@@ -119,10 +119,6 @@ impl PackagePolicyCallingPlan {
     }
 }
 
-fn strictly_sorted<T: Ord>(values: &[T]) -> bool {
-    values.windows(2).all(|pair| pair[0] < pair[1])
-}
-
 fn validate_application_lifetimes(
     policy: &PackagePolicyCallingPlan,
     application: &crate::record::PackagePolicyClosedConformanceApplication,

@@ -29,6 +29,83 @@ macro_rules! typed_tree_table {
 }
 pub(crate) use typed_tree_table;
 
+/// One declaration's retained column, projected out of the table that owns the
+/// rows and extended through the same names.
+///
+/// `$node.$span` is the node's `HandleSpan<$ty>` and `$column` is the table
+/// column that stores those rows. The read accessor answers "the rows this
+/// declaration owns"; the bracketed `$push` appends one. `typed_tree_table!`
+/// already generates this pair for a root column, so a declaration-node column
+/// gets the same owner: the projection and its append are one entry and cannot
+/// drift apart.
+macro_rules! declaration_columns {
+    ($( $(#[$attr:meta])* $name:ident($node:ident: $node_ty:ty) -> &[$ty:ty]
+        = $column:ident.$span:ident $( [ $push:ident ] )? ; )*) => {
+        $(
+            $(#[$attr])*
+            pub fn $name(&self, $node: &$node_ty) -> &[$ty] {
+                self.$column.span_or_empty($node.$span)
+            }
+
+            $(
+                pub fn $push(&mut self, $node: &mut $node_ty, value: $ty) {
+                    self.$column.append_to_span(&mut $node.$span, value);
+                }
+            )?
+        )*
+    };
+
+    ($( append $push:ident($node:ident: $node_ty:ty, $ty:ty)
+        = $column:ident.$span:ident ; )*) => {
+        $(
+            pub fn $push(&mut self, $node: &mut $node_ty, value: $ty) {
+                self.$column.append_to_span(&mut $node.$span, value);
+            }
+        )*
+    };
+}
+pub(crate) use declaration_columns;
+
+/// A row-aligned span column: rows appended one at a time, or reserved as a
+/// block and patched by offset.
+///
+/// `reserve` fills `count` default rows so a consumer can address them by
+/// offset while it builds them, `set` patches one of those rows, and `push`
+/// appends to a span the caller is growing. All three name one arena column, so
+/// they cannot disagree about which rows they address, and the overflow message
+/// that names the column is stated once beside it.
+///
+/// An entry spells the column and its row type as `$arena($ty)`, then the three
+/// names. The row type is bracketed rather than written after a `:` because a
+/// `ty` fragment may not precede an identifier in a matcher; the parentheses
+/// also keep the column and its row type one token tree.
+macro_rules! span_columns {
+    ($( $arena:ident($ty:ty)
+        reserve $reserve:ident($message:literal)
+        set $set:ident
+        $( push $push:ident )? ; )*) => {
+        $(
+            pub fn $reserve(&mut self, count: u32) -> HandleSpan<$ty> {
+                self.$arena.insert_many(
+                    std::iter::repeat_with(<$ty as Default>::default)
+                        .take(usize::try_from(count).expect($message)),
+                )
+            }
+
+            pub fn $set(&mut self, span: HandleSpan<$ty>, offset: u32, value: $ty) {
+                *self.$arena.get_mut(span.handle_at(offset)) = value;
+            }
+
+            $(
+                pub fn $push(&mut self, span: &mut HandleSpan<$ty>, value: $ty) {
+                    self.$arena.append_to_span(span, value);
+                }
+            )?
+        )*
+    };
+}
+pub(crate) use span_columns;
+
 mod authored_targets;
 mod build_selections;
 mod callable_applications;
@@ -121,7 +198,7 @@ impl PartialEq for ProgramIdentity {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TypedTrees {
     /// This instance's cache key; see `ProgramIdentity`. A clone keeps the
     /// tag it was cloned from: its content is identical at that moment, and a
@@ -262,7 +339,7 @@ pub struct TypedTrees {
 /// A package-scoped declaration whose consumer role supplies its completion
 /// contract before checking. Final provider admission independently rejoins
 /// the accepted role's complete schema and selected-plan commitments.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct BoundaryCompletionDeclaration {
     /// Absent only for the arena's invalid sentinel; every admitted row must
     /// retain its nonzero package identity.
@@ -274,7 +351,7 @@ pub struct BoundaryCompletionDeclaration {
     pub completion: semantic_vocabulary::BoundaryCompletion,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct EvidenceForwarding {
     pub machine_symbol: symbols::SymbolHandle,
     pub state_symbol: symbols::SymbolHandle,
@@ -286,7 +363,7 @@ pub struct EvidenceForwarding {
     pub source_conformance: Option<symbols::SymbolHandle>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProofOutputCall {
     pub machine_symbol: symbols::SymbolHandle,
     pub state_symbol: symbols::SymbolHandle,
@@ -300,7 +377,7 @@ pub struct ProofOutputCall {
     pub call: crate::expression::ExpressionHandle,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProofOutputSelector {
     pub output_field: crate::name::Identifier,
     pub binding: crate::name::Identifier,
@@ -308,13 +385,13 @@ pub struct ProofOutputSelector {
 
 /// Producer-retained fields for one application and its separate closure
 /// status. Substitution alone grants no concrete storage or checking authority.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct DataApplicationView {
     definition: Handle<data::DataDefinition>,
     is_closed: bool,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TypedTreeTables {
     /// Package-agnostic authored-selection custody carried verbatim from
     /// symbol resolution. Checked facts join late selections through the
@@ -330,6 +407,7 @@ pub struct TypedTreeTables {
     pub data_application_definitions: Arena<DataApplicationView>,
     pub data_type_parameters: Arena<data::TypeParameter>,
     pub declared_type_equations: Arena<machine::DeclaredTypeEquation>,
+    pub static_type_contexts: crate::typed_trees::type_system::type_predicates::StaticTypeContexts,
     pub data_members: Arena<data::DataMember>,
     pub data_payload_fields: Arena<data::DataField>,
     pub domain_definitions: Arena<domain::DomainDefinition>,
@@ -372,7 +450,7 @@ pub struct TypedTreeTables {
     pub wire_members: Arena<wire::WireMember>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TypedTreeRoots {
     pub const_declarations: HandleSpan<crate::constant::ConstDeclaration>,
     pub data_definitions: HandleSpan<data::DataDefinition>,
@@ -705,4 +783,19 @@ pub(crate) fn escape(value: &str) -> String {
         out.push(character);
     }
     out
+}
+
+// Instance identity is only a memo-cache key, never semantic program content.
+impl compiler_storage::Record for ProgramIdentity {
+    fn write(
+        &self,
+        _: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        Ok(())
+    }
+    fn read<Context>(
+        _: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        Ok(Self::default())
+    }
 }

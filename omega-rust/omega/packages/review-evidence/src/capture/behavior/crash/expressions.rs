@@ -67,52 +67,14 @@ pub(in crate::capture::behavior) fn project_boolean_expression(
             left,
             right,
         } => PackageReviewBooleanExpression::IeeeFloatComparison {
-            kind: match kind {
-                checked_trees::CheckedIeeeFloatComparisonKind::Equal => {
-                    PackageReviewIeeeFloatComparisonKind::Equal
-                }
-                checked_trees::CheckedIeeeFloatComparisonKind::NotEqual => {
-                    PackageReviewIeeeFloatComparisonKind::NotEqual
-                }
-                checked_trees::CheckedIeeeFloatComparisonKind::LessThan => {
-                    PackageReviewIeeeFloatComparisonKind::LessThan
-                }
-                checked_trees::CheckedIeeeFloatComparisonKind::LessOrEqual => {
-                    PackageReviewIeeeFloatComparisonKind::LessOrEqual
-                }
-                checked_trees::CheckedIeeeFloatComparisonKind::NotLessThan => {
-                    PackageReviewIeeeFloatComparisonKind::NotLessThan
-                }
-                checked_trees::CheckedIeeeFloatComparisonKind::NotLessOrEqual => {
-                    PackageReviewIeeeFloatComparisonKind::NotLessOrEqual
-                }
-            },
+            kind: project_ieee_float_comparison_kind(*kind),
             primitive_type: project_primitive_type(*primitive_type),
             left: project_structural_field(left)?,
             right: project_structural_field(right)?,
         },
         CheckedBooleanExpression::ScalarIeeeFloatComparison { kind, left, right } => {
             PackageReviewBooleanExpression::ScalarIeeeFloatComparison {
-                kind: match kind {
-                    checked_trees::CheckedIeeeFloatComparisonKind::Equal => {
-                        PackageReviewIeeeFloatComparisonKind::Equal
-                    }
-                    checked_trees::CheckedIeeeFloatComparisonKind::NotEqual => {
-                        PackageReviewIeeeFloatComparisonKind::NotEqual
-                    }
-                    checked_trees::CheckedIeeeFloatComparisonKind::LessThan => {
-                        PackageReviewIeeeFloatComparisonKind::LessThan
-                    }
-                    checked_trees::CheckedIeeeFloatComparisonKind::LessOrEqual => {
-                        PackageReviewIeeeFloatComparisonKind::LessOrEqual
-                    }
-                    checked_trees::CheckedIeeeFloatComparisonKind::NotLessThan => {
-                        PackageReviewIeeeFloatComparisonKind::NotLessThan
-                    }
-                    checked_trees::CheckedIeeeFloatComparisonKind::NotLessOrEqual => {
-                        PackageReviewIeeeFloatComparisonKind::NotLessOrEqual
-                    }
-                },
+                kind: project_ieee_float_comparison_kind(*kind),
                 left: Box::new(project_scalar_expression(left)?),
                 right: Box::new(project_scalar_expression(right)?),
             }
@@ -442,6 +404,26 @@ const fn project_arithmetic_domain(
         ArithmeticDomain::Wrapping => PackageReviewArithmeticDomain::Wrapping,
         ArithmeticDomain::Saturating => PackageReviewArithmeticDomain::Saturating,
         ArithmeticDomain::Trapping => PackageReviewArithmeticDomain::Trapping,
+    }
+}
+
+const fn project_ieee_float_comparison_kind(
+    kind: checked_trees::CheckedIeeeFloatComparisonKind,
+) -> PackageReviewIeeeFloatComparisonKind {
+    use checked_trees::CheckedIeeeFloatComparisonKind;
+    match kind {
+        CheckedIeeeFloatComparisonKind::Equal => PackageReviewIeeeFloatComparisonKind::Equal,
+        CheckedIeeeFloatComparisonKind::NotEqual => PackageReviewIeeeFloatComparisonKind::NotEqual,
+        CheckedIeeeFloatComparisonKind::LessThan => PackageReviewIeeeFloatComparisonKind::LessThan,
+        CheckedIeeeFloatComparisonKind::LessOrEqual => {
+            PackageReviewIeeeFloatComparisonKind::LessOrEqual
+        }
+        CheckedIeeeFloatComparisonKind::NotLessThan => {
+            PackageReviewIeeeFloatComparisonKind::NotLessThan
+        }
+        CheckedIeeeFloatComparisonKind::NotLessOrEqual => {
+            PackageReviewIeeeFloatComparisonKind::NotLessOrEqual
+        }
     }
 }
 

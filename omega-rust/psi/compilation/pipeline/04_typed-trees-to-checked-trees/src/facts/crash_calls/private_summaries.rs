@@ -8,6 +8,7 @@ use crate::facts::crash_calls::summary_predicates::{
     CallArgumentSubstitution, SummaryCrashBucket, SummaryCrashPredicate, SummaryCrashRouteGuard,
     normalize_summary_buckets,
 };
+use crate::facts::crash_plan_facts::declared_parameter_names;
 use symbols::SymbolHandle;
 use validation::contract_structure::is_true_crash_route;
 
@@ -414,10 +415,7 @@ pub(crate) fn infer_private_body_summaries(
                         )
                         .expect("a pinned requirement capsule has its typed signature");
                         let target_parameters = program.state_signature_parameters(signature);
-                        let target_parameter_names = target_parameters
-                            .iter()
-                            .map(|parameter| parameter.name.as_str().to_owned())
-                            .collect::<Vec<_>>();
+                        let target_parameter_names = declared_parameter_names(target_parameters);
                         published_dependencies.extend(
                             refine_published_crash_routes(
                                 program,

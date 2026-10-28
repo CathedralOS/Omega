@@ -40,7 +40,7 @@ fn readiness_prepares_helper_products_without_recursive_dependency_calls() {
     assert!(!preparation.contains("self.prepare_product("));
     assert!(preparation.contains("while let Some(current) = pending.last_mut()"));
     assert!(preparation.contains("self.complete_product(current)?"));
-    assert!(source.contains(".with_complete_dependency_generated_sources(generated)"));
+    assert!(source.contains(".with_complete_dependency_build_handoffs(generated)"));
     assert!(source.contains("*source == position && *scope == purpose"));
 }
 
@@ -49,7 +49,7 @@ fn package_audit_owns_session_and_target_execution_in_build() {
     let mut application = include_str!("package_inspection.rs");
     for operation in [
         "PackageInspectionTransaction::open(options)",
-        "BuildSession::create(",
+        "BuildSession::create_retained(",
         "transaction.prepare(None)",
         "resolve_inspection_sources(&inspection, &mut session)",
         "for target in inspection.targets().to_vec()",

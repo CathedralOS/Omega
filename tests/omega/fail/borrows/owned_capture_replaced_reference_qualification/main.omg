@@ -1,0 +1,17 @@
+use omega::language::core::drop;
+data Cell { value: u64; }
+domain Cell::Issued established by issue;
+machine issue(value: u64) -> Cell in Issued { Cell { value: value } }
+machine observe(cell: &Cell in Cell::Issued) -> u64 { cell.value }
+data Held<'a> { view: &'a mut [Cell; 1]; }
+machine write_plain<'a>(held: &mut Held<'a>) { held.view[0] = Cell { value: 73 }; }
+machine main() -> u64 {
+    let mut first: [Cell; 1] = [issue(37) as Cell];
+    let captured_issued: u64 = observe(&first[0]);
+    let mut second: [Cell; 1] = [Cell { value: 73 }];
+    let mut held: Held = Held { view: &mut first };
+    held.view = &mut second;
+    let answer: u64 = observe(&held.view[0]);
+    drop(held);
+    answer
+}

@@ -126,15 +126,7 @@ pub(crate) fn stage_active_resident_register_allocation(
         budget,
     ).map_err(RegisterAllocationError::Rematerialization)?;
     let environment = pressure.source().register_environment();
-    match crate::assign_register_homes(
-        pressure.legality(),
-        pressure.ranges(),
-        environment.identity(),
-        environment.physical(),
-        environment.constraints(),
-        environment.reservations(),
-        &environment.allocation_constraint_keys(),
-    ) {
+    match crate::assign_register_homes(pressure.legality(), pressure.ranges(), environment) {
         Ok(homes) => RetainedAllocation::try_from(
             crate::rewrites::complete_optimized_active_resident_rematerialization(pressure, homes)
                 .map_err(RegisterAllocationError::Rematerialization)?,
@@ -165,9 +157,9 @@ pub(crate) fn stage_selected_lowering_register_allocation(
     run: StagedSelectedLoweringOptimizationRun,
 ) -> Result<RetainedAllocation, RegisterAllocationError> {
     let mut home_reuse = crate::assignment::home_assignment::compute::FunctionHomeReuse::default();
-    match crate::assignment::transformed::assign_optimized_register_homes_after_selected_lowering_reusing(
+    match crate::assignment::transformed::assign_optimized_register_homes_after_selected_lowering(
         &run,
-        &mut home_reuse,
+        Some(&mut home_reuse),
     ) {
         Ok(homes) => RetainedAllocation::try_from(
             crate::assignment::transformed::stage_optimized_register_homes_after_selected_lowering_with_assignment(run, homes)
@@ -197,9 +189,9 @@ pub(crate) fn stage_pre_allocation_register_allocation(
     run: StagedPreAllocationOptimizationRun,
 ) -> Result<RetainedAllocation, RegisterAllocationError> {
     let mut home_reuse = crate::assignment::home_assignment::compute::FunctionHomeReuse::default();
-    match crate::assignment::transformed::assign_optimized_register_homes_after_pre_allocation_reusing(
+    match crate::assignment::transformed::assign_optimized_register_homes_after_pre_allocation(
         &run,
-        &mut home_reuse,
+        Some(&mut home_reuse),
     ) {
         Ok(homes) => RetainedAllocation::try_from(
             crate::assignment::transformed::stage_optimized_register_homes_after_pre_allocation_with_assignment(run, homes)

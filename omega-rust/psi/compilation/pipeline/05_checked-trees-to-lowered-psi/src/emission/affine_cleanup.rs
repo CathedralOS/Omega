@@ -458,7 +458,9 @@ fn complete_carriers(
     // A selected whole death is already source-authorized. Track its actual
     // home in the same frontier equations so a completed move can withdraw
     // that receipt. This is not permission to schedule another death: these
-    // homes remain outside the disposal capability roster.
+    // homes remain outside the disposal capability roster. Earlier projected
+    // replacements do not exempt a home from a later whole transfer; residual
+    // completion still owns the surviving regions when the home remains live.
     let disposal_capability = managed.clone();
     let disposal_capability_set: std::collections::HashSet<PlaceId> =
         disposal_capability.iter().copied().collect();
@@ -481,7 +483,6 @@ fn complete_carriers(
             .copied()
             .filter(|place| {
                 !disposal_capability_set.contains(place)
-                    && !partial_transfers_set.contains(place)
                     && owned_affine_types.get(place).copied().flatten().is_some()
                     && !non_discard_root_places.contains(place)
             })

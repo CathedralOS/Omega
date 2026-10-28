@@ -320,7 +320,8 @@ impl ExpressionSymbolContext<'_, '_> {
                 }
                 assign_struct_literal_symbols(self.symbols, self.expression_table, expression);
             }
-            symbol_resolved_trees::expression::ExpressionNode::ZeroValue(type_reference) => {
+            symbol_resolved_trees::expression::ExpressionNode::TypeExpression(type_reference)
+            | symbol_resolved_trees::expression::ExpressionNode::ZeroValue(type_reference) => {
                 self.reassign_type_reference(type_reference);
             }
         }

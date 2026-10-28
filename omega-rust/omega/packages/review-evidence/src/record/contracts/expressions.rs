@@ -1,5 +1,6 @@
 use crate::record::PackageReviewNominalIdentity;
 use crate::record::PackageReviewTypeIdentity;
+use crate::record::accessors::field_projection_accessors;
 use symbols::BuiltinFunction;
 mod operator_policy;
 
@@ -171,17 +172,8 @@ pub struct PackageReviewContractEvidenceTerm {
 }
 
 impl PackageReviewContractEvidenceTerm {
-    pub const fn owner(&self) -> &PackageReviewNominalIdentity {
-        &self.owner
-    }
-
-    pub const fn kind(&self) -> PackageReviewContractKind {
-        self.kind
-    }
-
-    pub const fn lane_position(&self) -> u32 {
-        self.lane_position
-    }
+    field_projection_accessors!(borrowed owner: &PackageReviewNominalIdentity);
+    field_projection_accessors!(copied kind: PackageReviewContractKind, lane_position: u32);
 }
 
 /// One exact source-to-parameter binding in an erased evidence call lane.
@@ -193,17 +185,9 @@ pub struct PackageReviewContractEvidenceArgument {
 }
 
 impl PackageReviewContractEvidenceArgument {
-    pub const fn lane_position(&self) -> u32 {
-        self.lane_position
-    }
-
-    pub const fn source(&self) -> &PackageReviewContractEvidenceTerm {
-        &self.source
-    }
-
-    pub const fn parameter(&self) -> &PackageReviewContractEvidenceTerm {
-        &self.parameter
-    }
+    field_projection_accessors!(copied lane_position: u32);
+    field_projection_accessors!(borrowed source: &PackageReviewContractEvidenceTerm);
+    field_projection_accessors!(borrowed parameter: &PackageReviewContractEvidenceTerm);
 }
 
 /// Stable identity of one ordinary operator overload. The nominal path names
@@ -219,7 +203,7 @@ pub struct PackageReviewOperatorCoordinate {
 }
 
 impl PackageReviewOperatorCoordinate {
-    crate::record::accessors::record_accessors!(identity);
+    field_projection_accessors!(borrowed identity: &PackageReviewNominalIdentity);
     pub fn result_dispatch(&self) -> &str {
         &self.result_dispatch
     }
@@ -237,9 +221,7 @@ pub struct PackageReviewOperatorRealization {
 }
 
 impl PackageReviewOperatorRealization {
-    pub const fn coordinate(&self) -> &PackageReviewOperatorCoordinate {
-        &self.coordinate
-    }
+    field_projection_accessors!(borrowed coordinate: &PackageReviewOperatorCoordinate);
 
     pub fn alias(&self) -> Option<&str> {
         self.alias.as_deref()
@@ -256,6 +238,13 @@ impl PackageReviewContractCallTarget {}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewContractExpression {
+    /// Static equality over complete normalized types in the signature's
+    /// generic telescope. This is neither RTTI nor a scalar comparison.
+    TypeEquality {
+        left: PackageReviewTypeIdentity,
+        right: PackageReviewTypeIdentity,
+        negated: bool,
+    },
     Boolean(bool),
     Integer(String),
     /// One width-landed IEEE literal. Exact checked bits, including signed

@@ -75,15 +75,11 @@ pub(super) fn check(
 }
 
 fn canonical_subject(facts: &CheckFacts, subject: &FlowOperandReferent) -> Option<CanonicalPlace> {
-    Some(CanonicalPlace {
-        root: subject.root,
-        segments: facts
-            .flow
-            .control
-            .operand_referent_segments
-            .span(subject.segments)?
-            .to_vec(),
-    })
+    super::places::place_in(
+        &facts.flow.control.operand_referent_segments,
+        subject.root,
+        subject.segments,
+    )
 }
 
 /// Reuse the exact earlier access obligation, never its ambient context as

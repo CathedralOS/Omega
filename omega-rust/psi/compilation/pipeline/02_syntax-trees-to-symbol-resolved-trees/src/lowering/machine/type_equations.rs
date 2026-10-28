@@ -16,17 +16,25 @@ use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::identifier::JoinedSyntaxPath;
 use syntax_trees::{SyntaxTrees, item::Machine};
 
+pub(super) struct MachineTypeEquations {
+    pub(super) definitions: HandleSpan<DeclaredTypeEquation>,
+    pub(super) requires_argument_recovery: bool,
+}
+
 pub(super) fn lower(
     lowerer: &mut Lowerer,
     syntax: &SyntaxTrees,
     machine: &Machine,
-) -> Result<HandleSpan<DeclaredTypeEquation>, Diagnostic> {
+) -> Result<MachineTypeEquations, Diagnostic> {
     let parameters = syntax.items.type_parameters(machine.type_parameters);
     let equations = crate::preparation::type_equations::classify_type_equations(
         syntax,
         parameters,
         syntax.items.proof_facts(machine.where_facts),
     );
+    let requires_argument_recovery = equations
+        .iter()
+        .any(crate::preparation::type_equations::TypeEquation::requires_argument_recovery);
     let mut lowered = Vec::with_capacity(equations.len());
     for equation in equations {
         equation.validate_kind("machine")?;
@@ -42,12 +50,15 @@ pub(super) fn lower(
             definition: lower_type_operand(lowerer, syntax, definition)?,
         });
     }
-    Ok(lowerer
-        .symbol_resolved_trees
-        .tables
-        .declarations
-        .declared_type_equations
-        .insert_many(lowered))
+    Ok(MachineTypeEquations {
+        definitions: lowerer
+            .symbol_resolved_trees
+            .tables
+            .declarations
+            .declared_type_equations
+            .insert_many(lowered),
+        requires_argument_recovery,
+    })
 }
 
 /// These expression forms have type role only after the equation classifier

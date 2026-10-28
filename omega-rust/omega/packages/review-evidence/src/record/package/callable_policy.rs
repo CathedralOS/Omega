@@ -7,6 +7,7 @@ pub(crate) use conformances::PackagePolicyCallableConformance;
 pub(crate) use reach_dependency::PackagePolicyServiceReachDependency;
 pub(in crate::record) mod validation;
 
+use crate::record::accessors::field_projection_accessors;
 use crate::record::{
     PackagePolicyCapabilityFlow, PackagePolicyCrash, PackagePolicyMutation,
     PackagePolicyTermination, PackagePolicyTypeParameter, PackageReviewCallableContract,
@@ -26,10 +27,9 @@ pub struct PackagePolicyCallables {
 }
 
 impl PackagePolicyCallables {
-    crate::record::accessors::record_accessors!(package, target);
-    pub fn callables(&self) -> &[PackagePolicyCallable] {
-        &self.callables
-    }
+    field_projection_accessors!(copied package: semantic_vocabulary::PackageKeyIdentity);
+    field_projection_accessors!(copied target: target::TargetProfile);
+    field_projection_accessors!(sliced callables: &[PackagePolicyCallable]);
 }
 
 /// Private accepted claims remain visible without inventing a public API.

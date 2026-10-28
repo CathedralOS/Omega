@@ -6,15 +6,16 @@
 //! arguments select, exactly as a named `F32::*` operator use does, so each
 //! target's selected plan joins either spelling by requirement identity and
 //! the intrinsic execution bridge resolves both through one requirement view.
+//!
+//! `super::uses::build_operator_uses` owns the single occurrence-deduplicated
+//! walk over the executable value rows; this owner supplies only the
+//! requirement evidence one visited call contributes.
 
 use super::uses::named_float_policy_adapter;
-use arena::Arena;
 use checked_trees::{
-    CheckedArithmeticPolicyAdapter, CheckedNamedRequirementUseFact, CheckedValueFacts,
-    CheckedValueOrigin,
+    CheckedArithmeticPolicyAdapter, CheckedNamedRequirementUseFact, CheckedValueOrigin,
 };
 use numerics::float_semantics::FloatFormat;
-use std::collections::HashSet;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::types::PrimitiveType;
@@ -44,55 +45,7 @@ fn directly_callable_requirement(
     })
 }
 
-/// Discover named requirement uses once per enclosing executable origin.
-pub fn collect_named_requirement_uses(
-    program: &dyn crate::CheckingInput,
-    values: &CheckedValueFacts,
-) -> Arena<CheckedNamedRequirementUseFact> {
-    let mut uses = Arena::default();
-    let mut seen = HashSet::with_hasher(symbols::BuildSymbolHasher);
-    for (_, value) in values.values.iter() {
-        if matches!(value.origin, CheckedValueOrigin::NestedExpression { .. }) {
-            continue;
-        }
-        collect(
-            program,
-            value.expression,
-            value.origin,
-            &mut seen,
-            &mut uses,
-        );
-    }
-    uses
-}
-
-fn collect(
-    program: &dyn crate::CheckingInput,
-    expression: ExpressionHandle,
-    origin: CheckedValueOrigin,
-    seen: &mut HashSet<(ExpressionHandle, CheckedValueOrigin), symbols::BuildSymbolHasher>,
-    uses: &mut Arena<CheckedNamedRequirementUseFact>,
-) {
-    if !expression.is_valid() || !seen.insert((expression, origin)) {
-        return;
-    }
-    let node = program.expression_table.expression(expression);
-    if let ExpressionNode::Call(call) = node
-        && let Some(fact) = named_requirement_use_fact(program, expression, origin, call)
-    {
-        uses.append(fact);
-    }
-    // Every executable value edge keeps the enclosing statement origin.
-    // A private partial child roster omitted requirements in record fields,
-    // ranges and match patterns: lowering then had a call but no exact policy
-    // selection. Share the complete executable traversal; this collector owns
-    // only occurrence deduplication and the selected requirement's evidence.
-    crate::expression_traversal::executable_children(program, node, |child| {
-        collect(program, child, origin, seen, uses);
-    });
-}
-
-fn named_requirement_use_fact(
+pub(super) fn named_requirement_use_fact(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     origin: CheckedValueOrigin,

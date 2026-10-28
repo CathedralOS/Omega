@@ -386,6 +386,34 @@ fn resolve_scalar_registers(
     resolve_registers(physical, operands)
 }
 
+/// Admit a dedicated form's request: the canonical model every encoder is
+/// written against, its exact single-variant alternative, exactly the operand
+/// count the form's plan consumes, and the early-clobber contract — every slot
+/// from `first_early` on is written before the slots after it are read, so it
+/// may not repeat an earlier slot's home. A form with no early-clobber operand
+/// passes `COUNT`.
+pub(super) fn request_registers<const COUNT: usize>(
+    physical: &ValidatedPhysicalRegisterModel,
+    alternative: MachineAlternativeKey,
+    family: MachineAlternativeFamily,
+    operands: &[RegisterViewId],
+    first_early: usize,
+) -> Result<[u8; COUNT], Aarch64SelectedFormEncodingError> {
+    if physical.identity() != crate::canonical_aarch64_physical_register_model_identity() {
+        return Err(Aarch64SelectedFormEncodingError::NonCanonicalPhysicalModel);
+    }
+    if alternative != (MachineAlternativeKey { family, variant: 0 }) {
+        return Err(Aarch64SelectedFormEncodingError::AlternativeMismatch);
+    }
+    let registers: [u8; COUNT] = resolve_registers(physical, operands)?
+        .try_into()
+        .map_err(|_| Aarch64SelectedFormEncodingError::OperandCountMismatch)?;
+    if (first_early..COUNT).any(|slot| registers[..slot].contains(&registers[slot])) {
+        return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
+    }
+    Ok(registers)
+}
+
 pub(crate) fn resolve_registers(
     physical: &ValidatedPhysicalRegisterModel,
     operands: &[RegisterViewId],

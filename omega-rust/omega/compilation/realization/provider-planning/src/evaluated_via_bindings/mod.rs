@@ -19,9 +19,6 @@ use crate::ProviderPlanningContext;
 use crate::evaluated_via_bindings::binding_evaluation::{evaluate_one, exact_binding_vocabulary};
 use build_time_evaluation::BuildTimeAdmissionPlan;
 use diagnostics::Diagnostic;
-use effects::provider_plan::{
-    EvaluatedBindingReceipt, EvaluatedForeignImport, EvaluatedForeignSyscall, ProviderBinding,
-};
 use package_compilation::PackageCompilationInputs;
 use source::SourceSpan;
 use std::sync::Arc;
@@ -30,62 +27,7 @@ use target::TargetProfile;
 
 const MATERIALIZER_SCHEMA_VERSION: u32 = 1;
 
-/// One exact normalized result of evaluating the compiler-owned `Binding`
-/// sum. The variant remains explicit so ordinary syscall evidence cannot be
-/// reinterpreted as a legacy syscall carrier.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum EvaluatedViaBinding {
-    Import(EvaluatedForeignImport),
-    Syscall(EvaluatedForeignSyscall),
-}
-
-impl EvaluatedViaBinding {
-    pub const fn target(&self) -> TargetProfile {
-        match self {
-            Self::Import(evaluated) => evaluated.locator().target(),
-            Self::Syscall(evaluated) => evaluated.target(),
-        }
-    }
-
-    pub const fn receipt(&self) -> &EvaluatedBindingReceipt {
-        match self {
-            Self::Import(evaluated) => evaluated.receipt(),
-            Self::Syscall(evaluated) => evaluated.receipt(),
-        }
-    }
-
-    pub const fn identity_digest(&self) -> target::ForeignLocatorIdentityDigest {
-        match self {
-            Self::Import(evaluated) => evaluated.locator().identity_digest(),
-            Self::Syscall(evaluated) => evaluated.identity_digest(),
-        }
-    }
-
-    pub fn provider_binding(&self) -> ProviderBinding {
-        match self {
-            Self::Import(evaluated) => ProviderBinding::Import {
-                evaluated: evaluated.clone(),
-            },
-            Self::Syscall(evaluated) => ProviderBinding::Syscall {
-                number: evaluated.number(),
-            },
-        }
-    }
-
-    pub const fn as_import(&self) -> Option<&EvaluatedForeignImport> {
-        match self {
-            Self::Import(evaluated) => Some(evaluated),
-            Self::Syscall(_) => None,
-        }
-    }
-
-    pub const fn as_syscall(&self) -> Option<&EvaluatedForeignSyscall> {
-        match self {
-            Self::Import(_) => None,
-            Self::Syscall(evaluated) => Some(evaluated),
-        }
-    }
-}
+pub use effects::provider_plan::EvaluatedNativeBinding;
 
 /// Exact typed-program join for one ordinary `via` expression.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -97,7 +39,7 @@ pub struct EvaluatedViaBindingRow {
     producer_machine: SymbolHandle,
     producer_entry_state: SymbolHandle,
     via_source_span: SourceSpan,
-    evaluated: EvaluatedViaBinding,
+    evaluated: EvaluatedNativeBinding,
 }
 
 impl EvaluatedViaBindingRow {
@@ -122,7 +64,7 @@ impl EvaluatedViaBindingRow {
     pub const fn via_source_span(&self) -> SourceSpan {
         self.via_source_span
     }
-    pub const fn evaluated(&self) -> &EvaluatedViaBinding {
+    pub const fn evaluated(&self) -> &EvaluatedNativeBinding {
         &self.evaluated
     }
 }
@@ -145,6 +87,18 @@ impl EvaluatedViaBindingTable {
     /// The table the binding receipts' `TerminalIdentityIndex` values index.
     pub const fn identities(&self) -> &terminal_psi::TerminalIdentityTable {
         &self.identities
+    }
+    pub(crate) fn retain_extended_identities(
+        &mut self,
+        identities: terminal_psi::TerminalIdentityTable,
+    ) -> Result<(), Vec<Diagnostic>> {
+        if !identities.entries().starts_with(self.identities.entries()) {
+            return Err(vec![Diagnostic::error(
+                "native Build producer identity extension changed retained evaluation coordinates",
+            )]);
+        }
+        self.identities = identities;
+        Ok(())
     }
     pub const fn target(&self) -> Option<TargetProfile> {
         self.target

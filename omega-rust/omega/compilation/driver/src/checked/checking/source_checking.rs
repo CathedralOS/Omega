@@ -117,6 +117,21 @@ pub(crate) fn check_product_source(
         retained,
         selection: product_selection,
     } = selections.select(outcome, roots)?;
+    // One default inventory feeds initial settlement, Terminal demand roots
+    // and every target proposal. Package handoffs have the same default tier
+    // on all three routes; only the root Build supplies overrides.
+    let mut provider_defaults = provider_defaults.to_vec();
+    for selection in &build.package_provider_selections {
+        provider_defaults.push(
+            build_time_evaluation::provider_declarations::TargetProviderDefaults {
+                target: selection
+                    .target
+                    .map(|target| target.canonical_name().to_owned()),
+                machines: Vec::new(),
+                selections: vec![selection.clone()],
+            },
+        );
+    }
     let sources = Arc::new(build_sources.seal(&program, package_inputs)?);
     let accepted_template_classifications =
         trust_model::AcceptedTemplateClassifications::capture(&program);

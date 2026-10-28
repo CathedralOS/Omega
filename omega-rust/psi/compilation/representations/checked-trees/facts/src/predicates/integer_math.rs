@@ -8,13 +8,13 @@ use arena::{Arena, Handle};
 use semantic_vocabulary::{IntegerMathLiteral, IntegerValue};
 use typed_trees::types::PrimitiveType;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedIntegerMathExpression {
     pub terms: Arena<CheckedIntegerMathTerm>,
     pub root: Handle<CheckedIntegerMathTerm>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedIntegerMathTerm {
     Embed {
         primitive_type: PrimitiveType,

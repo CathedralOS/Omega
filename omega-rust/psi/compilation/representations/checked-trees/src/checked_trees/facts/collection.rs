@@ -8,7 +8,7 @@ use crate::{
 
 use crate::{CheckedFactCallProjection, CheckedPlacedViewInput};
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckFacts {
     pub quotient_formations: Vec<super::CheckedQuotientFormation>,
     pub quotient_operations: Vec<super::CheckedQuotientOperation>,
@@ -145,7 +145,7 @@ pub struct CheckFacts {
 
 /// One `AssignmentIndex { depth }` selector of the assignment at
 /// `statement_index` whose bounds checking proved its index in range.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProvenAssignmentIndex {
     pub state: symbols::SymbolHandle,
     pub statement_index: u32,
@@ -169,7 +169,7 @@ impl ProvenAssignmentIndex {
 
 /// One call site's decision, conditional on its CheckFacts constant obligations
 /// until target closure discharges them before lowering.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct DecidedCallRequires {
     pub state: symbols::SymbolHandle,
     pub statement_index: u32,

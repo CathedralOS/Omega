@@ -150,7 +150,15 @@ fn observe_frontier(
         let mut judge = if classification.is_proof_machine(program, arrival_root) {
             StructuralJudge::from_requires(program, arrival_root, &requires, true)
         } else {
-            StructuralJudge::from_runtime_requires(program, arrival_root, &requires)
+            // This is an independently admitted invocation, just like an
+            // ordinary prefix root. Retain its exact incoming values and
+            // default-domain predicates, not merely explicit `requires`.
+            StructuralJudge::from_runtime_state_requires(
+                program,
+                arrival_root,
+                root_entry,
+                &requires,
+            )
         };
         if case_facts_only {
             judge.restrict_to_case_facts();

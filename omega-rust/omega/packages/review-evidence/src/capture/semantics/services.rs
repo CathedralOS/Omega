@@ -4,6 +4,7 @@ mod authority;
 mod calling;
 mod signature;
 
+use crate::capture::refusal;
 use crate::capture::semantics::declarations::{
     nominal_identity, policy_provider_requirement_identity, provider_requirement_identity,
     provider_requirement_schema,
@@ -185,8 +186,4 @@ fn project_inner(
     })
 }
 
-fn rejected(reason: &str) -> Vec<Diagnostic> {
-    vec![Diagnostic::error(format!(
-        "service policy rejects {reason}"
-    ))]
-}
+refusal!(reason, "service policy rejects {reason}");

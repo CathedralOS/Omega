@@ -24,7 +24,7 @@ use typed_trees::types::PrimitiveType;
 /// Cleanup follows an evaluated call, retires an assignment's old value after
 /// its operands complete and before its store, or precedes an authored statement
 /// whose entry ends captured loans. Replacement is not a fabricated call.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedUnitCleanupBoundary {
     Call(CheckedUnitCallCoordinate),
     Replacement {
@@ -47,7 +47,7 @@ pub enum CheckedUnitCleanupBoundary {
 /// Source-handle-free plans for the first general structural/Unit terminal
 /// slice. These rows are assembled only after ownership and carry checking
 /// have recorded their authoritative facts.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedUnitEffectPlans {
     /// One condition/path namespace for statement, computed-call and normal
     /// exit cleanup. Action spans never refer to a temporary collector's arena.
@@ -71,7 +71,7 @@ pub struct CheckedUnitEffectPlans {
 
 /// Why one checked-body machine has no executable Unit plan. `machine` never
 /// appears in `machines` or `composed_machines` of the same record.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedUnitPlanGap {
     pub machine: SymbolHandle,
     /// Exact construction site; the zero state handle means the machine header.
@@ -86,11 +86,11 @@ pub struct CheckedUnitPlanGap {
     pub coverage: CoverageForm,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedUnitPlanGapReason {
     /// Plan construction has no lowering for this construct yet; the text
     /// names the construct, outermost first.
-    Unsupported(&'static str),
+    Unsupported(std::borrow::Cow<'static, str>),
     /// The body calls `target`, which has no executable body of its own.
     Callee(SymbolHandle),
     /// The body calls boundary `target`, which has no boundary plan.
@@ -201,7 +201,7 @@ impl CheckedUnitEffectPlans {
             CoverageForm::TransitionForm => "a transition",
         };
         let reason = match gap.reason {
-            CheckedUnitPlanGapReason::Unsupported(detail) => format!(
+            CheckedUnitPlanGapReason::Unsupported(ref detail) => format!(
                 "`{}` has no executable body: this compiler does not lower {construct} of it yet ({detail})",
                 name(gap.machine)
             ),
@@ -266,7 +266,7 @@ impl CheckedUnitEffectPlans {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedUnitEffectOperationPlan {
     /// Evaluate the assignment's destination before any replacement producer.
     /// Cleanup and stores retain this occurrence, including selector values;
@@ -408,7 +408,7 @@ pub enum CheckedUnitEffectOperationPlan {
 /// local data binding keyed by the bound value's representation. The variant
 /// selects the lowering; every field keeps the name and meaning it carried
 /// on the former per-shape operation variants.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedUnitLocalBindingPlan {
     /// Establish initialized mutable storage at its authored declaration.
     /// Later reads and borrows name the symbol, never the initializer value.
@@ -538,7 +538,7 @@ impl CheckedUnitLocalBindingPlan {
 
 /// One exact selected leaf and its anonymous complement slots. The receipt
 /// names the control join; the loan group authenticates the leaf lineage.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedUnitSelectedReferenceRetirementPlan {
     pub selection: arena::Handle<crate::FlowOwnedSelectionReceipt>,
     pub path: Vec<CheckedUnitStructuralPathSegment>,
@@ -548,7 +548,7 @@ pub struct CheckedUnitSelectedReferenceRetirementPlan {
 /// Operand preparation belongs to its consuming call and runs when that call
 /// is evaluated. Operation slots use an arena span; scratch vectors are consumed
 /// at publication.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedOperandSequence {
     operations: arena::Arena<OperandOperation>,
     order: arena::HandleSpan<OperandOperation>,
@@ -556,7 +556,7 @@ pub struct CheckedOperandSequence {
 
 // The arena's zero slot denotes absence. Published spans contain only occupied
 // operations, and the private fields keep that construction invariant local.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 struct OperandOperation(Option<crate::CheckedUnitEffectOperationPlan>);
 
 impl CheckedOperandSequence {
@@ -612,14 +612,14 @@ impl CheckedOperandSequence {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedStructuralValueCall {
     pub value: crate::CheckedStructuralValueHandle,
     operands: CheckedOperandSequence,
     outcome: CheckedValueInvocationOutcome,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 enum CheckedValueInvocationOutcome {
     Absent,
     Prepared {
@@ -1053,7 +1053,7 @@ impl CheckedUnitEffectOperationPlan {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedUnitScalarControlPlan {
     pub primitive_type: PrimitiveType,
     /// Exact authored conditional and return coordinates after the ordered body.
@@ -1066,7 +1066,7 @@ pub struct CheckedUnitScalarControlPlan {
 /// `StorageRead` of `symbol`, assignments store through
 /// `CheckedStoreRoot::Local { symbol }`, and borrows lend this storage, never
 /// the immutable incoming value.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedUnitParameterStoragePlan {
     /// The authored parameter position; one `scalar_parameters` row names it.
     pub source_position: u32,
@@ -1075,7 +1075,7 @@ pub struct CheckedUnitParameterStoragePlan {
     pub primitive_type: PrimitiveType,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedUnitEffectMachinePlan {
     /// Declared callable result, independent of normal-return receiving homes.
     /// A body with no normal completion still retains its complete signature.

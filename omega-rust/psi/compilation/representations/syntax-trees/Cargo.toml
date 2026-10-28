@@ -9,6 +9,7 @@ name = "syntax_trees"
 path = "src/lib.rs"
 
 [dependencies]
+compiler-storage = { path = "../../../foundation/compiler-storage" }
 syntax-trees-derive = { path = "derive" }
 arena = { path = "../../../foundation/arena" }
 diagnostics = { path = "../../../foundation/diagnostics" }

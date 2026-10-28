@@ -47,19 +47,39 @@ fn validate(
         return None;
     }
     let statements = program.statement_table.statements(state.statement_nodes);
-    let statement_index = statement.map_or_else(
-        || {
-            if matches!(
-                statements.last(),
-                Some(typed_trees::statement::StatementNode::Expression(_))
-            ) {
-                statements.len() - 1
+    let machine = facts
+        .flow
+        .control
+        .state_by_symbol(state.symbol)?
+        .machine_symbol;
+    let exit = if let Some(statement) = statement {
+        checked_trees::FlowClaimJoinExit {
+            state_symbol: state.symbol,
+            statement_index: statement as usize,
+            kind: if continuation {
+                checked_trees::FlowClaimJoinExitKind::TransitionContinuation
+            } else if statements
+                .get(statement as usize)
+                .is_some_and(|statement| statement.as_transition().is_some())
+            {
+                checked_trees::FlowClaimJoinExitKind::TransitionTarget
             } else {
-                statements.len()
-            }
-        },
-        |statement| statement as usize,
-    );
+                checked_trees::FlowClaimJoinExitKind::FinalExpression
+            },
+        }
+    } else {
+        // An ordinary completion has one retained normal exit. A terminal
+        // invocation completes at its authored transition, not at a fabricated
+        // fallthrough after it; the exact checked cleanup row owns this death.
+        let exits =
+            super::super::cleanup::normal_edges::state_exits(program, facts, machine, state)
+                .ok()?;
+        let [exit] = exits.as_slice() else {
+            return None;
+        };
+        *exit
+    };
+    let statement_index = exit.statement_index;
     if result.statement_index as usize > statement_index {
         return None;
     }
@@ -89,25 +109,6 @@ fn validate(
     if multiplicity == Multiplicity::Unrestricted {
         return Some(());
     }
-    let machine = facts
-        .flow
-        .control
-        .state_by_symbol(state.symbol)?
-        .machine_symbol;
-    let exit = checked_trees::FlowClaimJoinExit {
-        state_symbol: state.symbol,
-        statement_index,
-        kind: if continuation {
-            checked_trees::FlowClaimJoinExitKind::TransitionContinuation
-        } else if statements
-            .get(statement_index)
-            .is_some_and(|statement| statement.as_transition().is_some())
-        {
-            checked_trees::FlowClaimJoinExitKind::TransitionTarget
-        } else {
-            checked_trees::FlowClaimJoinExitKind::FinalExpression
-        },
-    };
     facts
         .contextual_cleanup
         .dispositions

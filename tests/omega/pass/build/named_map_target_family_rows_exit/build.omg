@@ -4,5 +4,13 @@ machine build(builder: &mut Build) {
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
-    Build::select_provider<Gate, GateProvider>(builder);
+    Build::select_provider<Gate, GateProvider>(builder, linux_arm64);
+    Build::select_provider<Gate, GateProvider>(builder, linux_x86_64);
+    Build::select_provider<Gate, GateProvider>(builder, macos_arm64);
+    Build::select_provider<Gate, GateProvider>(builder, macos_x86_64);
+    Build::select_provider<Gate, GateProvider>(builder, windows_x86_64);
+    Build::select_provider<Gate, GateProvider>(builder, uefi_x86_64);
+    Build::select_provider<Gate, GateProvider>(builder, cross_platform_cli);
+    Build::select_provider<Gate, GateProvider>(builder, local_unchecked);
+    Build::select_provider<Gate, GateProvider>(builder, alpha_bootstrap);
 }

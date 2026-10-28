@@ -219,14 +219,12 @@ pub(in crate::checks) fn available<'program>(
                     .operand_origin_writes
                     .span_or_empty(call.normal_return_writes)
                     .iter()
-                    .map(|write| CanonicalPlace {
-                        root: write.root,
-                        segments: facts
-                            .flow
-                            .control
-                            .operand_referent_segments
-                            .span_or_empty(write.segments)
-                            .to_vec(),
+                    .map(|write| {
+                        crate::checks::places::place_or_root_in(
+                            &facts.flow.control.operand_referent_segments,
+                            write.root,
+                            write.segments,
+                        )
                     })
                     .collect()
             });

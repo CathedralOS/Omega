@@ -2,7 +2,7 @@
 //! before constant shifts, so signed extension needs no variable-shift home.
 //! Codec words are admitted by the descriptor producer; byte counts are 1..8.
 
-use super::selected_forms::resolve_registers;
+use super::selected_forms::request_registers;
 use super::{Aarch64SelectedFormEncodingError as Error, ValidatedAarch64SelectedFormEncoding};
 use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::{
@@ -189,9 +189,6 @@ fn request(
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
 ) -> Result<(bool, [u8; 6]), Error> {
-    if physical.identity() != crate::canonical_aarch64_physical_register_model_identity() {
-        return Err(Error::NonCanonicalPhysicalModel);
-    }
     let load = kind == SelectedInstructionKind::LoadEncodedScalar;
     let family = if load {
         MachineAlternativeFamily::LoadEncodedScalar
@@ -201,19 +198,11 @@ fn request(
     if !matches!(
         kind,
         SelectedInstructionKind::LoadEncodedScalar | SelectedInstructionKind::StoreEncodedScalar
-    ) || alternative != (MachineAlternativeKey { family, variant: 0 })
-    {
+    ) {
         return Err(Error::AlternativeMismatch);
     }
-    let registers: [u8; 6] = resolve_registers(physical, operands)?
-        .try_into()
-        .map_err(|_| Error::OperandCountMismatch)?;
     let inputs = if load { 2 } else { 3 };
-    for scratch in inputs..6 {
-        if registers[..scratch].contains(&registers[scratch]) {
-            return Err(Error::EncodedFormMismatch);
-        }
-    }
+    let registers: [u8; 6] = request_registers(physical, alternative, family, operands, inputs)?;
     Ok((load, registers))
 }
 
@@ -274,6 +263,7 @@ pub(super) fn validate(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::selected_form_encoding::selected_forms::resolve_registers;
     use crate::test_support::reject_every_bit_flip;
 
     fn operands(physical: &ValidatedPhysicalRegisterModel) -> [RegisterViewId; 6] {

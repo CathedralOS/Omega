@@ -10,6 +10,7 @@ pub(crate) mod values;
 use super::SignatureProjection;
 use crate::capture::PackageReviewInput;
 use crate::capture::calling::application::signature::instantiate_static_parameters;
+use crate::capture::refusal;
 use crate::capture::semantics::signatures::parameters::project_policy_type_parameters_after;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
@@ -300,6 +301,4 @@ fn machine(
     }
 }
 
-fn rejected(message: &str) -> Vec<Diagnostic> {
-    vec![Diagnostic::error(format!("policy signature: {message}"))]
-}
+refusal!(message, "policy signature: {message}");

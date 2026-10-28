@@ -9,6 +9,7 @@ version.workspace = true
 test-fixtures = []
 
 [dependencies]
+compiler-storage = { path = "../../../psi/foundation/compiler-storage" }
 bounded-process = { path = "../../foundation/bounded-process" }
 optimization-core = { path = "../../foundation/optimization-core" }
 platform-custody = { path = "../../foundation/platform-custody" }

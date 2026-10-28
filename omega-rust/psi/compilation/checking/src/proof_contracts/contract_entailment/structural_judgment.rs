@@ -238,9 +238,7 @@ impl StructuralTerm {
             return left.is_mathematical_predicate() && right.is_mathematical_predicate();
         }
         matches!(self.semantic_value(), Self::MathematicalBinary { operator, .. }
-            if matches!(operator, BinaryOperator::Equal | BinaryOperator::NotEqual
-                | BinaryOperator::Less | BinaryOperator::LessOrEqual
-                | BinaryOperator::Greater | BinaryOperator::GreaterOrEqual))
+            if operator.is_comparison())
     }
 
     fn is_closed_value(&self) -> bool {
@@ -290,11 +288,85 @@ impl StructuralTerm {
         }
     }
 
-    /// Rebuild `self` with `map` applied over every argument — the
-    /// variant-preserving argument rewrite the term walks share for
-    /// `Application` and `CallProjection`.
-    pub(super) fn map_argument_terms(self, mut map: impl FnMut(Self) -> Self) -> Self {
+    /// Rebuild `self` with `map` applied over every immediate child — the
+    /// mutable counterpart of [`Self::visit_children`], and its single owner.
+    /// A walk that transforms subterms states only what it does differently
+    /// (a substitution, a constant unfolding, a slot binding) and sends every
+    /// other variant through this method, so a new child edge reaches every
+    /// walk at once instead of being re-listed in each copy.
+    ///
+    /// A `CollectionMeasure` re-takes its subject's collection descriptor,
+    /// which is the invariant that variant carries: its subject is metadata
+    /// about a completed collection, never the referent's contents.
+    pub(super) fn map_children(self, mut map: impl FnMut(Self) -> Self) -> Self {
         match self {
+            StructuralTerm::IntegerEmbedding { reference, value } => {
+                StructuralTerm::IntegerEmbedding {
+                    reference,
+                    value: Box::new(map(*value)),
+                }
+            }
+            StructuralTerm::MathematicalBinary {
+                operator,
+                left,
+                right,
+            } => StructuralTerm::MathematicalBinary {
+                operator,
+                left: Box::new(map(*left)),
+                right: Box::new(map(*right)),
+            },
+            StructuralTerm::ObservedValue {
+                observed_type,
+                value,
+                descriptor,
+            } => StructuralTerm::ObservedValue {
+                observed_type,
+                value: Box::new(map(*value)),
+                descriptor: descriptor.map(|descriptor| Box::new(map(*descriptor))),
+            },
+            StructuralTerm::Constructor { data, case, fields } => StructuralTerm::Constructor {
+                data,
+                case,
+                fields: fields
+                    .into_iter()
+                    .map(|(name, value)| (name, map(value)))
+                    .collect(),
+            },
+            StructuralTerm::ScalarBinary {
+                references,
+                operator,
+                meaning,
+                left,
+                right,
+            } => StructuralTerm::ScalarBinary {
+                references,
+                operator,
+                meaning,
+                left: Box::new(map(*left)),
+                right: Box::new(map(*right)),
+            },
+            StructuralTerm::IndexedValue {
+                element_type,
+                element_identity,
+                collection,
+                index,
+            } => StructuralTerm::IndexedValue {
+                element_type,
+                element_identity,
+                collection: Box::new(map(*collection)),
+                index: Box::new(map(*index)),
+            },
+            StructuralTerm::CollectionMeasure {
+                measure,
+                collection,
+            } => StructuralTerm::CollectionMeasure {
+                measure,
+                collection: Box::new(map(*collection).into_collection_descriptor()),
+            },
+            StructuralTerm::Projection { subject, path } => StructuralTerm::Projection {
+                subject: Box::new(map(*subject)),
+                path,
+            },
             StructuralTerm::Application {
                 result_type,
                 target,
@@ -325,7 +397,7 @@ impl StructuralTerm {
                 field_name,
                 arguments: arguments.into_iter().map(&mut map).collect(),
             },
-            term => term,
+            leaf => leaf,
         }
     }
 }
@@ -342,6 +414,26 @@ struct StaticObservations<'scope> {
         typed_trees::expression::StaticMachineArgument,
     )],
     body_parameters: &'scope [typed_trees::data::TypeParameter],
+}
+
+/// Admission belongs to one completed owned snapshot, inside its Match scope.
+/// A source name or equal reconstructed value cannot recover this receipt.
+#[derive(Clone)]
+struct CompletedNominalCapture {
+    anchor: ExpressionHandle,
+    reference: TypeReferenceHandle,
+    value: StructuralTerm,
+}
+
+impl CompletedNominalCapture {
+    fn same_admission(&self, other: &Self) -> bool {
+        self.anchor == other.anchor
+            && self.reference == other.reference
+            && self
+                .value
+                .observation_identity_key()
+                .is_some_and(|key| other.value.observation_identity_key().as_ref() == Some(&key))
+    }
 }
 
 pub(super) struct StructuralJudge<'program> {
@@ -362,9 +454,12 @@ pub(super) struct StructuralJudge<'program> {
     // deep StructuralTerm copies; writers go through Arc::make_mut and pay
     // one copy only for the field they actually change.
     normal_results: Arc<Vec<(ExpressionHandle, StructuralTerm)>>,
+    completed_nominal_captures: Arc<Vec<CompletedNominalCapture>>,
     // Declaration-level field correspondence never recursively re-enters an
     // active body. This belongs to the query, including all cloned path judges.
     returned_field_owners: Arc<Vec<SymbolHandle>>,
+    pub(super) returned_field_trace:
+        Option<Arc<std::sync::Mutex<returned_fields::ReturnedFieldTrace>>>,
     // Active executed bodies bound ordinary calls as well as terminal transfers.
     // A recurrent call consumes its checked contract instead of unfolding again.
     body_invocations: Arc<Vec<SymbolHandle>>,
@@ -419,6 +514,8 @@ pub(super) struct StructuralJudge<'program> {
     /// site (per-leaf clones all share the same cell).
     frame_resolver:
         Arc<std::sync::OnceLock<Option<crate::machine_calls::calls::CallFrameResolver<'program>>>>,
+    prepared_integer_premises_cache:
+        Arc<std::sync::Mutex<integer_predicates::PreparedIntegerPremisesCache<'program>>>,
 }
 
 impl Clone for StructuralJudge<'_> {
@@ -432,7 +529,9 @@ impl Clone for StructuralJudge<'_> {
             body_type_parameters: self.body_type_parameters,
             premise_facts: self.premise_facts.clone(),
             normal_results: Arc::clone(&self.normal_results),
+            completed_nominal_captures: Arc::clone(&self.completed_nominal_captures),
             returned_field_owners: Arc::clone(&self.returned_field_owners),
+            returned_field_trace: self.returned_field_trace.clone(),
             body_invocations: Arc::clone(&self.body_invocations),
             normal_memberships: Arc::clone(&self.normal_memberships),
             normal_content_guarantees: Arc::clone(&self.normal_content_guarantees),
@@ -457,6 +556,7 @@ impl Clone for StructuralJudge<'_> {
             ring_licenses: self.ring_licenses.clone(),
             semiring_licenses: self.semiring_licenses.clone(),
             frame_resolver: Arc::clone(&self.frame_resolver),
+            prepared_integer_premises_cache: Arc::clone(&self.prepared_integer_premises_cache),
         }
     }
 }
@@ -485,6 +585,16 @@ impl<'program> StructuralJudge<'program> {
             && self.captured_result_equations.len() == base.captured_result_equations.len()
             && self.returned_field_owners.len() == base.returned_field_owners.len()
             && self.normal_memberships.len() == base.normal_memberships.len()
+            && (Arc::ptr_eq(
+                &self.completed_nominal_captures,
+                &base.completed_nominal_captures,
+            ) || (self.completed_nominal_captures.len()
+                == base.completed_nominal_captures.len()
+                && self
+                    .completed_nominal_captures
+                    .iter()
+                    .zip(base.completed_nominal_captures.iter())
+                    .all(|(current, original)| current.same_admission(original))))
             && self.normal_content_guarantees.len() == base.normal_content_guarantees.len()
             && self.case_facts.len() == base.case_facts.len()
     }
@@ -696,6 +806,28 @@ impl<'program> StructuralJudge<'program> {
             }
             rejoined.normal_results = Arc::new(intersected);
         }
+        rejoined.completed_nominal_captures = Arc::new(
+            first
+                .completed_nominal_captures
+                .iter()
+                .filter(|row| {
+                    let Some(key) = row.value.observation_identity_key() else {
+                        return false;
+                    };
+                    outcomes.iter().all(|judge| {
+                        judge.completed_nominal_captures.iter().any(|other| {
+                            other.anchor == row.anchor
+                                && other.reference == row.reference
+                                && other.value.observation_identity_key().as_ref() == Some(&key)
+                        })
+                    }) && rejoined.normal_results.iter().any(|(anchor, value)| {
+                        *anchor == row.anchor
+                            && value.observation_identity_key().as_ref() == Some(&key)
+                    })
+                })
+                .cloned()
+                .collect(),
+        );
         rejoined
     }
 
@@ -817,6 +949,15 @@ impl<'program> StructuralJudge<'program> {
         requires: &[ExpressionHandle],
         resolve_applications: bool,
     ) -> Self {
+        let mut entry_facts = requires.to_vec();
+        if let Some(machine) = program.machine(owner) {
+            entry_facts.extend_from_slice(
+                program
+                    .expression_table
+                    .expression_handles(machine.declared_type_predicates),
+            );
+        }
+        let requires = entry_facts.as_slice();
         let licenses = crate::frozen_program::frozen_memo(
             program,
             |memos| &memos.license_candidates,
@@ -835,7 +976,9 @@ impl<'program> StructuralJudge<'program> {
             body_type_parameters: &[],
             premise_facts: requires.to_vec(),
             normal_results: Arc::new(Vec::new()),
+            completed_nominal_captures: Arc::new(Vec::new()),
             returned_field_owners: Arc::new(Vec::new()),
+            returned_field_trace: None,
             body_invocations: Arc::new(Vec::new()),
             normal_memberships: Arc::new(Vec::new()),
             normal_content_guarantees: Arc::new(Vec::new()),
@@ -855,6 +998,9 @@ impl<'program> StructuralJudge<'program> {
             rewrites: Arc::new(rewrite_table::RewriteTable::default()),
             disequalities: Arc::new(Vec::new()),
             frame_resolver: Arc::new(std::sync::OnceLock::new()),
+            prepared_integer_premises_cache: Arc::new(std::sync::Mutex::new(
+                integer_predicates::PreparedIntegerPremisesCache::default(),
+            )),
             case_facts: Arc::new(Vec::new()),
             case_substitutions: Arc::new(Vec::new()),
             hypotheses_contradictory: false,
@@ -1091,6 +1237,12 @@ impl<'program> StructuralJudge<'program> {
     }
 
     pub(super) fn intake(&mut self, program: &dyn crate::CheckingInput, fact: ExpressionHandle) {
+        if !self.case_facts_only && program.static_type_predicate_operands(fact).is_some() {
+            if let Some(predicate) = self.declaration_term(fact) {
+                self.intake_equation(predicate, value_predicates::boolean_term(true), 0);
+            }
+            return;
+        }
         let Some(binary) = program.expression_table.binary_node(fact) else {
             return;
         };
@@ -1153,6 +1305,25 @@ impl<'program> StructuralJudge<'program> {
         }
     }
 
+    /// A branch assumption is available only after its source operand was
+    /// independently formed. This supplies truth under that scoped path; it
+    /// never admits a pending nominal value or imports its default domain.
+    pub(super) fn intake_formed_condition(&mut self, fact: ExpressionHandle, holds: bool) {
+        if holds {
+            self.intake(self.program, fact);
+        }
+        if self
+            .declaration_expression_type(fact)
+            .and_then(|reference| self.program.primitive_type_reference(reference))
+            != Some(typed_trees::types::PrimitiveType::Bool)
+        {
+            return;
+        }
+        if let Some(term) = self.declaration_term(fact) {
+            self.intake_equation(term, value_predicates::boolean_term(holds), 0);
+        }
+    }
+
     /// A preserved runtime prefix may retain a selected Boolean predicate as
     /// truth. Entry hypotheses alone do not license this transport: the path
     /// owner must first keep their subjects through every preceding effect.
@@ -1185,6 +1356,9 @@ impl<'program> StructuralJudge<'program> {
                     self.declaration_expression_type(fact)
                         .and_then(|reference| program.primitive_type_reference(reference))
                         == Some(typed_trees::types::PrimitiveType::Bool)
+                }
+                StructuralTerm::Variable(_) => {
+                    program.static_type_predicate_operands(fact).is_some()
                 }
                 _ => false,
             };
@@ -1242,6 +1416,13 @@ impl<'program> StructuralJudge<'program> {
             .or_else(|| self.boolean_equality_operand(&right, &left))
         {
             self.intake_equation(operand, truth, depth + 1);
+            return;
+        }
+        if let Some((left, right)) = self
+            .identity_equality_operands(&left, &right)
+            .or_else(|| self.identity_equality_operands(&right, &left))
+        {
+            self.intake_equation(left, right, depth + 1);
             return;
         }
         match (&left, &right) {
@@ -1355,18 +1536,6 @@ impl<'program> StructuralJudge<'program> {
         }
         for _ in 0..32 {
             match term {
-                StructuralTerm::ObservedValue {
-                    observed_type,
-                    value,
-                    descriptor,
-                } => {
-                    return StructuralTerm::ObservedValue {
-                        observed_type,
-                        value: Box::new(self.resolve_at(*value, depth + 1)),
-                        descriptor: descriptor
-                            .map(|descriptor| Box::new(self.resolve_at(*descriptor, depth + 1))),
-                    };
-                }
                 StructuralTerm::CapturedValue { .. } => {
                     let Some((_, replacement)) = self.rewrites.find(&term) else {
                         return term;
@@ -1650,10 +1819,13 @@ impl<'program> StructuralJudge<'program> {
                     };
                     term = replacement.clone();
                 }
-                StructuralTerm::Integer(_)
-                | StructuralTerm::Float(_)
-                | StructuralTerm::BoundValue(_)
-                | StructuralTerm::BoundProjection { .. } => return term,
+                // Variants that only carry substituted operands walk the
+                // shared child table; the leaves come back unchanged. Every
+                // variant whose rewrite depends on this judge's `rewrites`
+                // table keeps its own arm above.
+                _ => {
+                    return term.map_children(|child| self.resolve_at(child, depth + 1));
+                }
             }
         }
         term
@@ -2269,6 +2441,22 @@ impl<'program> StructuralJudge<'program> {
         {
             return Some(value.clone());
         }
+        if let ExpressionNode::SavedSubject(saved) =
+            self.program.expression_table.expression(expression)
+            && self
+                .program
+                .expression_table
+                .contains_value_capture(saved.capture)
+            && matches!(
+                self.program
+                    .expression_table
+                    .value_capture(saved.capture)
+                    .owner,
+                typed_trees::expression::ValueCaptureOwner::Match
+            )
+        {
+            return self.completed_match_subject(saved);
+        }
         if let Some(value) = self.completed_descriptor_place(scope, expression, environment) {
             return Some(value);
         }
@@ -2521,16 +2709,21 @@ impl<'program> StructuralJudge<'program> {
                 self.observed_field_term(receiver_term, member.member.as_str(), depth)
             }
             ExpressionNode::StructLiteral(literal) => {
-                super::structural_terms::constructor_literal_term(program, literal, |_, field| {
-                    let field = field?;
-                    self.callee_term(
-                        field.value,
-                        environment,
-                        static_observations,
-                        scope,
-                        depth + 1,
-                    )
-                })
+                super::structural_terms::constructor_literal_term(
+                    program,
+                    expression,
+                    literal,
+                    |_, field| {
+                        let field = field?;
+                        self.callee_term(
+                            field.value,
+                            environment,
+                            static_observations,
+                            scope,
+                            depth + 1,
+                        )
+                    },
+                )
             }
             ExpressionNode::Unary(unary) => super::structural_terms::logical_not_term_in_scope(
                 program,
@@ -2776,98 +2969,16 @@ impl<'program> StructuralJudge<'program> {
             typed_trees::expression::StaticMachineArgument,
         )],
     ) -> StructuralTerm {
+        let substitute =
+            |value: StructuralTerm| Self::substitute_call_term(&value, map, machine_map);
         match term {
-            StructuralTerm::IntegerEmbedding { reference, value } => {
-                StructuralTerm::IntegerEmbedding {
-                    reference: *reference,
-                    value: Box::new(Self::substitute_call_term(value, map, machine_map)),
-                }
-            }
-            StructuralTerm::MathematicalBinary {
-                operator,
-                left,
-                right,
-            } => StructuralTerm::MathematicalBinary {
-                operator: *operator,
-                left: Box::new(Self::substitute_call_term(left, map, machine_map)),
-                right: Box::new(Self::substitute_call_term(right, map, machine_map)),
-            },
-            StructuralTerm::ObservedValue {
-                observed_type,
-                value,
-                descriptor,
-            } => StructuralTerm::ObservedValue {
-                observed_type: *observed_type,
-                value: Box::new(Self::substitute_call_term(value, map, machine_map)),
-                descriptor: descriptor.as_ref().map(|descriptor| {
-                    Box::new(Self::substitute_call_term(descriptor, map, machine_map))
-                }),
-            },
-            StructuralTerm::Integer(_)
-            | StructuralTerm::Float(_)
-            | StructuralTerm::BoundValue(_)
-            | StructuralTerm::CapturedValue { .. }
-            | StructuralTerm::BoundProjection { .. } => term.clone(),
-            StructuralTerm::IndexedValue {
-                element_type,
-                element_identity,
-                collection,
-                index,
-            } => StructuralTerm::IndexedValue {
-                element_type: *element_type,
-                element_identity: *element_identity,
-                collection: Box::new(Self::substitute_call_term(collection, map, machine_map)),
-                index: Box::new(Self::substitute_call_term(index, map, machine_map)),
-            },
-            StructuralTerm::CollectionMeasure {
-                measure,
-                collection,
-            } => StructuralTerm::CollectionMeasure {
-                measure: *measure,
-                collection: Box::new(
-                    Self::substitute_call_term(collection, map, machine_map)
-                        .into_collection_descriptor(),
-                ),
-            },
-            StructuralTerm::Projection { subject, path } => StructuralTerm::Projection {
-                subject: Box::new(Self::substitute_call_term(subject, map, machine_map)),
-                path: path.clone(),
-            },
-            StructuralTerm::ScalarBinary {
-                references,
-                operator,
-                meaning,
-                left,
-                right,
-            } => StructuralTerm::ScalarBinary {
-                references: *references,
-                operator: *operator,
-                meaning: *meaning,
-                left: Box::new(Self::substitute_call_term(left, map, machine_map)),
-                right: Box::new(Self::substitute_call_term(right, map, machine_map)),
-            },
             StructuralTerm::Variable(name) => map
                 .iter()
                 .find(|(variable, _)| variable == name)
                 .map(|(_, replacement)| replacement.clone())
                 .unwrap_or_else(|| term.clone()),
-            StructuralTerm::Constructor { data, case, fields } => StructuralTerm::Constructor {
-                data: data.clone(),
-                case: case.clone(),
-                fields: fields
-                    .iter()
-                    .map(|(name, value)| {
-                        (
-                            name.clone(),
-                            Self::substitute_call_term(value, map, machine_map),
-                        )
-                    })
-                    .collect(),
-            },
             StructuralTerm::Application { .. } | StructuralTerm::CallProjection { .. } => {
-                let mut substituted = term.clone().map_argument_terms(|argument| {
-                    Self::substitute_call_term(&argument, map, machine_map)
-                });
+                let mut substituted = term.clone().map_children(substitute);
                 let (target, selections, machine, result_type) = match &mut substituted {
                     StructuralTerm::Application {
                         target,
@@ -2983,6 +3094,10 @@ impl<'program> StructuralJudge<'program> {
                 }
                 term.clone()
             }
+            // Every other variant carries its children through the shared
+            // child table: substituting a leaf leaves it alone, and a shell or
+            // composite rebuilds around its substituted operands.
+            other => other.clone().map_children(substitute),
         }
     }
 
@@ -3008,6 +3123,20 @@ impl<'program> StructuralJudge<'program> {
     ) -> StructuralJudgment {
         if self.case_facts_only && !super::call_requirements::case_fact_only(program, fact) {
             return StructuralJudgment::Unknown;
+        }
+        if program.static_type_predicate_operands(fact).is_some() {
+            return self
+                .declaration_term(fact)
+                .map(|term| self.resolve(term))
+                .and_then(|term| value_predicates::boolean_value(term.semantic_value()))
+                .map(|holds| {
+                    if holds {
+                        StructuralJudgment::Proven
+                    } else {
+                        StructuralJudgment::Refuted
+                    }
+                })
+                .unwrap_or(StructuralJudgment::Unknown);
         }
         if program
             .expression_table
@@ -3164,6 +3293,11 @@ impl<'program> StructuralJudge<'program> {
         expression: ExpressionHandle,
         comparison: &typed_trees::expression::TableBinaryExpression,
     ) -> bool {
+        if !self.runtime_body_values {
+            return crate::proof_contracts::bound_expression_meaning::has_exact_parameter_case_membership_meaning(
+                self.program, &self.declaration_parameters, expression, comparison,
+            );
+        }
         self.program
             .machine(self.machine_symbol)
             .is_some_and(|machine| {
@@ -3350,7 +3484,7 @@ impl<'program> StructuralJudge<'program> {
         ));
     }
 
-    fn judge_case(
+    pub(super) fn judge_case(
         &self,
         subject: StructuralTerm,
         data_symbol: SymbolHandle,

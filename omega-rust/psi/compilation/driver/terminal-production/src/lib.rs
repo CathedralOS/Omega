@@ -21,7 +21,8 @@ mod terminal_production;
 
 pub use build_bindings::{
     TerminalBuildBindingCall, TerminalBuildBindingOperation, TerminalBuildBindings,
-    TerminalBuildProviderRequirement, TerminalBuildSelectionRequest,
+    TerminalBuildNativeLocator, TerminalBuildProviderRequirement, TerminalBuildSelectionRequest,
+    TerminalBuildValueCase, TerminalBuildValueField, TerminalBuildValueShape,
 };
 pub use build_filesystem::{
     TerminalBuildFilesystem, TerminalBuildFilesystemCall, TerminalBuildFilesystemOperation,
@@ -32,6 +33,9 @@ pub use build_requests::{
     TerminalBuildRequestCall, TerminalBuildRequestOperation, TerminalBuildRequests,
 };
 pub use checked_trees_to_lowered_psi::lower_task_activation_demands;
+pub use checked_trees_to_lowered_psi::{
+    ExternalProviderDeclarations, project_external_provider_declarations,
+};
 pub use checked_trees_to_lowered_psi::{TerminalMachineSelection, TerminalProgramRoots};
 pub use composition_admission::TerminalCompositionAdmission;
 pub use custody::{ProducedTerminalProgram, TerminalApplicationCustody, TerminalProductionCustody};

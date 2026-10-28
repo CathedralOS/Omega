@@ -1,0 +1,7 @@
+// A concrete result value cannot discharge a false static type argument.
+machine only_u32<T>() -> u32
+where T == u32
+ensures result == 42u32
+{ 42u32 }
+const BAD: u32 = only_u32<u64>();
+machine main() {}

@@ -10,7 +10,7 @@ use std::num::NonZeroU64;
 /// Authored owner of a bodyless requirement. Absence of a nominal attachment
 /// does not identify a trait: an operator also has no service receiver.
 /// This role travels with the declaration, independently of provider selection.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum BoundaryRequirementKind {
     /// Includes token-bearing machines and explicit top-level requirements.
     /// Their application custody remains independent of declaration kind.
@@ -21,7 +21,7 @@ pub enum BoundaryRequirementKind {
 
 /// Closed external terminal outcomes. This vocabulary does not grant authority
 /// to invoke an outcome or replace its provider conformance obligations.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum ExternalCompletionKind {
     ProcessExit,
 }
@@ -86,7 +86,9 @@ impl fmt::Display for InvocationSite {
 /// normal-result shape and service ceiling. Provider admission must preserve it.
 /// The transitional Unit exit encoding retains `External(ProcessExit)` here;
 /// this does not supply the still-missing terminal invocation representation.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record,
+)]
 pub enum BoundaryCompletion {
     #[default]
     NormalReturn,
@@ -115,7 +117,7 @@ impl PackageKeyIdentity {
 /// Psi semantics. The schedule implementation lives above this dependency-
 /// light identity so installation/resource records can name its units without
 /// depending on a semantic evaluator.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct FuelScheduleIdentity(NonZeroU32);
 
 impl FuelScheduleIdentity {
@@ -140,7 +142,9 @@ pub trait PsiSemanticId: Copy + Eq + Ord + std::hash::Hash {
 macro_rules! semantic_id {
     ($name:ident, $description:literal) => {
         #[doc = $description]
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        #[derive(
+            Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record,
+        )]
         pub struct $name(NonZeroU64);
 
         impl $name {
@@ -183,7 +187,9 @@ semantic_id!(
 
 /// Immutable canonical module coordinate. Zero denotes the bare qualification
 /// set and has no catalog row; this is not a reclaimable arena handle.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record,
+)]
 pub struct ScalarQualificationSetId(u64);
 
 impl ScalarQualificationSetId {
@@ -320,5 +326,20 @@ mod tests {
                 .digest(),
             digest
         );
+    }
+}
+
+impl compiler_storage::Record for PackageKeyIdentity {
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        compiler_storage::Record::write(&self.digest(), output)
+    }
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        Self::from_digest(compiler_storage::Record::read(input)?)
+            .ok_or_else(|| input.error("package identity has the reserved zero digest"))
     }
 }

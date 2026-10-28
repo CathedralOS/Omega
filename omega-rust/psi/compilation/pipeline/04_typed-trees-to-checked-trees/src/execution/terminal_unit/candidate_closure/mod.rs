@@ -475,7 +475,7 @@ pub(super) fn retain_available(
                     CheckedUnitEffectOperationPlan::ContinuationCleanup { .. } => {}
                     _ => closure.drop_candidate(
                         caller_index,
-                        CheckedUnitPlanGapReason::Unsupported("composed control vocabulary"),
+                        CheckedUnitPlanGapReason::Unsupported(std::borrow::Cow::Borrowed("composed control vocabulary")),
                         GapSite::State(state.state),
                     ),
                 }
@@ -519,7 +519,7 @@ pub(super) fn retain_available(
         .iter()
         .zip(&causes)
         .filter_map(|(machine, cause)| {
-            let (reason, site) = (*cause)?;
+            let (reason, site) = cause.clone()?;
             let key = symbol_key(*machine);
             (!surviving.contains(&key) && reported.insert(key))
                 .then(|| plan_gap(program, *machine, site, reason))

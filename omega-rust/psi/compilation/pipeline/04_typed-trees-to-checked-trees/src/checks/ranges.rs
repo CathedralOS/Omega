@@ -394,6 +394,6 @@ fn expression_contains_indexed(
             .struct_fields(literal.fields)
             .iter()
             .any(|field| expression_contains_indexed(program, field.value, next)),
-        typed_trees::literal_expression_pattern!() => false,
+        ExpressionNode::TypeExpression(_) | typed_trees::literal_expression_pattern!() => false,
     }
 }

@@ -33,13 +33,21 @@ pub(super) fn validate(
         .flat_map(|definition| program.trait_machine_signatures(definition))
         .map(|signature| (signature.symbol, signature.name.as_str()))
         .collect();
+    // A generic protocol operation has an ordinary closed requirement identity.
+    // Its exact retained template, rather than its rendered target name, owns
+    // source issuance just as it does for a non-generic operation.
+    let template = |symbol| {
+        program
+            .closed_requirement_application(symbol)
+            .map_or(symbol, |application| application.template)
+    };
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
                 if let typed_trees::statement::StatementNode::Call(call) = statement
                     && operations
                         .iter()
-                        .any(|(symbol, _)| *symbol == call.target_symbol)
+                        .any(|(symbol, _)| *symbol == template(call.target_symbol))
                 {
                     return Err(Diagnostic::error(
                         "Build binding protocol requires source-issued designated product operands",
@@ -54,7 +62,7 @@ pub(super) fn validate(
         };
         let operation = operations
             .iter()
-            .find(|(symbol, _)| *symbol == call.target_symbol)
+            .find(|(symbol, _)| *symbol == template(call.target_symbol))
             .map(|(_, name)| *name);
         if !call.build_selection.is_valid() {
             if operation.is_some() {
@@ -134,7 +142,10 @@ pub(super) fn validate(
                     .map_err(|reason| Diagnostic::error(reason).with_source_span(span))?;
                 match operation {
                     "prepare" | "select" => 1,
-                    "select_mode" if binding.operation == BuildOperation::ProviderSelection => 2,
+                    "bind_native" if binding.operation == BuildOperation::NativeBinding => 3,
+                    "select_provider" if binding.operation == BuildOperation::ProviderSelection => {
+                        3
+                    }
                     _ => {
                         return Err(Diagnostic::error(
                             "Product selection commit disagrees with its declaration operation",

@@ -1358,7 +1358,9 @@ pub(super) fn expression_any(
                     .map(|field| field.value),
             ),
             ExpressionNode::Range(range) => pending.extend([range.start, range.end]),
-            ExpressionNode::SavedSubject(_) | typed_trees::literal_expression_pattern!() => {}
+            ExpressionNode::TypeExpression(_)
+            | ExpressionNode::SavedSubject(_)
+            | typed_trees::literal_expression_pattern!() => {}
         }
     }
     false

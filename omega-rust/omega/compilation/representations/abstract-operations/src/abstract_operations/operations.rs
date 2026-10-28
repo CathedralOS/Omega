@@ -3,8 +3,8 @@
 use crate::{
     AbstractAtomicEvent, AbstractBoundaryResult, AbstractCallTarget, AbstractResult,
     AbstractStructuralCallResult, AbstractStructuralCaseSuccessor, AbstractSuccessor,
-    AtomicModificationAfter, AtomicReadsFrom, CompletionClaimSource, IntegerArithmetic,
-    IntegerArithmeticOperator, ValueBinding,
+    AtomicResidencyEdge, CompletionClaimSource, IntegerArithmetic, IntegerArithmeticOperator,
+    ValueBinding,
 };
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ClaimId, EdgeId, IeeeFloatFormat, IeeeFloatValue, IntegerType,
@@ -421,8 +421,8 @@ pub enum AbstractOperation {
         event: AbstractAtomicEvent,
         /// Distinct atomic resident establishment, retained through refinements.
         resident_obligation: Option<semantic_vocabulary::ObligationId>,
-        reads_from: Option<AtomicReadsFrom>,
-        modification_after: Option<AtomicModificationAfter>,
+        reads_from: Option<AtomicResidencyEdge>,
+        modification_after: Option<AtomicResidencyEdge>,
     },
     /// Atomically establish one exact case of a declared structural sum from
     /// scalar values and whole owned structural payloads.
@@ -907,6 +907,33 @@ impl AbstractOperation {
         })
     }
 
+    /// The structural arguments this operation hands to another activation:
+    /// the exact caller-local places a direct, dynamic, boundary or no-normal
+    /// call passes, in Terminal call order. Establishment rows that merely
+    /// share the field name (`EstablishStructuralArray`) are not invocations
+    /// and carry none here.
+    pub fn invocation_arguments(&self) -> &[StructuralArgument] {
+        match self {
+            Self::CallStructural {
+                structural_arguments,
+                ..
+            }
+            | Self::BoundaryCall {
+                structural_arguments,
+                ..
+            }
+            | Self::ExternalCompletion {
+                structural_arguments,
+                ..
+            }
+            | Self::InvokeNoNormal {
+                structural_arguments,
+                ..
+            } => structural_arguments,
+            _ => &[],
+        }
+    }
+
     /// Cleanup belongs to a selected semantic edge, not to the containing
     /// block. Enumerating these rosters does not execute conditional siblings.
     pub fn cleanup_rosters(
@@ -1210,28 +1237,20 @@ impl AbstractOperation {
             Self::EstablishStructuralArray {
                 elements: structural_arguments,
                 ..
-            }
-            | Self::CallStructural {
-                structural_arguments,
-                ..
-            }
-            | Self::BoundaryCall {
-                structural_arguments,
-                ..
-            }
-            | Self::ExternalCompletion {
-                structural_arguments,
-                ..
-            }
-            | Self::InvokeNoNormal {
-                structural_arguments,
-                ..
             } => structural_arguments
                 .iter()
                 .map(|argument| argument.path.as_slice())
                 .collect(),
             _ => Vec::new(),
         };
+        // Invocations hand their structural arguments over in Terminal call
+        // order whatever form names the call; this is their only operand path
+        // roster, and non-invocations contribute none.
+        paths.extend(
+            self.invocation_arguments()
+                .iter()
+                .map(|argument| argument.path.as_slice()),
+        );
         // A terminator's cleanup invokes real receivers. Their selectors are
         // scalar uses even when no later store mentions the captured place.
         paths.extend(

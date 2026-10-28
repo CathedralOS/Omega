@@ -1,7 +1,7 @@
 use super::evidence::require_rederived_data_definition_facts;
 use crate::capture::PackageReviewInput;
 use crate::capture::api::domains::facts::project_definition_contract_fact;
-use crate::capture::contracts::facts::ContractProjectionContext;
+use crate::capture::contracts::facts::{ContractProjectionContext, reviewed_package};
 use crate::capture::semantics::declarations::{
     is_product_scope_instance, nominal_identity, reviewed_package_owns,
 };
@@ -39,15 +39,7 @@ pub(crate) fn project_data_invariant_facts(
         lifetime_substitutions: &[],
         selection_exposure: language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
     };
-    let reviewed_package = compilation
-        .custody
-        .sources()
-        .package_identity()
-        .ok_or_else(|| {
-            vec![Diagnostic::error(
-                "data invariant review requires package-aware checked compilation",
-            )]
-        })?;
+    let reviewed_package = reviewed_package(compilation, "data invariant")?;
     let mut projected = Vec::new();
     for fact_handle in definition.where_facts.handles() {
         require_exact_checked_data_fact(compilation, definition.symbol, fact_handle, identity)?;

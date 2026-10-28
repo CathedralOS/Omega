@@ -399,6 +399,7 @@ fn retarget_expression(
         | symbol_resolved_trees::expression::ExpressionNode::Integer(_)
         | symbol_resolved_trees::expression::ExpressionNode::Name(_)
         | symbol_resolved_trees::expression::ExpressionNode::String(_)
+        | symbol_resolved_trees::expression::ExpressionNode::TypeExpression(_)
         | symbol_resolved_trees::expression::ExpressionNode::ZeroValue(_) => {}
     }
     for child in children {

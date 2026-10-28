@@ -3,11 +3,11 @@
 use super::{
     AnalysisRoot, CountdownInvariantConstantAnalysisError,
     CountdownInvariantConstantAnalysisSnapshot, CountdownInvariantConstantRole,
-    CountdownInvariantIntegerConstant, IntegerType, IntegerValue, NodeLocation, O, OperationId,
-    PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, ScalarType,
-    UnsignedCountdownInvariantConstants, ValidatedCountedLoopAnalysis,
-    ValidatedOptimizerCycleComponents, ValueDefinitionSite, ValueId, unsupported,
-    validate_analysis_root, validate_locations,
+    CountdownInvariantIntegerConstant, OptimizerUnsignedCountdownRankingCertificate,
+    PsiOptimizationFunction, PsiOptimizationUnit, UnsignedCountdownInvariantConstants,
+    ValidatedCountedLoopAnalysis, ValidatedOptimizerCycleComponents, expected_constant,
+    invariant_constant_row, sole_provenance_node, unsupported, validate_analysis_root,
+    validate_locations,
 };
 use std::collections::BTreeMap;
 
@@ -62,19 +62,13 @@ pub(super) fn reconstruct(
         let constants = [
             reconstruct_row(
                 function,
-                certificate.rank_type,
+                certificate,
                 CountdownInvariantConstantRole::PositiveGuardZero,
-                certificate.guard.zero_operation,
-                certificate.guard.zero,
-                IntegerValue::Unsigned(0),
             )?,
             reconstruct_row(
                 function,
-                certificate.rank_type,
+                certificate,
                 CountdownInvariantConstantRole::BackedgeDecrementOne,
-                certificate.descent.one_operation,
-                certificate.descent.one,
-                IntegerValue::Unsigned(1),
             )?,
         ];
         validate_locations(function, component, certificate, &constants)?;
@@ -90,83 +84,20 @@ pub(super) fn reconstruct(
     })
 }
 
-#[allow(clippy::too_many_arguments)]
+/// The certified occurrence the keyed path admits: the unique node whose
+/// provenance names the role's operation. The proposal leaf reaches the same
+/// node through the operation shape instead.
 fn reconstruct_row(
     function: &PsiOptimizationFunction,
-    rank_type: IntegerType,
+    certificate: &OptimizerUnsignedCountdownRankingCertificate,
     role: CountdownInvariantConstantRole,
-    operation: OperationId,
-    result: ValueId,
-    value: IntegerValue,
 ) -> Result<CountdownInvariantIntegerConstant, CountdownInvariantConstantAnalysisError> {
-    let mut occurrences = function
-        .blocks
-        .iter()
-        .flat_map(|block| {
-            block
-                .nodes
-                .iter()
-                .enumerate()
-                .map(move |(node, value)| (block.id, node, value))
-        })
-        .filter(|(_, _, node)| {
-            node.provenance
-                .first()
-                .is_some_and(|source| *source == PsiProvenance::Operation(operation))
-        });
-    let Some((block, node_index, node)) = occurrences.next() else {
-        return Err(unsupported(function.machine, operation));
-    };
-    if occurrences.next().is_some() {
-        return Err(unsupported(function.machine, operation));
-    }
-    let node_index =
-        u32::try_from(node_index).map_err(|_| unsupported(function.machine, operation))?;
-    let O::IntegerConstant {
-        psi_operation,
-        result: actual_result,
-        scalar_type,
-        value: actual_value,
-    } = node.operation
-    else {
-        return Err(unsupported(function.machine, operation));
-    };
-    let [definition] = node.definitions.as_slice() else {
-        return Err(unsupported(function.machine, operation));
-    };
-    if psi_operation != operation
-        || actual_result != result
-        || scalar_type != ScalarType::Integer(rank_type)
-        || actual_value != value
-        || definition.value != result
-        || definition.scalar_type != ScalarType::Integer(rank_type)
-        || definition.site
-            != (ValueDefinitionSite::Node {
-                block,
-                node: node_index,
-            })
-        || !node.uses.is_empty()
-        || !node.successors.is_empty()
-        || !node.ownership.is_empty()
-    {
-        return Err(unsupported(function.machine, operation));
-    }
-    Ok(CountdownInvariantIntegerConstant {
-        role,
-        location: NodeLocation {
-            machine: function.machine,
-            block,
-            node: node_index,
-        },
-        psi_operation,
-        result,
-        scalar_type: rank_type,
-        value,
-        definition: *definition,
-        provenance: node.provenance.clone(),
-        fuel: node.fuel.clone(),
-        effect: node.effect,
-    })
+    let expected = expected_constant(certificate, role);
+    let (block, node_index, node) =
+        sole_provenance_node(function.blocks.iter(), expected.operation)
+            .ok_or_else(|| unsupported(function.machine, expected.operation))?;
+    invariant_constant_row(function, block, node_index, node, role, expected)
+        .ok_or_else(|| unsupported(function.machine, expected.operation))
 }
 
 fn validate_roots(

@@ -1,7 +1,15 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "native_component_reuse");
     Build::depend_as(builder, "producer", Source::Path { location: "producer" });
-    Build::select_provider<producer::Reading, producer::Reader>(builder, CompositionMode::Independent);
+    Build::select_provider<producer::Reading, producer::Reader>(builder, linux_arm64, CompositionMode::Independent);
+    Build::select_provider<producer::Reading, producer::Reader>(builder, linux_x86_64, CompositionMode::Independent);
+    Build::select_provider<producer::Reading, producer::Reader>(builder, macos_arm64, CompositionMode::Independent);
+    Build::select_provider<producer::Reading, producer::Reader>(builder, macos_x86_64, CompositionMode::Independent);
+    Build::select_provider<producer::Reading, producer::Reader>(builder, windows_x86_64, CompositionMode::Independent);
+    Build::select_provider<producer::Reading, producer::Reader>(builder, uefi_x86_64, CompositionMode::Independent);
+    Build::select_provider<producer::Reading, producer::Reader>(builder, cross_platform_cli, CompositionMode::Independent);
+    Build::select_provider<producer::Reading, producer::Reader>(builder, local_unchecked, CompositionMode::Independent);
+    Build::select_provider<producer::Reading, producer::Reader>(builder, alpha_bootstrap, CompositionMode::Independent);
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, macos_arm64::ProgramEntry, main);

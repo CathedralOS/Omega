@@ -458,7 +458,7 @@ impl ElisionWalk<'_> {
                 }
             }
             ExpressionNode::Unary(unary) => self.visit(unary.operand, calls),
-            typed_trees::literal_expression_pattern!() => {}
+            ExpressionNode::TypeExpression(_) | typed_trees::literal_expression_pattern!() => {}
         }
     }
 }

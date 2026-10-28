@@ -1,5 +1,5 @@
 //! Terminal invocations evaluate arguments in authored order and capture scalar
-//! snapshots before transferring existing reference carriers. A copied observation through that carrier's own route
+//! snapshots before committing the arrival transfer of existing reference carriers. A copied observation through that carrier's own route
 //! does not create a competing successor loan. This follows state_contracts.md
 //! (Bindings and arrivals) and expressions.md (Evaluation schedule), independent
 //! of attached-data namespaces. The distinction is transfer versus formation:

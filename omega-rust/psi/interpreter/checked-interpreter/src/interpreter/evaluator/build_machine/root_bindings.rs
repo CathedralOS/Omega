@@ -72,7 +72,12 @@ impl<'program> Evaluator<'program> {
             if matches!(
                 protocol,
                 Some(
-                    "prepare" | "bind" | "bind_description" | "select" | "select_mode" | "exclude"
+                    "prepare"
+                        | "bind"
+                        | "bind_description"
+                        | "select"
+                        | "select_provider"
+                        | "exclude"
                 )
             ) {
                 return trap(
@@ -99,7 +104,7 @@ impl<'program> Evaluator<'program> {
                 RootBindingOperand::Description => "bind_description",
             },
             BuildSelectionRequest::Declaration(_) => match protocol {
-                Some("select_mode") => "select_mode",
+                Some("select_provider") => "select_provider",
                 _ => "select",
             },
         };
@@ -162,6 +167,10 @@ impl<'program> Evaluator<'program> {
                 "root binding activation ticket is missing, consumed, or belongs to another selection",
             );
         }
+        let author_coordinate = self
+            .program
+            .symbols
+            .symbol_source_span(self.program.symbols.authored_origin(frame.machine_symbol));
         let selection = match binding {
             BuildSelectionRequest::ProviderReadiness(_) => {
                 return trap("provider readiness requires a retained Terminal Build activation");
@@ -182,16 +191,11 @@ impl<'program> Evaluator<'program> {
                     language_semantics::declaration_selection::ExecutedEnumExclusion {
                         request,
                         code,
-                        selecting_machine: self
-                            .program
-                            .symbols
-                            .symbol_source_span(frame.machine_symbol)
-                            .ok_or_else(|| {
-                                Halt::Trap(
-                                    "behavior exclusion lost its authored machine coordinate"
-                                        .into(),
-                                )
-                            })?,
+                        selecting_machine: author_coordinate.ok_or_else(|| {
+                            Halt::Trap(
+                                "behavior exclusion lost its authored machine coordinate".into(),
+                            )
+                        })?,
                     },
                 )
             }
@@ -218,15 +222,28 @@ impl<'program> Evaluator<'program> {
                 })
             }
             BuildSelectionRequest::Declaration(request) => {
-                let independent = match (operation, arguments) {
-                    ("select", [_]) => None,
-                    ("select_mode", [_, mode]) => {
+                let (target, independent) = match (operation, arguments) {
+                    ("select", [_]) => (None, None),
+                    ("select_provider", [_, target, mode]) => {
+                        let Value::Int(code) = self.eval_expression(*target, frame)? else {
+                            return trap("Product selection requires its checked target value");
+                        };
+                        let target = u64::try_from(code)
+                            .ok()
+                            .and_then(
+                                language_semantics::declaration_selection::ProductTarget::from_code,
+                            )
+                            .ok_or_else(|| {
+                                Halt::Trap(
+                                    "Product selection names an unknown catalog target".into(),
+                                )
+                            })?;
                         let Value::Bool(independent) = self.eval_expression(*mode, frame)? else {
                             return trap(
                                 "Product selection requires its checked composition value",
                             );
                         };
-                        Some(independent)
+                        (Some(target), Some(independent))
                     }
                     _ => return trap("Product selection lost its ordinary arguments"),
                 };
@@ -250,21 +267,15 @@ impl<'program> Evaluator<'program> {
                     }
                 };
                 let selecting_machine = if requires_selecting_machine {
-                    Some(
-                        self.program
-                            .symbols
-                            .symbol_source_span(frame.machine_symbol)
-                            .ok_or_else(|| {
-                                Halt::Trap(
-                                    "Product selection lost its authored machine coordinate".into(),
-                                )
-                            })?,
-                    )
+                    Some(author_coordinate.ok_or_else(|| {
+                        Halt::Trap("Product selection lost its authored machine coordinate".into())
+                    })?)
                 } else {
                     None
                 };
                 SourceBuildSelection::Declaration(ExecutedProductSelection {
                     request,
+                    target,
                     composition,
                     selecting_machine,
                 })

@@ -3,6 +3,7 @@ use crate::record::{
     PackageReviewNominalIdentity,
 };
 
+use crate::record::accessors::field_projection_accessors;
 use effects::provider_plan::{
     ProviderIdentityTable, ServiceEntryClaim, ServiceProgressPremise, ServiceResultClaim,
 };
@@ -35,71 +36,31 @@ pub struct PackagePolicyServiceMethod {
 }
 
 impl PackagePolicyServiceMethod {
-    crate::record::accessors::record_accessors!(requirement);
-    pub fn completion(&self) -> semantic_vocabulary::BoundaryCompletion {
-        self.completion
-    }
-    pub fn authority(&self) -> &PackagePolicyServiceAuthority {
-        &self.authority
-    }
-    pub fn signature(&self) -> &PackagePolicyServiceSignature {
-        &self.signature
-    }
+    field_projection_accessors!(borrowed requirement: &PackageReviewNominalIdentity);
+    field_projection_accessors!(copied completion: semantic_vocabulary::BoundaryCompletion);
+    field_projection_accessors!(borrowed authority: &PackagePolicyServiceAuthority);
+    field_projection_accessors!(borrowed signature: &PackagePolicyServiceSignature);
     pub fn name(&self) -> &str {
         &self.name
     }
 
-    pub fn requirement_owner(&self) -> &PackageReviewNominalIdentity {
-        &self.requirement_owner
-    }
+    field_projection_accessors!(borrowed requirement_owner: &PackageReviewNominalIdentity);
 
-    pub fn parameter_count(&self) -> usize {
-        self.parameter_count
-    }
-
-    pub fn parameter_type_identities(&self) -> &[String] {
-        &self.parameter_type_identities
-    }
-
-    pub fn entry_claims(&self) -> &[ServiceEntryClaim] {
-        &self.entry_claims
-    }
-
-    pub fn has_result(&self) -> bool {
-        self.has_result
-    }
+    field_projection_accessors!(copied parameter_count: usize);
+    field_projection_accessors!(sliced parameter_type_identities: &[String]);
+    field_projection_accessors!(sliced entry_claims: &[ServiceEntryClaim]);
+    field_projection_accessors!(copied has_result: bool);
 
     pub fn result_type_identity(&self) -> Option<&str> {
         self.result_type_identity.as_deref()
     }
 
-    pub fn result_claims(&self) -> &[ServiceResultClaim] {
-        &self.result_claims
-    }
-
-    pub fn service_reach(&self) -> &[String] {
-        &self.service_reach
-    }
-
-    pub fn synchronous_invocations(&self) -> &[String] {
-        &self.synchronous_invocations
-    }
-
-    pub fn may_suspend(&self) -> bool {
-        self.may_suspend
-    }
-
-    pub fn may_block(&self) -> bool {
-        self.may_block
-    }
-
-    pub fn terminates_guarantee(&self) -> bool {
-        self.terminates_guarantee
-    }
-
-    pub fn termination_premises(&self) -> &[ServiceProgressPremise] {
-        &self.termination_premises
-    }
+    field_projection_accessors!(sliced result_claims: &[ServiceResultClaim]);
+    field_projection_accessors!(sliced service_reach: &[String]);
+    field_projection_accessors!(sliced synchronous_invocations: &[String]);
+    field_projection_accessors!(copied may_suspend: bool, may_block: bool);
+    field_projection_accessors!(copied terminates_guarantee: bool);
+    field_projection_accessors!(sliced termination_premises: &[ServiceProgressPremise]);
 
     pub fn calling(&self) -> Option<&PackagePolicyCallingPlan> {
         self.calling.as_ref()

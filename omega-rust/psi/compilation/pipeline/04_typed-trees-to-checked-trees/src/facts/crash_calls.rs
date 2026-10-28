@@ -29,6 +29,7 @@ use crate::facts::crash_calls::route_substitution::{
 use crate::facts::crash_calls::summary_predicates::{
     SummaryCrashBucket, normalize_summary_buckets,
 };
+use crate::facts::crash_plan_facts::declared_parameter_names;
 use checked_trees::CrashPredicateExpression;
 pub(crate) use private_summaries::{
     PreparedCrashSummaryGraph, prepare_crash_summary_graph, selected_invocation_target,
@@ -274,13 +275,7 @@ pub(super) fn attach_checked_crash_calls(
         let entry_names = program
             .machine_by_symbol(plan.machine)
             .and_then(|machine| program.machine_states(machine).first())
-            .map(|entry| {
-                program
-                    .state_parameters(entry)
-                    .iter()
-                    .map(|parameter| parameter.name.as_str().to_owned())
-                    .collect::<Vec<_>>()
-            })
+            .map(|entry| declared_parameter_names(program.state_parameters(entry)))
             .unwrap_or_default();
         plan_entry_parameter_names.push(entry_names);
     }
@@ -413,10 +408,7 @@ pub(super) fn attach_checked_crash_calls(
                             let parameters = program.state_signature_parameters(signature);
                             (
                                 parameters,
-                                parameters
-                                    .iter()
-                                    .map(|parameter| parameter.name.as_str().to_owned())
-                                    .collect(),
+                                declared_parameter_names(parameters),
                                 None,
                                 if capsule.published_buckets().is_empty() {
                                     SelectedTargetCrashRoutes::Empty

@@ -1,5 +1,13 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "provider_const_endpoint");
-    Build::select_provider<Math, Provider>(builder);
+    Build::select_provider<Math, Provider>(builder, linux_arm64);
+    Build::select_provider<Math, Provider>(builder, linux_x86_64);
+    Build::select_provider<Math, Provider>(builder, macos_arm64);
+    Build::select_provider<Math, Provider>(builder, macos_x86_64);
+    Build::select_provider<Math, Provider>(builder, windows_x86_64);
+    Build::select_provider<Math, Provider>(builder, uefi_x86_64);
+    Build::select_provider<Math, Provider>(builder, cross_platform_cli);
+    Build::select_provider<Math, Provider>(builder, local_unchecked);
+    Build::select_provider<Math, Provider>(builder, alpha_bootstrap);
     builder.freestanding = true;
 }

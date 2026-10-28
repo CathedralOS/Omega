@@ -90,7 +90,7 @@ impl<'request> PreparationRequest<'request> {
 /// a language judgment keeps this beside it: preparation is a pure function
 /// of the typed program and these inputs, so an equal pair reproduces the
 /// exact preparation and the judgment may be taken without preparing again.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, compiler_storage::Record)]
 pub struct PreparationAdmission {
     admits_pending_inputs: bool,
     asm_authority: Option<validation::AsmAuthorityAdmission>,
@@ -358,6 +358,8 @@ pub fn prepare_typed_trees(
 /// preparation and private constant execution share this ordering; coordinators
 /// must not stamp the canonical program to compensate for an unprepared clone.
 fn settle_value_destinations(program: &mut TypedTrees) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    let boolean_equalities = validation::static_type_boolean_equalities(program);
+    program.prepare_static_type_contexts(&boolean_equalities);
     // Named-machine result overloads are provisionally bound to the first
     // same-named symbol during early resolution. Rebind them now, after domain
     // normalization and destination typing, before validation/backend facts

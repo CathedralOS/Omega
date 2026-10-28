@@ -1,13 +1,13 @@
 use symbols::SymbolHandle;
 use typed_trees::type_identity::TypeIdentityId;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedPropositionVocabulary {
     pub declarations: Vec<CheckedPropositionDeclaration>,
     pub applications: Vec<CheckedPropositionApplication>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedPropositionDeclaration {
     pub symbol: SymbolHandle,
     pub name: String,
@@ -17,26 +17,26 @@ pub struct CheckedPropositionDeclaration {
     pub evidence: CheckedPropositionEvidence,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedPropositionBinder {
     pub name: String,
     pub kind: CheckedPropositionBinderKind,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedPropositionBinderKind {
     Type,
     Const { type_identity: TypeIdentityId },
     Machine,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedPropositionEvidence {
     FactOnly,
     Witness { evidence_type: String },
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedPropositionApplication {
     pub declaration: SymbolHandle,
     pub binder_arguments: Vec<CheckedPropositionBinderArgument>,
@@ -46,21 +46,21 @@ pub struct CheckedPropositionApplication {
     pub evidence_interface: Option<CheckedEvidenceInterfaceIdentity>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedEvidenceInterfaceIdentity {
     pub trait_symbol: SymbolHandle,
     pub arguments: Vec<typed_trees::type_identity::TypeIdentityId>,
     pub requirements: Vec<CheckedEvidenceRequirementIdentity>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedEvidenceRequirementIdentity {
     pub declaring_trait: SymbolHandle,
     pub declaring_trait_arguments: Vec<String>,
     pub requirement: SymbolHandle,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedPropositionBinderArgument {
     pub kind: CheckedPropositionBinderArgumentKind,
     /// Diagnostic rendering for ordinary static arguments. Projection
@@ -70,7 +70,7 @@ pub struct CheckedPropositionBinderArgument {
     pub evidence_projection: Option<CheckedEvidenceProjection>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedEvidenceProjection {
     pub term: arena::Handle<crate::CheckedEvidenceTerm>,
     pub declaring_trait: SymbolHandle,
@@ -78,7 +78,7 @@ pub struct CheckedEvidenceProjection {
     pub requirement: SymbolHandle,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedPropositionBinderArgumentKind {
     Type,
     Const,

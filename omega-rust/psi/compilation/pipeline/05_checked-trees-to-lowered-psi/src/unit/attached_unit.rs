@@ -685,6 +685,7 @@ pub(crate) fn lower_unit_closure(
             placement_lifecycle_plans: Vec::new(),
             reborrow_restored_call_uses: Vec::new(),
             boundary_machines,
+            external_providers: Vec::new(),
             provider_candidates,
             dynamic_dispatch: Default::default(),
             quotients: quotient_catalog,

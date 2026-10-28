@@ -1,7 +1,15 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "routed_field_boundary_handback_exit");
     Build::accept_boundary<Change>(builder);
-    Build::select_provider<Change, Changer>(builder);
+    Build::select_provider<Change, Changer>(builder, linux_arm64);
+    Build::select_provider<Change, Changer>(builder, linux_x86_64);
+    Build::select_provider<Change, Changer>(builder, macos_arm64);
+    Build::select_provider<Change, Changer>(builder, macos_x86_64);
+    Build::select_provider<Change, Changer>(builder, windows_x86_64);
+    Build::select_provider<Change, Changer>(builder, uefi_x86_64);
+    Build::select_provider<Change, Changer>(builder, cross_platform_cli);
+    Build::select_provider<Change, Changer>(builder, local_unchecked);
+    Build::select_provider<Change, Changer>(builder, alpha_bootstrap);
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, macos_arm64::ProgramEntry, main);

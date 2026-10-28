@@ -1,13 +1,14 @@
 use super::assembly::AssemblyTable;
 pub use super::assembly::{AssemblyBlock, AssemblyControlFlow, AssemblyExit};
 use crate::identifier::Identifier;
-use arena::{Handle, HandleSpan, PagedArenaSet as Arena};
+use crate::syntax_trees::paged_roster::paged_roster;
+use arena::{Handle, HandleSpan};
 use source::SourceSpan;
 
 pub type StatementHandle = Handle<StatementNode>;
 
 /// A Build declaration with product-context operands, never a runtime call.
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
 pub struct RootBinding {
     pub receiver: crate::expression::ExpressionHandle,
     pub slot: Box<[Identifier]>,
@@ -21,92 +22,20 @@ pub struct RootBinding {
 }
 pub type TransitionTargetHandle = Handle<TransitionTargetNode>;
 
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
-pub struct StatementTable {
-    assembly: AssemblyTable,
-    statements: Arena<StatementNode>,
-    expression_handles: Arena<crate::expression::ExpressionHandle>,
-    identifier_path_members: Arena<Identifier>,
-    transition_targets: Arena<TransitionTargetNode>,
-    outcome_proof_selectors: Arena<TableOutcomeProofSelector>,
-}
-
-pub(crate) struct StatementTableAppendCheckpoint {
-    assembly: super::assembly::AssemblyTableAppendCheckpoint,
-    statements: arena::PagedArenaFrontier<StatementNode>,
-    expression_handles: arena::PagedArenaFrontier<crate::expression::ExpressionHandle>,
-    identifier_path_members: arena::PagedArenaFrontier<Identifier>,
-    transition_targets: arena::PagedArenaFrontier<TransitionTargetNode>,
-    outcome_proof_selectors: arena::PagedArenaFrontier<TableOutcomeProofSelector>,
+paged_roster! {
+    pub struct StatementTable => pub(crate) StatementTableAppendCheckpoint {
+        arena statements: StatementNode,
+        arena expression_handles: crate::expression::ExpressionHandle,
+        arena identifier_path_members: Identifier,
+        arena transition_targets: TransitionTargetNode,
+        arena outcome_proof_selectors: TableOutcomeProofSelector,
+        roster assembly: AssemblyTable => super::assembly::AssemblyTableAppendCheckpoint,
+    }
 }
 
 impl StatementTable {
-    pub(crate) fn append_checkpoint(&self) -> StatementTableAppendCheckpoint {
-        StatementTableAppendCheckpoint {
-            assembly: self.assembly.append_checkpoint(),
-            statements: self.statements.frontier(),
-            expression_handles: self.expression_handles.frontier(),
-            identifier_path_members: self.identifier_path_members.frontier(),
-            transition_targets: self.transition_targets.frontier(),
-            outcome_proof_selectors: self.outcome_proof_selectors.frontier(),
-        }
-    }
-
-    pub(crate) fn rewind_appended(&mut self, checkpoint: StatementTableAppendCheckpoint) {
-        self.assembly.rewind_appended(checkpoint.assembly);
-        self.statements.rewind_appended(checkpoint.statements);
-        self.expression_handles
-            .rewind_appended(checkpoint.expression_handles);
-        self.identifier_path_members
-            .rewind_appended(checkpoint.identifier_path_members);
-        self.transition_targets
-            .rewind_appended(checkpoint.transition_targets);
-        self.outcome_proof_selectors
-            .rewind_appended(checkpoint.outcome_proof_selectors);
-    }
-
-    pub(crate) fn share_pages(&mut self) {
-        self.assembly.share_pages();
-        self.statements.share_pages();
-        self.expression_handles.share_pages();
-        self.identifier_path_members.share_pages();
-        self.transition_targets.share_pages();
-        self.outcome_proof_selectors.share_pages();
-    }
-
     pub fn new() -> Self {
         Self::new_with_generation(1)
-    }
-
-    pub fn new_with_generation(generation: u32) -> Self {
-        Self {
-            assembly: AssemblyTable::new(generation),
-            statements: Arena::with_generation(generation),
-            expression_handles: Arena::with_generation(generation),
-            identifier_path_members: Arena::with_generation(generation),
-            transition_targets: Arena::with_generation(generation),
-            outcome_proof_selectors: Arena::with_generation(generation),
-        }
-    }
-
-    pub(crate) fn adopt(&mut self, other: Self) {
-        self.assembly.adopt(other.assembly);
-        self.statements.adopt(other.statements);
-        self.expression_handles.adopt(other.expression_handles);
-        self.identifier_path_members
-            .adopt(other.identifier_path_members);
-        self.transition_targets.adopt(other.transition_targets);
-        self.outcome_proof_selectors
-            .adopt(other.outcome_proof_selectors);
-    }
-
-    pub(crate) fn begin_page(&mut self, generation: u32) {
-        self.assembly.begin_page(generation);
-        self.statements.begin_page(generation);
-        self.expression_handles.begin_page(generation);
-        self.identifier_path_members.begin_page(generation);
-        self.transition_targets.begin_page(generation);
-        self.outcome_proof_selectors.begin_page(generation);
     }
 
     pub fn insert(&mut self, statement: StatementNode) -> StatementHandle {
@@ -237,7 +166,7 @@ impl Default for StatementTable {
     }
 }
 
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
 pub enum StatementNode {
     Assembly(Handle<AssemblyControlFlow>),
     RootBinding(RootBinding),
@@ -253,13 +182,13 @@ pub enum StatementNode {
 /// Immediate selective binding of named proof outputs from one call. This is
 /// deliberately distinct from record destructuring: the receiver is evaluated
 /// once and no proof output is represented by a runtime member read.
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
 pub struct TableProofOutputBindingStatement {
     pub bindings: Box<[TableProofOutputSelector]>,
     pub call: crate::expression::ExpressionHandle,
 }
 
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
 pub struct TableProofOutputSelector {
     pub output_field: Identifier,
     pub binding: Identifier,
@@ -268,19 +197,29 @@ pub struct TableProofOutputSelector {
 /// One erased caller-local selection from an outcome-specific guarantee lane.
 /// This is attached to an exact transition arm and never becomes a runtime
 /// payload field or statement.
-#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(
+    Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+)]
 pub struct TableOutcomeProofSelector {
     pub output_field: Identifier,
     pub binding: Identifier,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, syntax_trees_derive::PlainSyntaxEquivalent)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    compiler_storage::Record,
+)]
 pub struct TableAssemblyFact {
     pub kind: AssemblyFactKind,
     pub expression: crate::expression::ExpressionHandle,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum AssemblyFactKind {
     Requires,
     Ensures,
@@ -292,13 +231,23 @@ impl Default for StatementNode {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, syntax_trees_derive::PlainSyntaxEquivalent)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    compiler_storage::Record,
+)]
 pub struct TableAssignment {
     pub target: crate::expression::ExpressionHandle,
     pub value: crate::expression::ExpressionHandle,
 }
 
-#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(
+    Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+)]
 pub struct TableCall {
     pub receiver: HandleSpan<Identifier>,
     pub target: Identifier,
@@ -313,7 +262,9 @@ pub struct TableCall {
     pub discards_result: bool,
 }
 
-#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(
+    Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+)]
 pub struct TableLocalData {
     pub role: language_core::LocalBindingRole,
     pub name: Identifier,
@@ -327,7 +278,15 @@ pub struct TableLocalData {
     pub relevance: language_core::BindingRelevance,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, syntax_trees_derive::PlainSyntaxEquivalent)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    compiler_storage::Record,
+)]
 pub struct TableTransition {
     pub target: TransitionTargetHandle,
     pub continuation: TransitionTargetHandle,
@@ -364,20 +323,22 @@ impl Default for TableTransition {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum TransitionExit {
     #[default]
     Ordinary,
     Crash(crate::item::CrashCause),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum TransitionGuardNode {
     Always,
     When(crate::expression::ExpressionHandle),
 }
 
-#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(
+    Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+)]
 pub enum TransitionTargetNode {
     Named {
         path: HandleSpan<Identifier>,

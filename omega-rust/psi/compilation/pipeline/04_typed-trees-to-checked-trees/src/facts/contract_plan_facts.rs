@@ -1,7 +1,10 @@
 //! Contract plans, resource envelope coverage, mutation facts and closed
 //! scalar value contract plans.
 
-use crate::facts::crash_plan_facts::{build_crash_contract_capsules, build_published_crash_plan};
+use crate::facts::crash_plan_facts::{
+    build_crash_contract_capsules, build_published_crash_plan, declared_parameter_names,
+    machine_entry_parameter_names,
+};
 use crate::facts::{crash_calls, operator_crashes};
 use validation::contract_structure::{
     callable_binders, declared_callable, declared_contracts, declared_termination, generic_binders,
@@ -212,17 +215,7 @@ pub(crate) fn build_contract_plans(
                         // Positional parameter normalization: a contract fact naming the
                         // machine's Nth parameter encodes as P<N>, so RENAMES never change
                         // the identity (the substitutable contract is positional).
-                        let parameter_names: Vec<String> = program
-                            .machine_states(machine)
-                            .first()
-                            .map(|entry| {
-                                program
-                                    .state_parameters(entry)
-                                    .iter()
-                                    .map(|parameter| parameter.name.as_str().to_owned())
-                                    .collect()
-                            })
-                            .unwrap_or_default();
+                        let parameter_names = machine_entry_parameter_names(program, machine);
                         let crash = build_published_crash_plan(
                             program,
                             machine,

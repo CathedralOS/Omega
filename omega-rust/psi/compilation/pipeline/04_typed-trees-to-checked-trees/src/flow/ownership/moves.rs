@@ -378,6 +378,7 @@ pub(super) fn append_move_events_for_expression(
         ExpressionNode::Name(_)
         | ExpressionNode::Member(_)
         | ExpressionNode::Indexed(_)
+        | ExpressionNode::TypeExpression(_)
         | typed_trees::spelled_literal_expression_pattern!() => {}
     }
 }

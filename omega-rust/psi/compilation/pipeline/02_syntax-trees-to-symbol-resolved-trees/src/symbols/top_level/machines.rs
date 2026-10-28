@@ -233,6 +233,10 @@ pub(super) fn assign_machine_symbols(
             type_constraints,
         };
 
+        for predicate in expression_table.expression_handles(machine.declared_type_predicates).to_vec() {
+            assign_expression_table_symbols(symbols, &expression_scope, &[], SymbolHandle::invalid(), expression_table, child_type_references, predicate);
+        }
+
         for equation in declarations.declared_type_equations.span_mut_or_empty(machine.declared_type_equations) {
             for reference in [&mut equation.parameter, &mut equation.definition] {
                 assign_type_reference_symbol_with_locals_and_constraints(

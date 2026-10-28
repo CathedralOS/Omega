@@ -7,8 +7,8 @@ use super::super::{
 use super::parameters::call_index_selectors;
 use super::{
     CheckedTrees, CheckedUnitEffectOperationPlan, LoweringError, OperationResult, PlaceId,
-    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId, ValueDeclaration,
-    allocate_dense, argument_evaluation, lookup_type_id, lower_checked_crash_route_buckets,
+    StructuralPlaceDeclaration, StructuralTypeId, ValueDeclaration, allocate_dense,
+    argument_evaluation, lookup_type_id, lower_checked_crash_route_buckets,
     lower_structural_arguments, lower_structural_crash_route_buckets, place_id, primitive_locals,
     unsupported,
 };
@@ -16,6 +16,7 @@ use crate::direct_calls::{DirectCall, DirectCallResult, ModuleInvocationArgument
 use crate::emission::claim_bindings::emitted_claim_transfers;
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
 use crate::emission::operation_emission::calls::CallEmissionContext;
+use crate::emission::operation_emission::place_declarations::operation_result_place;
 use crate::terminal_identities::StructuralDomainBinding;
 use crate::unit::runtime_requirements::substitute_runtime_requirement_scalar_values;
 
@@ -554,11 +555,5 @@ pub(super) fn emit_structural(
     if register_binding {
         operations.bind_structural_value(result.binding_ordinal, returned.into());
     }
-    Ok(StructuralPlaceDeclaration {
-        id: place,
-        kind: StructuralPlaceKind::OperationResult {
-            producer: id,
-            structural_type,
-        },
-    })
+    Ok(operation_result_place(place, id, structural_type))
 }

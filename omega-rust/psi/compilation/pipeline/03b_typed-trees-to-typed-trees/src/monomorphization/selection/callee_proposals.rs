@@ -203,10 +203,9 @@ pub(crate) fn collect_machine_proposals_for_callee(
             if type_index >= candidate.template.type_parameters.len() {
                 return Err(StaticArgumentOverflow);
             }
-            if let Some((handle, _, _)) = program
+            if let Some(handle) = program
                 .type_reference_table
-                .named_references()
-                .find(|(_, symbol, _)| *symbol == selected.symbol)
+                .find_named_type_reference(selected.symbol)
             {
                 proposals
                     .types

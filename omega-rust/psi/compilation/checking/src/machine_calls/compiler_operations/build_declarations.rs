@@ -117,7 +117,7 @@ pub fn is_provider_selection_call(
     BuildOperation::from_call_target(call.target.as_str())
         == Some(BuildOperation::ProviderSelection)
         && has_explicit_build_argument(program, call)
-        && (1..=2).contains(
+        && (2..=3).contains(
             &program
                 .expression_table
                 .expression_handles(call.arguments)
@@ -218,7 +218,7 @@ pub fn build_product_request_intrinsic(
                         signature.symbol == call.target_symbol
                             && matches!(
                                 signature.name.as_str(),
-                                "prepare" | "select" | "select_mode"
+                                "prepare" | "select" | "select_provider"
                             )
                     })
         })

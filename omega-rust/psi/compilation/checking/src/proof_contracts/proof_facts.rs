@@ -510,7 +510,9 @@ fn abstract_trait_self_member_in_expression(
         ExpressionNode::Unary(unary) => {
             abstract_trait_self_member_in_expression(program, unary.operand, visited)
         }
-        ExpressionNode::SavedSubject(_) | typed_trees::literal_expression_pattern!() => None,
+        ExpressionNode::TypeExpression(_)
+        | ExpressionNode::SavedSubject(_)
+        | typed_trees::literal_expression_pattern!() => None,
     }
 }
 
@@ -771,6 +773,7 @@ fn is_boolean_fact_expression(
         | ExpressionNode::Integer(_)
         | ExpressionNode::String(_)
         | ExpressionNode::StructLiteral(_)
+        | ExpressionNode::TypeExpression(_)
         | ExpressionNode::ZeroValue(_) => false,
     }
 }

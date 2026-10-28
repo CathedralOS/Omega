@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use register_model::{RegisterOperandAccess, RegisterUnitId, ValidatedPhysicalRegisterModel};
-use selected_instructions::{SelectedBlockId, SelectedInstruction};
+use selected_instructions::{SelectedBlockId, SelectedInstruction, terminator_instruction};
 
 use super::super::{
     AllocatedCalleeSavedRequirementError, AllocatedCalleeSavedUnitRequirement,
@@ -10,19 +10,33 @@ use super::super::{
 
 /// One function's home assignments sorted by virtual register, so each
 /// written operand finds its home by binary search instead of rescanning every
-/// assignment in the function.
+/// assignment in the function. A register with two homes has no single home a
+/// write can name, so the index rejects a repeated home for the whole roster
+/// when it is built — the only owner of that admission, whichever route reads
+/// it.
 pub(super) struct HomeIndex<'homes> {
     sorted: Vec<&'homes crate::VirtualRegisterHome>,
 }
 
 impl<'homes> HomeIndex<'homes> {
-    pub(super) fn new(homes: &'homes crate::FunctionRegisterHomes) -> Self {
+    pub(super) fn new(
+        homes: &'homes crate::FunctionRegisterHomes,
+    ) -> Result<Self, AllocatedCalleeSavedRequirementError> {
         let mut sorted = homes.assignments.iter().collect::<Vec<_>>();
         sorted.sort_by_key(|home| home.virtual_register);
-        Self { sorted }
+        if let Some(repeated) = sorted
+            .windows(2)
+            .find(|pair| pair[0].virtual_register == pair[1].virtual_register)
+        {
+            return Err(AllocatedCalleeSavedRequirementError::DuplicateHome {
+                function: homes.machine,
+                virtual_register: repeated[0].virtual_register,
+            });
+        }
+        Ok(Self { sorted })
     }
 
-    /// The one home of `register`; a missing or repeated home rejects.
+    /// The one home of `register`; a missing home rejects.
     fn unique(
         &self,
         machine: semantic_vocabulary::MachineId,
@@ -31,20 +45,8 @@ impl<'homes> HomeIndex<'homes> {
         let start = self
             .sorted
             .partition_point(|home| home.virtual_register < register);
-        match self.sorted.get(start..).unwrap_or_default() {
-            [home, rest @ ..] if home.virtual_register == register => {
-                if rest
-                    .first()
-                    .is_some_and(|next| next.virtual_register == register)
-                {
-                    Err(AllocatedCalleeSavedRequirementError::DuplicateHome {
-                        function: machine,
-                        virtual_register: register,
-                    })
-                } else {
-                    Ok(home)
-                }
-            }
+        match self.sorted.get(start) {
+            Some(home) if home.virtual_register == register => Ok(home),
             _ => Err(AllocatedCalleeSavedRequirementError::MissingHome {
                 function: machine,
                 virtual_register: register,
@@ -55,8 +57,9 @@ impl<'homes> HomeIndex<'homes> {
 
 /// One callee-saved walk's state: the physical model and roster it reads, the
 /// requirements it derives, and the counts the pass budget is charged for.
-/// The direct and replay routes share it; they differ in how each home is
-/// found, never in what a step costs.
+/// The direct and replay routes share it and the walk it runs; they differ
+/// only in the function roster each one hands in, never in what a step counts
+/// or admits.
 pub(in crate::preservation) struct DirectTraversal<'model> {
     pub(in crate::preservation) physical: &'model ValidatedPhysicalRegisterModel,
     pub(in crate::preservation) callee_saved: &'model BTreeSet<RegisterUnitId>,
@@ -89,7 +92,7 @@ impl<'model> DirectTraversal<'model> {
 
     /// Close one function's walk: its recorded unit witnesses become the
     /// requirement row the plan publishes.
-    pub(in crate::preservation) fn finish(
+    fn finish(
         &mut self,
         machine: semantic_vocabulary::MachineId,
         units: BTreeMap<RegisterUnitId, Vec<CalleeSavedModificationWitness>>,
@@ -107,7 +110,39 @@ impl<'model> DirectTraversal<'model> {
             });
     }
 
-    pub(super) fn scan_instruction(
+    /// One function's whole walk: its home roster, every block, each block's
+    /// instructions and terminator, and the unit writes they record. The
+    /// direct and the replay route both run this; they differ only in the
+    /// roster each one hands in, never in what a step counts or admits.
+    pub(in crate::preservation) fn walk_function(
+        &mut self,
+        function: &selected_instructions::SelectedFunction,
+        homes: &crate::FunctionRegisterHomes,
+    ) -> Result<(), AllocatedCalleeSavedRequirementError> {
+        // The allocation owns home completeness, including omitted dead
+        // parameters. Every actual write is still checked against its home
+        // below.
+        if function.machine != homes.machine {
+            return Err(AllocatedCalleeSavedRequirementError::HomeRosterMismatch);
+        }
+        let homes = HomeIndex::new(homes)?;
+        self.function_count = add(self.function_count, 1)?;
+        let mut units = BTreeMap::new();
+        for block in &function.blocks {
+            self.block_count = add(self.block_count, 1)?;
+            for instruction in block
+                .instructions
+                .iter()
+                .chain(std::iter::once(terminator_instruction(&block.terminator)))
+            {
+                self.scan_instruction(function.machine, block.id, instruction, &homes, &mut units)?;
+            }
+        }
+        self.finish(function.machine, units);
+        Ok(())
+    }
+
+    fn scan_instruction(
         &mut self,
         machine: semantic_vocabulary::MachineId,
         block: SelectedBlockId,
@@ -153,25 +188,41 @@ impl<'model> DirectTraversal<'model> {
             };
             self.scan_units(&view.write_units, witness, units)?;
         }
-        self.scan_units(
+        self.scan_implicit(
+            block,
+            instruction.id,
             &instruction.implicit_defs,
-            CalleeSavedModificationWitness::ImplicitDefinition {
-                block,
-                instruction: instruction.id,
-            },
-            units,
-        )?;
-        self.scan_units(
             &instruction.clobbers,
-            CalleeSavedModificationWitness::ImplicitClobber {
-                block,
-                instruction: instruction.id,
-            },
             units,
         )
     }
 
-    fn scan_units(
+    /// Charge one instruction's implicit definitions and clobbers: the unit rows
+    /// that follow from the instruction itself, whichever route found the
+    /// operand homes.
+    pub(in crate::preservation) fn scan_implicit(
+        &mut self,
+        block: SelectedBlockId,
+        instruction: selected_instructions::SelectedInstructionId,
+        definitions: &[RegisterUnitId],
+        clobbers: &[RegisterUnitId],
+        units: &mut BTreeMap<RegisterUnitId, Vec<CalleeSavedModificationWitness>>,
+    ) -> Result<(), AllocatedCalleeSavedRequirementError> {
+        self.scan_units(
+            definitions,
+            CalleeSavedModificationWitness::ImplicitDefinition { block, instruction },
+            units,
+        )?;
+        self.scan_units(
+            clobbers,
+            CalleeSavedModificationWitness::ImplicitClobber { block, instruction },
+            units,
+        )
+    }
+
+    /// Charge one write and, when it meets the ABI-preserved roster, record the
+    /// witness that made it a requirement.
+    pub(in crate::preservation) fn scan_units(
         &mut self,
         writes: &[RegisterUnitId],
         witness: CalleeSavedModificationWitness,

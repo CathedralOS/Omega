@@ -1003,17 +1003,37 @@ fn storage_projection(
         .iter()
         .rposition(|segment| *segment == StructuralPathSegment::Referent)
     {
-        let leaf = custody.leaf(source.place, &path[..crossing])?;
+        let leaf_referent = match custody.leaf(source.place, &path[..crossing]) {
+            Some(leaf) => leaf.referent,
+            // A runtime-indexed prefix names every possible fixed slot, not a
+            // single declared key. The observation replay authenticates each
+            // fixed alternative's carrier; only a uniform referent keeps one
+            // crossing type.
+            None => {
+                let observed = observations::observe_alternatives(
+                    function,
+                    custody,
+                    types,
+                    source.place,
+                    &path[..crossing],
+                )
+                .ok()?;
+                let (first, rest) = observed.split_first()?;
+                rest.iter()
+                    .all(|alternative| alternative.referent == first.referent)
+                    .then_some(first.referent)?
+            }
+        };
         let reference = leaf_type(types, carrier, &path[..crossing])?;
         let StructuralTypeShape::Reference { referent, access } =
             find_structural_type(types, reference)?.shape
         else {
             return None;
         };
-        if referent != leaf.referent || !source.access.admits_referent(access) {
+        if referent != leaf_referent || !source.access.admits_referent(access) {
             return None;
         }
-        carrier = leaf.referent;
+        carrier = leaf_referent;
         path = &path[crossing + 1..];
     }
     optimization_unit_semantics::structural_borrowed_storage_projection(
@@ -1406,6 +1426,14 @@ fn lifetime_storage_access_conflicts(
     path: &[StructuralPathSegment],
     requested: StructuralAccess,
 ) -> bool {
+    // A captured arrival may use this exact occurrence through an admitted
+    // spatial reborrow. Its opaque pointee geometry is not an access to the
+    // provider's separate validity anchor. Authenticate every alternative's
+    // grant and access ceiling; equal roots or lifetime links grant nothing.
+    // The debt remains live for unrelated uses and anchor disposal.
+    if borrowed_arrivals::lends_from(custody, place, &reference.identity, requested) {
+        return false;
+    }
     // A shared output can retain an exclusive validity anchor. Its own access
     // therefore cannot exempt that anchor from interference checks.
     custody
@@ -2934,7 +2962,14 @@ pub(in crate::legalization) fn apply(
         _ => {}
     }
     custody.prune_retired();
-    custody.validate_occurrences()?;
+    custody.validate_occurrences().inspect_err(|_| {
+        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            eprintln!(
+                "CHECKSITE custody-operation-context machine={:?} position={:?} operation={:?} sources={:?}",
+                function.machine, custody.reference_position, operation, custody.borrowed_sources
+            );
+        }
+    })?;
     Ok(())
 }
 
@@ -3201,6 +3236,8 @@ pub(in crate::legalization) fn apply_terminator(
                 types,
                 retirements::DisposalEvent::Edge(edge),
             )?;
+            exit.prune_retired();
+            exit.validate_occurrences()?;
             exits.push((
                 edge,
                 target,
@@ -3216,6 +3253,16 @@ pub(in crate::legalization) fn apply_terminator(
                 types,
                 retirements::DisposalEvent::Edge(edge),
             )?;
+            // There is no successor activation coordinate after completion.
+            // Result transfer authenticated its full leaf ancestry above and
+            // selected cleanup has executed. Captured borrowed-block address
+            // aliases now expire; they are lookup authority, not additional
+            // resident loan occurrences or evidence of descriptor disposal.
+            // Retain and validate every actual surviving leaf and retired
+            // ancestor independently after dropping these local coordinates.
+            custody.borrowed_sources = std::sync::Arc::default();
+            custody.prune_retired();
+            custody.validate_occurrences()?;
         }
     }
     if !exits.is_empty() {
@@ -3305,8 +3352,6 @@ fn apply_cleanup_actions(
         }
         discard_owned(function, custody, types, place, event)?;
     }
-    custody.prune_retired();
-    custody.validate_occurrences()?;
     Ok(())
 }
 
@@ -3514,7 +3559,11 @@ pub(in crate::legalization) fn block_entry_states(
                         })
             });
             arrival.prune_retired();
-            arrival.validate_occurrences()?;
+            arrival.validate_occurrences().inspect_err(|_| {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                    eprintln!("CHECKSITE custody-arrival-context machine={:?} source_block={:?} edge={:?} target={:?} terminator={:?} scope={:?} sources={:?}", function.machine, block.id, edge.psi_edge, edge.target, terminator.operation, scope, arrival.borrowed_sources);
+                }
+            })?;
             arrivals.push((edge.psi_edge, edge.target, arrival));
         }
         final_arrivals[position] = arrivals;

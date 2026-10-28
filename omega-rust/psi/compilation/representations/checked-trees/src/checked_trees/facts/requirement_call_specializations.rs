@@ -16,7 +16,7 @@ use super::nominal_machine_uses::NominalMachineUseSite;
 /// One `Type` generic-parameter substitution a generic call's admitted
 /// static machine selections derived: the selected callable's shape pinned
 /// the callee's `Type` parameter to this actual type.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedRequirementCallTypeBinding {
     /// The callee's generic `Type` parameter.
     pub parameter: SymbolHandle,
@@ -26,7 +26,7 @@ pub struct CheckedRequirementCallTypeBinding {
 
 /// One admitted `machine`-binder selection at a generic call edge, keyed by
 /// the same telescope ordinal nominal use rows retain.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedRequirementCallMachineSelection {
     /// Telescope ordinal of the callee's `machine` parameter the argument
     /// was admitted against.
@@ -46,7 +46,7 @@ pub struct CheckedRequirementCallMachineSelection {
 /// derived over the callee's generic parameters: every `Type` substitution
 /// plus each `machine` binder's exact provider selection. A call that named
 /// no static machine argument retains no row.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedRequirementCallSpecialization {
     /// Exact authored call site, keyed identically to nominal use rows.
     pub site: NominalMachineUseSite,
@@ -59,7 +59,7 @@ pub struct CheckedRequirementCallSpecialization {
     pub machine_selections: Vec<CheckedRequirementCallMachineSelection>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct RequirementCallSpecializationFacts {
     pub specializations: Vec<CheckedRequirementCallSpecialization>,
 }

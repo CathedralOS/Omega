@@ -14,7 +14,7 @@ use typed_trees::type_identity::TypeIdentityId;
 /// a transparent checked term or the absence that makes the declaration a
 /// named assumption whose term and transitive dependencies require the
 /// receiver's admission.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedMathematicalDeclaration {
     /// The resolved declaration symbol. For `boundary let` this is the exact
     /// declaration/trust identity transitive-assumption admission keys on.
@@ -55,13 +55,13 @@ impl CheckedMathematicalDeclaration {
 /// carrier resolved to — that resolution, not a binder keyword, is what makes
 /// `u: core::Level` a universe parameter and `A: core::Type<u>` a type
 /// parameter.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedMathematicalBinder {
     pub name: String,
     pub kind: CheckedMathematicalBinderKind,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedMathematicalBinderKind {
     /// `u: core::Level` — a universe-level binder.
     Level,
@@ -79,7 +79,7 @@ pub enum CheckedMathematicalBinderKind {
 }
 
 /// One ordinary parameter of a checked mathematical declaration's telescope.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedMathematicalParameter {
     pub name: String,
     /// The binding occurrence's `[erased]` relevance: an erased proof
@@ -91,7 +91,7 @@ pub struct CheckedMathematicalParameter {
     pub type_spelling: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedMathematicalBody {
     /// `= term;` — a transparent checked term definition. The term identity
     /// substitutes for every use under conversion; nothing executable is
@@ -117,7 +117,7 @@ pub enum CheckedMathematicalBody {
 /// kernel's `Signature` wrapper is deliberately not stored: it shares its
 /// declaration list through `Rc`, which would make the checked tree no
 /// longer `Send`. Rebuilding it at the consumer is one `Vec` clone.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedMathematicalSignature {
     /// The arena every `TermHandle` in `declarations` resolves in; the two
     /// travel together — a declaration's roots mean nothing without it.
@@ -134,7 +134,7 @@ pub struct CheckedMathematicalSignature {
 /// Exact source carrier formation in the checked mathematical signature.
 /// Domains are ordered outermost-first; only an empty telescope is a closed
 /// executable specialization's erased carrier.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedSourceEvidenceCarrier {
     pub type_identity: TypeIdentityId,
     pub ty: proof_admission::TermHandle,
@@ -144,7 +144,7 @@ pub struct CheckedSourceEvidenceCarrier {
 /// A checked derived induction theorem tied to one authored contract clause.
 /// Its raw judgment and complete dependency closure remain roots after logical
 /// call retirement; source coordinates are eliminated at Terminal publication.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedIndexedTheorem {
     pub machine: SymbolHandle,
     pub expression: typed_trees::expression::ExpressionHandle,
@@ -157,7 +157,7 @@ pub struct CheckedIndexedTheorem {
     pub assumption_closure: Vec<u32>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedIndexedCitation {
     pub caller: SymbolHandle,
     pub theorem: SymbolHandle,

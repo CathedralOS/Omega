@@ -33,11 +33,13 @@ fn source<'a>(
     }
 }
 
-pub(super) fn has_normal_completion(
+pub(super) fn optional_coordinate(
     control: &checked_trees::CheckedCleanupControlPlans,
     state: &CheckedComposedUnitControlStatePlan,
-) -> Result<bool, LoweringError> {
-    completion_cleanup::has_normal_completion(source(state, control))
+    statement_index: usize,
+    continuation: bool,
+) -> Result<Option<FlowClaimJoinExit>, LoweringError> {
+    completion_cleanup::optional_coordinate(source(state, control), statement_index, continuation)
 }
 
 pub(super) fn destination(

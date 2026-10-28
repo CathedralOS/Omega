@@ -43,11 +43,24 @@ pub fn project_package_review(
                 "package review requires one exact selected build-machine identity",
             )])
         })?;
-    let generated_source_bundle = checked
-        .package_generated_source_bundle()
+    let build_handoff = checked
+        .package_build_handoff()
         .map_err(|error| Error::Projection(vec![Diagnostic::error(error)]))?;
-    if generated_source_bundle.package() != package
-        || generated_source_bundle.source_consumption_commitment() != source_consumption_commitment
+    if build_handoff
+        .selection_observation()
+        .is_some_and(|original| {
+            Some(original)
+                != checked
+                    .build()
+                    .observation_summary
+                    .as_ref()
+                    .map(|summary| summary.identity().digest())
+        })
+    {
+        return Err(Error::IdentityMismatch);
+    }
+    if build_handoff.package() != package
+        || build_handoff.source_consumption_commitment() != source_consumption_commitment
     {
         return Err(Error::IdentityMismatch);
     }
@@ -79,7 +92,7 @@ pub fn project_package_review(
             .collect(),
         service_binding_candidates,
         hosted_exit_binding_candidates,
-        generated_source_bundle,
+        build_handoff,
         policy,
         policy_canonical_bytes,
     })

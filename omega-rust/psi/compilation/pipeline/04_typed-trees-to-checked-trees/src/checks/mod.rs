@@ -66,6 +66,7 @@ pub(crate) use crashes::call_route_guard_covers;
 // Operator resolution, indexed access bounds, and machine termination.
 mod indexed_writes;
 mod operators;
+mod places;
 mod ranges;
 pub(crate) mod termination;
 

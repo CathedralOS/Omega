@@ -7,7 +7,7 @@ use symbols::SymbolHandle;
 pub type StatementHandle = Handle<StatementNode>;
 
 /// A Build declaration with product-context operands, never a runtime call.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct RootBinding {
     pub receiver: crate::expression::ExpressionHandle,
     pub slot: Box<[DiagnosticName]>,
@@ -27,7 +27,7 @@ pub(crate) enum AuthoredSelectionStatementStore {
     TransitionTargets,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum Statement {
     Assembly(Handle<AssemblyControlFlow>),
     RootBinding(RootBinding),
@@ -42,7 +42,7 @@ pub enum Statement {
 
 /// One source assembly scope, retained until typed elaboration can close its
 /// captured value frontier. Local edges bind block handles, never names.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct AssemblyControlFlow {
     /// The intersection of instruction and register-view catalog demands.
     pub target_requirement: language_core::inline_assembly::AsmTargetApplicability,
@@ -66,7 +66,7 @@ impl Default for AssemblyControlFlow {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct AssemblyBlock {
     pub label: DiagnosticName,
     pub requires: HandleSpan<crate::expression::ExpressionHandle>,
@@ -77,7 +77,7 @@ pub struct AssemblyBlock {
     pub exit: AssemblyExit,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum AssemblyExit {
     #[default]
     Fallthrough,
@@ -87,7 +87,7 @@ pub enum AssemblyExit {
     EnclosingTransition,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProofOutputBindingStatement {
     pub machine_symbol: SymbolHandle,
     pub state_symbol: SymbolHandle,
@@ -96,25 +96,25 @@ pub struct ProofOutputBindingStatement {
     pub call: crate::expression::ExpressionHandle,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProofOutputSelector {
     pub output_field: DiagnosticName,
     pub binding: DiagnosticName,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct OutcomeProofSelector {
     pub output_field: DiagnosticName,
     pub binding: DiagnosticName,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct AssemblyFact {
     pub kind: AssemblyFactKind,
     pub expression: crate::expression::ExpressionHandle,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum AssemblyFactKind {
     Requires,
     Ensures,
@@ -126,7 +126,7 @@ impl Default for Statement {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct Assignment {
     pub target: crate::expression::ExpressionHandle,
     pub value: crate::expression::ExpressionHandle,
@@ -136,7 +136,7 @@ pub struct Assignment {
 /// statement stream. Names remain diagnostic at this phase; owner symbols and
 /// an explicitly named producer implementation are bound after
 /// ordinary symbol assignment.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct EvidenceForwarding {
     /// Stable lowering-time coordinate used to bind the owning machine after
     /// symbols are assigned. Short machine names are not unique for attached
@@ -157,14 +157,14 @@ pub struct EvidenceForwarding {
     pub source_conformance: Option<SymbolHandle>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct LocalData {
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
     pub storage: LocalDataStorage,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
 pub struct LocalDataStorage {
     pub role: language_core::LocalBindingRole,
     pub type_reference: crate::types::TypeReference,
@@ -181,7 +181,7 @@ pub struct LocalDataStorage {
 
 deref_to_storage!(LocalData => LocalDataStorage);
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct Call {
     pub receiver_symbol: SymbolHandle,
     pub target_symbol: SymbolHandle,
@@ -189,7 +189,7 @@ pub struct Call {
     pub storage: CallStorage,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CallStorage {
     /// Exact storage/namespace root, distinct from the final receiver member.
     pub receiver_root_symbol: SymbolHandle,
@@ -208,7 +208,7 @@ pub struct CallStorage {
 
 deref_to_storage!(Call => CallStorage);
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct Transition {
     pub target: TransitionTarget,
     pub continuation: Option<TransitionTarget>,
@@ -221,27 +221,27 @@ pub struct Transition {
     pub source_span: SourceSpan,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum TransitionExit {
     #[default]
     Ordinary,
     Crash(crate::signature::CrashCause),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum TransitionGuard {
     Always,
     When(crate::expression::ExpressionHandle),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum TransitionTarget {
     Named(NamedTransitionTarget),
     Value(crate::expression::ExpressionHandle),
     Terminal,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct NamedTransitionTarget {
     pub receiver_symbol: SymbolHandle,
     pub head_symbol: SymbolHandle,
@@ -249,7 +249,7 @@ pub struct NamedTransitionTarget {
     pub storage: NamedTransitionTargetStorage,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct NamedTransitionTargetStorage {
     /// Authored call markers survive identity-based recursive tail normalization.
     pub operational_acknowledgement: language_semantics::CallOperationalAcknowledgement,
@@ -263,20 +263,20 @@ pub struct NamedTransitionTargetStorage {
 
 deref_to_storage!(NamedTransitionTarget => NamedTransitionTargetStorage);
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct StatementTable {
     nodes: StatementNodeStorage,
     paths: StatementPathStorage,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 struct StatementNodeStorage {
     statements: Arena<StatementNode>,
     transition_targets: Arena<TransitionTargetNode>,
     outcome_proof_selectors: Arena<TableOutcomeProofSelector>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 struct StatementPathStorage {
     expression_handles: Arena<crate::expression::ExpressionHandle>,
     name_path_members: Arena<DiagnosticName>,
@@ -769,7 +769,7 @@ impl Default for StatementTable {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum StatementNode {
     Assembly(Handle<AssemblyControlFlow>),
     RootBinding(RootBinding),
@@ -782,7 +782,7 @@ pub enum StatementNode {
     Transition(TableTransition),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableAssemblyFact {
     pub kind: AssemblyFactKind,
     pub expression: crate::expression::ExpressionHandle,
@@ -794,13 +794,13 @@ impl Default for StatementNode {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableAssignment {
     pub target: crate::expression::ExpressionHandle,
     pub value: crate::expression::ExpressionHandle,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
 pub struct TableCall {
     pub receiver_root_symbol: SymbolHandle,
     pub receiver_symbol: SymbolHandle,
@@ -817,7 +817,7 @@ pub struct TableCall {
         Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
 pub struct TableLocalData {
     pub role: language_core::LocalBindingRole,
     pub symbol: SymbolHandle,
@@ -834,7 +834,7 @@ pub struct TableLocalData {
     pub relevance: language_core::BindingRelevance,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableTransition {
     pub target: TransitionTargetHandle,
     pub continuation: TransitionTargetHandle,
@@ -861,19 +861,19 @@ impl Default for TableTransition {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableOutcomeProofSelector {
     pub output_field: DiagnosticName,
     pub binding: DiagnosticName,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum TransitionGuardNode {
     Always,
     When(crate::expression::ExpressionHandle),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
 pub enum TransitionTargetNode {
     Named {
         operational_acknowledgement: language_semantics::CallOperationalAcknowledgement,
@@ -890,7 +890,7 @@ pub enum TransitionTargetNode {
     Terminal,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableNamePath {
     /// Exact endpoint of the qualified prefix; zero for an unqualified target.
     pub receiver_symbol: SymbolHandle,

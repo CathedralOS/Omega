@@ -6,6 +6,7 @@ mod signatures;
 pub(in crate::record) mod validation;
 
 use super::{PackageReviewConstShape, PackageReviewPropositionShape};
+use crate::record::accessors::field_projection_accessors;
 
 pub(crate) use declarations::{
     PackagePolicyConformanceShape, PackagePolicyDataShape, PackagePolicyDomainShape,
@@ -29,25 +30,11 @@ pub struct PackagePolicyPublicApi {
 }
 
 impl PackagePolicyPublicApi {
-    pub fn traits(&self) -> &[PackagePolicyTraitShape] {
-        &self.traits
-    }
-    pub fn conformances(&self) -> &[PackagePolicyConformanceShape] {
-        &self.conformances
-    }
-    pub fn domains(&self) -> &[PackagePolicyDomainShape] {
-        &self.domains
-    }
-    pub fn propositions(&self) -> &[PackageReviewPropositionShape] {
-        &self.propositions
-    }
-    pub fn consts(&self) -> &[PackageReviewConstShape] {
-        &self.consts
-    }
-    pub fn operators(&self) -> &[PackagePolicyOperatorShape] {
-        &self.operators
-    }
-    pub fn data(&self) -> &[PackagePolicyDataShape] {
-        &self.data
-    }
+    field_projection_accessors!(sliced traits: &[PackagePolicyTraitShape]);
+    field_projection_accessors!(sliced conformances: &[PackagePolicyConformanceShape]);
+    field_projection_accessors!(sliced domains: &[PackagePolicyDomainShape]);
+    field_projection_accessors!(sliced propositions: &[PackageReviewPropositionShape]);
+    field_projection_accessors!(sliced consts: &[PackageReviewConstShape]);
+    field_projection_accessors!(sliced operators: &[PackagePolicyOperatorShape]);
+    field_projection_accessors!(sliced data: &[PackagePolicyDataShape]);
 }

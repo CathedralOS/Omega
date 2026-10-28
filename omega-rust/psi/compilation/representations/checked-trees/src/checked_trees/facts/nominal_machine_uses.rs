@@ -4,19 +4,19 @@ use typed_trees::statement::StatementHandle;
 
 use super::contract_plans::CheckedEntryResourceEnvelope;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum NominalMachineUseSite {
     Statement(StatementHandle),
     Expression(ExpressionHandle),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedMachineContractEnvelopeIdentity {
     pub contract_report_fingerprint: u64,
     pub contract_commitment: crate::MachineContractCommitment,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedMachineContractRefinement {
     pub published_requirement_report_fingerprint: u64,
     pub published_requirement_commitment: crate::MachineContractCommitment,
@@ -31,7 +31,7 @@ pub struct CheckedMachineContractRefinement {
 /// must structurally rejoin this receipt before attaching independently
 /// derived stack, fuel, or machine-state evidence; this compact checked row
 /// alone grants no artifact, provisioning, or installation authority.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedCallbackResourceReceipt {
     machine: SymbolHandle,
     entry: SymbolHandle,
@@ -128,7 +128,7 @@ impl CheckedCallbackResourceReceipt {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedNominalMachineUse {
     /// Stable occurrence number assigned when the checked roster is frozen.
     /// Pruning retains this number; it is not an index into the remaining vector.
@@ -155,7 +155,7 @@ pub struct CheckedNominalMachineUse {
     pub refinement: CheckedMachineContractRefinement,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct NominalMachineUseFacts {
     pub uses: Vec<CheckedNominalMachineUse>,
 }

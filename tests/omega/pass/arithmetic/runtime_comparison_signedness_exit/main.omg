@@ -6,8 +6,8 @@
 // the wrong arm exits 71. Reaching the end exits 70. The differential oracle also
 // checks native==interpreter.
 //
-// Cases: u32 across i32::MAX (< and >), i32 negatives, u8 across i8::MAX,
-// u16 across i16::MAX, and a 64-bit signed negative.
+// Cases: u32 across i32 maximum (< and >), i32 negatives, u8 across i8 maximum,
+// u16 across i16 maximum, and a 64-bit signed negative.
 
 use omega_language_std::console;
 
@@ -35,7 +35,7 @@ machine Main::main(context: &mut Main) reaches Console {
         transition left > right { true -> check_u16(context, 40000, 5) _ -> bad(context) }
     }
     machine check_u16(context: &mut Main, left: u16 in Wrapping, right: u16 in Wrapping) {
-        // u16 40000 > 5 is TRUE unsigned (40000 > i16::MAX).
+        // u16 40000 > 5 is TRUE unsigned (40000 > i16 maximum).
         transition left > right { true -> check_i64(context, -5000000000, 3) _ -> bad(context) }
     }
     machine check_i64(context: &mut Main, left: i64 in Wrapping, right: i64 in Wrapping) {

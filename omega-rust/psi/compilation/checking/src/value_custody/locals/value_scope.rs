@@ -119,7 +119,9 @@ impl StateValueScope<'_, '_> {
             | ExpressionNode::UndeterminedNaN(_)
             | ExpressionNode::Integer(_)
             | ExpressionNode::String(_) => {}
-            ExpressionNode::ZeroValue(reference) => self.type_reference(*reference, diagnostics),
+            ExpressionNode::TypeExpression(reference) | ExpressionNode::ZeroValue(reference) => {
+                self.type_reference(*reference, diagnostics)
+            }
         }
     }
 }

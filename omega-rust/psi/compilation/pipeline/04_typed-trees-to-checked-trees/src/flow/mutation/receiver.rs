@@ -117,11 +117,29 @@ fn receiver_place_for_call_site(
         // 01 can no longer satisfy; the explicit operand below is the whole
         // answer, and a successor's data record is matched to its argument by
         // position in `instantiate_call_relative_places`.
-        CallSite::Expression { call, .. } => call
-            .receiver
-            .is_valid()
-            .then(|| canonical_place_from_expression(program, call.receiver))
-            .flatten(),
+        CallSite::Expression { call, .. } => {
+            if call.receiver.is_valid() {
+                return canonical_place_from_expression(program, call.receiver);
+            }
+            // A machine-target invocation supplies the caller's data record
+            // positionally; the successor's attached-data parameter names the
+            // same record type, and that ordinal locates the actual operand.
+            let target = program.state_by_symbol(call.target_symbol)?;
+            let parameters = program.state_parameters(target);
+            let attached = family_attached_data_symbol(program, caller_machine_symbol);
+            let subject = program
+                .data_binding_position(attached, parameters)
+                .map(|index| &parameters[index])?;
+            let ordinal =
+                typed_trees::signature::state_parameter_position(parameters, subject.symbol)?;
+            let argument = call_site_argument_expressions(program, call_site).get(ordinal)?;
+            canonical_place_from_expression_in_state(
+                program,
+                caller_state_symbol,
+                statement_index,
+                *argument,
+            )
+        }
         CallSite::TransitionNamed { .. } => {
             let argument = local_jump_data_argument(program, caller_machine_symbol, call_site)?;
             canonical_place_from_expression_in_state(
@@ -131,6 +149,31 @@ fn receiver_place_for_call_site(
                 argument,
             )
         }
+    }
+}
+
+/// The record a machine's transfers carry: its own declared attachment, or the
+/// enclosing machine family's attachment reached through machine ancestors. A
+/// machine nested inside an attached host shares that host's data binding.
+pub(crate) fn family_attached_data_symbol(
+    program: &dyn ::validation::CheckingInput,
+    machine_symbol: SymbolHandle,
+) -> SymbolHandle {
+    let mut scope = machine_symbol;
+    loop {
+        let Some(machine) = program.machine_by_symbol(scope) else {
+            return SymbolHandle::invalid();
+        };
+        if machine.attached_data_symbol.is_valid() {
+            return machine.attached_data_symbol;
+        }
+        let parent = program.symbols.get(scope).parent;
+        if !parent.is_valid()
+            || program.symbols.get(parent).kind != symbols::SymbolKind::Machine
+        {
+            return SymbolHandle::invalid();
+        }
+        scope = parent;
     }
 }
 
@@ -151,7 +194,10 @@ pub(in crate::flow) fn local_jump_data_argument(
     let machine = program.machine_by_symbol(caller_machine_symbol)?;
     let target = find_state_in_machine(program, caller_machine_symbol, path.head_symbol)?;
     let parameters = program.state_parameters(target);
-    let subject = program.data_binding_parameter(machine, parameters)?;
+    let attached = family_attached_data_symbol(program, machine.symbol);
+    let subject = program
+        .data_binding_position(attached, parameters)
+        .map(|index| &parameters[index])?;
     let ordinal = typed_trees::signature::state_parameter_position(parameters, subject.symbol)?;
     call_site_argument_expressions(program, call_site)
         .get(ordinal)

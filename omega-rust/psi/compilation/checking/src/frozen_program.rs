@@ -662,15 +662,17 @@ pub struct CheckingMemos {
             >,
         >,
     >,
-    /// Declaration-level returned field projections per callee machine symbol.
+    /// Declaration-level returned field projections per callee machine symbol,
+    /// paired with the transitive struct-returning callees consulted.
     pub(crate) returned_field_projections: Mutex<
         symbols::SymbolMap<
-            Arc<
+            Arc<(
                 Vec<(
                     Vec<facts::PlaceSegment>,
                     crate::proof_contracts::contract_entailment::structural_judgment::StructuralTerm,
                 )>,
-            >,
+                Vec<symbols::SymbolHandle>,
+            )>,
         >,
     >,
     pub(crate) declared_float_field_bounds: Mutex<

@@ -8,8 +8,7 @@ use super::super::{
     StructuralPlaceKind, StructuralTypeId, StructuralTypeShape, Terminator, ValueDeclaration,
     allocate_dense, argument_evaluation, edge_id, lookup_type_id, obligation_id,
     operation_frame::{
-        allocate_structural_result, block_parameter_declaration, operation_result_declaration,
-        structural_parameter_declaration,
+        allocate_structural_result, block_parameter_declaration, structural_parameter_declaration,
     },
     place_id, unsupported, value_id,
 };
@@ -17,6 +16,7 @@ use super::{CheckedTrees, ValueOutcome};
 use crate::emission::operation_emission::buffer::{OperationBuffer, scalar_result_declaration};
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::emit_scalar_leaf;
+use crate::emission::operation_emission::place_declarations::operation_result_place;
 use crate::expression_preparation::bindings::structural_paths::lower_static_argument_path;
 use crate::expression_preparation::bindings::{LoanAccess, ScalarBindings};
 use crate::expression_preparation::byte_literals;
@@ -785,32 +785,33 @@ fn prepare_owners(
         let entry = source_parameters
             .iter()
             .any(|parameter| parameter.symbol == symbol);
-        let has_conflicting_selection = checked
-            .facts
-            .flow
-            .ownership
-            .with_state_owned_selections(state, |handles| {
-                handles.iter().copied().any(|handle| {
-                    let receipt = checked.facts.flow.ownership.owned_selections.get(handle);
-                    receipt.machine == machine
-                        && receipt.state == state
-                        && matches!(
-                            receipt.evaluation,
-                            checked_trees::FlowPermissionEvaluation::Statement
-                                | checked_trees::FlowPermissionEvaluation::TransitionGuard
-                        )
-                        && (entry || receipt.statement_ordinal > formation)
-                        && receipt.statement_ordinal < statement
-                        && checked
-                            .facts
-                            .flow
-                            .ownership
-                            .selection_sources
-                            .span_or_empty(receipt.sources)
-                            .iter()
-                            .any(|source| source.symbol == symbol)
-                })
-            });
+        let has_conflicting_selection =
+            checked
+                .facts
+                .flow
+                .ownership
+                .with_state_owned_selections(state, |handles| {
+                    handles.iter().copied().any(|handle| {
+                        let receipt = checked.facts.flow.ownership.owned_selections.get(handle);
+                        receipt.machine == machine
+                            && receipt.state == state
+                            && matches!(
+                                receipt.evaluation,
+                                checked_trees::FlowPermissionEvaluation::Statement
+                                    | checked_trees::FlowPermissionEvaluation::TransitionGuard
+                            )
+                            && (entry || receipt.statement_ordinal > formation)
+                            && receipt.statement_ordinal < statement
+                            && checked
+                                .facts
+                                .flow
+                                .ownership
+                                .selection_sources
+                                .span_or_empty(receipt.sources)
+                                .iter()
+                                .any(|source| source.symbol == symbol)
+                    })
+                });
         if has_conflicting_selection {
             return Ok(false);
         }
@@ -1879,27 +1880,20 @@ impl Emission<'_, '_, '_> {
                 )?;
                 let place = place_id(allocate_dense(self.environment.next_place)?);
                 let operation = self.operations.allocate();
-                self.operations.push(terminal_psi::Operation {
-                    id: operation,
-                    static_reach_binding: None,
-                    suspension_crossing: None,
-                    result:
-                        crate::emission::operation_emission::buffer::structural_result_declaration(
-                            place,
-                            self.structural_type,
-                            StructuralMultiplicity::Unrestricted,
-                        ),
-                    kind: OperationKind::EstablishNativeCodeLayout { machine },
-                });
-                self.environment
-                    .private_places
-                    .push(StructuralPlaceDeclaration {
-                        id: place,
-                        kind: StructuralPlaceKind::OperationResult {
-                            producer: operation,
-                            structural_type: self.structural_type,
-                        },
-                    });
+                self.operations.push(terminal_psi::Operation::unsuspended(
+                    operation,
+                    crate::emission::operation_emission::buffer::structural_result_declaration(
+                        place,
+                        self.structural_type,
+                        StructuralMultiplicity::Unrestricted,
+                    ),
+                    OperationKind::EstablishNativeCodeLayout { machine },
+                ));
+                self.environment.private_places.push(operation_result_place(
+                    place,
+                    operation,
+                    self.structural_type,
+                ));
                 self.completed(identities, place, completion, continuation)
             }
 
@@ -2301,13 +2295,11 @@ impl Emission<'_, '_, '_> {
                         ],
                     },
                 )?;
-                self.environment
-                    .private_places
-                    .push(operation_result_declaration(
-                        place,
-                        operation,
-                        self.structural_type,
-                    ));
+                self.environment.private_places.push(operation_result_place(
+                    place,
+                    operation,
+                    self.structural_type,
+                ));
                 self.complete_construction(
                     identities,
                     place,
@@ -2378,13 +2370,11 @@ impl Emission<'_, '_, '_> {
                     Vec::new(),
                     OperationKind::EstablishScalarArray { elements: leaves },
                 )?;
-                self.environment
-                    .private_places
-                    .push(operation_result_declaration(
-                        place,
-                        operation,
-                        self.structural_type,
-                    ));
+                self.environment.private_places.push(operation_result_place(
+                    place,
+                    operation,
+                    self.structural_type,
+                ));
                 self.complete_construction(
                     identities,
                     place,
@@ -2805,11 +2795,9 @@ impl Emission<'_, '_, '_> {
         let place = place_id(allocate_dense(self.environment.next_place)?);
         let first_operation = self.operations.operations.len();
         let operation = self.operations.allocate();
-        self.operations.push(terminal_psi::Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
-            id: operation,
-            result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+        self.operations.push(terminal_psi::Operation::unsuspended(
+            operation,
+            OperationResult::Structural(terminal_psi::StructuralOperationResult {
                 qualification_establishments: Vec::new(),
                 place,
                 structural_type: self.structural_type,
@@ -2818,18 +2806,16 @@ impl Emission<'_, '_, '_> {
                 projected_qualifications,
                 claims: Vec::new(),
             }),
-            kind: OperationKind::StructuralLeafCopy {
+            OperationKind::StructuralLeafCopy {
                 source: argument.place,
                 path,
             },
-        });
-        self.environment
-            .private_places
-            .push(operation_result_declaration(
-                place,
-                operation,
-                self.structural_type,
-            ));
+        ));
+        self.environment.private_places.push(operation_result_place(
+            place,
+            operation,
+            self.structural_type,
+        ));
         self.operations
             .register_structural_materialization(place, self.state, self.statement)?;
         // This copy is a new completed value, even when it carries no claims.
@@ -2890,13 +2876,11 @@ impl Emission<'_, '_, '_> {
     ) -> Result<(), LoweringError> {
         let condition = value_id(allocate_dense(self.next_value)?);
         let id = self.operations.allocate();
-        self.operations.push(terminal_psi::Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
+        self.operations.push(terminal_psi::Operation::unsuspended(
             id,
-            result: scalar_result_declaration(condition, ScalarType::Boolean),
+            scalar_result_declaration(condition, ScalarType::Boolean),
             kind,
-        });
+        ));
         self.boolean_value_split(condition, fallback)
     }
 

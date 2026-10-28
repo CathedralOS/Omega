@@ -25,14 +25,14 @@ pub struct TraitApplicationEnvironment {
     region_scopes: Vec<AppliedDeclarationRegionScope>,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct RetainedTraitScope {
     declaration: SymbolHandle,
     argument_owner: SymbolHandle,
     frames: HandleSpan<RetainedTraitApplicationFrame>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub(crate) struct RetainedTraitApplicationFrame {
     declaration: SymbolHandle,
     arguments: HandleSpan<CallableSubstitution>,

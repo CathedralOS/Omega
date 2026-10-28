@@ -94,4 +94,3 @@ failed_display!(
     SelectedInstructionOptimizationError,
     "selected-instruction optimization failed"
 );
-impl std::error::Error for SelectedInstructionOptimizationError {}

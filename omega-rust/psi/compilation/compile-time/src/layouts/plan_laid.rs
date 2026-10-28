@@ -37,7 +37,7 @@ pub(crate) use layout_installation::compute_plan_laid_layouts_in;
 /// One plan-laid instantiation discovered by the desugar: the synthesized
 /// data definition plus the (policy, schema) pair whose validated plan will
 /// dictate its layout.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct PlanLaidRecord {
     /// Name of the synthesized data definition (`CLayout<GdtEntryish>`).
     pub synthetic_name: String,

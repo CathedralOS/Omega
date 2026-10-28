@@ -2,7 +2,7 @@ use symbols::SymbolHandle;
 
 /// Retained source identity for an independently nameable const declaration.
 /// The substituted value remains absent from typed runtime semantics.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ConstDeclaration {
     pub symbol: SymbolHandle,
     pub is_public: bool,

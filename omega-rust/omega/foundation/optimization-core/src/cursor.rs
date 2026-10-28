@@ -71,6 +71,18 @@ impl<'a> Cursor<'a> {
         Ok(i128::from_le_bytes(self.array()?))
     }
 
+    /// A counted sequence's pre-flight: read the u32 count, then refuse a count
+    /// whose elements cannot all fit the bytes that remain at `width` bytes
+    /// apiece. Refusing before any allocation or per-element read keeps a
+    /// corrupt count from requesting memory the input does not carry.
+    pub fn counted(&mut self, width: usize) -> Result<usize, Truncated> {
+        let count = self.u32()? as usize;
+        if count > self.remaining() / width {
+            return Err(Truncated);
+        }
+        Ok(count)
+    }
+
     /// u64-framed length with an overflow-deciding second failure mode.
     pub fn length(&mut self) -> Result<usize, TakeError> {
         let value = self.u64().map_err(|_| TakeError::Truncated)?;

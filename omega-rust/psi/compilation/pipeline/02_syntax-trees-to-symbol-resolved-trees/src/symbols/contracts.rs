@@ -567,7 +567,8 @@ fn assign_contract_call_symbols(
             child_type_references,
             unary.operand
         ),
-        ExpressionNode::ZeroValue(type_reference) => {
+        ExpressionNode::TypeExpression(type_reference)
+        | ExpressionNode::ZeroValue(type_reference) => {
             crate::symbols::type_references::reassign_type_reference_symbols_and_values(
                 symbols,
                 machine,

@@ -11,7 +11,7 @@ use crate::{
 /// build-time result evaluation. This is independent of work accounting: a
 /// semantic change must advance this marker even when the step schedule and
 /// usage-record shape stay unchanged.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct EvaluationSemanticsIdentity(u32);
 
 impl EvaluationSemanticsIdentity {
@@ -29,7 +29,7 @@ pub const CURRENT_EVALUATION_SEMANTICS: EvaluationSemanticsIdentity =
 /// This is deliberately distinct from canonical-IR `FuelScheduleIdentity`.
 /// Its marker names the current TypedTrees interpreter's accounting precursor and
 /// must not be used as an IR-derived fixed-work certificate.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct EvaluationStepScheduleIdentity(u32);
 
 impl EvaluationStepScheduleIdentity {
@@ -46,7 +46,7 @@ pub const CURRENT_EVALUATION_STEP_SCHEDULE: EvaluationStepScheduleIdentity =
 /// Version of the canonical evaluator usage-record schema. This is distinct
 /// from the step schedule: adding an attributed count changes the record shape
 /// without changing the meaning or weight of an evaluator step.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct EvaluationUsageSchemaIdentity(u32);
 
 impl EvaluationUsageSchemaIdentity {
@@ -63,7 +63,7 @@ pub const CURRENT_EVALUATION_USAGE_SCHEMA: EvaluationUsageSchemaIdentity =
 /// The fields are private so future attributed telemetry can extend this
 /// record without allowing callers to fabricate usage. The evaluated program
 /// cannot observe this record or its remaining sponsor allowance.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct EvaluationUsage {
     pub(crate) schema: EvaluationUsageSchemaIdentity,
     pub(crate) schedule: EvaluationStepScheduleIdentity,

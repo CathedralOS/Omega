@@ -19,7 +19,10 @@ use super::super::{
     subslices,
 };
 use super::StateGraphEmission;
-use crate::emission::operation_emission::buffer::{OperationBuffer, StorageObservations};
+use crate::emission::operation_emission::buffer::{
+    OperationBuffer, StorageObservations, structural_result_declaration,
+};
+use crate::emission::operation_emission::place_declarations::operation_result_place;
 use crate::expression_preparation::bindings::ScalarBindings;
 use crate::expression_preparation::bindings::structural_fields::EstablishedCasePayload;
 use crate::terminal_identities::lookup_domain_id_for_carrier;
@@ -662,17 +665,15 @@ impl StateGraphEmission<'_, '_> {
                                 })
                                 .collect::<Result<Vec<_>, _>>()?;
                             let producer = operations.allocate();
-                            operations.push(Operation {
-                                static_reach_binding: None,
-                                suspension_crossing: None,
-                                id: producer,
-                                result: OperationResult::Unit,
-                                kind: OperationKind::EstablishByteSequenceLiteral {
+                            operations.push(Operation::unsuspended(
+                                producer,
+                                OperationResult::Unit,
+                                OperationKind::EstablishByteSequenceLiteral {
                                     destination,
                                     bytes: bytes.clone(),
                                     qualifications,
                                 },
-                            });
+                            ));
                             destination
                         }
                         checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedValue {
@@ -712,31 +713,17 @@ impl StateGraphEmission<'_, '_> {
                                 &target_parameter.type_identity,
                             )?;
                             let producer = operations.allocate();
-                            operations.push(Operation {
-                                static_reach_binding: None,
-                                suspension_crossing: None,
-                                id: producer,
-                                result: OperationResult::Structural(
-                                    terminal_psi::StructuralOperationResult {
-                                        qualification_establishments: Vec::new(),
-                                        place: destination,
-                                        structural_type,
-                                        multiplicity: StructuralMultiplicity::Unrestricted,
-                                        qualifications: Vec::new(),
-                                        projected_qualifications: Vec::new(),
-                                        claims: Vec::new(),
-                                    },
+                            operations.push(Operation::unsuspended(
+                                producer,
+                                structural_result_declaration(
+                                    destination,
+                                    structural_type,
+                                    StructuralMultiplicity::Unrestricted,
                                 ),
-                                kind: OperationKind::StructuralLeafCopy { source, path },
-                            });
+                                OperationKind::StructuralLeafCopy { source, path },
+                            ));
                             self.catalogs.temporary_places.push(
-                                StructuralPlaceDeclaration {
-                                    id: destination,
-                                    kind: StructuralPlaceKind::OperationResult {
-                                        producer,
-                                        structural_type,
-                                    },
-                                },
+                                operation_result_place(destination, producer, structural_type),
                             );
                             destination
                             }
@@ -1176,16 +1163,12 @@ impl StateGraphEmission<'_, '_> {
         // Operand evaluation establishes the outgoing values before the exact
         // selected source exit determines the remaining owned dispositions.
         // Keep action kinds and their checked order through private staging.
-        let mut cleanup_regions = if super::super::cleanup::has_normal_completion(
+        let mut cleanup_regions = if let Some(exit) = super::super::cleanup::optional_coordinate(
             self.catalogs.cleanup_control,
             state,
+            edge.statement_ordinal as usize,
+            false,
         )? {
-            let exit = super::super::cleanup::coordinate(
-                self.catalogs.cleanup_control,
-                state,
-                edge.statement_ordinal as usize,
-                false,
-            )?;
             let mut cleanup_regions = super::super::cleanup::for_exit_regions(
                 identities,
                 self.claims.published(),

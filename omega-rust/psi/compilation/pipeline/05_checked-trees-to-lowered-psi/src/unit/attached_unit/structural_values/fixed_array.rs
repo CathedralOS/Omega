@@ -6,12 +6,13 @@
 //! Element memberships move with those completed values under FixedIndex paths,
 //! never from the array's receiving annotation or a record-like field identity.
 use super::super::{
-    LoweringError, Operation, OperationKind, PlaceId, StructuralPlaceDeclaration,
-    StructuralPlaceKind, StructuralTypeShape, allocate_dense, place_id, unsupported,
+    LoweringError, Operation, OperationKind, PlaceId, StructuralTypeShape, allocate_dense,
+    place_id, unsupported,
 };
 use super::completed_aggregate::{self, CompletedAggregate};
 use super::emission;
 use crate::emission::operation_emission::buffer::structural_result_declaration;
+use crate::emission::operation_emission::place_declarations::operation_result_place;
 use crate::unit::attached_unit::structural_values::ValueOutcome;
 use checked_trees::CheckedStructuralValueHandle;
 
@@ -92,26 +93,20 @@ impl emission::Emission<'_, '_, '_> {
     pub(super) fn establish_zeroed(&mut self) -> Result<PlaceId, LoweringError> {
         let place = place_id(allocate_dense(self.environment.next_place)?);
         let operation = self.operations.allocate();
-        self.operations.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
-            id: operation,
-            result: structural_result_declaration(
+        self.operations.push(Operation::unsuspended(
+            operation,
+            structural_result_declaration(
                 place,
                 self.structural_type,
                 crate::emission::borrowed_window::zeroed_image(self.multiplicity),
             ),
-            kind: OperationKind::EstablishZeroedStructural {},
-        });
-        self.environment
-            .private_places
-            .push(StructuralPlaceDeclaration {
-                id: place,
-                kind: StructuralPlaceKind::OperationResult {
-                    producer: operation,
-                    structural_type: self.structural_type,
-                },
-            });
+            OperationKind::EstablishZeroedStructural {},
+        ));
+        self.environment.private_places.push(operation_result_place(
+            place,
+            operation,
+            self.structural_type,
+        ));
         Ok(place)
     }
 }

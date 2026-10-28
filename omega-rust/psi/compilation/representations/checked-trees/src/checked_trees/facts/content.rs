@@ -7,7 +7,7 @@ use language_semantics::{PermissionClaimIdentity, ReferenceAccess, SemanticDomai
 use symbols::SymbolHandle;
 use typed_trees::name::Identifier;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContentProjectionFacts {
     pub plans: Vec<ContentProjectionPlan>,
     /// Source-authored n-ary conservation contracts.
@@ -55,7 +55,7 @@ pub struct ContentProjectionFacts {
     pub retained_borrow_custodies: Vec<RetainedBorrowCustodyFact>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContentClaimTransformation {
     pub machine_symbol: SymbolHandle,
     pub state_symbol: SymbolHandle,
@@ -67,7 +67,7 @@ pub struct ContentClaimTransformation {
     pub outputs: HandleSpan<ContentBodyClaimBinding>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum ContentClaimTransformationSource {
     #[default]
     Unknown,
@@ -81,7 +81,7 @@ pub enum ContentClaimTransformationSource {
     },
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContentBodyTransformation {
     pub machine_symbol: SymbolHandle,
     pub state_symbol: SymbolHandle,
@@ -92,7 +92,7 @@ pub struct ContentBodyTransformation {
     pub derivations: HandleSpan<ContentBodyDerivation>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContentBodyDerivation {
     /// Exact proved equation, original input occurrences, live parent places,
     /// unchanged entry revisions and existing raw output claim identities.
@@ -107,7 +107,7 @@ pub struct ContentBodyDerivation {
 /// Same-owner derivation and checked-provider custody are different authority
 /// judgments. The latter transports debt/backing into an existing raw result;
 /// membership introduction remains at an admitted selected invocation.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum ContentBodyCustody {
     #[default]
     Derived,
@@ -117,7 +117,7 @@ pub enum ContentBodyCustody {
     },
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContentBoundaryBodyRequirement {
     pub declaring_trait: SymbolHandle,
     pub requirement: SymbolHandle,
@@ -127,7 +127,7 @@ pub struct ContentBoundaryBodyRequirement {
     pub conservation_plan_index: usize,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContentBackingAddressTransport {
     pub input: arena::Handle<ContentBodyAvailableInput>,
     pub output: arena::Handle<ContentBodyClaimBinding>,
@@ -136,7 +136,7 @@ pub struct ContentBackingAddressTransport {
     pub output_segments: HandleSpan<facts::PlaceSegment>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContentBodyConservationFact {
     pub machine_symbol: SymbolHandle,
     pub state_symbol: SymbolHandle,
@@ -162,7 +162,7 @@ pub struct ContentBodyConservationFact {
 
 /// Current custody of one equation input, observed by the ordinary permission
 /// walk. A move changes this place without changing the bound entry claim.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContentBodyAvailableInput {
     pub binding: arena::Handle<ContentBodyClaimBinding>,
     /// Complete original input roster contributing to this current claim.
@@ -176,7 +176,7 @@ pub struct ContentBodyAvailableInput {
 
 /// One exact projection occurrence and its existing nominal carrier claim.
 /// Adding derived authority must not mint a second carrier claim for this value.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContentBodyClaimBinding {
     pub claim_identity: PermissionClaimIdentity,
     pub domain: SymbolHandle,
@@ -210,7 +210,7 @@ pub struct ContentFrontierBinding {
     pub entries: Vec<arena::Handle<ContentBodyClaimBinding>>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct RetainedBorrowCustodyFact {
     pub callable: SymbolHandle,
     pub source: language_semantics::content::ContentStructuralPlace,
@@ -225,7 +225,7 @@ pub struct RetainedBorrowCustodyFact {
     pub result_projection: ContentProjectionPlan,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContentIdentityReshuffleFact {
     pub machine_symbol: SymbolHandle,
     pub state_symbol: SymbolHandle,
@@ -236,13 +236,13 @@ pub struct ContentIdentityReshuffleFact {
     pub plan: ContentConservationPlan,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContentPartitionReturnFact {
     pub returned_at: arena::Handle<crate::FlowStateOutgoingFact>,
     pub plan: ContentConservationPlan,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContentPartitionCompositionFact {
     pub machine_symbol: SymbolHandle,
     pub state_symbol: SymbolHandle,
@@ -274,20 +274,20 @@ pub struct ContentPartitionCompositionFact {
     pub plan: ContentConservationPlan,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContentPartitionInputClaimBinding {
     pub claim_identity: PermissionClaimIdentity,
     pub entry_place: language_semantics::content::ContentStructuralPlace,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContentPartitionResultRewrite {
     pub claim_identity: PermissionClaimIdentity,
     pub source: language_semantics::content::ContentStructuralPlace,
     pub target: language_semantics::content::ContentStructuralPlace,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContentPartitionPlaceSubstitution {
     pub source: language_semantics::content::ContentStructuralPlace,
     pub target: language_semantics::content::ContentStructuralPlace,

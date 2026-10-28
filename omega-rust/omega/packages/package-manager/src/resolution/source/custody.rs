@@ -66,9 +66,7 @@ impl SourceCacheDirectories {
             let checked_source = storage
                 .external_local_sources()
                 .retain_child(CHECKED_SOURCE_CACHE_LANE)?;
-            let compiled_review = storage
-                .external_local_sources()
-                .retain_child(COMPILED_REVIEW_CACHE_LANE)?;
+            let compiled_review = retain_compiled_review_storage(storage)?;
             storage.verify_path_identity()?;
             Ok::<_, package_source::SourceResolveError>(Self {
                 checked_source: checked_source.path().to_path_buf(),
@@ -187,4 +185,15 @@ impl PackageSourceCustody {
             && self.selection_evidence == other.selection_evidence
             && self.dependency_projections == other.dependency_projections
     }
+}
+
+pub(super) fn retain_compiled_review_storage(
+    storage: &package_source::SourceResolver,
+) -> Result<package_source::storage::RetainedStorageLane, package_source::SourceResolveError> {
+    storage.verify_path_identity()?;
+    let retained = storage
+        .external_local_sources()
+        .retain_child(COMPILED_REVIEW_CACHE_LANE)?;
+    storage.verify_path_identity()?;
+    Ok(retained)
 }

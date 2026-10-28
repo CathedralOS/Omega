@@ -783,45 +783,47 @@ pub(in crate::execution::terminal_unit) fn returning_terminator(
         &facts.values.scalar_expressions,
         prefix_count,
     );
-    let terminator =
-        if let Some(terminator @ checked_trees::CheckedScalarStateTerminator::Conditional { .. }) =
-            binary
+    let terminator = if let Some(
+        terminator @ (checked_trees::CheckedScalarStateTerminator::Conditional { .. }
+        | checked_trees::CheckedScalarStateTerminator::Return { .. }
+        | checked_trees::CheckedScalarStateTerminator::Crash { .. }),
+    ) = binary
+    {
+        terminator
+    } else if let Some(tail) = guarded.next() {
+        if guarded.next().is_some() {
+            return None;
+        }
+        let arms = facts.flow.guarded_exits.exits.span(tail.arms)?;
+        if arms.first()?.guard_statement_ordinal as usize != prefix_count
+            || !arms.iter().all(|arm| {
+                matches!(
+                    arm.destination,
+                    checked_trees::CheckedScalarBranchDestination::Return { .. }
+                )
+            })
+            || tail.fallback.as_ref().is_some_and(|fallback| {
+                !matches!(
+                    fallback,
+                    checked_trees::CheckedScalarBranchDestination::Return { .. }
+                )
+            })
         {
-            terminator
-        } else if let Some(tail) = guarded.next() {
-            if guarded.next().is_some() {
-                return None;
-            }
-            let arms = facts.flow.guarded_exits.exits.span(tail.arms)?;
-            if arms.first()?.guard_statement_ordinal as usize != prefix_count
-                || !arms.iter().all(|arm| {
-                    matches!(
-                        arm.destination,
-                        checked_trees::CheckedScalarBranchDestination::Return { .. }
-                    )
-                })
-                || tail.fallback.as_ref().is_some_and(|fallback| {
-                    !matches!(
-                        fallback,
-                        checked_trees::CheckedScalarBranchDestination::Return { .. }
-                    )
-                })
-            {
-                return None;
-            }
-            checked_trees::CheckedScalarStateTerminator::Guarded {
-                arms: tail.arms,
-                fallback: tail.fallback.clone(),
-            }
-        } else {
-            crate::execution::terminal_scalar::checked_terminator(
-                program,
-                machine,
-                state,
-                &facts.values.scalar_expressions,
-                prefix_count,
-            )?
-        };
+            return None;
+        }
+        checked_trees::CheckedScalarStateTerminator::Guarded {
+            arms: tail.arms,
+            fallback: tail.fallback.clone(),
+        }
+    } else {
+        crate::execution::terminal_scalar::checked_terminator(
+            program,
+            machine,
+            state,
+            &facts.values.scalar_expressions,
+            prefix_count,
+        )?
+    };
     let returning_tail = match &terminator {
         // Final expressions already belong to the scalar-result route, which
         // also supports ownership frontiers outside scalar-control admission.

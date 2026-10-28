@@ -72,7 +72,7 @@ pub struct OperatorConstBinding {
     pub value: CanonicalConstIdentity,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct OperatorDefinition {
     pub is_public: bool,
     pub is_boundary: bool,

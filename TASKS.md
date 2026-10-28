@@ -163,8 +163,8 @@ retired-syntax deletions to completion.
     live backing accounted for.
   - Migrate affected bundled/product Omega source, samples, and fixtures and
     delete the retired `state` parser/declaration/dispatch paths.
-    The Omega-written parser/resolver and linked application repositories still
-    need the corresponding declaration-model migration.
+    Linked application repositories still need the corresponding
+    declaration-model migration.
   Acceptance: source-to-Terminal/native execution agreement (`omega run --both`)
   for three-level nesting, ordinary helper call with continuation,
   sibling/ancestor terminal cycles, generic enclosing declaration context and
@@ -448,9 +448,11 @@ retired-syntax deletions to completion.
     (observation freedom), and `return_ranges::infer_return_interval` (captured
     arrivals under the caller's actual intervals) over one
     declaration/state/expression correspondence.
-  - Persist compiler-private checked package reuse and native Terminal product
-    reuse across invocations bound to exact source, dependency, and compiler
-    identity.
+  - Complete cross-consumer checked dependency admission bound to full producer
+    dependency context. Exact-program source/check graphs and native Terminal
+    products persist across invocations with fresh source, dependency, compiler
+    and invocation admission; body hashes alone do not admit a dependency
+    judgment into another consumer.
   Acceptance: fixture median under 2 s and a 10-line `std` probe check under 3 s,
   with `corpus_gate --compare` over the touched groups losing nothing and
   `tests/omega/fail/proofs/structural_ensures_unjudged_rejected` still rejecting.
@@ -512,10 +514,10 @@ narrows realization only.
   Owners: `omega-rust/omega/compilation/driver/src/execution_settlement.rs`,
   `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/{boundary_application_settlement.rs,provider_admission/compiler_builtins.rs}`,
   and `omega-rust/omega/compilation/backend/artifacts/native-artifact/src/physical/derivation/evidence.rs`.
-  - Convert the remaining install-phase joins in `execution_settlement.rs`
-    (selected dispatch, component progress, intrinsic review,
-    and deferred constant recipes for
-    arrays/const-generics) from typed/checked records to canonical Terminal Psi
+  - Convert source-side preparation in `execution_settlement.rs` and
+    `selected-dispatch/src/provider_binding.rs` (selected dispatch, component
+    progress, intrinsic review and deferred array/const-generic recipes)
+    from typed/checked records to canonical Terminal Psi
     plus target Build rows, and replace provisional completion-role nomination
     so unused external candidates do not make selected returning implementations
     fail closed.
@@ -696,8 +698,8 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
   and Psi compile-time admission.
   - Connect admitted Build operations, remaining live-storage accounting,
     remaining host operations (including an admitted loan-carrier interface for
-    explicit host loan returns), and `suspend Build::await_provider<R, Backing>(builder)`
-    park/resume to the production Build scheduler, replacing checked-tree Build
+    explicit host loan returns), and the staged dependency preparation/provider
+    park/resume contract to the production Build scheduler, replacing checked-tree Build
     evaluation and static syntax projection in
     `omega-rust/omega/packages/build-declarations`.
   - **BUILD-PRODUCT-REFERENCES / TERMINAL-BUILD-QUERIES:** keep `bind`,
@@ -708,7 +710,7 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
     `fail/build/{product_entry_*,program_entry_binding_outside_build,root_binding_foreign_helper_private_entry}`).
   - **TERMINAL-BUILD-EFFECTS / BUILD-ADMISSION-CHECKPOINT /
     BUILD-SNAPSHOT-OUTPUTS:** join restricted-build requests and lock decisions
-    before any Build effect
+    before each affected Build stage's restricted effects
     (`omega-rust/omega/packages/package-manager/src/review/restricted_build_grants.rs`),
     and stage generated sources, nested dependencies, and committed outputs with
     atomic capture/recapture isolation
@@ -773,6 +775,58 @@ exception matrix, a source rewrite that avoids the operation, or an isolated
 helper that passes does not close an item.
 
 ## Immediate product closure
+
+- **STAGED-BUILD-CAPABILITIES.** Implement the owner-ratified
+  [checked Build stages](wiki/spec/build/scoped_execution.md#checked-build-stages)
+  and ordinary filesystem capability delegation end to end. Deprecate the old
+  flows immediately with actionable diagnostics, migrate their customers, then
+  delete the superseded authoring, scheduling and injected-facet paths in this
+  same outcome; do not retain a legacy mode or a second filesystem API.
+  - Implement configured dependency descriptions and atomic product/Build
+    registrations with immutable exact source, purpose, alias and delegated
+    context. Retire depend/depend_as/build_depend/build_depend_as, alias setter
+    side effects after registration, import-triggered acquisition and host-path
+    fallback. Preserve normal package/source visibility and explicit readiness.
+  - Implement inert deferred Build imports and explicit preparation, with
+    syntax/local obligations checked up front and each dependent continuation
+    resolved, checked and admitted before effects. Preserve one live Terminal
+    activation, exact declaration identities, facts, loans/resources and
+    no-replay behavior. Cover branch-local dependencies, joins, unused imports,
+    bootstrap cycles, later-stage failure and immutable earlier meanings without
+    pretending untaken unresolved continuations were fully checked.
+  - Supply ordinary filesystem backing/implementation arguments, subtree and
+    read-only attenuation, snapshots, private/CoW views, changeset inspection
+    and checked destination application. A dependency cannot bypass its granted
+    view through another provider, imported raw host call, fabricated handle,
+    child lock or resolver credentials; retain explicit resource sponsorship.
+  - Replace named Build input maps and global incoming-map agreement with exact
+    delegated execution-context identities and separate occurrences for different
+    views. Carry identity through review, scheduling, retained artifacts and
+    caches; include negative reads and directory membership, reject grant unions
+    and stale reuse, and decline live/mutable result reuse without adequate
+    observation custody. Keep acquisition, compiled code and result reuse distinct.
+  - Preserve explicit product-reference and generated-source handoff, ordinary
+    artifact completion, failure and export boundaries. Build requests and adds
+    restrictions; locks retain accepted decisions; invocations supply real
+    backing. Retire BuildInputs/BuildSource/BuildOutput filesystem operations,
+    unimplemented with_dependency_inputs design remnants and preknown-only
+    initial-check restrictions, while retaining necessary internal capture,
+    provider admission and immutable-publication mechanisms.
+  - Migrate Rust and Omega producers, Build preludes/protocols, CLI/package
+    review, library Build files, samples, fixtures and authored-input literals.
+    Update semantic/codec identities rather than reinterpret legacy records;
+    source and retained-form retirement controls must reject the old paths after
+    migration. Reuse TERMINAL-BUILD-SEED, not a parallel interpreter or coordinator.
+  Acceptance: root and dependency Builds, a reusable generator and an independently
+  authored filesystem provider execute through the ordinary Terminal pipeline
+  with exact output/diagnostic oracles on supported hosts. The same generator
+  works under real-authorized and virtual attenuated backing without knowing
+  which it received. Mixed source/Build scopes and each new transport mechanism
+  have complete fact rows with meaningful invalid controls. Verify no acquisition
+  for unused imports, no replay, no alias retarget, no unchecked stage effects,
+  no host escape, no partial successful artifact after failure and no wrong-view
+  cache reuse. Matching-host files/changeset observations and all affected
+  existing customer oracles pass; deprecation paths are deleted, not merely hidden.
 
 - **LIBRARY-REPRESENTATION-FAMILIES.** Implement the ratified
   [representation applications](wiki/spec/layouts/plans.md#representation-applications),
@@ -1607,8 +1661,8 @@ defines the complete product bar.
     rejection.
   - **FOREIGN-RETAINED-ARGUMENT-BACKING:** complete installed-provider custody
     and native marshaling for protocol-owned backing, permitted snapshots, and
-    remaining resident/view codecs (tagged/dynamic carriers,
-    independently qualified descendants and tagged/qualified owned results)
+    remaining resident/view codecs (tagged/dynamic carriers and
+    tagged/qualified owned results)
     through stage 05 `retention/retained_borrow_custody.rs` and the selected
     provider.
   Acceptance: `samples/cli/facts/opaque_closed_carrier_exchange`,
@@ -1783,6 +1837,11 @@ defines the complete product bar.
     all nine places, with obligation-sensitive reject twins. Cover all admitted
     carrier endpoints/formats with focused exact vectors rather than duplicate
     width-only fact rows; retain hexadecimal literal value and suffix behavior.
+  Integer milestone: ordinary `core::integer` extrema, width and signedness,
+  exact type refinement and static-call custody are exercised by
+  [the endpoint row](samples/cli/facts/core_integer_endpoint/README.md) and eight
+  carrier vectors. The floating API/representation row and its full acceptance
+  remain owned and open; the integer milestone does not close this task.
   Acceptance: integer/float APIs pass `omega run --both` with exact authored
   values and bit round trips on matching hosts. IEEE boundary and canonical-NaN
   vectors agree; invalid payloads, wrong kinds, unsupported/qualified carriers,

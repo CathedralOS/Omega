@@ -92,7 +92,7 @@ pub(super) fn entry_contract_seeds_from_graphs(
 /// With one supplier, nominating another target or changing a schema record
 /// does not change the source forest. Multiple suppliers still require the
 /// exact accepted package; an unavailable selection must not reuse a fallback.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub(crate) enum EntryContractSource {
     Bundled,
     Package(PackageKeyIdentity),

@@ -54,6 +54,7 @@ pub(crate) fn memoized_owns_drop_hook(
 
 pub(crate) struct EstablishmentQueries {
     rows: Vec<(super::data::EstablishmentIdentity, OnceLock<bool>)>,
+    type_rows: Vec<(TypeReferenceHandle, OnceLock<bool>)>,
 }
 
 impl EstablishmentQueries {
@@ -65,13 +66,40 @@ impl EstablishmentQueries {
             .collect::<Vec<_>>();
         identities.sort_by_key(|identity| identity.order());
         identities.dedup();
+        let mut type_rows: Vec<_> = program
+            .type_reference_table
+            .type_reference_rows()
+            .map(|(handle, _)| (handle, OnceLock::new()))
+            .collect();
+        type_rows.sort_by_key(|(handle, _)| (handle.arena_index(), handle.generation()));
         Self {
             rows: identities
                 .into_iter()
                 .map(|identity| (identity, OnceLock::new()))
                 .collect(),
+            type_rows,
         }
     }
+}
+
+pub(crate) fn memoized_type_requires_establishment(
+    program: &dyn crate::CheckingInput,
+    type_reference: TypeReferenceHandle,
+    compute: impl FnOnce() -> bool,
+) -> bool {
+    let Some(memos) = program.checking_memos() else {
+        return compute();
+    };
+    let queries = memos
+        .establishment
+        .get_or_init(|| EstablishmentQueries::of(program));
+    let Ok(position) = queries.type_rows.binary_search_by_key(
+        &(type_reference.arena_index(), type_reference.generation()),
+        |(handle, _)| (handle.arena_index(), handle.generation()),
+    ) else {
+        return compute();
+    };
+    *queries.type_rows[position].1.get_or_init(compute)
 }
 
 pub(crate) fn memoized_data_requires_establishment(

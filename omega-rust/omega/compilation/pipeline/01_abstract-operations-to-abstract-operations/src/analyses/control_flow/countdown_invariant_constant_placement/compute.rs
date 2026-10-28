@@ -4,14 +4,14 @@ use super::{
     AnalysisRoot, BlockId, CountdownInvariantConstantConsumer,
     CountdownInvariantConstantDestination, CountdownInvariantConstantPlacement,
     CountdownInvariantConstantPlacementAnalysisError,
-    CountdownInvariantConstantPlacementAnalysisSnapshot, CountdownInvariantConstantRole,
-    CountdownInvariantIntegerConstant, MachineId, NodeLocation, O, OperationId, OptimizationNode,
+    CountdownInvariantConstantPlacementAnalysisSnapshot, CountdownInvariantIntegerConstant,
+    MachineId, NodeLocation, O, OperationId, OptimizationNode,
     OptimizerUnsignedCountdownRankingCertificate, PsiOptimizationFunction, PsiOptimizationUnit,
     UnsignedCountdownInvariantConstantPlacements, UnsignedCountdownLoopSummary,
     ValidatedCountdownInvariantConstantAnalysis, ValidatedCountedLoopAnalysis,
-    ValidatedOptimizerCycleComponents, ValueId, validate_analysis_root,
+    ValidatedOptimizerCycleComponents, consumer_matches, consumer_operation,
+    validate_analysis_root,
 };
-use abstract_operations::{IntegerArithmeticOperator, IntegerOverflowPolicy};
 pub(super) fn propose(
     unit: &PsiOptimizationUnit,
     custody: &ValidatedOptimizerCycleComponents,
@@ -113,7 +113,7 @@ fn consumer(
     certificate: &OptimizerUnsignedCountdownRankingCertificate,
     constant: &CountdownInvariantIntegerConstant,
 ) -> Result<CountdownInvariantConstantConsumer, CountdownInvariantConstantPlacementAnalysisError> {
-    let operation = expected_consumer(certificate, constant.role);
+    let operation = consumer_operation(certificate, constant.role);
     let uses = function
         .node_uses()
         .filter(|value_use| value_use.value == constant.result)
@@ -127,7 +127,9 @@ fn consumer(
     }
     let node = node_at(function, value_use.block, value_use.node)
         .ok_or_else(|| unsupported(function.machine, constant.psi_operation))?;
-    check_consumer(node, certificate, constant.role, operation, constant.result)?;
+    if !consumer_matches(node, certificate, constant.role, operation, constant.result) {
+        return Err(unsupported(certificate.component.machine, operation));
+    }
     Ok(CountdownInvariantConstantConsumer {
         location: NodeLocation {
             machine: function.machine,
@@ -139,71 +141,6 @@ fn consumer(
     })
 }
 
-fn check_consumer(
-    node: &OptimizationNode,
-    certificate: &OptimizerUnsignedCountdownRankingCertificate,
-    role: CountdownInvariantConstantRole,
-    operation: OperationId,
-    constant: ValueId,
-) -> Result<(), CountdownInvariantConstantPlacementAnalysisError> {
-    let matches = match (role, &node.operation) {
-        (
-            CountdownInvariantConstantRole::PositiveGuardZero,
-            O::IntegerLessThan {
-                psi_operation,
-                result,
-                left,
-                right,
-            },
-        ) => {
-            (*psi_operation, *result, *left, *right)
-                == (
-                    operation,
-                    certificate.guard.condition,
-                    constant,
-                    certificate.rank_parameter,
-                )
-        }
-        (
-            CountdownInvariantConstantRole::BackedgeDecrementOne,
-            O::IntegerArithmetic {
-                psi_operation,
-                result,
-                scalar_type,
-                arithmetic,
-                left,
-                right,
-            },
-        ) if (arithmetic.policy(), arithmetic.operator())
-            == (
-                IntegerOverflowPolicy::Exact,
-                IntegerArithmeticOperator::Subtract,
-            ) =>
-        {
-            (
-                *psi_operation,
-                arithmetic.obligation(),
-                *result,
-                *scalar_type,
-                *left,
-                *right,
-            ) == (
-                operation,
-                Some(certificate.descent.subtract_obligation),
-                certificate.descent.argument,
-                certificate.rank_type,
-                certificate.descent.source_parameter,
-                constant,
-            )
-        }
-        _ => false,
-    };
-    if !matches {
-        return Err(unsupported(certificate.component.machine, operation));
-    }
-    Ok(())
-}
-
 fn node_at(
     function: &PsiOptimizationFunction,
     block: BlockId,
@@ -213,18 +150,6 @@ fn node_at(
         .block(block)?
         .nodes
         .get(usize::try_from(node).ok()?)
-}
-
-fn expected_consumer(
-    certificate: &OptimizerUnsignedCountdownRankingCertificate,
-    role: CountdownInvariantConstantRole,
-) -> OperationId {
-    match role {
-        CountdownInvariantConstantRole::PositiveGuardZero => certificate.guard.comparison_operation,
-        CountdownInvariantConstantRole::BackedgeDecrementOne => {
-            certificate.descent.subtract_operation
-        }
-    }
 }
 
 fn validate_roots(

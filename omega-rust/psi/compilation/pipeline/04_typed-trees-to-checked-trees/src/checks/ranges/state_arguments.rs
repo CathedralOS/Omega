@@ -499,7 +499,7 @@ fn expression_has_internal_call(
             .any(|field| {
                 expression_has_internal_call(program, non_entry_states, field.value, next)
             }),
-        typed_trees::literal_expression_pattern!() => false,
+        ExpressionNode::TypeExpression(_) | typed_trees::literal_expression_pattern!() => false,
     }
 }
 

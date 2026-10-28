@@ -1,5 +1,5 @@
 //! Redundant-parameter witness reconstruction and rewrite acceptance.
-use crate::candidates::{canonicalize_provenance, provenance_realized_at, realize_node_provenance};
+use crate::candidates::{canonicalize_provenance, realize_node_provenance, realized_at_own_site};
 use crate::unit_validation::derived_metadata::{
     expected_definitions, expected_edges, expected_ownership, expected_uses,
 };
@@ -86,12 +86,7 @@ pub(super) fn validate_redundant_block_parameter_candidate(
                     machine: patch.machine,
                     edge: edge.psi_edge,
                 };
-                expected_provenance.push(provenance_realized_at(
-                    site,
-                    site,
-                    &edge.provenance,
-                    &edge.fuel,
-                ));
+                expected_provenance.push(realized_at_own_site(site, &edge.provenance, &edge.fuel));
             }
             if changes_use {
                 affected_blocks.insert(source.id);

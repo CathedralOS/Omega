@@ -3,6 +3,7 @@
 //! requirements substitute closed literal values and retain checked comparison
 //! polarity over those original operands, independently of subsequent writes.
 //! Unknown origins and unselected arithmetic supply no entry evidence.
+use crate::facts::crash_plan_facts::declared_parameter_names;
 use checked_trees::{
     CheckedBooleanExpression as Boolean, CheckedScalarExpression as Scalar,
     CrashPredicateExpression as Expression,
@@ -19,10 +20,7 @@ pub(super) fn refine(
         return;
     };
     let parameters = program.state_parameters(entry);
-    let names = parameters
-        .iter()
-        .map(|parameter| parameter.name.as_str().to_owned())
-        .collect::<Vec<_>>();
+    let names = declared_parameter_names(parameters);
     let mut equations = Vec::new();
     let mut excluded = Vec::new();
     for contract in program

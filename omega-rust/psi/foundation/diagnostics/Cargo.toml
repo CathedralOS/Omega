@@ -9,4 +9,5 @@ name = "diagnostics"
 path = "src/lib.rs"
 
 [dependencies]
+compiler-storage = { path = "../compiler-storage" }
 source = { path = "../source" }

@@ -1864,7 +1864,9 @@ impl ArrivalWalk<'_, '_> {
                     }
                 }
             }
-            ExpressionNode::SavedSubject(_) | typed_trees::literal_expression_pattern!() => {}
+            ExpressionNode::TypeExpression(_)
+            | ExpressionNode::SavedSubject(_)
+            | typed_trees::literal_expression_pattern!() => {}
         }
         if let Ok(position) = self.observations.binary_search_by_key(
             &(expression.arena_index(), expression.generation()),
@@ -2068,7 +2070,9 @@ fn state_has_in_machine_arrivals(
                     stack.push(field.value);
                 }
             }
-            ExpressionNode::SavedSubject(_) | typed_trees::literal_expression_pattern!() => {}
+            ExpressionNode::TypeExpression(_)
+            | ExpressionNode::SavedSubject(_)
+            | typed_trees::literal_expression_pattern!() => {}
         }
     }
     false

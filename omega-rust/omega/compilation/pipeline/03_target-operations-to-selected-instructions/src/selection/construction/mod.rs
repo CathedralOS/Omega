@@ -19,12 +19,13 @@ pub(super) fn build_plan(
     }
     let catalog = environment.constraints();
     require_key_rows(&constraints.keys, catalog)?;
+    let backings = super::foreign_scalar_backings::ForeignScalarBackings::new(target);
     let mut functions = target
         .scalar_functions
         .iter()
         .enumerate()
         .map(|(index, source)| {
-            scalar_graph::build_with_environment(index, source, constraints, environment)
+            scalar_graph::build_with_environment(index, source, constraints, environment, &backings)
         })
         .collect::<Result<Vec<_>, _>>()?;
     functions.sort_by_key(|function| function.machine);

@@ -250,10 +250,10 @@ pub(crate) fn evaluate(
     super::const_qualifications::defer_unproved(&mut selection_syntax);
     let selection_arguments =
         syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_data_const_argument_expressions(
-            &syntax,
+            &mut syntax,
             sources.clone(),
             bindings.to_vec(),
-            context.retained_base(),
+            context.retained_base(), context.declaration_syntax,
         )?;
     crate::syntax_probes::defer_pending_const_qualifications(
         &mut selection_syntax,
@@ -341,7 +341,7 @@ pub(crate) fn evaluate(
         let leaf_count = declarations[ordinal].leaves.len();
         for leaf_ordinal in 0..leaf_count {
             let expression = declarations[ordinal].leaves[leaf_ordinal].expression;
-            let selected = preparation.initializer_expression_dependencies(
+            let selected = preparation.pending_leaf_dependencies(
                 &syntax,
                 &declarations[ordinal].definition,
                 expression,

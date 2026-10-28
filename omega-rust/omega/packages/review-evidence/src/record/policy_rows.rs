@@ -1,10 +1,11 @@
 //! Complete, inert comparison rows. Classification is not an acceptance decision.
 
+use crate::record::accessors::field_projection_accessors;
 mod limits;
 pub use limits::{PackagePolicyRowLimits, PackagePolicyRowUsage};
 
 /// Independent of legacy review rows and of the complete baseline grammar.
-pub const PACKAGE_POLICY_ROW_VERSION: u16 = 6;
+pub const PACKAGE_POLICY_ROW_VERSION: u16 = 7;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackagePolicyRowKind {
@@ -33,6 +34,7 @@ pub enum PackagePolicyRowKind {
     RestrictedBuildRequest,
     AssumedBindingContract,
     ServiceAudit,
+    NativeBinding,
 }
 
 impl PackagePolicyRowKind {
@@ -65,6 +67,7 @@ impl PackagePolicyRowKind {
             Self::RestrictedBuildRequest => (22, "restricted_build_request"),
             Self::AssumedBindingContract => (23, "assumed_binding_contract"),
             Self::ServiceAudit => (24, "service_audit"),
+            Self::NativeBinding => (25, "native_binding"),
         }
     }
 
@@ -87,7 +90,8 @@ impl PackagePolicyRowKind {
             | Self::DangerousCapability
             | Self::RestrictedBuildRequest
             | Self::AssumedBindingContract
-            | Self::ServiceAudit => true,
+            | Self::ServiceAudit
+            | Self::NativeBinding => true,
             Self::Header
             | Self::RepresentationTarget
             | Self::PublicTrait
@@ -122,30 +126,19 @@ pub struct PackagePolicyRow {
 }
 
 impl PackagePolicyRow {
-    pub const fn kind(&self) -> PackagePolicyRowKind {
-        self.kind
-    }
-    pub fn key_bytes(&self) -> &[u8] {
-        &self.key_bytes
-    }
-    pub fn canonical_bytes(&self) -> &[u8] {
-        &self.canonical_bytes
-    }
+    field_projection_accessors!(copied kind: PackagePolicyRowKind);
+    field_projection_accessors!(sliced key_bytes: &[u8], canonical_bytes: &[u8]);
     pub fn canonical_text(&self) -> &str {
         &self.canonical_text
     }
     pub fn into_canonical_text(self) -> String {
         self.canonical_text
     }
-    pub const fn initial_requires_decision(&self) -> bool {
-        self.initial_requires_decision
-    }
+    field_projection_accessors!(copied initial_requires_decision: bool);
     pub const fn update_requires_decision(&self) -> bool {
         self.initial_requires_decision
     }
-    pub const fn audit_recommended_when_present(&self) -> bool {
-        self.audit_recommended_when_present
-    }
+    field_projection_accessors!(copied audit_recommended_when_present: bool);
     pub const fn audit_recommended_on_change(&self) -> bool {
         self.kind.row_change_audit(
             self.initial_requires_decision,

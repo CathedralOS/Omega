@@ -35,100 +35,17 @@ pub(crate) fn validate_linear_scalar_division_stack(
     let (mut claimed, mut call_sites) =
         claimed_mutations_and_call_sites(architecture, machine, bytes, evidence, calls)?;
     let mut validated_calls = Vec::with_capacity(calls.len());
-    let mut cursor = 0;
-    let mut depth = 0_u32;
-    let mut peak = 0_u32;
-    for branch in branches {
-        let branch_end = branch
-            .branch_offset
-            .checked_add(branch.branch_byte_count)
-            .ok_or(ObjectError::InvalidScalarConditionalEvidence {
-                machine,
-                offset: branch.branch_offset,
-            })?;
-        let join_end = branch
-            .join_offset
-            .checked_add(branch.join_byte_count)
-            .ok_or(ObjectError::InvalidScalarConditionalEvidence {
-                machine,
-                offset: branch.join_offset,
-            })?;
-        if cursor > branch.branch_offset
-            || branch.branch_offset >= branch_end
-            || branch_end > branch.join_offset
-            || join_end != branch.ordinary_arm_offset
-            || branch.ordinary_arm_offset >= branch.merge_offset
-            || branch.merge_offset > bytes.len()
-        {
-            return Err(ObjectError::InvalidScalarConditionalEvidence {
-                machine,
-                offset: branch.branch_offset,
-            });
-        }
-        validate_scalar_division_branch_instructions(machine, bytes, branch)?;
-        replay_x86_scalar_linear_region(
-            machine,
-            bytes,
-            cursor,
-            branch.branch_offset,
-            false,
-            &mut claimed,
-            &mut call_sites,
-            evidence,
-            &mut validated_calls,
-            &mut depth,
-            &mut peak,
-        )?;
-        let branch_depth = depth;
-        let mut special_depth = branch_depth;
-        let mut special_peak = peak;
-        replay_x86_scalar_linear_region(
-            machine,
-            bytes,
-            branch_end,
-            branch.join_offset,
-            false,
-            &mut claimed,
-            &mut call_sites,
-            evidence,
-            &mut validated_calls,
-            &mut special_depth,
-            &mut special_peak,
-        )?;
-        let mut ordinary_depth = branch_depth;
-        let mut ordinary_peak = peak;
-        replay_x86_scalar_linear_region(
-            machine,
-            bytes,
-            branch.ordinary_arm_offset,
-            branch.merge_offset,
-            false,
-            &mut claimed,
-            &mut call_sites,
-            evidence,
-            &mut validated_calls,
-            &mut ordinary_depth,
-            &mut ordinary_peak,
-        )?;
-        if special_depth != ordinary_depth {
-            return Err(ObjectError::MissingBalancedScalarReturn(machine));
-        }
-        depth = special_depth;
-        peak = special_peak.max(ordinary_peak);
-        cursor = branch.merge_offset;
-    }
-    replay_x86_scalar_linear_region(
+    let (depth, peak) = replay_x86_scalar_division_branches(
         machine,
         bytes,
-        cursor,
+        0,
         bytes.len(),
         true,
+        branches,
         &mut claimed,
         &mut call_sites,
         evidence,
         &mut validated_calls,
-        &mut depth,
-        &mut peak,
     )?;
     super::stack_mutation::scalar_stack_result(
         &claimed,
@@ -291,8 +208,11 @@ fn replay_x86_scalar_linear_region(
     Ok(())
 }
 
+/// Replays one `start..end` division region: every branch's pre-branch gap, its
+/// exceptional arm, and its ordinary arm, followed by the region tail. Returns
+/// the depth and peak left behind so callers can apply their own depth policy.
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn replay_x86_scalar_division_region(
+fn replay_x86_scalar_division_branches(
     machine: MachineId,
     bytes: &[u8],
     start: usize,
@@ -303,13 +223,7 @@ pub(crate) fn replay_x86_scalar_division_region(
     call_sites: &mut std::collections::BTreeMap<usize, machine_code::InternalCallRelocation>,
     evidence: &ScalarStackEvidence,
     validated_calls: &mut Vec<ObjectScalarCallStack>,
-) -> Result<u32, ObjectError> {
-    if branches.is_empty() || start > end || end > bytes.len() {
-        return Err(ObjectError::InvalidScalarConditionalEvidence {
-            machine,
-            offset: start,
-        });
-    }
+) -> Result<(u32, u32), ObjectError> {
     let mut cursor = start;
     let mut depth = 0_u32;
     let mut peak = 0_u32;
@@ -355,8 +269,7 @@ pub(crate) fn replay_x86_scalar_division_region(
             &mut depth,
             &mut peak,
         )?;
-        let branch_depth = depth;
-        let mut special_depth = branch_depth;
+        let mut special_depth = depth;
         let mut special_peak = peak;
         replay_x86_scalar_linear_region(
             machine,
@@ -371,7 +284,7 @@ pub(crate) fn replay_x86_scalar_division_region(
             &mut special_depth,
             &mut special_peak,
         )?;
-        let mut ordinary_depth = branch_depth;
+        let mut ordinary_depth = depth;
         let mut ordinary_peak = peak;
         replay_x86_scalar_linear_region(
             machine,
@@ -405,6 +318,40 @@ pub(crate) fn replay_x86_scalar_division_region(
         validated_calls,
         &mut depth,
         &mut peak,
+    )?;
+    Ok((depth, peak))
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn replay_x86_scalar_division_region(
+    machine: MachineId,
+    bytes: &[u8],
+    start: usize,
+    end: usize,
+    require_return: bool,
+    branches: &[ScalarDivisionBranchEvidence],
+    claimed: &mut std::collections::BTreeMap<usize, ScalarStackMutation>,
+    call_sites: &mut std::collections::BTreeMap<usize, machine_code::InternalCallRelocation>,
+    evidence: &ScalarStackEvidence,
+    validated_calls: &mut Vec<ObjectScalarCallStack>,
+) -> Result<u32, ObjectError> {
+    if branches.is_empty() || start > end || end > bytes.len() {
+        return Err(ObjectError::InvalidScalarConditionalEvidence {
+            machine,
+            offset: start,
+        });
+    }
+    let (depth, peak) = replay_x86_scalar_division_branches(
+        machine,
+        bytes,
+        start,
+        end,
+        require_return,
+        branches,
+        claimed,
+        call_sites,
+        evidence,
+        validated_calls,
     )?;
     if depth != 0 {
         return Err(ObjectError::MissingBalancedScalarReturn(machine));

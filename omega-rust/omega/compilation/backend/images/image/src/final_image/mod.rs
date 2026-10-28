@@ -4,7 +4,7 @@
 
 mod data_regions;
 mod executable_regions;
-pub(crate) use executable_regions::{FNV_OFFSET, fingerprint_bytes};
+pub(crate) use executable_regions::{FNV_OFFSET, byte_report_fingerprint, fingerprint_bytes};
 mod layout;
 mod memory;
 mod relocations;

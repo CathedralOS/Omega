@@ -356,7 +356,7 @@ impl TerminalExecution<'_> {
         &self,
         storage: &PrimitiveStorage,
         owner: &StructuralRuntimePlace,
-        normal: &[semantic_vocabulary::StructuralDomainId],
+        normal: &[crate::effects::normal_qualifications::CapturedNormalQualification],
     ) -> Result<(), TerminalInterpretError> {
         let Some(target) = scalar_qualification_owner(storage) else {
             return Ok(());
@@ -377,7 +377,7 @@ impl TerminalExecution<'_> {
     pub(crate) fn validate_storage_loan_restoration(
         &self,
         target: &StructuralRuntimePlace,
-        normal: &[semantic_vocabulary::StructuralDomainId],
+        normal: &[crate::effects::normal_qualifications::CapturedNormalQualification],
     ) -> Result<(), TerminalInterpretError> {
         self.validate_storage_loan_restoration_at(target, target, normal)
     }
@@ -386,7 +386,7 @@ impl TerminalExecution<'_> {
         &self,
         target: &StructuralRuntimePlace,
         owner: &StructuralRuntimePlace,
-        normal: &[semantic_vocabulary::StructuralDomainId],
+        normal: &[crate::effects::normal_qualifications::CapturedNormalQualification],
     ) -> Result<(), TerminalInterpretError> {
         if target.opaque_identity != owner.opaque_identity || !target.path.starts_with(&owner.path)
         {
@@ -399,20 +399,7 @@ impl TerminalExecution<'_> {
             |value: &TerminalStructuralValue,
              qualifications: &[semantic_vocabulary::StructuralDomainId],
              projected: &[terminal_psi::StructuralPathQualification]| {
-                let intrinsic = |path: &[terminal_psi::StructuralPathSegment], domain| {
-                    terminal_semantics::scalar_projection_entails_membership(
-                        self.program.structural_types().values(),
-                        self.program.catalogs.structural_domains.iter(),
-                        value.structural_type,
-                        path,
-                        domain,
-                    )
-                };
-                projected.iter().all(|row| intrinsic(&row.path, row.domain))
-                    && qualifications.iter().all(|domain| {
-                        intrinsic(&[], *domain)
-                            || (value.path == owner.path && normal.contains(domain))
-                    })
+                self.normal_qualifications_cover(value, qualifications, projected, normal)
             };
         let unsupported = || {
             TerminalInterpretError::UnsupportedSemanticVariant(
@@ -436,43 +423,50 @@ impl TerminalExecution<'_> {
                     value,
                     &value.qualifications,
                     &value.projected_qualifications,
-                ) || machine
+                )? {
+                    return Err(unsupported());
+                }
+                for parameter in machine
                     .structural_parameters
                     .iter()
                     .chain(machine.block_structural_parameters())
-                    .any(|parameter| {
-                        parameter.place == *place
-                            && !covered(
-                                value,
-                                &parameter.qualifications,
-                                &parameter.projected_qualifications,
-                            )
-                    })
-                    || machine
-                        .operations()
-                        .filter_map(|operation| operation.result.structural())
-                        .any(|result| {
-                            result.place == *place
-                                && !covered(
-                                    value,
-                                    &result.qualifications,
-                                    &result.projected_qualifications,
-                                )
-                        })
+                    .filter(|parameter| parameter.place == *place)
                 {
-                    return Err(unsupported());
+                    if !covered(
+                        value,
+                        &parameter.qualifications,
+                        &parameter.projected_qualifications,
+                    )? {
+                        return Err(unsupported());
+                    }
+                }
+                for result in machine
+                    .operations()
+                    .filter_map(|operation| operation.result.structural())
+                    .filter(|result| result.place == *place)
+                {
+                    if !covered(
+                        value,
+                        &result.qualifications,
+                        &result.projected_qualifications,
+                    )? {
+                        return Err(unsupported());
+                    }
                 }
             }
         }
-        if self.reference_referents.values().any(|value| {
-            owns_target(&value.view)
-                && !covered(
-                    &value.view,
-                    &value.view.qualifications,
-                    &value.view.projected_qualifications,
-                )
-        }) {
-            return Err(unsupported());
+        for reference in self
+            .reference_referents
+            .values()
+            .filter(|reference| owns_target(&reference.view))
+        {
+            if !covered(
+                &reference.view,
+                &reference.view.qualifications,
+                &reference.view.projected_qualifications,
+            )? {
+                return Err(unsupported());
+            }
         }
         Ok(())
     }

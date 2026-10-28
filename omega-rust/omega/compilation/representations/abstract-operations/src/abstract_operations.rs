@@ -80,8 +80,7 @@ pub use structural_type_catalog::StructuralTypeCatalog;
 pub mod atomic;
 pub use atomic::{
     AbstractAtomicEvent, AbstractAtomicFenceOrdering, AbstractAtomicReadModifyWrite,
-    AtomicCoherenceViolation, AtomicModificationAfter, AtomicReadsFrom,
-    happens_before_atomic_coherence_violation,
+    AtomicCoherenceViolation, AtomicResidencyEdge, happens_before_atomic_coherence_violation,
 };
 pub mod calls;
 pub use calls::{

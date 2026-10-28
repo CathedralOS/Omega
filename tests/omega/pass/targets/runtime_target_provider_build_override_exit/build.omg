@@ -1,6 +1,14 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "runtime_target_provider_build_override_exit");
-    Build::select_provider<Pick, OverrideMap>(builder);
+    Build::select_provider<Pick, OverrideMap>(builder, linux_arm64);
+    Build::select_provider<Pick, OverrideMap>(builder, linux_x86_64);
+    Build::select_provider<Pick, OverrideMap>(builder, macos_arm64);
+    Build::select_provider<Pick, OverrideMap>(builder, macos_x86_64);
+    Build::select_provider<Pick, OverrideMap>(builder, windows_x86_64);
+    Build::select_provider<Pick, OverrideMap>(builder, uefi_x86_64);
+    Build::select_provider<Pick, OverrideMap>(builder, cross_platform_cli);
+    Build::select_provider<Pick, OverrideMap>(builder, local_unchecked);
+    Build::select_provider<Pick, OverrideMap>(builder, alpha_bootstrap);
     Build::bind(builder, macos_arm64::ProgramEntry, Main::main);
     Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
     Build::bind(builder, windows_x86_64::ProgramEntry, Main::main);
