@@ -234,6 +234,13 @@ impl Execution<'_, '_, '_> {
                     for root in retained {
                         crate::collections::push_unique(&mut roots, root);
                     }
+                    self.capture_output_lifetime_sources(
+                        parameters,
+                        inputs,
+                        call,
+                        identity,
+                        &effect.destination.local_segments,
+                    );
                     crate::collections::push_unique(&mut origins, origin);
                     continue;
                 }

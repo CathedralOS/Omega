@@ -131,12 +131,26 @@ pub struct FlowOperandLifetimeContract {
     pub state_symbol: symbols::SymbolHandle,
     pub statement_index: usize,
     pub invocation: ExpressionHandle,
+    pub call_ordinal: usize,
+    /// None names the returned value; Some names an overwritten parameter
+    /// leaf. Both retain the original declaration's output path below.
+    pub output_parameter: Option<usize>,
     pub input: Handle<FlowOperandFact>,
     pub parameter_index: usize,
     pub source: ViewReturnInputSource,
     pub source_type: typed_trees::types::TypeReferenceHandle,
     pub source_path: HandleSpan<facts::PlaceSegment>,
     pub owner_path: HandleSpan<facts::PlaceSegment>,
+}
+
+/// Nonspatial input obligations of one admitted parameter-output generation.
+/// Descriptor invalidation cannot turn this into a pointer association. The
+/// borrowing ledger must independently select this exact generation at release.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FlowOutputLifetimeSources {
+    pub output: facts::InvocationOutputIdentity,
+    pub owner_path: HandleSpan<facts::PlaceSegment>,
+    pub sources: Option<HandleSpan<FlowOperandRetainedSupplier>>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

@@ -250,6 +250,7 @@ pub(crate) fn prepare_permission_events(
                     statement_index: call.statement_index,
                     call_ordinal: call.call_ordinal,
                     authored_expression: call.authored_expression,
+                    input_reference_loans: None,
                     reference_slot_effects: Default::default(),
                     completed_reference_loans: Default::default(),
                     receiver_symbol: call.receiver_symbol,

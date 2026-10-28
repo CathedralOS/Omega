@@ -77,10 +77,6 @@ pub(in crate::borrow) fn append_reference_custody(
                     contexts.push(None);
                     continue;
                 };
-                if effects.is_empty() {
-                    contexts.push(Some(incoming.clone()));
-                    continue;
-                }
                 let mut matching = calls.handles().filter(|handle| {
                     let call = arenas.calls.get(*handle);
                     call.statement_index == statement_index
@@ -97,6 +93,15 @@ pub(in crate::borrow) fn append_reference_custody(
                     ));
                 }
                 published_calls.push(call);
+                arenas.calls.get_mut(call).input_reference_loans = Some(
+                    arenas
+                        .loan_suppliers
+                        .insert_many(incoming.iter().map(|loan| loan.handle)),
+                );
+                if effects.is_empty() {
+                    contexts.push(Some(incoming.clone()));
+                    continue;
+                }
                 let mut destinations = arena::HandleSpan::empty();
                 for effect in &effects {
                     let segments = arenas

@@ -232,6 +232,8 @@ impl<'program, 'writes> ArgumentSources<'program, 'writes> {
 
     pub(in crate::flow) fn retained_sources(
         &self,
+        borrow: &checked_trees::BorrowFacts,
+        call: &BorrowCallFact,
         control: &FlowControlFacts,
         position: usize,
     ) -> Option<crate::flow::retained_borrows::RetainedSources> {
@@ -239,26 +241,45 @@ impl<'program, 'writes> ArgumentSources<'program, 'writes> {
             .captures
             .iter()
             .find(|capture| capture.position == position && capture.destination.is_empty())?;
-        crate::flow::retained_borrows::captured_sources(
+        let stable_name = |operand: &FlowOperandFact, source: &CanonicalPlace| {
+            crate::flow::binding_origin_is_stable(
+                self.program,
+                control,
+                operand.entry_binding_writes,
+                operand.entry_binding_unknown_write,
+                source,
+            )
+        };
+        // Permission capture and historical loan obligations are independent
+        // channels. Neither unavailable channel supplies an empty proof.
+        let current = crate::flow::retained_borrows::captured_sources(
             self.program,
+            borrow,
             control,
             &captured.operand,
             &[],
             self.parameters.get(position)?.type_reference,
-            &|operand, source| {
-                // This names the holder at its captured binding epoch. Later
-                // content writes do not erase a moved value's retained loans.
-                // A preceding descriptor replacement withholds association
-                // with the statement-entry loan roster.
-                crate::flow::binding_origin_is_stable(
-                    self.program,
-                    control,
-                    operand.entry_binding_writes,
-                    operand.entry_binding_unknown_write,
-                    source,
-                )
-            },
-        )
+            &stable_name,
+        );
+        let debts = crate::flow::retained_borrows::output_debt_sources(
+            self.program,
+            borrow,
+            control,
+            self.state,
+            call,
+            &captured.operand,
+            self.parameters.get(position)?.type_reference,
+            &stable_name,
+        );
+        match (current, debts) {
+            (Some(mut current), Some(debts)) => {
+                current.append(debts);
+                Some(current)
+            }
+            (Some(current), None) => Some(current),
+            (None, Some(debts)) => Some(debts),
+            (None, None) => None,
+        }
     }
 
     pub(in crate::flow) fn completed_calls(

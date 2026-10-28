@@ -1238,6 +1238,8 @@ impl Execution<'_, '_, '_> {
                         state_symbol: self.state.symbol,
                         statement_index: self.statement_index,
                         invocation: expression,
+                        call_ordinal: call.call_ordinal,
+                        output_parameter: None,
                         input,
                         parameter_index: source.parameter_index,
                         source: source.source,

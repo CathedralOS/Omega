@@ -32,7 +32,7 @@ impl RetainedSources {
             }
         }
     }
-    fn meet(&mut self, other: &Self) {
+    pub(super) fn meet(&mut self, other: &Self) {
         self.holders.retain(|holder| other.holders.contains(holder));
         self.borrows.retain_mut(|borrow| {
             let Some(alternative) = other.borrows.iter().find(|row| row.same_subject(borrow))
@@ -47,6 +47,7 @@ impl RetainedSources {
 
 pub(in crate::flow) fn captured_sources(
     program: &dyn validation::CheckingInput,
+    borrow: &checked_trees::BorrowFacts,
     control: &FlowControlFacts,
     operand: &FlowOperandFact,
     projection: &[facts::PlaceSegment],
@@ -55,6 +56,7 @@ pub(in crate::flow) fn captured_sources(
 ) -> Option<RetainedSources> {
     fn visit(
         program: &dyn validation::CheckingInput,
+        borrow: &checked_trees::BorrowFacts,
         control: &FlowControlFacts,
         operand: &FlowOperandFact,
         projection: &[facts::PlaceSegment],
@@ -100,6 +102,7 @@ pub(in crate::flow) fn captured_sources(
                     }
                     let source = visit(
                         program,
+                        borrow,
                         control,
                         control.operands.get(alternative.value),
                         projection,
@@ -165,8 +168,15 @@ pub(in crate::flow) fn captured_sources(
             )?;
             let mut alternatives: Option<RetainedSources> = None;
             for profile in profiles {
-                let source =
-                    profile_sources(program, control, profile, declared, stable_name, active)?;
+                let source = profile_sources(
+                    program,
+                    borrow,
+                    control,
+                    profile,
+                    declared,
+                    stable_name,
+                    active,
+                )?;
                 match &mut alternatives {
                     Some(common) => common.meet(&source),
                     None => alternatives = Some(source),
@@ -178,6 +188,7 @@ pub(in crate::flow) fn captured_sources(
     }
     fn profile_sources(
         program: &dyn validation::CheckingInput,
+        borrow: &checked_trees::BorrowFacts,
         control: &FlowControlFacts,
         handle: Handle<FlowOperandRetention>,
         contract: typed_trees::types::TypeReferenceHandle,
@@ -196,6 +207,7 @@ pub(in crate::flow) fn captured_sources(
                 for alternative in profile.alternatives.handles() {
                     let source = profile_sources(
                         program,
+                        borrow,
                         control,
                         alternative,
                         contract,
@@ -218,10 +230,11 @@ pub(in crate::flow) fn captured_sources(
                 }
                 result.append(visit(
                     program,
+                    borrow,
                     control,
                     control.operands.get(source.operand),
                     control.operand_retained_paths.span(source.projection)?,
-                    super::lifetime_contract::source_type(program, control, source)?,
+                    super::lifetime_contract::source_type(program, borrow, control, source)?,
                     stable_name,
                     active,
                 )?);
@@ -239,6 +252,7 @@ pub(in crate::flow) fn captured_sources(
                     }
                     let supplied = visit(
                         program,
+                        borrow,
                         control,
                         control.operands.get(source.operand),
                         control.operand_retained_paths.span(source.projection)?,
@@ -261,6 +275,7 @@ pub(in crate::flow) fn captured_sources(
             {
                 result.append(visit(
                     program,
+                    borrow,
                     control,
                     control.operands.get(profile.stored_value),
                     control
@@ -278,6 +293,7 @@ pub(in crate::flow) fn captured_sources(
     }
     visit(
         program,
+        borrow,
         control,
         operand,
         projection,
