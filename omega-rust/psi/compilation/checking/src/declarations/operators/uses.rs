@@ -133,6 +133,14 @@ pub fn collect_pre_specialization_operator_selections(
                     continue;
                 }
             };
+            if std::env::var_os("OMEGA_OPERATOR_SELECTION_TRACE").is_some()
+                && operand_types.iter().flatten().any(|reference| matches!(program.primitive_type_reference(*reference), Some(PrimitiveType::F32 | PrimitiveType::F64)))
+            {
+                let retained = program.expression_table.authored_selection_occurrences(expression)
+                    .map(|occurrence| (occurrence, program.authored_declaration_selections().get(occurrence).map(|selection| selection.target())))
+                    .collect::<Vec<_>>();
+                eprintln!("OPERATOR pre-specialization owner={} expression={} traits={} chosen={target:?} retained={retained:?}", machine.name, program.expression_table.display_name(expression), program.traits().len());
+            }
             selections.push((expression, target));
         }
     });
