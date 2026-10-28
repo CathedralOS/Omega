@@ -38,6 +38,7 @@ pub use compiler_builtins::{
 };
 pub(crate) use compiler_builtins::{
     derive_selected_intrinsic_settlement_proposals, prepare_retained_compiler_builtins,
+    selected_execution,
 };
 pub use diagnostics::realization_error;
 

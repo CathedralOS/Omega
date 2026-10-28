@@ -22,6 +22,7 @@ mod retained;
 
 pub use proposals::CompilerIntrinsicPlanProvenance;
 pub(crate) use proposals::derive_selected_intrinsic_settlement_proposals;
+pub(crate) use proposals::selected_execution;
 pub(crate) use retained::prepare_retained_compiler_builtins;
 pub use retained::{TerminalCompilerBuiltinProposal, TerminalCompilerBuiltinSettlement};
 

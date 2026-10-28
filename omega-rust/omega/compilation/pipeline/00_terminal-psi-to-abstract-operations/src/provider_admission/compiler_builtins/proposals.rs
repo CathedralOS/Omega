@@ -601,7 +601,7 @@ fn compiler_builtin_execution(
 /// Join the selected external leaf to Psi's exact satisfaction edge. Numeric
 /// meaning alone cannot authorize execution; a same-signature provider or a
 /// declaration from another package cannot replace the selected realization.
-fn selected_execution(
+pub(crate) fn selected_execution(
     meaning: Option<language_semantics::numeric_intrinsics::NumericIntrinsic>,
     external_providers: &[terminal_psi::ExternalProviderConformance],
     identities: &terminal_psi::TerminalIdentityTable,

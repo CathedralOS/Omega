@@ -84,10 +84,31 @@ fn project_terminal_boundary_application_realizations(
             ));
         };
         let realization = match &row.binding {
-            ProviderBinding::CompilerIntrinsic { .. } => Realization::ExactCompilerIntrinsic {
-                execution: execution
-                    .ok_or_else(|| error("selected intrinsic has no checked execution identity"))?,
-            },
+            ProviderBinding::CompilerIntrinsic { .. } => {
+                let mut boundaries = module.boundary_machines.iter().filter(|boundary| {
+                    module.identities.text(boundary.identity) == Some(requirement.overload())
+                });
+                let boundary = boundaries.next();
+                if boundaries.next().is_some() {
+                    return Err(error(
+                        "selected intrinsic has ambiguous Terminal requirements",
+                    ));
+                }
+                let execution = crate::provider_admission::selected_execution(
+                    boundary.and_then(|boundary| boundary.numeric_intrinsic),
+                    boundary.map_or(&[], |boundary| boundary.external_providers.as_slice()),
+                    &module.identities,
+                    plan,
+                    row,
+                    *execution,
+                )
+                .map_err(error)?;
+                Realization::ExactCompilerIntrinsic {
+                    execution: execution.ok_or_else(|| {
+                        error("selected intrinsic has no canonical or admitted execution identity")
+                    })?,
+                }
+            }
             ProviderBinding::CheckedAdapter {
                 machine_identity,
                 machine_package_identity,
