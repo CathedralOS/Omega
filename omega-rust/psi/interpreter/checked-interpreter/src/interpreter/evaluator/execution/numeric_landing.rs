@@ -109,6 +109,33 @@ impl Evaluator<'_> {
         {
             return self.eval_array_literal_at_element_type(expression, *element_type, frame);
         }
+        // An exact byte-array destination owns its literal bytes. Keeping the
+        // evaluator's text view here would lose both width and owned snapshot
+        // semantics when an applied field was retained by another package.
+        let carrier = self
+            .program
+            .type_reference_table
+            .peeled_type_reference(destination);
+        if let Some(bytes) = self.program.expression_table.string_node(expression)
+            && let TypeReferenceNode::FixedArray { element_type, .. } =
+                self.program.type_reference_table.type_reference(carrier)
+            && self.program.primitive_type_reference(*element_type) == Some(PrimitiveType::U8)
+        {
+            let Some(length) = self.program.closed_fixed_array_length(carrier) else {
+                return unsupported("byte-array literal has no checked closed extent");
+            };
+            if bytes.len() != length {
+                return unsupported(
+                    "byte-array literal width differs from its checked destination",
+                );
+            }
+            self.tick()?;
+            let values = bytes
+                .iter()
+                .map(|byte| self.allocate_cell(Value::Int(i64::from(*byte))))
+                .collect::<EvalResult<Vec<_>>>()?;
+            return Ok(Value::Array(values));
+        }
         let primitive = self.program.primitive_type_reference(destination);
         self.eval_expression_with_destination(expression, primitive, frame)
     }

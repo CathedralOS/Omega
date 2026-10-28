@@ -184,7 +184,8 @@ pub use value_custody::storage_contents::{
 };
 pub use value_custody::struct_literals::{
     ArrayWindowShape, array_window_shape, case_predicates_admit_zero,
-    selected_construction_field_type, validate_value_construction,
+    selected_construction_definition, selected_construction_field_type,
+    validate_value_construction,
 };
 pub use value_custody::structural_identity::{
     logical_structural_type_identity, stored_structural_type_identity, stores_reference_shape,
