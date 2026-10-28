@@ -7,6 +7,9 @@ fail. There is no qualified whole-composition time, cold-build result, runtime
 acceptance or sub-second claim. This is a benchmark setup and compatibility
 investigation, not an optimization win.
 
+[Next experiment and research](research.md): measure repeated dependency work
+between the UI layout and frame products before selecting a cache design.
+
 ## Workload and identity
 
 The [composition](../../../../tools/benchmark/cathedral.json) follows Cathedral's
