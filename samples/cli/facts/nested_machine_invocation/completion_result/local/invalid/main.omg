@@ -1,0 +1,11 @@
+// Every normal completion supplies the declared u8 result, so transporting the selected result preserves its value.
+// Expected exit: 0
+machine select(ready: bool) -> u8 {
+    transition ready { true -> 37u8 false -> {} }
+}
+machine main() crashes Trap {
+    let value: u8 = select(false);
+    let alternate: u8 = select(true);
+    transition value == 19 && alternate == 37 { true -> {} false -> bad() }
+    machine bad() crashes Trap { crash Trap; }
+}
