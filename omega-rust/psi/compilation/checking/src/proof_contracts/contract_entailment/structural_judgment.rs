@@ -1601,6 +1601,7 @@ impl<'program> StructuralJudge<'program> {
                         super::structural_terms::selected_application_result_reference(
                             self.program,
                             target,
+                            &selections,
                             result_type,
                         );
                     let resolved = StructuralTerm::Application {

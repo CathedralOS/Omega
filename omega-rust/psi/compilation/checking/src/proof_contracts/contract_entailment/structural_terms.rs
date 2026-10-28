@@ -928,15 +928,18 @@ fn call_projection_field_symbol(
 
 /// Equivalent result recipes may have separate occurrence handles. Use the
 /// exact selected declaration's handle only when the complete normalized type
-/// agrees, including qualifications, policies and dependent indices. Generic
-/// applications whose result differs from that declaration keep their applied
-/// reference; no carrier-only equivalence can erase a result contract.
+/// agrees under the complete selected static tuple, including qualifications,
+/// policies and dependent indices. The source recipe and tuple stay together;
+/// no carrier-only equivalence can erase a result contract.
 pub(super) fn selected_application_result_reference(
     program: &dyn crate::CheckingInput,
     target: symbols::SymbolHandle,
+    selections: &[typed_trees::expression::StaticMachineArgument],
     reference: typed_trees::types::TypeReferenceHandle,
 ) -> typed_trees::types::TypeReferenceHandle {
-    use typed_trees::type_identity::{IndexIdentityArgument, try_normalized_index_identity};
+    use typed_trees::type_identity::{
+        AppliedTypeIdentityScope, IndexIdentityArgument, try_normalized_index_identity,
+    };
     let Some(owner) = super::specification_calls::selected_contract_by_symbol(program, target)
     else {
         return reference;
@@ -950,8 +953,52 @@ pub(super) fn selected_application_result_reference(
             &[],
         )
     };
-    if reference.is_valid()
-        && identity(reference).is_some_and(|value| Some(value) == identity(declared))
+    let Some(actual) = reference.is_valid().then(|| identity(reference)).flatten() else {
+        return reference;
+    };
+    if identity(declared).as_ref() == Some(&actual) {
+        return declared;
+    }
+    let super::specification_calls::SelectedCallContract::Concrete(machine, _) = owner else {
+        return reference;
+    };
+    let parameters = program.machine_type_parameters(machine);
+    if parameters.len() != selections.len()
+        || !machine.conformance_bounds.is_empty()
+        || !machine.lifetime_parameters.is_empty()
+        || parameters.iter().any(|parameter| {
+            !matches!(
+                parameter.kind,
+                typed_trees::data::TypeParameterKind::Type
+                    | typed_trees::data::TypeParameterKind::Const { .. }
+            )
+        })
+    {
+        return reference;
+    }
+    let arguments = parameters
+        .iter()
+        .zip(selections)
+        .map(|(parameter, selection)| {
+            (
+                parameter.symbol,
+                IndexIdentityArgument::StaticArgument(selection),
+            )
+        })
+        .collect::<Vec<_>>();
+    let scope = AppliedTypeIdentityScope {
+        declaration: machine.symbol,
+        arguments: &arguments,
+        lifetimes: &[],
+    };
+    if try_normalized_index_identity(
+        program,
+        IndexIdentityArgument::TypeArgument(declared),
+        &[],
+        &[scope],
+    )
+    .as_ref()
+        == Some(&actual)
     {
         declared
     } else {

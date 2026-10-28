@@ -15,7 +15,7 @@ pub(crate) fn selected_execution(
     plan: &ProviderPlan,
     row: &effects::provider_plan::ProviderPlanRow,
     retained: Option<CompilerIntrinsicExecutionIdentity>,
-) -> Result<Option<CompilerIntrinsicExecutionIdentity>, &'static str> {
+) -> Result<Option<CompilerIntrinsicExecutionIdentity>, String> {
     let requirement = identities
         .text(requirement.identity())
         .ok_or("numeric provider requirement has no nominal identity")?;

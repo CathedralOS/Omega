@@ -93,7 +93,7 @@ fn project_terminal_boundary_application_realizations(
                     row,
                     *execution,
                 )
-                .map_err(error)?;
+                .map_err(|message| vec![Diagnostic::error(message)])?;
                 Realization::ExactCompilerIntrinsic {
                     execution: execution.ok_or_else(|| {
                         error("selected intrinsic has no canonical or admitted execution identity")

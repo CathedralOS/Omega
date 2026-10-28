@@ -459,7 +459,12 @@ impl AppliedProofBindings {
             return None;
         }
         Some(StructuralTerm::Application {
-            result_type,
+            result_type: super::super::structural_terms::selected_application_result_reference(
+                program,
+                entry.symbol,
+                selections,
+                result_type,
+            ),
             target: entry.symbol,
             selections: selections.to_vec(),
             machine: super::super::structural_terms::structural_call_machine_name(
