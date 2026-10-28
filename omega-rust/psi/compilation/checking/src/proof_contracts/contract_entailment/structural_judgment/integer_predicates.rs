@@ -267,8 +267,8 @@ impl StructuralJudge<'_> {
         if !self.runtime_body_values || self.case_facts_only {
             return false;
         }
-        let Some(prepared) = self.prepare_integer_premises() else {
-            return self.independent_integer_premises_contradictory();
+        let Some(prepared) = self.prepare_integer_premises_with_independent_fallback(true) else {
+            return false;
         };
         prepared.observations.engine.requires_unsatisfiable
             || prepared
@@ -299,14 +299,10 @@ impl StructuralJudge<'_> {
     /// failed projection or formation discards all of that fork's registrations.
     /// Only independently formed comparisons join the next fork. This query has
     /// no requested goal, and a partial operand cannot prove its own formation.
-    fn independent_integer_premises_contradictory(&self) -> bool {
-        let mut observations = IntegerObservations {
-            engine: Engine::for_explicit_bindings(self.program),
-            atoms: Vec::new(),
-            operations: Vec::new(),
-            carrier_bounds: Vec::new(),
-            installed_carrier_bounds: 0,
-        };
+    fn independent_integer_premises<'program>(
+        &self,
+        mut observations: IntegerObservations<'program>,
+    ) -> Option<PreparedIntegerPremises<'program>> {
         for premise in self.rewrites.iter() {
             let mut candidate = observations.clone();
             let mut projected =
@@ -325,12 +321,15 @@ impl StructuralJudge<'_> {
                     .lower_bound_queries()
                     .prove_at_least(&Polynomial::constant(BigInt::from_i64(-1)), &BigInt::zero())
             {
-                return true;
+                candidate.operations.clear();
+                return Some(PreparedIntegerPremises {
+                    observations: candidate,
+                });
             }
             candidate.operations.clear();
             observations = candidate;
         }
-        false
+        None
     }
 
     /// The caller supplies an independently formed mathematical integer. This
@@ -933,6 +932,13 @@ impl StructuralJudge<'_> {
     }
 
     fn prepare_integer_premises(&self) -> Option<PreparedIntegerPremises<'_>> {
+        self.prepare_integer_premises_with_independent_fallback(false)
+    }
+
+    fn prepare_integer_premises_with_independent_fallback(
+        &self,
+        allow_independent_fallback: bool,
+    ) -> Option<PreparedIntegerPremises<'_>> {
         let mut observations = IntegerObservations {
             engine: Engine::for_explicit_bindings(self.program),
             atoms: Vec::new(),
@@ -940,13 +946,14 @@ impl StructuralJudge<'_> {
             carrier_bounds: Vec::new(),
             installed_carrier_bounds: 0,
         };
+        let independent = allow_independent_fallback.then(|| observations.clone());
         let mut premises = self.project_observed_integer_premises(&mut observations);
         if !premises.complete
             || !observations.install_premises(&mut premises.comparisons)
             || !premises.comparisons.is_empty()
             || !observations.admitted(0..observations.operations.len())
         {
-            return None;
+            return independent.and_then(|empty| self.independent_integer_premises(empty));
         }
         // The engine retains the laws of these independently formed operations.
         // A goal starts a fresh admission worklist and cannot refresh another
