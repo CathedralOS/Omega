@@ -892,8 +892,17 @@ impl<'program> Engine<'program> {
                 self.nonzero_differences.push(difference.clone());
             }
             let opposite = difference.neg();
-            let nonnegative = self.prove_at_least(&difference, &BigInt::zero());
-            let nonpositive = self.prove_at_least(&opposite, &BigInt::zero());
+            let (nonnegative, nonpositive) = {
+                // These two reads share one immutable premise snapshot. The
+                // prepared proportional-support index avoids rescanning unrelated
+                // captures for every residual. Drop it before installing the next
+                // directed bound so later disequalities retain the same live facts.
+                let queries = self.lower_bound_queries();
+                (
+                    queries.prove_at_least(&difference, &BigInt::zero()),
+                    queries.prove_at_least(&opposite, &BigInt::zero()),
+                )
+            };
             match (nonnegative, nonpositive) {
                 (true, true) => self.requires_unsatisfiable = true,
                 (true, false) => self.bounds.push((difference, BigInt::from_i64(1))),

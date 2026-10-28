@@ -1,0 +1,30 @@
+// Namespaced theorem citations retain their exact premises and equations.
+// Expected exit: 0
+use omega::language::core::nat;
+machine minus(a: Nat, b: Nat) -> Nat { a }
+trait LawBundle {
+    machine zero_right(value: Nat)
+    ensures add(value, Nat::Zero {}) == value;
+    machine minus_swap(a: Nat, b: Nat, c: Nat) -> Nat
+    requires a == add(b, Nat::Zero {})
+    ensures minus(a, c) == minus(b, c);
+}
+Laws satisfies LawBundle {
+    machine zero_right(value: Nat)
+    ensures add(value, Nat::Zero {}) == value {
+        add_zero_right(value);
+    }
+    machine minus_swap(a: Nat, b: Nat, c: Nat) -> Nat
+    requires a == add(b, Nat::Zero {})
+    ensures minus(a, c) == minus(b, c) {
+        Laws::zero_right(b);
+        a
+    }
+}
+machine conclude(x: Nat, y: Nat, z: Nat) -> Nat
+requires x == add(y, Nat::Zero {})
+ensures minus(x, z) == minus(y, z) {
+    _ = Laws::minus_swap(x, y, z);
+    minus(x, z)
+}
+machine main() {}
