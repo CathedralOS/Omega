@@ -32,7 +32,11 @@ pub(super) fn source_type(
         contract.statement_index,
         contract.call_ordinal,
     )?;
-    let call = program.expression_table.call_node(contract.invocation);
+    let call = contract
+        .invocation
+        .is_valid()
+        .then(|| program.expression_table.call_node(contract.invocation))
+        .flatten();
     let receiver = usize::from(call.is_some_and(|call| call.receiver.is_valid()));
     let arguments = if contract.output_parameter.is_none() {
         program.expression_table.expression_handles(call?.arguments)
