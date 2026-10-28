@@ -692,8 +692,8 @@ fn validate_literal_facts(
                         })
                         .map(|field| field.value)
                 });
-                let proven = selected.is_some()
-                    && authored_value.map_or_else(
+                let proven = if selected.is_some() {
+                    authored_value.map_or_else(
                         || {
                             crate::proof_contracts::proof_facts::domain_admits_zero_bytes(
                                 program,
@@ -707,7 +707,16 @@ fn validate_literal_facts(
                                 membership.domain_symbol,
                             )
                         },
-                    );
+                    )
+                } else {
+                    // A static operand owes its own actual byte predicate;
+                    // absence from the receiving roster does not denote zero.
+                    crate::proof_contracts::proof_facts::string_literal_grants_domain(
+                        program,
+                        membership.value,
+                        membership.domain_symbol,
+                    )
+                };
                 if !proven {
                     predicate_diagnostics.push(Diagnostic::error(format!(
                         "{subject} literal cannot prove {fact_adjective} fact: \

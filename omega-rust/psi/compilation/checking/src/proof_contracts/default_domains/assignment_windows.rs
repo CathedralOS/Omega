@@ -454,7 +454,13 @@ pub(crate) fn handle_assignment<'program>(
                     ) {
                         all_hold = false;
                     }
-                } else if mentioned.is_none() || !place.established || place.any_window_open() {
+                } else if mentioned.is_none() {
+                    all_hold &= crate::proof_contracts::proof_facts::string_literal_grants_domain(
+                        program,
+                        membership.value,
+                        membership.domain_symbol,
+                    );
+                } else if !place.established || place.any_window_open() {
                     // A write to another field preserves a previously true
                     // membership, but cannot manufacture a missing one.
                     all_hold = false;
