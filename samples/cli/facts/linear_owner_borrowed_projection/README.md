@@ -41,7 +41,7 @@ runtime oracles under `tests/omega/{pass,fail}/facts/linear_owner_borrowed_proje
 | Psi 05–07 | Terminal execution checks borrowed projection, observable exactly-once nominal cleanup and post-cleanup caller access. Cleanup canaries detect omission, repetition and neighboring writes. |
 | Omega 00–02 | Real field and fixed-array layouts, borrowed addresses and ordinary call placements preserve the same original storage and scalar canaries. This row uses no foreign provider or retention protocol. |
 | Omega 03–06 | Native execution checks actual address paths, values surviving calls, both join routes and the selected entry. The same runtime guards falsify wrong register or frame homes. |
-| Omega 07–09 and emission | The matching macOS arm64 native image and Terminal program both exit zero for every place. Linux x64, Linux arm64 and Windows x64 matching-host qualification is pending. |
+| Omega 07–09 and emission | At producer `6e4217b0fe2`, every place has matching-host native/Terminal zero exits on macOS arm64, Linux x64, Linux arm64 and Windows x64. |
 
 At frozen published baseline `743fe2c78f9`, eight places source-checked;
 `call_result` lost three declared `Cell::Issued` duties, and the local witness
@@ -54,5 +54,18 @@ including the finite-float program's native and Terminal exit 77; existing
 unrelated golden failures remain recorded. Producer identities, raw observations,
 products, the one serial retry after a project-lock collision and independent
 reviews are retained in the claim's external evidence record. These results
-establish the recorded producer's behavior; they do not claim full cross-host
-release or the parent's remaining retention acceptance.
+establish the recorded producer's bounded row; the parent's remaining retention
+acceptance and full compiler release remain open.
+
+The same frozen producer source records nine corpus and nine public native/Terminal
+zero agreements plus ten intended source rejects on matching
+[Linux x64](https://github.com/CathedralOS/Omega/actions/runs/40606843515),
+[Linux arm64](https://github.com/CathedralOS/Omega/actions/runs/40606846927) and
+[Windows x64](https://github.com/CathedralOS/Omega/actions/runs/40606849877).
+Checking-only reports use the corpus default `macos_arm64` profile; both-engine
+compilation and execution use each matching host. Raw optimized producer bytes,
+source pins, diagnostics and native/Psi products have independent host reviews
+in the same external evidence record. Linux x64 and Windows overall workflows
+were cancelled; their retained-backing and artifact-upload stages succeeded.
+This qualifies this row across four hosted targets, with those broader workflow
+outcomes retained explicitly.
