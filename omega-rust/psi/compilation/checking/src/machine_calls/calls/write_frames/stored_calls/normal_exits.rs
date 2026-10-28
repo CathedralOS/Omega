@@ -296,9 +296,24 @@ fn retain_demanded_substitutions(
             continue;
         }
         let formal_leaf = reference_frontier(program, target, formal)?;
-        let actual_leaf = reference_frontier(program, source, actual)?;
         let from = substitutions.parameter_leaf(target.symbol, formal.root, &formal_leaf);
-        let to = substitutions.parameter_leaf(source.symbol, actual.root, &actual_leaf);
+        let (to, actual_leaf) = if program
+            .state_parameter_by_symbol(source, actual.root)
+            .is_some()
+        {
+            let leaf = reference_frontier(program, source, actual)?;
+            (
+                substitutions.parameter_leaf(source.symbol, actual.root, &leaf),
+                leaf,
+            )
+        } else {
+            program.state_local_declaration(source, actual.root)?;
+            // A helper may update an activation-local slot beside an exported
+            // output. Its concrete storage is a dependency sink, not another
+            // forwarded formal. Normal-exit collection still rejects any
+            // local backing that would escape through the exported output.
+            (substitutions.local(source.symbol, actual.root), Vec::new())
+        };
         // Selecting a descriptor inside an owned record does not descend into
         // its referent. That finite leaf identity must survive the dependency
         // join, or forwarding `incoming.cell` looks like a growing root cycle.
