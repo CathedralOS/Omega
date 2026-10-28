@@ -1,6 +1,12 @@
 //! Resolve a Build operation's static operand path to its declaration symbol
 //! over the typed program.
 
+mod input_selections;
+pub use input_selections::{
+    ProductArgumentStep, ProductInputSelection, ProductInputSelectionTarget,
+    ProductTypeSelectionSlot,
+};
+
 mod applications;
 pub use applications::{ProductApplicationDemand, ProductOperandApplication};
 

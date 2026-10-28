@@ -284,15 +284,44 @@ impl Lower<'_> {
             } => {
                 let requirement_application = self.ty_optional(owner)?;
                 let target_symbol = self.symbol(target)?;
+                // Nested calls own their own static telescope. Their actual
+                // positions must not be appended to an outer nominal input.
+                let outer_path = std::mem::take(&mut self.input_path);
+                let outer_selections = std::mem::take(&mut self.input_selections);
                 let machine_arguments = self
                     .graph
                     .static_arguments
                     .span_or_empty(static_arguments)
                     .iter()
                     .copied()
-                    .map(|value| self.operand(value))
-                    .collect::<Result<Vec<_>, _>>()?
-                    .into_boxed_slice();
+                    .enumerate()
+                    .map(|(ordinal, value)| self.argument(ordinal, value))
+                    .collect::<Result<Vec<_>, _>>();
+                let input_selections =
+                    self.program
+                        .product_input_selections
+                        .insert_many(std::mem::replace(
+                            &mut self.input_selections,
+                            outer_selections,
+                        ));
+                self.input_path = outer_path;
+                let machine_arguments = machine_arguments?.into_boxed_slice();
+                let target_name = self.identifier(target);
+                let authored_application = self
+                    .program
+                    .expression_table
+                    .retain_static_machine_application(
+                        target_symbol,
+                        target_name,
+                        &machine_arguments,
+                    );
+                let source_application = self
+                    .program
+                    .expression_table
+                    .static_machine_application_mut(authored_application);
+                source_application.lexical_owner = self.author;
+                source_application.binding_declaration = target_symbol;
+                source_application.input_selections = input_selections;
                 Node::Call(expr::TableCallExpression {
                     authored_call_binding: Some(
                         language_semantics::declaration_selection::ResolvedAuthoredCallBinding {
@@ -310,7 +339,7 @@ impl Lower<'_> {
                     machine_arguments,
                     operational_acknowledgement: acknowledgement,
                     build_selection: Handle::invalid(),
-                    authored_machine_application: Handle::invalid(),
+                    authored_machine_application: authored_application,
                     static_machine_parameter: SymbolHandle::invalid(),
                     static_requirement_dispatch: None,
                     quotient_operation: None,

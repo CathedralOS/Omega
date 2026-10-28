@@ -220,7 +220,12 @@ pub fn prepare_product_operand_application(
             },
         ));
     }
+    let input_selections = lower
+        .program
+        .product_input_selections
+        .insert_many(std::mem::take(&mut lower.input_selections));
     let retained = ProductOperandApplication {
+        input_selections,
         operand: operand.clone(),
         environment: static_environment.cloned().map(std::sync::Arc::new),
         owner: author,

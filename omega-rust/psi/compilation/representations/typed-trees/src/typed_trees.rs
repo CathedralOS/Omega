@@ -403,6 +403,8 @@ pub struct DesignatedStaticTypeArgument {
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TypedTreeTables {
     pub designated_static_type_arguments: Arena<DesignatedStaticTypeArgument>,
+    pub product_input_selections: Arena<crate::product_operand::ProductInputSelection>,
+    pub product_input_argument_steps: Arena<crate::product_operand::ProductArgumentStep>,
     pub product_operand_applications: Arena<crate::product_operand::ProductOperandApplication>,
     /// Package-agnostic authored-selection custody carried verbatim from
     /// symbol resolution. Checked facts join late selections through the

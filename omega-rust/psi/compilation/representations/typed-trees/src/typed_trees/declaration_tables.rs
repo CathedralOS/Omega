@@ -668,6 +668,23 @@ impl TypedTrees {
         declaration
     }
 
+    /// Retain an original unresolved type token for later ordinary checking.
+    /// This produces occurrence custody, never a resolved declaration choice.
+    pub fn record_late_bound_authored_declaration_selection(
+        &mut self,
+        source_span: source::SourceSpan,
+        exposure: language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+        kind: language_semantics::declaration_selection::AuthoredDeclarationSelectionKind,
+        binding: language_semantics::declaration_selection::AuthoredDeclarationSelectionLateBinding,
+    ) -> Result<
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId,
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionRecordError,
+    > {
+        self.tables
+            .authored_declaration_selections
+            .record_late_bound(source_span, exposure, kind, binding)
+    }
+
     pub fn record_resolved_authored_declaration_selection_once(
         &mut self,
         source_span: source::SourceSpan,

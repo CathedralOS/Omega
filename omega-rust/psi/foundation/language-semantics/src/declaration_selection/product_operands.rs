@@ -12,6 +12,9 @@ pub struct ProductOperandName {
     pub declaration: Option<SourceSpan>,
     pub builtin_type: Option<symbols::BuiltinTypeAtom>,
     pub builtin_function: Option<symbols::BuiltinFunction>,
+    /// Issued by the ordinary type-reference producer on this original token.
+    /// Generated environment names and declaration descriptors retain absence.
+    pub authored_selection: Handle<ProductOperandSelection>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
@@ -36,6 +39,9 @@ pub struct ProductStaticOperandGraph {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProductStaticOperand {
+    /// Captured from this real original-call argument attachment. The root
+    /// Product descriptor has no such ordinary input obligation.
+    pub authored_selection: Handle<ProductOperandSelection>,
     pub path: HandleSpan<ProductOperandName>,
     pub application: Handle<ProductStaticApplication>,
     pub structural_type: Handle<ProductOperandType>,
