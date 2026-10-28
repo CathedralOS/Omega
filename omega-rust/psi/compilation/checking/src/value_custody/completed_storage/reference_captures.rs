@@ -56,16 +56,31 @@ pub fn reference_sources_at_path(
     path: &[PlaceSegment],
     current: Handle<FlowStorageSnapshot>,
 ) -> StoredOperand {
-    let mut resolver = Resolver {
-        program,
-        control,
-        current,
-        active: Vec::new(),
-        memo: Vec::new(),
-        active_profiles: Vec::new(),
-        profile_memo: Vec::new(),
-    };
-    let Selection::Sources { incoming, values } = resolver.select(value, path) else {
+    let mut resolver = Resolver::new(program, control, current);
+    stored_selection(resolver.select(value, path))
+}
+
+/// Follow the saved completed-value association of an owned observation.
+/// A reference's stored_value describes its pointee and must never substitute
+/// for its descriptor. None means no owned association; an explicitly unknown
+/// association remains Unavailable rather than falling through to old storage.
+/// Pointer crossings use this observation's immutable capture cut.
+pub fn owned_profile_reference_sources(
+    program: &dyn crate::CheckingInput,
+    control: &FlowControlFacts,
+    operand: &FlowOperandFact,
+    path: &[PlaceSegment],
+) -> Option<StoredOperand> {
+    if crate::reference_shell(program, operand.type_reference).is_some() {
+        return None;
+    }
+    Resolver::new(program, control, operand.storage_snapshot)
+        .profile_descriptor(operand.retention, operand.type_reference, path)
+        .map(stored_selection)
+}
+
+fn stored_selection(selection: Selection) -> StoredOperand {
+    let Selection::Sources { incoming, values } = selection else {
         return StoredOperand::Unavailable;
     };
     let mut alternatives = incoming
@@ -81,6 +96,24 @@ pub fn reference_sources_at_path(
         0 => StoredOperand::Unavailable,
         1 => alternatives.pop().unwrap_or(StoredOperand::Unavailable),
         _ => StoredOperand::Alternatives(alternatives),
+    }
+}
+
+impl<'a> Resolver<'a> {
+    fn new(
+        program: &'a dyn crate::CheckingInput,
+        control: &'a FlowControlFacts,
+        current: Handle<FlowStorageSnapshot>,
+    ) -> Self {
+        Self {
+            program,
+            control,
+            current,
+            active: Vec::new(),
+            memo: Vec::new(),
+            active_profiles: Vec::new(),
+            profile_memo: Vec::new(),
+        }
     }
 }
 

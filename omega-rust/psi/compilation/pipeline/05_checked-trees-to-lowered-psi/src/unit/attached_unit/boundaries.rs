@@ -62,9 +62,20 @@ pub(crate) fn lower_declarations(
             .iter()
             .map(|parameter| terminal_scalar_type(parameter.primitive_type))
             .collect::<Result<Vec<_>, _>>()?;
-        let requires = lower_requirements(&plan.domain_requirements, &parameters, domain_ids)?;
-        let normal_qualifications =
-            lower_requirements(&plan.normal_qualifications, &parameters, domain_ids)?;
+        let requires = lower_requirements(
+            identities,
+            &plan.domain_requirements,
+            &parameters,
+            structural_types,
+            domain_ids,
+        )?;
+        let normal_qualifications = lower_requirements(
+            identities,
+            &plan.normal_qualifications,
+            &parameters,
+            structural_types,
+            domain_ids,
+        )?;
         // Terminal call operands use packed structural positions; checked
         // predicates retain authored positions across interleaved scalar lanes.
         // Reuse the allocated places and types, changing only predicate lookup.
@@ -439,8 +450,10 @@ fn canonical_scalar_contract_rows(
 /// A boundary's structural domain requirements, each naming one of its
 /// structural parameters, in canonical order and without repetition.
 fn lower_requirements(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     requirements: &[checked_trees::CheckedUnitStructuralDomainRequirementPlan],
     parameters: &[terminal_psi::StructuralParameterDeclaration],
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
     domain_ids: &[StructuralDomainBinding],
 ) -> Result<Vec<StructuralDomainRequirement>, LoweringError> {
     let mut requires = requirements
@@ -451,13 +464,35 @@ fn lower_requirements(
                     "boundary structural requirement has an invalid argument index",
                 ),
             )?;
+            let (path, domain) = if requirement.path.is_empty() {
+                (
+                    Vec::new(),
+                    lookup_domain_id_for_carrier(
+                        domain_ids,
+                        requirement.domain,
+                        parameter.structural_type,
+                    )?,
+                )
+            } else {
+                let mut rows = super::parameters::lower_projected_qualifications(
+                    identities,
+                    &[checked_trees::CheckedStructuralPathQualification {
+                        path: requirement.path.clone(),
+                        domain: requirement.domain,
+                    }],
+                    domain_ids,
+                    parameter.structural_type,
+                    structural_types,
+                )?;
+                let row = rows.pop().ok_or(LoweringError::Unsupported(
+                    "boundary normal qualification lost its exact subject",
+                ))?;
+                (row.path, row.domain)
+            };
             Ok(StructuralDomainRequirement {
                 argument_index: requirement.argument_index,
-                domain: lookup_domain_id_for_carrier(
-                    domain_ids,
-                    requirement.domain,
-                    parameter.structural_type,
-                )?,
+                path,
+                domain,
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;

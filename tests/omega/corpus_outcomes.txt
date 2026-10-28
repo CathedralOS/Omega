@@ -1473,6 +1473,10 @@ fail/borrows/opaque_stored_writeonly_input rejected 852ms expected @a92f16431042
 	machine `consume` state `entry` declares `&write`, but the current milestone proves non-observation only for checked Omega bodies; bodyless boundary, accepted, requirement, and external-provider declarations require an admitted write-only boundary claim
 fail/borrows/owned_address_after_operand_move rejected 714ms expected @68bdb64789cb
 	cannot use `cell` in machine `main` state `entry` (statement 1) after `cell` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `cell` first
+fail/borrows/owned_capture_replaced_reference_qualification rejected 517ms expected @3891c5e16c34
+	cannot prove requires contract for call observe from main: held.view[0] in Cell::Issued in state `entry`
+fail/borrows/owned_capture_weaker_formal_qualification rejected 477ms expected @3891c5e16c34
+	cannot prove requires contract for call observe from main: cells[0] in Cell::Issued (invalidated by prior mutation of cells[0]; cells[0] is part of Cell::Issued) in state `entry`
 fail/borrows/owned_carrier_descriptor_parameter_replacement rejected 469ms expected @a92f16431042
 	machine `replace` state `entry` assignment cannot write `slot` because it is not mutable in this state (if `slot` is undeclared -- a typo -- no such field or local exists)
 fail/borrows/owned_carrier_immutable_parameter_field rejected 621ms expected @a92f16431042
@@ -8491,6 +8495,8 @@ fail/facts/foreign_borrowed_array_view_parameter rejected 1118ms expected @ee508
 	statement 5 reads `buffer.cells[1].value` while local borrow `pending` is still active (borrowed at statement 4; its last use is at statement 7)
 fail/facts/foreign_borrowed_array_view_target_body rejected 848ms expected @ee5082cfdacc
 	statement 6 reads `buffer.cells[1].value` while local borrow `routed` is still active (borrowed at statement 5; its last use is at statement 8)
+fail/facts/foreign_borrowed_array_view_unissued rejected 427ms expected @3891c5e16c34
+	cannot prove requires contract for call observe_cell from entry_start: bare in Cell::Issued in state `entry`
 fail/facts/foreign_indirect_float_record_result_through_call_result_rejected rejected 1070ms expected @4c1bfc01217a+wt
 	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
 fail/facts/foreign_indirect_float_record_result_through_const_name_rejected rejected 1043ms expected @4c1bfc01217a+wt
@@ -23384,6 +23390,8 @@ pass/borrow/mutable_selector_rhs_snapshot_exit checked 3087ms check-target:macos
 pass/borrow/mutable_selector_unchanged_exit checked 2360ms check-target:macos_arm64 @a92f16431042
 pass/borrow/named_operator_disjoint_argument_preserves_bound checked 845ms @7480471d532b+wt
 pass/borrow/nested_reference_parameter_referent_assignment checked 3054ms @a92f16431042
+pass/borrow/owned_capture_replaced_reference checked 661ms @3891c5e16c34
+pass/borrow/owned_capture_weaker_formal checked 661ms @3891c5e16c34
 pass/borrow/projected_record_state_loan_split_exit checked 2212ms check-target:macos_arm64 @a92f16431042
 pass/borrow/reference_parameter_referent_copy_exit checked 1979ms check-target:macos_arm64 @5678952fe74f
 pass/borrow/runtime_boundary_receiver_disjoint_loan_exit rejected 4465ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042

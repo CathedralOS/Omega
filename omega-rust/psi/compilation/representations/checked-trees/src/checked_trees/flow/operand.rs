@@ -116,10 +116,65 @@ pub struct FlowOperandRetainedRegion {
     pub projection: HandleSpan<facts::PlaceSegment>,
 }
 
+/// One declared input relationship: lending the referent and transferring a
+/// stored descriptor have different contracts even when their paths are empty.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ViewReturnInputSource {
+    Referent,
+    Stored,
+}
+
+/// The original applied call contract bound on a lifetime supplier. This is
+/// not a promise inferred from the older actual capture reached through it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FlowOperandLifetimeContract {
+    pub state_symbol: symbols::SymbolHandle,
+    pub statement_index: usize,
+    pub invocation: ExpressionHandle,
+    pub call_ordinal: usize,
+    /// None names the returned value; Some names an overwritten parameter
+    /// leaf. Both retain the original declaration's output path below.
+    pub output_parameter: Option<usize>,
+    pub input: Handle<FlowOperandFact>,
+    pub parameter_index: usize,
+    pub source: ViewReturnInputSource,
+    pub source_type: typed_trees::types::TypeReferenceHandle,
+    pub source_path: HandleSpan<facts::PlaceSegment>,
+    pub owner_path: HandleSpan<facts::PlaceSegment>,
+}
+
+/// Nonspatial input obligations of one admitted parameter-output generation.
+/// Descriptor invalidation cannot turn this into a pointer association. The
+/// borrowing ledger must independently select this exact generation at release.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FlowOutputLifetimeSources {
+    pub output: facts::InvocationOutputIdentity,
+    pub owner_path: HandleSpan<facts::PlaceSegment>,
+    pub sources: Option<HandleSpan<FlowOperandRetainedSupplier>>,
+}
+
+impl Default for FlowOutputLifetimeSources {
+    fn default() -> Self {
+        Self {
+            output: facts::InvocationOutputIdentity {
+                state_symbol: Handle::invalid(),
+                statement_index: 0,
+                call_ordinal: 0,
+                parameter_symbol: Handle::invalid(),
+            },
+            owner_path: HandleSpan::empty(),
+            sources: None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct FlowOperandRetainedSupplier {
     pub operand: Handle<FlowOperandFact>,
     pub projection: HandleSpan<facts::PlaceSegment>,
+    /// Present on a declared lifetime edge, independently of permission and
+    /// descriptor suppliers, whose selected field contract stays with its owner.
+    pub contract: Option<FlowOperandLifetimeContract>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

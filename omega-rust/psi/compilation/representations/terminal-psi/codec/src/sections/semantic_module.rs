@@ -133,7 +133,9 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // inherited scalar memberships; neither independent marker-196 layout suffices.
 // Machines retain authored runtime ordering across scalar and structural lanes.
 // Task frames retain alternative state and crossing storage, not a flat sum.
-pub(crate) const FORMAT_MARKER: u16 = 201;
+// Normal structural guarantees also retain their exact formal-relative path;
+// this combined layout is distinct from either independent wire format.
+pub(crate) const FORMAT_MARKER: u16 = 202;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -284,3 +286,6 @@ fn fingerprint_bytes(bytes: &[u8]) -> SemanticFingerprint {
     digest.raw(&bytes);
     SemanticFingerprint::from_bytes(digest.finish())
 }
+
+#[cfg(test)]
+mod normal_qualification_tests;
