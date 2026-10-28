@@ -23,9 +23,9 @@ use semantic_vocabulary::OperationId;
 use expression_keys::{ScalarExpressionKey, ScalarExpressionRow};
 use semantic_vocabulary::{BlockId, MachineId, ScalarType, ValueId};
 
-use crate::EffectSummaryAnalysis;
 use crate::rules::GLOBAL_VALUE_NUMBERING_PASS_NAME;
 use crate::rules::catalog::BuiltInRuleRegistration;
+use crate::{AnalysisProduct, EffectSummaryAnalysis, RuleProposalError};
 
 mod dominating_scalar_gvn;
 mod expression_keys;
@@ -335,13 +335,7 @@ where
 {
     use crate::rules::node_elision::node_elision_accounting;
 
-    let Some(crate::AnalysisProduct::Dominators(dominators)) =
-        analyses.get(AnalysisKind::Dominators)
-    else {
-        return Err(crate::RuleProposalError::MissingAnalysis(
-            AnalysisKind::Dominators,
-        ));
-    };
+    required_analysis!(analyses, AnalysisKind::Dominators => Some(AnalysisProduct::Dominators(dominators)));
     let (use_definitions, effects) = analyses.use_definitions_and_effects()?;
     let mut candidates = Vec::new();
     for function in &unit.functions {
@@ -518,20 +512,8 @@ where
     K: ScalarExpressionKey + Ord,
     E: Copy,
 {
-    let Some(crate::AnalysisProduct::ControlFlowGraph(_)) =
-        analyses.get(AnalysisKind::ControlFlowGraph)
-    else {
-        return Err(crate::RuleProposalError::MissingAnalysis(
-            AnalysisKind::ControlFlowGraph,
-        ));
-    };
-    let Some(crate::AnalysisProduct::Dominators(dominators)) =
-        analyses.get(AnalysisKind::Dominators)
-    else {
-        return Err(crate::RuleProposalError::MissingAnalysis(
-            AnalysisKind::Dominators,
-        ));
-    };
+    required_analysis!(analyses, AnalysisKind::ControlFlowGraph => Some(_));
+    required_analysis!(analyses, AnalysisKind::Dominators => Some(AnalysisProduct::Dominators(dominators)));
     let (use_definitions, effects) = analyses.use_definitions_and_effects()?;
     let mut candidates = Vec::new();
     for function in &unit.functions {
