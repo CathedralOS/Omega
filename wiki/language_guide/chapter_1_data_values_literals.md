@@ -146,7 +146,7 @@ whole value in that predicate:
 
 ```omega
 data Value<T>
-    where ((self in Value::Integer) && T == i32)
+    requires ((self in Value::Integer) && T == i32)
        || ((self in Value::Boolean) && T == bool)
 {
     case Integer(value: i32);
@@ -154,7 +154,7 @@ data Value<T>
 }
 
 data Interval
-    where (self in Interval::Empty)
+    requires (self in Interval::Empty)
        || ((self in Interval::Range) && self.lo <= self.hi)
 {
     case Empty;
@@ -178,7 +178,7 @@ become Boolean: it is unestablished storage until valid construction. A generic
 body can observe zeroed storage only after proving it valid from its own
 contract and flow facts, not because one later instantiation happens to work.
 
-Cases have no separate `where`; explicit subject binders such as
+Cases have no separate `requires`; explicit subject binders such as
 `data Value<T>(item)` are not supported either. `self` is a predicate subject,
 not a machine receiver or stored field. Named domains use the same subject and
 reasoning, but a data default domain applies to every established value.

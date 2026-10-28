@@ -546,7 +546,7 @@ It has no runtime tagged-union ABI. See
 
 ```omega
 data Particle
-where
+requires
     alpha >= 0.0 && alpha <= 1.0,
 {
     x: f64;

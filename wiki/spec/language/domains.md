@@ -18,8 +18,10 @@ a qualified `&[u8] in D` view.
 
 ## Declaration and membership
 
+Requirement spelling follows [unified requirement clauses](state_contracts.md#requirement-clauses).
+
 Named decision: `predicate-subject-self`, settled 2026-10-24. In a domain's
-`requires` predicates and a data declaration's default-domain `where`, `self`
+`requires` predicates and a data declaration's default-domain `requires`, `self`
 denotes the exact value being constrained:
 
 ```omega
@@ -48,7 +50,7 @@ in data predicates remain field references; `self.field` names them explicitly.
 
 Scalar interval relationships use ordinary propositions, not a bracketed type
 suffix (`scalar-range-contract-spelling`). Put common-field relationships in the
-data declaration's `where`, including guarded case-payload relationships,
+data declaration's `requires`, including guarded case-payload relationships,
 machine-parameter obligations in `requires`, and result obligations in
 `ensures`. Locals receive facts from their initializer, guards, calls, and
 checked qualification. A call's checked postconditions apply to its exact result
@@ -74,7 +76,7 @@ domain. Otherwise return plain `u64` with
 `ensures result >= 1 && result <= 8`; the receiving local needs no qualification
 to use those established facts.
 
-Data `where` couplings, including case-conditional predicates, remain ordinary
+Data `requires` couplings, including case-conditional predicates, remain ordinary
 [default-domain obligations](dependent_values.md#default-domains-and-zero-initialization).
 Range expressions, range membership, slices, fixed arrays, and bracketed
 multiplicity properties are separate facilities and are unchanged.

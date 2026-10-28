@@ -209,8 +209,8 @@ retired-syntax deletions to completion.
   [predicate subject](wiki/spec/language/domains.md#declaration-and-membership)
   and [case-dependent default domains](wiki/spec/language/data_and_literals.md#case-constraints).
   - Complete fixed logical `self` parsing/resolution and retire authored domain
-    subject binders in the Omega-written Psi producer, including data-`where self`
-    resolution. Remove case-level `where` with its parallel internal predicate paths; migrate their library,
+    subject binders in the Omega-written Psi producer, including data-`requires self`
+    resolution. Remove case-local predicate clauses and their parallel internal paths; migrate their library,
     sample and fixture users in the same change. Repair nested/inherited scalar
     domain result establishment, including qualified constant destinations.
   - Carry one general predicate representation through formation, construction,
@@ -776,6 +776,40 @@ helper that passes does not close an item.
 
 ## Immediate product closure
 
+- **REQUIRES-UNIFICATION.** Implement the owner-ratified
+  [unified requirement clauses](wiki/spec/language/state_contracts.md#requirement-clauses)
+  end to end and retire `where` from Omega source syntax, without a permanent
+  compatibility spelling or weaker proof obligations.
+  - Implement `requires` for data/default-domain predicates, generic predicates
+    and type equations, and structural/nominal `requires machine` contracts in
+    both Rust and Omega producers. Preserve logical `self`, binder-kind
+    inference, static/runtime distinctions, specialization and exact subjects;
+    repeated predicates conjoin only within their owning scope. Keep a nested
+    callable's complete contract and terminating semicolon distinct from its
+    enclosing declaration's requirements and guarantees, including higher-order
+    and logical-evidence requirements.
+  - Parse body-level assembly `requires`, `ensures` and `clobbers` directly
+    after `asm`, including headers without predicates. Preserve label scopes,
+    incoming-edge and exit proofs, exact clobbers, instruction-catalog checks
+    and authority; removing the grouping word cannot turn assertions into
+    admissions or remove required effects.
+  - Migrate bundled/product sources, Build declarations, samples, corpus and
+    compiler-input literals, source tooling and highlighting, and affected
+    customer programs. Update the Omega parser in `bootstrap/5_omega/` and its
+    tests where it implements the retired surface; other bootstrap languages
+    keep their own syntax. Delete the old keyword, grammar, recommending
+    diagnostics and compatibility paths, not just their documentation.
+  Acceptance: both producers accept the new data, generic, callable and assembly
+  forms; all affected authored sources migrate without changing their result or
+  refusal obligation. Existing applicable fact rows and their sensitive reject
+  twins retain native/Terminal agreement (`omega run --both`). Exercise repeated
+  predicates, mixed generic/call-entry constraints, nested callable contracts
+  followed by outer clauses, and assembly with and without entry predicates.
+  Reject each retired `where` form, unsatisfied predicates, wrong callable scope
+  or kind, unjustified static specialization, invalid default-domain formation,
+  and unproved assembly assertions or incorrect clobbers. No old parser mode or
+  source-shape fallback remains.
+
 - **STAGED-BUILD-CAPABILITIES.** Implement the owner-ratified
   [checked Build stages](wiki/spec/build/scoped_execution.md#checked-build-stages)
   and ordinary filesystem capability delegation end to end. Deprecate the old
@@ -1273,7 +1307,7 @@ defines the complete product bar.
   shared Terminal/native execution paths.
   - Complete remaining flag-producing instructions, remaining AArch64 register
     views, and checked hardware-effect retirement of exact linear obligations on
-    every normal exit (`asm where` and label `ensures` are proof goals, never
+    every normal exit (assembly body contracts and label `ensures` are proof goals, never
     admissions).
   - Complete checked transitive machine plans, lowering, Terminal encoding,
     target realization, and final-span evidence across shared/device fence

@@ -14,7 +14,7 @@ merely because a value is qualified. Validation and conversion are ordinary
 machines with their own runtime work and contracts.
 
 Every data declaration also has a default domain, formed by its field
-constraints and `where` facts, with any data-declaration `dropped by` selection.
+constraints and `requires` facts, with any data-declaration `dropped by` selection.
 Cleanup selection is separate from validity; it must compose with named-domain
 selections under the [zero-or-one dropper rule](../spec/language/domains.md#domain-selected-automatic-cleanup).
 A zeroed layout becomes an accessible value only
@@ -44,7 +44,7 @@ domain Player::Alive
 
 `self` names the value being classified; its type comes from the carrier before
 `::`. Membership stays `player in Player::Alive`: that exact candidate replaces
-`self` in the predicate. Data default-domain `where` uses `self` for the whole
+`self` in the predicate. Data default-domain `requires` uses `self` for the whole
 data value too. There is no authored subject parameter, hidden storage, runtime
 argument or method receiver. `self` is confined to these predicate contexts;
 machines still use explicit ordinary parameters. Subject-free declarations such
