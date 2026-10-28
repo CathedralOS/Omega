@@ -1,6 +1,6 @@
 //! Microsoft x64 installed-entry bridge; guest streams never carry observations.
 use super::{
-    HostedReceiverBinding, ReceiverStorage, finish_receiver_shim, invalid,
+    HostedEntryStorage, HostedReceiverBinding, finish_receiver_shim, invalid,
     recipe_index_for_runtime_position,
 };
 use diagnostics::Diagnostic;
@@ -21,7 +21,7 @@ pub(super) fn prepare(
     artifact: &crate::ObjectArtifact,
     binding: &HostedReceiverBinding,
     mut object: ObjectPlan,
-    storage: ReceiverStorage,
+    storage: HostedEntryStorage,
 ) -> Result<crate::hosted_unit_entry::PreparedEntry, Diagnostic> {
     let invalid = || invalid(artifact.target);
     let mut imports = Vec::new();
