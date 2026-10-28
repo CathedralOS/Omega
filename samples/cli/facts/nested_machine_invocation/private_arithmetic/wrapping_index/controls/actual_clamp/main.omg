@@ -1,4 +1,4 @@
-// Every recorded offset is below 495, so its wrapping sum with 17 is below 512 and read can index the window.
+// The completed saturating index guards the read, including an actual u64 clamp.
 // Expected exit: 0
 data Window { bytes: [u8; 512]; offset: u64 in Saturating; index: u64 in Saturating; canary: u64; }
 machine probe(window: &mut Window, enabled: bool) -> u8 {
