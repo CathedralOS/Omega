@@ -7,12 +7,20 @@ pub(crate) struct PackagePolicyNativeBinding {
     pub method: PackagePolicyServiceMethod,
     pub producer: crate::record::PackagePolicyEvaluatedBindingProducer,
     pub binding: PackagePolicyProviderBinding,
+    pub application: PackagePolicyNativeApplication,
 }
 impl PackagePolicyNativeBinding {
-    pub fn key(&self) -> (&crate::record::PackageReviewNominalIdentity, &str) {
+    pub fn key(
+        &self,
+    ) -> (
+        &crate::record::PackageReviewNominalIdentity,
+        &str,
+        &PackagePolicyNativeApplication,
+    ) {
         (
             &self.method.requirement,
             self.producer.callable_identity.as_str(),
+            &self.application,
         )
     }
     pub fn producer(&self) -> &crate::record::PackagePolicyEvaluatedBindingProducer {
@@ -31,6 +39,61 @@ impl PackagePolicyNativeBinding {
             return Err("native inventory substituted its supplying package");
         }
         crate::record::package::validate_native_service_method(&self.method, target)?;
+        self.application.validate()?;
         self.binding.validate_native(target)
+    }
+}
+
+/// Complete static identity participates even when no physical parameter uses
+/// an actual. Universal is distinct from a supplied outer or member tuple.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum PackagePolicyNativeApplication {
+    Universal,
+    Applied {
+        outer: Option<String>,
+        local: Option<PackagePolicyNativeLocalApplication>,
+    },
+}
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct PackagePolicyNativeLocalApplication {
+    pub arguments: Vec<String>,
+    pub lifetimes: Vec<String>,
+}
+impl From<package_compilation::retained_native_bindings::RetainedNativeApplication>
+    for PackagePolicyNativeApplication
+{
+    fn from(
+        value: package_compilation::retained_native_bindings::RetainedNativeApplication,
+    ) -> Self {
+        use package_compilation::retained_native_bindings::RetainedNativeApplication;
+        match value {
+            RetainedNativeApplication::Universal => Self::Universal,
+            RetainedNativeApplication::Applied { outer, local } => Self::Applied {
+                outer,
+                local: local.map(|local| PackagePolicyNativeLocalApplication {
+                    arguments: local.arguments,
+                    lifetimes: local.lifetimes,
+                }),
+            },
+        }
+    }
+}
+impl PackagePolicyNativeApplication {
+    fn validate(&self) -> Result<(), &'static str> {
+        if let Self::Applied { outer, local } = self {
+            if (outer.is_none() && local.is_none())
+                || outer.as_ref().is_some_and(String::is_empty)
+                || local.as_ref().is_some_and(|local| {
+                    local
+                        .arguments
+                        .iter()
+                        .chain(&local.lifetimes)
+                        .any(String::is_empty)
+                })
+            {
+                return Err("native inventory lost its complete static application");
+            }
+        }
+        Ok(())
     }
 }

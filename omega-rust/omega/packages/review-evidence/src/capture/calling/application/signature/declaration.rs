@@ -116,5 +116,7 @@ pub(crate) fn project_declaration(
         symbol,
         requirement,
         &binders,
+        None,
+        None,
     )
 }

@@ -148,15 +148,29 @@ fn project_plan(
                 "service method has no unique selected realization row",
             ));
         };
-        methods.push(services::project(
-            &mut signatures,
-            &plan.schema,
-            retained.provider.schema,
-            retained.provider.provider_type,
-            retained.provider.row_requirements[*index],
-            method,
-            &plan.schema.identities,
-        )?);
+        let requirement = retained.provider.row_requirements[*index];
+        methods.push(match retained.provider.row_realizations[*index] {
+            provider_planning::ProviderRowOrigin::BuildNative { receipt, .. } => {
+                services::project_native(
+                    &mut signatures,
+                    &plan.schema,
+                    retained.provider.schema,
+                    requirement,
+                    method,
+                    &plan.schema.identities,
+                    bindings::native_row(compilation, requirement, receipt)?,
+                )?
+            }
+            _ => services::project(
+                &mut signatures,
+                &plan.schema,
+                retained.provider.schema,
+                retained.provider.provider_type,
+                requirement,
+                method,
+                &plan.schema.identities,
+            )?,
+        });
     }
     let mut rows = rows::project(compilation, target, retained, toolchain_settled)?;
     rows.sort_by(|left, right| left.requirement.cmp(&right.requirement));

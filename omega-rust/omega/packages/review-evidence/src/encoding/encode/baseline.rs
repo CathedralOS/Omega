@@ -162,9 +162,37 @@ pub(super) fn native_binding(
         &value.producer,
         values::external_policy::encode_producer,
     )?;
+    encoder.field_by("application", &value.application, native_application)?;
     encoder.field_by(
         "binding",
         &value.binding,
         selected_providers::encode_binding,
     )
+}
+
+pub(super) fn native_application(
+    encoder: &mut Encoder,
+    application: &crate::record::PackagePolicyNativeApplication,
+) -> Result<(), PackageReviewEncodingError> {
+    use crate::record::PackagePolicyNativeApplication;
+    match application {
+        PackagePolicyNativeApplication::Universal => encoder.tag("universal", 0),
+        PackagePolicyNativeApplication::Applied { outer, local } => {
+            encoder.tag("applied", 1);
+            encoder.field("outer", |encoder| {
+                encoder.option(outer.as_ref(), |encoder, value| encoder.string(value))
+            })?;
+            encoder.field("local", |encoder| {
+                encoder.option(local.as_ref(), |encoder, local| {
+                    encoder.field("arguments", |encoder| {
+                        encoder.sequence(&local.arguments, |encoder, value| encoder.string(value))
+                    })?;
+                    encoder.field("lifetimes", |encoder| {
+                        encoder.sequence(&local.lifetimes, |encoder, value| encoder.string(value))
+                    })
+                })
+            })?;
+        }
+    }
+    Ok(())
 }

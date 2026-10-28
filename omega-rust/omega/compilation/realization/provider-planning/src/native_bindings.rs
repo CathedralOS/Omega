@@ -12,8 +12,8 @@ use symbols::SymbolHandle;
 mod receipt;
 mod retention;
 pub use retention::{
-    capture_package_native_bindings, rejoin_package_native_bindings,
-    unify_native_binding_identities,
+    ResolvedNativeApplication, capture_package_native_bindings, rejoin_package_native_bindings,
+    resolve_native_binding_application, unify_native_binding_identities,
 };
 use target::{ForeignLocatorCandidate, TargetProfile};
 

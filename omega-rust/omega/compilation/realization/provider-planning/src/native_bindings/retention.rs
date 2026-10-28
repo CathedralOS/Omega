@@ -55,13 +55,10 @@ fn local_key(
         lifetimes,
     })
 }
-fn application_key(
+fn live_application_key(
     typed: &TypedTrees,
     row: &AdmittedNativeBinding,
 ) -> Result<RetainedNativeApplication, String> {
-    if let Some(retained) = &row.retained {
-        return Ok(retained.application.clone());
-    }
     let outer = row
         .trait_scope
         .map(|scope| {
@@ -76,13 +73,77 @@ fn application_key(
         .transpose()?;
     let local = row
         .closed_requirement
-        .map(|symbol| local_key(typed, symbol))
+        .map(|symbol| {
+            let application = typed
+                .closed_requirement_application(symbol)
+                .ok_or("native selected method lost its formed application")?;
+            if application.template != row.requirement {
+                return Err("native selected method changes its requirement declaration".into());
+            }
+            let enclosing = match &outer {
+                Some(identity) => identity.clone(),
+                None => {
+                    let owner = typed
+                        .trait_definition_by_symbol(application.declaring_trait)
+                        .ok_or("native selected method lost its declaring trait")?;
+                    if !typed.trait_type_parameters(owner).is_empty()
+                        || !owner.lifetime_parameters.is_empty()
+                    {
+                        return Err("native selected method lost its enclosing application".into());
+                    }
+                    let identity = checked_trees::typed_trees::trait_definition::AppliedTraitScope::abstract_scope(owner)
+                        .portable_application_identity(typed)
+                        .ok_or("native selected method lost its nongeneric trait identity")?;
+                    identity_text(typed, identity)?
+                }
+            };
+            if enclosing != identity_text(typed, application.portable_trait_application_identity)? {
+                return Err(
+                    "native selected method changes its enclosing trait application".into(),
+                );
+            }
+            local_key(typed, symbol)
+        })
         .transpose()?;
     if outer.is_none() && local.is_none() {
         Ok(RetainedNativeApplication::Universal)
     } else {
         Ok(RetainedNativeApplication::Applied { outer, local })
     }
+}
+
+/// Reconstruct the complete tuple in the current checked program. Imported
+/// text selects a receiving occurrence, but never substitutes for that
+/// occurrence's independently formed type, const and region application.
+pub fn resolve_native_binding_application(
+    typed: &TypedTrees,
+    row: &AdmittedNativeBinding,
+) -> Result<ResolvedNativeApplication, String> {
+    let receiving = row
+        .resolved_application(typed)
+        .ok_or("native application has no independently formed receiving tuple")?;
+    let actual = live_application_key(typed, &receiving)?;
+    if row
+        .retained
+        .as_ref()
+        .is_some_and(|retained| retained.application != actual)
+    {
+        return Err("native application changes its complete retained tuple".into());
+    }
+    Ok(ResolvedNativeApplication {
+        key: actual,
+        trait_scope: receiving.trait_scope,
+        closed_requirement: receiving.closed_requirement,
+    })
+}
+
+/// Invocation-local source coordinates and their independently rederived
+/// portable tuple. This view carries no selection or execution authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolvedNativeApplication {
+    pub key: RetainedNativeApplication,
+    pub trait_scope: Option<checked_trees::typed_trees::trait_definition::RetainedTraitScope>,
+    pub closed_requirement: Option<SymbolHandle>,
 }
 
 /// Called only after immutable Product checking, including unused operands.
@@ -153,7 +214,7 @@ pub fn capture_package_native_bindings(
             Ok(RetainedNativeBinding {
                 requirement: capture_anchor(typed, row.requirement)?,
                 requirement_identity: typed.normalized_hermetic_symbol_identity(row.requirement)?,
-                application: application_key(typed, row)?,
+                application: resolve_native_binding_application(typed, row)?.key,
                 origin,
                 author_path: typed.symbols.display_path(author, "::"),
                 target: ProductTarget::from_code(row.target_code())

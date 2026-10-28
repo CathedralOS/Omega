@@ -99,6 +99,7 @@ pub(super) fn analyze(
     let effective_domain = domain.unwrap_or(ArithmeticDomain::Exact);
     if let Some(primitive) = primitive
         && walk.division_formation(
+            expression,
             binary,
             effective_domain,
             primitive,
@@ -377,6 +378,7 @@ impl Operation<'_, '_> {
             BinaryOperator::Divide | BinaryOperator::Modulo
         ) {
             return walk.division_formation(
+                self.expression,
                 &self.binary,
                 ArithmeticDomain::Exact,
                 primitive,

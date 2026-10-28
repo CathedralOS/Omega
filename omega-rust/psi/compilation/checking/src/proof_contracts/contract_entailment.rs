@@ -98,6 +98,8 @@ pub(crate) mod law_conformance;
 pub(crate) mod numeric_observations;
 mod observed_projections;
 mod operand_fits;
+mod operation_definedness;
+pub(crate) use operation_definedness::operation_inputs_exclude_integer_values;
 mod proof_edges;
 pub(crate) mod proof_integer;
 mod quotient_congruence;
