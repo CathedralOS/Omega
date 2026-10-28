@@ -2178,7 +2178,7 @@ fail/calling/call_plan_count_invalid_handback rejected 3080ms expected @a92f1643
 	machine `corrupt` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/calling/native_field_path_empty rejected 4384ms expected @a92f16431042
 	data `NativePlace` case `Field` literal violates the case constraint: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/calls/affine_call_local_moved_twice rejected 5360ms expected @a92f16431042
+fail/calls/affine_call_local_moved_twice rejected 843ms expected @3e5750be47b9
 	cannot use `value` in machine `main` state `entry` (statement 2) after `value` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
 fail/calls/affine_constructor_result_reuse rejected 4428ms expected @a92f16431042
 	cannot use `item` in machine `Worker::check` state `check` (statement 2) after `item` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `item` first
@@ -3519,6 +3519,16 @@ fail/data/nested_array_literal_inner_length_rejected rejected 908ms expected @a9
 	machine `Main::main` state `main` assigns an array literal with 3 element(s) to a `[_; 2]` place; a fixed-array literal must supply exactly 2 element(s)
 fail/data/opaque_copy_unselected rejected 599ms expected @a92f16431042
 	opaque boundary data `Token` cannot claim `[copy]` without an admitted property receipt
+fail/data/prefix_case_block rejected 98ms expected @3e5750be47b9
+	tests/omega/fail/data/prefix_case_block/main.omg:1:24: case declaration blocks are not supported; declare each `case Name` separately
+fail/data/prefix_case_mixed_tombstone_ambiguous rejected 98ms expected @3e5750be47b9
+	tests/omega/fail/data/prefix_case_mixed_tombstone_ambiguous/main.omg:1:71: `retired #N;` is ambiguous in mixed field-and-case data; publish separate record and sum shapes so each retired identity has one structural scope
+fail/data/prefix_case_old_order rejected 99ms expected @3e5750be47b9
+	tests/omega/fail/data/prefix_case_old_order/main.omg:1:17: numbered cases are spelled `#N case Name`, not `case #N Name`
+fail/data/prefix_case_partial_identities rejected 99ms expected @3e5750be47b9
+	tests/omega/fail/data/prefix_case_partial_identities/main.omg:1:44: stable identities are all-or-nothing for sum cases: number every member with `#N` or number none of them
+fail/data/prefix_case_payload_tombstone_reuse rejected 96ms expected @3e5750be47b9
+	tests/omega/fail/data/prefix_case_payload_tombstone_reuse/main.omg:1:53: stable identity #1 is declared more than once among structured case-payload fields and their retired identities
 fail/data/proof_only_runtime_property_rejected rejected 907ms expected @a92f16431042
 	data `Nat` declares runtime properties, but `Nat` is proof-only: recursive data has no layout; properties speak about values in memory, which proof-only data never becomes
 fail/data/property_carry_nested_restrictive_floor rejected 616ms expected @a92f16431042
@@ -13137,6 +13147,24 @@ fail/facts/predicate_array_copy_through_target_body_rejected rejected 2503ms exp
 	cannot prove requires contract for call evaluate from main: values[3] == 0 (needs fact `values[3] == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call evaluate from main: values[3] == 0 (needs fact `values[3] == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call evaluate from main: values[3] == 0 (needs fact `values[3] == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/prefix_case_identity_call_result rejected 681ms expected @3e5750be47b9
+	cannot prove ensures contract for exit from evaluate at statement 2: result <= 60
+fail/facts/prefix_case_identity_const_name rejected 697ms expected @3e5750be47b9
+	cannot prove ensures contract for exit from evaluate at statement 2: result <= 60
+fail/facts/prefix_case_identity_field rejected 684ms expected @3e5750be47b9
+	cannot prove ensures contract for exit from evaluate at statement 3: result <= 60
+fail/facts/prefix_case_identity_local rejected 672ms expected @3e5750be47b9
+	cannot prove ensures contract for exit from evaluate at statement 2: result <= 60
+fail/facts/prefix_case_identity_match_join rejected 681ms expected @3e5750be47b9
+	cannot prove ensures contract for exit from evaluate at statement 2: result <= 60
+fail/facts/prefix_case_identity_other_machine rejected 707ms expected @3e5750be47b9
+	cannot prove ensures contract for exit from consume_elsewhere at statement 2: result <= 60
+fail/facts/prefix_case_identity_other_state rejected 695ms expected @3e5750be47b9
+	cannot prove ensures contract for exit from consume at statement 2: result <= 60
+fail/facts/prefix_case_identity_parameter rejected 676ms expected @3e5750be47b9
+	cannot prove ensures contract for exit from evaluate at statement 1: result <= 60
+fail/facts/prefix_case_identity_target_body rejected 721ms expected @3e5750be47b9
+	cannot prove ensures contract for exit from SelectedEntry::evaluate at statement 2: result <= 60
 fail/facts/progress_selector_through_call_result_rejected rejected 810ms expected @13c576a20f04
 	machine `select` derives progress premise `package:5f3dd7595f8397fee7323180ba2488419228a961bff38a0c4ab0b82d2778adfb:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
 fail/facts/progress_selector_through_const_name_rejected rejected 984ms expected @13c576a20f04
@@ -17701,6 +17729,11 @@ fail/facts/nested_machine_statement_completion_wrong_tag_rejected rejected 3078m
 	cannot prove requires contract for call probe from main: choice == constructor:80:package:0ababaff7be122379295755579dfe2fa5efa40c446ce2a4d4011f916f57fb1af::Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 pass/arithmetic/sparse_captured_utf_path_exit checked 59503ms check-target:macos_arm64 @b0d06a168a00+wt
 pass/build/runtime_retained_const_application_exit checked 1831ms check-target:macos_arm64 @248be7918b27
+pass/control_flow/affine_case_nonreturning_loop checked 5749ms check-target:macos_arm64 @3e5750be47b9
+pass/data/prefix_case_contextual_case_field checked 982ms check-target:macos_arm64 @3e5750be47b9
+pass/data/prefix_case_empty_reference_array checked 899ms check-target:macos_arm64 @3e5750be47b9
+pass/data/prefix_case_pure_sum_retirement checked 874ms check-target:macos_arm64 @3e5750be47b9
+pass/facts/linear_owner_borrowed_projection_local checked 1003ms check-target:macos_arm64 @3e5750be47b9
 pass/facts/nested_machine_statement_completion_call_result_exit checked 15104ms check-target:macos_arm64 @b0d06a168a00+wt
 pass/facts/nested_machine_statement_completion_const_name_exit checked 15196ms check-target:macos_arm64 @b0d06a168a00+wt
 pass/facts/nested_machine_statement_completion_field_exit checked 20163ms check-target:macos_arm64 @b0d06a168a00+wt
@@ -20494,7 +20527,7 @@ fail/ownership/borrowed_storage_boundary_call rejected 2087ms expected @a92f1643
 fail/ownership/borrowed_storage_missing_repair_on_branch rejected 1198ms expected @a92f16431042
 	cannot use `main` while `main.inventory` is absent from borrowed storage: the value moved out at statement 0 must be restored first
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `Main::apply`, state `apply` (statement 0): `main.inventory` must hold a value again before this state's exits consume the borrow
-fail/ownership/borrowed_storage_repair_keeps_carried_loan rejected 3130ms expected @a92f16431042
+fail/ownership/borrowed_storage_repair_keeps_carried_loan rejected 481ms expected @3e5750be47b9
 	statement 3 mutates `backing` while local borrow `holder` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
 fail/ownership/borrowed_storage_stale_read_in_hole rejected 1277ms expected @a92f16431042
 	cannot use `main.inventory.slots` while `main.inventory` is absent from borrowed storage: the value moved out at statement 0 must be restored first
@@ -20816,8 +20849,8 @@ fail/ownership/zero_case_generic_active_linear_payload rejected 1280ms expected 
 	linear value `inventory.cells[0].cells[1]::Held.token` has not been established (implicit zero-fill creates no linear obligation); it cannot be moved here
 	linear value `inventory.cells[1].cells[0]::Held.token` has not been established (implicit zero-fill creates no linear obligation); it cannot be moved here
 	linear value `inventory.cells[1].cells[1]::Held.token` has not been established (implicit zero-fill creates no linear obligation); it cannot be moved here
-fail/ownership/zero_case_inventory_lost_token rejected 1206ms expected @a92f16431042
-	linear value `slots[1]::Held.token` reaches scope exit without being consumed or transferred
+fail/ownership/zero_case_inventory_lost_token rejected 473ms expected @3e5750be47b9
+	linear value `slots[1]::Held.token` reaches scope exit without being consumed or transferred in machine `invalid` state `entry`
 fail/ownership/zero_case_tag_replaced rejected 1271ms expected @a92f16431042
 	cannot prove requires contract for call empty from invalid: inventory.slots[0] == constructor:78:package:e634bcd443611d472ab5e1d56e878ec04f54d7c0ffe6c80646559589c460287d::Slot10:name:Empty (needs fact `slot == Slot::Empty` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/packages/indexed_contract_out_of_bounds rejected 1523ms expected @a92f16431042
@@ -28611,6 +28644,15 @@ pass/facts/predicate_array_copy_through_other_machine_exit checked 6315ms check-
 pass/facts/predicate_array_copy_through_other_state_exit checked 5973ms check-target:macos_arm64 @a92f16431042
 pass/facts/predicate_array_copy_through_parameter_exit checked 5184ms check-target:macos_arm64 @a92f16431042
 pass/facts/predicate_array_copy_through_target_body_exit checked 5013ms check-target:macos_arm64 @a92f16431042
+pass/facts/prefix_case_identity_call_result checked 912ms check-target:macos_arm64 @3e5750be47b9
+pass/facts/prefix_case_identity_const_name checked 946ms check-target:macos_arm64 @3e5750be47b9
+pass/facts/prefix_case_identity_field checked 909ms check-target:macos_arm64 @3e5750be47b9
+pass/facts/prefix_case_identity_local checked 911ms check-target:macos_arm64 @3e5750be47b9
+pass/facts/prefix_case_identity_match_join checked 919ms check-target:macos_arm64 @3e5750be47b9
+pass/facts/prefix_case_identity_other_machine checked 899ms check-target:macos_arm64 @3e5750be47b9
+pass/facts/prefix_case_identity_other_state checked 902ms check-target:macos_arm64 @3e5750be47b9
+pass/facts/prefix_case_identity_parameter checked 912ms check-target:macos_arm64 @3e5750be47b9
+pass/facts/prefix_case_identity_target_body checked 943ms check-target:macos_arm64 @3e5750be47b9
 pass/facts/progress_selector_through_call_result_exit checked 4969ms check-target:macos_arm64 @a92f16431042
 pass/facts/progress_selector_through_const_name_exit checked 4471ms check-target:macos_arm64 @a92f16431042
 pass/facts/progress_selector_through_field_exit checked 2846ms check-target:macos_arm64 @a92f16431042
