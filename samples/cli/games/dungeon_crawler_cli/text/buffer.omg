@@ -15,7 +15,7 @@ requires start <= 128; bytes.len <= 128 - start
             _ -> done()
         }
     }
-    state writing(buffer: &mut [u8; 128] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
+    machine writing(buffer: &mut [u8; 128] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
     requires start <= 128; index < 128; index < bytes.len; start + index < 128
     {
         buffer[start + index] = bytes[index];
@@ -56,7 +56,7 @@ requires start <= 8; bytes.len <= 8 - start
             _ -> done()
         }
     }
-    state writing(buffer: &mut [u8; 8] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
+    machine writing(buffer: &mut [u8; 8] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
     requires start <= 8; index < 8; index < bytes.len; start + index < 8
     {
         buffer[start + index] = bytes[index];
@@ -91,7 +91,7 @@ requires start <= 16; bytes.len <= 16 - start
             _ -> done()
         }
     }
-    state writing(buffer: &mut [u8; 16] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
+    machine writing(buffer: &mut [u8; 16] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
     requires start <= 16; index < 16; index < bytes.len; start + index < 16
     {
         buffer[start + index] = bytes[index];
@@ -126,7 +126,7 @@ requires start <= 24; bytes.len <= 24 - start
             _ -> done()
         }
     }
-    state writing(buffer: &mut [u8; 24] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
+    machine writing(buffer: &mut [u8; 24] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
     requires start <= 24; index < 24; index < bytes.len; start + index < 24
     {
         buffer[start + index] = bytes[index];
@@ -160,7 +160,7 @@ requires start <= 64; bytes.len <= 64 - start
             _ -> done()
         }
     }
-    state writing(buffer: &mut [u8; 64] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
+    machine writing(buffer: &mut [u8; 64] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
     requires start <= 64; index < 64; index < bytes.len; start + index < 64
     {
         buffer[start + index] = bytes[index];

@@ -94,7 +94,7 @@ requires start <= 16; bytes.len <= 16 - start
             _ -> done()
         }
     }
-    state writing(buffer: &mut [u8; 16] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
+    machine writing(buffer: &mut [u8; 16] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
     requires start <= 16; index < 16; index < bytes.len; start + index < 16
     {
         buffer[start + index] = bytes[index];
