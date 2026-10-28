@@ -19,6 +19,18 @@ pub(super) fn form(
     boundary_identity: ProviderSelectionIdentity,
     provider_type: ProviderSelectionIdentity,
 ) -> Result<ProviderDeclarations, Diagnostic> {
+    // Product formation may run while Build retains only its executable
+    // projection. Resolve all declaration roles and inherited rows against
+    // the same retained Product frontier used by operand lookup. This view
+    // describes candidates; the caller retains activation and choice custody.
+    let context = ProviderPlanningContext::new(
+        if context.scope == source::DependencyScope::Product {
+            context.typed.product_declarations()
+        } else {
+            context.typed
+        },
+        context.scope,
+    );
     let typed = context.typed;
     if !context.contains(boundary_identity.symbol) || !context.contains(provider_type.symbol) {
         return Err(Diagnostic::error(format!(
