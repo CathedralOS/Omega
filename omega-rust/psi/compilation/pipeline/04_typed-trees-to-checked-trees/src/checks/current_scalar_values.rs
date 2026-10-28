@@ -647,30 +647,11 @@ impl<'program> CurrentScalarValues<'program> {
                 depth + 1,
             );
         }
-        if admitted(
-            program,
-            machine,
-            state,
-            self.statement_index,
-            expression,
-            &self.current,
-            &self.lengths,
-            &self.fields,
-            0,
-        ) {
-            if let Some(proposition) = scoped(
-                machine,
-                state,
-                self.statement_index,
-                expression,
-                &self.current,
-                &self.lengths,
-                &self.fields,
-                &self.hypotheses,
-                program,
-            ) {
-                return vec![ScopedArithmeticHypothesis { proposition, holds }];
-            }
+        let occurrence = self.occurrence_at(program, machine, state, &self.lengths);
+        if admitted(occurrence, expression, &self.current, &self.fields, 0)
+            && let Some(proposition) = scoped(occurrence, expression, &self.current, &self.fields)
+        {
+            return vec![ScopedArithmeticHypothesis { proposition, holds }];
         }
         Vec::new()
     }
@@ -778,15 +759,10 @@ impl<'program> CurrentScalarValues<'program> {
             // captured operand, including its operation evidence. It does not
             // replay a local initializer or infer meaning from a cast shape.
             let operand = preserving_integer_cast_operand(
-                program,
-                machine,
-                state,
-                self.statement_index,
+                self.occurrence(),
                 expression,
                 &self.current,
-                &self.lengths,
                 &self.fields,
-                &self.hypotheses,
             )?;
             return self.capture_at_depth(program, machine, state, operand, depth + 1);
         }
@@ -857,37 +833,25 @@ impl<'program> CurrentScalarValues<'program> {
                 }
             }
         }
-        admitted(
-            program,
-            machine,
-            state,
-            self.statement_index,
-            expression,
-            &self.current,
-            &self.lengths,
-            &self.fields,
-            0,
-        )
-        .then(|| {
-            scoped(
-                machine,
-                state,
-                self.statement_index,
-                expression,
-                &self.current,
-                &self.lengths,
-                &self.fields,
-                &self.hypotheses,
-                program,
-            )
-        })
-        .flatten()
-        .map(|term| {
-            use crate::checks::contracts::prover::call_guarantees::{
-                arithmetic, callable::Callable,
-            };
-            arithmetic::completed_scalar_value(program, &Callable::Machine { machine, state }, term)
-        })
+        // Resolve the captured term under this occurrence's exact callable;
+        // admission alone does not supply the completed scalar value.
+        let occurrence = self.occurrence();
+        admitted(occurrence, expression, &self.current, &self.fields, 0)
+            .then(|| scoped(occurrence, expression, &self.current, &self.fields))
+            .flatten()
+            .map(|term| {
+                use crate::checks::contracts::prover::call_guarantees::{
+                    arithmetic, callable::Callable,
+                };
+                arithmetic::completed_scalar_value(
+                    occurrence.program,
+                    &Callable::Machine {
+                        machine: occurrence.machine,
+                        state: occurrence.state,
+                    },
+                    term,
+                )
+            })
     }
 
     /// Exact value of a runtime index at this occurrence. Its declaration
@@ -914,61 +878,19 @@ impl<'program> CurrentScalarValues<'program> {
         &self,
         expression: ExpressionHandle,
     ) -> Option<ScopedArithmeticExpression> {
-        admitted(
-            self.program,
-            self.machine,
-            self.state,
-            self.statement_index,
-            expression,
-            &self.initial,
-            &self.lengths,
-            &[],
-            0,
-        )
-        .then(|| {
-            scoped(
-                self.machine,
-                self.state,
-                self.statement_index,
-                expression,
-                &self.initial,
-                &self.lengths,
-                &[],
-                &self.hypotheses,
-                self.program,
-            )
-        })
-        .flatten()
+        let occurrence = self.occurrence();
+        admitted(occurrence, expression, &self.initial, &[], 0)
+            .then(|| scoped(occurrence, expression, &self.initial, &[]))
+            .flatten()
     }
     pub(crate) fn current(
         &self,
         expression: ExpressionHandle,
     ) -> Option<ScopedArithmeticExpression> {
-        admitted(
-            self.program,
-            self.machine,
-            self.state,
-            self.statement_index,
-            expression,
-            &self.current,
-            &self.lengths,
-            &self.fields,
-            0,
-        )
-        .then(|| {
-            scoped(
-                self.machine,
-                self.state,
-                self.statement_index,
-                expression,
-                &self.current,
-                &self.lengths,
-                &self.fields,
-                &self.hypotheses,
-                self.program,
-            )
-        })
-        .flatten()
+        let occurrence = self.occurrence();
+        admitted(occurrence, expression, &self.current, &self.fields, 0)
+            .then(|| scoped(occurrence, expression, &self.current, &self.fields))
+            .flatten()
     }
     fn capture_alternatives(
         &self,
@@ -1463,20 +1385,68 @@ fn integer_cast_operand(
         .then_some(cast.value)
 }
 
+/// The occurrence a scoped walk reads: the program point plus the roster it
+/// admits against. A callee's entry and a matched alternative's state are
+/// occurrences too, so the pair moves while the rest stays the caller's.
+#[derive(Clone, Copy)]
+struct ScopedOccurrence<'roster, 'tree> {
+    program: &'tree dyn ::validation::CheckingInput,
+    machine: &'tree Machine,
+    state: &'tree State,
+    statement_index: usize,
+    lengths: &'roster [Length],
+    hypotheses: &'roster [ScopedArithmeticHypothesis],
+}
+
+impl<'program> CurrentScalarValues<'program> {
+    fn occurrence(&self) -> ScopedOccurrence<'_, 'program> {
+        ScopedOccurrence {
+            program: self.program,
+            machine: self.machine,
+            state: self.state,
+            statement_index: self.statement_index,
+            lengths: &self.lengths,
+            hypotheses: &self.hypotheses,
+        }
+    }
+
+    /// This occurrence read through an explicitly supplied program point: a
+    /// callee's entry or a selected alternative's state, against the roster
+    /// that scope re-derived. The caller's hypotheses and statement still apply.
+    fn occurrence_at<'a>(
+        &'a self,
+        program: &'a dyn ::validation::CheckingInput,
+        machine: &'a Machine,
+        state: &'a State,
+        lengths: &'a [Length],
+    ) -> ScopedOccurrence<'a, 'a> {
+        ScopedOccurrence {
+            program,
+            machine,
+            state,
+            statement_index: self.statement_index,
+            lengths,
+            hypotheses: &self.hypotheses,
+        }
+    }
+}
+
 /// Operand of an exact or trapping integer cast that denotes that operand.
 /// A total carrier inclusion always does. A partial conversion does only when
 /// the same hypotheses prove the operand fits in the target.
 fn preserving_integer_cast_operand(
-    program: &dyn ::validation::CheckingInput,
-    machine: &Machine,
-    state: &State,
-    statement_index: usize,
+    occurrence: ScopedOccurrence<'_, '_>,
     expression: ExpressionHandle,
     bindings: &[Binding],
-    lengths: &[Length],
     fields: &[ScalarField],
-    hypotheses: &[ScopedArithmeticHypothesis],
 ) -> Option<ExpressionHandle> {
+    let ScopedOccurrence {
+        program,
+        machine,
+        state,
+        hypotheses,
+        ..
+    } = occurrence;
     let operand = integer_cast_operand(program, machine, state, expression)?;
     let (target_minimum, target_maximum) =
         integer_carrier_span(program, machine, state, expression)?;
@@ -1491,17 +1461,7 @@ fn preserving_integer_cast_operand(
     if source_minimum >= target_minimum && source_maximum <= target_maximum {
         return Some(operand);
     }
-    let operand_value = ScopedArithmeticValue::Term(scoped(
-        machine,
-        state,
-        statement_index,
-        operand,
-        bindings,
-        lengths,
-        fields,
-        hypotheses,
-        program,
-    )?);
+    let operand_value = ScopedArithmeticValue::Term(scoped(occurrence, operand, bindings, fields)?);
     let minimum = ScopedArithmeticValue::Integer(target_minimum);
     let maximum = ScopedArithmeticValue::Integer(target_maximum);
     let fits = validation::scoped_arithmetic_values_relation(
@@ -1538,17 +1498,22 @@ fn integer_carrier_span(
     Some((minimum, numerics::bignum::BigInt::from_u64(maximum)))
 }
 
+/// Whether the occurrence's scoped engine admits `expression`: its syntax is
+/// integer vocabulary, its leaves resolve against the occurrence's own roster.
 fn admitted(
-    program: &dyn ::validation::CheckingInput,
-    machine: &Machine,
-    state: &State,
-    statement_index: usize,
+    occurrence: ScopedOccurrence<'_, '_>,
     expression: ExpressionHandle,
     bindings: &[Binding],
-    lengths: &[Length],
     fields: &[ScalarField],
     depth: usize,
 ) -> bool {
+    let ScopedOccurrence {
+        program,
+        machine,
+        state,
+        lengths,
+        ..
+    } = occurrence;
     if depth >= 64 || !program.expression_table.expression_is_valid(expression) {
         return false;
     }
@@ -1558,32 +1523,10 @@ fn admitted(
         // true from false when judging a conjunction or a whole predicate.
         ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => true,
         ExpressionNode::Cast(_) => integer_cast_operand(program, machine, state, expression)
-            .is_some_and(|operand| {
-                admitted(
-                    program,
-                    machine,
-                    state,
-                    statement_index,
-                    operand,
-                    bindings,
-                    lengths,
-                    fields,
-                    depth + 1,
-                )
-            }),
+            .is_some_and(|operand| admitted(occurrence, operand, bindings, fields, depth + 1)),
         ExpressionNode::Call(_) => validation::integer_embedding_argument(program, expression)
             .is_some_and(|(_, argument)| {
-                admitted(
-                    program,
-                    machine,
-                    state,
-                    statement_index,
-                    argument,
-                    bindings,
-                    lengths,
-                    fields,
-                    depth + 1,
-                )
+                admitted(occurrence, argument, bindings, fields, depth + 1)
             }),
         ExpressionNode::Member(_) => {
             length_occurrence(program, expression, lengths).is_some()
@@ -1625,43 +1568,27 @@ fn admitted(
                 machine,
                 Some(state),
                 expression,
-            ) && admitted(
-                program,
-                machine,
-                state,
-                statement_index,
-                binary.left,
-                bindings,
-                lengths,
-                fields,
-                depth + 1,
-            ) && admitted(
-                program,
-                machine,
-                state,
-                statement_index,
-                binary.right,
-                bindings,
-                lengths,
-                fields,
-                depth + 1,
-            )
+            ) && admitted(occurrence, binary.left, bindings, fields, depth + 1)
+                && admitted(occurrence, binary.right, bindings, fields, depth + 1)
         }
         _ => false,
     }
 }
 
+/// The scoped projection of `expression` at this occurrence.
 fn scoped(
-    machine: &Machine,
-    state: &State,
-    statement_index: usize,
+    occurrence: ScopedOccurrence<'_, '_>,
     expression: ExpressionHandle,
     bindings: &[Binding],
-    lengths: &[Length],
     fields: &[ScalarField],
-    hypotheses: &[ScopedArithmeticHypothesis],
-    program: &dyn ::validation::CheckingInput,
 ) -> Option<ScopedArithmeticExpression> {
+    let ScopedOccurrence {
+        program,
+        machine,
+        state,
+        lengths,
+        ..
+    } = occurrence;
     let mut symbols = Vec::new();
     let mut projections = Vec::new();
     let mut pending = vec![(expression, 0)];
@@ -1679,28 +1606,9 @@ fn scoped(
             }
             ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => {}
             ExpressionNode::Cast(_) => {
-                let operand = preserving_integer_cast_operand(
-                    program,
-                    machine,
-                    state,
-                    statement_index,
-                    expression,
-                    bindings,
-                    lengths,
-                    fields,
-                    hypotheses,
-                )?;
-                let value = scoped(
-                    machine,
-                    state,
-                    statement_index,
-                    operand,
-                    bindings,
-                    lengths,
-                    fields,
-                    hypotheses,
-                    program,
-                )?;
+                let operand =
+                    preserving_integer_cast_operand(occurrence, expression, bindings, fields)?;
+                let value = scoped(occurrence, operand, bindings, fields)?;
                 projections.push(ScopedArithmeticBinding {
                     binder: ScopedArithmeticBinder::Occurrence(expression),
                     value: ScopedArithmeticValue::Term(value),
