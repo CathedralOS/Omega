@@ -92,6 +92,9 @@ mod call_phases;
 mod call_results;
 pub(crate) mod calls;
 mod retained_borrows;
+pub(crate) use retained_borrows::{
+    RetainedMembership, replay_memberships as replay_retained_memberships,
+};
 
 // What a write drops: the places a statement or call writes, the facts over them
 // and their domain dependencies, and borrow loans that expire or are overwritten.

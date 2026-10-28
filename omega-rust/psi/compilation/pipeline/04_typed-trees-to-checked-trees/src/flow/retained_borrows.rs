@@ -9,11 +9,36 @@ use checked_trees::{
 use typed_trees::types::TypeReferenceHandle;
 use validation::CanonicalPlace;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub(super) struct RetainedBorrowHandback {
     pub place: CanonicalPlace,
     pub reference: TypeReferenceHandle,
+    /// Every possible origin must supply the declared duty. These are
+    /// conjunctive proof suppliers, not part of the returned subject's identity.
+    pub supplies: Vec<RetainedBorrowSupply>,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct RetainedBorrowSupply {
+    pub operand: checked_trees::FlowOperandFact,
+    pub constraints: arena::HandleSpan<checked_trees::FlowConstraintRef>,
+}
+
+impl RetainedBorrowHandback {
+    fn same_subject(&self, other: &Self) -> bool {
+        self.place == other.place && self.reference == other.reference
+    }
+
+    fn require_supplies(&mut self, other: &Self) {
+        for supply in &other.supplies {
+            crate::collections::push_unique(&mut self.supplies, supply.clone());
+        }
+    }
+}
+
+mod qualifications;
+pub(in crate::flow) use qualifications::memberships;
+pub(crate) use qualifications::{RetainedMembership, replay_memberships};
 
 mod captured_inputs;
 pub(in crate::flow) use captured_inputs::{RetainedSources, captured_sources, completed_calls};

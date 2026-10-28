@@ -1,7 +1,7 @@
 //! Completed lifetime inputs preserve typed return duties and holder epochs.
 //! Selections meet their possible inputs; strict evaluations retain call order.
 
-use super::RetainedBorrowHandback;
+use super::{RetainedBorrowHandback, RetainedBorrowSupply};
 use arena::Handle;
 use checked_trees::{FlowControlFacts, FlowOperandFact, FlowOperandRetention};
 use typed_trees::expression::ExpressionHandle;
@@ -21,14 +21,27 @@ impl RetainedSources {
             }
         }
         for borrow in other.borrows {
-            if !self.borrows.contains(&borrow) {
+            if let Some(existing) = self
+                .borrows
+                .iter_mut()
+                .find(|row| row.same_subject(&borrow))
+            {
+                existing.require_supplies(&borrow);
+            } else {
                 self.borrows.push(borrow);
             }
         }
     }
     fn meet(&mut self, other: &Self) {
         self.holders.retain(|holder| other.holders.contains(holder));
-        self.borrows.retain(|borrow| other.borrows.contains(borrow));
+        self.borrows.retain_mut(|borrow| {
+            let Some(alternative) = other.borrows.iter().find(|row| row.same_subject(borrow))
+            else {
+                return false;
+            };
+            borrow.require_supplies(alternative);
+            true
+        });
     }
 }
 
@@ -67,11 +80,46 @@ pub(in crate::flow) fn captured_sources(
                     operand.type_reference,
                     projection,
                 )?;
+            // Different completed arms may name one returned subject while
+            // carrying different original proofs. Preserve every arm's epoch;
+            // equality of raw capture/fact handles is not the meet operation.
+            if let checked_trees::FlowOperandCompletion::Selected(alternatives) = operand.completion
+            {
+                let alternatives = control.operand_alternatives.span(alternatives)?;
+                if alternatives.is_empty() {
+                    return None;
+                }
+                let mut common: Option<RetainedSources> = None;
+                for alternative in alternatives {
+                    if !alternative.source_arm.is_valid()
+                        || !control.operands.is_valid(alternative.value)
+                    {
+                        return None;
+                    }
+                    let source = visit(
+                        program,
+                        control,
+                        control.operands.get(alternative.value),
+                        projection,
+                        stable_name,
+                        active,
+                    )?;
+                    match &mut common {
+                        Some(common) => common.meet(&source),
+                        None => common = Some(source),
+                    }
+                }
+                return common;
+            }
             // Several candidate pointers do not identify which storage returned.
             if let [selected] = places.as_slice() {
                 result.borrows.push(RetainedBorrowHandback {
                     place: selected.place.clone(),
                     reference: referent,
+                    supplies: vec![RetainedBorrowSupply {
+                        operand: *operand,
+                        constraints: reference_constraints(program, control, operand, projection)?,
+                    }],
                 });
             }
             return Some(result);
@@ -180,6 +228,46 @@ pub(in crate::flow) fn captured_sources(
         stable_name,
         &mut Vec::new(),
     )
+}
+
+fn reference_constraints(
+    program: &dyn validation::CheckingInput,
+    control: &FlowControlFacts,
+    operand: &FlowOperandFact,
+    projection: &[facts::PlaceSegment],
+) -> Option<arena::HandleSpan<checked_trees::FlowConstraintRef>> {
+    let (leaves, path) = match operand.completion {
+        checked_trees::FlowOperandCompletion::Copied { copy, path } => {
+            if !control.copied_values.is_valid(copy) {
+                return None;
+            }
+            let copy = control.copied_values.get(copy);
+            let mut selected = control.operand_child_paths.span(path)?.to_vec();
+            selected.extend_from_slice(projection);
+            (copy.references, selected)
+        }
+        _ => (operand.reference_leaves, projection.to_vec()),
+    };
+    if leaves.is_empty() {
+        return Some(operand.constraints);
+    }
+    let mut selected = control
+        .captured_reference_leaves
+        .span(leaves)?
+        .iter()
+        .filter(|leaf| {
+            control
+                .operand_child_paths
+                .span(leaf.path)
+                .is_some_and(|candidate| {
+                    candidate.len() == path.len()
+                        && candidate.iter().zip(&path).all(|(left, right)| {
+                            crate::flow::canonical_place_segments_equal(program, *left, *right)
+                        })
+                })
+        });
+    let leaf = selected.next()?;
+    selected.next().is_none().then_some(leaf.constraints)
 }
 
 /// Calls in the strict evaluated graph have already completed. A selection
