@@ -5,6 +5,7 @@ mod validation;
 use super::{
     PackageReviewExternalBinding, PackageReviewForeignLocator, PackageReviewNominalIdentity,
 };
+use crate::record::accessors::field_projection_accessors;
 use semantic_vocabulary::PackageKeyIdentity;
 pub(crate) use signatures::{
     PackagePolicyExternalCallableSignature, PackagePolicyExternalRequirement,
@@ -19,13 +20,8 @@ pub struct PackagePolicyEvaluatedBindingProducer {
 }
 
 impl PackagePolicyEvaluatedBindingProducer {
-    pub const fn declaration(&self) -> &PackageReviewNominalIdentity {
-        &self.declaration
-    }
-
-    pub const fn package(&self) -> Option<PackageKeyIdentity> {
-        self.package
-    }
+    field_projection_accessors!(borrowed declaration: &PackageReviewNominalIdentity);
+    field_projection_accessors!(copied package: Option<PackageKeyIdentity>);
 
     pub fn callable_identity(&self) -> &str {
         &self.callable_identity
@@ -110,23 +106,9 @@ pub struct PackagePolicyExternalExecutableSupply {
 }
 
 impl PackagePolicyExternalExecutableSupply {
-    pub const fn target_context(&self) -> &crate::record::PackagePolicyTargetContext {
-        &self.target_context
-    }
-
-    pub const fn callable(&self) -> &PackageReviewNominalIdentity {
-        &self.callable
-    }
-
-    pub const fn signature(&self) -> &PackagePolicyExternalCallableSignature {
-        &self.signature
-    }
-
-    pub const fn requirement(&self) -> &PackagePolicyExternalRequirement {
-        &self.requirement
-    }
-
-    pub const fn binding(&self) -> &PackagePolicyExternalBinding {
-        &self.binding
-    }
+    field_projection_accessors!(borrowed target_context: &crate::record::PackagePolicyTargetContext);
+    field_projection_accessors!(borrowed callable: &PackageReviewNominalIdentity);
+    field_projection_accessors!(borrowed signature: &PackagePolicyExternalCallableSignature);
+    field_projection_accessors!(borrowed requirement: &PackagePolicyExternalRequirement);
+    field_projection_accessors!(borrowed binding: &PackagePolicyExternalBinding);
 }

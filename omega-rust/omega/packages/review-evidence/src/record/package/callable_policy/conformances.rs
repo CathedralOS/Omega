@@ -1,5 +1,6 @@
 use crate::record::PackageReviewNominalIdentity;
 use crate::record::PackageReviewTypeIdentity;
+use crate::record::accessors::field_projection_accessors;
 
 /// Exact caller lifetime choices remain distinct from the requirement's
 /// alpha-normalized equality partition.
@@ -14,21 +15,11 @@ pub struct PackagePolicyCallableConformance {
 }
 
 impl PackagePolicyCallableConformance {
-    pub fn trait_identity(&self) -> &PackageReviewNominalIdentity {
-        &self.trait_identity
-    }
-    pub fn requirement_identity(&self) -> &PackageReviewNominalIdentity {
-        &self.requirement_identity
-    }
-    pub fn requirement_lifetime_partition(&self) -> &[u32] {
-        &self.requirement_lifetime_partition
-    }
-    pub fn trait_lifetime_arguments(&self) -> &[u32] {
-        &self.trait_lifetime_arguments
-    }
-    pub fn arguments(&self) -> &[PackageReviewTypeIdentity] {
-        &self.arguments
-    }
+    field_projection_accessors!(borrowed trait_identity: &PackageReviewNominalIdentity);
+    field_projection_accessors!(borrowed requirement_identity: &PackageReviewNominalIdentity);
+    field_projection_accessors!(sliced requirement_lifetime_partition: &[u32]);
+    field_projection_accessors!(sliced trait_lifetime_arguments: &[u32]);
+    field_projection_accessors!(sliced arguments: &[PackageReviewTypeIdentity]);
     pub fn alias(&self) -> Option<&str> {
         self.alias.as_deref()
     }

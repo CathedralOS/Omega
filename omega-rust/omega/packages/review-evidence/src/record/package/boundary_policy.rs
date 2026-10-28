@@ -2,6 +2,7 @@
 
 mod validation;
 
+use crate::record::accessors::field_projection_accessors;
 use crate::record::{
     PackageReviewBoundaryApplication, PackageReviewCompilerIntrinsicExecution,
     PackageReviewNominalIdentity, PackageReviewOperatorCoordinate,
@@ -16,12 +17,8 @@ pub struct PackagePolicyBoundaryApplications {
 }
 
 impl PackagePolicyBoundaryApplications {
-    pub fn demands(&self) -> &[PackagePolicyBoundaryApplicationDemand] {
-        &self.demands
-    }
-    pub fn realizations(&self) -> &[PackagePolicyBoundaryApplicationRealization] {
-        &self.realizations
-    }
+    field_projection_accessors!(sliced demands: &[PackagePolicyBoundaryApplicationDemand]);
+    field_projection_accessors!(sliced realizations: &[PackagePolicyBoundaryApplicationRealization]);
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -32,15 +29,9 @@ pub struct PackagePolicyBoundaryApplicationDemand {
 }
 
 impl PackagePolicyBoundaryApplicationDemand {
-    pub const fn operator_coordinate(&self) -> &PackageReviewOperatorCoordinate {
-        &self.operator_coordinate
-    }
-    pub const fn producer_callable(&self) -> &PackageReviewNominalIdentity {
-        &self.producer_callable
-    }
-    pub fn arguments(&self) -> &[PackageReviewSymbolicBoundaryApplicationArgument] {
-        &self.arguments
-    }
+    field_projection_accessors!(borrowed operator_coordinate: &PackageReviewOperatorCoordinate);
+    field_projection_accessors!(borrowed producer_callable: &PackageReviewNominalIdentity);
+    field_projection_accessors!(sliced arguments: &[PackageReviewSymbolicBoundaryApplicationArgument]);
 }
 
 /// Selected provider position is in the normalized aggregate's canonical plan order.
@@ -54,21 +45,13 @@ pub struct PackagePolicyBoundaryApplicationRealization {
 }
 
 impl PackagePolicyBoundaryApplicationRealization {
-    pub const fn operator_coordinate(&self) -> &PackageReviewOperatorCoordinate {
-        &self.operator_coordinate
-    }
+    field_projection_accessors!(borrowed operator_coordinate: &PackageReviewOperatorCoordinate);
     pub fn requirement_identity(&self) -> &str {
         &self.requirement_identity
     }
-    pub const fn application(&self) -> &PackageReviewBoundaryApplication {
-        &self.application
-    }
-    pub const fn selected_plan_index(&self) -> u32 {
-        self.selected_plan_index
-    }
-    pub const fn realization(&self) -> &PackagePolicyBoundaryRealization {
-        &self.realization
-    }
+    field_projection_accessors!(borrowed application: &PackageReviewBoundaryApplication);
+    field_projection_accessors!(copied selected_plan_index: u32);
+    field_projection_accessors!(borrowed realization: &PackagePolicyBoundaryRealization);
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

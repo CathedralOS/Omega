@@ -1,5 +1,6 @@
 //! Exact replay-validated physical movement for one opaque occurrence.
 
+use crate::record::accessors::field_projection_accessors;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewBoundaryValueClass {
     BorrowedScalarReference,
@@ -63,17 +64,8 @@ pub struct PackageReviewBoundaryValueShape {
 }
 
 impl PackageReviewBoundaryValueShape {
-    pub const fn class(self) -> PackageReviewBoundaryValueClass {
-        self.class
-    }
-
-    pub const fn byte_size(self) -> u32 {
-        self.byte_size
-    }
-
-    pub const fn alignment(self) -> u16 {
-        self.alignment
-    }
+    field_projection_accessors!(valued class: PackageReviewBoundaryValueClass, byte_size: u32);
+    field_projection_accessors!(valued alignment: u16);
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -83,13 +75,8 @@ pub struct PackageReviewBoundaryValuePlacement {
 }
 
 impl PackageReviewBoundaryValuePlacement {
-    pub const fn shape(&self) -> PackageReviewBoundaryValueShape {
-        self.shape
-    }
-
-    pub fn locations(&self) -> &[PackageReviewBoundaryValueLocation] {
-        &self.locations
-    }
+    field_projection_accessors!(copied shape: PackageReviewBoundaryValueShape);
+    field_projection_accessors!(sliced locations: &[PackageReviewBoundaryValueLocation]);
 }
 
 pub(crate) type PackageReviewOpaqueRepresentationMovementRole =
@@ -110,19 +97,8 @@ pub(crate) struct PackageReviewOpaqueRepresentationOccurrence {
 }
 
 impl PackageReviewOpaqueRepresentationOccurrence {
-    pub const fn carrier_shape_root(&self) -> u16 {
-        self.carrier_shape_root
-    }
-
-    pub const fn role(&self) -> PackageReviewOpaqueRepresentationMovementRole {
-        self.role
-    }
-
-    pub fn path(&self) -> &[PackageReviewOpaqueRepresentationPathElement] {
-        &self.path
-    }
-
-    pub const fn placement(&self) -> &PackageReviewBoundaryValuePlacement {
-        &self.placement
-    }
+    field_projection_accessors!(copied carrier_shape_root: u16);
+    field_projection_accessors!(copied role: PackageReviewOpaqueRepresentationMovementRole);
+    field_projection_accessors!(sliced path: &[PackageReviewOpaqueRepresentationPathElement]);
+    field_projection_accessors!(borrowed placement: &PackageReviewBoundaryValuePlacement);
 }

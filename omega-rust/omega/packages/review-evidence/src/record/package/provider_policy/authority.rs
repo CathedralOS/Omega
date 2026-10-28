@@ -1,5 +1,6 @@
 //! Source-qualified operational authority, independently of readable schemas.
 
+use crate::record::accessors::field_projection_accessors;
 use crate::record::package::callable_policy::validation::nominal_set;
 use crate::record::package::callable_policy::validation::signature::owned_pair;
 use crate::record::validation::ordered;
@@ -14,15 +15,9 @@ pub struct PackagePolicyServiceAuthority {
 }
 
 impl PackagePolicyServiceAuthority {
-    pub fn service_reach(&self) -> &[PackageReviewNominalIdentity] {
-        &self.service_reach
-    }
-    pub fn synchronous_invocations(&self) -> &[PackageReviewSynchronousInvocation] {
-        &self.synchronous_invocations
-    }
-    pub fn progress_premises(&self) -> &[PackagePolicyServiceProgressPremise] {
-        &self.progress_premises
-    }
+    field_projection_accessors!(sliced service_reach: &[PackageReviewNominalIdentity]);
+    field_projection_accessors!(sliced synchronous_invocations: &[PackageReviewSynchronousInvocation]);
+    field_projection_accessors!(sliced progress_premises: &[PackagePolicyServiceProgressPremise]);
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -34,18 +29,10 @@ pub struct PackagePolicyServiceProgressPremise {
 }
 
 impl PackagePolicyServiceProgressPremise {
-    pub fn profile(&self) -> &PackageReviewNominalIdentity {
-        &self.profile
-    }
-    pub fn subject(&self) -> ServiceProgressSubject {
-        self.subject
-    }
-    pub fn subject_projections(&self) -> &[PackageReviewNominalIdentity] {
-        &self.subject_projections
-    }
-    pub fn establishment_routes(&self) -> &[PackagePolicyServiceProgressRoute] {
-        &self.establishment_routes
-    }
+    field_projection_accessors!(borrowed profile: &PackageReviewNominalIdentity);
+    field_projection_accessors!(copied subject: ServiceProgressSubject);
+    field_projection_accessors!(sliced subject_projections: &[PackageReviewNominalIdentity]);
+    field_projection_accessors!(sliced establishment_routes: &[PackagePolicyServiceProgressRoute]);
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
