@@ -191,6 +191,10 @@ impl<'program> Evaluator<'program> {
                 "root binding activation ticket is missing, consumed, or belongs to another selection",
             );
         }
+        let author_coordinate = self
+            .program
+            .symbols
+            .symbol_source_span(self.program.symbols.authored_origin(frame.machine_symbol));
         let selection = match binding {
             BuildSelectionRequest::ProviderReadiness(_) => {
                 return trap("provider readiness requires a retained Terminal Build activation");
@@ -211,16 +215,11 @@ impl<'program> Evaluator<'program> {
                     language_semantics::declaration_selection::ExecutedEnumExclusion {
                         request,
                         code,
-                        selecting_machine: self
-                            .program
-                            .symbols
-                            .symbol_source_span(frame.machine_symbol)
-                            .ok_or_else(|| {
-                                Halt::Trap(
-                                    "behavior exclusion lost its authored machine coordinate"
-                                        .into(),
-                                )
-                            })?,
+                        selecting_machine: author_coordinate.ok_or_else(|| {
+                            Halt::Trap(
+                                "behavior exclusion lost its authored machine coordinate".into(),
+                            )
+                        })?,
                     },
                 )
             }
@@ -300,13 +299,9 @@ impl<'program> Evaluator<'program> {
                         target,
                         locator,
                         widths,
-                        selecting_machine: self
-                            .program
-                            .symbols
-                            .symbol_source_span(frame.machine_symbol)
-                            .ok_or_else(|| {
-                                Halt::Trap("native binding lost its selecting owner".into())
-                            })?,
+                        selecting_machine: author_coordinate.ok_or_else(|| {
+                            Halt::Trap("native binding lost its selecting owner".into())
+                        })?,
                     },
                 )
             }
@@ -339,13 +334,9 @@ impl<'program> Evaluator<'program> {
                         target,
                         locator,
                         widths: [0; 3],
-                        selecting_machine: self
-                            .program
-                            .symbols
-                            .symbol_source_span(frame.machine_symbol)
-                            .ok_or_else(|| {
-                                Halt::Trap("typed table binding lost its selecting owner".into())
-                            })?,
+                        selecting_machine: author_coordinate.ok_or_else(|| {
+                            Halt::Trap("typed table binding lost its selecting owner".into())
+                        })?,
                     },
                 )
             }
@@ -371,7 +362,7 @@ impl<'program> Evaluator<'program> {
                     .map_err(|_| Halt::Trap("native demand bytes exceeds u64".into()))?;
                 SourceBuildSelection::Native(language_semantics::declaration_selection::ExecutedNativeBinding {
                     request, target, locator:language_semantics::declaration_selection::NativeBindingValue::SameStackDemand{bytes}, widths:[0;3],
-                    selecting_machine:self.program.symbols.symbol_source_span(frame.machine_symbol).ok_or_else(||Halt::Trap("native demand lost its selecting owner".into()))?,
+                    selecting_machine:author_coordinate.ok_or_else(||Halt::Trap("native demand lost its selecting owner".into()))?,
                 })
             }
             BuildSelectionRequest::Declaration(request) => {
@@ -420,16 +411,9 @@ impl<'program> Evaluator<'program> {
                     }
                 };
                 let selecting_machine = if requires_selecting_machine {
-                    Some(
-                        self.program
-                            .symbols
-                            .symbol_source_span(frame.machine_symbol)
-                            .ok_or_else(|| {
-                                Halt::Trap(
-                                    "Product selection lost its authored machine coordinate".into(),
-                                )
-                            })?,
-                    )
+                    Some(author_coordinate.ok_or_else(|| {
+                        Halt::Trap("Product selection lost its authored machine coordinate".into())
+                    })?)
                 } else {
                     None
                 };
