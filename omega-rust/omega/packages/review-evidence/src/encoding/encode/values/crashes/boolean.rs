@@ -68,20 +68,8 @@ fn encode_boolean_node(
         } => {
             encoder.tag("ieee_float_comparison", 7);
             encoder.field("kind", |encoder| {
-                match kind {
-                    PackageReviewIeeeFloatComparisonKind::Equal => encoder.tag("equal", 0),
-                    PackageReviewIeeeFloatComparisonKind::NotEqual => encoder.tag("not_equal", 1),
-                    PackageReviewIeeeFloatComparisonKind::LessThan => encoder.tag("less_than", 2),
-                    PackageReviewIeeeFloatComparisonKind::LessOrEqual => {
-                        encoder.tag("less_or_equal", 3)
-                    }
-                    PackageReviewIeeeFloatComparisonKind::NotLessThan => {
-                        encoder.tag("not_less_than", 4)
-                    }
-                    PackageReviewIeeeFloatComparisonKind::NotLessOrEqual => {
-                        encoder.tag("not_less_or_equal", 5)
-                    }
-                }
+                let (tag, name) = ieee_float_comparison_row(*kind);
+                encoder.tag(name, tag);
                 Ok(())
             })?;
             encoder.field_by("primitive_type", *primitive_type, encode_primitive_type)?;
@@ -111,20 +99,8 @@ fn encode_boolean_node(
         PackageReviewBooleanExpression::ScalarIeeeFloatComparison { kind, left, right } => {
             encoder.tag("scalar_ieee_float_comparison", 13);
             encoder.field("kind", |encoder| {
-                match kind {
-                    PackageReviewIeeeFloatComparisonKind::Equal => encoder.tag("equal", 0),
-                    PackageReviewIeeeFloatComparisonKind::NotEqual => encoder.tag("not_equal", 1),
-                    PackageReviewIeeeFloatComparisonKind::LessThan => encoder.tag("less_than", 2),
-                    PackageReviewIeeeFloatComparisonKind::LessOrEqual => {
-                        encoder.tag("less_or_equal", 3)
-                    }
-                    PackageReviewIeeeFloatComparisonKind::NotLessThan => {
-                        encoder.tag("not_less_than", 4)
-                    }
-                    PackageReviewIeeeFloatComparisonKind::NotLessOrEqual => {
-                        encoder.tag("not_less_or_equal", 5)
-                    }
-                }
+                let (tag, name) = ieee_float_comparison_row(*kind);
+                encoder.tag(name, tag);
                 Ok(())
             })?;
             encoder.field("left", |encoder| encode_scalar_expression(encoder, left))?;
@@ -137,4 +113,19 @@ fn encode_boolean_node(
         }
     }
     Ok(())
+}
+
+/// One row per IEEE float comparison kind: the persisted tag and the authored
+/// spelling, so the structural and scalar comparison arms read one roster.
+const fn ieee_float_comparison_row(
+    kind: PackageReviewIeeeFloatComparisonKind,
+) -> (u8, &'static str) {
+    match kind {
+        PackageReviewIeeeFloatComparisonKind::Equal => (0, "equal"),
+        PackageReviewIeeeFloatComparisonKind::NotEqual => (1, "not_equal"),
+        PackageReviewIeeeFloatComparisonKind::LessThan => (2, "less_than"),
+        PackageReviewIeeeFloatComparisonKind::LessOrEqual => (3, "less_or_equal"),
+        PackageReviewIeeeFloatComparisonKind::NotLessThan => (4, "not_less_than"),
+        PackageReviewIeeeFloatComparisonKind::NotLessOrEqual => (5, "not_less_or_equal"),
+    }
 }
