@@ -18,55 +18,32 @@ pub(super) fn semantic_context_proves_boolean_expression(
     point: facts::ProgramPoint,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
-    if direct_context_proves_boolean_expression(program, semantic, context, expression) {
-        return true;
-    }
-
-    match program.expression_table.expression(expression) {
-        typed_trees::expression::ExpressionNode::Borrow(inner) => {
+    macro_rules! prove_boolean {
+        ($expression:expr) => {
             semantic_context_proves_boolean_expression(
                 program,
                 semantic,
                 context,
                 contexts,
                 point,
-                inner.target,
+                $expression,
             )
+        };
+    }
+    if direct_context_proves_boolean_expression(program, semantic, context, expression) {
+        return true;
+    }
+
+    match program.expression_table.expression(expression) {
+        typed_trees::expression::ExpressionNode::Borrow(inner) => {
+            prove_boolean!(inner.target)
         }
         typed_trees::expression::ExpressionNode::Binary(binary) => match binary.operator {
             typed_trees::expression::BinaryOperator::And => {
-                semantic_context_proves_boolean_expression(
-                    program,
-                    semantic,
-                    context,
-                    contexts,
-                    point,
-                    binary.left,
-                ) && semantic_context_proves_boolean_expression(
-                    program,
-                    semantic,
-                    context,
-                    contexts,
-                    point,
-                    binary.right,
-                )
+                prove_boolean!(binary.left) && prove_boolean!(binary.right)
             }
             typed_trees::expression::BinaryOperator::Or => {
-                semantic_context_proves_boolean_expression(
-                    program,
-                    semantic,
-                    context,
-                    contexts,
-                    point,
-                    binary.left,
-                ) || semantic_context_proves_boolean_expression(
-                    program,
-                    semantic,
-                    context,
-                    contexts,
-                    point,
-                    binary.right,
-                )
+                prove_boolean!(binary.left) || prove_boolean!(binary.right)
             }
             _ => prove_boolean_expression_via_context_domain_membership(
                 program, semantic, context, contexts, point, expression,
