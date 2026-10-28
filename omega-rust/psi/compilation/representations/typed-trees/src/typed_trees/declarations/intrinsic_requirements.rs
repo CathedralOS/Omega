@@ -173,9 +173,8 @@ impl<'typed> IntrinsicRequirement<'typed> {
         // an external realization at all.
         typed.machines().iter().any(|machine| {
             typed
-                .machine_trait_conformances(machine)
-                .iter()
-                .any(|conformance| conformance.external_binding.is_some())
+                .sealed_numeric_realization(machine.symbol, self.symbol)
+                .is_some()
                 && typed
                     .machine_callable_identity_text(machine)
                     .is_some_and(|identity| identity == realization_machine_identity)

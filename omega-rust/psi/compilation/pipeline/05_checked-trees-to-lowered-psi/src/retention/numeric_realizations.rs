@@ -118,6 +118,12 @@ pub(crate) fn project(
                         ));
                     }
                 }
+                let requirement_schema = typed_trees::typed_trees::declarations::intrinsic_requirements::IntrinsicRequirement::by_symbol(typed, requirement)
+                    .map(|requirement| terminal_psi::NumericRequirementSchema {
+                        identity: identities.intern(&requirement.schema_identity()),
+                        method: identities.intern(requirement.method_name()),
+                        owner: identities.intern(requirement.method_owner()),
+                    });
                 let candidate = NumericRealization {
                     requirement: declarations::nominal(identities, checked, sources, requirement)
                         .map_err(LoweringError::Unsupported)?,

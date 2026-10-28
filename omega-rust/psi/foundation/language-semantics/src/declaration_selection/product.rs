@@ -231,7 +231,7 @@ pub struct ProductDeclarationRequest {
     pub operands: Box<[ProductDeclarationOperand]>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProductDeclarationOperand {
     pub path: String,
     pub source_span: source::SourceSpan,

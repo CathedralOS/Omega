@@ -36,7 +36,7 @@ impl RequirementPlanIdentity<'_> {
 /// Numeric provider plans contain one method and one realization. This is
 /// independent of the operation's numeric meaning and its execution authority.
 pub fn matches_requirement_schema(
-    candidate: &ExternalProviderConformance,
+    candidate: &NumericRealization,
     identities: &TerminalIdentityTable,
     plan: &ProviderPlan,
     row: &ProviderPlanRow,
@@ -110,8 +110,9 @@ pub fn matches_numeric_selection(
     row: &ProviderPlanRow,
     machine: &str,
 ) -> bool {
-    identities.text(candidate.requirement_identity)
-        == Some(plan.identities.text(row.requirement_identity))
+    matches_requirement_schema(candidate, identities, plan, row)
+        && identities.text(candidate.requirement_identity)
+            == Some(plan.identities.text(row.requirement_identity))
         && candidate.requirement_package == plan.schema.trait_package_identity
         && candidate
             .target

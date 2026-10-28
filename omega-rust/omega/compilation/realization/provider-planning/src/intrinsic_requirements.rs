@@ -99,49 +99,13 @@ impl<'typed> IntrinsicRequirement<'typed> {
         method: &ServiceMethod,
         row: &ProviderPlanRow,
     ) -> bool {
-        effects::external_providers::RequirementPlanIdentity {
+        effects::numeric_realizations::RequirementPlanIdentity {
             overload: &self.requirement_identity,
             package: self.package_identity,
             schema: &self.schema_identity(),
             method: self.method_name(),
             owner: self.method_owner(),
         }
-    }
-
-    /// Whether the machine named by a plan row's intrinsic binding is an
-    /// external leaf whose `satisfies` edge rejoins exactly this requirement.
-    pub fn intrinsic_realization_matches(
-        &self,
-        typed: &TypedTrees,
-        realization_machine_identity: &str,
-    ) -> bool {
-        // The conformance tests read fields; the overload identity normalizes
-        // the whole signature, so it runs only for a machine that could bind
-        // an external realization at all.
-        typed.machines().iter().any(|machine| {
-            typed.sealed_numeric_realization(machine.symbol, self.symbol).is_some()
-                && typed
-                    .machine_callable_identity_text(machine)
-                    .is_some_and(|identity| identity == realization_machine_identity)
-                && typed
-                    .machine_trait_conformances(machine)
-                    .iter()
-                    .any(|conformance| match self.kind {
-                        IntrinsicRequirementKind::Operator => {
-                            checked_trees::typed_trees::operator::resolve_satisfied_boundary_operator_for_conformance(
-                                typed, machine, conformance,
-                            )
-                            .is_some_and(|resolved| resolved.symbol == self.symbol)
-                        }
-                        IntrinsicRequirementKind::TopLevelRequirement => matches!(
-                            checked_trees::typed_trees::machine::resolve_satisfied_declaration(
-                                typed, machine, conformance,
-                            ),
-                            Some(checked_trees::typed_trees::machine::SatisfiedDeclaration::TopLevelRequirement(
-                                requirement,
-                            )) if requirement.symbol == self.symbol
-                        ),
-                    })
-        })
+        .matches(plan, method, row)
     }
 }
