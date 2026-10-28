@@ -12,10 +12,10 @@ mod adapter_rows;
 pub(crate) mod boundary_fields;
 mod signature_families;
 
-use crate::boundary_dispatch::adapter_rows::{
+use crate::checked_interpreter_dispatch::boundary_dispatch::adapter_rows::{
     AdapterRow, GenericBoundaryRequirement, ResolvedAdapterRow, resolve_selected_adapter_row,
 };
-use crate::boundary_dispatch::boundary_fields::{
+use crate::checked_interpreter_dispatch::boundary_dispatch::boundary_fields::{
     BoundaryField, named_type_symbol, resolve_adapter_call,
 };
 use checked_trees::CheckedTrees;
@@ -492,10 +492,9 @@ pub(crate) fn settle_selected_boundary_adapter_dispatch(
             .map(|application| application.declaring_trait)
             .filter(|trait_symbol| trait_symbol.is_valid())
             .unwrap_or(adapter.receiver_trait);
-        let requirement = application
-            .map_or(adapter.requirement_symbol, |application| {
-                application.template
-            });
+        let requirement = application.map_or(adapter.requirement_symbol, |application| {
+            application.template
+        });
         dispatch.push(checked_trees::CheckedBoundaryAdapterDispatch {
             receiver,
             requirement,

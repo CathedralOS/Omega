@@ -1,7 +1,9 @@
 //! Boundary fields, exact traits, receiver shapes and adapter calls.
 
-use crate::boundary_dispatch::adapter_rows::{AdapterRow, GenericBoundaryRequirement};
-use crate::boundary_dispatch::signature_families::call_argument_const_identity;
+use crate::checked_interpreter_dispatch::boundary_dispatch::adapter_rows::{
+    AdapterRow, GenericBoundaryRequirement,
+};
+use crate::checked_interpreter_dispatch::boundary_dispatch::signature_families::call_argument_const_identity;
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 

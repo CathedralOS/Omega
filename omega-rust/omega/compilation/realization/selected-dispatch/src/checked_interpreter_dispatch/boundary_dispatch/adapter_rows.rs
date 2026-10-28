@@ -1,7 +1,9 @@
 //! Adapter rows, generic boundary requirements and their resolution.
 
-use crate::boundary_dispatch::boundary_fields::exact_boundary_trait;
-use crate::boundary_dispatch::signature_families::{FamilyProbe, finite_signature_family};
+use crate::checked_interpreter_dispatch::boundary_dispatch::boundary_fields::exact_boundary_trait;
+use crate::checked_interpreter_dispatch::boundary_dispatch::signature_families::{
+    FamilyProbe, finite_signature_family,
+};
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 mod closed_trait_applications;

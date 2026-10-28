@@ -625,9 +625,12 @@ native provider admission. Checked source retains no separate FMA association
 list: an operation in an unselected target body creates no deployment demand
 for the selected body. Exact profile and feature admission remain required for
 each realized FMA, and its ordinary target-operation record carries that custody.
-Product adapter dispatch and selected float executions live beside the checked
-program in `SelectedExecution`; they never copy or mutate checked Psi. The
-reference checked interpreter receives those explicit execution bindings.
+The optional reference checked interpreter prepares adapter dispatch and selected
+float executions at its own entrance. `SelectedExecution` retains no reference
+dispatch table, and ordinary Product installation does not scan source to prepare
+an engine it will not run. Terminal/native provider admission consumes canonical
+demand and selected rows independently. Reference preparation never copies or
+mutates checked Psi; Build's required comparison preparation remains separate.
 Matching source-owner/entry/Psi-optimization requests share one Terminal
 production and backing allocation, including in retained native images. Each
 target independently admits the unoptimized composition and retains its own
