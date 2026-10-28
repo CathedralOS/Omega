@@ -5,16 +5,18 @@ use crate::SelectedCompilerIntrinsicExecutionIdentity;
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use provider_planning::SelectedProviderReviewProvenance;
+use provider_planning::service_declarations::{ServiceDeclaration, ServiceDeclarations};
+use std::sync::Arc;
 use symbols::SymbolHandle;
 
 /// One consumer-supplied semantic binding after exact selected-plan
 /// settlement. The raw row remains visible for persistence/review, while the
-/// compiler-resolved declaration symbol prevents later consumers from
-/// searching for authority by a readable path.
+/// exact declaration/schema record prevents later consumers from searching
+/// for authority by a readable path or retaining a source-arena coordinate.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedAcceptedSemanticBinding {
     accepted: package_compilation::AcceptedSemanticBinding,
-    declaration_symbol: SymbolHandle,
+    declaration: Arc<ServiceDeclaration>,
 }
 
 impl ResolvedAcceptedSemanticBinding {
@@ -22,8 +24,8 @@ impl ResolvedAcceptedSemanticBinding {
         &self.accepted
     }
 
-    pub const fn declaration_symbol(&self) -> SymbolHandle {
-        self.declaration_symbol
+    pub fn declaration(&self) -> &ServiceDeclaration {
+        &self.declaration
     }
 
     pub const fn role(&self) -> package_compilation::AcceptedSemanticBindingRole {
@@ -35,8 +37,7 @@ impl ResolvedAcceptedSemanticBinding {
 /// boundary declaration. Unlike Console execution settlement, this does not
 /// claim or synthesize a provider plan.
 pub(crate) fn resolve_accepted_service_binding(
-    checked: &CheckedTrees,
-    calling_plans: &[provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
+    services: &ServiceDeclarations,
     binding: &package_compilation::AcceptedSemanticBinding,
 ) -> Result<ResolvedAcceptedSemanticBinding, Diagnostic> {
     if !matches!(
@@ -57,48 +58,22 @@ pub(crate) fn resolve_accepted_service_binding(
         )));
     }
 
-    let matches = checked
-        .typed
-        .traits()
-        .iter()
-        .filter_map(|definition| {
-            if !definition.is_boundary
-                || checked
-                    .typed
-                    .symbols
-                    .symbol_package_identity(definition.symbol)
-                    != Some(binding.package())
-                || checked.symbols.display_path(definition.symbol, "::")
-                    != binding.declaration_path()
-            {
-                return None;
-            }
-            let schema = provider_planning::service_schema::from_typed(
-                provider_planning::ProviderPlanningContext::new(
-                    checked,
-                    source::DependencyScope::Product,
-                ),
-                calling_plans,
-                definition,
-            )?;
-            (schema.trait_package_identity == Some(binding.package())
-                && package_compilation::accepted_service_schema_digest(binding.role(), &schema)
-                    == binding.normalized_schema_digest())
-            .then_some((definition.symbol, schema))
-        })
-        .collect::<Vec<_>>();
-
-    let [(declaration_symbol, schema)] = matches.as_slice() else {
+    let declaration = services
+        .select(binding.package(), binding.declaration_path())?
+        .declaration;
+    if declaration.schema.trait_package_identity != Some(binding.package())
+        || package_compilation::accepted_service_schema_digest(binding.role(), &declaration.schema)
+            != binding.normalized_schema_digest()
+    {
         return Err(Diagnostic::error(format!(
-            "accepted semantic binding {:?} resolved to {} exact package-owned boundary declarations instead of one",
+            "accepted semantic binding {:?} changed its exact owner or service schema",
             binding.role(),
-            matches.len(),
         )));
-    };
-    validate_terminal_authority_permissions(binding, schema)?;
+    }
+    validate_terminal_authority_permissions(binding, &declaration.schema)?;
     Ok(ResolvedAcceptedSemanticBinding {
         accepted: binding.clone(),
-        declaration_symbol: *declaration_symbol,
+        declaration: Arc::clone(declaration),
     })
 }
 
@@ -113,7 +88,7 @@ pub(crate) fn resolve_accepted_service_binding(
 pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
     checked: &CheckedTrees,
     external_providers: &psi_terminal_production::ExternalProviderDeclarations,
-    calling_plans: &[provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
+    services: &ServiceDeclarations,
     selected_provider_plans: &effects::SelectedProviderPlanFacts,
     provenance: &mut [SelectedProviderReviewProvenance],
     selected_target: Option<&str>,
@@ -308,15 +283,18 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
         match (binding, matches.as_slice()) {
             (None, _) => {}
             (Some(binding), [declaration_symbol]) => {
-                match resolve_terminal_authority_permissions_for_symbol(
-                    checked,
-                    calling_plans,
-                    binding,
-                    *declaration_symbol,
-                ) {
-                    Ok(()) => resolved.push(ResolvedAcceptedSemanticBinding {
+                match services
+                    .for_symbol(*declaration_symbol)
+                    .and_then(|service| {
+                        validate_terminal_authority_permissions(
+                            binding,
+                            &service.declaration.schema,
+                        )?;
+                        Ok(Arc::clone(service.declaration))
+                    }) {
+                    Ok(declaration) => resolved.push(ResolvedAcceptedSemanticBinding {
                         accepted: binding.clone(),
-                        declaration_symbol: *declaration_symbol,
+                        declaration,
                     }),
                     Err(diagnostic) => diagnostics.push(diagnostic),
                 }
@@ -354,6 +332,7 @@ pub(crate) fn produce_direct_boundary_leaves(
     external_providers: &psi_terminal_production::ExternalProviderDeclarations,
     selected: &[SelectedProviderReviewProvenance],
     candidates: &[provider_planning::ProviderPlanCandidate],
+    services: &ServiceDeclarations,
     target: Option<&str>,
     bindings: &[ResolvedAcceptedSemanticBinding],
 ) -> Result<Vec<backend_plan::DirectBoundaryLeaf>, Vec<Diagnostic>> {
@@ -368,18 +347,27 @@ pub(crate) fn produce_direct_boundary_leaves(
                     let source = candidate
                         .direct_source(input)
                         .map_err(|diagnostic| vec![diagnostic])?;
-                    let accepted = |role| {
-                        let binding = bindings.iter().find(|binding| binding.role() == role)?;
-                        let public = selected.iter().find(|provider| {
-                            provider.provider.schema.symbol() == binding.declaration_symbol()
+                    let accepted = |role| -> Result<
+                        Option<crate::compiler_intrinsic::AcceptedRowBinding<'_>>,
+                        Diagnostic,
+                    > {
+                        let Some(binding) = bindings.iter().find(|binding| binding.role() == role)
+                        else {
+                            return Ok(None);
+                        };
+                        let declaration_symbol = services.rejoin(binding.declaration())?.symbol;
+                        let Some(public) = selected.iter().find(|provider| {
+                            provider.provider.schema.symbol() == declaration_symbol
                                 && Some(provider.plan.identity_digest())
                                     == binding.accepted().selected_provider_plan_digest()
-                        })?;
-                        Some(crate::compiler_intrinsic::AcceptedRowBinding {
+                        }) else {
+                            return Ok(None);
+                        };
+                        Ok(Some(crate::compiler_intrinsic::AcceptedRowBinding {
                             accepted: binding.accepted(),
-                            declaration_symbol: Some(binding.declaration_symbol()),
+                            declaration_symbol: Some(declaration_symbol),
                             public_plan: Some(&public.plan),
-                        })
+                        }))
                     };
                     let identity = crate::compiler_intrinsic::row_execution_identity(
                         checked,
@@ -390,8 +378,8 @@ pub(crate) fn produce_direct_boundary_leaves(
                         },
                         source.plan, source.schema, source.row,
                         source.requirement, source.realization, target,
-                        accepted(package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32),
-                        accepted(package_compilation::AcceptedSemanticBindingRole::ProcessExitExitProcessI32),
+                        accepted(package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32).map_err(|diagnostic| vec![diagnostic])?,
+                        accepted(package_compilation::AcceptedSemanticBindingRole::ProcessExitExitProcessI32).map_err(|diagnostic| vec![diagnostic])?,
                     ).map_err(|diagnostic| vec![diagnostic])?;
                     let closed = match identity {
                         Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(identity)) => {
@@ -467,38 +455,6 @@ fn accumulate_accepted_row_match(
             Err(diagnostic) => diagnostics.push(diagnostic),
         }
     }
-}
-
-fn resolve_terminal_authority_permissions_for_symbol(
-    checked: &CheckedTrees,
-    calling_plans: &[provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
-    binding: &package_compilation::AcceptedSemanticBinding,
-    declaration_symbol: SymbolHandle,
-) -> Result<(), Diagnostic> {
-    let declarations = checked
-        .typed
-        .traits()
-        .iter()
-        .filter(|definition| definition.symbol == declaration_symbol)
-        .collect::<Vec<_>>();
-    let [definition] = declarations.as_slice() else {
-        return Err(Diagnostic::error(format!(
-            "accepted semantic binding {:?} resolved permission custody to {} boundary declarations instead of one",
-            binding.role(),
-            declarations.len(),
-        )));
-    };
-    let Some(schema) = provider_planning::service_schema::from_typed(
-        provider_planning::ProviderPlanningContext::new(checked, source::DependencyScope::Product),
-        calling_plans,
-        definition,
-    ) else {
-        return Err(Diagnostic::error(format!(
-            "accepted semantic binding {:?} cannot reconstruct its exact service schema for terminal-authority permission custody",
-            binding.role(),
-        )));
-    };
-    validate_terminal_authority_permissions(binding, &schema)
 }
 
 fn validate_terminal_authority_permissions(

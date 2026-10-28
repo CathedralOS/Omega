@@ -38,6 +38,7 @@ pub use provider_identity::{
 };
 mod provider_planning;
 mod provider_settlement;
+pub mod service_declarations;
 pub mod service_schema;
 #[cfg(test)]
 mod source_guards;
