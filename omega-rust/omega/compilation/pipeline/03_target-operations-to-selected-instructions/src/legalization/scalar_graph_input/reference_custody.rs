@@ -2965,8 +2965,8 @@ pub(in crate::legalization) fn apply(
     custody.validate_occurrences().inspect_err(|_| {
         if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
             eprintln!(
-                "CHECKSITE custody-operation-context machine={:?} position={:?} sources={:?}",
-                function.machine, custody.reference_position, custody.borrowed_sources
+                "CHECKSITE custody-operation-context machine={:?} position={:?} operation={:?} sources={:?}",
+                function.machine, custody.reference_position, operation, custody.borrowed_sources
             );
         }
     })?;
@@ -3236,6 +3236,8 @@ pub(in crate::legalization) fn apply_terminator(
                 types,
                 retirements::DisposalEvent::Edge(edge),
             )?;
+            exit.prune_retired();
+            exit.validate_occurrences()?;
             exits.push((
                 edge,
                 target,
@@ -3251,6 +3253,16 @@ pub(in crate::legalization) fn apply_terminator(
                 types,
                 retirements::DisposalEvent::Edge(edge),
             )?;
+            // There is no successor activation coordinate after completion.
+            // Result transfer authenticated its full leaf ancestry above and
+            // selected cleanup has executed. Captured borrowed-block address
+            // aliases now expire; they are lookup authority, not additional
+            // resident loan occurrences or evidence of descriptor disposal.
+            // Retain and validate every actual surviving leaf and retired
+            // ancestor independently after dropping these local coordinates.
+            custody.borrowed_sources = std::sync::Arc::default();
+            custody.prune_retired();
+            custody.validate_occurrences()?;
         }
     }
     if !exits.is_empty() {
@@ -3340,15 +3352,6 @@ fn apply_cleanup_actions(
         }
         discard_owned(function, custody, types, place, event)?;
     }
-    custody.prune_retired();
-    custody.validate_occurrences().inspect_err(|_| {
-        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-            eprintln!(
-                "CHECKSITE custody-operation-context machine={:?} position={:?} sources={:?}",
-                function.machine, custody.reference_position, custody.borrowed_sources
-            );
-        }
-    })?;
     Ok(())
 }
 
