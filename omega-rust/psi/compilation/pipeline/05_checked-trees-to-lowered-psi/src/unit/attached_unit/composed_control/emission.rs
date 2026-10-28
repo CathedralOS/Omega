@@ -313,6 +313,20 @@ pub(super) fn emit_call_operations(
     operations: &mut OperationBuffer,
     sequence: &mut OperationSequence,
 ) -> Result<(), LoweringError> {
+    // One evaluation's live namespace. The count is the arm's retained prefix.
+    macro_rules! frame_values {
+        ($source_value_count:expr) => {
+            FrameValues {
+                source_value_count: $source_value_count,
+                evaluation,
+                values,
+                next_value,
+                next_block,
+                next_edge,
+                operations,
+            }
+        };
+    }
     // Borrowed-storage windows open and close within one straight-line
     // operation sequence. Every normal exit follows the last operation and
     // requires closed debt. An all-crash terminator abandons that frontier
@@ -373,15 +387,7 @@ pub(super) fn emit_call_operations(
                     catalogs,
                     parameters,
                     sequence,
-                    FrameValues {
-                        source_value_count,
-                        evaluation,
-                        values,
-                        next_value,
-                        next_block,
-                        next_edge,
-                        operations,
-                    },
+                    frame_values!(source_value_count),
                     |frame| {
                         let (mut environment, emission) = frame.split();
                         emission.evaluation.argument_at(
@@ -418,15 +424,7 @@ pub(super) fn emit_call_operations(
                     catalogs,
                     parameters,
                     sequence,
-                    FrameValues {
-                        source_value_count,
-                        evaluation,
-                        values,
-                        next_value,
-                        next_block,
-                        next_edge,
-                        operations,
-                    },
+                    frame_values!(source_value_count),
                     |frame| {
                         let (mut environment, emission) = frame.split();
                         emission.evaluation.call_selector(
@@ -481,15 +479,7 @@ pub(super) fn emit_call_operations(
                         catalogs,
                         parameters,
                         sequence,
-                        FrameValues {
-                            source_value_count,
-                            evaluation,
-                            values,
-                            next_value,
-                            next_block,
-                            next_edge,
-                            operations,
-                        },
+                        frame_values!(source_value_count),
                         |frame| {
                             frame.capture_argument(
                                 identities,
@@ -515,15 +505,7 @@ pub(super) fn emit_call_operations(
                     catalogs,
                     parameters,
                     sequence,
-                    FrameValues {
-                        source_value_count,
-                        evaluation,
-                        values,
-                        next_value,
-                        next_block,
-                        next_edge,
-                        operations,
-                    },
+                    frame_values!(source_value_count),
                     |frame| {
                         let (mut environment, emission) = frame.split();
                         emission.evaluation.window_endpoints(
@@ -656,15 +638,7 @@ pub(super) fn emit_call_operations(
             catalogs,
             parameters,
             sequence,
-            FrameValues {
-                source_value_count,
-                evaluation,
-                values,
-                next_value,
-                next_block,
-                next_edge,
-                operations,
-            },
+            frame_values!(source_value_count),
             |frame| {
                 match &call_operands {
                     None if establishes_local => {
