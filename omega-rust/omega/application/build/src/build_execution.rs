@@ -293,10 +293,24 @@ pub(super) fn prepare_packages<Owner>(
                     ));
                 }
                 Ok(build) => {
+                    let generated = match compiler.prepare_package_build_handoff(&build) {
+                        Ok(generated) => generated,
+                        Err(failure) => {
+                            outcomes.push((
+                                frontier.position,
+                                frontier.owner,
+                                Err(PackageCompileFailure {
+                                    occurrence: frontier.products.len(),
+                                    failure,
+                                }),
+                            ));
+                            continue;
+                        }
+                    };
                     frontier.products.push(OccurrenceProduct {
                         package: build.package_inputs().root(),
                         purpose: build.package_inputs().compilation_purpose(),
-                        generated: build.build_handoff().clone(),
+                        generated,
                         prepared: Some(build),
                         description: None,
                     });

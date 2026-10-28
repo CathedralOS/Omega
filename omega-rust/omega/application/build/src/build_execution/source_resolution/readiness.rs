@@ -673,7 +673,12 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                     .position(|source| source.declared.identity() == package)
                     .ok_or_else(|| Source("helper dependency has no retained Build".into()))?;
                 if let Some(prepared) = self.prepared_product(dependency, purpose)? {
-                    current.generated.push(prepared.build_handoff().clone());
+                    current.generated.push(
+                        self.session
+                            .compiler
+                            .prepare_package_build_handoff(&prepared)
+                            .map_err(Compilation)?,
+                    );
                 } else {
                     pending.push(self.pending_product(dependency, purpose)?);
                 }
@@ -685,7 +690,12 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                 .ok_or_else(|| Source("helper preparation lost its pending Product".into()))?;
             let prepared = self.complete_product(current)?;
             match pending.last_mut() {
-                Some(parent) => parent.generated.push(prepared.build_handoff().clone()),
+                Some(parent) => parent.generated.push(
+                    self.session
+                        .compiler
+                        .prepare_package_build_handoff(&prepared)
+                        .map_err(Compilation)?,
+                ),
                 None => return Ok(prepared),
             }
         }
