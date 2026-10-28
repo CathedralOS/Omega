@@ -2018,6 +2018,16 @@ pass/facts/nested_fourteen_level_record_field_bound_through_other_machine_exit b
 pass/facts/nested_fourteen_level_record_field_bound_through_other_state_exit built 46962ms exit:0 interpreter-exit:0 interpreter:agrees @80e7797d0e1e+wt
 pass/facts/nested_fourteen_level_record_field_bound_through_parameter_exit built 45256ms exit:0 interpreter-exit:0 interpreter:agrees @80e7797d0e1e+wt
 pass/facts/nested_fourteen_level_record_field_bound_through_target_body_exit built 46510ms exit:0 interpreter-exit:0 interpreter:agrees @80e7797d0e1e+wt
+pass/facts/nested_machine_borrowed_result_call_result_exit built 2014ms exit:0 interpreter-exit:0 interpreter:agrees @77ba59fc2830
+pass/facts/nested_machine_borrowed_result_const_name_exit built 1939ms exit:0 interpreter-exit:0 interpreter:agrees @77ba59fc2830
+pass/facts/nested_machine_borrowed_result_field_exit built 1793ms exit:0 interpreter-exit:0 interpreter:agrees @77ba59fc2830
+pass/facts/nested_machine_borrowed_result_invalid_utf8 built 1805ms exit:signal signal:5 interpreter:trapped @77ba59fc2830
+pass/facts/nested_machine_borrowed_result_local_exit built 2064ms exit:0 interpreter-exit:0 interpreter:agrees @77ba59fc2830
+pass/facts/nested_machine_borrowed_result_match_join_exit built 2069ms exit:0 interpreter-exit:0 interpreter:agrees @77ba59fc2830
+pass/facts/nested_machine_borrowed_result_other_machine_exit built 1750ms exit:0 interpreter-exit:0 interpreter:agrees @77ba59fc2830
+pass/facts/nested_machine_borrowed_result_other_state_exit built 1754ms exit:0 interpreter-exit:0 interpreter:agrees @77ba59fc2830
+pass/facts/nested_machine_borrowed_result_parameter_exit built 1777ms exit:0 interpreter-exit:0 interpreter:agrees @77ba59fc2830
+pass/facts/nested_machine_borrowed_result_target_body_exit built 1817ms exit:0 interpreter-exit:0 interpreter:agrees @77ba59fc2830
 pass/facts/nested_machine_completion_result_call_result_exit built 1871ms exit:0 interpreter-exit:0 interpreter:agrees @5b8ead0dbfc5
 pass/facts/nested_machine_completion_result_const_name_exit built 1943ms exit:0 interpreter-exit:0 interpreter:agrees @5b8ead0dbfc5
 pass/facts/nested_machine_completion_result_crash_only_exit built 2017ms exit:0 interpreter-exit:0 interpreter:agrees @5b8ead0dbfc5

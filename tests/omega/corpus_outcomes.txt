@@ -11481,6 +11481,36 @@ fail/facts/nested_fourteen_level_record_field_bound_through_target_body_rejected
 	exact arithmetic in machine `check_target` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `check_target` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `check_target` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/nested_machine_borrowed_result_call_result_rejected rejected 690ms expected @77ba59fc2830
+	cannot prove requires contract for call finish from qualify: bytes in [u8]::Utf8 in state `entry`
+fail/facts/nested_machine_borrowed_result_const_name_rejected rejected 649ms expected @77ba59fc2830
+	cannot prove requires contract for call finish from qualify: bytes in [u8]::Utf8 in state `entry`
+fail/facts/nested_machine_borrowed_result_field_rejected rejected 679ms expected @77ba59fc2830
+	cannot prove requires contract for call finish from qualify: bytes in [u8]::Utf8 in state `entry`
+fail/facts/nested_machine_borrowed_result_issuer_required_rejected rejected 679ms expected @77ba59fc2830
+	cannot prove requires contract for call finish from forged: bytes in [u8]::Issued in state `entry`
+fail/facts/nested_machine_borrowed_result_local_backing_rejected rejected 696ms expected @77ba59fc2830
+	machine `escaped` returns a view borrowing the local `buffer`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/facts/nested_machine_borrowed_result_local_rejected rejected 664ms expected @77ba59fc2830
+	cannot prove requires contract for call finish from qualify: bytes in [u8]::Utf8 in state `entry`
+fail/facts/nested_machine_borrowed_result_match_join_rejected rejected 687ms expected @77ba59fc2830
+	cannot prove requires contract for call finish from qualify: bytes in [u8]::Utf8 in state `entry`
+fail/facts/nested_machine_borrowed_result_other_machine_rejected rejected 655ms expected @77ba59fc2830
+	cannot prove requires contract for call finish from qualify: bytes in [u8]::Utf8 in state `entry`
+fail/facts/nested_machine_borrowed_result_other_state_rejected rejected 661ms expected @77ba59fc2830
+	cannot prove requires contract for call finish from qualify: bytes in [u8]::Utf8 in state `entry`
+fail/facts/nested_machine_borrowed_result_overwritten_contents_rejected rejected 703ms expected @77ba59fc2830
+	cannot prove requires contract for call finish from stale: bytes in [u8]::Utf8 in state `entry`
+fail/facts/nested_machine_borrowed_result_parameter_rejected rejected 698ms expected @77ba59fc2830
+	cannot prove requires contract for call finish from qualify: bytes in [u8]::Utf8 in state `entry`
+fail/facts/nested_machine_borrowed_result_replaced_descriptor_rejected rejected 656ms expected @77ba59fc2830
+	cannot prove requires contract for call finish from stale: bytes in [u8]::Utf8 in state `entry`
+fail/facts/nested_machine_borrowed_result_target_body_rejected rejected 686ms expected @77ba59fc2830
+	cannot prove requires contract for call finish from qualify: bytes in [u8]::Utf8 in state `entry`
+fail/facts/nested_machine_borrowed_result_wrong_extent_rejected rejected 686ms expected @77ba59fc2830
+	cannot prove default-domain field requirement for return from wrong, state entry, at statement 2: buffer.storage requires [u8]::Utf8
+fail/facts/nested_machine_borrowed_result_wrong_origin_rejected rejected 608ms expected @77ba59fc2830
+	cannot prove default-domain field requirement for return from wrong, state entry, at statement 2: second.storage[..second.used] requires [u8]::Utf8
 fail/facts/nested_machine_completion_result_array_unit_arm_rejected rejected 331ms expected @5b8ead0dbfc5
 	machine `missing` state `entry` a terminal arm supplies Unit, but the invocation returns `[u8; 2]`; every normal completion must supply its declared result
 fail/facts/nested_machine_completion_result_call_result_rejected rejected 344ms expected @5b8ead0dbfc5
@@ -27807,6 +27837,16 @@ pass/facts/nested_fourteen_level_record_field_bound_through_other_machine_exit c
 pass/facts/nested_fourteen_level_record_field_bound_through_other_state_exit checked 2827ms check-target:macos_arm64 @a92f16431042
 pass/facts/nested_fourteen_level_record_field_bound_through_parameter_exit checked 1925ms check-target:macos_arm64 @a92f16431042
 pass/facts/nested_fourteen_level_record_field_bound_through_target_body_exit checked 2803ms check-target:macos_arm64 @a92f16431042
+pass/facts/nested_machine_borrowed_result_call_result_exit checked 1657ms check-target:macos_arm64 @77ba59fc2830
+pass/facts/nested_machine_borrowed_result_const_name_exit checked 1699ms check-target:macos_arm64 @77ba59fc2830
+pass/facts/nested_machine_borrowed_result_field_exit checked 1687ms check-target:macos_arm64 @77ba59fc2830
+pass/facts/nested_machine_borrowed_result_invalid_utf8 checked 1637ms check-target:macos_arm64 @77ba59fc2830
+pass/facts/nested_machine_borrowed_result_local_exit checked 1757ms check-target:macos_arm64 @77ba59fc2830
+pass/facts/nested_machine_borrowed_result_match_join_exit checked 1791ms check-target:macos_arm64 @77ba59fc2830
+pass/facts/nested_machine_borrowed_result_other_machine_exit checked 1677ms check-target:macos_arm64 @77ba59fc2830
+pass/facts/nested_machine_borrowed_result_other_state_exit checked 1634ms check-target:macos_arm64 @77ba59fc2830
+pass/facts/nested_machine_borrowed_result_parameter_exit checked 1677ms check-target:macos_arm64 @77ba59fc2830
+pass/facts/nested_machine_borrowed_result_target_body_exit checked 1719ms check-target:macos_arm64 @77ba59fc2830
 pass/facts/nested_machine_completion_result_call_result_exit checked 1964ms check-target:macos_arm64 @5b8ead0dbfc5
 pass/facts/nested_machine_completion_result_const_name_exit checked 1964ms check-target:macos_arm64 @5b8ead0dbfc5
 pass/facts/nested_machine_completion_result_crash_only_exit checked 1776ms check-target:macos_arm64 @5b8ead0dbfc5
