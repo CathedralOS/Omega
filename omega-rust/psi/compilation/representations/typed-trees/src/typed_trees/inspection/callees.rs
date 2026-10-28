@@ -202,6 +202,7 @@ mod tests {
         program
             .expression_table
             .insert(ExpressionNode::Call(TableCallExpression {
+                authored_call_selection: None,
                 authored_call_binding: None,
                 build_selection: Default::default(),
                 authored_machine_application: Default::default(),
