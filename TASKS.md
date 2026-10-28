@@ -698,8 +698,8 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
   and Psi compile-time admission.
   - Connect admitted Build operations, remaining live-storage accounting,
     remaining host operations (including an admitted loan-carrier interface for
-    explicit host loan returns), and `suspend Build::await_provider<R, Backing>(builder)`
-    park/resume to the production Build scheduler, replacing checked-tree Build
+    explicit host loan returns), and the staged dependency preparation/provider
+    park/resume contract to the production Build scheduler, replacing checked-tree Build
     evaluation and static syntax projection in
     `omega-rust/omega/packages/build-declarations`.
   - **BUILD-PRODUCT-REFERENCES / TERMINAL-BUILD-QUERIES:** keep `bind`,
@@ -710,7 +710,7 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
     `fail/build/{product_entry_*,program_entry_binding_outside_build,root_binding_foreign_helper_private_entry}`).
   - **TERMINAL-BUILD-EFFECTS / BUILD-ADMISSION-CHECKPOINT /
     BUILD-SNAPSHOT-OUTPUTS:** join restricted-build requests and lock decisions
-    before any Build effect
+    before each affected Build stage's restricted effects
     (`omega-rust/omega/packages/package-manager/src/review/restricted_build_grants.rs`),
     and stage generated sources, nested dependencies, and committed outputs with
     atomic capture/recapture isolation
@@ -775,6 +775,58 @@ exception matrix, a source rewrite that avoids the operation, or an isolated
 helper that passes does not close an item.
 
 ## Immediate product closure
+
+- **STAGED-BUILD-CAPABILITIES.** Implement the owner-ratified
+  [checked Build stages](wiki/spec/build/scoped_execution.md#checked-build-stages)
+  and ordinary filesystem capability delegation end to end. Deprecate the old
+  flows immediately with actionable diagnostics, migrate their customers, then
+  delete the superseded authoring, scheduling and injected-facet paths in this
+  same outcome; do not retain a legacy mode or a second filesystem API.
+  - Implement configured dependency descriptions and atomic product/Build
+    registrations with immutable exact source, purpose, alias and delegated
+    context. Retire depend/depend_as/build_depend/build_depend_as, alias setter
+    side effects after registration, import-triggered acquisition and host-path
+    fallback. Preserve normal package/source visibility and explicit readiness.
+  - Implement inert deferred Build imports and explicit preparation, with
+    syntax/local obligations checked up front and each dependent continuation
+    resolved, checked and admitted before effects. Preserve one live Terminal
+    activation, exact declaration identities, facts, loans/resources and
+    no-replay behavior. Cover branch-local dependencies, joins, unused imports,
+    bootstrap cycles, later-stage failure and immutable earlier meanings without
+    pretending untaken unresolved continuations were fully checked.
+  - Supply ordinary filesystem backing/implementation arguments, subtree and
+    read-only attenuation, snapshots, private/CoW views, changeset inspection
+    and checked destination application. A dependency cannot bypass its granted
+    view through another provider, imported raw host call, fabricated handle,
+    child lock or resolver credentials; retain explicit resource sponsorship.
+  - Replace named Build input maps and global incoming-map agreement with exact
+    delegated execution-context identities and separate occurrences for different
+    views. Carry identity through review, scheduling, retained artifacts and
+    caches; include negative reads and directory membership, reject grant unions
+    and stale reuse, and decline live/mutable result reuse without adequate
+    observation custody. Keep acquisition, compiled code and result reuse distinct.
+  - Preserve explicit product-reference and generated-source handoff, ordinary
+    artifact completion, failure and export boundaries. Build requests and adds
+    restrictions; locks retain accepted decisions; invocations supply real
+    backing. Retire BuildInputs/BuildSource/BuildOutput filesystem operations,
+    unimplemented with_dependency_inputs design remnants and preknown-only
+    initial-check restrictions, while retaining necessary internal capture,
+    provider admission and immutable-publication mechanisms.
+  - Migrate Rust and Omega producers, Build preludes/protocols, CLI/package
+    review, library Build files, samples, fixtures and authored-input literals.
+    Update semantic/codec identities rather than reinterpret legacy records;
+    source and retained-form retirement controls must reject the old paths after
+    migration. Reuse TERMINAL-BUILD-SEED, not a parallel interpreter or coordinator.
+  Acceptance: root and dependency Builds, a reusable generator and an independently
+  authored filesystem provider execute through the ordinary Terminal pipeline
+  with exact output/diagnostic oracles on supported hosts. The same generator
+  works under real-authorized and virtual attenuated backing without knowing
+  which it received. Mixed source/Build scopes and each new transport mechanism
+  have complete fact rows with meaningful invalid controls. Verify no acquisition
+  for unused imports, no replay, no alias retarget, no unchecked stage effects,
+  no host escape, no partial successful artifact after failure and no wrong-view
+  cache reuse. Matching-host files/changeset observations and all affected
+  existing customer oracles pass; deprecation paths are deleted, not merely hidden.
 
 - **LIBRARY-REPRESENTATION-FAMILIES.** Implement the ratified
   [representation applications](wiki/spec/layouts/plans.md#representation-applications),
