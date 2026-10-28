@@ -839,14 +839,6 @@ fn specialized_signature_substitutions(
     signature: &typed_trees::signature::StateSignature,
     type_parameters: &[typed_trees::data::TypeParameter],
 ) -> Option<Vec<(SymbolHandle, typed_trees::types::TypeReferenceHandle)>> {
-    let trace = std::env::var_os("OMEGA_TRACE_BOUNDARY_TELESCOPE").is_some();
-    if trace {
-        eprintln!(
-            "BOUNDARY_TELESCOPE signature={} parameters={:?}",
-            program.symbols.display_path(signature.symbol, "::"),
-            type_parameters
-        );
-    }
     let mut resolved: Option<Vec<checked_trees::CheckedRequirementCallTypeBinding>> = None;
     for (_, flow_state) in facts.flow.control.states.iter() {
         for call in facts.flow.control.calls.span_or_empty(flow_state.calls) {
@@ -884,21 +876,7 @@ fn specialized_signature_substitutions(
             };
             let specialization = facts
                 .requirement_call_specializations
-                .for_site(site, signature.symbol);
-            if trace {
-                eprintln!(
-                    "BOUNDARY_TELESCOPE call machine={} state={} statement={} ordinal={} site={:?} specialized={:?}",
-                    program
-                        .symbols
-                        .display_path(flow_state.machine_symbol, "::"),
-                    program.symbols.display_path(flow_state.state_symbol, "::"),
-                    call.statement_index,
-                    call.call_ordinal,
-                    site,
-                    specialization
-                );
-            }
-            let specialization = specialization?;
+                .for_site(site, signature.symbol)?;
             // The authored static machine arguments the retained ordinal
             // indexes: validation filtered the `<>` argument list to
             // machine-typed members before recording `static_machine_ordinal`.
@@ -940,20 +918,9 @@ fn specialized_signature_substitutions(
             match &resolved {
                 None => resolved = Some(specialization.type_bindings.clone()),
                 Some(existing) if *existing == specialization.type_bindings => {}
-                Some(_) => {
-                    if trace {
-                        eprintln!(
-                            "BOUNDARY_TELESCOPE incompatible per-call type bindings: previous={resolved:?} current={:?}",
-                            specialization.type_bindings
-                        );
-                    }
-                    return None;
-                }
+                Some(_) => return None,
             }
         }
-    }
-    if trace {
-        eprintln!("BOUNDARY_TELESCOPE resolution={resolved:?}");
     }
     resolved.map(|type_bindings| {
         type_bindings

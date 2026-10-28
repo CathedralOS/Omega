@@ -168,6 +168,20 @@ pub(super) fn checked_unit_provider_candidates(
                     checked
                         .typed
                         .trait_machine_instances(scope.declaration)
+                        .filter(|signature| {
+                            // The source declaration roster owns generic
+                            // conformance. Only a closed or otherwise published
+                            // generic plan is an executable ABI coordinate.
+                            // Actual calls were already retained above, so an
+                            // explicitly demanded open head still refuses.
+                            checked
+                                .state_signature_type_parameters(signature)
+                                .is_empty()
+                                || plans
+                                    .boundary_machines()
+                                    .iter()
+                                    .any(|plan| plan.machine == signature.symbol)
+                        })
                         .map(|signature| signature.symbol),
                 );
             },
