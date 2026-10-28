@@ -19,7 +19,9 @@ use checked_trees::typed_trees::TypedTrees;
 pub use context::ProviderPlanningContext;
 use diagnostics::Diagnostic;
 pub use identities::{eligible, is_named_provider, named_requirement_lifetime_arguments};
-pub use product_requests::{collect_product_provider_selections, form_product_provider_request};
+pub use product_requests::{
+    collect_product_provider_selections, validate_product_provider_description,
+};
 pub use selection::{
     CompositionMode, ProviderOperatorFamilySelection, ProviderSelection, ProviderSelectionIdentity,
     ProviderSelectionSubject,

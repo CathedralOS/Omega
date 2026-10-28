@@ -75,23 +75,13 @@ impl TypedTrees {
                 .scope
                 .scope(self)
                 .and_then(|scope| scope.portable_application_identity(self)),
-            Some(ProductOperandRole::Provider) => {
-                let source = self
-                    .expression_table
-                    .static_machine_application(application.supplying_application);
-                let [selected] = self
-                    .expression_table
-                    .static_machine_application_arguments(application.supplying_application)
-                else {
-                    return Err("Product implementation lost its whole selected application");
-                };
-                crate::type_identity::portable_applied_index_identity(
-                    self,
-                    crate::type_identity::IndexIdentityArgument::StaticArgument(selected),
-                    source.lexical_owner,
-                    &[],
-                )
-            }
+            Some(ProductOperandRole::Provider) => self.portable_conformance_application_identity(
+                application
+                    .implementation
+                    .as_ref()
+                    .ok_or("Product implementation lost its exact closure")?,
+                application.supplying_application,
+            ),
             _ => unreachable!("nominal role checked above"),
         }
         .ok_or("Product application has no complete portable static identity")?;

@@ -79,6 +79,9 @@ pub struct ServiceSchema {
 /// identities resolve in the enclosing schema's table, not an external table.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ServiceReceiverApplication {
+    /// Complete portable applied trait identity, including phantom inputs and
+    /// scoped regions, interned in the enclosing schema's existing table.
+    pub application: ProviderIdentityId,
     pub trait_name: ProviderIdentityId,
     pub trait_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
     pub argument_identities: Vec<ProviderIdentityId>,
@@ -95,7 +98,8 @@ impl ServiceReceiverApplication {
         other: &Self,
         right: &ProviderIdentityTable,
     ) -> bool {
-        self.trait_package_identity == other.trait_package_identity
+        left.text(self.application) == right.text(other.application)
+            && self.trait_package_identity == other.trait_package_identity
             && left.text(self.trait_name) == right.text(other.trait_name)
             && identity_sequence_eq(
                 &self.argument_identities,
@@ -309,6 +313,12 @@ impl PartialEq for ServiceSchema {
 impl Eq for ServiceSchema {}
 
 impl ServiceSchema {
+    pub fn root_application_identity(&self) -> Option<&str> {
+        let root = self.receiver_applications.first()?;
+        let identity = self.identity_text(root.application);
+        (!identity.is_empty()).then_some(identity)
+    }
+
     /// Check the retained roster's structure, not its source authority. Source
     /// derivation and independent review replay establish the applied edges;
     /// a decoded annotation cannot establish an inheritance relationship.

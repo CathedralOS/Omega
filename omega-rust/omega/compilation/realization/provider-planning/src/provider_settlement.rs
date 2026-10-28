@@ -189,6 +189,7 @@ fn mint_toolchain_settled_plan(
         ),
         provider_type: provider.to_owned(),
         provider_type_package_identity: None,
+        provider_application: Default::default(),
         target: target_name.to_owned(),
         schema,
         rows,
@@ -397,6 +398,7 @@ fn demanded_provider_plans(
                         selection.subject.selects_schema(
                             candidate.provenance.schema.symbol(),
                             candidate.plan.identity_text(row.requirement_identity),
+                            candidate.plan.schema.root_application_identity(),
                         )
                     })
                 })
