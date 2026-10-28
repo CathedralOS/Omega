@@ -24,14 +24,18 @@ machine repair<'storage>(slot: &mut View<'storage>, remaining: u64) {
     let removed: View<'storage> = slot;
     slot = rebuild(removed, remaining);
 }
+machine perform<'storage>(view: &mut View<'storage>, select: bool) {
+    let remaining: u64 = match select { true -> 7 false -> 0 };
+    repair(view, remaining);
+}
 machine main() crashes Trap {
-    let mut cell: Cell = Cell { value: 0, canary: 7 };
+    let mut cell: Cell = Cell { value: 3, canary: 7 };
     let mut view: View = View { cell: &mut cell, stamp: 13 };
-    repair(&mut view, 7);
+    perform(&mut view, true);
     let first: u64 = view.cell.value;
-    repair(&mut view, 0);
-    let correct: bool = first == 7 && view.cell.value == 7 && view.cell.canary == 7 && view.stamp == 13;
-    transition correct && cell.value == 7 && cell.canary == 7 {
+    perform(&mut view, false);
+    let correct: bool = first == 10 && view.cell.value == 10 && view.cell.canary == 7 && view.stamp == 13;
+    transition correct && cell.value == 10 && cell.canary == 7 {
         true -> done() false -> bad()
     }
     machine done() {}
