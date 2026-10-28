@@ -18,7 +18,8 @@ pub struct PackagePolicyTerminalPermissions {
 }
 
 impl PackagePolicyTerminalPermissions {
-    crate::record::accessors::record_accessors!(package, target);
+    field_projection_accessors!(copied package: semantic_vocabulary::PackageKeyIdentity);
+    field_projection_accessors!(copied target: target::TargetProfile);
     field_projection_accessors!(sliced services: &[PackagePolicyTerminalService]);
 
     pub(crate) fn validate_canonical_structure(&self) -> Result<(), &'static str> {
@@ -58,7 +59,7 @@ pub struct PackagePolicyTerminalService {
 }
 
 impl PackagePolicyTerminalService {
-    crate::record::accessors::record_accessors!(static_parameters);
+    field_projection_accessors!(sliced static_parameters: &[PackagePolicyTypeParameter]);
     field_projection_accessors!(borrowed service: &PackageReviewNominalIdentity);
 
     field_projection_accessors!(copied lifetime_parameter_count: u32);
@@ -73,6 +74,6 @@ pub struct PackagePolicyTerminalPermission {
 }
 
 impl PackagePolicyTerminalPermission {
-    crate::record::accessors::record_accessors!(requirement);
+    field_projection_accessors!(borrowed requirement: &PackageReviewNominalIdentity);
     field_projection_accessors!(borrowed permitted: &TerminalAuthorityDisposition);
 }

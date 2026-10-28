@@ -27,7 +27,8 @@ pub struct PackagePolicyCallables {
 }
 
 impl PackagePolicyCallables {
-    crate::record::accessors::record_accessors!(package, target);
+    field_projection_accessors!(copied package: semantic_vocabulary::PackageKeyIdentity);
+    field_projection_accessors!(copied target: target::TargetProfile);
     field_projection_accessors!(sliced callables: &[PackagePolicyCallable]);
 }
 

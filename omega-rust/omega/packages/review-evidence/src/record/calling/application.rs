@@ -65,7 +65,7 @@ pub(crate) enum PackagePolicyNativeParameterOrigin {
 }
 
 impl PackagePolicyCallingPlan {
-    crate::record::accessors::record_accessors!(static_parameters);
+    field_projection_accessors!(sliced static_parameters: &[PackagePolicyTypeParameter]);
     field_projection_accessors!(borrowed boundary_trait: &PackageReviewNominalIdentity);
     field_projection_accessors!(sliced boundary_arguments: &[PackageReviewTypeIdentity]);
     field_projection_accessors!(sliced boundary_lifetime_arguments: &[u32]);

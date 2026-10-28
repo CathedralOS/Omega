@@ -63,7 +63,7 @@ pub struct PackageReviewInstallationReach {
 }
 
 impl PackageReviewInstallationReach {
-    crate::record::accessors::record_accessors!(requirement);
+    field_projection_accessors!(borrowed requirement: &PackageReviewNominalIdentity);
     field_projection_accessors!(sliced upper_bound: &[PackageReviewNominalIdentity]);
 }
 

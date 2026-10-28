@@ -36,7 +36,7 @@ pub struct PackagePolicyServiceMethod {
 }
 
 impl PackagePolicyServiceMethod {
-    crate::record::accessors::record_accessors!(requirement);
+    field_projection_accessors!(borrowed requirement: &PackageReviewNominalIdentity);
     field_projection_accessors!(copied completion: semantic_vocabulary::BoundaryCompletion);
     field_projection_accessors!(borrowed authority: &PackagePolicyServiceAuthority);
     field_projection_accessors!(borrowed signature: &PackagePolicyServiceSignature);

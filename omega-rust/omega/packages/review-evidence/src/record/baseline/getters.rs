@@ -20,7 +20,8 @@ use crate::record::PackageReviewPropositionShape;
 use crate::record::accessors::field_projection_accessors;
 
 impl PackagePolicyBaseline {
-    crate::record::accessors::record_accessors!(package, target);
+    field_projection_accessors!(copied package: semantic_vocabulary::PackageKeyIdentity);
+    field_projection_accessors!(copied target: target::TargetProfile);
     field_projection_accessors!(borrowed public_api: &PackagePolicyPublicApi);
     pub fn public_traits(&self) -> &[PackagePolicyTraitShape] {
         self.public_api.traits()

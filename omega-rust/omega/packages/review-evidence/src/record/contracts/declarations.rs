@@ -28,6 +28,6 @@ pub(crate) struct PackageReviewOperatorShape {
 }
 
 impl PackageReviewConstShape {
-    crate::record::accessors::record_accessors!(identity);
+    field_projection_accessors!(borrowed identity: &PackageReviewNominalIdentity);
     field_projection_accessors!(borrowed declared_type: &PackageReviewTypeIdentity);
 }

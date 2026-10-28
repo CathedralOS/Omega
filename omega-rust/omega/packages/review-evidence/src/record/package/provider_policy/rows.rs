@@ -26,7 +26,7 @@ pub struct PackagePolicyProviderRow {
 }
 
 impl PackagePolicyProviderRow {
-    crate::record::accessors::record_accessors!(requirement);
+    field_projection_accessors!(borrowed requirement: &PackageReviewNominalIdentity);
     pub fn method(&self) -> &str {
         &self.method
     }

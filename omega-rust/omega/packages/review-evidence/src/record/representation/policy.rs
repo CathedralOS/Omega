@@ -57,7 +57,7 @@ pub struct PackagePolicyRepresentationDemand {
 }
 
 impl PackagePolicyRepresentation {
-    crate::record::accessors::record_accessors!(package);
+    field_projection_accessors!(copied package: semantic_vocabulary::PackageKeyIdentity);
     field_projection_accessors!(copied target: PackageReviewRepresentationTarget);
     field_projection_accessors!(sliced declarations: &[PackageReviewNominalIdentity]);
     field_projection_accessors!(sliced producer_availability: &[PackagePolicyRepresentationAvailability]);

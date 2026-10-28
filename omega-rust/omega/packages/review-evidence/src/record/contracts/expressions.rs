@@ -203,7 +203,7 @@ pub struct PackageReviewOperatorCoordinate {
 }
 
 impl PackageReviewOperatorCoordinate {
-    crate::record::accessors::record_accessors!(identity);
+    field_projection_accessors!(borrowed identity: &PackageReviewNominalIdentity);
     pub fn result_dispatch(&self) -> &str {
         &self.result_dispatch
     }

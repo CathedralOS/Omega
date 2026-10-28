@@ -136,7 +136,7 @@ pub struct PackageReviewPropositionShape {
 }
 
 impl PackageReviewPropositionShape {
-    crate::record::accessors::record_accessors!(identity);
+    field_projection_accessors!(borrowed identity: &PackageReviewNominalIdentity);
     field_projection_accessors!(sliced binders: &[PackageReviewPropositionBinder]);
     field_projection_accessors!(sliced parameter_types: &[PackageReviewTypeIdentity]);
     field_projection_accessors!(borrowed body: &PackageReviewPublicPropositionBody);
