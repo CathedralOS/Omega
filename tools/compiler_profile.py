@@ -11,7 +11,10 @@ import json
 import os
 from pathlib import Path
 import re
+import stat
 import subprocess
+
+from compiler_profile_images import executable_image
 
 
 SCHEMA = "omega-compiler-build-profile-v1"
@@ -131,11 +134,31 @@ def artifact_codegen(item):
                                  contents=contents.decode("utf-8")))
 
 
+def require_executable_file(binary):
+    mode = binary.stat().st_mode
+    if not stat.S_ISREG(mode) or not os.access(binary, os.X_OK):
+        raise CompilerProfileError(f"{binary}: compiler is not a regular executable file")
+
+
+def require_executable_image(binary, image):
+    """A Cargo profile does not turn a failed linker/strip output into a tool.
+
+    In particular rust-objcopy can report ENOSPC as a warning while Cargo exits
+    successfully and leaves a small data file. Check the executable envelope
+    before trusting either the embedded protocol or a historical Cargo receipt.
+    The host loader still validates and executes the complete image.
+    """
+    if not executable_image(image):
+        raise CompilerProfileError(f"{binary}: compiler output is not a recognized ELF, Mach-O or PE executable image")
+
+
 def require_optimized(binary):
     """Inspect immutable producer bytes before any sample or fixture execution."""
     binary = Path(binary).absolute()
     try:
+        require_executable_file(binary)
         image = binary.read_bytes()
+        require_executable_image(binary, image)
         identity = hashlib.sha256(image).hexdigest()
         bound_receipt = None
         if SCHEMA.encode() in image:
@@ -202,6 +225,8 @@ def record_cargo_build(binary, output):
     Host build-script dependencies are deliberately not runtime compiler inputs.
     """
     binary = Path(binary).absolute()
+    require_executable_file(binary)
+    require_executable_image(binary, binary.read_bytes())
     profiles, codegen = {}, {}
     for line in output.splitlines():
         try:
