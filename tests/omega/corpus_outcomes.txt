@@ -3089,7 +3089,7 @@ fail/control_flow/state_result_differs_from_machine_result rejected 1648ms expec
 	machine `Main::main` state `checked` declares result `named(name(i32))`, which differs from the machine's no result
 fail/control_flow/sum_tuple_matrix_uncovered_rejected rejected 3147ms expected @a92f16431042
 	transition pattern matrix in `Main::main` does not cover (`Direction::Right`, `Outcome::Miss`); add an arm or `_`
-fail/control_flow/terminal_unit_linear_local_cleanup rejected 996ms expected @8bcb7be3db2b
+fail/control_flow/terminal_unit_linear_local_cleanup rejected 959ms expected @8ed577b2a049
 	linear value `frame` reaches scope exit without being consumed or transferred in machine `drive` state `entry`
 fail/control_flow/termination_countdown_stalled_decrease rejected 4198ms expected @a92f16431042
 	terminating machine Main::countdown: cannot prove strict rank decrease on a recurrent arrival: the transition from `countdown` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
@@ -17759,10 +17759,12 @@ fail/facts/nested_machine_statement_completion_target_body_rejected rejected 125
 	cannot prove ensures contract for exit from HostedProbeBody::apply at statement 0: result != -1
 fail/facts/nested_machine_statement_completion_wrong_tag_rejected rejected 3078ms expected @b0d06a168a00+wt
 	cannot prove requires contract for call probe from main: choice == constructor:80:package:0ababaff7be122379295755579dfe2fa5efa40c446ce2a4d4011f916f57fb1af::Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/slices/nested_machine_field_window_out_of_bounds rejected 747ms expected @8ed577b2a049
+	cannot prove subslice range end bound `0..wide.length` is within slice length 2
 pass/arithmetic/sparse_captured_utf_path_exit checked 59503ms check-target:macos_arm64 @b0d06a168a00+wt
 pass/build/runtime_dependency_private_native_binding_exit checked 1073ms check-target:macos_arm64 @e5a0b87130b9
 pass/build/runtime_retained_const_application_exit checked 1831ms check-target:macos_arm64 @248be7918b27
-pass/control_flow/runtime_terminal_unit_local_cleanup_exit checked 1022ms check-target:macos_arm64 @8bcb7be3db2b
+pass/control_flow/runtime_terminal_unit_local_cleanup_exit checked 1067ms check-target:macos_arm64 @8ed577b2a049
 pass/facts/nested_machine_statement_completion_call_result_exit checked 15104ms check-target:macos_arm64 @b0d06a168a00+wt
 pass/facts/nested_machine_statement_completion_const_name_exit checked 15196ms check-target:macos_arm64 @b0d06a168a00+wt
 pass/facts/nested_machine_statement_completion_field_exit checked 20163ms check-target:macos_arm64 @b0d06a168a00+wt
@@ -32729,6 +32731,7 @@ pass/slices/runtime_mutable_slice_result_whole_forward_exit rejected 1735ms chec
 pass/slices/runtime_mutable_subslice_state_forwarding_exit checked 2015ms check-target:macos_arm64 @a92f16431042
 pass/slices/runtime_namespace_range_contract_exit checked 2285ms check-target:macos_arm64 @a92f16431042
 pass/slices/runtime_nested_descriptor_scalar_store_exit checked 2742ms check-target:macos_arm64 @a92f16431042
+pass/slices/runtime_nested_machine_field_window_exit checked 1067ms check-target:macos_arm64 @8ed577b2a049
 pass/slices/runtime_nested_stored_view_element_replacement_exit rejected 2258ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "replace", reason: "structural contract observation has no inline canonical path", gap: None })
 pass/slices/runtime_nested_stored_view_return_exit rejected 1944ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042

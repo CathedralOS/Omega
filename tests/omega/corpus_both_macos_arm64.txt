@@ -510,7 +510,7 @@ pass/control_flow/runtime_ranked_state_cycle_owned_record_exit built 2205ms exit
 pass/control_flow/runtime_returned_nested_case_payload_capture_exit built 11883ms exit:0 interpreter-exit:0 interpreter:agrees @eea776ff9546+wt
 pass/control_flow/runtime_root_float_case_payload_exit built 4076ms exit:70 interpreter-exit:70 interpreter:agrees @a800cc9ab970
 pass/control_flow/runtime_scalar_case_arm_evaluation_exit built 38663ms exit:0 interpreter-exit:0 interpreter:agrees @e03f48653b6a
-pass/control_flow/runtime_terminal_unit_local_cleanup_exit built 1048ms exit:0 interpreter-exit:0 interpreter:agrees @8bcb7be3db2b
+pass/control_flow/runtime_terminal_unit_local_cleanup_exit built 1200ms exit:0 interpreter-exit:0 interpreter:agrees @8ed577b2a049
 pass/control_flow/saved_case_predicate_disjoint_effects_exit built 791ms exit:0 interpreter-exit:0 interpreter:agrees @3d64278a43eb
 pass/control_flow/saved_case_predicate_receiver_writes_before_read_exit built 1943ms exit:0 interpreter-exit:0 interpreter:agrees @ec25f66f10a3
 pass/control_flow/self_case_payload_both_arms_exit built 2333ms exit:70 interpreter-exit:70 interpreter:agrees @6a3a2f5cba58
@@ -4379,6 +4379,7 @@ pass/slices/runtime_machine_entry_view_requires_index_exit built 1976ms exit:70 
 pass/slices/runtime_matched_window_coordinate_capture_exit built 3361ms exit:0 interpreter-exit:0 interpreter:agrees @3384eccdf464
 pass/slices/runtime_mutable_byte_view_loop_write_exit built 7114ms exit:70 interpreter-exit:70 interpreter:agrees @3fa817733300+wt
 pass/slices/runtime_nested_descriptor_scalar_store_exit built 3203ms exit:0 interpreter-exit:0 interpreter:agrees @7ba26861e79c+wt
+pass/slices/runtime_nested_machine_field_window_exit built 1289ms exit:0 interpreter-exit:0 interpreter:agrees @8ed577b2a049
 pass/slices/runtime_nested_stored_view_element_replacement_exit built 3131ms exit:0 interpreter-exit:0 interpreter:agrees @f48a7c9556ec+wt
 pass/slices/runtime_nonzero_window_result_snapshot_exit built 2243ms exit:0 interpreter-exit:0 interpreter:agrees @daf76df20a9d+wt
 pass/slices/runtime_observed_window_extents_exit built 1425ms exit:0 interpreter-exit:0 interpreter:agrees @daf76df20a9d+wt
