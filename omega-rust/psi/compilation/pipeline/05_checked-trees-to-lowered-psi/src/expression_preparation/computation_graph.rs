@@ -606,6 +606,7 @@ pub(crate) fn structural_dependencies(
             | Value::FixedArray { .. }
             | Value::Call { .. }
             | Value::ByteLiteralView { .. }
+            | Value::FixedByteArrayLiteral { .. }
             | Value::ZeroedStructural { .. } => {}
         }
     }

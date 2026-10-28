@@ -673,6 +673,12 @@ impl Builder<'_, '_> {
                 quotient: cast.target_type,
                 license: checked_trees::CheckedQuotientAdaptationLicense::Mint,
             }
+        } else if let Some(bytes) =
+            validation::fixed_byte_array_literal(self.program, expression, expected)
+        {
+            CheckedStructuralValueKind::FixedByteArrayLiteral {
+                bytes: bytes.to_vec(),
+            }
         } else if matches!(
             self.program.expression_table.expression(expression),
             ExpressionNode::String(_)

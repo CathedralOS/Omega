@@ -86,6 +86,91 @@ impl emission::Emission<'_, '_, '_> {
         Ok(ValueOutcome::Normal(place))
     }
 
+    /// Copy a quoted evaluator value into ordinary exact-width array storage.
+    /// Its cooked source bytes and complete scalar declaration are checked
+    /// before any operation is emitted; immutable image storage never becomes
+    /// an owned argument or a fabricated borrowed descriptor.
+    pub(super) fn fixed_byte_array_literal(
+        &mut self,
+        expression: checked_trees::expression::ExpressionHandle,
+        bytes: &[u8],
+    ) -> Result<PlaceId, LoweringError> {
+        if validation::fixed_byte_array_literal(
+            &self.checked.typed,
+            expression,
+            self.type_reference,
+        ) != Some(bytes)
+        {
+            return unsupported("fixed byte literal lost its exact source and declared width");
+        }
+        let declaration =
+            terminal_psi::find_structural_type(&self.structural_types[..], self.structural_type)
+                .ok_or(LoweringError::Unsupported(
+                    "fixed byte literal carrier is missing",
+                ))?;
+        let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
+            return unsupported("fixed byte literal has a nonarray carrier");
+        };
+        if usize::try_from(length).ok() != Some(bytes.len()) {
+            return unsupported("fixed byte literal width differs from its array carrier");
+        }
+        let scalar_type = crate::emission::scalar_types::integer_scalar_type(
+            checked_trees::types::PrimitiveType::U8,
+        )?;
+        let element = terminal_psi::find_structural_type(&self.structural_types[..], element)
+            .ok_or(LoweringError::Unsupported(
+                "fixed byte literal element is missing",
+            ))?;
+        if element.shape != StructuralTypeShape::PrimitiveScalar(scalar_type)
+            || element.quotient_carrier.is_some()
+        {
+            return unsupported("fixed byte literal element is not an ordinary byte scalar");
+        }
+        let integer_type = scalar_type.as_integer().ok_or(LoweringError::Unsupported(
+            "fixed byte literal element is not an integer",
+        ))?;
+        if let Some(restriction) = &element.scalar_restriction {
+            for byte in bytes {
+                let literal = semantic_vocabulary::ScalarTerm::Integer {
+                    scalar_type: integer_type,
+                    value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(*byte)),
+                };
+                if !terminal_semantics::scalar_field_accepts_literal(restriction, &literal) {
+                    return unsupported("fixed byte literal violates its element declaration");
+                }
+            }
+        }
+        let mut elements = Vec::with_capacity(bytes.len());
+        for byte in bytes {
+            elements.push(
+                crate::emission::operation_emission::expressions::emit_scalar_leaf(
+                    OperationKind::IntegerConstant {
+                        value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(*byte)),
+                    },
+                    scalar_type,
+                    self.next_value,
+                    self.operations,
+                ),
+            );
+        }
+        let (place, operation) = super::super::operation_frame::allocate_structural_result(
+            self.operations,
+            self.environment.next_place,
+            self.structural_type,
+            self.multiplicity,
+            Vec::new(),
+            OperationKind::EstablishScalarArray { elements },
+        )?;
+        self.environment.private_places.push(
+            super::super::operation_frame::operation_result_declaration(
+                place,
+                operation,
+                self.structural_type,
+            ),
+        );
+        Ok(place)
+    }
+
     /// Establish the current carrier's whole zero as a fresh owned place. The
     /// image owns storage only, so a linear carrier's zero is presented as
     /// affine (`zeroed_image`).

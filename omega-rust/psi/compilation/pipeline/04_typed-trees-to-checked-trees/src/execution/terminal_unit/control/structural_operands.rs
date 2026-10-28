@@ -572,6 +572,7 @@ pub(in crate::execution::terminal_unit) fn value_calls(
             | checked_trees::CheckedStructuralValueKind::Scalar { .. }
             | checked_trees::CheckedStructuralValueKind::ZeroedStructural { .. }
             | checked_trees::CheckedStructuralValueKind::ByteLiteralView { .. }
+            | checked_trees::CheckedStructuralValueKind::FixedByteArrayLiteral { .. }
             | checked_trees::CheckedStructuralValueKind::Place(_) => {}
         }
     }

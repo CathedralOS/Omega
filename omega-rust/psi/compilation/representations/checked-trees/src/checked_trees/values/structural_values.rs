@@ -182,6 +182,13 @@ pub enum CheckedStructuralValueKind {
     ByteLiteralView {
         bytes: Vec<u8>,
     },
+    /// An exact-width owned array snapshot of cooked quoted bytes. It has no
+    /// stored descriptor or loan of image storage. Lowering independently
+    /// rejoins the source literal and complete declared array before publishing
+    /// ordinary scalar-array initialization and its qualification decisions.
+    FixedByteArrayLiteral {
+        bytes: Vec<u8>,
+    },
     /// Narrow the descriptor produced by an evaluated collection value. The
     /// child and then the authored endpoints execute once, in that order;
     /// backing storage remains borrowed rather than lending descriptor storage.

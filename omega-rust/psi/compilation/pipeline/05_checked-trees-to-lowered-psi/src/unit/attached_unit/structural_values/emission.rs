@@ -785,32 +785,33 @@ fn prepare_owners(
         let entry = source_parameters
             .iter()
             .any(|parameter| parameter.symbol == symbol);
-        let has_conflicting_selection = checked
-            .facts
-            .flow
-            .ownership
-            .with_state_owned_selections(state, |handles| {
-                handles.iter().copied().any(|handle| {
-                    let receipt = checked.facts.flow.ownership.owned_selections.get(handle);
-                    receipt.machine == machine
-                        && receipt.state == state
-                        && matches!(
-                            receipt.evaluation,
-                            checked_trees::FlowPermissionEvaluation::Statement
-                                | checked_trees::FlowPermissionEvaluation::TransitionGuard
-                        )
-                        && (entry || receipt.statement_ordinal > formation)
-                        && receipt.statement_ordinal < statement
-                        && checked
-                            .facts
-                            .flow
-                            .ownership
-                            .selection_sources
-                            .span_or_empty(receipt.sources)
-                            .iter()
-                            .any(|source| source.symbol == symbol)
-                })
-            });
+        let has_conflicting_selection =
+            checked
+                .facts
+                .flow
+                .ownership
+                .with_state_owned_selections(state, |handles| {
+                    handles.iter().copied().any(|handle| {
+                        let receipt = checked.facts.flow.ownership.owned_selections.get(handle);
+                        receipt.machine == machine
+                            && receipt.state == state
+                            && matches!(
+                                receipt.evaluation,
+                                checked_trees::FlowPermissionEvaluation::Statement
+                                    | checked_trees::FlowPermissionEvaluation::TransitionGuard
+                            )
+                            && (entry || receipt.statement_ordinal > formation)
+                            && receipt.statement_ordinal < statement
+                            && checked
+                                .facts
+                                .flow
+                                .ownership
+                                .selection_sources
+                                .span_or_empty(receipt.sources)
+                                .iter()
+                                .any(|source| source.symbol == symbol)
+                    })
+                });
         if has_conflicting_selection {
             return Ok(false);
         }
@@ -2385,6 +2386,16 @@ impl Emission<'_, '_, '_> {
                         operation,
                         self.structural_type,
                     ));
+                self.complete_construction(
+                    identities,
+                    place,
+                    node.qualification_decisions,
+                    completion,
+                    continuation,
+                )
+            }
+            CheckedStructuralValueKind::FixedByteArrayLiteral { bytes } => {
+                let place = self.fixed_byte_array_literal(node.expression, &bytes)?;
                 self.complete_construction(
                     identities,
                     place,

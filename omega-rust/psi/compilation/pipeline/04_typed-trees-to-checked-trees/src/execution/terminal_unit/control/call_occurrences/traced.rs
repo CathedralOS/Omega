@@ -360,7 +360,8 @@ pub(in crate::execution::terminal_unit) fn outer_calls_in_prefix_traced<'a>(
                     | checked_trees::CheckedStructuralValueKind::ScalarArray { .. }
                     | checked_trees::CheckedStructuralValueKind::Scalar { .. }
                     | checked_trees::CheckedStructuralValueKind::ZeroedStructural { .. }
-                    | checked_trees::CheckedStructuralValueKind::ByteLiteralView { .. } => {}
+                    | checked_trees::CheckedStructuralValueKind::ByteLiteralView { .. }
+                    | checked_trees::CheckedStructuralValueKind::FixedByteArrayLiteral { .. } => {}
                 }
             }
         }

@@ -383,6 +383,7 @@ pub use value_custody::literals::builtin_constant_array_projection_type;
 pub use value_custody::literals::declared_constant_array_type;
 pub use value_custody::literals::evaluate_anonymous_numeric_comparison;
 pub use value_custody::literals::evaluate_anonymous_numeric_expression;
+pub use value_custody::literals::fixed_byte_array_literal;
 pub use value_custody::literals::has_anonymous_numeric_results;
 pub use value_custody::literals::has_anonymous_operator_meaning;
 pub use value_custody::literals::land_anonymous_integer_expression;
