@@ -91,22 +91,20 @@ impl Scope<'_> {
     }
 }
 
-fn scope(callable: &PackagePolicyCallable) -> Scope<'_> {
+/// Root binder telescope of one callable's own statics and formals.
+fn callable_scope(callable: &PackagePolicyCallable) -> Scope<'_> {
     Scope {
-        outer: None,
-        statics: &[],
-        policy_statics: &callable.type_parameters,
-        proposition_binders: &[],
-        static_offset: 0,
-        lifetimes: callable.lifetime_parameter_count,
         parameters: callable.parameters.len(),
         result: callable.return_type.is_some(),
-        domain_subject: false,
+        ..crate::record::public_policy::validation::scope(
+            &callable.type_parameters,
+            callable.lifetime_parameter_count,
+        )
     }
 }
 
 pub(super) fn validate(callable: &PackagePolicyCallable) -> Result {
-    let scope = scope(callable);
+    let scope = callable_scope(callable);
     u32::try_from(scope.lifetimes).map_err(|_| "callable lifetime count exceeds portable width")?;
     for (index, parameter) in callable.parameters.iter().enumerate() {
         text(&parameter.name)?;
@@ -149,28 +147,14 @@ pub(super) fn validate(callable: &PackagePolicyCallable) -> Result {
             value_type(argument)?;
         }
         lifetimes(&conformance.trait_lifetime_arguments, &scope)?;
-        if conformance.requirement_lifetime_partition.len()
-            != conformance.trait_lifetime_arguments.len()
+        if conformance.requirement_lifetime_partition
+            != language_semantics::type_identity::normalize_requirement_lifetime_partition(
+                &conformance.trait_lifetime_arguments,
+            )
         {
-            return Err("conformance lifetime partition loses an actual selected lifetime");
-        }
-        let mut next = 0;
-        for (index, argument) in conformance.trait_lifetime_arguments.iter().enumerate() {
-            let expected = if let Some(prior) = conformance.trait_lifetime_arguments[..index]
-                .iter()
-                .position(|prior| prior == argument)
-            {
-                conformance.requirement_lifetime_partition[prior]
-            } else {
-                let ordinal = next;
-                next += 1;
-                ordinal
-            };
-            if conformance.requirement_lifetime_partition[index] != expected {
-                return Err(
-                    "requirement lifetime partition differs from its actual selected lifetimes",
-                );
-            }
+            return Err(
+                "requirement lifetime partition differs from its actual selected lifetimes",
+            );
         }
     }
     for realization in &callable.operator_realizations {
@@ -192,7 +176,7 @@ pub(super) fn expression(
     value: &PackageReviewContractExpression,
     callable: &PackagePolicyCallable,
 ) -> Result {
-    let mut scope = scope(callable);
+    let mut scope = callable_scope(callable);
     scope.result = false;
     expressions::expression(value, &scope, 0)
 }

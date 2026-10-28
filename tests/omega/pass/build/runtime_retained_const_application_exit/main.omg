@@ -1,0 +1,11 @@
+// Expected exit: 0
+use construct;
+use shapes::counts::Counted;
+machine main() crashes Trap {
+ let value: Counted<12> = construct::make();
+ transition value.items.len == 12u64 && value.items[0] == 104u8
+     && value.items[10] == 100u8 && value.items[11] == 42u8 {
+  true -> done() false -> bad()
+ }
+ machine done() {} machine bad() crashes Trap { crash Trap; }
+}

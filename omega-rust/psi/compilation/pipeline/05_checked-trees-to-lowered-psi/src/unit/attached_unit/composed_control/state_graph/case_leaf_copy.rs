@@ -6,10 +6,11 @@
 //! copying observes contents like a scalar field read.
 use super::super::super::{
     Operation, OperationKind, OperationResult, PlaceId, StructuralMultiplicity,
-    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId, unsupported,
+    StructuralPlaceDeclaration, StructuralTypeId, unsupported,
 };
 use super::super::LoweringError;
 use crate::emission::operation_emission::buffer::OperationBuffer;
+use crate::emission::operation_emission::place_declarations::operation_result_place;
 use crate::emission::structural_observations;
 use checked_trees::{
     CheckedMemberIdentity, CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
@@ -91,11 +92,9 @@ pub(super) fn emit(
     let (qualifications, projected_qualifications) =
         terminal_psi::StructuralPathQualification::select(whole, projected, &storage_path);
     let producer = operations.allocate();
-    operations.push(Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
-        id: producer,
-        result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+    operations.push(Operation::unsuspended(
+        producer,
+        OperationResult::Structural(terminal_psi::StructuralOperationResult {
             qualification_establishments: Vec::new(),
             place: destination,
             structural_type: leaf,
@@ -104,16 +103,10 @@ pub(super) fn emit(
             projected_qualifications,
             claims: Vec::new(),
         }),
-        kind: OperationKind::StructuralCaseLeafCopy {
+        OperationKind::StructuralCaseLeafCopy {
             source,
             path: canonical,
         },
-    });
-    Ok(StructuralPlaceDeclaration {
-        id: destination,
-        kind: StructuralPlaceKind::OperationResult {
-            producer,
-            structural_type: leaf,
-        },
-    })
+    ));
+    Ok(operation_result_place(destination, producer, leaf))
 }

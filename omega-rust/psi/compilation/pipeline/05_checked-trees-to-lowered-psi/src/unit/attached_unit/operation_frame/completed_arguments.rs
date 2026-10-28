@@ -5,6 +5,7 @@
 use super::{LoweringError, OperationFrame, StructuralArgument};
 use crate::emission::completed_place::Frontier;
 use crate::emission::operation_emission::calls::PreparedStructuralArgument;
+use crate::emission::operation_emission::place_declarations::operation_result_place;
 
 #[derive(Clone)]
 pub(crate) struct CompletedStructuralArgument {
@@ -350,31 +351,21 @@ pub(crate) fn emit_snapshot(
     )
     .map_err(LoweringError::Unsupported)?;
     let producer = operations.allocate();
-    operations.push(terminal_psi::Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
-        id: producer,
-        result: terminal_psi::OperationResult::Structural(
-            terminal_psi::StructuralOperationResult {
-                qualification_establishments: Vec::new(),
-                place,
-                structural_type,
-                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
-                qualifications,
-                projected_qualifications,
-                claims: Vec::new(),
-            },
-        ),
-        kind: terminal_psi::OperationKind::StructuralLeafCopy {
+    operations.push(terminal_psi::Operation::unsuspended(
+        producer,
+        terminal_psi::OperationResult::Structural(terminal_psi::StructuralOperationResult {
+            qualification_establishments: Vec::new(),
+            place,
+            structural_type,
+            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+            qualifications,
+            projected_qualifications,
+            claims: Vec::new(),
+        }),
+        terminal_psi::OperationKind::StructuralLeafCopy {
             source: source.place,
             path: source.path.clone(),
         },
-    });
-    Ok(terminal_psi::StructuralPlaceDeclaration {
-        id: place,
-        kind: semantic_vocabulary::StructuralPlaceKind::OperationResult {
-            producer,
-            structural_type,
-        },
-    })
+    ));
+    Ok(operation_result_place(place, producer, structural_type))
 }

@@ -729,12 +729,57 @@ impl TypedTrees {
         matches.next().is_none().then_some(first)
     }
 
-    pub fn data_type_parameters(
-        &self,
-        data_definition: &data::DataDefinition,
-    ) -> &[data::TypeParameter] {
-        self.data_type_parameters
-            .span_or_empty(data_definition.type_parameters)
+    // One entry per declaration column: the node field carrying the rows,
+    // the table column that owns them, and the append for that same column.
+    super::declaration_columns! {
+        data_type_parameters(data_definition: data::DataDefinition)
+            -> &[data::TypeParameter] = data_type_parameters.type_parameters;
+        #[inline]
+        data_members(data_definition: data::DataDefinition)
+            -> &[data::DataMember] = data_members.members
+            [push_data_member];
+        #[inline]
+        data_payload_fields(variant: data::DataVariant)
+            -> &[data::DataField] = data_payload_fields.payload
+            [push_data_payload_field];
+        domain_type_parameters(domain: domain::DomainDefinition)
+            -> &[data::TypeParameter] = data_type_parameters.type_parameters;
+        domain_operators(domain: domain::DomainDefinition)
+            -> &[crate::operator::OperatorDefinition] = operators.operators
+            [push_domain_operator];
+        proposition_binders(proposition: proposition::PropositionDefinition)
+            -> &[proposition::PropositionBinder] = proposition_binders.binders
+            [push_proposition_binder];
+        proposition_parameters(proposition: proposition::PropositionDefinition)
+            -> &[signature::StateParameter] = state_parameters.parameters
+            [push_proposition_parameter];
+        proof_facts(domain: domain::DomainDefinition)
+            -> &[domain::ProofFact] = proof_facts.facts;
+        operator_type_parameters(operator: crate::operator::OperatorDefinition)
+            -> &[data::TypeParameter] = data_type_parameters.type_parameters;
+        operator_parameters(operator: crate::operator::OperatorDefinition)
+            -> &[signature::StateParameter] = state_parameters.parameters
+            [push_operator_parameter];
+        operator_contracts(operator: crate::operator::OperatorDefinition)
+            -> &[signature::SignatureContract] = signature_contracts.contracts
+            [push_operator_contract];
+    }
+
+    // The columns whose rows are read by raw span elsewhere: only the
+    // append has a declaration node to name.
+    super::declaration_columns! {
+        append push_mathematical_parameter(
+            definition: crate::mathematical::MathematicalDefinition,
+            crate::mathematical::MathematicalParameter
+        ) = mathematical_parameters.parameters;
+        append push_measure_path_member(
+            measure: measure::MeasureDefinition,
+            crate::name::Identifier
+        ) = measure_path_members.name;
+        append push_operator_path_member(
+            operator: crate::operator::OperatorDefinition,
+            crate::name::Identifier
+        ) = operator_path_members.name;
     }
 
     /// Syntax lowering places each ordinary Value binder's descriptor before
@@ -814,19 +859,6 @@ impl TypedTrees {
             .collect()
     }
 
-    pub fn push_data_member(
-        &mut self,
-        data_definition: &mut data::DataDefinition,
-        member: data::DataMember,
-    ) {
-        self.data_members
-            .append_to_span(&mut data_definition.members, member);
-    }
-
-    #[inline]
-    pub fn data_members(&self, data_definition: &data::DataDefinition) -> &[data::DataMember] {
-        self.data_members.span_or_empty(data_definition.members)
-    }
     /// Every payload field across `members`: a field member contributes
     /// itself; a variant contributes its payload fields.
     pub fn data_member_fields<'a>(
@@ -1026,20 +1058,6 @@ impl TypedTrees {
         Some((definition, variant))
     }
 
-    pub fn push_data_payload_field(
-        &mut self,
-        variant: &mut data::DataVariant,
-        field: data::DataField,
-    ) {
-        self.data_payload_fields
-            .append_to_span(&mut variant.payload, field);
-    }
-
-    #[inline]
-    pub fn data_payload_fields(&self, variant: &data::DataVariant) -> &[data::DataField] {
-        self.data_payload_fields.span_or_empty(variant.payload)
-    }
-
     /// The payload field keyed `symbol` within `variant`, when declared.
     pub fn data_payload_field_by_symbol(
         &self,
@@ -1051,23 +1069,6 @@ impl TypedTrees {
             .find(|candidate| candidate.symbol == symbol)
     }
 
-    pub fn domain_type_parameters(
-        &self,
-        domain: &domain::DomainDefinition,
-    ) -> &[data::TypeParameter] {
-        self.data_type_parameters
-            .span_or_empty(domain.type_parameters)
-    }
-
-    pub fn push_domain_operator(
-        &mut self,
-        domain: &mut domain::DomainDefinition,
-        operator: crate::operator::OperatorDefinition,
-    ) {
-        self.operators
-            .append_to_span(&mut domain.operators, operator);
-    }
-
     /// The domain definition `symbol` declares, if it exists.
     pub fn domain_definition(
         &self,
@@ -1075,17 +1076,6 @@ impl TypedTrees {
     ) -> Option<&domain::DomainDefinition> {
         self.domain_position_by_symbol(symbol)
             .map(|position| &self.domain_definitions()[position])
-    }
-
-    pub fn domain_operators(
-        &self,
-        domain: &domain::DomainDefinition,
-    ) -> &[crate::operator::OperatorDefinition] {
-        self.operators.span_or_empty(domain.operators)
-    }
-
-    pub fn proof_facts(&self, domain: &domain::DomainDefinition) -> &[domain::ProofFact] {
-        self.proof_facts.span_or_empty(domain.facts)
     }
 
     pub fn proof_fact_source_span(
@@ -1119,44 +1109,6 @@ impl TypedTrees {
             .find(|definition| definition.symbol == symbol)
     }
 
-    pub fn proposition_binders(
-        &self,
-        proposition: &proposition::PropositionDefinition,
-    ) -> &[proposition::PropositionBinder] {
-        self.tables
-            .proposition_binders
-            .span_or_empty(proposition.binders)
-    }
-
-    pub fn push_proposition_binder(
-        &mut self,
-        proposition: &mut proposition::PropositionDefinition,
-        binder: proposition::PropositionBinder,
-    ) {
-        self.tables
-            .proposition_binders
-            .append_to_span(&mut proposition.binders, binder);
-    }
-
-    pub fn proposition_parameters(
-        &self,
-        proposition: &proposition::PropositionDefinition,
-    ) -> &[signature::StateParameter] {
-        self.tables
-            .state_parameters
-            .span_or_empty(proposition.parameters)
-    }
-
-    pub fn push_proposition_parameter(
-        &mut self,
-        proposition: &mut proposition::PropositionDefinition,
-        parameter: signature::StateParameter,
-    ) {
-        self.tables
-            .state_parameters
-            .append_to_span(&mut proposition.parameters, parameter);
-    }
-
     pub fn push_mathematical_definition(
         &mut self,
         definition: crate::mathematical::MathematicalDefinition,
@@ -1164,16 +1116,6 @@ impl TypedTrees {
         self.tables
             .mathematical_definitions
             .append_to_span(&mut self.roots.mathematical_definitions, definition);
-    }
-
-    pub fn push_mathematical_parameter(
-        &mut self,
-        definition: &mut crate::mathematical::MathematicalDefinition,
-        parameter: crate::mathematical::MathematicalParameter,
-    ) {
-        self.tables
-            .mathematical_parameters
-            .append_to_span(&mut definition.parameters, parameter);
     }
 
     pub fn mathematical_parameters(
@@ -1202,15 +1144,6 @@ impl TypedTrees {
         span: HandleSpan<crate::name::Identifier>,
     ) -> &[crate::name::Identifier] {
         self.domain_path_members.span_or_empty(span)
-    }
-
-    pub fn push_measure_path_member(
-        &mut self,
-        measure: &mut measure::MeasureDefinition,
-        member: crate::name::Identifier,
-    ) {
-        self.measure_path_members
-            .append_to_span(&mut measure.name, member);
     }
 
     pub fn measure_path_members(
@@ -1266,55 +1199,6 @@ impl TypedTrees {
                 .iter()
                 .flat_map(|domain| self.domain_operators(domain)),
         )
-    }
-
-    pub fn push_operator_path_member(
-        &mut self,
-        operator: &mut crate::operator::OperatorDefinition,
-        member: crate::name::Identifier,
-    ) {
-        self.operator_path_members
-            .append_to_span(&mut operator.name, member);
-    }
-
-    pub fn operator_type_parameters(
-        &self,
-        operator: &crate::operator::OperatorDefinition,
-    ) -> &[data::TypeParameter] {
-        self.data_type_parameters
-            .span_or_empty(operator.type_parameters)
-    }
-
-    pub fn push_operator_parameter(
-        &mut self,
-        operator: &mut crate::operator::OperatorDefinition,
-        parameter: signature::StateParameter,
-    ) {
-        self.state_parameters
-            .append_to_span(&mut operator.parameters, parameter);
-    }
-
-    pub fn operator_parameters(
-        &self,
-        operator: &crate::operator::OperatorDefinition,
-    ) -> &[signature::StateParameter] {
-        self.state_parameters.span_or_empty(operator.parameters)
-    }
-
-    pub fn push_operator_contract(
-        &mut self,
-        operator: &mut crate::operator::OperatorDefinition,
-        contract: signature::SignatureContract,
-    ) {
-        self.signature_contracts
-            .append_to_span(&mut operator.contracts, contract);
-    }
-
-    pub fn operator_contracts(
-        &self,
-        operator: &crate::operator::OperatorDefinition,
-    ) -> &[signature::SignatureContract] {
-        self.signature_contracts.span_or_empty(operator.contracts)
     }
 
     pub fn operator_path_members(

@@ -105,8 +105,6 @@ impl RuntimeSplitError {
 
 failed_display!(RuntimeSplitError, "invalid runtime live-range split");
 
-impl std::error::Error for RuntimeSplitError {}
-
 /// Every boundary-settlement position strictly after the definition moves
 /// past the one inserted copy; positions at or before it are unchanged. The
 /// copy is part of the definition's step, so no settlement can land between

@@ -120,7 +120,7 @@ pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
         // A row this compile could not close is retained with its reason, not
         // refused here: whether the boundary is executed is each entry's
         // execution-scope question, answered at admission.
-        let execution = match selected_execution(
+        let identity = match selected_execution(
             external_providers,
             identities,
             &boundary.owner,
@@ -128,7 +128,7 @@ pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
             selected_row.row,
             selected_row.execution,
         ) {
-            Ok(execution) => execution,
+            Ok(identity) => identity,
             Err(reason) => {
                 diagnostics.push(Diagnostic::error(format!(
                     "Terminal boundary `{requirement}` {reason}"
@@ -136,7 +136,7 @@ pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
                 continue;
             }
         };
-        if let Err(reason) = reconcile_numeric_meaning(boundary.numeric_intrinsic, execution) {
+        if let Err(reason) = reconcile_numeric_meaning(boundary.numeric_intrinsic, identity) {
             diagnostics.push(Diagnostic::error(format!(
                 "Terminal boundary `{requirement}` {reason}"
             )));
@@ -145,10 +145,13 @@ pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
         let format = boundary
             .numeric_intrinsic
             .and_then(|meaning| meaning.builtin_format());
-        let settlement = match execution {
+        let settlement = match identity {
             None => super::TerminalCompilerBuiltinSettlement::NoClosedCatalogIdentity,
-            Some(execution) => match compiler_builtin_execution(execution, format) {
-                Some(execution) => super::TerminalCompilerBuiltinSettlement::Execution(execution),
+            Some(identity) => match compiler_builtin_execution(identity, format) {
+                Some(execution) => super::TerminalCompilerBuiltinSettlement::Execution {
+                    identity,
+                    execution,
+                },
                 None => super::TerminalCompilerBuiltinSettlement::NoNativeBoundaryRealization,
             },
         };

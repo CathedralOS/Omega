@@ -4,6 +4,7 @@ use crate::record::PackageReviewDataProperties;
 use crate::record::PackageReviewNominalIdentity;
 use crate::record::PackageReviewSynchronousInvocation;
 use crate::record::PackageReviewTermination;
+use crate::record::accessors::field_projection_accessors;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewTypeIdentity {
@@ -107,19 +108,8 @@ pub struct PackageReviewConformanceBound {
 }
 
 impl PackageReviewConformanceBound {
-    pub const fn binder_ordinal(&self) -> u32 {
-        self.binder_ordinal
-    }
-
-    pub const fn trait_identity(&self) -> &PackageReviewNominalIdentity {
-        &self.trait_identity
-    }
-
-    pub fn trait_lifetime_arguments(&self) -> &[u32] {
-        &self.trait_lifetime_arguments
-    }
-
-    pub fn arguments(&self) -> &[PackageReviewTypeIdentity] {
-        &self.arguments
-    }
+    field_projection_accessors!(copied binder_ordinal: u32);
+    field_projection_accessors!(borrowed trait_identity: &PackageReviewNominalIdentity);
+    field_projection_accessors!(sliced trait_lifetime_arguments: &[u32]);
+    field_projection_accessors!(sliced arguments: &[PackageReviewTypeIdentity]);
 }

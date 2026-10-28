@@ -103,6 +103,7 @@ pub(super) fn emit_invocation(
     crate::selection::scalar_call_abi::normalized_foreign::validate(
         function,
         source,
+        builder.backings,
         call,
         invocation_site,
         result,

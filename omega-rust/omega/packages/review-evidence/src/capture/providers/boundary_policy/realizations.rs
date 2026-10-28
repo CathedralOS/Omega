@@ -92,10 +92,11 @@ pub(super) fn project(
             ));
         }
         let operator_symbol = requirement.symbol;
-        let selected_symbol = *retained
+        let selected_symbol = retained
             .provider
             .row_realizations
             .get(*row_index)
+            .and_then(provider_planning::ProviderRowRealization::authored)
             .ok_or_else(|| rejected("a selected application row without a realization"))?;
         let declaration = nominal_identity(compilation, selected_symbol)?;
         let realization = match checked.realization {

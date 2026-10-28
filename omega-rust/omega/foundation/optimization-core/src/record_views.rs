@@ -7,13 +7,18 @@
 /// leaves the rest of the record (validation in `new`, codecs) to its owner.
 ///
 /// Rows are grouped by accessor form. `copied` rows take `self` by value on a
-/// `Copy` record; `shared` rows take `&self`; `slice` rows name the element
+/// `Copy` record; `shared` rows take `&self` and read a `Copy` field;
+/// `borrowed` rows take `&self` and read a reference to a field the record
+/// owns, so the row names the field's own type; `slice` rows name the element
 /// type of the record's own `Vec` and read it as a slice. The leading `new;`
 /// marker also generates the record's `const` constructor from the `copied`
 /// rows — valid where construction is a pure field restatement, so the marker
 /// stays off a record whose `new` validates.
 ///
-/// Rejected alternatives: one accessor macro per form (three invocations per
+/// `borrowed` is a row form rather than a fourth invocation so one record can
+/// export its `Copy` rows and its retained-evidence rows from a single list.
+///
+/// Rejected alternatives: one accessor macro per form (four invocations per
 /// record, each able to state a different field set), and generating the
 /// struct declaration from these rows (a `slice` row names the element type,
 /// not the record's own `Vec` carrier, so the declaration is not derivable
@@ -24,6 +29,7 @@ macro_rules! record_views {
         record $name:ident; new;
         copied { $($cf:ident : $ct:ty),+ $(,)? }
         $(shared { $($sf:ident : $st:ty),+ $(,)? })?
+        $(borrowed { $($bf:ident : $bt:ty),+ $(,)? })?
         $(slice { $($lf:ident : $le:ty),+ $(,)? })?
     ) => {
         impl $name {
@@ -33,6 +39,7 @@ macro_rules! record_views {
 
             $crate::record_views!(@copied $($cf : $ct),+);
             $($crate::record_views!(@shared $($sf : $st),+);)?
+            $($crate::record_views!(@borrowed $($bf : $bt),+);)?
             $($crate::record_views!(@slice $($lf : $le),+);)?
         }
     };
@@ -40,11 +47,13 @@ macro_rules! record_views {
         record $name:ident;
         $(copied { $($cf:ident : $ct:ty),+ $(,)? })?
         $(shared { $($sf:ident : $st:ty),+ $(,)? })?
+        $(borrowed { $($bf:ident : $bt:ty),+ $(,)? })?
         $(slice { $($lf:ident : $le:ty),+ $(,)? })?
     ) => {
         impl $name {
             $($crate::record_views!(@copied $($cf : $ct),+);)?
             $($crate::record_views!(@shared $($sf : $st),+);)?
+            $($crate::record_views!(@borrowed $($bf : $bt),+);)?
             $($crate::record_views!(@slice $($lf : $le),+);)?
         }
     };
@@ -56,6 +65,11 @@ macro_rules! record_views {
     (@shared $($field:ident : $ty:ty),+ $(,)?) => {
         $(pub const fn $field(&self) -> $ty {
             self.$field
+        })+
+    };
+    (@borrowed $($field:ident : $ty:ty),+ $(,)?) => {
+        $(pub const fn $field(&self) -> &$ty {
+            &self.$field
         })+
     };
     (@slice $($field:ident : $element:ty),+ $(,)?) => {

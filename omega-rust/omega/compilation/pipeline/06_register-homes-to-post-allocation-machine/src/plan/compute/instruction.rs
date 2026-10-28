@@ -4,8 +4,10 @@ use std::collections::BTreeSet;
 
 use register_model::{RegisterOperandAccess, ValidatedPhysicalRegisterModel};
 use selected_instructions::SelectedInstruction;
+use selected_instructions::SelectedInstructionKind as Kind;
 
 use crate::PostAllocationMachineError;
+use physical_instructions::PhysicalAddressOperation as Address;
 use physical_instructions::{PhysicalOperandFootprint, PostAllocationMachineInstruction};
 use selected_instructions::InstructionMachineEffects;
 
@@ -90,107 +92,66 @@ pub(super) fn build(
         alternative,
         operands,
         address: match selected.kind {
-            selected_instructions::SelectedInstructionKind::Load64 { byte_offset } => {
-                Some(physical_instructions::PhysicalAddressOperation::Load64 {
-                    base_operand: 0,
-                    byte_offset,
-                })
-            }
-            selected_instructions::SelectedInstructionKind::LoadPacked { byte_offset, width } => {
-                Some(
-                    physical_instructions::PhysicalAddressOperation::LoadPacked {
-                        base_operand: 0,
-                        byte_offset,
-                        width,
-                    },
-                )
-            }
-            selected_instructions::SelectedInstructionKind::StorePacked { byte_offset, width } => {
-                Some(
-                    physical_instructions::PhysicalAddressOperation::StorePacked {
-                        base_operand: 0,
-                        byte_offset,
-                        width,
-                    },
-                )
-            }
-            selected_instructions::SelectedInstructionKind::Load8 { byte_offset } => {
-                Some(physical_instructions::PhysicalAddressOperation::Load8 {
-                    base_operand: 0,
-                    byte_offset,
-                })
-            }
-            selected_instructions::SelectedInstructionKind::Load16 { byte_offset } => {
-                Some(physical_instructions::PhysicalAddressOperation::Load16 {
-                    base_operand: 0,
-                    byte_offset,
-                })
-            }
-            selected_instructions::SelectedInstructionKind::PlacedScalarAccess {
-                form,
-                contract,
+            Kind::Load64 { byte_offset } => Some(Address::Load64 {
+                base_operand: 0,
                 byte_offset,
-            } => Some(
-                physical_instructions::PhysicalAddressOperation::PlacedScalarAccess {
-                    base_operand: 0,
-                    byte_offset,
-                    form,
-                    contract,
-                },
-            ),
-            selected_instructions::SelectedInstructionKind::Load32 { byte_offset } => {
-                Some(physical_instructions::PhysicalAddressOperation::Load32 {
-                    base_operand: 0,
-                    byte_offset,
-                })
-            }
-            selected_instructions::SelectedInstructionKind::Load8Indexed => Some(
-                physical_instructions::PhysicalAddressOperation::Load8Indexed {
-                    base_operand: 0,
-                    index_operand: 1,
-                },
-            ),
-            selected_instructions::SelectedInstructionKind::HostedReadByte { slot } => {
-                Some(physical_instructions::PhysicalAddressOperation::HostedReadByte { slot })
-            }
-            selected_instructions::SelectedInstructionKind::SaveFloatingControl { slot } => {
-                Some(physical_instructions::PhysicalAddressOperation::SaveFloatingControl { slot })
-            }
-            selected_instructions::SelectedInstructionKind::RestoreFloatingControl { slot } => {
-                Some(
-                    physical_instructions::PhysicalAddressOperation::RestoreFloatingControl {
-                        slot,
-                    },
-                )
-            }
-            selected_instructions::SelectedInstructionKind::HostedWriteByteI32 { slot } => {
-                Some(physical_instructions::PhysicalAddressOperation::HostedWriteByteI32 { slot })
-            }
-            selected_instructions::SelectedInstructionKind::Store {
+            }),
+            Kind::Load8 { byte_offset } => Some(Address::Load8 {
+                base_operand: 0,
+                byte_offset,
+            }),
+            Kind::Load16 { byte_offset } => Some(Address::Load16 {
+                base_operand: 0,
+                byte_offset,
+            }),
+            Kind::Load32 { byte_offset } => Some(Address::Load32 {
+                base_operand: 0,
+                byte_offset,
+            }),
+            Kind::LoadPacked { byte_offset, width } => Some(Address::LoadPacked {
+                base_operand: 0,
+                byte_offset,
+                width,
+            }),
+            Kind::StorePacked { byte_offset, width } => Some(Address::StorePacked {
+                base_operand: 0,
+                byte_offset,
+                width,
+            }),
+            Kind::Store {
                 byte_offset,
                 byte_size,
-            } => Some(physical_instructions::PhysicalAddressOperation::Store {
+            } => Some(Address::Store {
                 base_operand: 0,
                 byte_offset,
                 byte_size,
             }),
-            selected_instructions::SelectedInstructionKind::AddressOffset { byte_offset } => Some(
-                physical_instructions::PhysicalAddressOperation::AddressOffset {
-                    base_operand: 0,
-                    byte_offset,
-                },
-            ),
-            selected_instructions::SelectedInstructionKind::Store64 { slot, byte_offset } => {
-                Some(physical_instructions::PhysicalAddressOperation::Store64 { slot, byte_offset })
+            Kind::AddressOffset { byte_offset } => Some(Address::AddressOffset {
+                base_operand: 0,
+                byte_offset,
+            }),
+            Kind::Store64 { slot, byte_offset } => Some(Address::Store64 { slot, byte_offset }),
+            Kind::FrameAddress { slot, byte_offset } => {
+                Some(Address::FrameAddress { slot, byte_offset })
             }
-            selected_instructions::SelectedInstructionKind::FrameAddress { slot, byte_offset } => {
-                Some(
-                    physical_instructions::PhysicalAddressOperation::FrameAddress {
-                        slot,
-                        byte_offset,
-                    },
-                )
-            }
+            Kind::Load8Indexed => Some(Address::Load8Indexed {
+                base_operand: 0,
+                index_operand: 1,
+            }),
+            Kind::PlacedScalarAccess {
+                form,
+                contract,
+                byte_offset,
+            } => Some(Address::PlacedScalarAccess {
+                base_operand: 0,
+                byte_offset,
+                form,
+                contract,
+            }),
+            Kind::HostedReadByte { slot } => Some(Address::HostedReadByte { slot }),
+            Kind::HostedWriteByteI32 { slot } => Some(Address::HostedWriteByteI32 { slot }),
+            Kind::SaveFloatingControl { slot } => Some(Address::SaveFloatingControl { slot }),
+            Kind::RestoreFloatingControl { slot } => Some(Address::RestoreFloatingControl { slot }),
             _ => None,
         },
         implicit_unit_uses: effects.unit_uses.clone(),

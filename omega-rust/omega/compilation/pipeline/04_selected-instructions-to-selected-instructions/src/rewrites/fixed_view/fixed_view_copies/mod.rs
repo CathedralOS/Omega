@@ -121,5 +121,3 @@ failed_display!(
     OptimizedFixedViewCopyCustodyError,
     "optimized fixed-view copy staging failed"
 );
-
-impl std::error::Error for OptimizedFixedViewCopyCustodyError {}

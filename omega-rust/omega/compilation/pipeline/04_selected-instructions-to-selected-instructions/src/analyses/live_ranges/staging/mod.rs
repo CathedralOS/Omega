@@ -93,5 +93,3 @@ failed_display!(
     OptimizedLiveRangeCustodyError,
     "optimized live-range staging failed"
 );
-
-impl std::error::Error for OptimizedLiveRangeCustodyError {}

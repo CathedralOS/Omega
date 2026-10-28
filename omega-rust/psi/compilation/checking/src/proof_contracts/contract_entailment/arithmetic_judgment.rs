@@ -1232,19 +1232,12 @@ impl<'program> Engine<'program> {
         if !self.selected_binary_meaning(fact, &binary) {
             return None;
         }
-        match binary.operator {
-            BinaryOperator::Equal
-            | BinaryOperator::NotEqual
-            | BinaryOperator::Less
-            | BinaryOperator::LessOrEqual
-            | BinaryOperator::Greater
-            | BinaryOperator::GreaterOrEqual => {
-                let left = self.normalize(binary.left)?;
-                let right = self.normalize(binary.right)?;
-                Some((binary.operator, left, right))
-            }
-            _ => None,
+        if !binary.operator.is_comparison() {
+            return None;
         }
+        let left = self.normalize(binary.left)?;
+        let right = self.normalize(binary.right)?;
+        Some((binary.operator, left, right))
     }
 
     /// Normalize a TERM expression to a polynomial. `None` = outside the

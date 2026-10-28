@@ -122,12 +122,6 @@ impl ConstantBranchReceipt {
     /// carries this identity across.
         branch: SelectedInstructionId,
     });
-    /// The durable transformation identity the post-allocation manifest
-    /// ledger records: the receipt's exact fields under the
-    /// constant-branch domain separator.
-    pub fn identity(&self) -> ConstantBranchIdentity {
-        constant_branch_identity(self)
-    }
 }
 
 receipt_selected_identities!(ConstantBranchReceipt);
@@ -177,5 +171,3 @@ pub enum ConstantBranchError {
 }
 
 failed_display!(ConstantBranchError, "invalid constant branch fold");
-
-impl std::error::Error for ConstantBranchError {}

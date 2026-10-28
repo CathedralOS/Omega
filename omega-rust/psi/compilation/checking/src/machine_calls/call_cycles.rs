@@ -402,68 +402,22 @@ fn collect_expression_dependency_symbols(
     if !expression.is_valid() {
         return;
     }
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Match(dispatch) => {
-            for child in crate::expression_traversal::match_children(program, *dispatch) {
-                collect_expression_dependency_symbols(program, child, symbols);
-            }
-        }
-        ExpressionNode::Atomic(atomic) => {
-            for child in
-                crate::value_custody::atomic_operations::atomic_execution_children(program, atomic)
-            {
-                collect_expression_dependency_symbols(program, child, symbols);
-            }
-        }
-        ExpressionNode::Call(call) => {
-            push_dependency_symbol(symbols, call.target_symbol);
-            symbols.extend(
-                super::machine_parameters::call_selection_dependency_symbols(
-                    program,
-                    typed_trees::references::StaticArgumentCall::Expression(expression, call),
-                ),
-            );
-            collect_expression_dependency_symbols(program, call.receiver, symbols);
-            for argument in program.expression_table.expression_handles(call.arguments) {
-                collect_expression_dependency_symbols(program, *argument, symbols);
-            }
-        }
-        ExpressionNode::Binary(binary) => {
-            collect_expression_dependency_symbols(program, binary.left, symbols);
-            collect_expression_dependency_symbols(program, binary.right, symbols);
-        }
-        ExpressionNode::Cast(cast) => {
-            collect_expression_dependency_symbols(program, cast.value, symbols)
-        }
-        ExpressionNode::Indexed(indexed) => {
-            collect_expression_dependency_symbols(program, indexed.collection, symbols);
-            collect_expression_dependency_symbols(program, indexed.index, symbols);
-        }
-        ExpressionNode::Member(member) => {
-            collect_expression_dependency_symbols(program, member.receiver, symbols)
-        }
-        ExpressionNode::Borrow(inner) => {
-            collect_expression_dependency_symbols(program, inner.target, symbols)
-        }
-        ExpressionNode::Range(range) => {
-            collect_expression_dependency_symbols(program, range.start, symbols);
-            collect_expression_dependency_symbols(program, range.end, symbols);
-        }
-        ExpressionNode::Unary(unary) => {
-            collect_expression_dependency_symbols(program, unary.operand, symbols)
-        }
-        ExpressionNode::ArrayLiteral(items) => {
-            for item in program.expression_table.expression_handles(*items) {
-                collect_expression_dependency_symbols(program, *item, symbols);
-            }
-        }
-        ExpressionNode::StructLiteral(literal) => {
-            for field in program.expression_table.struct_fields(literal.fields) {
-                collect_expression_dependency_symbols(program, field.value, symbols);
-            }
-        }
-        ExpressionNode::SavedSubject(_) | typed_trees::literal_expression_pattern!() => {}
+    let node = program.expression_table.expression(expression);
+    if let ExpressionNode::Call(call) = node {
+        push_dependency_symbol(symbols, call.target_symbol);
+        symbols.extend(
+            super::machine_parameters::call_selection_dependency_symbols(
+                program,
+                typed_trees::references::StaticArgumentCall::Expression(expression, call),
+            ),
+        );
     }
+    // A call names its own target above; every operand edge — record fields,
+    // range endpoints, case arms, retained atomic carriers — belongs to the
+    // shared executable roster.
+    crate::expression_traversal::executable_children(program, node, |child| {
+        collect_expression_dependency_symbols(program, child, symbols);
+    });
 }
 
 /// Temporary graph construction shared by validation and admission queries.

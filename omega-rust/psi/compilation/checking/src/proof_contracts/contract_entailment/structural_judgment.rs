@@ -238,9 +238,7 @@ impl StructuralTerm {
             return left.is_mathematical_predicate() && right.is_mathematical_predicate();
         }
         matches!(self.semantic_value(), Self::MathematicalBinary { operator, .. }
-            if matches!(operator, BinaryOperator::Equal | BinaryOperator::NotEqual
-                | BinaryOperator::Less | BinaryOperator::LessOrEqual
-                | BinaryOperator::Greater | BinaryOperator::GreaterOrEqual))
+            if operator.is_comparison())
     }
 
     fn is_closed_value(&self) -> bool {
@@ -290,11 +288,85 @@ impl StructuralTerm {
         }
     }
 
-    /// Rebuild `self` with `map` applied over every argument — the
-    /// variant-preserving argument rewrite the term walks share for
-    /// `Application` and `CallProjection`.
-    pub(super) fn map_argument_terms(self, mut map: impl FnMut(Self) -> Self) -> Self {
+    /// Rebuild `self` with `map` applied over every immediate child — the
+    /// mutable counterpart of [`Self::visit_children`], and its single owner.
+    /// A walk that transforms subterms states only what it does differently
+    /// (a substitution, a constant unfolding, a slot binding) and sends every
+    /// other variant through this method, so a new child edge reaches every
+    /// walk at once instead of being re-listed in each copy.
+    ///
+    /// A `CollectionMeasure` re-takes its subject's collection descriptor,
+    /// which is the invariant that variant carries: its subject is metadata
+    /// about a completed collection, never the referent's contents.
+    pub(super) fn map_children(self, mut map: impl FnMut(Self) -> Self) -> Self {
         match self {
+            StructuralTerm::IntegerEmbedding { reference, value } => {
+                StructuralTerm::IntegerEmbedding {
+                    reference,
+                    value: Box::new(map(*value)),
+                }
+            }
+            StructuralTerm::MathematicalBinary {
+                operator,
+                left,
+                right,
+            } => StructuralTerm::MathematicalBinary {
+                operator,
+                left: Box::new(map(*left)),
+                right: Box::new(map(*right)),
+            },
+            StructuralTerm::ObservedValue {
+                observed_type,
+                value,
+                descriptor,
+            } => StructuralTerm::ObservedValue {
+                observed_type,
+                value: Box::new(map(*value)),
+                descriptor: descriptor.map(|descriptor| Box::new(map(*descriptor))),
+            },
+            StructuralTerm::Constructor { data, case, fields } => StructuralTerm::Constructor {
+                data,
+                case,
+                fields: fields
+                    .into_iter()
+                    .map(|(name, value)| (name, map(value)))
+                    .collect(),
+            },
+            StructuralTerm::ScalarBinary {
+                references,
+                operator,
+                meaning,
+                left,
+                right,
+            } => StructuralTerm::ScalarBinary {
+                references,
+                operator,
+                meaning,
+                left: Box::new(map(*left)),
+                right: Box::new(map(*right)),
+            },
+            StructuralTerm::IndexedValue {
+                element_type,
+                element_identity,
+                collection,
+                index,
+            } => StructuralTerm::IndexedValue {
+                element_type,
+                element_identity,
+                collection: Box::new(map(*collection)),
+                index: Box::new(map(*index)),
+            },
+            StructuralTerm::CollectionMeasure {
+                measure,
+                collection,
+            } => StructuralTerm::CollectionMeasure {
+                measure,
+                collection: Box::new(map(*collection).into_collection_descriptor()),
+            },
+            StructuralTerm::Projection { subject, path } => StructuralTerm::Projection {
+                subject: Box::new(map(*subject)),
+                path,
+            },
             StructuralTerm::Application {
                 result_type,
                 target,
@@ -325,7 +397,7 @@ impl StructuralTerm {
                 field_name,
                 arguments: arguments.into_iter().map(&mut map).collect(),
             },
-            term => term,
+            leaf => leaf,
         }
     }
 }
@@ -1358,18 +1430,6 @@ impl<'program> StructuralJudge<'program> {
         }
         for _ in 0..32 {
             match term {
-                StructuralTerm::ObservedValue {
-                    observed_type,
-                    value,
-                    descriptor,
-                } => {
-                    return StructuralTerm::ObservedValue {
-                        observed_type,
-                        value: Box::new(self.resolve_at(*value, depth + 1)),
-                        descriptor: descriptor
-                            .map(|descriptor| Box::new(self.resolve_at(*descriptor, depth + 1))),
-                    };
-                }
                 StructuralTerm::CapturedValue { .. } => {
                     let Some((_, replacement)) = self.rewrites.find(&term) else {
                         return term;
@@ -1653,10 +1713,13 @@ impl<'program> StructuralJudge<'program> {
                     };
                     term = replacement.clone();
                 }
-                StructuralTerm::Integer(_)
-                | StructuralTerm::Float(_)
-                | StructuralTerm::BoundValue(_)
-                | StructuralTerm::BoundProjection { .. } => return term,
+                // Variants that only carry substituted operands walk the
+                // shared child table; the leaves come back unchanged. Every
+                // variant whose rewrite depends on this judge's `rewrites`
+                // table keeps its own arm above.
+                _ => {
+                    return term.map_children(|child| self.resolve_at(child, depth + 1));
+                }
             }
         }
         term
@@ -2779,98 +2842,16 @@ impl<'program> StructuralJudge<'program> {
             typed_trees::expression::StaticMachineArgument,
         )],
     ) -> StructuralTerm {
+        let substitute =
+            |value: StructuralTerm| Self::substitute_call_term(&value, map, machine_map);
         match term {
-            StructuralTerm::IntegerEmbedding { reference, value } => {
-                StructuralTerm::IntegerEmbedding {
-                    reference: *reference,
-                    value: Box::new(Self::substitute_call_term(value, map, machine_map)),
-                }
-            }
-            StructuralTerm::MathematicalBinary {
-                operator,
-                left,
-                right,
-            } => StructuralTerm::MathematicalBinary {
-                operator: *operator,
-                left: Box::new(Self::substitute_call_term(left, map, machine_map)),
-                right: Box::new(Self::substitute_call_term(right, map, machine_map)),
-            },
-            StructuralTerm::ObservedValue {
-                observed_type,
-                value,
-                descriptor,
-            } => StructuralTerm::ObservedValue {
-                observed_type: *observed_type,
-                value: Box::new(Self::substitute_call_term(value, map, machine_map)),
-                descriptor: descriptor.as_ref().map(|descriptor| {
-                    Box::new(Self::substitute_call_term(descriptor, map, machine_map))
-                }),
-            },
-            StructuralTerm::Integer(_)
-            | StructuralTerm::Float(_)
-            | StructuralTerm::BoundValue(_)
-            | StructuralTerm::CapturedValue { .. }
-            | StructuralTerm::BoundProjection { .. } => term.clone(),
-            StructuralTerm::IndexedValue {
-                element_type,
-                element_identity,
-                collection,
-                index,
-            } => StructuralTerm::IndexedValue {
-                element_type: *element_type,
-                element_identity: *element_identity,
-                collection: Box::new(Self::substitute_call_term(collection, map, machine_map)),
-                index: Box::new(Self::substitute_call_term(index, map, machine_map)),
-            },
-            StructuralTerm::CollectionMeasure {
-                measure,
-                collection,
-            } => StructuralTerm::CollectionMeasure {
-                measure: *measure,
-                collection: Box::new(
-                    Self::substitute_call_term(collection, map, machine_map)
-                        .into_collection_descriptor(),
-                ),
-            },
-            StructuralTerm::Projection { subject, path } => StructuralTerm::Projection {
-                subject: Box::new(Self::substitute_call_term(subject, map, machine_map)),
-                path: path.clone(),
-            },
-            StructuralTerm::ScalarBinary {
-                references,
-                operator,
-                meaning,
-                left,
-                right,
-            } => StructuralTerm::ScalarBinary {
-                references: *references,
-                operator: *operator,
-                meaning: *meaning,
-                left: Box::new(Self::substitute_call_term(left, map, machine_map)),
-                right: Box::new(Self::substitute_call_term(right, map, machine_map)),
-            },
             StructuralTerm::Variable(name) => map
                 .iter()
                 .find(|(variable, _)| variable == name)
                 .map(|(_, replacement)| replacement.clone())
                 .unwrap_or_else(|| term.clone()),
-            StructuralTerm::Constructor { data, case, fields } => StructuralTerm::Constructor {
-                data: data.clone(),
-                case: case.clone(),
-                fields: fields
-                    .iter()
-                    .map(|(name, value)| {
-                        (
-                            name.clone(),
-                            Self::substitute_call_term(value, map, machine_map),
-                        )
-                    })
-                    .collect(),
-            },
             StructuralTerm::Application { .. } | StructuralTerm::CallProjection { .. } => {
-                let mut substituted = term.clone().map_argument_terms(|argument| {
-                    Self::substitute_call_term(&argument, map, machine_map)
-                });
+                let mut substituted = term.clone().map_children(substitute);
                 let (target, selections, machine, result_type) = match &mut substituted {
                     StructuralTerm::Application {
                         target,
@@ -2986,6 +2967,10 @@ impl<'program> StructuralJudge<'program> {
                 }
                 term.clone()
             }
+            // Every other variant carries its children through the shared
+            // child table: substituting a leaf leaves it alone, and a shell or
+            // composite rebuilds around its substituted operands.
+            other => other.clone().map_children(substitute),
         }
     }
 

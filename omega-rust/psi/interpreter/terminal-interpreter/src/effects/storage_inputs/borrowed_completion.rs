@@ -107,6 +107,22 @@ pub(super) fn stage(
     let changed_case = visible.iter().any(|leaf| matches!(leaf.kind, StorageLeafKind::Case { case, .. }
         if binding.original.binary_search_by(|value| value.path.cmp(&leaf.path)).ok()
             .is_none_or(|position| binding.original[position].contents != TerminalStorageContents::Case(case))));
+    if changed_case {
+        let changed = visible
+            .iter()
+            .filter_map(|leaf| match &leaf.kind {
+                StorageLeafKind::Case {
+                    destination, case, ..
+                } => Some((destination.clone(), *case)),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        execution.validate_normal_case_preservation(
+            &binding.referent,
+            &binding.normal_qualifications,
+            &changed,
+        )?;
+    }
     let mut staged = ConstructorStorage::new(execution.account.as_ref());
     for (leaf, value) in visible.into_iter().zip(&buffer.values) {
         if leaf.path != value.path {

@@ -46,12 +46,35 @@ impl ProviderSchemaDeclaration {
     }
 }
 
+/// A row's supplying owner. Native Build rows own an evaluated intent, never
+/// an invented bodyless machine; toolchain settlement likewise has no source body.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ProviderRowRealization {
+    Authored(symbols::SymbolHandle),
+    BuildNative(std::sync::Arc<crate::native_bindings::NativeBuildRowOrigin>),
+    Toolchain,
+}
+impl ProviderRowRealization {
+    pub const fn authored(&self) -> Option<symbols::SymbolHandle> {
+        match self {
+            Self::Authored(symbol) => Some(*symbol),
+            _ => None,
+        }
+    }
+    pub fn native(&self) -> Option<&crate::native_bindings::NativeBuildRowOrigin> {
+        match self {
+            Self::BuildNative(origin) => Some(origin),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderPlanProvenance {
     pub schema: ProviderSchemaDeclaration,
     pub provider_type: Option<symbols::SymbolHandle>,
     pub row_requirements: Vec<symbols::SymbolHandle>,
-    pub row_realizations: Vec<symbols::SymbolHandle>,
+    pub row_realizations: Vec<ProviderRowRealization>,
     /// Exact pre-resolution target-scoped declaration custody for catalog-
     /// inferred rows. `None` is mandatory for ordinary checked, legacy
     /// external, and evaluated-payload rows.

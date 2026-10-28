@@ -1,0 +1,35 @@
+// The borrowed result retains its checked UTF-8 domain and exact live prefix, so inspection observes that prefix.
+// Expected exit: 0
+public domain [u8]::Utf8 requires valid_utf8(self);
+public data Buffer where used <= 4 { storage: [u8; 4]; used: u64; }
+public machine qualify(buffer: &Buffer) -> &[u8] in Utf8 crashes Trap {
+    let bytes: &[u8] = &buffer.storage[..buffer.used];
+    transition bytes.len <= 4 { true -> finish(bytes) false -> invalid() }
+    machine finish(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
+    machine invalid() -> &[u8] in Utf8 crashes Trap { crash Trap; }
+}
+machine inspect(bytes: &[u8] in Utf8) -> u64 { bytes.len }
+machine first_byte(bytes: &[u8] in Utf8) -> u8 {
+    transition bytes.len > 0 { true -> read(bytes) false -> 0u8 }
+    machine read(bytes: &[u8] in Utf8) -> u8 requires bytes.len > 0 { bytes[0] }
+}
+machine relay(buffer: &Buffer) -> &[u8] in Utf8 crashes Trap { transition { _ -> qualify(buffer) } }
+machine main() crashes Trap {
+    let first_buffer: Buffer = Buffer { storage: [65u8, 66u8, 0u8, 255u8], used: 2 };
+    let second_buffer: Buffer = Buffer { storage: [67u8, 68u8, 69u8, 255u8], used: 3 };
+    let empty_buffer: Buffer = Buffer { storage: [255u8, 255u8, 255u8, 255u8], used: 0 };
+    let first: &[u8] in Utf8 = relay(&first_buffer);
+    let second: &[u8] in Utf8 = relay(&second_buffer);
+    let empty: &[u8] in Utf8 = relay(&empty_buffer);
+    let first_length: u64 = inspect(first);
+    let second_length: u64 = inspect(second);
+    let empty_length: u64 = inspect(empty);
+    let first_value: u8 = first_byte(first);
+    let second_value: u8 = first_byte(second);
+    let empty_value: u8 = first_byte(empty);
+    transition first_length == 2 && second_length == 3 && empty_length == 0
+        && first_value == 65 && second_value == 67 && empty_value == 0
+        && first_buffer.storage[3] == 255 && second_buffer.storage[3] == 255
+        && empty_buffer.storage[3] == 255 { true -> {} false -> bad() }
+    machine bad() crashes Trap { crash Trap; }
+}

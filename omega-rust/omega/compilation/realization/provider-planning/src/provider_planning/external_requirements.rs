@@ -74,7 +74,9 @@ pub(super) fn derive(
                 );
             }
             let realization = typed
-                .machine(retained.provider.row_realizations[index])
+                .machine(retained.provider.row_realizations[index].authored().ok_or(
+                    "closed Import application requires its complete retained source application",
+                )?)
                 .ok_or("selected Import provenance lost its realization declaration")?;
             let scope = if let Some(declaration) = retained
                 .provider

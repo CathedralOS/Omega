@@ -169,6 +169,7 @@ pub(super) fn encode_provider_candidate(
     encode_len(bytes, provider.refinement.required_domains.len());
     for requirement in &provider.refinement.required_domains {
         crate::codec_bytes::push_encoded(bytes, requirement.argument_index.to_le_bytes());
+        encode_structural_path(bytes, &requirement.path);
         crate::codec_bytes::push_encoded(bytes, requirement.domain.get().to_le_bytes());
     }
     encode_ids(

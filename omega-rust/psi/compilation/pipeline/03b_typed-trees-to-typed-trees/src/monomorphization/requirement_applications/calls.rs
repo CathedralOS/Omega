@@ -54,11 +54,11 @@ fn occurrence(
     }
 }
 
-fn instance(
-    program: &TypedTrees,
+fn instance<'p>(
+    program: &'p TypedTrees,
     lexical_owner: SymbolHandle,
     target: SymbolHandle,
-    receiver: Option<AppliedTraitScope<'_>>,
+    receiver: impl FnOnce() -> Option<AppliedTraitScope<'p>>,
     application: TypeReferenceHandle,
     invocation: &InvocationTuple,
 ) -> Result<SymbolHandle, Vec<Diagnostic>> {
@@ -74,7 +74,7 @@ fn source_scope<'p>(
     program: &'p TypedTrees,
     lexical_owner: SymbolHandle,
     target: SymbolHandle,
-    receiver: Option<AppliedTraitScope<'p>>,
+    receiver: impl FnOnce() -> Option<AppliedTraitScope<'p>>,
     application: TypeReferenceHandle,
 ) -> Result<
     Option<(
@@ -125,7 +125,8 @@ fn source_scope<'p>(
     // Static provider slots inherit their exact application from the authored
     // requirement qualifier. A source routing carrier no longer supplies that
     // scope; selected maps and equal ABI signatures still cannot invent it.
-    let qualifier_scope = receiver.and_then(|scope| scope.declaring_scope(program, owner.symbol));
+    let qualifier_scope =
+        receiver().and_then(|scope| scope.declaring_scope(program, owner.symbol));
     let scope = match qualifier_scope {
         Some(scope) => Some(scope),
         None if program.trait_type_parameters(owner).is_empty()
@@ -312,15 +313,15 @@ fn prepared_occurrence(
 
 /// Static calls instantiate their own complete invocation tuples. These rows
 /// are public contract applications, never a finite dynamic-dispatch roster.
-pub(super) fn invocation_tuples(
-    program: &TypedTrees,
+pub(super) fn invocation_tuples<'p>(
+    program: &'p TypedTrees,
     requirement: SymbolHandle,
     scope: &typed_trees::trait_definition::AppliedTraitScope<'_>,
 ) -> Result<Vec<InvocationTuple>, Vec<Diagnostic>> {
     let mut tuples = Vec::new();
     let mut add = |owner,
                    target,
-                   receiver,
+                   receiver: &dyn Fn() -> Option<AppliedTraitScope<'p>>,
                    application: TypeReferenceHandle,
                    dispatch: Option<&typed_trees::typed_trees::StaticRequirementDispatch>,
                    invocation: InvocationTuple|
@@ -369,14 +370,16 @@ pub(super) fn invocation_tuples(
                     add(
                         machine.symbol,
                         call.target_symbol,
-                        validation::qualified_trait_scope(
-                            program,
-                            machine.symbol,
-                            call.receiver_symbol,
-                            validation::projected_statement_receiver_type_reference(
-                                program, state, position, call,
-                            ),
-                        ),
+                        &|| {
+                            validation::qualified_trait_scope(
+                                program,
+                                machine.symbol,
+                                call.receiver_symbol,
+                                validation::projected_statement_receiver_type_reference(
+                                    program, state, position, call,
+                                ),
+                            )
+                        },
                         TypeReferenceHandle::invalid(),
                         call.static_requirement_dispatch.as_ref(),
                         occurrence(program, machine.symbol, StaticArgumentCall::Statement(call)),
@@ -391,28 +394,29 @@ pub(super) fn invocation_tuples(
                 );
                 for expression in expressions {
                     if let Some(call) = program.expression_table.call_node(expression) {
-                        let receiver = if call.receiver.is_valid() {
-                            validation::qualified_trait_scope(
-                                program,
-                                machine.symbol,
-                                program
-                                    .expression_table
-                                    .name_path_node(call.receiver)
-                                    .map_or_else(SymbolHandle::invalid, |path| path.symbol),
-                                validation::expression_type_reference_in_state(
-                                    program,
-                                    state.symbol,
-                                    position,
-                                    call.receiver,
-                                ),
-                            )
-                        } else {
-                            None
-                        };
                         add(
                             machine.symbol,
                             call.target_symbol,
-                            receiver,
+                            &|| {
+                                if call.receiver.is_valid() {
+                                    validation::qualified_trait_scope(
+                                        program,
+                                        machine.symbol,
+                                        program
+                                            .expression_table
+                                            .name_path_node(call.receiver)
+                                            .map_or_else(SymbolHandle::invalid, |path| path.symbol),
+                                        validation::expression_type_reference_in_state(
+                                            program,
+                                            state.symbol,
+                                            position,
+                                            call.receiver,
+                                        ),
+                                    )
+                                } else {
+                                    None
+                                }
+                            },
                             call.requirement_application,
                             call.static_requirement_dispatch.as_ref(),
                             occurrence(
@@ -497,19 +501,20 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
                                 .push((state.statement_nodes.handle_at(position as u32), selected));
                         }
                     }
-                    let receiver = validation::qualified_trait_scope(
-                        program,
-                        machine.symbol,
-                        call.receiver_symbol,
-                        validation::projected_statement_receiver_type_reference(
-                            program, state, position, call,
-                        ),
-                    );
                     let selected = instance(
                         program,
                         machine.symbol,
                         call.target_symbol,
-                        receiver,
+                        || {
+                            validation::qualified_trait_scope(
+                                program,
+                                machine.symbol,
+                                call.receiver_symbol,
+                                validation::projected_statement_receiver_type_reference(
+                                    program, state, position, call,
+                                ),
+                            )
+                        },
                         TypeReferenceHandle::invalid(),
                         invocation,
                     )?;
@@ -554,29 +559,30 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
                             }
                         }
                     }
-                    let receiver = if call.receiver.is_valid() {
-                        validation::qualified_trait_scope(
-                            program,
-                            machine.symbol,
-                            program
-                                .expression_table
-                                .name_path_node(call.receiver)
-                                .map_or_else(SymbolHandle::invalid, |path| path.symbol),
-                            validation::expression_type_reference_in_state(
-                                program,
-                                state.symbol,
-                                position,
-                                call.receiver,
-                            ),
-                        )
-                    } else {
-                        None
-                    };
                     let selected = instance(
                         program,
                         machine.symbol,
                         call.target_symbol,
-                        receiver,
+                        || {
+                            if call.receiver.is_valid() {
+                                validation::qualified_trait_scope(
+                                    program,
+                                    machine.symbol,
+                                    program
+                                        .expression_table
+                                        .name_path_node(call.receiver)
+                                        .map_or_else(SymbolHandle::invalid, |path| path.symbol),
+                                    validation::expression_type_reference_in_state(
+                                        program,
+                                        state.symbol,
+                                        position,
+                                        call.receiver,
+                                    ),
+                                )
+                            } else {
+                                None
+                            }
+                        },
                         call.requirement_application,
                         invocation,
                     )?;
@@ -607,7 +613,7 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
             .map_or(target, |closed| closed.template);
         if program.trait_machine_signature(template).is_none()
             && let Some((requirement, _)) =
-                source_scope(program, owner, target, None, TypeReferenceHandle::invalid())?
+                source_scope(program, owner, target, || None, TypeReferenceHandle::invalid())?
         {
             template = requirement;
         }
@@ -717,7 +723,7 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
                 program,
                 owner,
                 call.target_symbol,
-                None,
+                || None,
                 call.requirement_application,
             )?
         };

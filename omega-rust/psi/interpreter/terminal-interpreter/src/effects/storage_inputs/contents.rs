@@ -523,7 +523,7 @@ pub(crate) fn capture(
     array_loan: Option<&crate::element_views::ElementView>,
     access: StructuralAccess,
     leaves: &[StorageLeaf],
-    normal_qualifications: &[semantic_vocabulary::StructuralDomainId],
+    normal_qualifications: &[crate::effects::normal_qualifications::CapturedNormalQualification],
 ) -> Result<(Vec<TerminalBoundaryStorageValue>, Vec<PinnedScalar>), TerminalInterpretError> {
     let mut values = Vec::new();
     let mut endpoints = Vec::new();

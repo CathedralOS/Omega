@@ -161,5 +161,3 @@ failed_display!(
     AllocationLegalityError,
     "Terminal allocation-legality derivation failed"
 );
-
-impl std::error::Error for AllocationLegalityError {}

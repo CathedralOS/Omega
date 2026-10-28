@@ -22,12 +22,16 @@ pub(super) fn retain_completions(
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     for provider in selected {
         let mut rows = Vec::with_capacity(provider.plan.rows.len());
-        for (&requirement, &realization) in provider
+        for (&requirement, realization) in provider
             .provider
             .row_requirements
             .iter()
             .zip(&provider.provider.row_realizations)
         {
+            let Some(realization) = realization.authored() else {
+                rows.push(Vec::new());
+                continue;
+            };
             let completion =
                 checked_trees::typed_trees::boundary_completions::boundary_requirement_completion(
                     &checked.typed,
@@ -158,7 +162,7 @@ impl CompletionReview<'_> {
             let requirement = self.requirement;
             let leaves: Vec<_> = self.candidates.iter().flat_map(|candidate| {
                 candidate.plan.rows.iter().enumerate().filter_map(move |(position, row)| {
-                    (candidate.provenance.row_realizations.get(position) == Some(&machine.symbol)
+                    (candidate.provenance.row_realizations.get(position).and_then(crate::ProviderRowRealization::authored) == Some(machine.symbol)
                         && candidate.provenance.row_requirements.get(position) == Some(&requirement)
                         && matches!(row.binding, effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
                             | effects::provider_plan::ProviderBinding::Import { .. }))

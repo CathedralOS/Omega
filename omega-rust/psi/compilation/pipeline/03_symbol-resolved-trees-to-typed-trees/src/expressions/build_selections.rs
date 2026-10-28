@@ -2,6 +2,9 @@
 //! Preparation authenticates the explicit activation before later value operands
 //! execute. The private request context is captured beside those exact calls.
 
+mod native_locators;
+pub(crate) use native_locators::normalize as normalize_native_locators;
+
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
     BuildOperation, BuildSelectionRequest, RootBindingOperand,
@@ -30,6 +33,11 @@ pub(crate) fn lower(
             if matches!(binding.implementation, RootBindingOperand::Description) =>
         {
             "bind_description"
+        }
+        (BuildSelectionRequest::Declaration(binding), 3)
+            if binding.operation == BuildOperation::NativeBinding =>
+        {
+            "bind_native"
         }
         (BuildSelectionRequest::Declaration(binding), 1)
             if binding.operation.selects_product_declarations()
@@ -84,6 +92,7 @@ pub(crate) fn lower(
     let commit = find(operation)?;
     let value_helpers = match &request {
         BuildSelectionRequest::Exclusion(request) => vec![(1, request.vocabulary.helper())],
+        _ if operation == "bind_native" => vec![(1, "build_selection_target")],
         _ if operation == "select_provider" => {
             let mut helpers = vec![(1, "build_selection_target")];
             if arguments.len() == 3 {

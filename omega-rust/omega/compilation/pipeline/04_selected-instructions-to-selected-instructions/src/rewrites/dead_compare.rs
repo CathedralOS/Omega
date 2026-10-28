@@ -122,12 +122,6 @@ impl DeadCompareReceipt {
     /// The removed compare instruction.
         compare: SelectedInstructionId,
     });
-    /// The durable transformation identity the post-allocation manifest
-    /// ledger records: the receipt's exact fields under the dead-compare
-    /// domain separator.
-    pub fn identity(&self) -> DeadCompareIdentity {
-        dead_compare_identity(self)
-    }
 }
 
 receipt_selected_identities!(DeadCompareReceipt);
@@ -157,5 +151,3 @@ pub enum DeadCompareError {
 }
 
 failed_display!(DeadCompareError, "invalid dead-compare removal");
-
-impl std::error::Error for DeadCompareError {}

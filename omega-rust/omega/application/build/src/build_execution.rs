@@ -22,6 +22,7 @@ struct OccurrenceProduct {
     package: PackageKeyIdentity,
     purpose: DependencyPurpose,
     generated: PackageGeneratedSourceBundle,
+    native: package_compilation::PackageNativeBindingBundle,
     prepared: Option<PackageBuild>,
     description: Option<IndependentComponentDescription>,
 }
@@ -297,6 +298,7 @@ pub(super) fn prepare_packages<Owner>(
                         package: build.package_inputs().root(),
                         purpose: build.package_inputs().compilation_purpose(),
                         generated: build.generated_source_bundle().clone(),
+                        native: build.native_binding_bundle().clone(),
                         prepared: Some(build),
                         description: None,
                     });
@@ -421,6 +423,7 @@ fn join_generated_inputs(
 ) -> Result<package_compilation::PackageCompilationInputs, CompileFailure> {
     let required = inputs.required_dependency_source_instances();
     let mut generated = Vec::with_capacity(required.len());
+    let mut native = Vec::with_capacity(required.len());
     for (dependency, dependency_purpose) in required {
         let product = products
             .iter()
@@ -431,9 +434,11 @@ fn join_generated_inputs(
                 )]
             })?;
         generated.push(product.generated.clone());
+        native.push(product.native.clone());
     }
     inputs
         .with_complete_dependency_generated_sources(generated)
+        .and_then(|inputs| inputs.with_complete_dependency_native_bindings(native))
         .map_err(|errors| input_diagnostics(errors).into())
 }
 
