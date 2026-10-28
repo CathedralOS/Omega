@@ -686,22 +686,25 @@ fn attach_custody(
         // The checked receipt completes the original source occurrence. A new
         // row would leave the original obligation unresolved after replacing
         // its initializer expression with the materialized value.
-        let mut retained = program
-            .authored_declaration_selections()
-            .iter()
-            .filter(|row| {
-                row.source_span() == *reference
-                    && row.exposure() == Exposure::PrivateImplementation
-                    && row.kind() == Kind::Call
-                    && row.compiler_partition().is_none()
-            });
-        let original = retained.next().copied();
-        if retained.next().is_some() {
-            return Err(error(
-                *reference,
-                "initializer call has duplicate source occurrences",
-            ));
-        }
+        let original = {
+            let mut retained = program
+                .authored_declaration_selections()
+                .iter()
+                .filter(|row| {
+                    row.source_span() == *reference
+                        && row.exposure() == Exposure::PrivateImplementation
+                        && row.kind() == Kind::Call
+                        && row.compiler_partition().is_none()
+                });
+            let original = retained.next().copied();
+            if retained.next().is_some() {
+                return Err(error(
+                    *reference,
+                    "initializer call has duplicate source occurrences",
+                ));
+            }
+            original
+        };
         let occurrence = if let Some(original) = original {
             match original.target() {
                 Target::LateBound(LateBinding::CheckedCall) => program
