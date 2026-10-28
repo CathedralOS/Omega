@@ -355,7 +355,7 @@ fn complete_build_source(
         Arc::make_mut(&mut computed_build_config).selected_build_machine_symbol = selected;
     }
     super::product_selections::admit(
-        source.typed(),
+        &mut source,
         Arc::make_mut(&mut computed_build_config),
         package_inputs,
     )?;

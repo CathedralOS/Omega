@@ -225,6 +225,7 @@ pub enum ClosedConformanceApplicationSite {
     },
     Occurrence(crate::static_applications::StaticMachineApplicationHandle),
     TraitArgument(arena::Handle<TraitImplementationApplication>),
+    ProductOperand(arena::Handle<crate::product_operand::ProductOperandApplication>),
 }
 
 /// A named implementation selected by a source trait argument, independently

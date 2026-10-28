@@ -52,7 +52,7 @@ pub enum DecodedCanonicalConstValue {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub struct CanonicalConstValue {
     pub type_name: String,
     pub encoding: String,

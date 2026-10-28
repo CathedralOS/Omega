@@ -274,6 +274,11 @@ impl<'program> Evaluator<'program> {
                     None
                 };
                 SourceBuildSelection::Declaration(ExecutedProductSelection {
+                    static_environment: typed_trees::product_operand::capture_static_environment(
+                        self.program,
+                        frame.machine_symbol,
+                    )
+                    .map_err(Halt::Trap)?,
                     request,
                     target,
                     composition,

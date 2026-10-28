@@ -465,6 +465,13 @@ pub(super) fn static_nominal_argument_identity(
     argument: &crate::expression::StaticMachineArgument,
     context: &TypeIdentityContext<'_>,
 ) -> Option<String> {
+    if argument
+        .application
+        .as_ref()
+        .is_some_and(|application| application.member.is_valid())
+    {
+        return None;
+    }
     if context.invalid_application.is_none()
         || !argument.symbol.is_valid()
         || !matches!(

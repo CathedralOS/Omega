@@ -32,21 +32,20 @@ impl RewriteTable {
                 self.has_mathematical_equal_pattern = true;
             }
         }
-        let deferred_measure_occurrence =
-            match (entry.0.semantic_value(), entry.1.semantic_value()) {
-                (
-                    StructuralTerm::CollectionMeasure { collection, .. },
-                    StructuralTerm::Integer(_),
-                ) => match collection.semantic_value() {
+        let deferred_measure_occurrence = match (entry.0.semantic_value(), entry.1.semantic_value())
+        {
+            (StructuralTerm::CollectionMeasure { collection, .. }, StructuralTerm::Integer(_)) => {
+                match collection.semantic_value() {
                     StructuralTerm::CapturedValue { occurrence, .. }
                         if self.find(collection.semantic_value()).is_none() =>
                     {
                         Some(*occurrence as u32)
                     }
                     _ => None,
-                },
-                _ => None,
-            };
+                }
+            }
+            _ => None,
+        };
         if let Some(occurrence) = deferred_measure_occurrence {
             self.deferred_collection_measures.push((occurrence, index));
         } else {
@@ -230,7 +229,10 @@ fn is_potential_integer_premise(predicate: &StructuralTerm, truth: &StructuralTe
         | StructuralTerm::Opaque(_)
         | StructuralTerm::BoundProjection { .. } => false,
         StructuralTerm::BoundValue(_) | StructuralTerm::CapturedValue { .. }
-            if matches!(predicate.semantic_value(), StructuralTerm::CapturedValue { .. }) =>
+            if matches!(
+                predicate.semantic_value(),
+                StructuralTerm::CapturedValue { .. }
+            ) =>
         {
             false
         }
@@ -300,11 +302,8 @@ fn max_captured_occurrence(term: &StructuralTerm) -> usize {
         StructuralTerm::CapturedValue { occurrence, .. } => *occurrence,
         StructuralTerm::ObservedValue {
             value, descriptor, ..
-        } => max_captured_occurrence(value).max(
-            descriptor
-                .as_deref()
-                .map_or(0, max_captured_occurrence),
-        ),
+        } => max_captured_occurrence(value)
+            .max(descriptor.as_deref().map_or(0, max_captured_occurrence)),
         StructuralTerm::Constructor { fields, .. } => fields
             .iter()
             .map(|(_, value)| max_captured_occurrence(value))

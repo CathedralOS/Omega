@@ -231,10 +231,8 @@ impl Engine<'_> {
                 return false;
             };
             return queries.prove_at_least(&self.substituted(value), &BigInt::zero())
-                && queries.prove_at_least(
-                    &self.substituted(&bound.sub(value)),
-                    &BigInt::from_i64(1),
-                );
+                && queries
+                    .prove_at_least(&self.substituted(&bound.sub(value)), &BigInt::from_i64(1));
         }
         let Some((minimum, maximum)) = primitive.integer_bounds() else {
             return false;

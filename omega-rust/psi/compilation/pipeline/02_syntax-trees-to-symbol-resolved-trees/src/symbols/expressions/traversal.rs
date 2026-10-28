@@ -141,6 +141,13 @@ impl ExpressionSymbolContext<'_, '_> {
             for nested in &application.arguments {
                 self.assign_static_argument_type_symbols(nested);
             }
+            if let Some(member) = self
+                .expression_table
+                .static_member(application.member)
+                .cloned()
+            {
+                self.assign_static_argument_type_symbols(&member);
+            }
         }
     }
 
