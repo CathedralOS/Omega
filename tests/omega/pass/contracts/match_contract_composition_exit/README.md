@@ -25,6 +25,9 @@ facts come from independently admitted owned captures, and query-local branch
 facts never escape the common-value join. Existing call totality, effects,
 formation, storage-version, and payload-admission owners remain authoritative.
 
-Validation is pending the parent's shared combined generation. Fresh outcomes
-and producer identities belong in `build/core-float-20261028/`; no historical
-engine result establishes this candidate's acceptance.
+The frozen R24 producer (source `95c3d68f3755`) executes this positive with
+native exit 0 and Terminal exit 0 on macOS arm64. All four controls reject for
+the obligations above. The existing snapshot-after-write positive also runs
+0/0, while payload access after a mutating guard rejects. Raw observations and
+producer identities are retained in `build/core-float-20261028/`; other hosts
+have not been executed by this lane.

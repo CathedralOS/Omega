@@ -183,6 +183,7 @@ pub(crate) fn bind_pre_specialization_authored_selections(
             let binding = AuthoredDeclarationSelectionLateBinding::CheckedOperator;
             if selection.target() == AuthoredDeclarationSelectionTarget::LateBound(binding) {
                 push_consistent_resolution(
+                    program,
                     &mut resolutions,
                     AuthoredSelectionResolution {
                         occurrence,
@@ -260,6 +261,7 @@ pub(crate) fn bind_pre_specialization_authored_selections(
                 continue;
             };
             push_consistent_resolution(
+                program,
                 &mut resolutions,
                 AuthoredSelectionResolution {
                     occurrence,

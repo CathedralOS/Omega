@@ -1,0 +1,1 @@
+cannot prove ensures contract for exit from copied at statement 1: result == choose<u64>(value)
