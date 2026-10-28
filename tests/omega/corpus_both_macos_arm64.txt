@@ -33,6 +33,7 @@ pass/arithmetic/runtime_returned_constructor_operation_exit built 1777ms exit:0 
 pass/arithmetic/runtime_short_circuit_cast_decisions_exit built 2951ms exit:70 interpreter-exit:70 interpreter:agrees @8e5063ce3b31+wt
 pass/arithmetic/runtime_transitive_bit_value_exit built 1835ms exit:0 interpreter-exit:0 interpreter:agrees @04ef5a694099+wt
 pass/arithmetic/runtime_transitive_product_exit built 1835ms exit:0 interpreter-exit:0 interpreter:agrees @04ef5a694099+wt
+pass/arithmetic/runtime_unit_terminal_guarded_cast_exit built 1890ms exit:0 interpreter-exit:0 interpreter:agrees @e3d69b170c94
 pass/arrays/qualified_array_literal_retains_element_policy_exit built 3028ms exit:0 interpreter-exit:0 interpreter:agrees @d0e40a213f35
 pass/asm/checked_asm_saved_nested_match_exit built 2193ms exit:0 interpreter-exit:0 interpreter:agrees @cbee4617745b+wt
 pass/asm/checked_label_borrow_last_use_exit built 3891ms exit:0 interpreter-exit:0 interpreter:agrees @7c138f5545aa
@@ -662,6 +663,7 @@ pass/drops/runtime_projected_reference_transition_cleanup_exit built 2569ms exit
 pass/drops/runtime_projected_transition_cleanup_exit built 2000ms exit:0 interpreter-exit:0 interpreter:agrees @ec967ce62874
 pass/drops/runtime_record_construction_cleanup_order_exit built 886ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @9e04918b1d1c
 pass/drops/runtime_replaced_record_custody_transfer_exit built 13115ms exit:0 interpreter-exit:0 interpreter:agrees @68b079fa706e+wt
+pass/drops/runtime_replaced_record_scalar_exit built 1808ms exit:0 interpreter-exit:0 interpreter:agrees @e3d69b170c94
 pass/drops/runtime_scalar_exit_nominal_cleanup_exit built 3659ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @792abb82ccd2
 pass/drops/runtime_scalar_temporary_nominal_continuation_exit built 5663ms exit:0 interpreter-exit:0 interpreter:agrees @0e81fb3e4cce+wt
 pass/drops/runtime_scalar_temporary_residual_partition_exit built 1647ms exit:0 interpreter-exit:0 interpreter:agrees @8611f9d5adf1

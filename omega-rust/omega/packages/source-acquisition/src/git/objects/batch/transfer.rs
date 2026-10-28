@@ -35,7 +35,7 @@ pub(in crate::git::objects) fn read_git_blobs_batch(
 ) -> Result<(), SourceResolveError> {
     executor.verify_budget()?;
     for entry in entries.iter() {
-        entry.validate_source_entry()?;
+        entry.validate_blob_entry()?;
     }
     if entries
         .iter()
@@ -46,11 +46,12 @@ pub(in crate::git::objects) fn read_git_blobs_batch(
     let stdout_limit = git_batch_output_limit(entries, limits)?;
     let request_bytes = git_batch_request_bytes(entries);
     repository.verify_identity()?;
-    let cache_root =
-        repository
-            .entry_root
-            .parent()
-            .ok_or_else(|| cache_invalid(&repository.entry_root, "Git cache entry has no retained parent"))?;
+    let cache_root = repository.entry_root.parent().ok_or_else(|| {
+        cache_invalid(
+            &repository.entry_root,
+            "Git cache entry has no retained parent",
+        )
+    })?;
     // The verified cache entry is reopened as immutable custody. Keep the
     // transient cat-file request beside it in the retained mutable cache lane;
     // a Windows read-only directory handle cannot create children.
@@ -81,7 +82,7 @@ pub(crate) fn read_git_blobs_batch_from_path(
 ) -> Result<(), SourceResolveError> {
     executor.verify_budget()?;
     for entry in entries.iter() {
-        entry.validate_source_entry()?;
+        entry.validate_blob_entry()?;
     }
     if entries
         .iter()

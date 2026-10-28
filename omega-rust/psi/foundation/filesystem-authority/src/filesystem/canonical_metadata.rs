@@ -8,7 +8,9 @@ pub const CANONICAL_FILESYSTEM_METADATA_POLICY_VERSION: u32 = 1;
 /// Maximum complete source-tree rows accepted by the canonical metadata
 /// carrier. One row is reserved for the source root; the remaining 65,536
 /// match the package resolver's source-entry ceiling.
-pub const CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT: usize = 65_537;
+// Build catalogs can own a larger immutable inventory than one selected
+// package. Keep a bounded metadata row for the root and every catalog entry.
+pub const CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT: usize = 262_145;
 
 /// Whether raw bytes are one canonical slash-separated source-tree coordinate.
 ///

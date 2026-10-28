@@ -115,17 +115,41 @@ pub(super) fn validate(
         for target in transition.targets() {
             if let TransitionTargetNode::Value(expression) =
                 program.statement_table.transition_target(target)
-                && !crate::machine_calls::calls::unit_statement_call_is_admitted(
+            {
+                if !crate::machine_calls::calls::unit_statement_call_is_admitted(
                     program,
                     machine,
                     state,
                     *expression,
-                )
-            {
-                diagnostics.push(Diagnostic::error(format!(
-                    "machine `{}` state `{state_name}` transition returns a value, but the state declares no result; a terminal arm is `_ -> {{}}`",
-                    machine.name
-                )));
+                ) {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "machine `{}` state `{state_name}` transition returns a value, but the state declares no result; a terminal arm is `_ -> {{}}`",
+                        machine.name
+                    )));
+                    continue;
+                }
+                // Forwarding Unit still evaluates every call operand. Retain
+                // their formation decisions under this exact arm's facts, as
+                // for an ordinary Unit expression call or a typed return.
+                let environment = transition_values
+                    .for_target(target)
+                    .first()
+                    .unwrap_or(&narrowed);
+                arithmetic_domains::validate_value_range_retaining_decisions(
+                    program,
+                    machine,
+                    Some(state),
+                    *expression,
+                    environment,
+                    None,
+                    numerics::arithmetic::ArithmeticDomain::Exact,
+                    &format!(
+                        "machine `{}` state `{state_name}` terminal call operands",
+                        machine.name
+                    ),
+                    diagnostics,
+                    arithmetic_decisions,
+                );
             }
         }
     }
