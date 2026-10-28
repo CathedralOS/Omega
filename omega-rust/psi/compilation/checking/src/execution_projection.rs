@@ -330,11 +330,16 @@ fn project_declarations(
 
         // Generated declarations may lack a location or retain their template's
         // location. Exact inbound references carry their work ownership.
-        let references = collect_program_references_with_roles(
-            &program,
-            &DeclarationSelection::all(),
-            classify_static_arguments,
+        // A call can retain its exact source path before selecting one
+        // overload. Resolve those candidate dependencies in the original
+        // declaration environment: masking candidates first would make the
+        // reference walk unable to discover them. Only the current roots
+        // supply work; unrelated original bodies remain excluded.
+        let selection = DeclarationSelection::from_symbols(
+            typed_trees::references::collect_program_declarations(&program),
         );
+        let references =
+            collect_program_references_with_roles(original, &selection, classify_static_arguments);
         let before = synthesized.len();
         for mut symbol in references.symbols {
             while symbol.is_valid() && retain_reference(symbol) {
