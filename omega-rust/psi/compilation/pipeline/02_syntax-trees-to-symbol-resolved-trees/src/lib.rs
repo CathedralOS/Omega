@@ -67,10 +67,10 @@ pub mod pre_resolution {
     pub use crate::constant::requires_const_initializer_evaluation;
     pub use crate::preparation::declaration_selection::select_data_declarations;
     pub use crate::preparation::generic_data::{
-        GenericDataRequest, canonicalize_declared_const_definition,
-        closed_array_extent_expressions, closed_data_const_argument_expressions,
-        closed_machine_const_arguments, normalize_generic_data, normalize_initializer_probe_data,
-        retain_deferred_array_extent,
+        ClosedConstArguments, GenericDataRequest, canonicalize_declared_const_definition,
+        closed_array_extent_expressions, closed_const_arguments,
+        closed_data_const_argument_expressions, closed_machine_const_arguments,
+        normalize_generic_data, normalize_initializer_probe_data, retain_deferred_array_extent,
     };
     pub use crate::preparation::trait_defaults::synthesize_trait_defaults;
     pub use crate::resolution::{

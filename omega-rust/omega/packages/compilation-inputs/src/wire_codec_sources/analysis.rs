@@ -171,7 +171,7 @@ impl StorePredicate {
     }
 }
 
-/// Retain each domain's authored subject occurrences for source generation.
+/// Retain each domain's logical `self` occurrences for source generation.
 /// Predicate spans restrict substitution to the declaration's lexical scope;
 /// synthetic parent-membership subjects have no source to copy.
 pub(super) fn collect_domains(
@@ -214,13 +214,7 @@ pub(super) fn collect_domains(
         };
         let subjects = names
             .iter()
-            .filter_map(|(name, span)| {
-                domain
-                    .subject
-                    .as_ref()
-                    .is_some_and(|subject| subject.as_str(syntax_trees) == *name)
-                    .then_some(*span)
-            })
+            .filter_map(|(name, span)| (*name == "self").then_some(*span))
             .collect::<Vec<_>>();
         for fact in domain.facts.handles() {
             if let Some(span) = syntax_trees.tables.items.proof_fact_source_span(fact) {

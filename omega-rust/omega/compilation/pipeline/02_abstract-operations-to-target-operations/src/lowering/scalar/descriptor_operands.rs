@@ -7,6 +7,7 @@ use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::AbstractFunction;
 use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType, StructuralTypeId};
 use std::collections::BTreeMap;
+use target_operations::TargetIntegerExpression;
 use terminal_psi::{
     StructuralAccess, StructuralArgument, StructuralParameterDeclaration, StructuralPathSegment,
     StructuralTypeShape,
@@ -26,11 +27,55 @@ pub(in crate::lowering) fn descriptor_projection(
     ),
     LoweringError,
 > {
+    descriptor_projection_access(function, structural_types, backings, source, false)
+}
+
+/// Descriptor extent is metadata, not content. A write-only home still resolves
+/// the selected descriptor's geometry under its own authority, but the path may
+/// not cross a stored referent: that would turn the observation into a read
+/// through the stored pointer.
+pub(in crate::lowering) fn descriptor_metadata_projection(
+    function: &AbstractFunction,
+    structural_types: &StructuralTypeLookup<'_>,
+    backings: ElementViewBackings<'_>,
+    source: &StructuralArgument,
+) -> Result<
+    (
+        semantic_vocabulary::StructuralTypeId,
+        Vec<target_operations::TargetStructuralRuntimeIndex>,
+    ),
+    LoweringError,
+> {
+    descriptor_projection_access(function, structural_types, backings, source, true)
+}
+
+fn descriptor_projection_access(
+    function: &AbstractFunction,
+    structural_types: &StructuralTypeLookup<'_>,
+    backings: ElementViewBackings<'_>,
+    source: &StructuralArgument,
+    metadata: bool,
+) -> Result<
+    (
+        semantic_vocabulary::StructuralTypeId,
+        Vec<target_operations::TargetStructuralRuntimeIndex>,
+    ),
+    LoweringError,
+> {
     let invalid = || refusal(function, &(source, backings.homes.get(&source.place)));
     if !matches!(
         source.access,
         StructuralAccess::Owned | StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-    ) {
+    ) && !(metadata && source.access == StructuralAccess::WriteOnlyBorrow)
+    {
+        return Err(invalid());
+    }
+    if source.access == StructuralAccess::WriteOnlyBorrow
+        && source
+            .path
+            .iter()
+            .any(|segment| matches!(segment, StructuralPathSegment::Referent))
+    {
         return Err(invalid());
     }
     let (root, access, multiplicity) = function
@@ -100,14 +145,30 @@ pub(in crate::lowering) fn descriptor_projection(
     } else {
         source.access
     };
-    if !terminal_semantics::descriptor_source_projection_accessible(
-        structural_types.values().copied(),
-        root,
-        multiplicity,
-        access,
-        &source.path,
-        requested,
-    ) {
+    // A write-only extent observation needs its path traversable under the
+    // home's authority and no stored-referent crossing (rejected above). The
+    // selected descriptor's backing admission is the payload contract; extent
+    // geometry alone never reaches it.
+    let accessible = if source.access == StructuralAccess::WriteOnlyBorrow {
+        terminal_semantics::reference_source_projection_accessible(
+            structural_types.values().copied(),
+            root,
+            multiplicity,
+            access,
+            &source.path,
+            requested,
+        )
+    } else {
+        terminal_semantics::descriptor_source_projection_accessible(
+            structural_types.values().copied(),
+            root,
+            multiplicity,
+            access,
+            &source.path,
+            requested,
+        )
+    };
+    if !accessible {
         return Err(invalid());
     }
     let regions = crate::lowering::structural_layout::reference_projection_regions(
@@ -118,12 +179,7 @@ pub(in crate::lowering) fn descriptor_projection(
     .ok_or_else(invalid)?;
     let (selected, _, _, leaf_indices) =
         runtime_descriptor_projection(regions.root, regions.path, structural_types)?;
-    let indices = regions
-        .pointer_slots
-        .into_iter()
-        .flat_map(|slot| slot.indices)
-        .chain(leaf_indices)
-        .collect();
+    let indices = regions.selector_runs(leaf_indices);
     let indices = crate::lowering::control_flow::scalar_sources::runtime_indices(
         indices,
         function,
@@ -168,6 +224,54 @@ pub(in crate::lowering) fn observes_count(
         }
         _ => false,
     })
+}
+
+/// Whether `length`'s dominating known value is the count observation that
+/// measured exactly this descriptor. `bytes` separates the byte-sequence
+/// observation from the element-view one, the same board `observes_count`
+/// reads; the retained scalar home is the one that both share.
+pub(in crate::lowering) fn observes_measured_length(
+    values: &BTreeMap<semantic_vocabulary::ValueId, super::KnownScalar>,
+    lengths: &BTreeMap<semantic_vocabulary::ValueId, semantic_vocabulary::PlaceId>,
+    length: semantic_vocabulary::ValueId,
+    source: semantic_vocabulary::PlaceId,
+    bytes: bool,
+) -> bool {
+    let Some(super::KnownScalar::Integer { scalar_type, value }) = values.get(&length) else {
+        return false;
+    };
+    if scalar_type.sign() != semantic_vocabulary::IntegerSign::Unsigned || scalar_type.bits() != 64
+    {
+        return false;
+    }
+    match value {
+        super::KnownInteger::Runtime(TargetIntegerExpression::ByteSequenceLength {
+            source: observed,
+            source_value,
+            ..
+        }) if bytes => measured(observed, *source_value, length, source),
+        super::KnownInteger::Runtime(TargetIntegerExpression::ElementViewLength {
+            source: observed,
+            source_value,
+            ..
+        }) if !bytes => measured(observed, *source_value, length, source),
+        super::KnownInteger::Runtime(TargetIntegerExpression::ScalarHome(home)) => {
+            home.source_value == length
+                && home.scalar_type == ScalarType::Integer(*scalar_type)
+                && lengths.get(&length) == Some(&source)
+        }
+        _ => false,
+    }
+}
+
+/// One measured count names this exact descriptor, unprojected.
+fn measured(
+    observed: &StructuralArgument,
+    source_value: semantic_vocabulary::ValueId,
+    length: semantic_vocabulary::ValueId,
+    source: semantic_vocabulary::PlaceId,
+) -> bool {
+    observed.place == source && observed.path.is_empty() && source_value == length
 }
 
 /// Whether `collection` storage can back the parameter's declared view

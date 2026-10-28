@@ -63,10 +63,10 @@ pub(crate) fn project_public_operators<'a>(
             .iter()
             .flat_map(|domain| compilation.domain_operators(domain)),
     );
-    for declaration in operators.filter(|declaration| {
-        declaration.is_public
-            && is_product_scope_instance(&compilation.typed.symbols, declaration.symbol)
-    }) {
+    for declaration in operators.filter(|declaration| declaration.is_public) {
+        if !is_product_scope_instance(compilation, declaration.symbol)? {
+            continue;
+        }
         let coordinate = project_operator_coordinate(compilation, declaration)?;
         if !reviewed_package_owns(&coordinate.identity, package)? {
             continue;

@@ -44,10 +44,7 @@ pub(super) fn encode_establish_scalar_array(
     elements: Vec<ValueId>,
 ) -> Result<(), CodecError> {
     writer.u8(operation_tags::ESTABLISH_SCALAR_ARRAY);
-    writer.len("scalar array elements", elements.len())?;
-    for element in elements {
-        writer.id(element);
-    }
+    writer.ids("scalar array elements", &elements)?;
     Ok(())
 }
 
@@ -100,10 +97,7 @@ pub(super) fn encode_establish_byte_sequence_literal(
     writer.id(destination);
     writer.len("byte-sequence literal bytes", bytes.len())?;
     writer.bytes(&bytes);
-    writer.len("literal qualifications", qualifications.len())?;
-    for qualification in qualifications {
-        writer.id(*qualification);
-    }
+    writer.ids("literal qualifications", qualifications)?;
     Ok(())
 }
 

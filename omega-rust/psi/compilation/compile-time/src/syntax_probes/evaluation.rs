@@ -153,24 +153,28 @@ fn prepare_evaluation_inputs_with_owners(
     // Endpoint roots live in declared types rather than synthetic machines.
     // Every resolved copy of that retained authored occurrence contributes its
     // selected dependencies; unrelated backing expressions contribute none.
-    let expressions = frontier
-        .trees()
-        .tables
-        .bodies
-        .expressions
-        .iter_expressions()
-        .filter(|(handle, _)| {
-            expression_sources.contains(
-                &frontier
-                    .trees()
-                    .tables
-                    .bodies
-                    .expressions
-                    .source_span(*handle),
-            )
-        })
-        .map(|(handle, _)| handle)
-        .collect::<Vec<_>>();
+    let expressions = if expression_sources.is_empty() {
+        Vec::new()
+    } else {
+        frontier
+            .trees()
+            .tables
+            .bodies
+            .expressions
+            .iter_expressions()
+            .filter(|(handle, _)| {
+                expression_sources.contains(
+                    &frontier
+                        .trees()
+                        .tables
+                        .bodies
+                        .expressions
+                        .source_span(*handle),
+                )
+            })
+            .map(|(handle, _)| handle)
+            .collect::<Vec<_>>()
+    };
     for reference in expression_sources {
         if !expressions.iter().any(|handle| {
             frontier

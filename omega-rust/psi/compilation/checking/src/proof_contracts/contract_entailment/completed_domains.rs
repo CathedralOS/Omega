@@ -90,7 +90,7 @@ pub fn completed_value_proves_bound_domain_predicate(
     judgment.observed && judgment.proven
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct CompletedDomainJudgment {
     observed: bool,
     proven: bool,
@@ -140,18 +140,19 @@ fn completed_bound_domain_judgment(
     // site. A typed value retains its own actual instance, including generics.
     let reference = crate::expression_result_type_reference(program, machine, state, expression)
         .unwrap_or(domain.target_type);
-    let mut judgment = CompletedDomainJudgment {
+    let initial = CompletedDomainJudgment {
         proven: true,
         ..Default::default()
     };
-    let coverage = super::completed_observations::observe_completed_values(
+    let result = super::completed_observations::fold_completed_values(
         program,
         machine,
         state,
         statement_index,
         expression,
         reference,
-        |judge, value| {
+        initial,
+        |judgment, judge, value| {
             let Some(projected_reference) =
                 crate::project_type_reference_from_segments(program, reference, projection)
             else {
@@ -200,10 +201,11 @@ fn completed_bound_domain_judgment(
             }
         },
     );
-    let Some(complete) = coverage else {
+    let Some(result) = result else {
         return CompletedDomainJudgment::default();
     };
-    judgment.observed = complete;
-    judgment.proven &= complete;
+    let mut judgment = result.state;
+    judgment.observed = result.complete;
+    judgment.proven &= result.complete;
     judgment
 }

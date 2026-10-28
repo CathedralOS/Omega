@@ -7,7 +7,7 @@ Owning requirement: the domain-family instance a scalar initializer must
 establish. A **scoped** domain is a const-generic family:
 
 ```omega
-domain<const Bound: u64> u64::BelowIndex<Bound>(value) requires value < Bound;
+domain<const Bound: u64> u64::BelowIndex<Bound> requires self < Bound;
 ```
 
 One declaration whose predicates mention an index binder, so membership is a

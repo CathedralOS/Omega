@@ -203,9 +203,14 @@ from trapping arithmetic.
 
 Use an explicit proof view when a condition needs unbounded mathematics:
 
+The endpoint queries below use the ratified ordinary core
+[integer API](../spec/language/numeric_values.md#core-integer-and-float-apis).
+Its implementation remains `CORE-INTEGER-FLOAT-APIS` work; primitive-member
+`Maximum`/`MAX` spellings are not an alternate lookup rule.
+
 ```omega
 requires
-    embed(left) + embed(right) <= embed(i32::Maximum)
+    embed(left) + embed(right) <= embed(integer::max<i32>())
 ```
 
 Integer and address carriers embed into proof `Int`, retaining their exact
@@ -218,7 +223,7 @@ Removing a policy with `as` instead selects Exact carrier arithmetic:
 ```omega
 requires
     embed(right) >= 0
-    embed(left) <= embed(i32::Maximum) - embed(right)
+    embed(left) <= embed(integer::max<i32>()) - embed(right)
 ensures
     result == (left as i32) + (right as i32)
 ```

@@ -1,4 +1,4 @@
-domain [u8; 4]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8; 4]::Ascii requires ascii_only(self);
 machine main() -> u8 {
     let mut bytes: [u8; 4] in Ascii = "Gate";
     let view: &[u8; 4] in Ascii = &bytes;

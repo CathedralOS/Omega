@@ -5,7 +5,7 @@ use omega::language::core::external_binding;
 use omega_language_std::console;
 
 public data Pair { first: i64; second: i64; }
-public domain Pair::Ordered(value) requires value.first < value.second;
+public domain Pair::Ordered requires self.first < self.second;
 data Holder { prefix: i64; payload: Pair; }
 public boundary trait Compare {
     // Raw memcmp leaf: both calls below supply the record's exact 16 bytes.

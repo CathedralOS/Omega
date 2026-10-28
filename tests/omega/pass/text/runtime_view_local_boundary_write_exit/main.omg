@@ -1,8 +1,8 @@
 // A reassigned qualified view local lends its current descriptor to a
 // boundary call, which writes the bytes the field view denotes.
-domain [u8]::Utf8(bytes)
+domain [u8]::Utf8
 requires
-    valid_utf8(bytes);
+    valid_utf8(self);
 use omega_language_std::console;
 
 data Room [copy] { label: &[u8] in Utf8; }

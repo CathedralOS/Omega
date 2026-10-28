@@ -2,15 +2,15 @@
 // Accessors validate the actual prefix; copies and joins preserve the authored result.
 use omega_language_std::console;
 
-domain [u8]::Utf8(bytes)
+domain [u8]::Utf8
 requires
-    valid_utf8(bytes);
-domain [u8; 8]::Utf8(bytes)
+    valid_utf8(self);
+domain [u8; 8]::Utf8
 requires
-    valid_utf8(bytes);
-domain [u8; 32]::Utf8(bytes)
+    valid_utf8(self);
+domain [u8; 32]::Utf8
 requires
-    valid_utf8(bytes);
+    valid_utf8(self);
 
 data Main {
     label: Buffer8;

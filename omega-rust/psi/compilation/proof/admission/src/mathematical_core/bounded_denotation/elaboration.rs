@@ -1088,13 +1088,7 @@ impl<'a> Elaboration<'a> {
     ) -> Result<TermHandle, BoundedDenotationError> {
         debug_assert_eq!(premises.len(), evidence.len());
         let axiom = self.denotation.rule_axiom(&premises, conclusion)?;
-        let mut term = axiom;
-        for piece in evidence {
-            term = self.denotation.arena.insert(Term::Apply {
-                function: term,
-                argument: piece,
-            });
-        }
+        let term = self.denotation.arena.apply_arguments(axiom, &evidence);
         self.rules.insert(rule);
         Ok(term)
     }

@@ -1273,23 +1273,22 @@ fn recognize_structural_state_leaves_from<'a>(
                             outcome_judge.has_no_new_effects_or_guarantees_since(&judge)
                         })
                     {
-                        let dead_local = requirement.is_some()
-                            && local_symbol_is_dead_in_remaining_prefix(
-                                program,
-                                statements,
-                                &execution,
-                                execution_position + 1,
-                                local.symbol,
-                                requirement.as_deref().is_some_and(|observer| {
-                                    observer.site().state == state.symbol
-                                        && !observer.site().in_transition_target
-                                        && observer.site().statement_index < statements.len()
-                                        && !matches!(
-                                            statements[observer.site().statement_index],
-                                            StatementNode::Transition(_)
-                                        )
-                                }),
-                            );
+                        let dead_local = local_symbol_is_dead_in_remaining_prefix(
+                            program,
+                            statements,
+                            &execution,
+                            execution_position + 1,
+                            local.symbol,
+                            requirement.as_deref().is_some_and(|observer| {
+                                observer.site().state == state.symbol
+                                    && !observer.site().in_transition_target
+                                    && observer.site().statement_index < statements.len()
+                                    && !matches!(
+                                        statements[observer.site().statement_index],
+                                        StatementNode::Transition(_)
+                                    )
+                            }),
+                        );
                         if dead_local {
                             let judge_refs: Vec<_> = outcomes
                                 .iter()
@@ -1784,11 +1783,13 @@ fn recognize_structural_state_leaves_from<'a>(
                 // the existing denotational eligibility requirement.
                 let body_transfer = terminal_body_transfer(
                     program,
+                    machine,
                     invocation,
                     state,
                     target,
                     transition.source_target,
                     classification,
+                    requirement.is_some(),
                     judge.requires_value_preservation(),
                 );
                 if let Some((target_state, argument_handles, call_expression)) = body_transfer
@@ -1990,36 +1991,66 @@ pub(super) fn prefix_site_is_reachable(
         if symbol == observer.site().state {
             return true;
         }
-        for (index, _) in program
-            .statement_table
-            .indexed_statements(state.statement_nodes)
+        let Some(destinations) = state_prefix_reachability_destinations(program, owner, state)
+        else {
+            return true;
+        };
+        pending.extend(destinations);
+    }
+    false
+}
+
+fn state_prefix_reachability_destinations(
+    program: &dyn crate::CheckingInput,
+    owner: &Machine,
+    state: &typed_trees::state::State,
+) -> Option<Vec<SymbolHandle>> {
+    if let Some(memos) = crate::frozen_program::frozen_program_memos(program)
+        && let Ok(guard) = memos.state_prefix_reachability_edges.lock()
+        && let Some(cached) = guard.get(&state.symbol)
+    {
+        return cached.clone();
+    }
+    let mut destinations = Vec::new();
+    for (index, _) in program
+        .statement_table
+        .indexed_statements(state.statement_nodes)
+    {
+        for site in
+            crate::machine_calls::calls::collect_call_sites_in_statement(program, owner, state, index)
         {
-            for site in crate::machine_calls::calls::collect_call_sites_in_statement(
-                program, owner, state, index,
-            ) {
-                let selected = site.target_symbol(program);
-                if selected.is_valid()
-                    && matches!(
-                        program.symbols.get(selected).kind,
-                        symbols::SymbolKind::Operator | symbols::SymbolKind::BuiltinFunction
-                    )
+            let selected = site.target_symbol(program);
+            if selected.is_valid()
+                && matches!(
+                    program.symbols.get(selected).kind,
+                    symbols::SymbolKind::Operator | symbols::SymbolKind::BuiltinFunction
+                )
+            {
+                continue;
+            }
+            let Some((_, destination)) =
+                crate::machine_calls::calls::machine_state_by_symbol(program, selected)
+                    .or_else(|| crate::machine_calls::calls::find_machine_head(program, selected))
+            else {
+                // Unknown dispatch cannot justify pruning a source path.
+                if let Some(memos) = crate::frozen_program::frozen_program_memos(program)
+                    && let Ok(mut guard) = memos.state_prefix_reachability_edges.lock()
                 {
-                    continue;
+                    guard.insert(state.symbol, None);
                 }
-                let Some((_, destination)) =
-                    crate::machine_calls::calls::machine_state_by_symbol(program, selected)
-                        .or_else(|| {
-                            crate::machine_calls::calls::find_machine_head(program, selected)
-                        })
-                else {
-                    // Unknown dispatch cannot justify pruning a source path.
-                    return true;
-                };
-                pending.push(destination.symbol);
+                return None;
+            };
+            if !destinations.contains(&destination.symbol) {
+                destinations.push(destination.symbol);
             }
         }
     }
-    false
+    if let Some(memos) = crate::frozen_program::frozen_program_memos(program)
+        && let Ok(mut guard) = memos.state_prefix_reachability_edges.lock()
+    {
+        guard.insert(state.symbol, Some(destinations.clone()));
+    }
+    Some(destinations)
 }
 
 /// Local execution view: no synthetic source statement or arena identity is
@@ -2035,13 +2066,16 @@ struct TerminalArm {
 /// but an admitted checked body supplies the same proof path. Resolve the exact
 /// selected declaration, then capture expression-call actuals through the normal
 /// ordered entry owner. No completed result or callee guarantee is assumed.
+#[allow(clippy::too_many_arguments)]
 fn terminal_body_transfer<'program>(
     program: &'program dyn crate::CheckingInput,
+    proof_root: &Machine,
     invocation: &Machine,
     state: &typed_trees::state::State,
     target: &TransitionTargetNode,
     source_target: Option<typed_trees::statement::TransitionTargetHandle>,
     classification: &typed_trees::proof_only::ProofOnlyClassification,
+    observe_entry: bool,
     preserve_runtime_values: bool,
 ) -> Option<(
     &'program typed_trees::state::State,
@@ -2089,6 +2123,29 @@ fn terminal_body_transfer<'program>(
             else {
                 return None;
             };
+            // A completed mathematical call retains its application and
+            // exact actuals in the ordinary normal-return judgment. Entering
+            // operational states would replace that result's declaration
+            // frame. Subordinate proof bodies retain their case refinements and
+            // licensed recursive applications, and resultless invocations
+            // execute their proof statements. Explicit premise observers also
+            // retain their authenticated body-entry route.
+            if !observe_entry
+                && !matches!(
+                    program
+                        .type_reference_table
+                        .type_reference(entry.return_type),
+                    typed_trees::types::TypeReferenceNode::Unit
+                )
+                && super::structural_judgment::normal_returns::call_has_mathematical_denotation(
+                    program,
+                    invocation.symbol,
+                    call,
+                )
+                && !is_subordinate_machine(program, proof_root.symbol, callee.symbol)
+            {
+                return None;
+            }
             (
                 callee,
                 entry,
@@ -2104,8 +2161,43 @@ fn terminal_body_transfer<'program>(
         }
         _ => return None,
     };
-    call_entries::body_can_be_observed(program, callee, classification, preserve_runtime_values)
+    let runtime_subordinate = preserve_runtime_values
+        && (observe_entry || is_subordinate_machine(program, proof_root.symbol, callee.symbol));
+    call_entries::body_can_be_observed(program, callee, classification, runtime_subordinate)
         .then_some((entry, arguments, expression))
+}
+
+pub(in crate::proof_contracts::contract_entailment) fn is_subordinate_machine(
+    program: &dyn crate::CheckingInput,
+    proof_root: SymbolHandle,
+    callee: SymbolHandle,
+) -> bool {
+    let typed = program.typed_program();
+    let mut root = typed.lifetime_declaration_owner(proof_root);
+    let mut current = root;
+    let mut root_visited = Vec::new();
+    while current.is_valid() && !root_visited.contains(&current) {
+        root_visited.push(current);
+        let resolved = typed.lifetime_declaration_owner(current);
+        if resolved.is_valid() && program.machine_by_symbol(resolved).is_some() {
+            root = resolved;
+        }
+        current = typed.declaration_scope_parent(current);
+    }
+    if !root.is_valid() {
+        return false;
+    }
+    let mut owner = typed.declaration_scope_parent(callee);
+    let mut visited = Vec::new();
+    while owner.is_valid() && !visited.contains(&owner) {
+        owner = typed.lifetime_declaration_owner(owner);
+        if owner == root {
+            return true;
+        }
+        visited.push(owner);
+        owner = typed.declaration_scope_parent(owner);
+    }
+    false
 }
 
 #[allow(clippy::too_many_arguments)]

@@ -2,7 +2,9 @@
 
 use crate::capture::PackageReviewInput;
 use crate::capture::semantics::conformances::policy_callable_identity;
-use crate::capture::semantics::declarations::{nominal_identity, reviewed_package_owns};
+use crate::capture::semantics::declarations::{
+    is_checked_source_instance, nominal_identity, reviewed_package_owns,
+};
 use crate::capture::semantics::facts::exactly_one;
 use crate::record::{
     PackagePolicyCallables, PackagePolicySemanticDependency,
@@ -28,6 +30,9 @@ pub(super) fn project(
     }
     let mut rows = Vec::new();
     for fact in &derived.rows {
+        if !is_checked_source_instance(compilation, fact.consumer_machine)? {
+            continue;
+        }
         let owner = nominal_identity(compilation, fact.consumer_machine)?;
         if !reviewed_package_owns(&owner, package)? {
             continue;

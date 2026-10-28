@@ -1,20 +1,13 @@
 //! Inspection of one conditional branch form before a relaxation sweep.
 
-use isa_x86_64::{
-    validate_x86_64_selected_i64_less_than_branch_form,
-    validate_x86_64_selected_nonzero_branch_form,
-    validate_x86_64_selected_short_nonzero_branch_form,
-    validate_x86_64_selected_u64_less_than_branch_form,
-};
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::SelectedBlockId;
 
-use machine_code::{
-    ResolvedConditionalBranchPredicate, ResolvedSelectedFormRow, ResolvedSelectedFunctionLayout,
-};
+use machine_code::{ResolvedSelectedFormRow, ResolvedSelectedFunctionLayout};
 
 use super::super::{X86BranchRelaxationAttemptOutcome, error::OptimizedX86BranchRelaxationError};
-use super::work::checked_delta;
+use super::lane;
+use super::work::{advance, checked_delta};
 
 pub(super) fn inspect_production_branch(
     function: &ResolvedSelectedFunctionLayout,
@@ -30,54 +23,18 @@ pub(super) fn inspect_production_branch(
         .ok_or(OptimizedX86BranchRelaxationError::MalformedBranch(
             row.instruction,
         ))?;
-    let already_short = match (branch.predicate, row.bytes.len()) {
-        (ResolvedConditionalBranchPredicate::NonZeroV1, 2) => {
-            validate_x86_64_selected_short_nonzero_branch_form(
-                physical,
-                row.alternative,
-                branch.byte_displacement,
-                &row.bytes,
-            )
-            .map_err(OptimizedX86BranchRelaxationError::X86_64)?;
-            true
-        }
-        (ResolvedConditionalBranchPredicate::NonZeroV1, 6) => {
-            validate_x86_64_selected_nonzero_branch_form(
-                physical,
-                row.alternative,
-                branch.byte_displacement,
-                &row.bytes,
-            )
-            .map_err(OptimizedX86BranchRelaxationError::X86_64)?;
-            false
-        }
-        (ResolvedConditionalBranchPredicate::U64LessThanV1, 2 | 6) => {
-            validate_x86_64_selected_u64_less_than_branch_form(
-                physical,
-                row.alternative,
-                branch.byte_displacement,
-                &row.bytes,
-            )
-            .map_err(OptimizedX86BranchRelaxationError::X86_64)?;
-            row.bytes.len() == 2
-        }
-        (ResolvedConditionalBranchPredicate::I64LessThanV1, 2 | 6) => {
-            validate_x86_64_selected_i64_less_than_branch_form(
-                physical,
-                row.alternative,
-                branch.byte_displacement,
-                &row.bytes,
-            )
-            .map_err(OptimizedX86BranchRelaxationError::X86_64)?;
-            row.bytes.len() == 2
-        }
-        _ => {
-            return Err(OptimizedX86BranchRelaxationError::MalformedBranch(
-                row.instruction,
-            ));
-        }
-    };
-    if already_short {
+    let near = lane::near_width(row.bytes.len()).ok_or(
+        OptimizedX86BranchRelaxationError::MalformedBranch(row.instruction),
+    )?;
+    lane::validate(
+        branch.predicate,
+        near,
+        physical,
+        row.alternative,
+        branch.byte_displacement,
+        &row.bytes,
+    )?;
+    if !near {
         return Ok((X86BranchRelaxationAttemptOutcome::AlreadyShort, None));
     }
     let displacement = prospective_short_displacement(function, row, branch.when_taken_block)?;
@@ -114,10 +71,5 @@ fn prospective_short_displacement(
     } else {
         target_offset
     };
-    checked_delta(
-        shifted_target,
-        row.offset
-            .checked_add(2)
-            .ok_or(OptimizedX86BranchRelaxationError::OffsetOverflow)?,
-    )
+    checked_delta(shifted_target, advance(row.offset, lane::SHORT_WIDTH)?)
 }

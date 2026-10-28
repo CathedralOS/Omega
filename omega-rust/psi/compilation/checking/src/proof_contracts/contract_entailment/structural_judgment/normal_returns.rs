@@ -2089,14 +2089,7 @@ impl<'program> StructuralJudge<'program> {
         if !(is_parameter || is_local) || !subject.type_reference.is_valid() {
             return None;
         }
-        let mut current_type = program
-            .state_local_declaration(scope.1, source.root)
-            .map(|(_, local)| local.type_reference)
-            .or_else(|| {
-                program
-                    .state_parameter_by_symbol(scope.1, source.root)
-                    .map(|param| param.type_reference)
-            })?;
+        let mut current_type = crate::state_root_type(program, scope.1, source.root)?;
         let name = program.symbols.name(source.root);
         let mut roots = environment.iter().filter(|(binding, _)| binding == name);
         let mut value = roots.next()?.1.clone();
@@ -2791,7 +2784,7 @@ impl<'program> NormalReturnPath<'program> {
 /// Authored mathematical definitions have no runtime invocation, including
 /// definitions with ordinary scalar results. Other calls need the shared
 /// proof-only classification; runtime calls still require complete write frames.
-pub(super) fn call_has_mathematical_denotation(
+pub(in crate::proof_contracts::contract_entailment) fn call_has_mathematical_denotation(
     program: &dyn crate::CheckingInput,
     caller: SymbolHandle,
     call: &typed_trees::expression::TableCallExpression,

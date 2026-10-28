@@ -4,9 +4,9 @@
 
 use omega_language_std::console;
 
-domain u8::HuffmanSymbol(byte)
+domain u8::HuffmanSymbol
 requires
-    byte == 65 || byte == 66 || byte == 67 || byte == 68 || byte == 82;
+    self == 65 || self == 66 || self == 67 || self == 68 || self == 82;
 
 machine lookup_symbol(alphabet: &[u8; 5], target: u8 in HuffmanSymbol) -> u64 {
     transition { _ -> check(alphabet, target, 0) }

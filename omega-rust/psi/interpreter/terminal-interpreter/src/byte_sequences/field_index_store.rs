@@ -20,7 +20,7 @@ impl TerminalExecution<'_> {
         if result.scalar_type != ScalarType::Integer(count_type) {
             return Err(malformed());
         }
-        let (source_field, capacity) = self.readable_byte_field(*source, path, *field)?;
+        let (source_field, capacity) = self.byte_field_length_home(*source, path, *field)?;
         let length = self.byte_field_length(&source_field)?;
         if capacity.is_some_and(|capacity| length > capacity) {
             return Err(malformed());

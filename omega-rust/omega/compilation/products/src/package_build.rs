@@ -6,6 +6,7 @@
 //! continuation proceeds to final checking without executing the Build again.
 
 use crate::{ComputedBuildConfig, PreparedBuild};
+mod retention_identity;
 use diagnostics::Diagnostic;
 use optimization_core::OptimizationRollback;
 use package_compilation::{
@@ -141,6 +142,10 @@ impl PreparedPackageBuild {
 
     pub fn generated_source_bundle(&self) -> &PackageGeneratedSourceBundle {
         &self.generated_sources
+    }
+
+    pub fn optimization_rollback(&self) -> &optimization_core::OptimizationRollback {
+        &self.rollback
     }
 
     pub fn root_path(&self) -> &std::path::Path {

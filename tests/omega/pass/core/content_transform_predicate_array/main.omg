@@ -2,7 +2,7 @@
 use omega::language::core::content;
 data Units {}
 data Cell [copy] { value: u64; }
-domain Cell::Positive(cell) requires cell.value > 0;
+domain Cell::Positive requires self.value > 0;
 data Envelope [linear] { quantity: u64; cells: [Cell in Positive; 2]; }
 domain Envelope::Accounted;
 machine Accounted::content(value: &Envelope) -> CountedQuantity<Units>

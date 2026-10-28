@@ -207,14 +207,7 @@ impl Denotation {
                 let relation_position = this.integer_less_than()?;
                 let relation = this.constant(relation_position);
                 let variable = this.arena.insert(Term::Variable(0));
-                let function = this.arena.insert(Term::Apply {
-                    function: relation,
-                    argument: variable,
-                });
-                let domain = this.arena.insert(Term::Apply {
-                    function,
-                    argument: variable,
-                });
+                let domain = this.arena.apply_binary(relation, variable, variable);
                 let empty = this.arena.insert(Term::Empty);
                 let codomain = this.arena.insert(Term::Pi {
                     domain,
@@ -228,14 +221,7 @@ impl Denotation {
             },
         )?;
         let function = self.constant(position);
-        let function = self.arena.insert(Term::Apply {
-            function,
-            argument: value,
-        });
-        Ok(self.arena.insert(Term::Apply {
-            function,
-            argument: evidence,
-        }))
+        Ok(self.arena.apply_binary(function, value, evidence))
     }
 
     pub(super) fn subtraction_evidence(

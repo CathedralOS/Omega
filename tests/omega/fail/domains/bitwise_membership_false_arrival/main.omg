@@ -1,4 +1,4 @@
-domain u32::Clear(value) requires (value & 2) == 0;
+domain u32::Clear requires (self & 2) == 0;
 machine main() {
     transition { _ -> consume(130) }
     machine consume(value: u32 in Clear) {}

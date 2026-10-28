@@ -11,12 +11,9 @@ pub(crate) fn non_authoritative_template_compatibility_fingerprint(
     linkage: &ValidatedElfProcedureLinkageRelocationPlan,
     contents: &ElfProcedureLinkageTemplateContents,
 ) -> u64 {
-    let mut hash = Fnv1a::new();
-    hash.bytes(b"omega.elf-procedure-linkage-templates.v1");
-    hash.bytes(
-        &linkage
-            .non_authoritative_linkage_compatibility_fingerprint()
-            .to_le_bytes(),
+    let mut hash = crate::dynamic_executable::checked::stage_fingerprint(
+        b"omega.elf-procedure-linkage-templates.v1",
+        linkage.non_authoritative_linkage_compatibility_fingerprint(),
     );
     hash.byte(contents.policy as u8);
     hash.bytes(&contents.bytes.plt);

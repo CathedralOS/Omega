@@ -7,7 +7,7 @@ use super::super::boundary_settlements::claim_completion_only_boundary_is_exact;
 use super::super::control_flow::scalar_sources::ScalarSources;
 use super::super::scalar_abi::fixed_native_integer_shape;
 use super::super::structural_layout::structural_sum_layout;
-use super::known_integers::{KnownUnitInteger, insert_known_unit_integer};
+use super::known_integers::{KnownUnitInteger, insert_known_unit_integer, insert_scalar_home};
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractOperation};
@@ -164,18 +164,7 @@ pub(in crate::lowering) fn lower_boundary_call(
                     return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
                 };
                 if let Some(home) = target_result.scalar_home().copied() {
-                    match home.scalar_type {
-                        ScalarType::Integer(_) => insert_known_unit_integer(
-                            scalar_values,
-                            home.source_value,
-                            KnownUnitInteger::Home(home),
-                        )?,
-                        ScalarType::Boolean | ScalarType::IeeeFloat(_) => {
-                            if scalar_homes.insert(home.source_value, home).is_some() {
-                                return Err(LoweringError::DuplicateValue(home.source_value));
-                            }
-                        }
-                    }
+                    insert_scalar_home(scalar_values, scalar_homes, home)?;
                 }
                 operations.push(TargetUnitOperation::NormalizedForeignCall {
                     psi_operation: *psi_operation,

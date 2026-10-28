@@ -3,32 +3,22 @@
 //! Intel SDM volume 2, LFENCE/MFENCE/SFENCE instruction entries.
 use register_model::RegisterConstraintKey;
 use selected_instructions::{
-    MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
-    MachineAlternativeKey, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
-    MachineEffectDeclaration, MachineEncodedEffects, MachineLatencyKnowledge, MachineMemoryEffect,
-    MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior, MemoryFenceKind,
+    MachineAlternativeFamily, MachineBarrier, MachineEffectDeclaration, MachineEncodedEffects,
+    MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
+    MemoryFenceKind,
 };
 
 pub(crate) fn declaration(constraint: RegisterConstraintKey) -> MachineEffectDeclaration {
-    MachineEffectDeclaration {
-        semantic: MachineSemanticKind::MemoryFence,
+    super::alternative_declaration(
         constraint,
-        memory: MachineMemoryEffect::CatalogFenceV1,
-        trap: MachineTrapBehavior::NeverV1,
-        barrier: MachineBarrier::ExternalEffect,
-        call: MachineCallEffect::NoneV1,
-        cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey {
-                family: MachineAlternativeFamily::MemoryFence,
-                variant: 0,
-            },
-            applicability: MachineAlternativeApplicability::Always,
-            size: MachineSizeKnowledge::ExactBytes(3),
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded: MachineEncodedEffects::catalog_fence_v1(),
-        }],
-    }
+        MachineSemanticKind::MemoryFence,
+        MachineMemoryEffect::CatalogFenceV1,
+        MachineTrapBehavior::NeverV1,
+        MachineBarrier::ExternalEffect,
+        MachineAlternativeFamily::MemoryFence,
+        MachineSizeKnowledge::ExactBytes(3),
+        MachineEncodedEffects::catalog_fence_v1(),
+    )
 }
 
 pub(crate) fn encode(kind: MemoryFenceKind) -> Option<Vec<u8>> {
@@ -53,7 +43,9 @@ pub(crate) fn decode(bytes: &[u8]) -> Option<MemoryFenceKind> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use selected_instructions::{RegisterOperation, SelectedInstructionKind};
+    use selected_instructions::{
+        MachineAlternativeKey, RegisterOperation, SelectedInstructionKind,
+    };
     #[test]
     fn catalog_fences_keep_exact_bytes_and_reject_other_effects() {
         let physical = register_model::validate_physical_register_model(

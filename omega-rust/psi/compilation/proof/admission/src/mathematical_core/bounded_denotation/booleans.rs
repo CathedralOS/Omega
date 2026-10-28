@@ -83,14 +83,7 @@ impl Denotation {
                     self.boolean_equality =
                         equality_function(&mut self.arena, self.two, self.two_zero, self.two_one);
                 }
-                let function = self.arena.insert(Term::Apply {
-                    function: self.boolean_equality,
-                    argument: left,
-                });
-                self.arena.insert(Term::Apply {
-                    function,
-                    argument: right,
-                })
+                self.arena.apply_binary(self.boolean_equality, left, right)
             }
             _ => return Ok(None),
         }))

@@ -11,8 +11,8 @@ use super::builtin::BUILTIN_TYPE_COUNT;
 mod child_batches;
 mod indices;
 use indices::{
-    BindingSourceIndex, BindingSourceIndexCache, ModulePathIndex, ModulePathIndexCache,
-    ModuleScopeIndex, ModuleScopeIndexCache, RootNameIndex, RootNameIndexCache,
+    BindingSourceIndexCache, ModulePathIndex, ModulePathIndexCache, ModuleScopeIndex,
+    ModuleScopeIndexCache, RootNameIndex, RootNameIndexCache,
 };
 mod modules;
 
@@ -234,6 +234,7 @@ fn child_symbol(
 ) -> Symbol {
     Symbol {
         parent,
+        declaration_owner: SymbolHandle::invalid(),
         children: HandleSpan::empty(),
         kind,
         name: names.insert(SymbolName::from_ref_with_sources(name, sources)),
@@ -335,6 +336,7 @@ impl SymbolTable {
             // foreign generations without following an untrusted parent chain.
             let origin = symbol.generated_from;
             if !origin.is_valid()
+                || symbol.declaration_owner.is_valid()
                 || origin.generation() != handle.generation()
                 || origin.arena_index() >= handle.arena_index()
                 || symbols.get(origin).kind == SymbolKind::Unknown
@@ -438,6 +440,7 @@ impl SymbolTable {
                 parent,
                 Symbol {
                     parent,
+                    declaration_owner: SymbolHandle::invalid(),
                     children: HandleSpan::empty(),
                     kind,
                     name,
@@ -461,6 +464,34 @@ impl SymbolTable {
         self.symbols.get(symbol)
     }
 
+    /// Record the inverse of an owning declaration row. Resolution establishes
+    /// uniqueness before publication; a retained frontier may rejoin the same
+    /// relationship, but another owner cannot replace it.
+    pub fn record_declaration_owner(
+        &mut self,
+        declaration: SymbolHandle,
+        owner: SymbolHandle,
+    ) -> Result<(), &'static str> {
+        if !self.symbols.nodes().is_valid(declaration)
+            || !self.symbols.nodes().is_valid(owner)
+            || self.get(declaration).kind != SymbolKind::Machine
+            || self.get(owner).kind != SymbolKind::Conformance
+        {
+            return Err("owned realization lost its declaration or enclosing capture scope");
+        }
+        let previous = self.get(declaration).declaration_owner;
+        if previous.is_valid() && previous != owner {
+            return Err("owned conformance realization has ambiguous enclosing capture scope");
+        }
+        self.symbols.get_mut(declaration).declaration_owner = owner;
+        Ok(())
+    }
+
+    /// A discarded synthesized declaration cannot lend its old capture scope.
+    pub fn clear_declaration_owner(&mut self, declaration: SymbolHandle) {
+        self.symbols.get_mut(declaration).declaration_owner = SymbolHandle::invalid();
+    }
+
     /// Give one symbol a new spelling. Target-family selection promotes the
     /// realized target's body to the family path and demotes the body it
     /// replaces to its `<path>::<target>` spelling; handles are unchanged.
@@ -480,6 +511,8 @@ impl SymbolTable {
                 .insert(SymbolName::from_ref(SymbolNameRef::Borrowed(name))),
         };
         self.symbols.get_mut(symbol).name = name;
+        self.binding_source_index.clear();
+        self.module_path_index.clear();
         self.module_scope_index.clear();
         self.root_names.clear();
     }
@@ -587,6 +620,7 @@ impl SymbolTable {
             .insert(SymbolName::from_ref(SymbolNameRef::Borrowed(name)));
         self.symbols.insert_root(Symbol {
             parent: SymbolHandle::invalid(),
+            declaration_owner: SymbolHandle::invalid(),
             children: HandleSpan::empty(),
             kind,
             name,
@@ -634,6 +668,7 @@ impl SymbolTable {
                 .into_iter()
                 .map(|(generated_from, kind, name)| Symbol {
                     parent,
+                    declaration_owner: SymbolHandle::invalid(),
                     children: HandleSpan::empty(),
                     kind,
                     name: names.insert(SymbolName::from_ref(SymbolNameRef::Borrowed(name))),
@@ -818,24 +853,10 @@ impl SymbolTable {
         reference_source: SourceId,
     ) -> &[SourceScopedTopLevelBinding] {
         const EMPTY: &[SourceScopedTopLevelBinding] = &[];
-        let index = self.binding_source_index.0.get_or_init(|| {
-            let mut index = BindingSourceIndex::default();
-            for binding in &self.source_scoped_top_level_bindings {
-                if !self.source_binding_is_selected(binding) {
-                    continue;
-                }
-                index
-                    .by_source
-                    .entry(binding.reference_source)
-                    .or_default()
-                    .push(binding.clone());
-            }
-            index
-        });
-        index
+        self.source_binding_index()
             .by_source
             .get(&reference_source)
-            .map_or(EMPTY, Vec::as_slice)
+            .map_or(EMPTY, |scope| scope.bindings.as_slice())
     }
 
     fn root_name_index(&self) -> RootNameIndex {

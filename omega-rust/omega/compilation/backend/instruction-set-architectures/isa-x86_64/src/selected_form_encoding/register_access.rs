@@ -18,12 +18,10 @@ use register_model::{RegisterConstraintKey, RegisterViewId, ValidatedPhysicalReg
 use selected_instructions::ControlRegister;
 use selected_instructions::SystemRegister;
 use selected_instructions::{
-    MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily as Family,
-    MachineAlternativeKey, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
+    MachineAlternativeFamily as Family, MachineAlternativeKey, MachineBarrier,
     MachineEffectDeclaration, MachineEncodedEffects, MachineEncodedTrapBehavior,
-    MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind as Semantic,
-    MachineSizeKnowledge, MachineTrapBehavior, RegisterOperation as Operation,
-    SelectedInstructionKind,
+    MachineMemoryEffect, MachineSemanticKind as Semantic, MachineSizeKnowledge,
+    MachineTrapBehavior, RegisterOperation as Operation, SelectedInstructionKind,
 };
 
 pub(crate) fn semantic(operation: Operation) -> Option<Semantic> {
@@ -185,10 +183,10 @@ pub(crate) fn declaration(
     if matches!(operation, Operation::MemoryFence(_)) {
         return super::memory_fence::declaration(constraint);
     }
-    MachineEffectDeclaration {
-        semantic: semantic(operation).expect("x86 register operation"),
+    super::alternative_declaration(
         constraint,
-        memory: if matches!(
+        semantic(operation).expect("x86 register operation"),
+        if matches!(
             operation,
             Operation::SystemRead(SystemRegister::Rflags)
                 | Operation::SystemWrite(SystemRegister::Rflags)
@@ -197,31 +195,22 @@ pub(crate) fn declaration(
         } else {
             MachineMemoryEffect::NoneV1
         },
-        trap: MachineTrapBehavior::MayArchitecturalFaultV1,
-        barrier: MachineBarrier::ExternalEffect,
-        call: MachineCallEffect::NoneV1,
-        cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey {
-                family: family(operation).expect("x86 register family"),
-                variant: 0,
-            },
-            applicability: MachineAlternativeApplicability::Always,
-            size: if matches!(
-                operation,
-                Operation::ProcessorHalt | Operation::InterruptControl(_)
-            ) {
-                MachineSizeKnowledge::ExactBytes(1)
-            } else {
-                MachineSizeKnowledge::EncoderResolved {
-                    minimum_bytes: 1,
-                    maximum_bytes: Some(40),
-                }
-            },
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded: effects(operation),
-        }],
-    }
+        MachineTrapBehavior::MayArchitecturalFaultV1,
+        MachineBarrier::ExternalEffect,
+        family(operation).expect("x86 register family"),
+        if matches!(
+            operation,
+            Operation::ProcessorHalt | Operation::InterruptControl(_)
+        ) {
+            MachineSizeKnowledge::ExactBytes(1)
+        } else {
+            MachineSizeKnowledge::EncoderResolved {
+                minimum_bytes: 1,
+                maximum_bytes: Some(40),
+            }
+        },
+        effects(operation),
+    )
 }
 
 fn move_register(bytes: &mut Vec<u8>, source: u8, destination: u8, wide: bool) {

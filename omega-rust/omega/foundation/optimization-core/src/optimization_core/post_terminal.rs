@@ -17,10 +17,17 @@ pub struct PostTerminalOptimizationSelections {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PostTerminalOptimizationSelectionProjection {
     pub(super) complete_selection: OptimizationSelectionIdentity,
+    pub(super) complete_selections: OptimizationSelections,
     pub(super) selected: PostTerminalOptimizationSelections,
 }
 
 impl PostTerminalOptimizationSelectionProjection {
+    /// Retain the complete authored input for compiler-private recovery. The
+    /// phase subset alone cannot reconstruct the original selection identity.
+    pub const fn complete_selections(&self) -> &OptimizationSelections {
+        &self.complete_selections
+    }
+
     pub const fn complete_selection(&self) -> OptimizationSelectionIdentity {
         self.complete_selection
     }

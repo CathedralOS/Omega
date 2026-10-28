@@ -281,9 +281,17 @@ fn collect_state_numeric_observations_batch(
             };
             if let Some(delivered) = delivered {
                 CopiedIntegerValue::visit_delivered_values(program, delivered, &mut |expression| {
-                    if crate::expression_result_type_reference(program, machine, state, expression)
-                        .and_then(|reference| program.primitive_type_reference(reference))
-                        .is_some_and(|primitive| primitive.is_fixed_integer())
+                    if !matches!(
+                        program.expression_table.expression(expression),
+                        typed_trees::expression::ExpressionNode::Integer(_)
+                    ) && crate::expression_result_type_reference(
+                        program,
+                        machine,
+                        state,
+                        expression,
+                    )
+                    .and_then(|reference| program.primitive_type_reference(reference))
+                    .is_some_and(|primitive| primitive.is_fixed_integer())
                         && !statement_results[index].contains(&expression)
                     {
                         statement_results[index].push(expression);
@@ -384,7 +392,10 @@ fn collect_numeric_observations(
         };
         if let Some(delivered) = delivered {
             CopiedIntegerValue::visit_delivered_values(program, delivered, &mut |expression| {
-                if crate::expression_result_type_reference(program, machine, state, expression)
+                if !matches!(
+                    program.expression_table.expression(expression),
+                    typed_trees::expression::ExpressionNode::Integer(_)
+                ) && crate::expression_result_type_reference(program, machine, state, expression)
                     .and_then(|reference| program.primitive_type_reference(reference))
                     .is_some_and(|primitive| primitive.is_fixed_integer())
                     && !results.contains(&expression)
@@ -856,6 +867,20 @@ impl StructuralPrefixVisitor for Observations {
         }
     }
 
+    fn is_complete(&self) -> bool {
+        !self.wants_scalar_values
+            && self.operations.iter().all(|operation| {
+                self.orderings.iter().any(|(source, minimum, preserved)| {
+                    source == operation && minimum.is_none() && !*preserved
+                })
+            })
+            && self.results.iter().all(|expression| {
+                self.associations
+                    .iter()
+                    .any(|(source, previous)| source == expression && previous.is_empty())
+            })
+    }
+
     fn observe<'program>(&mut self, observation: PrefixObservation<'_, 'program>) {
         let (program, machine, state, judge, environment) = observation;
         if self.wants_scalar_values {
@@ -867,18 +892,7 @@ impl StructuralPrefixVisitor for Observations {
         else {
             return;
         };
-        if !self.wants_scalar_values
-            && self.operations.iter().all(|operation| {
-                self.orderings.iter().any(|(source, minimum, preserved)| {
-                    source == operation && minimum.is_none() && !*preserved
-                })
-            })
-            && self.results.iter().all(|expression| {
-                self.associations
-                    .iter()
-                    .any(|(source, previous)| source == expression && previous.is_empty())
-            })
-        {
+        if self.is_complete() {
             return;
         }
         if !self.wants_scalar_values

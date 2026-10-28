@@ -1,5 +1,5 @@
 // Expected exit: 0
-domain i32::Selected(value) requires value == 1 || value == 38;
+domain i32::Selected requires self == 1 || self == 38;
 machine main() crashes Trap {
     let mut selected: i32 in Selected = 38;
     let snapshot: i32 in Selected = selected;

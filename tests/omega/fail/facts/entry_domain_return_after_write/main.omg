@@ -1,5 +1,5 @@
 data Counter { value: u64; }
-domain Counter::One(counter) requires counter.value == 1;
+domain Counter::One requires self.value == 1;
 machine clear(counter: &mut Counter) { counter.value = 0; }
 machine invalid(counter: &mut Counter) -> u64
 requires counter in Counter::One

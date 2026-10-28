@@ -1,4 +1,6 @@
 //! Rejoin owned aggregate actuals to exact incoming, produced or block-owned backing.
+use crate::selection::place_declaration::declares_block_parameter;
+
 use super::{
     LegalizedScalarArgument, LegalizedScalarCall, LegalizedScalarFunction, StructuralAccess,
     evaluate_call_plan,
@@ -119,19 +121,12 @@ pub(super) fn validate_owned_arguments(
                     || parameter.access != StructuralAccess::Owned
                     || parameter.structural_type != target.root_structural_type
                     || (!semantic.path.is_empty() && !parameter.qualifications.is_empty())
-                    || !source
-                        .structural
-                        .as_ref()?
-                        .structural_places
-                        .iter()
-                        .any(|declaration| {
-                            declaration.id == place
-                                && declaration.kind
-                                    == semantic_vocabulary::StructuralPlaceKind::BlockParameter {
-                                        block,
-                                        position: parameter.position,
-                                    }
-                        })
+                    || !declares_block_parameter(
+                        source.structural.as_ref()?,
+                        place,
+                        block,
+                        parameter.position,
+                    )
                 {
                     return None;
                 }

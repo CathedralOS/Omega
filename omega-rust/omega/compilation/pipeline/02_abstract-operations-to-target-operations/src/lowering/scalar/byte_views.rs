@@ -2,6 +2,7 @@
 //! Arrival transport resolves storage once, independently of whether an entry
 //! or state edge supplied it. Operation validation owns access permissions;
 //! native geometry must not reinterpret qualification or frozen-content rules.
+use super::descriptor_operands::observes_measured_length;
 use super::{KnownInteger, KnownScalar};
 use crate::LoweringError;
 use crate::lowering::scalar::expressions::{insert_value, unsigned_u64_endpoint};
@@ -232,7 +233,7 @@ pub(in crate::lowering) fn lower_byte_observation_with_lengths(
         if scalar_type.sign() != IntegerSign::Unsigned || scalar_type.bits() != 64 {
             return Err(invalid());
         }
-        let (selected, indices) = super::descriptor_operands::descriptor_projection(
+        let (selected, indices) = super::descriptor_operands::descriptor_metadata_projection(
             function,
             structural_types,
             backings,
@@ -336,7 +337,7 @@ pub(in crate::lowering) fn lower_byte_observation_with_lengths(
             };
             if index_type.sign() != IntegerSign::Unsigned
                 || index_type.bits() != 64
-                || !observes_length(values, lengths, *length, source)
+                || !observes_measured_length(values, lengths, *length, source, true)
             {
                 return Err(invalid());
             }
@@ -667,33 +668,6 @@ fn owned_byte_result<'a>(
     });
     let result = matching.next()?;
     matching.next().is_none().then_some(result)
-}
-
-fn observes_length(
-    values: &BTreeMap<ValueId, KnownScalar>,
-    lengths: &BTreeMap<ValueId, PlaceId>,
-    length: ValueId,
-    source: PlaceId,
-) -> bool {
-    let Some(KnownScalar::Integer { scalar_type, value }) = values.get(&length) else {
-        return false;
-    };
-    if scalar_type.sign() != IntegerSign::Unsigned || scalar_type.bits() != 64 {
-        return false;
-    }
-    match value {
-        KnownInteger::Runtime(TargetIntegerExpression::ByteSequenceLength {
-            source: observed,
-            source_value,
-            ..
-        }) => observed.place == source && observed.path.is_empty() && *source_value == length,
-        KnownInteger::Runtime(TargetIntegerExpression::ScalarHome(home)) => {
-            home.source_value == length
-                && home.scalar_type == ScalarType::Integer(*scalar_type)
-                && lengths.get(&length) == Some(&source)
-        }
-        _ => false,
-    }
 }
 
 /// Join a completed descriptor to its exact producer and required result home.

@@ -2,7 +2,7 @@
 
 use register_model::{
     RegisterConstraintId, RegisterConstraintKey, RegisterInstructionConstraint,
-    RegisterOperandAccess, RegisterOperandConstraint, ValidatedPhysicalRegisterModel,
+    RegisterOperandAccess, ValidatedPhysicalRegisterModel,
 };
 pub const X86_64_LOAD_PACKED: RegisterConstraintKey = RegisterConstraintKey::instruction(734);
 pub const X86_64_STORE_PACKED: RegisterConstraintKey = RegisterConstraintKey::instruction(735);
@@ -22,17 +22,19 @@ pub(super) fn append_constraints(
             operands: (0..3)
                 .map(|operand| {
                     let writes = operand == 2 || (load && operand == 1);
-                    RegisterOperandConstraint {
+                    let row = super::allocatable_operand(
                         operand,
-                        access: if writes {
+                        if writes {
                             RegisterOperandAccess::Def
                         } else {
                             RegisterOperandAccess::Use
                         },
-                        class: GPR64,
-                        fixed_view: None,
-                        tied_to: None,
-                        early_clobber: writes,
+                        GPR64,
+                    );
+                    if writes {
+                        super::early_clobber(row)
+                    } else {
+                        row
                     }
                 })
                 .collect(),

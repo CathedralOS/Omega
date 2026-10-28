@@ -219,6 +219,7 @@ Toolchain operations have designated product operands:
 
 ```omega
 Build::bind(builder, windows_x86_64::ProgramEntry, Application::start);
+Build::bind<WindowsAudioPlaybackIo::c_play_sound>(builder, windows_x86_64, native_locator);
 Build::select_provider<windows_x86_64::Console, TestConsole>(builder);
 Build::assume_binding_contract<WritableMemory::claim, RangeSupplier::supply>(builder);
 _ = builder.tests.group<Tests::memory>();
@@ -232,6 +233,16 @@ as admitted Build operations. No product receiver, function body, initializer,
 or provider is executed. A user-defined same-named method or generic helper gets
 no special resolution. This extends the existing "selection is not invocation"
 rule, not general syntax quotation or an exception to ordinary call checking.
+
+The native-binding overload's requirement argument is an exact designated
+product reference; its target and locator are ordinary checked Build data.
+It records package-local intent for resolution against the completed checked
+product, not an ordinary import or a call into product source. Literal locator
+byte lengths are inferred. Product binding never installs a provider in the
+running Build activation. This accepted form replaces source `via` and
+per-symbol forwarding declarations; its implementation and migration remain
+`BUILD-OWNED-NATIVE-BINDINGS` work under
+[foreign bindings](foreign_bindings.md#build-owned-native-binding).
 
 The assumed-binding operation registers a root-authorized runtime relationship
 only. Neither its implementation nor its admitted facts become build-executable;
@@ -578,9 +589,10 @@ files without this application-mode declaration.
 
 Artifact-only builds retain an explicit target/evaluation context from their
 invocation; the mode does not imply cross-target equivalence or a new target
-profile. A generator cannot inspect a target: target-specific generated
-content is emitted as target-tagged declarations for every target, never a
-different file per target.
+profile. A generator cannot inspect a selected realization target: generated
+source contains ordinary named implementations for the supplied targets, and
+the evaluated Build records target-keyed provider rows. It emits neither
+target-prefixed declarations nor a different file selected per realized target.
 This first slice does not automatically merge outputs from different target
 children. Executable builds still require the target's ProgramEntry and other
 mandatory roots even when they also publish artifacts.

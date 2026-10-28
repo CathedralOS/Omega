@@ -36,20 +36,10 @@ pub(super) fn derive(
     let mut bytes = Vec::new();
     let mut functions = Vec::with_capacity(frame.plan().functions.len());
     for function in &frame.plan().functions {
-        // The prologue commits only the non-red-zone extent; resident bytes
-        // already live below the unadjusted entry stack pointer. Residency is
-        // a leaf-only storage shape: preservation slots and call frames can
-        // never observe a below-RSP coordinate, so a resident row carrying
-        // either is rejected here even though layout replay also refuses it.
-        let committed_bytes = function
-            .frame_size_bytes
-            .checked_sub(function.red_zone_resident_bytes)
+        // Only the non-red-zone extent commits: resident bytes already live
+        // below the unadjusted entry stack pointer.
+        let committed_bytes = crate::frame_layout::committed_extent(function)
             .ok_or(TargetFrameProtocolEncodingError::NonCanonicalEncoding)?;
-        if function.red_zone_resident_bytes != 0
-            && (function.contains_call || !function.callee_save_slots.is_empty())
-        {
-            return Err(TargetFrameProtocolEncodingError::NonCanonicalEncoding);
-        }
         // The recorded return-address custody must be an instance of the
         // mechanism the pair's declared unwind row continues through; a
         // foreign custody fails closed before the codec runs.

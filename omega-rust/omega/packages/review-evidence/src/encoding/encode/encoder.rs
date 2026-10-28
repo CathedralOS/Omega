@@ -209,14 +209,28 @@ impl<'text> Encoder<'text> {
 
     /// One field whose payload an existing writer already owns: the same field
     /// framing, in the writer's own canonical order, so a caller states the
-    /// value and its writer instead of restating the wrapper closure.
-    pub(crate) fn field_by<T>(
+    /// value and its writer instead of restating the wrapper closure. A writer
+    /// that reports a failure and one that cannot are the same statement here:
+    /// the field's own check reports either.
+    pub(crate) fn field_by<T, R: FieldPayload>(
         &mut self,
         name: &'static str,
         value: T,
-        encode: impl FnOnce(&mut Self, T) -> Result<(), PackageReviewEncodingError>,
+        encode: impl FnOnce(&mut Self, T) -> R,
     ) -> Result<(), PackageReviewEncodingError> {
-        self.field(name, |encoder| encode(encoder, value))
+        self.field(name, |encoder| encode(encoder, value).field_payload())
+    }
+
+    /// One field whose payload is one optional value: the field's framing and the
+    /// option's own some/none framing, with the present value's writer stated at
+    /// the field instead of inside a wrapper closure.
+    pub(crate) fn option_field<T: ?Sized>(
+        &mut self,
+        name: &'static str,
+        value: Option<&T>,
+        encode_value: impl Fn(&mut Self, &T) -> Result<(), PackageReviewEncodingError>,
+    ) -> Result<(), PackageReviewEncodingError> {
+        self.field(name, |encoder| encoder.option(value, encode_value))
     }
 
     pub(crate) fn package_identity(&mut self, identity: PackageKeyIdentity) {
@@ -250,6 +264,25 @@ impl<'text> Encoder<'text> {
         } else {
             Ok(())
         }
+    }
+}
+
+/// A field's payload writer either reports a failure or cannot: `field_by`
+/// states both forms with one call, so no call site restates the wrapper that
+/// turned a total writer into a field payload.
+pub(crate) trait FieldPayload {
+    fn field_payload(self) -> Result<(), PackageReviewEncodingError>;
+}
+
+impl FieldPayload for () {
+    fn field_payload(self) -> Result<(), PackageReviewEncodingError> {
+        Ok(())
+    }
+}
+
+impl FieldPayload for Result<(), PackageReviewEncodingError> {
+    fn field_payload(self) -> Result<(), PackageReviewEncodingError> {
+        self
     }
 }
 

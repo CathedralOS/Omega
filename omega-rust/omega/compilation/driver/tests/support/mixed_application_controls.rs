@@ -8,7 +8,7 @@ use semantic_vocabulary::{
     ScalarType,
 };
 use terminal_codec::MathematicalProofActualError;
-use terminal_psi::{OperationKind, TerminalModule, Terminator};
+use terminal_psi::TerminalModule;
 
 pub(super) fn check(
     module: &TerminalModule,
@@ -145,66 +145,11 @@ pub(super) fn check(
 }
 
 fn first_mixed(module: &mut TerminalModule) -> Option<&mut ProofTerm> {
-    fn find(terms: &mut [ProofTerm]) -> Option<&mut ProofTerm> {
-        terms.iter_mut().find(|term| matches!(term,
-            ProofTerm::MathematicalApplication { arguments, .. }
-                if arguments.iter().any(|argument| matches!(argument, MathematicalArgument::Scalar { .. }))))
-    }
-    for owner in &mut module.machines {
-        for block in &mut owner.blocks {
-            for operation in &mut block.operations {
-                let terms = match &mut operation.kind {
-                    OperationKind::Call {
-                        erased_proof_arguments,
-                        ..
-                    }
-                    | OperationKind::CallUnit {
-                        erased_proof_arguments,
-                        ..
-                    }
-                    | OperationKind::CallStructuralScalar {
-                        erased_proof_arguments,
-                        ..
-                    }
-                    | OperationKind::CallStructuralWithScalarArguments {
-                        erased_proof_arguments,
-                        ..
-                    }
-                    | OperationKind::CallDynamic {
-                        erased_proof_arguments,
-                        ..
-                    } => erased_proof_arguments,
-                    _ => continue,
-                };
-                if let Some(term) = find(terms) {
-                    return Some(term);
-                }
-            }
-            let edges = match &mut block.terminator {
-                Terminator::Jump {
-                    erased_proof_arguments,
-                    ..
-                }
-                | Terminator::InvokeNoNormal {
-                    erased_proof_arguments,
-                    ..
-                } => [Some(erased_proof_arguments), None],
-                Terminator::Conditional {
-                    when_true,
-                    when_false,
-                    ..
-                } => [
-                    Some(&mut when_true.erased_proof_arguments),
-                    Some(&mut when_false.erased_proof_arguments),
-                ],
-                _ => [None, None],
-            };
-            for terms in edges.into_iter().flatten() {
-                if let Some(term) = find(terms) {
-                    return Some(term);
-                }
-            }
-        }
-    }
-    None
+    super::indexed_family_controls::proof_carriers_mut(module)
+        .into_iter()
+        .find_map(|(_, roster)| {
+            roster
+                .iter_mut()
+                .find(|term| super::indexed_family_controls::is_mixed_application(term))
+        })
 }

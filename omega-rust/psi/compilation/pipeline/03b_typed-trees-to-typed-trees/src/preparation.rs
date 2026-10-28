@@ -253,7 +253,8 @@ pub fn prepare_typed_trees(
         // Public requirement application can settle a result without creating
         // another executable body. Refresh its inferred consumers before token
         // binding reads them and include that change in the same fixed point.
-        let unavailable = crate::constructed_results::retain_constructed_result_types(&mut program);
+        let unavailable =
+            crate::constructed_results::retain_constructed_result_types(&mut program)?;
         let result_owners =
             crate::monomorphization::refresh_inferred_result_locals(&mut program, &unavailable)?;
         materialized += result_owners.len();
@@ -290,7 +291,7 @@ pub fn prepare_typed_trees(
     // substituted member edges do not become new application demands.
     phase_profile::scope("05.c.3.d.constructed_result_types", || {
         crate::constructed_results::retain_constructed_result_types(&mut program)
-    });
+    })?;
     phase_profile::scope("05.c.3.e.data_applications", || {
         data_applications::elaborate(&mut program)
     })?;
@@ -434,7 +435,7 @@ pub fn prepare_constant_execution(
     validation::resolve_dynamic_call_targets(&mut program)?;
     specialize_static_machine_calls(&mut program)?;
     settle_value_destinations(&mut program)?;
-    crate::constructed_results::retain_constructed_result_types(&mut program);
+    crate::constructed_results::retain_constructed_result_types(&mut program)?;
     crate::assignment_destinations::prepare(&mut program);
     crate::monomorphization::require_complete_dispatch_subjects(&program)?;
     Ok(program)

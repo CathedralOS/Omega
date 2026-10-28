@@ -7,15 +7,13 @@ use optimization_core::{
     AnalysisKind, AnalysisSet, OptimizationRuleContract, OptimizationSafetyClass,
 };
 use optimization_unit::{
-    BooleanConstantRewrite, IntegerEvaluationWitness, PsiOptimizationUnit, PsiRewriteCandidate,
-    ValueRangeSupport,
+    IntegerEvaluationWitness, PsiOptimizationUnit, PsiRewriteCandidate, ValueRangeSupport,
 };
 use semantic_vocabulary::{IntegerType, IntegerValue};
 
 use super::IntegerRangePairComparisonKind;
-use crate::rules::control_flow_cleanup::node_realized_provenance;
 use crate::rules::sparse_conditional_constant_propagation::{
-    integer_value_type, node_location, range_comparison_contract,
+    integer_value_type, range_comparison_contract,
 };
 use crate::{
     AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError, ValueRangeAnalysis,
@@ -47,107 +45,73 @@ fn propose_over(
     contract: OptimizationRuleContract,
     kind: IntegerRangePairComparisonKind,
 ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
-    let mut candidates = Vec::new();
-    for function in &unit.functions {
-        for block in &function.blocks {
-            for (node_index, node) in block.nodes.iter().enumerate() {
-                let (psi_operation, result, left, right) = match (kind, &node.operation) {
-                    (
-                        IntegerRangePairComparisonKind::Equal,
-                        O::IntegerEqual {
-                            psi_operation,
-                            result,
-                            left,
-                            right,
-                        },
-                    )
-                    | (
-                        IntegerRangePairComparisonKind::LessThan,
-                        O::IntegerLessThan {
-                            psi_operation,
-                            result,
-                            left,
-                            right,
-                        },
-                    )
-                    | (
-                        IntegerRangePairComparisonKind::LessOrEqual,
-                        O::IntegerLessOrEqual {
-                            psi_operation,
-                            result,
-                            left,
-                            right,
-                        },
-                    ) => (*psi_operation, *result, *left, *right),
-                    _ => continue,
-                };
-                let Some(scalar_type) = integer_value_type(function, left) else {
-                    continue;
-                };
-                if integer_value_type(function, right) != Some(scalar_type) {
-                    continue;
-                }
-                let node_index =
-                    u32::try_from(node_index).expect("optimization node indices are u32");
-                let proof_range = |value| {
-                    ranges.facts.iter().find(|fact| {
-                        fact.valid_in.machine == function.machine
-                            && fact.value == value
-                            && fact.scalar_type == scalar_type
-                            && matches!(
-                                fact.support,
-                                ValueRangeSupport::AcceptedOperationProof { .. }
-                            )
-                            && ranges.fact_applies_at(
-                                fact,
-                                unit,
-                                function.machine,
-                                block.id,
-                                node_index,
-                            )
-                    })
-                };
-                let (Some(left_range), Some(right_range)) = (proof_range(left), proof_range(right))
-                else {
-                    continue;
-                };
-                let Some(constant) = evaluate(
-                    kind,
-                    scalar_type,
-                    left == right,
-                    left_range.minimum,
-                    left_range.maximum,
-                    right_range.minimum,
-                    right_range.maximum,
-                ) else {
-                    continue;
-                };
-                let location = node_location(function.machine, block.id, node_index);
-                candidates.push(
-                    PsiRewriteCandidate::new_boolean_evaluation(
-                        unit.identity,
-                        contract,
-                        vec![block.id],
-                        Vec::new(),
-                        vec![node_realized_provenance(location, node)],
-                        IntegerEvaluationWitness::RangeAgainstRange {
-                            left_range_fact: left_range.identity,
-                            right_range_fact: right_range.identity,
-                        },
-                        -1,
-                        BooleanConstantRewrite {
-                            location,
-                            source_operation: psi_operation,
-                            result,
-                            constant,
-                        },
-                    )
-                    .map_err(RuleProposalError::InvalidCandidate)?,
-                );
-            }
+    super::propose_boolean_evaluations(unit, contract, |function, block, node, node_index| {
+        let (psi_operation, result, left, right) = match (kind, &node.operation) {
+            (
+                IntegerRangePairComparisonKind::Equal,
+                O::IntegerEqual {
+                    psi_operation,
+                    result,
+                    left,
+                    right,
+                },
+            )
+            | (
+                IntegerRangePairComparisonKind::LessThan,
+                O::IntegerLessThan {
+                    psi_operation,
+                    result,
+                    left,
+                    right,
+                },
+            )
+            | (
+                IntegerRangePairComparisonKind::LessOrEqual,
+                O::IntegerLessOrEqual {
+                    psi_operation,
+                    result,
+                    left,
+                    right,
+                },
+            ) => (*psi_operation, *result, *left, *right),
+            _ => return None,
+        };
+        let scalar_type = integer_value_type(function, left)?;
+        if integer_value_type(function, right) != Some(scalar_type) {
+            return None;
         }
-    }
-    Ok(candidates)
+        let proof_range = |value| {
+            ranges.facts.iter().find(|fact| {
+                fact.valid_in.machine == function.machine
+                    && fact.value == value
+                    && fact.scalar_type == scalar_type
+                    && matches!(
+                        fact.support,
+                        ValueRangeSupport::AcceptedOperationProof { .. }
+                    )
+                    && ranges.fact_applies_at(fact, unit, function.machine, block, node_index)
+            })
+        };
+        let (left_range, right_range) = (proof_range(left)?, proof_range(right)?);
+        let constant = evaluate(
+            kind,
+            scalar_type,
+            left == right,
+            left_range.minimum,
+            left_range.maximum,
+            right_range.minimum,
+            right_range.maximum,
+        )?;
+        Some(super::BooleanConstantEvaluation {
+            source_operation: psi_operation,
+            result,
+            constant,
+            witness: IntegerEvaluationWitness::RangeAgainstRange {
+                left_range_fact: left_range.identity,
+                right_range_fact: right_range.identity,
+            },
+        })
+    })
 }
 
 #[allow(clippy::too_many_arguments)]

@@ -1331,7 +1331,9 @@ invokes
     machine rd_header(filesystem: &mut PosixFilesystem, dfd: i32) -> IoResult {
         transition filesystem.rd_off < 495 { true -> rd_body(filesystem, dfd) _ -> rd_malformed(filesystem, dfd) }
     }
-    machine rd_body(filesystem: &mut PosixFilesystem, dfd: i32) -> IoResult {
+    machine rd_body(filesystem: &mut PosixFilesystem, dfd: i32) -> IoResult
+    requires filesystem.rd_off < 495
+    {
 
         filesystem.rd_idx = filesystem.rd_off + 16;
         filesystem.rd_lo = filesystem.dir_buf[filesystem.rd_idx];
@@ -1430,7 +1432,9 @@ reaches DirectoryEnumeration + FilesystemMetadataQuery
     machine rdef_at(filesystem: &mut PosixFilesystem, dfd: i32) -> DirEntryResult {
         transition filesystem.rd_recno == filesystem.rd_target { true -> rdef_extract(filesystem) _ -> rdef_accept(filesystem, dfd) }
     }
-    machine rdef_advance(filesystem: &mut PosixFilesystem, dfd: i32) -> DirEntryResult {
+    machine rdef_advance(filesystem: &mut PosixFilesystem, dfd: i32) -> DirEntryResult
+    requires filesystem.rd_off < 489
+    {
         filesystem.rd_idx = filesystem.rd_off + 16;
         filesystem.rd_lo = filesystem.dir_buf[filesystem.rd_idx];
         filesystem.rd_idx = filesystem.rd_off + 17;
@@ -1444,7 +1448,9 @@ reaches DirectoryEnumeration + FilesystemMetadataQuery
         filesystem.rd_idx = filesystem.rd_off + (posix_filesystem_directory_name_offset() as u64 in Wrapping);
         transition filesystem.rd_idx < 510 { true -> rdef_dot(filesystem, dfd) _ -> rdef_malformed(filesystem) }
     }
-    machine rdef_dot(filesystem: &mut PosixFilesystem, dfd: i32) -> DirEntryResult {
+    machine rdef_dot(filesystem: &mut PosixFilesystem, dfd: i32) -> DirEntryResult
+    requires filesystem.rd_idx < 510
+    {
         // Check complete names, not positions, prefixes or d_type. Some Linux
         // filesystems return ordinary children before either dot entry.
         let dot: bool = filesystem.dir_buf[filesystem.rd_idx] == 46
@@ -1465,7 +1471,9 @@ reaches DirectoryEnumeration + FilesystemMetadataQuery
         filesystem.rd_idx = filesystem.rd_off + (posix_filesystem_directory_type_offset() as u64 in Wrapping);
         transition filesystem.rd_idx < 512 { true -> rdef_type(filesystem) _ -> rdef_malformed(filesystem) }
     }
-    machine rdef_type(filesystem: &mut PosixFilesystem) -> DirEntryResult {
+    machine rdef_type(filesystem: &mut PosixFilesystem) -> DirEntryResult
+    requires filesystem.rd_idx < 512
+    {
         filesystem.rd_dtype = filesystem.dir_buf[filesystem.rd_idx];
         filesystem.rd_j = 0;
         transition { _ -> rdef_copy(filesystem) }
@@ -1477,7 +1485,9 @@ reaches DirectoryEnumeration + FilesystemMetadataQuery
     machine rdef_nul(filesystem: &mut PosixFilesystem) -> DirEntryResult {
         transition filesystem.rd_j < 256 { true -> rdef_nul_go(filesystem) _ -> rdef_build(filesystem) }
     }
-    machine rdef_nul_go(filesystem: &mut PosixFilesystem) -> DirEntryResult {
+    machine rdef_nul_go(filesystem: &mut PosixFilesystem) -> DirEntryResult
+    requires filesystem.rd_j < 256
+    {
         filesystem.entry_name[filesystem.rd_j] = 0;
         transition { _ -> rdef_build(filesystem) }
     }
@@ -1485,7 +1495,9 @@ reaches DirectoryEnumeration + FilesystemMetadataQuery
         filesystem.rd_ridx = filesystem.rd_off + (posix_filesystem_directory_name_offset() as u64 in Wrapping) + filesystem.rd_j;
         transition filesystem.rd_ridx < 512 && filesystem.rd_ridx < filesystem.rd_off + filesystem.rd_reclen { true -> rdef_cdo(filesystem) _ -> rdef_malformed(filesystem) }
     }
-    machine rdef_cdo(filesystem: &mut PosixFilesystem) -> DirEntryResult {
+    machine rdef_cdo(filesystem: &mut PosixFilesystem) -> DirEntryResult
+    requires filesystem.rd_ridx < 512
+    {
         filesystem.rd_nb = filesystem.dir_buf[filesystem.rd_ridx];
         transition filesystem.rd_nb == 0 { true -> rdef_nul(filesystem) _ -> rdef_room(filesystem) }
     }
@@ -1494,7 +1506,9 @@ reaches DirectoryEnumeration + FilesystemMetadataQuery
         // Never truncate a longer record into a different deletable name.
         transition filesystem.rd_j < 255 { true -> rdef_store(filesystem) _ -> rdef_malformed(filesystem) }
     }
-    machine rdef_store(filesystem: &mut PosixFilesystem) -> DirEntryResult {
+    machine rdef_store(filesystem: &mut PosixFilesystem) -> DirEntryResult
+    requires filesystem.rd_j < 255
+    {
         filesystem.entry_name[filesystem.rd_j] = filesystem.rd_nb;
         filesystem.rd_j = filesystem.rd_j + 1;
         transition { _ -> rdef_copy(filesystem) }
@@ -1590,7 +1604,8 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
 terminates by fuel;
 {
     transition fuel > 0 { true -> rdd_step(filesystem, fuel) false -> rdd_exhausted() }
-    machine rdd_step(filesystem: &mut PosixFilesystem, fuel: u64) -> i32 requires fuel > 0; {
+    machine rdd_step(filesystem: &mut PosixFilesystem, fuel: u64) -> i32 requires fuel > 0
+    terminates by fuel; {
         posix_filesystem_rda_step(filesystem, 0);
         transition filesystem.rda_verdict == 1 { true -> posix_filesystem_rda_drain(filesystem, fuel - 1) _ -> rdd_settle(filesystem) }
     }
@@ -1641,7 +1656,9 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
         filesystem.rda_close_rc = PosixFilesystemHost::close(filesystem.rda_fd);
         transition filesystem.rda_depth >= 1 { true -> rds_pop_go(filesystem) _ -> rds_fail(filesystem) }
     }
-    machine rds_pop_go(filesystem: &mut PosixFilesystem) {
+    machine rds_pop_go(filesystem: &mut PosixFilesystem)
+    requires filesystem.rda_depth >= 1
+    {
         filesystem.rda_depth = filesystem.rda_depth - 1;
         transition filesystem.rda_close_rc == 0 { true -> rds_popped(filesystem) _ -> rds_close_failed(filesystem) }
     }
@@ -1720,7 +1737,9 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
         filesystem.rda_rc = -24;
         transition { _ -> rds_fail(filesystem) }
     }
-    machine rds_push_go(filesystem: &mut PosixFilesystem) {
+    machine rds_push_go(filesystem: &mut PosixFilesystem)
+    requires filesystem.rda_depth < 16
+    {
         filesystem.rda_stack[filesystem.rda_depth] = filesystem.rda_sub;
         filesystem.rda_depth = filesystem.rda_depth + 1;
         transition true { true -> rds_continue(filesystem) _ -> rds_fail(filesystem) }
@@ -1737,17 +1756,20 @@ terminates by remaining;
     transition remaining > 0 { true -> entry(filesystem, remaining) _ -> done(filesystem) }
     machine entry(filesystem: &mut PosixFilesystem, remaining: u64)
         requires remaining >= 1 && remaining <= 16
+    terminates by remaining;
     {
         let index: u64 = remaining - 1;
         transition index < 16 { true -> present(filesystem, index) _ -> done(filesystem) }
     }
     machine present(filesystem: &mut PosixFilesystem, index: u64)
         requires index <= 15
+    terminates by index;
     {
         transition index < filesystem.rda_depth { true -> close(filesystem, index) _ -> next(filesystem, index) }
     }
     machine close(filesystem: &mut PosixFilesystem, index: u64)
         requires index <= 15
+    terminates by index;
     {
         let descriptor: i32 = filesystem.rda_stack[index];
         let closed: i32 = PosixFilesystemHost::close(descriptor);
@@ -1755,6 +1777,7 @@ terminates by remaining;
     }
     machine next(filesystem: &mut PosixFilesystem, remaining: u64)
         requires remaining <= 15
+    terminates by remaining;
     {
         transition { _ -> posix_filesystem_release_directory_stack(filesystem, remaining) }
     }

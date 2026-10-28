@@ -273,7 +273,7 @@ fn retain_borrow_result_type(
 
 pub(crate) fn retain_constructed_result_types(
     program: &mut TypedTrees,
-) -> Vec<UnavailableValueType> {
+) -> Result<Vec<UnavailableValueType>, Vec<diagnostics::Diagnostic>> {
     let mut unavailable = Vec::new();
     for (scope, expression) in occurrences(program, |node| {
         matches!(
@@ -284,6 +284,7 @@ pub(crate) fn retain_constructed_result_types(
                 | ExpressionNode::Call(_)
         ) || matches!(node, ExpressionNode::Cast(cast) if cast.form.is_recast())
     }) {
+        let type_start = program.type_reference_table.type_reference_count();
         let reference = if program.expression_table.call_node(expression).is_some() {
             let result = match scope {
                 ValueTypeOwner::State { machine, state } => {
@@ -353,6 +354,17 @@ pub(crate) fn retain_constructed_result_types(
                 }
             })
         };
+        // Applying a callable substitutes domain arguments but copies their
+        // derived semantic IDs. Finalize this child's new vocabulary before
+        // a parent compares its type or infers a shared constructor argument.
+        // Delaying until the full postorder pass leaks foreign binder IDs.
+        let produced = program
+            .type_reference_table
+            .type_reference_rows_from(type_start)
+            .map(|(reference, _)| reference)
+            .collect::<Vec<_>>();
+        crate::monomorphization::finalize_type_domain_instance_identities(program, produced)
+            .map_err(|diagnostic| vec![diagnostic])?;
         let Some(reference) = reference else {
             // A private execution graph may be prepared again after call
             // rebinding. Unresolved new children cannot retain the old type.
@@ -368,7 +380,7 @@ pub(crate) fn retain_constructed_result_types(
             .expression_table
             .set_constructed_value_type_reference(expression, reference);
     }
-    unavailable
+    Ok(unavailable)
 }
 
 /// A constructor's selected declaration supplies its telescope; completed

@@ -1,6 +1,6 @@
 // Expected exit: 0.
 // Empty tags still retain the exact fresh result-completion binding.
-domain i64::Tagged(value);
+domain i64::Tagged;
 machine seed() -> i64 in Tagged { 17 }
 machine choose(old: bool, existing: i64 in Tagged) -> i64 in Tagged {
     transition old { true -> (existing) _ -> (17) }

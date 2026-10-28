@@ -26,12 +26,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use target::TargetProfile;
 
-#[path = "console_acceptance.rs"]
-pub mod console_acceptance;
 #[path = "dangerous_service_acceptance.rs"]
 pub mod dangerous_service_acceptance;
-#[path = "process_exit_acceptance.rs"]
-pub mod process_exit_acceptance;
+#[path = "provider_acceptance.rs"]
+pub mod provider_acceptance;
 #[path = "sealed_fixture_staging.rs"]
 pub mod sealed_fixture_staging;
 
@@ -832,7 +830,7 @@ fn dangerous_service_bindings(
         );
     }
     if let Some(console) = required.console {
-        bindings.push(console_acceptance::candidate_console_exit_binding(
+        bindings.push(provider_acceptance::console_exit_binding(
             preliminary,
             owner,
             console.output,
@@ -840,7 +838,7 @@ fn dangerous_service_bindings(
         )?);
     }
     if required.process_exit {
-        bindings.push(process_exit_acceptance::candidate_process_exit_binding(
+        bindings.push(provider_acceptance::process_exit_binding(
             preliminary,
             owner,
         )?);

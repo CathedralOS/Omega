@@ -25,15 +25,27 @@ based on fetched `origin/main`.
 Apply the selection order in [AGENTS.md](../../../AGENTS.md#the-sample-loop):
 explicit user scope, the existing capability continuation, an unclaimed active
 `main` regression (only when unassigned and the newest completed `Post-merge smoke`
-run on `main` failed), then an actionable board outcome by priority and release dependencies. Compiler
-advancement then selects the witness only from `samples/cli/facts`. One fact
+run on `main` failed), then an actionable `TASKS.md` outcome starting with
+`## Priority (human-set only)` in top-down order (set and reordered only by
+humans), prioritizing ratified language-design and surface-syntax migrations
+by `.omg` blast radius (`NESTED-MACHINE-UNIFICATION`,
+`CANONICALIZE-SCALAR-RANGE-CONTRACTS`, `DOMAIN-DEFAULT-PREDICATE-UNIFICATION`,
+`STATIC-MACHINE-MIGRATION`, `BUILD-OWNED-TARGET-SELECTION`,
+`BUILD-OWNED-NATIVE-BINDINGS`,
+`TOP-LEVEL-BOUNDARY-REQUIREMENTS`) before lower feature/library sections so new
+files are not authored in retired syntax. Compiler
+advancement then selects the witness from `samples/cli/facts` (and for a
+language-design or surface-syntax migration outcome, also executes its
+repository-wide `.omg` source/library/sample/fixture migration and
+retired-syntax deletion bullets). One fact
 is one folder. The nine places are local, field, parameter, call result,
 match join, const name, another state, another machine, and another target
 body. Those places are one row. Do not expand them into a combinatorial
 matrix. `samples/cli/facts/length/` is the filled row that met this bar. The
 next witness fills one other fact across those nine places, or takes the next
-uncovered fact. Programs under the rest of `samples/` stay out of this
-selection and may stay broken while this layer is in progress.
+uncovered fact. Except when executing a ratified language/syntax migration or an
+explicitly named customer assignment, programs under the rest of `samples/` stay
+out of this selection and may stay broken while this layer is in progress.
 
 A fact folder is done only when the same fact survives all nine places. One
 sentence names the fact and the operation, and every place copies that

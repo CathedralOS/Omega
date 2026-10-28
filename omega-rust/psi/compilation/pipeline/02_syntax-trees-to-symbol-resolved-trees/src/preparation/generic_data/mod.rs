@@ -89,6 +89,84 @@ use synthesis::desugar_generic_data_instances;
 pub(crate) use synthesis::desugar_generic_data_instances_in;
 pub(crate) use work_domain::GenericDataWorkDomain;
 
+/// Combined closed constant arguments across data declarations, array extents, and machines.
+pub struct ClosedConstArguments {
+    pub data_arguments: Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)>,
+    pub extent_arguments: Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)>,
+    pub machine_arguments: Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)>,
+}
+
+pub fn closed_const_arguments(
+    syntax: &mut SyntaxTrees,
+    sources: Option<std::sync::Arc<source::SourceMap>>,
+    top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
+    retained_base: Option<&symbol_resolved_trees::SymbolResolvedTrees>,
+) -> Result<ClosedConstArguments, Vec<Diagnostic>> {
+    let data_positions = collect_data_type_reference_positions(syntax, false);
+    let data_public_positions = collect_data_type_reference_positions(syntax, true);
+    let (machine_positions, machine_public_positions) =
+        collect_machine_type_reference_positions(syntax);
+    let (data_arguments, machine_arguments) = {
+        let selection = declaration_selection::ConstantSelection::with_retained_base(
+            syntax,
+            sources,
+            top_level_bindings,
+            retained_base,
+        )?;
+        let data_arguments = collect_closed_const_arguments(
+            syntax,
+            &selection,
+            &data_positions,
+            &data_public_positions,
+            false,
+        );
+        let mut machine_arguments = collect_closed_const_arguments(
+            syntax,
+            &selection,
+            &machine_positions,
+            &machine_public_positions,
+            true,
+        );
+        static_argument_positions::collect(
+            syntax,
+            &selection,
+            &machine_positions,
+            &machine_public_positions,
+            &mut machine_arguments,
+        );
+        (data_arguments, machine_arguments)
+    };
+    let destination = syntax
+        .type_references
+        .insert_named(Identifier::generated("u64"));
+    let mut extent_arguments = Vec::new();
+    for owner in data_positions.iter().chain(machine_positions.iter()) {
+        let TypeReferenceNode::FixedArray {
+            length: FixedArrayLength::Expression(value),
+            ..
+        } = syntax.type_references.type_reference(*owner)
+        else {
+            continue;
+        };
+        if matches!(
+            syntax.type_references.type_reference(*value),
+            TypeReferenceNode::ConstExpression(_)
+        ) && !extent_arguments
+            .iter()
+            .any(|(existing, _, _)| existing == value)
+        {
+            let is_public =
+                data_public_positions.contains(owner) || machine_public_positions.contains(owner);
+            extent_arguments.push((*value, destination, is_public));
+        }
+    }
+    Ok(ClosedConstArguments {
+        data_arguments,
+        extent_arguments,
+        machine_arguments,
+    })
+}
+
 /// Authored constant arguments in concrete data fields and constant declarations.
 /// Open templates and machine lexical scopes cannot borrow a standalone probe.
 /// These handles borrow the input syntax; no provisional program escapes. That
@@ -295,20 +373,24 @@ fn collect_closed_const_arguments(
         }
     }
     if include_machine_casts {
-        let concrete = concrete_machine_expression_handles(syntax);
+        let mut concrete = None;
         for (handle, expression) in syntax.expressions.iter_expressions() {
-            if !concrete.contains(handle) {
-                continue;
-            }
             let ExpressionNode::Cast(cast) = expression else {
                 continue;
             };
+            if cast.semantic_domain_arguments.is_empty() {
+                continue;
+            }
             let members = syntax
                 .expressions
                 .identifier_path_members(cast.semantic_domain);
             let Some(first) = members.first() else {
                 continue;
             };
+            let concrete = concrete.get_or_insert_with(|| concrete_machine_expression_handles(syntax));
+            if !concrete.contains(handle) {
+                continue;
+            }
             if members.iter().any(|member| {
                 let span = member.source_span();
                 span.source_id != first.source_span().source_id || span.span.start > span.span.end

@@ -110,7 +110,10 @@ pub fn required_dangerous_services(
                     .is_some_and(|leaves| !leaves.is_empty())
         });
         match plan.schema.identity_text(plan.schema.trait_name) {
-            "Console" if owned_by_package(schema) && host_exit => {
+            "Console"
+                if super::provider_acceptance::schema_symbol_owner(checked, provenance, owner)
+                    && host_exit =>
+            {
                 for method in resolved_boundary_call_names(checked, schema) {
                     match method {
                         "exit_process" => console.exit = true,
@@ -121,10 +124,7 @@ pub fn required_dangerous_services(
                 }
             }
             "ProcessExit"
-                if provenance
-                    .provider
-                    .provider_type
-                    .is_some_and(owned_by_package) =>
+                if super::provider_acceptance::provider_type_owner(checked, provenance, owner) =>
             {
                 services.process_exit |= host_exit
                     && resolved_boundary_call_names(checked, schema).contains(&"exit_process");

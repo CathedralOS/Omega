@@ -43,6 +43,7 @@ pub use value_custody::places::collection_operations;
 pub use value_custody::places::declared_reference_access;
 pub use value_custody::places::{
     applied_data_member_field, declaration_type_reference, declared_case_projection_field,
+    state_root_type,
 };
 pub use value_custody::static_inline_storage::{
     runtime_inline_array_extent, validate_prepared_inline_storage,
@@ -562,7 +563,7 @@ pub use expression_traversal::{
     is_single_segment_name_path, single_segment_name_symbol,
 };
 pub use machine_calls::calls::{
-    CallSite, CompletingTransfer, call_is_unconditional, call_receiver_parts,
+    CallSite, CompletingTransfer, call_is_unconditional, call_receiver_parts, call_result_type,
     call_site_argument_expressions, call_site_evidence_arguments, call_target_entry_symbol,
     call_target_parameters, call_target_return_type, call_target_state, call_target_symbol,
     call_target_type_parameters, collect_call_sites_in_statement, completing_call_transfer,
@@ -589,10 +590,10 @@ pub use value_custody::places::{
     nearest_scoped_local, observed_storage_type_references, owned_projection_type_reference,
     parameter_source_type_application, place_root_may_be_symbol,
     project_type_reference_from_segments, projected_statement_receiver_place,
-    projected_statement_receiver_type_reference, push_field_place_segments, receiver_projections,
-    resolve_member_symbol_from_type_symbol, runtime_field_subject, state_scoped_name_symbol,
-    structural_member_identity, symbol_type_symbol, unique_data_definition_by_symbol,
-    whole_collection_view_source,
+    projected_statement_receiver_type_reference, push_field_place_segments,
+    qualification_storage_path, receiver_projections, resolve_member_symbol_from_type_symbol,
+    runtime_field_subject, state_scoped_name_symbol, structural_member_identity,
+    symbol_type_symbol, unique_data_definition_by_symbol, whole_collection_view_source,
 };
 
 /// Walk a type-reference table once into a positional row vector: row 0 is

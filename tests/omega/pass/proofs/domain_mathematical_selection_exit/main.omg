@@ -3,8 +3,8 @@ use helpers;
 data Region { base: addr; length: u64; }
 // A same-spelled local definition has a different, contradictory meaning.
 let no_wrap(base: addr, length: u64): core::Strict<0> = embed(base) < 0;
-domain Region::Bounded(region)
-requires helpers::no_wrap(region.length, region.base);
+domain Region::Bounded
+requires helpers::no_wrap(self.length, self.base);
 machine region(base: addr, length: u64, endpoint: addr) -> Region in Bounded
 requires embed(base) + embed(length) <= embed(endpoint)
 ensures result.base == base && result.length == length

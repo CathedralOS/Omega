@@ -457,25 +457,27 @@ signature, conformance, and invocation admission. The coordinator does not
 classify Float meaning or rebuild separate fact lists for these two supplies.
 
 [Execution settlement](../realization/selected-dispatch/src/execution_settlement.rs)
-produces `SelectedExecution`: component-entry progress, dispatch associations,
-accepted-service provenance and task activations. It retains Psi's checked
+produces `SelectedExecution`: accepted-service provenance and task activations.
+It retains Psi's checked
 execution plans instead of re-entering Psi to rebuild them. This is still a
 checked-tree realization seam; moving it out of the coordinator does not
 complete the separate task of installing providers behind Terminal Psi.
 
-Boundary calls remain canonical in checked trees. Selected execution records
-exact receiver/requirement/entry-state associations and whether the receiver is
-forwarded. The interpreter consumes those associations before host dispatch;
-neither selection nor evaluation fabricates replacement source calls. Terminal
+Boundary calls remain canonical in checked trees. Only the optional checked-tree
+oracle prepares its reference dispatch table through
+[checked interpreter dispatch](../realization/selected-dispatch/src/checked_interpreter_dispatch.rs)
+immediately before execution. Ordinary compilation does not build or retain
+those receiver/requirement/entry-state associations. Neither selection nor
+evaluation fabricates replacement source calls. Terminal
 publication borrows the checked program directly. Package review reads the same
 authored boundary calls and independently checks their write frames.
 
 Settlement changes no checked body, so package source queries read the
 settled trees directly. An operator application whose selected provider is a
 checked adapter or a compiler-known float realization keeps naming the
-operator; until Terminal Psi carries a requirement-level operator application
-for Omega to install, the machine applying it has no Unit plan and the
-omission reports `unimplemented:`.
+operator requirement. Terminal retains that application, and receiving admission
+joins its exact selected row before execution or native lowering. The reference
+oracle's source-coordinate associations do not substitute for that portable join.
 
 ## Native realization
 

@@ -429,6 +429,26 @@ pub type FieldDomainIdentity = (
     language_semantics::SemanticDomainId,
 );
 
+/// Every declared child duty of a completed result: readable referents and
+/// owned storage retain the same exact paths and applied domain identities.
+/// This is an obligation roster, not evidence of membership. A checked callee
+/// must prove routed rows from its actual completed values or live referents
+/// before its caller can use the corresponding normal-return promise.
+/// A root reference still requires its caller to select the readable referent;
+/// these rows confer no owned claim or authority to follow a pointer.
+pub fn declared_result_field_domain_identities(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> Vec<FieldDomainIdentity> {
+    let mut rows = declared_result_field_domain_paths(program, reference);
+    for row in declared_owned_field_domain_identities(program, reference) {
+        if !rows.contains(&row) {
+            rows.push(row);
+        }
+    }
+    rows
+}
+
 /// Declared child obligations, including linear custody and nominal cleanup
 /// hidden by a parent, and paths whose owned layout is unresolved. These paths do not mint
 /// additional claim identities. A whole-value disposition must account for
@@ -655,6 +675,29 @@ pub fn domain_requires_provenance(
         routed
     }
     visit(program, symbol, &mut Vec::new())
+}
+
+/// Whether the normalized predicate and separately retained subject duties
+/// describe this declaration's entire theory. Routes and subject memberships
+/// retain their own authority; a complete predicate alone does not issue them.
+pub fn domain_predicate_theory_is_complete(
+    program: &dyn crate::CheckingInput,
+    definition: &typed_trees::domain::DomainDefinition,
+) -> bool {
+    definition.classification.is_none()
+        && definition.semantic_roles.is_empty()
+        && definition.cleanup_selection.is_none()
+        && definition.alias.is_none()
+        && definition.operators.is_empty()
+        && !matches!(
+            program
+                .type_reference_table
+                .type_reference(definition.target_type),
+            TypeReferenceNode::Constrained { .. }
+        )
+        && domain_constraint_symbols(program, definition.target_type).is_empty()
+        && typed_trees::domain::required_subject_memberships(program.typed_program(), definition)
+            .is_some()
 }
 
 /// Alias atoms must all be predicate- and route-free. This declaration rule

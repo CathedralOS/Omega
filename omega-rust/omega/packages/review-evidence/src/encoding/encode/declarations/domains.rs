@@ -17,10 +17,7 @@ pub(crate) fn encode_domain_alias_atom(
         }
         PackageReviewDomainAliasAtom::Carry(permission) => {
             encoder.tag("carry", 1);
-            encoder.field("permission", |encoder| {
-                encode_carry_permission(encoder, *permission);
-                Ok(())
-            })?;
+            encoder.field_by("permission", *permission, encode_carry_permission)?;
             Ok(())
         }
     }

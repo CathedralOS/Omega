@@ -448,12 +448,7 @@ fn stored_descriptor_argument(
     {
         return Err(unsupported());
     }
-    let runs = regions
-        .pointer_slots
-        .into_iter()
-        .flat_map(|slot| slot.indices)
-        .chain(runs)
-        .collect();
+    let runs = regions.selector_runs(runs);
     let indices = super::scalar_sources::runtime_indices(
         runs,
         function,

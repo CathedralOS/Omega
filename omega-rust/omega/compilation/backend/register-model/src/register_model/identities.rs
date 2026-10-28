@@ -2,15 +2,14 @@ use target::{Architecture, NativeTarget, ObjectFormat};
 
 use crate::{
     PhysicalRegisterModel, PreservationConvention, RegisterConstraintCatalog,
-    RegisterConstraintFamily, RegisterInstructionConstraint, RegisterOperandAccess,
-    RegisterReservationProfile, RegisterUnitId, RegisterUnitKind, RegisterWriteSemantics,
-    ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
-    ValidatedRegisterReservationProfile,
+    RegisterConstraintFamily, RegisterInstructionConstraint, RegisterReservationProfile,
+    RegisterUnitId, RegisterUnitKind, RegisterWriteSemantics, ValidatedPhysicalRegisterModel,
+    ValidatedRegisterConstraintCatalog, ValidatedRegisterReservationProfile,
 };
 
-const IDENTITY_WIDTH: usize = 32;
+pub(crate) const IDENTITY_WIDTH: usize = 32;
 
-fn domain_digest(domain: &[u8], canonical: &[u8]) -> [u8; IDENTITY_WIDTH] {
+pub(crate) fn domain_digest(domain: &[u8], canonical: &[u8]) -> [u8; IDENTITY_WIDTH] {
     let mut digest = crate::digest_encoder::DomainDigestEncoder::new(domain);
     digest.raw(
         &u64::try_from(canonical.len())
@@ -24,23 +23,29 @@ fn domain_digest(domain: &[u8], canonical: &[u8]) -> [u8; IDENTITY_WIDTH] {
 macro_rules! identity {
     ($name:ident, $domain:literal) => {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-        pub struct $name([u8; IDENTITY_WIDTH]);
+        pub struct $name([u8; $crate::register_model::identities::IDENTITY_WIDTH]);
 
         impl $name {
             fn from_canonical_bytes(canonical: &[u8]) -> Self {
-                Self(domain_digest($domain, canonical))
+                Self($crate::register_model::identities::domain_digest(
+                    $domain, canonical,
+                ))
             }
 
-            pub const fn from_bytes(bytes: [u8; IDENTITY_WIDTH]) -> Self {
+            pub const fn from_bytes(
+                bytes: [u8; $crate::register_model::identities::IDENTITY_WIDTH],
+            ) -> Self {
                 Self(bytes)
             }
 
-            pub const fn bytes(self) -> [u8; IDENTITY_WIDTH] {
+            pub const fn bytes(self) -> [u8; $crate::register_model::identities::IDENTITY_WIDTH] {
                 self.0
             }
         }
     };
 }
+
+pub(crate) use identity;
 
 identity!(
     PhysicalRegisterModelIdentity,
@@ -337,7 +342,7 @@ fn instruction_constraint(bytes: &mut Vec<u8>, constraint: &RegisterInstructionC
     length(bytes, constraint.operands.len());
     for operand in &constraint.operands {
         u16_value(bytes, operand.operand);
-        byte(bytes, operand_access(operand.access));
+        byte(bytes, operand.access.access_tag());
         u16_value(bytes, operand.class.0);
         optional_u16(bytes, operand.fixed_view.map(|view| view.0));
         optional_u16(bytes, operand.tied_to);
@@ -363,7 +368,7 @@ fn optional_constraint_key(bytes: &mut Vec<u8>, key: Option<crate::RegisterConst
     }
 }
 
-fn unit_ids(bytes: &mut Vec<u8>, values: &[RegisterUnitId]) {
+pub(crate) fn unit_ids(bytes: &mut Vec<u8>, values: &[RegisterUnitId]) {
     length(bytes, values.len());
     for value in values {
         u16_value(bytes, value.0);
@@ -392,11 +397,11 @@ pub(crate) fn length(bytes: &mut Vec<u8>, value: usize) {
     );
 }
 
-fn u64_value(bytes: &mut Vec<u8>, value: u64) {
+pub(crate) fn u64_value(bytes: &mut Vec<u8>, value: u64) {
     crate::codec_bytes::push_encoded(bytes, value.to_le_bytes());
 }
 
-fn u16_value(bytes: &mut Vec<u8>, value: u16) {
+pub(crate) fn u16_value(bytes: &mut Vec<u8>, value: u16) {
     crate::codec_bytes::push_encoded(bytes, value.to_le_bytes());
 }
 
@@ -466,13 +471,5 @@ const fn reservation_reason(value: crate::ReservationReason) -> u8 {
         crate::ReservationReason::Syscall => 6,
         crate::ReservationReason::InlineAssembly => 7,
         crate::ReservationReason::Backend => 8,
-    }
-}
-
-const fn operand_access(value: RegisterOperandAccess) -> u8 {
-    match value {
-        RegisterOperandAccess::Use => 0,
-        RegisterOperandAccess::Def => 1,
-        RegisterOperandAccess::UseDef => 2,
     }
 }

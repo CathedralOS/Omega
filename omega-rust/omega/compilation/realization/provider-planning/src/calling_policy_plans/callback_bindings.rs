@@ -520,8 +520,10 @@ fn selected_callback_registration(
         // A checked generic forwarding edge retains its binder declaration.
         // Its eventual concrete selection owns any external materialization.
         return Ok(SelectedCallbackRegistration::CheckedSource);
-    } else if requirement_trait.and_then(|owner| typed.trait_definition_by_symbol(owner))
-        .is_some_and(|declaration| !declaration.is_boundary) {
+    } else if requirement_trait
+        .and_then(|owner| typed.trait_definition_by_symbol(owner))
+        .is_some_and(|declaration| !declaration.is_boundary)
+    {
         return Ok(SelectedCallbackRegistration::CheckedSource);
     } else {
         return Err(format!(
@@ -1162,6 +1164,7 @@ pub(super) fn source_free_application(
                     representation_planning::OpaqueRepresentationCopyDisposition::CheckedSemanticCopy),
             }
         }).collect(),
+        callback_context: callback_materialization_context(signature),
         callback_context_closed: false,
     })
 }

@@ -61,10 +61,7 @@ pub(crate) fn encode_contract_fact(
         PackageReviewContractFact::CarryMembership { value, permission } => {
             encoder.tag("carry_membership", 4);
             encoder.field_by("value", value, encode_contract_expression)?;
-            encoder.field("permission", |encoder| {
-                encode_carry_permission(encoder, *permission);
-                Ok(())
-            })
+            encoder.field_by("permission", *permission, encode_carry_permission)
         }
         PackageReviewContractFact::Membership { value, domain } => {
             encoder.tag("membership", 1);

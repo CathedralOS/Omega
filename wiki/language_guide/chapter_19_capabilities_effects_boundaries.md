@@ -794,9 +794,12 @@ authority.
 ## Boundary Realization Catalog
 
 Checked adapters handle sequences, argument reshaping, caching, and other policy.
-A bodyless leaf uses `via` only for a payload its declaration, signature, and
-target cannot derive. Binding cases describe an object-format import, a syscall
-number, or a validated native-table field.
+The owning package's Build records a direct native binding from an exact product
+requirement and target to ordinary typed locator data. Source `via` clauses and
+per-symbol bodyless forwarding declarations are retired. Locator literal lengths
+are inferred; one-to-one helper machines and counted return types are not
+required. `ForeignBinding` covers object-format imports and syscall numbers;
+validated typed native-table fields retain their separate mechanism.
 
 An import locator keeps its coordinates together: PE name/ordinal, ELF
 object/symbol/version, or Mach-O install-name/symbol. They are foreign bytes,
@@ -805,9 +808,12 @@ authored numeric slots. The requirement independently owns the calling plan;
 the locator cannot reselect it.
 
 Compiler intrinsics use exact declaration, signature, target, and sealed catalog
-identity, not an empty `via` payload or authored intrinsic string. Changing a
+identity, not an empty locator or authored intrinsic string. Changing a
 foreign binding changes dependent artifact identity and requires relinking and
-fresh admission. Build cannot rewrite a selected provider's evaluated locator.
+fresh admission. Build authors binding intent, not trusted evidence or mutable
+plan rows; native validation, foreign-contract admission and runtime authority
+remain separate. Package bindings compose under the selected portable provider,
+without exposing private raw slots or repeating imports in application Build.
 [Foreign bindings](../spec/build/foreign_bindings.md) owns the complete vocabulary,
 lifetime applications, and validation.
 

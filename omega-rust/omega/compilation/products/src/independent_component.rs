@@ -14,14 +14,25 @@ use std::sync::Arc;
 
 use package_compilation::IndependentComponentDescription;
 use terminal_psi_to_abstract_operations::RetainedTerminalArtifact;
+mod retention;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct IndependentComponentProduct {
     description: IndependentComponentDescription,
     retained: Arc<RetainedTerminalArtifact>,
     accepted_package_permissions:
         terminal_psi_to_abstract_operations::provider_admission::TerminalAuthorityPermissionPolicy,
+    native_derivation_inputs: Option<Result<Arc<[u8]>, String>>,
 }
+
+impl PartialEq for IndependentComponentProduct {
+    fn eq(&self, other: &Self) -> bool {
+        self.description == other.description
+            && self.retained == other.retained
+            && self.accepted_package_permissions == other.accepted_package_permissions
+    }
+}
+impl Eq for IndependentComponentProduct {}
 
 impl IndependentComponentProduct {
     /// Couple the two outputs of one component compilation. Subject equality
@@ -39,11 +50,20 @@ impl IndependentComponentProduct {
             description,
             retained: Arc::new(retained),
             accepted_package_permissions,
+            native_derivation_inputs: None,
         })
     }
 
     pub const fn description(&self) -> &IndependentComponentDescription {
         &self.description
+    }
+
+    /// Optional storage belongs to this publication, separately from semantic
+    /// product equality. A capture failure preserves its reason and never
+    /// changes the fresh in-process compilation's result.
+    pub fn with_native_derivation_inputs(mut self, inputs: Result<Vec<u8>, String>) -> Self {
+        self.native_derivation_inputs = Some(inputs.map(Arc::from));
+        self
     }
 
     /// Acceptance acquired from this dependency's checked package custody,

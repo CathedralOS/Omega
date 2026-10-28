@@ -1825,13 +1825,13 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                         });
                 for field in self.program.expression_table.struct_fields(value.fields) {
                     let Some(selected) = carrier.and_then(|carrier| {
-                        self.program.closed_data_constructor_field(
+                        self.program.data_constructor_field(
                             carrier,
                             value.type_symbol,
                             field.field_symbol,
                         )
                     }) else {
-                        // Without an exact closed field join there is no typed
+                        // Without an exact source field join there is no typed
                         // child snapshot. Still evaluate the authored child;
                         // downstream coverage remains incomplete, not view-free.
                         self.expression(field.value, contexts, constraints);

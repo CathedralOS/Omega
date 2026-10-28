@@ -2,6 +2,7 @@
 //! Geometry selects no backing; receiving legalization retained current loan custody.
 use super::{Builder, SelectedInstructionKind, SelectedInstructionProvenance};
 use crate::SelectedInstructionError;
+use crate::selection::construction::scalar_graph::structural::operation_provenance;
 use legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
 };
@@ -128,16 +129,14 @@ pub(super) fn emit(
         },
         constraint,
         &registers,
-        SelectedInstructionProvenance {
-            operations: vec![row.operation],
-            values: operand
+        operation_provenance(
+            row,
+            operand
                 .iter()
                 .copied()
                 .chain(row.result.map(|result| result.value))
                 .collect(),
-            fuel: row.fuel.clone(),
-            ..Default::default()
-        },
+        ),
     )?;
     if let (Some(raw), Some(result)) = (output, row.result) {
         let normalization =

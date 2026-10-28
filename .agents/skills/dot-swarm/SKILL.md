@@ -176,7 +176,7 @@ Copy this into every worker prompt:
 > Compiler advancement witnesses are fact folders
 > under `samples/cli/facts`. One fact is one folder. The nine places are one
 > row, not a matrix: local, field, parameter, call result, match join, const
-> name, another state, another machine, and another target body. Do not select
+> name, another state, another machine, and another selected target implementation. Do not select
 > a program from the rest of `samples/`. `samples/cli/facts/length/` is the
 > filled row that met this bar. A fact folder is done only when the same fact
 > survives all nine places. One sentence names the fact and the operation, and

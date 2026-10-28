@@ -562,3 +562,40 @@ fn qualified_generic_domain_does_not_select_a_root_or_module_local_leaf() {
         );
     }
 }
+
+#[test]
+fn warmed_lookup_environment_tracks_module_registration_and_rename() {
+    let (mut symbols, declarations, _) = namespace_table(
+        [1, 2, 2],
+        vec![SourceScopedTopLevelBinding::module_import(
+            SourceId(0),
+            SourceId(1),
+            "dependency::api",
+            1,
+        )],
+    );
+    assert_eq!(data_reference(&symbols, 0, "Item"), Some(declarations[1]));
+    register_module(&mut symbols, 1, &["api"]);
+    assert_eq!(data_reference(&symbols, 0, "Item"), None);
+    assert_eq!(
+        data_reference(&symbols, 0, "dependency::api::Item"),
+        Some(declarations[1])
+    );
+
+    let module = symbols.source_module(SourceId(1));
+    let original = symbols.clone();
+    symbols.rename(module, "renamed");
+    assert_eq!(data_reference(&symbols, 0, "dependency::api::Item"), None);
+    assert_eq!(
+        data_reference(&symbols, 0, "dependency::renamed::Item"),
+        Some(declarations[1])
+    );
+    assert_eq!(
+        data_reference(&original, 0, "dependency::api::Item"),
+        Some(declarations[1])
+    );
+    assert_eq!(
+        data_reference(&original, 0, "dependency::renamed::Item"),
+        None
+    );
+}

@@ -1,6 +1,6 @@
 // Earlier siblings replace storage before the qualified operand completes.
 // An entry value of 3 cannot establish Except<9> for the later value of 9.
-domain<const Excluded: u64> u64::Except<Excluded>(value) requires value != Excluded;
+domain<const Excluded: u64> u64::Except<Excluded> requires self != Excluded;
 data Source { value: u64; }
 data Holder { changed: u64; scoped: u64 in Except<9>; }
 data AfterCall { copied: u64 in Except<9>; }

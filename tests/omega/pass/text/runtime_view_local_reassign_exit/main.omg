@@ -1,9 +1,9 @@
 // Reassigning an initialized borrowed-view local replaces its descriptor.
 // A read before the replacement observes the first value, and a read after
 // it observes the second.
-domain [u8]::Utf8(bytes)
+domain [u8]::Utf8
 requires
-    valid_utf8(bytes);
+    valid_utf8(self);
 use omega_language_std::console;
 
 data Main {

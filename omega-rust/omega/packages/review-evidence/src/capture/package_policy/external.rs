@@ -2,7 +2,9 @@
 
 use crate::capture::PackageReviewInput;
 use crate::capture::callables::project_checked_external_supply_policy;
-use crate::capture::semantics::declarations::{nominal_identity, reviewed_package_owns};
+use crate::capture::semantics::declarations::{
+    is_checked_source_instance, nominal_identity, reviewed_package_owns,
+};
 use crate::record::PackagePolicyExternalExecutableSupply;
 use diagnostics::Diagnostic;
 use language_semantics::MachineSupplyMode;
@@ -19,6 +21,9 @@ pub(super) fn project(
             MachineSupplyMode::ExternalRealization { .. }
         )
     }) {
+        if !is_checked_source_instance(compilation, machine.symbol)? {
+            continue;
+        }
         let identity = nominal_identity(compilation, machine.symbol)?;
         if !reviewed_package_owns(&identity, package)? {
             continue;

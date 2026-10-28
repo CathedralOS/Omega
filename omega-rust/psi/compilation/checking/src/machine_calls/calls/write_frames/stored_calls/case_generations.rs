@@ -138,14 +138,7 @@ pub(super) fn completed_effects(
                 else {
                     continue;
                 };
-                let reference = program
-                    .state_parameter_by_symbol(caller_state, base.root)
-                    .map(|parameter| parameter.type_reference)
-                    .or_else(|| {
-                        program
-                            .state_local_declaration(caller_state, base.root)
-                            .map(|(_, local)| local.type_reference)
-                    });
+                let reference = crate::state_root_type(program, caller_state, base.root);
                 let Some(reference) = reference.and_then(|reference| {
                     super::super::reference_subjects::carrier_storage_declaration(
                         program, reference,

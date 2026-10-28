@@ -25,10 +25,14 @@ pub(crate) fn project_public_propositions<'a>(
     use typed_trees::proposition::{PropositionBody, PropositionFormula};
 
     let mut rows = Vec::new();
-    for declaration in compilation.propositions().iter().filter(|declaration| {
-        declaration.is_public
-            && is_product_scope_instance(&compilation.typed.symbols, declaration.symbol)
-    }) {
+    for declaration in compilation
+        .propositions()
+        .iter()
+        .filter(|declaration| declaration.is_public)
+    {
+        if !is_product_scope_instance(compilation, declaration.symbol)? {
+            continue;
+        }
         let identity = nominal_identity(compilation, declaration.symbol)?;
         if !reviewed_package_owns(&identity, package)? {
             continue;

@@ -1,6 +1,7 @@
 //! Call operations: Unit, structural and scalar calls with their argument
 //! and result shapes, boundary calls and port writes.
 
+use super::super::wire::strictly_increasing;
 use super::{
     StructuralArgumentPresentation, callee_exact_payloadless_return, has_service,
     has_structural_type, validate_claim_actions, validate_structural_arguments,
@@ -231,22 +232,14 @@ pub(super) fn validate_call_dynamic(
     {
         return malformed("dynamic call disagrees with its slot's call shape");
     }
-    if shape
-        .result_claim_paths
-        .windows(2)
-        .any(|pair| pair[0] >= pair[1])
-    {
+    if !strictly_increasing(shape.result_claim_paths.iter()) {
         return malformed("dynamic result claim paths are not canonical");
     }
     if let Some(result) = operation.result.structural() {
         validate_structural_call_result_declaration(module, machine, operation, result)?;
         validate_result_claim_shape(module, result)?;
     }
-    if shape
-        .entry_claim_paths
-        .windows(2)
-        .any(|pair| pair[0] >= pair[1])
-    {
+    if !strictly_increasing(shape.entry_claim_paths.iter()) {
         return malformed("dynamic slot claim paths are not canonical");
     }
     for (position, expected) in shape.entry_claim_paths.iter().enumerate() {

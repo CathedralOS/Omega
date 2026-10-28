@@ -6,6 +6,7 @@
 //! rejection and successful extraction preserve the same caller-visible ABI.
 
 use super::RowSite;
+use super::aggregate_results::publish_home;
 use crate::LoweringError;
 use abstract_operations::{AbstractBoundaryResult, AbstractOperation, PlacementLifecycleOperands};
 use semantic_vocabulary::BoundaryMachineId;
@@ -118,14 +119,9 @@ pub(super) fn lower(
             function, types, live, result, storage, path, backing,
         )?;
     }
-    let result_home = super::aggregate_results::home(*psi_operation, result, types)?;
-    if live
-        .structural_homes
-        .insert(result.place, result_home.clone())
-        .is_some()
-    {
+    let Some(result_home) = publish_home(live, *psi_operation, result, types)? else {
         return Err(invalid("native lifecycle replaces an existing result home"));
-    }
+    };
     operations.push(TargetUnitOperation::PlacementLifecycle {
         psi_operation: *psi_operation,
         boundary: *boundary,

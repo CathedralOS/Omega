@@ -5,7 +5,36 @@ only fields; a sum has only cases; a mixed declaration has common fields plus
 one active case and its payload. Machines access values through their explicit
 parameters, not implicitly owned machine fields.
 
+`data Name<Parameters> = TypeExpression;` instead declares a
+[transparent type alias](generics.md#transparent-type-aliases). It introduces
+no fields, cases, nominal carrier or storage wrapper.
+
 ## Construction and case identity
+
+Named decision: `prefix-case-identities`, settled 2026-10-27. A numbered
+member writes its identity before its declaration kind:
+
+```omega
+data Reading {
+    #1 sensor_id: u32;
+    #2 recorded_at_ms: u64;
+    #3 sequence: u32;
+
+    #10 case WarmingUp;
+    #11 case Sample(#1 temperature_celcius: i32);
+    #12 case Fault(#1 code: u32);
+}
+```
+
+The spelling is `#N case Name`, not `case #N Name`. Unnumbered alternatives
+remain `case Name`; there is no shared `case { ... }` declaration block.
+Cases remain distinct mutually exclusive schema members, not simultaneously
+present record fields. Payload fields retain their own identity scopes, so the
+payload's `#1` does not identify a common field. Existing numbering,
+retirement, declaration-order and stable-identity rules are unchanged by this
+prefix migration. There is no extra case-group field, number or discriminator.
+`PREFIX-CASE-IDENTITIES` in [TASKS.md](../../../TASKS.md) retains parser and
+repository source migration; updated documentation is not implementation evidence.
 
 Fields have no declaration-site default initializers. Construction may omit an
 ordinary runtime field only when its zero value satisfies the complete default-domain obligations.
@@ -157,6 +186,23 @@ or confusable-name heuristics cannot change tokenization.
 The current profile has no Unicode identifiers or raw-payload literal form.
 Those require separately specified byte/identifier rules, not host-language
 syntax reuse.
+
+## Integer radix spellings
+
+Integer literals support decimal, hexadecimal `0x`, binary `0b`, and octal `0o`
+spellings, digit underscores, and explicit carrier suffixes. For example:
+
+```omega
+let mask: u16 = 0xFFFFu16;
+let byte_divisor: u32 = 0x1_0000u32;
+```
+
+Radix and grouping affect source notation, not numeric meaning or overflow
+policy. The second value is `65536`, not the maximum of `u16`. Carrier-limit
+queries belong to [core integer/float APIs](numeric_values.md#core-integer-and-float-apis);
+hex literals need no limit-name lookup. Bit layouts and masks should use clear
+radix spellings or ordinary named protocol constants instead of unexplained
+decimal encodings. Quoted-byte `\xNN` escapes below are separate literal syntax.
 
 ## Quoted bytes
 

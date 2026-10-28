@@ -1,5 +1,5 @@
 // Expected exit: 0
-domain [u8; 2]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8; 2]::Ascii requires ascii_only(self);
 data View { bytes: [u8; 2] in Ascii; }
 machine receive(view: View) -> u64 { view.bytes.len }
 machine main() crashes Trap {

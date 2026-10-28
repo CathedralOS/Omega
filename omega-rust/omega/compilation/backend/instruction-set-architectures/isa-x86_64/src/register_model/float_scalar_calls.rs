@@ -7,7 +7,7 @@ use super::{
 };
 use register_model::{
     RegisterConstraintKey, RegisterInstructionConstraint, RegisterOperandAccess,
-    RegisterOperandConstraint, ValidatedPhysicalRegisterModel, find_register_constraint,
+    ValidatedPhysicalRegisterModel, find_register_constraint,
 };
 pub fn x86_64_float_scalar_call_keys(microsoft: bool) -> Vec<RegisterConstraintKey> {
     let count = input_keys(microsoft).len()
@@ -75,14 +75,11 @@ pub(super) fn append_constraints(
                 return;
             };
             row.key = key;
-            row.operands.push(RegisterOperandConstraint {
-                operand: row.operands.len() as u16,
-                access: RegisterOperandAccess::Def,
-                class: result.class,
-                fixed_view: Some(result.id),
-                tied_to: None,
-                early_clobber: false,
-            });
+            row.operands.push(super::fixed_operand(
+                row.operands.len() as u16,
+                RegisterOperandAccess::Def,
+                result,
+            ));
             // The result Def already covers its full architectural write footprint,
             // including upper vector lanes. Retaining those units as independent
             // call clobbers would conflict with the result's own fixed ABI home.
@@ -99,14 +96,7 @@ pub(super) fn append_constraints(
             return;
         };
         row.key = x86_64_float_scalar_return_keys(microsoft)[0];
-        row.operands = vec![RegisterOperandConstraint {
-            operand: 0,
-            access: RegisterOperandAccess::Use,
-            class: result.class,
-            fixed_view: Some(result.id),
-            tied_to: None,
-            early_clobber: false,
-        }];
+        row.operands = vec![super::fixed_operand(0, RegisterOperandAccess::Use, result)];
         constraints.push(row);
     }
 }

@@ -5,7 +5,7 @@
 //! the evaluated locator and calling contract. Neither this join nor its lookup
 //! grants execution, same-stack custody, or receiving permission.
 
-use super::{SelectedProviderPlanFacts, selected_closure_report_fingerprint};
+use super::{SelectedProviderPlanFacts, identity_text};
 use crate::provider_plan::{ProviderBinding, ProviderPlanDigest};
 use terminal_psi::{TerminalIdentityIndex, TerminalIdentityTable};
 
@@ -42,24 +42,15 @@ impl SelectedProviderPlanFacts {
     ) -> Result<Self, String> {
         let mut identities = self.identities.clone().into_builder();
         for row in &mut rows {
-            row.selected_requirement_identity = identities.intern(
-                row_identities
-                    .text(row.selected_requirement_identity)
-                    .unwrap_or_default(),
-            );
-            row.requirement_identity = identities.intern(
-                row_identities
-                    .text(row.requirement_identity)
-                    .unwrap_or_default(),
-            );
+            row.selected_requirement_identity = identities.intern(identity_text(
+                row_identities,
+                row.selected_requirement_identity,
+            ));
+            row.requirement_identity =
+                identities.intern(identity_text(row_identities, row.requirement_identity));
         }
         self.identities = identities.build();
-        rows.sort_by_cached_key(|row| {
-            self.identities
-                .text(row.requirement_identity)
-                .unwrap_or_default()
-                .to_owned()
-        });
+        rows.sort_by_cached_key(|row| self.identity_text(row.requirement_identity).to_owned());
         for pair in rows.windows(2) {
             if pair[0].requirement_identity == pair[1].requirement_identity {
                 return Err(
@@ -96,10 +87,7 @@ impl SelectedProviderPlanFacts {
                     "closed external requirement requires exactly one selected Import row".into(),
                 );
             }
-            let requirement = self
-                .identities
-                .text(row.requirement_identity)
-                .unwrap_or_default();
+            let requirement = self.identity_text(row.requirement_identity);
             if self.specialized_requirement_row(requirement).is_some()
                 || self.family_realization_row(requirement).is_some()
                 || self.plans.iter().any(|candidate| {
@@ -114,14 +102,7 @@ impl SelectedProviderPlanFacts {
             }
         }
         self.external_requirement_applications = rows;
-        self.report_fingerprint = selected_closure_report_fingerprint(
-            &self.plans,
-            &self.installation_reach_resolutions,
-            &self.specialized_requirement_rows,
-            &self.family_realization_rows,
-            &self.external_requirement_applications,
-            &self.identities,
-        );
+        self.refresh_report_fingerprint();
         Ok(self)
     }
 }

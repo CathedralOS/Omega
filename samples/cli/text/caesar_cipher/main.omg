@@ -16,12 +16,12 @@
 
 use omega_language_std::console;
 
-domain [u8]::Utf8(bytes)
+domain [u8]::Utf8
 requires
-    valid_utf8(bytes);
-domain [u8; 5]::Utf8(bytes)
+    valid_utf8(self);
+domain [u8; 5]::Utf8
 requires
-    valid_utf8(bytes);
+    valid_utf8(self);
 data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     Console::write_line("caesar_cipher: shift each byte of HELLO by 3 -- expecting KHOOR");

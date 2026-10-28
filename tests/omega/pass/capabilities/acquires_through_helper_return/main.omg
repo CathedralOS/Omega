@@ -1,6 +1,6 @@
-public domain [u8]::Utf8(bytes)
+public domain [u8]::Utf8
 requires
-    valid_utf8(bytes);
+    valid_utf8(self);
 // Chapter 18 "Capabilities And Authority Flow" (Acquires, nested): a helper
 // machine ACQUIRES fresh host authority at the `Desktop` boundary and hands it
 // onward through its capability-typed return. `Backup::stage` and `Main::main`

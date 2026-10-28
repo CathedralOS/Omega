@@ -2,6 +2,9 @@
 //! match it occurrence for occurrence - every boundary demand, callback and
 //! nearest-FMA site - before native realization is allowed to begin.
 
+mod codec;
+pub use codec::{recover_native_derivation_inputs, retain_native_derivation_inputs};
+
 mod component_inputs;
 pub use component_inputs::{
     AdmittedNativeComponentCall, ComponentExportInput, ComponentNativeInputs,

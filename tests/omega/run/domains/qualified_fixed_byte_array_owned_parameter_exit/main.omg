@@ -1,6 +1,6 @@
 // Expected exit: 0
 // Mutating an owned parameter changes that call's copy, at entry or after a state edge.
-domain [u8; 4]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8; 4]::Ascii requires ascii_only(self);
 machine replace(mut bytes: [u8; 4] in Ascii) -> [u8; 4] in Ascii {
     bytes[0] = 65u8;
     bytes

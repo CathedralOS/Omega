@@ -6,6 +6,7 @@ use super::{
     derive_contents, elf_hash, gnu_hash, plan_elf_dynamic_sections, validate_candidate,
     validate_contents, validate_gnu_hash_reachability, validate_hash_reachability,
 };
+use crate::bytes::name_at;
 use crate::test_support::{SINGLE_SITE_IMPORTS as IMPORTS, SingleSiteImportFixture};
 use target::TargetProfile;
 
@@ -43,12 +44,7 @@ fn candidate(target: TargetProfile) -> Candidate {
 }
 
 fn string_at(dynstr: &[u8], offset: u32) -> &[u8] {
-    let suffix = &dynstr[offset as usize..];
-    let end = suffix
-        .iter()
-        .position(|byte| *byte == 0)
-        .expect("NUL-terminated dynamic string");
-    &suffix[..end]
+    name_at(dynstr, offset, "dynamic string").expect("NUL-terminated dynamic string")
 }
 
 #[test]

@@ -248,7 +248,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         crate::conformance::explicit_requirement_calls::refresh_occurrence_selections(program)?;
         // Provider clones may restore old inferred types even when this round
         // discovers no further ordinary specialization.
-        let unavailable = crate::constructed_results::retain_constructed_result_types(program);
+        let unavailable = crate::constructed_results::retain_constructed_result_types(program)?;
         changed_owners.extend(result_locals::refresh(program, &unavailable)?);
         let subjects = result_locals::materialize_dispatch_subjects(program);
         if !subjects.is_empty() {
@@ -269,7 +269,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         let contextual_owners = contextual_calls::close(program)?;
         let contextual_changed = !contextual_owners.is_empty();
         changed_owners.extend(contextual_owners);
-        crate::constructed_results::retain_constructed_result_types(program);
+        crate::constructed_results::retain_constructed_result_types(program)?;
         // Source formation needs the normal typed operand/context inventory,
         // but must precede tuple derivation and canonical const replacement.
         // This is a provisional source-recipe query, not formation admission.

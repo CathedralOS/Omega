@@ -2,7 +2,7 @@
 // `domain u64::BuildPositive(value) requires value > 0` + a
 // `u64 in BuildPositive` local carried through the build's own
 // machine call.
-domain u64::BuildPositive(value) requires value > 0;
+domain u64::BuildPositive requires self > 0;
 machine preserve(value: u64 in BuildPositive) -> u64 in BuildPositive { value }
 machine build(builder: &mut Build) {
     Build::package(builder, "build_domain_context");

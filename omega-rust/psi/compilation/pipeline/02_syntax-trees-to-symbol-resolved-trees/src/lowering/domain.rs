@@ -121,20 +121,24 @@ pub(crate) fn lower_domain_definition(
     Ok(DomainDefinition {
         symbol: SymbolHandle::invalid(),
         name: lower_name(syntax_trees, &domain.name),
-        subject_name: domain
-            .subject
-            .as_ref()
-            .map(|value| lower_name(syntax_trees, value))
-            .unwrap_or_else(|| {
-                symbol_resolved_trees::name::DiagnosticName::generated_static("$subject")
-            }),
+        subject_name: symbol_resolved_trees::name::DiagnosticName::generated_static("self"),
         subject_symbol: SymbolHandle::invalid(),
         type_parameters,
         target_type: lower_type_reference_handle(lowerer, syntax_trees, domain.target_type)?,
         index_arguments,
         is_public: domain.is_public,
         alias,
-        cleanup_selection: domain.cleanup_selection.as_ref().map(|selection| crate::lowering::expression::lower_static_machine_argument(lowerer, syntax_trees, selection)).transpose()?,
+        cleanup_selection: domain
+            .cleanup_selection
+            .as_ref()
+            .map(|selection| {
+                crate::lowering::expression::lower_static_machine_argument(
+                    lowerer,
+                    syntax_trees,
+                    selection,
+                )
+            })
+            .transpose()?,
         authored_routes,
         classification: domain.classification,
         predicate_body: domain.predicate_body,

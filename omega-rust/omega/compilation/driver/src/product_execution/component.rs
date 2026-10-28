@@ -19,10 +19,14 @@ pub(crate) struct ComponentPublication {
     timings: CompileTimings,
     selections: optimization_core::OptimizationRollbackSettlement,
     exported_calling_applications: Vec<calling_conventions::BoundaryCallingApplication>,
+    retain_native_inputs: bool,
 }
 
 impl ComponentPublication {
-    pub(crate) fn prepare(mut checked: CheckedCompilation) -> Result<Self, Vec<Diagnostic>> {
+    pub(crate) fn prepare(
+        mut checked: CheckedCompilation,
+        retain_native_inputs: bool,
+    ) -> Result<Self, Vec<Diagnostic>> {
         if checked.sources().package_identity().is_none() {
             return Err(vec![Diagnostic::error(
                 "component publication requires package-aware checked custody for the dependency compiled as its own component",
@@ -64,6 +68,7 @@ impl ComponentPublication {
             timings,
             selections,
             exported_calling_applications,
+            retain_native_inputs,
         })
     }
 
@@ -82,12 +87,25 @@ impl ComponentPublication {
             self.selections.effective(),
             &self.exported_calling_applications,
         )?;
-        let retained = produced.prepare(request)?;
-        let description = describe_component(&self.checked, &retained)?;
         let accepted_permissions =
             super::native_inputs::accepted_terminal_authority_permission_policy(&self.checked)?;
-        IndependentComponentProduct::new(description, retained, accepted_permissions)
-            .map_err(|reason| vec![Diagnostic::error(reason)])
+        let native_inputs = self.retain_native_inputs.then(|| {
+            native_production::retain_native_derivation_inputs(
+                &produced.receipt,
+                produced.physical_entry_adapter,
+                &produced.provider_proposals,
+                &request,
+                &accepted_permissions,
+            )
+        });
+        let retained = produced.prepare(request)?;
+        let description = describe_component(&self.checked, &retained)?;
+        let product = IndependentComponentProduct::new(description, retained, accepted_permissions)
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        Ok(match native_inputs {
+            Some(inputs) => product.with_native_derivation_inputs(inputs),
+            None => product,
+        })
     }
 }
 

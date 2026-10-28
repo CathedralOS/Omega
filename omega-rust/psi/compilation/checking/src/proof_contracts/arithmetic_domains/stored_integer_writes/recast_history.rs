@@ -91,7 +91,7 @@ pub(super) fn predecessor_coordinates(
     state: &State,
     recast: &crate::RecastSource,
 ) -> Result<(TypeReferenceHandle, Vec<PlaceSegment>), ()> {
-    let declared = root_type(program, state, recast.root).ok_or(())?;
+    let declared = crate::state_root_type(program, state, recast.root).ok_or(())?;
     let (carrier, path) = recast
         .representation
         .as_ref()

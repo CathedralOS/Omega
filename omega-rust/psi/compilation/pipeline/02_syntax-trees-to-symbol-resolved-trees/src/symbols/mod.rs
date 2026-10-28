@@ -230,10 +230,12 @@ pub(crate) fn assign_symbols(
     );
     namespace_declarations.install(&mut symbols)?;
     let has_sources = sources.is_some() || !namespace_declarations.modules.is_empty();
-    let symbols =
+    let mut symbols =
         symbol_table::insert_selected_machine_children(program, symbols, sources, 0, has_sources);
-    let diagnostics = assign_program_symbols(program, &symbols, generic_origin_frontier);
+    scope::record_declaration_owners(program, &mut symbols)?;
     program.symbols = symbols;
+    let symbols = program.symbols.clone();
+    let diagnostics = assign_program_symbols(program, &symbols, generic_origin_frontier);
     namespace_declarations.record_import_selections(program)?;
     if diagnostics.is_empty() {
         Ok(())
@@ -267,6 +269,9 @@ pub(crate) fn assign_symbols_against_resolved_base(
         roots.machines,
         true,
     );
+    let mut symbols = program.symbols.clone();
+    scope::record_declaration_owners(program, &mut symbols)?;
+    program.symbols = symbols;
     let symbols = program.symbols.clone();
     let diagnostics = assign_program_symbols(program, &symbols, generic_origin_frontier);
     namespace_declarations.record_import_selections(program)?;

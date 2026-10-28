@@ -636,6 +636,16 @@ impl TypeReferenceTable {
         self.type_references.iter()
     }
 
+    /// Rows appended since a saved `type_reference_count`. Type preparation
+    /// only appends references, so each producer can finalize its own suffix
+    /// before a parent consumes it without revisiting earlier type graphs.
+    pub fn type_reference_rows_from(
+        &self,
+        start: usize,
+    ) -> impl Iterator<Item = (TypeReferenceHandle, &TypeReferenceNode)> + '_ {
+        self.type_references.iter_from(start)
+    }
+
     pub fn retain_collection_result_types(
         &mut self,
         symbols: &symbols::SymbolTable,

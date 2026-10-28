@@ -83,8 +83,8 @@ use optimization_core::{
     OptimizationSafetyClass, ScalarConstantFactIdentity,
 };
 use optimization_unit::{
-    IntegerConstantRewrite, IntegerEvaluationWitness, NodeLocation, PsiOptimizationUnit,
-    PsiRewriteCandidate,
+    BooleanConstantRewrite, IntegerConstantRewrite, IntegerEvaluationWitness, NodeLocation,
+    PsiOptimizationUnit, PsiRewriteCandidate,
 };
 use semantic_vocabulary::{BlockId, IntegerType, IntegerValue, MachineId, OperationId, ValueId};
 
@@ -208,6 +208,64 @@ pub(super) fn propose_integer_constant_folds(
                             source_operation: row.source_operation,
                             result: row.result,
                             scalar_type: row.scalar_type,
+                            constant: row.constant,
+                        },
+                    )
+                    .map_err(RuleProposalError::InvalidCandidate)?,
+                );
+            }
+        }
+    }
+    Ok(candidates)
+}
+
+/// One Boolean-result constant fold: the operation and result the rewrite
+/// replaces, the folded constant, and the evaluation witness the rule's own
+/// classification admits.
+pub(super) struct BooleanConstantEvaluation {
+    pub(super) source_operation: OperationId,
+    pub(super) result: ValueId,
+    pub(super) constant: bool,
+    pub(super) witness: IntegerEvaluationWitness,
+}
+
+/// The Boolean-result families' one traversal: every node is offered to the
+/// invoking rule's own classification, and each accepted fold emits its
+/// `BooleanConstantRewrite` candidate with the node's in-place provenance.
+/// `evaluate` owns the rule's operand lookup, gate and witness.
+pub(super) fn propose_boolean_evaluations(
+    unit: &PsiOptimizationUnit,
+    contract: OptimizationRuleContract,
+    evaluate: impl Fn(
+        &optimization_unit::PsiOptimizationFunction,
+        BlockId,
+        &optimization_unit::OptimizationNode,
+        u32,
+    ) -> Option<BooleanConstantEvaluation>,
+) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
+    let mut candidates = Vec::new();
+    for function in &unit.functions {
+        for block in &function.blocks {
+            for (node_index, node) in block.nodes.iter().enumerate() {
+                let node_index =
+                    u32::try_from(node_index).expect("optimization node indices are u32");
+                let Some(row) = evaluate(function, block.id, node, node_index) else {
+                    continue;
+                };
+                let location = node_location(function.machine, block.id, node_index);
+                candidates.push(
+                    PsiRewriteCandidate::new_boolean_evaluation(
+                        unit.identity,
+                        contract,
+                        vec![block.id],
+                        Vec::new(),
+                        vec![node_realized_provenance(location, node)],
+                        row.witness,
+                        -1,
+                        BooleanConstantRewrite {
+                            location,
+                            source_operation: row.source_operation,
+                            result: row.result,
                             constant: row.constant,
                         },
                     )

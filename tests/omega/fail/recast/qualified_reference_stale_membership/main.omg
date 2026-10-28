@@ -1,5 +1,5 @@
 data Ticket [copy] { number: u64; }
-domain Ticket::Issued(ticket) requires ticket.number != 0 established by issue;
+domain Ticket::Issued requires self.number != 0 established by issue;
 machine issue() -> Ticket in Ticket::Issued { Ticket { number: 17 } }
 machine clear(number: &mut u64) { number = 0; }
 machine main() {

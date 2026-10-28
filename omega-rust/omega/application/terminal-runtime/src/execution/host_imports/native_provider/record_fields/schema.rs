@@ -1,4 +1,4 @@
-//! Declaration-sized planning for a native codec's scalar roster. Array counts
+//! Declaration-sized planning for a native codec's scalar/reference roster. Array counts
 //! multiply leaf counts, not schema nodes. Every element schema is validated,
 //! including beneath zero dimensions; only a completed zero count suppresses
 //! later instance enumeration. This plan supplies neither layout nor custody.
@@ -17,8 +17,15 @@ pub(super) enum Element {
 
 pub(super) enum Shape {
     Scalar(ScalarType),
+    Reference {
+        referent: StructuralTypeId,
+        access: terminal_psi::StructuralAccess,
+    },
     Record(Vec<(StructuralFieldId, Element)>),
-    Array { element: usize, length: u64 },
+    Array {
+        element: usize,
+        length: u64,
+    },
 }
 
 pub(super) struct Node {
@@ -88,7 +95,8 @@ impl Schema {
                     });
                     pending.push(Visit::Complete(index, declaration));
                     match &declaration.shape {
-                        StructuralTypeShape::PrimitiveScalar(_) => {}
+                        StructuralTypeShape::PrimitiveScalar(_)
+                        | StructuralTypeShape::Reference { .. } => {}
                         StructuralTypeShape::Record { fields, storage } => {
                             if matches!(
                                 storage,
@@ -135,6 +143,13 @@ impl Schema {
                         StructuralTypeShape::PrimitiveScalar(logical) => {
                             (Shape::Scalar(*logical), Some(1))
                         }
+                        StructuralTypeShape::Reference { referent, access } => (
+                            Shape::Reference {
+                                referent: *referent,
+                                access: *access,
+                            },
+                            Some(1),
+                        ),
                         StructuralTypeShape::Record { fields, .. } => {
                             let mut members = Vec::new();
                             let mut leaves = Some(0_u64);

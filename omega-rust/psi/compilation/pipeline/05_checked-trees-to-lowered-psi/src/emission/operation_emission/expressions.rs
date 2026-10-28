@@ -6,6 +6,7 @@ use super::integer::LoweredIntegerBinaryKind;
 use crate::emission::operation_emission::buffer::scalar_result_declaration;
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
+use crate::terminal_identities::mint;
 use crate::terminal_identities::obligation_id;
 use crate::terminal_identities::place_id;
 use crate::terminal_identities::value_id;
@@ -403,10 +404,7 @@ pub(crate) fn emit_scalar_leaf(
     next_value_identity: &mut u64,
     operations: &mut OperationBuffer,
 ) -> ValueId {
-    let id = value_id(*next_value_identity);
-    *next_value_identity = next_value_identity
-        .checked_add(1)
-        .expect("generated value identity advances after a scalar leaf");
+    let id = mint(next_value_identity, value_id);
     let value_type = value_type.into();
     operations.push_leaf(
         OperationResult::Scalar(ValueDeclaration {
@@ -1075,10 +1073,7 @@ pub(crate) fn emit_direct_expression(
         } => {
             let left = emit_direct_expression(left, parameters, next_value_identity, operations);
             let right = emit_direct_expression(right, parameters, next_value_identity, operations);
-            let id = value_id(*next_value_identity);
-            *next_value_identity = next_value_identity
-                .checked_add(1)
-                .expect("generated value identity advances after a binary operation");
+            let id = mint(next_value_identity, value_id);
             let operation = operations.allocate();
             // The settled policy catalog is the one roster of which kinds
             // record a formation decision: `formation_obligation` yields an
@@ -1102,10 +1097,7 @@ pub(crate) fn emit_direct_expression(
         } => {
             let operand =
                 emit_direct_expression(operand, parameters, next_value_identity, operations);
-            let id = value_id(*next_value_identity);
-            *next_value_identity = next_value_identity
-                .checked_add(1)
-                .expect("generated value identity advances after bitwise complement");
+            let id = mint(next_value_identity, value_id);
             operations.push_leaf(
                 scalar_result_declaration(id, *scalar_type),
                 OperationKind::IntegerBitwiseNot { operand },
@@ -1118,10 +1110,7 @@ pub(crate) fn emit_direct_expression(
         } => {
             let operand =
                 emit_direct_expression(operand, parameters, next_value_identity, operations);
-            let id = value_id(*next_value_identity);
-            *next_value_identity = next_value_identity
-                .checked_add(1)
-                .expect("generated value identity advances after integer widening");
+            let id = mint(next_value_identity, value_id);
             operations.push_leaf(
                 scalar_result_declaration(id, *scalar_type),
                 OperationKind::IntegerWiden { operand },
@@ -1135,10 +1124,7 @@ pub(crate) fn emit_direct_expression(
         } => {
             let operand =
                 emit_direct_expression(operand, parameters, next_value_identity, operations);
-            let id = value_id(*next_value_identity);
-            *next_value_identity = next_value_identity
-                .checked_add(1)
-                .expect("generated value identity advances after an exact integer cast");
+            let id = mint(next_value_identity, value_id);
             let operation = operations.allocate();
             let obligation = obligation_id(
                 operation
@@ -1168,10 +1154,7 @@ pub(crate) fn emit_direct_expression(
             let source_type = operand.scalar_type();
             let operand =
                 emit_direct_expression(operand, parameters, next_value_identity, operations);
-            let id = value_id(*next_value_identity);
-            *next_value_identity = next_value_identity
-                .checked_add(1)
-                .expect("generated value identity advances after a representation view");
+            let id = mint(next_value_identity, value_id);
             let operation = operations.allocate();
             // The landing obligation follows its operation identity exactly as
             // an exact cast's does; replay admitted the pair, so a pair the

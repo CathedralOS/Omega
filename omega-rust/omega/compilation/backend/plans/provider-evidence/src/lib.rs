@@ -42,10 +42,7 @@ pub use provider_evidence::component_eras::component_era_entry_ledger::{
     EraEntryError, EraQuiescenceError, EraRetirementError,
 };
 pub(crate) use provider_evidence::executable_scopes::behavior_exclusions::BehaviorExclusion;
-pub(crate) use provider_evidence::executable_scopes::executable_tcb_manifest::{
-    ContainmentGuarantee, ExecutionScope, OpaqueExecutableAdmissionCandidate,
-    OpaqueInProcessBinding, ValidatedOpaqueExecutableAdmission,
-};
+pub(crate) use provider_evidence::executable_scopes::executable_tcb_manifest::ExecutionScope;
 pub use provider_evidence::providers::foreign_locator::{
     ForeignLocatorCandidate, ForeignLocatorIdentityDigest, ForeignLocatorValidationError,
     NormalizedForeignLocator, normalize_foreign_locator,
@@ -53,8 +50,8 @@ pub use provider_evidence::providers::foreign_locator::{
 pub use provider_evidence::providers::provider_plan;
 pub use provider_evidence::{
     AssumedBindingContractSelection, InstallationReachResolution,
-    SelectedExternalRequirementApplication, SelectedProviderPlanFacts,
-    SelectedRequirementSpecialization, SelectedTargetFamilyRealization,
+    SelectedExternalRequirementApplication, SelectedProviderPlanCandidate,
+    SelectedProviderPlanFacts, SelectedRequirementSpecialization, SelectedTargetFamilyRealization,
 };
 
 #[cfg(test)]

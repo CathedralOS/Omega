@@ -19,11 +19,9 @@ use register_model::{
     RegisterConstraintKey, RegisterUnitId, RegisterViewId, ValidatedPhysicalRegisterModel,
 };
 use selected_instructions::{
-    FloatResultPolicyForm, MachineAlternative, MachineAlternativeApplicability,
-    MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier, MachineCallEffect,
-    MachineCleanupEffect, MachineEffectDeclaration, MachineEncodedEffects, MachineLatencyKnowledge,
-    MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
-    SelectedInstructionKind,
+    FloatResultPolicyForm, MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier,
+    MachineEffectDeclaration, MachineEncodedEffects, MachineMemoryEffect, MachineSemanticKind,
+    MachineSizeKnowledge, MachineTrapBehavior, SelectedInstructionKind,
 };
 
 #[cfg(test)]
@@ -83,33 +81,24 @@ pub(crate) fn declaration(
     form: FloatResultPolicyForm,
     constraint: RegisterConstraintKey,
 ) -> MachineEffectDeclaration {
-    MachineEffectDeclaration {
-        semantic: MachineSemanticKind::FloatResultPolicy(form),
+    super::alternative_declaration(
         constraint,
-        memory: MachineMemoryEffect::NoneV1,
-        trap: if form.can_trap() {
+        MachineSemanticKind::FloatResultPolicy(form),
+        MachineMemoryEffect::NoneV1,
+        if form.can_trap() {
             MachineTrapBehavior::TrappingIntegerV1
         } else {
             MachineTrapBehavior::NeverV1
         },
-        barrier: if form.can_trap() {
+        if form.can_trap() {
             MachineBarrier::ExternalEffect
         } else {
             MachineBarrier::None
         },
-        call: MachineCallEffect::NoneV1,
-        cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey {
-                family: MachineAlternativeFamily::FloatResultPolicy(form),
-                variant: 0,
-            },
-            applicability: MachineAlternativeApplicability::Always,
-            size: size(form),
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded: effects(form),
-        }],
-    }
+        MachineAlternativeFamily::FloatResultPolicy(form),
+        size(form),
+        effects(form),
+    )
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

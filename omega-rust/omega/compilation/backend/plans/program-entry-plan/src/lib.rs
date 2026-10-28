@@ -27,11 +27,9 @@ mod program_entry_physical;
 mod selected_entry;
 mod uefi;
 
-pub(crate) use entry_signature::{ProgramEntryExtentFieldRole, ProgramEntryResultSignature};
+pub use entry_signature::{ProgramEntryExtentFieldRole, ProgramEntryResultSignature};
 pub use entry_signature::{ProgramEntryExtentValueLayout, SelectedProgramEntrySignature};
-pub(crate) use entry_signature::{
-    ProgramEntrySignatureIdentity, ProgramEntryVisibleParameterSignature,
-};
+pub use entry_signature::{ProgramEntrySignatureIdentity, ProgramEntryVisibleParameterSignature};
 pub use optimized_semantic_entry::OptimizedProgramStoragePhysicalEntryDisposition;
 pub use optimized_semantic_entry::{
     OptimizedProgramStorageSemanticCallingApplication,
@@ -58,24 +56,13 @@ pub use post_handoff_writer::{
     lower_post_handoff_writer_fragment, validate_lowered_post_handoff_writer,
 };
 pub use program_entry_physical::{
-    LINUX_ARM64_I32_TYPE_IDENTITY, LINUX_ARM64_PHYSICAL_REQUIREMENT_IDENTITY,
-    LINUX_ARM64_U64_TYPE_IDENTITY, LINUX_X86_64_ADDRESS_TYPE_IDENTITY,
-    LINUX_X86_64_I32_TYPE_IDENTITY, LINUX_X86_64_PHYSICAL_REQUIREMENT_IDENTITY,
+    LINUX_ARM64_I32_TYPE_IDENTITY, LINUX_ARM64_U64_TYPE_IDENTITY,
+    LINUX_X86_64_ADDRESS_TYPE_IDENTITY, LINUX_X86_64_I32_TYPE_IDENTITY,
     MACOS_ARM64_ADDRESS_TYPE_IDENTITY, MACOS_ARM64_I32_TYPE_IDENTITY,
-    MACOS_ARM64_PHYSICAL_REQUIREMENT_IDENTITY, MACOS_X86_64_ADDRESS_TYPE_IDENTITY,
-    MACOS_X86_64_I32_TYPE_IDENTITY, ProgramEntryPhysicalContractPackageSourceDigest,
-    ProgramEntryPhysicalContractPlan, WINDOWS_X86_64_PHYSICAL_REQUIREMENT_IDENTITY,
-    WINDOWS_X86_64_U32_TYPE_IDENTITY, exact_linux_arm64_physical_boundary_entry_plan,
-    exact_linux_arm64_physical_contract_package_source_digest,
-    exact_linux_x86_64_physical_boundary_entry_plan,
-    exact_linux_x86_64_physical_contract_package_source_digest,
-    exact_macos_arm64_physical_boundary_entry_plan,
-    exact_macos_arm64_physical_contract_package_source_digest,
-    exact_macos_x86_64_physical_boundary_entry_plan,
-    exact_macos_x86_64_physical_contract_package_source_digest,
-    exact_uefi_x64_physical_contract_package_source_digest,
-    exact_windows_x86_64_physical_boundary_entry_plan,
-    exact_windows_x86_64_physical_contract_package_source_digest,
+    MACOS_X86_64_ADDRESS_TYPE_IDENTITY, MACOS_X86_64_I32_TYPE_IDENTITY,
+    ProgramEntryPhysicalContractPackageSourceDigest, ProgramEntryPhysicalContractPlan,
+    WINDOWS_X86_64_U32_TYPE_IDENTITY, exact_hosted_physical_boundary_entry_plan,
+    exact_physical_contract_package_source_digest,
 };
 pub use selected_entry::SelectedProgramStorageEntryPlan;
 

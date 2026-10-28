@@ -3,7 +3,8 @@
 //! instance enumeration visits only branches with actual scalar leaves. Paths
 //! retain every containing field identity. Layout recipes supply placement,
 //! never missing types or authority. References, atomics and other carriers
-//! retain their independent codec requirements.
+//! retain their independent codec requirements. A reference is one typed leaf;
+//! its pointee belongs to a separate authenticated original allocation.
 
 mod schema;
 
@@ -29,12 +30,23 @@ enum Visit {
     Pop,
 }
 
-pub(super) fn scalar_fields(
+pub(super) struct SemanticReferenceField {
+    pub path: Vec<Path>,
+    pub referent: StructuralTypeId,
+    pub access: terminal_psi::StructuralAccess,
+}
+pub(super) struct SemanticFields {
+    pub scalars: Vec<SemanticScalarField>,
+    pub references: Vec<SemanticReferenceField>,
+}
+
+pub(super) fn fields(
     program: &TerminalProgram,
     structural_type: StructuralTypeId,
-) -> Result<Vec<SemanticScalarField>, TerminalEffectRejection> {
+) -> Result<SemanticFields, TerminalEffectRejection> {
     let schema = Schema::derive(program, structural_type)?;
     let mut output = Vec::new();
+    let mut references = Vec::new();
     output
         .try_reserve_exact(schema.leaves)
         .map_err(|_| rejection("native semantic scalar roster exceeds available output storage"))?;
@@ -52,6 +64,13 @@ pub(super) fn scalar_fields(
                         path: path.clone(),
                         logical: *logical,
                     }),
+                    Shape::Reference { referent, access } => {
+                        references.push(SemanticReferenceField {
+                            path: path.clone(),
+                            referent: *referent,
+                            access: *access,
+                        })
+                    }
                     Shape::Record(fields) => {
                         for (identity, element) in fields.iter().rev() {
                             let segment = Path::Field(*identity);
@@ -112,10 +131,13 @@ pub(super) fn scalar_fields(
             }
         }
     }
-    if output.len() != schema.leaves {
+    if output.len().checked_add(references.len()) != Some(schema.leaves) {
         return Err(rejection(
             "native scalar roster differs from its complete schema",
         ));
     }
-    Ok(output)
+    Ok(SemanticFields {
+        scalars: output,
+        references,
+    })
 }

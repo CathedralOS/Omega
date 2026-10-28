@@ -8,9 +8,9 @@
 // Compile-checked only: declaration surface, no standard-library
 // dependency.
 
-public domain [u8]::Utf8(bytes)
+public domain [u8]::Utf8
 requires
-    valid_utf8(bytes);
+    valid_utf8(self);
 
 public boundary trait Console {
     machine write_line(text: &[u8] in Utf8)

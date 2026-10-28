@@ -1,4 +1,4 @@
-domain u64::OneToFive(value) requires value >= 1 && value <= 5;
+domain u64::OneToFive requires self >= 1 && self <= 5;
 data Countdown {}
 measure Countdown::Remaining(value: u64 in OneToFive) -> u64 { value }
 

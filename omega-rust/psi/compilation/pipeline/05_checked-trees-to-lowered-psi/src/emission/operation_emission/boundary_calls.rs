@@ -15,7 +15,7 @@ use super::buffer::{OperationBuffer, SourceCallCoordinate};
 use super::calls::{CallEmissionContext, PreparedStructuralArgument};
 use super::expressions::{LoweredDirectExpression, emit_direct_expression};
 use crate::lowering_error::{LoweringError, unsupported};
-use crate::terminal_identities::value_id;
+use crate::terminal_identities::{mint_with, value_id};
 use result_policy::BoundaryResultPolicy;
 use semantic_vocabulary::{QualifiedScalarType, ValueId};
 use terminal_psi::{Operation, OperationKind, OperationResult, ValueDeclaration};
@@ -147,12 +147,11 @@ pub(super) fn emit_boundary_call_binding(
         call_emission,
         current_claims,
     )?;
-    let result = value_id(*next_value_identity);
-    *next_value_identity = next_value_identity
-        .checked_add(1)
-        .ok_or(LoweringError::Unsupported(
-            "nested boundary application value identity overflow",
-        ))?;
+    let result = mint_with(
+        next_value_identity,
+        value_id,
+        "nested boundary application value identity overflow",
+    )?;
     let raw = ValueDeclaration {
         id: result,
         scalar_type: call.result_type.scalar_type,

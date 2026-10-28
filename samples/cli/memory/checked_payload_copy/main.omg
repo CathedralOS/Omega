@@ -1,7 +1,7 @@
 // Expected exit: 0.
 // Copy an established record payload out of a checked case into another state.
 data Extent [copy] { base: u64; length: u64; }
-domain Extent::Nonempty(extent) requires extent.length > 0;
+domain Extent::Nonempty requires self.length > 0;
 data CheckedExtent { case Rejected; case Ready(extent: Extent in Nonempty); }
 data Envelope { stamp: u64; checked: CheckedExtent; }
 

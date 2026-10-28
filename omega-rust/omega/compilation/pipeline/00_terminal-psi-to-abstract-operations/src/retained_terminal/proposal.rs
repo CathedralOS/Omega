@@ -17,6 +17,9 @@ use diagnostics::Diagnostic;
 /// canonical artifact. Callback placements identify exact portable applications;
 /// their bodies and formal ordering come from the artifact itself.
 pub struct TerminalNativeProposalRequest<'input> {
+    /// Complete namespace of evaluated via-binding receipt producer identities.
+    /// The original numeric coordinates cannot be recovered from a digest.
+    pub evaluated_binding_identities: &'input terminal_psi::TerminalIdentityTable,
     pub direct_boundary_leaves: Vec<&'input backend_plan::DirectBoundaryLeaf>,
     pub provider_declarations: &'input [backend_plan::TerminalTargetProviderPlan],
     pub target_profile: Option<target::TargetProfile>,
@@ -176,6 +179,14 @@ fn project_terminal_native_body(
         target_profile,
         request.boundaries.selected_provider_plans,
         request.family_realizations,
+    )?;
+    // This closes static activation obligations, not executor installation.
+    // The proposal is process-local: loaded code takes this same join once.
+    task_plans::realize_task_activations(
+        &terminal_module.task_activation_demands,
+        &terminal_module.identities,
+        &selected,
+        target_profile,
     )?;
     let checked_adapters = crate::provider_admission::retain_selected_provider_adapters(
         &selected,

@@ -55,42 +55,32 @@ pub struct RegisterConstraintKey {
 }
 
 impl RegisterConstraintKey {
+    /// The key constructor every named family below delegates to.
+    const fn of(family: RegisterConstraintFamily, variant: u32) -> Self {
+        Self { family, variant }
+    }
+
     /// The family half of a key row is spelled here, once. A catalog or target
     /// names only the variant it owns, so the family spelling cannot drift
     /// between the files that mint keys of the same family.
     pub const fn instruction(variant: u32) -> Self {
-        Self {
-            family: RegisterConstraintFamily::Instruction,
-            variant,
-        }
+        Self::of(RegisterConstraintFamily::Instruction, variant)
     }
 
     pub const fn call(variant: u32) -> Self {
-        Self {
-            family: RegisterConstraintFamily::Call,
-            variant,
-        }
+        Self::of(RegisterConstraintFamily::Call, variant)
     }
 
     pub const fn ret(variant: u32) -> Self {
-        Self {
-            family: RegisterConstraintFamily::Return,
-            variant,
-        }
+        Self::of(RegisterConstraintFamily::Return, variant)
     }
 
     pub const fn system_call(variant: u32) -> Self {
-        Self {
-            family: RegisterConstraintFamily::SystemCall,
-            variant,
-        }
+        Self::of(RegisterConstraintFamily::SystemCall, variant)
     }
 
     pub const fn inline_assembly(variant: u32) -> Self {
-        Self {
-            family: RegisterConstraintFamily::InlineAssembly,
-            variant,
-        }
+        Self::of(RegisterConstraintFamily::InlineAssembly, variant)
     }
 }
 
@@ -98,13 +88,7 @@ impl RegisterConstraintKey {
 /// followed by the variant word. Every identity codec that walks a register
 /// catalog spells this row the same way.
 pub fn encode_constraint_key(bytes: &mut Vec<u8>, key: RegisterConstraintKey) {
-    bytes.push(match key.family {
-        RegisterConstraintFamily::Call => 0,
-        RegisterConstraintFamily::Return => 1,
-        RegisterConstraintFamily::SystemCall => 2,
-        RegisterConstraintFamily::InlineAssembly => 3,
-        RegisterConstraintFamily::Instruction => 4,
-    });
+    bytes.push(key.family.tag());
     crate::codec_bytes::push_encoded(bytes, key.variant.to_le_bytes());
 }
 

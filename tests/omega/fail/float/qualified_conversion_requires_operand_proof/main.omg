@@ -1,6 +1,6 @@
 use omega::language::core::float_operations;
 
-domain i32::Four(value) requires value == 4;
+domain i32::Four requires self == 4;
 domain f32::Measured;
 domain i32::Measured;
 domain i32::Issued established by Issuer::issue;

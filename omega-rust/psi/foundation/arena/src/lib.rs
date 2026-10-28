@@ -27,7 +27,7 @@ mod owned_index;
 mod owned_interner;
 mod paged_arena_set;
 
-pub use arena::{Arena, ArenaIter, ArenaSpanInserter};
+pub use arena::{Arena, ArenaIter, ArenaSlotStorage, ArenaSpanInserter, ArenaStorageView};
 pub use concurrent_paged_arena::{
     ConcurrentArenaPage, ConcurrentPagedArena, IncompletePagePublication, PublishedArenaPage,
     SealedPagedArena,

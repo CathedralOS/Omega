@@ -55,9 +55,7 @@ fn encode_contract_static_argument_body(
         } => {
             encoder.tag("const_structured", 9);
             encoder.field_by("declared_type", declared_type, encode_type_identity)?;
-            encoder.field("canonical_value_encoding", |encoder| {
-                encoder.string(canonical_value_encoding)
-            })?;
+            encoder.string_field("canonical_value_encoding", canonical_value_encoding)?;
         }
         PackageReviewContractStaticArgument::GenericConstBinder(position) => {
             encoder.tag("generic_const_binder", 6);

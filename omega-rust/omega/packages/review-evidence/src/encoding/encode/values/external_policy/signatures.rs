@@ -12,9 +12,7 @@ pub(super) fn signature(
     encoder: &mut Encoder,
     value: &PackagePolicyExternalCallableSignature,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("lifetime_parameter_count", |encoder| {
-        encoder.usize(value.lifetime_parameter_count)
-    })?;
+    encoder.usize_field("lifetime_parameter_count", value.lifetime_parameter_count)?;
     encoder.field("static_parameters", |encoder| {
         encoder.sequence(&value.static_parameters, type_parameter)
     })?;
@@ -29,9 +27,11 @@ pub(super) fn signature(
             Ok(())
         })
     })?;
-    encoder.field("return_type", |encoder| {
-        encoder.option(value.return_type.as_ref(), encode_type_identity)
-    })
+    encoder.option_field(
+        "return_type",
+        value.return_type.as_ref(),
+        encode_type_identity,
+    )
 }
 
 pub(super) fn requirement(

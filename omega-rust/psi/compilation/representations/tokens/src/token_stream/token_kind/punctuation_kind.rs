@@ -93,4 +93,33 @@ impl PunctuationKind {
             ("~", Self::Tilde),
         ]
     }
+
+    /// This punctuation's authored spelling; `<unknown>` is the default kind
+    /// that no lexeme produces. `ordered_lexemes` stays the one table: lexing
+    /// needs its longest-first order and this reads the same rows back.
+    pub fn lexeme(self) -> &'static str {
+        match Self::ordered_lexemes()
+            .iter()
+            .find(|(_, kind)| *kind == self)
+        {
+            Some((lexeme, _)) => lexeme,
+            None => "<unknown>",
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn punctuation_spellings_round_trip_through_the_ordered_table() {
+        for (lexeme, punctuation) in PunctuationKind::ordered_lexemes() {
+            assert_eq!(punctuation.lexeme(), *lexeme);
+        }
+        assert_eq!(
+            PunctuationKind::lexeme(PunctuationKind::Unknown),
+            "<unknown>"
+        );
+    }
 }

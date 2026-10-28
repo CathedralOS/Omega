@@ -265,8 +265,10 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "optimization-core",
+ "runtime-abi",
  "semantic-vocabulary",
  "target",
+ "terminal-psi",
 ]
 
 [[package]]
@@ -363,6 +365,7 @@ dependencies = [
  "proof-admission",
  "semantic-vocabulary",
  "source",
+ "source-audit",
  "symbols",
  "typed-trees",
 ]
@@ -413,6 +416,7 @@ dependencies = [
  "build-time-evaluation",
  "calling-conventions",
  "checked-trees",
+ "component-description",
  "diagnostics",
  "effects",
  "image-emission",
@@ -1683,7 +1687,6 @@ dependencies = [
  "source-audit",
  "symbols",
  "target",
- "task-plans",
  "terminal-codec",
  "terminal-psi",
 ]
@@ -1952,7 +1955,6 @@ dependencies = [
  "source",
  "symbols",
  "target",
- "task-plans",
  "terminal-psi",
  "trust-model",
  "typed-trees",
@@ -2321,11 +2323,14 @@ dependencies = [
 name = "task-plans"
 version = "0.1.0"
 dependencies = [
+ "calling-conventions",
+ "diagnostics",
+ "effects",
  "language-core",
  "optimization-core",
  "semantic-vocabulary",
  "source-audit",
- "symbols",
+ "target",
  "terminal-psi",
 ]
 
@@ -2393,6 +2398,7 @@ dependencies = [
  "optimization",
  "semantic-vocabulary",
  "source",
+ "source-audit",
 ]
 
 [[package]]
@@ -2400,6 +2406,7 @@ name = "terminal-psi-to-abstract-operations"
 version = "0.1.0"
 dependencies = [
  "abstract-operations",
+ "arena",
  "backend-plan",
  "boundary-applications",
  "calling-conventions",
@@ -2408,6 +2415,7 @@ dependencies = [
  "effects",
  "function-identity",
  "installation-evidence",
+ "language-semantics",
  "layout-plans",
  "numerics",
  "optimization-core",

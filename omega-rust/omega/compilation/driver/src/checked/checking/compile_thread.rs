@@ -1,6 +1,16 @@
 use diagnostics::Diagnostic;
 
-const COMPILE_STACK_SIZE: usize = 256 * 1024 * 1024;
+/// Stack budget for one compile invocation.
+///
+/// Checked lowering keeps whole fact tables, prepared frontends and probes by
+/// value, and a build-time product query lowers a demanded closure inside the
+/// preparation that issued it, so the frames nest. Every compile entry point
+/// provisions this budget explicitly rather than inheriting a host default:
+/// the CLI, this driver's compile thread, the parser stage, checking and proof
+/// admission each name a 256 MiB thread. A host that runs compiler work on a
+/// default-sized thread (2 MiB on macOS, 8 MiB for a process main thread) turns
+/// an ordinary deep fixture into a stack overflow, which no caller can catch.
+pub const COMPILE_STACK_SIZE: usize = 256 * 1024 * 1024;
 
 thread_local! {
     static ON_COMPILER_WORKER: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };

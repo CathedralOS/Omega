@@ -21,14 +21,17 @@ where
 machine Span::shift(span: &mut Span, delta: u32)
 requires
     delta <= 1000
-    span.end <= u32::Maximum - delta
+    span.end <= integer::max<u32>() - delta
 {
     span.start = span.start + delta;
     span.end = span.end + delta;
 }
 ```
 
-The precondition makes the additions representable. The first assignment may
+The carrier query uses the ratified ordinary core
+[integer API](../spec/language/numeric_values.md#core-integer-and-float-apis),
+whose implementation remains `CORE-INTEGER-FLOAT-APIS` work rather than a
+primitive-member alias. The precondition makes the additions representable. The first assignment may
 temporarily break `start <= end`; the second restores it before return. A
 domain-preserving write needs no window. Otherwise the checker records the
 actual new contents and the obligation to re-establish the domain.

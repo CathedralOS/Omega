@@ -1,0 +1,44 @@
+// Fact: A readable stored-reference projection beneath an owned linear Buffer preserves the exact Issued Cell memberships and original array, and normal cleanup writes the caller cleanup slot exactly once.
+// Place: call_result.
+// Expected exit: 0. Both cleanup branches and both match branches execute.
+use omega::language::core::drop;
+public domain u64::ResidentValue requires self >= 0 && self <= 2147483647 && self != 42;
+public data Cell { value: u64 in ResidentValue; }
+public domain Cell::Issued established by mint_cell;
+machine mint_cell(value: u64 in ResidentValue) -> Cell
+ensures result in Cell::Issued { Cell { value: value } }
+machine observe_cell(cell: &Cell in Cell::Issued) -> u64 { cell.value }
+public data Buffer<'cells, 'cleanup> [linear] dropped by cleanup_buffer<'cells, 'cleanup> {
+    marker: u64;
+    route: u64;
+    cells: &'cells mut [Cell in Cell::Issued; 3];
+    cleanup: &'cleanup mut [u64; 3];
+}
+machine cleanup_buffer<'cells, 'cleanup>(buffer: &mut Buffer<'cells, 'cleanup>) {
+    let next: u64 = match buffer.cleanup[1] == 0 { true -> 73, false -> 99 };
+    buffer.cleanup[1] = next;
+}
+data Observation [copy] { value: u64; marker: u64; route: u64; }
+machine make_buffer<'cells, 'cleanup>(cells: &'cells mut [Cell in Cell::Issued; 3], cleanup: &'cleanup mut [u64; 3], route: u64) -> Buffer<'cells, 'cleanup> {
+    Buffer { marker: 91, route: route, cells: cells, cleanup: cleanup }
+}
+machine exercise_case(initial_cleanup: u64, expected_cleanup: u64, choose: bool, expected_route: u64) crashes Trap {
+    let mut cells: [Cell in Cell::Issued; 3] = [mint_cell(305419896), mint_cell(37), mint_cell(1515863100)];
+    let original: u64 = cells[1].value;
+    let before: u64 = observe_cell(&cells[1]);
+    let mut cleanup_slots: [u64; 3] = [287454020, initial_cleanup, 1432778632];
+    let mut buffer: Buffer = make_buffer(&mut cells, &mut cleanup_slots, expected_route);
+    let value: u64 = observe_cell(&buffer.cells[1]);
+    let marker: u64 = buffer.marker;
+    let route: u64 = buffer.route;
+    let observed: Observation = Observation { value: value, marker: marker, route: route };
+    drop(buffer);
+    let after: u64 = observe_cell(&cells[1]);
+    transition before == 37 && observed.value == 37 && observed.marker == 91 && observed.route == expected_route && after == 37 && original == 37 && cells[0].value == 305419896 && cells[1].value == 37 && cells[2].value == 1515863100 && cleanup_slots[0] == 287454020 && cleanup_slots[1] == expected_cleanup && cleanup_slots[2] == 1432778632 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}
+machine entry_start() crashes Trap {
+    exercise_case(0, 73, true, 11);
+    exercise_case(9, 99, false, 22);
+}

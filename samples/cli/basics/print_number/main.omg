@@ -14,12 +14,12 @@
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 
-domain [u8]::Utf8(bytes)
+domain [u8]::Utf8
 requires
-    valid_utf8(bytes);
-domain [u8; 3]::Utf8(bytes)
+    valid_utf8(self);
+domain [u8; 3]::Utf8
 requires
-    valid_utf8(bytes);
+    valid_utf8(self);
 data Main {
     // Wrapping DECLARED (nums/elem/sum/digit): the sum flows from array elements,
     // which carry no range facts yet, and Decision 17 forbids mixing domains in

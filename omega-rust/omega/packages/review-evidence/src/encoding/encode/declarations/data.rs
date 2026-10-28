@@ -74,10 +74,7 @@ pub(crate) fn encode_data_member(
             retired_payload_identities,
         } => {
             encoder.tag("variant", 1);
-            encoder.field("identity", |encoder| {
-                encode_optional_u64(encoder, *identity);
-                Ok(())
-            })?;
+            encoder.field_by("identity", *identity, encode_optional_u64)?;
             encoder.field("name", |encoder| encoder.string(name))?;
             encoder.field("payload", |encoder| {
                 encoder.sequence(payload, encode_data_field)
@@ -97,15 +94,9 @@ pub(crate) fn encode_data_field(
     encoder: &mut Encoder,
     field: &PackageReviewDataField,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("identity", |encoder| {
-        encode_optional_u64(encoder, field.identity);
-        Ok(())
-    })?;
+    encoder.field_by("identity", field.identity, encode_optional_u64)?;
     encoder.field("name", |encoder| encoder.string(&field.name))?;
-    encoder.field("relevance", |encoder| {
-        encode_relevance(encoder, field.relevance);
-        Ok(())
-    })?;
+    encoder.field_by("relevance", field.relevance, encode_relevance)?;
     encoder.field_by("type_identity", &field.type_identity, encode_type_identity)
 }
 

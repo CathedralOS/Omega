@@ -673,23 +673,15 @@ impl IndexedFamily {
         levels: Vec<Level>,
         arguments: &[TermHandle],
     ) -> TermHandle {
-        let mut term = arena.insert(Term::Constant {
+        let constant = arena.insert(Term::Constant {
             declaration,
             levels,
         });
-        for parameter in [self.index, self.carrier, self.children, self.out, self.next] {
-            term = arena.insert(Term::Apply {
-                function: term,
-                argument: parameter,
-            });
-        }
-        for &argument in arguments {
-            term = arena.insert(Term::Apply {
-                function: term,
-                argument,
-            });
-        }
-        term
+        let instantiated = arena.apply_arguments(
+            constant,
+            &[self.index, self.carrier, self.children, self.out, self.next],
+        );
+        arena.apply_arguments(instantiated, arguments)
     }
 
     /// `IndexedAt i t` — the indexing predicate, a `Type max(l,u,v)`.

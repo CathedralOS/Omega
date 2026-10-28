@@ -6,6 +6,7 @@ use crate::direct_calls::DirectCallResult;
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
 use crate::proofs::crash_routes::lowered_erased_scalar_term;
+use crate::terminal_identities::mint;
 use crate::terminal_identities::obligation_id;
 use crate::terminal_identities::value_id;
 use semantic_vocabulary::{MachineId, ObligationId, QualifiedScalarType, ValueId};
@@ -272,10 +273,7 @@ fn emit_direct_call_operation(
         call.target_machine,
         "direct scalar call target is absent from the terminal closure",
     )?;
-    let result = value_id(*next_value_identity);
-    *next_value_identity = next_value_identity
-        .checked_add(1)
-        .expect("generated value identity advances after a direct call");
+    let result = mint(next_value_identity, value_id);
     let erased_arguments = call
         .erased_arguments
         .iter()

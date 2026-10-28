@@ -9,8 +9,6 @@
 //! [`Elf64_Dyn`]: https://gabi.xinuos.com/elf/08-dynamic.html#dynamic-section
 //! [data encoding]: https://gabi.xinuos.com/elf/02-eheader.html#data-encoding
 
-use target::compatibility_fingerprint::Fnv1a;
-
 use super::super::checked::{self, CandidateValidationError};
 use crate::bytes::write_u64;
 use crate::constants::{
@@ -174,27 +172,13 @@ fn encode_contents(
     })
 }
 
-fn validate_candidate(
-    candidate: Candidate,
-) -> Result<ValidatedElfDynamicTablePayload, CandidateValidationError<Candidate>> {
-    checked::validate_candidate(
-        candidate,
-        |candidate| validate_contents(&candidate.plan, &candidate.contents),
-        |candidate| {
-            candidate.non_authoritative_payload_compatibility_fingerprint
-                == non_authoritative_payload_compatibility_fingerprint(
-                    &candidate.plan,
-                    &candidate.contents,
-                )
-        },
-        "ELF dynamic payload compatibility fingerprint does not replay",
-        |candidate| ValidatedElfDynamicTablePayload {
-            plan: candidate.plan,
-            contents: candidate.contents,
-            non_authoritative_payload_compatibility_fingerprint: candidate
-                .non_authoritative_payload_compatibility_fingerprint,
-        },
-    )
+checked::seal_stage! {
+    field: plan,
+    contents: contents,
+    validated: ValidatedElfDynamicTablePayload,
+    validate: validate_contents,
+    fingerprint: non_authoritative_payload_compatibility_fingerprint,
+    message: "ELF dynamic payload compatibility fingerprint does not replay",
 }
 
 fn validate_contents(
@@ -289,12 +273,9 @@ fn non_authoritative_payload_compatibility_fingerprint(
     plan: &ValidatedElfDynamicTagPlan,
     contents: &ElfDynamicTablePayloadContents,
 ) -> u64 {
-    let mut hash = Fnv1a::new();
-    hash.bytes(b"omega.elf-dynamic-table-payload.v1");
-    hash.bytes(
-        &plan
-            .non_authoritative_tag_compatibility_fingerprint()
-            .to_le_bytes(),
+    let mut hash = checked::stage_fingerprint(
+        b"omega.elf-dynamic-table-payload.v1",
+        plan.non_authoritative_tag_compatibility_fingerprint(),
     );
     hash.bytes(&contents.bytes);
     hash.bytes(&(contents.address_fixups.len() as u64).to_le_bytes());
@@ -318,6 +299,7 @@ mod tests {
         serialize_elf_dynamic_table, validate_candidate, validate_contents,
         validate_fixup_coverage,
     };
+    use crate::bytes::name_at;
     use crate::dynamic_executable::checked::read_i64;
     use target::TargetProfile;
 
@@ -484,9 +466,8 @@ mod tests {
                     ordinal * ELF64_DYNAMIC_ROW_SIZE + ELF64_DYNAMIC_VALUE_OFFSET,
                     "DT_NEEDED offset",
                 )
-                .unwrap() as usize;
-                let tail = &dynstr[offset..];
-                &tail[..tail.iter().position(|byte| *byte == 0).unwrap()]
+                .unwrap() as u32;
+                name_at(dynstr, offset, "DT_NEEDED string offset").unwrap()
             })
             .collect::<Vec<_>>();
         assert_eq!(names, [b"liba\xff.so".as_slice(), b"libb.so".as_slice()]);

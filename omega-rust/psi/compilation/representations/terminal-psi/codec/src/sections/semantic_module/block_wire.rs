@@ -75,10 +75,7 @@ pub(crate) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), Cod
     )?;
     encode_proof_formals(writer, &block.erased_proof_formals)?;
     encode_structural_parameters(writer, &block.structural_parameters)?;
-    writer.len("operations", block.operations.len())?;
-    for operation in &block.operations {
-        encode_operation(writer, operation)?;
-    }
+    writer.counted("operations", &block.operations, encode_operation)?;
     terminator_wire::encode_terminator(writer, &block.terminator)
 }
 

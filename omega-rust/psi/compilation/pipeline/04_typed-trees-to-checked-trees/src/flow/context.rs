@@ -197,7 +197,7 @@ pub(super) struct FlowBuildContext<'plans> {
     /// Result contracts are invocation-owned: a shared requirement target
     /// does not imply the same applied local index tuple.
     pub(super) call_result_identities: HashMap<
-        (SymbolHandle, usize),
+        (SymbolHandle, usize, typed_trees::types::TypeReferenceHandle),
         Rc<
             Vec<(
                 Vec<facts::PlaceSegment>,

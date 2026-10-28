@@ -25,7 +25,7 @@ pub(crate) struct PreparedLoanCompletion {
     pub(crate) qualifications: Vec<(
         language_semantics::SemanticDomainId,
         Vec<StructuralPathSegment>,
-        Option<StructuralTypeId>,
+        StructuralTypeId,
     )>,
 }
 
@@ -167,6 +167,9 @@ pub(crate) fn prepare(
         }
         let mut qualifications = Vec::new();
         for fact in qualification_facts(checked, region) {
+            if super::call_qualifications::declaration_represents(identities, checked, fact)? {
+                continue;
+            }
             let Some(place_handle) = fact.place.as_place() else {
                 continue;
             };
@@ -176,13 +179,30 @@ pub(crate) fn prepare(
                 .semantic
                 .place_segments
                 .span_or_empty(place.segments);
-            let Some((_, _, _domain_symbol, semantic_domain)) = fact.payload.domain_membership()
+            let Some((_, _, domain_symbol, semantic_domain)) = fact.payload.domain_membership()
             else {
                 continue;
             };
-            let (fact_path, _) =
-                validation::structural_owned_path(&checked.typed, reference, segments)
+            // The checked completion publishes a membership in existing
+            // storage. Observing through a stored reference grants no owned
+            // claim to its referent; those claims were prepared separately.
+            let mut fact_path =
+                validation::qualification_storage_path(&checked.typed, reference, segments)
                     .map_err(LoweringError::Unsupported)?;
+            let selected = validation::project_type_reference_from_segments(
+                &checked.typed,
+                reference,
+                segments,
+            )
+            .ok_or(LoweringError::Unsupported(
+                "loan completion qualification lost its selected source type",
+            ))?;
+            let (membership_path, _) =
+                validation::result_membership_carrier(&checked.typed, selected, domain_symbol)
+                    .ok_or(LoweringError::Unsupported(
+                        "loan completion qualification has no matching domain carrier",
+                    ))?;
+            fact_path.extend(membership_path);
             let mut full_path = owner.path.clone();
             full_path.extend(
                 crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
@@ -193,13 +213,16 @@ pub(crate) fn prepare(
                 )?,
             );
             let carrier = if full_path.is_empty() {
-                Some(structural_type)
+                structural_type
             } else {
                 terminal_semantics::qualification_path_carrier(
                     types.iter(),
                     structural_type,
                     &full_path,
                 )
+                .ok_or(LoweringError::Unsupported(
+                    "loan completion qualification has no exact projected carrier",
+                ))?
             };
             qualifications.push((semantic_domain, full_path, carrier));
         }
@@ -286,18 +309,11 @@ pub(crate) fn emit(
         let mut qualifications = Vec::new();
         let mut projected_qualifications = Vec::new();
         for (semantic_domain, path, carrier) in &completion.qualifications {
-            let domain = if let Some(carrier) = carrier {
-                crate::terminal_identities::lookup_domain_id_for_carrier(
-                    calls.domain_ids,
-                    *semantic_domain,
-                    *carrier,
-                )
-                .or_else(|_| {
-                    crate::terminal_identities::lookup_domain_id(calls.domain_ids, *semantic_domain)
-                })?
-            } else {
-                crate::terminal_identities::lookup_domain_id(calls.domain_ids, *semantic_domain)?
-            };
+            let domain = crate::terminal_identities::lookup_domain_id_for_carrier(
+                calls.domain_ids,
+                *semantic_domain,
+                *carrier,
+            )?;
             if path.is_empty() {
                 qualifications.push(domain);
             } else {

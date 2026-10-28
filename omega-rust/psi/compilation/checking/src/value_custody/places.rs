@@ -34,6 +34,7 @@ pub mod collection_operations;
 mod declaration_types;
 pub(crate) use declaration_types::declaration_type_equations;
 pub use declaration_types::declaration_type_reference;
+pub use declaration_types::state_root_type;
 
 use crate::value_custody::locals::WritableRoots;
 use crate::value_custody::struct_literals::data_declares_field;
@@ -821,8 +822,8 @@ pub use projection_types::{
     canonical_place_type_reference, collection_element_type_reference,
     expression_type_reference_in_state, loan_carrier_has_owned_storage,
     observed_storage_type_references, owned_projection_type_reference,
-    project_type_reference_from_segments, source_type_application_from_segments,
-    unique_data_definition_by_symbol,
+    project_type_reference_from_segments, qualification_storage_path,
+    source_type_application_from_segments, unique_data_definition_by_symbol,
 };
 pub mod receiver_projections;
 pub use receiver_projections::{

@@ -141,9 +141,15 @@ pub(crate) fn check_linear_obligations(
     // cleanup fixed point; recording them again here reproduced the same
     // events. Only the crash-frontier projection needs the incoming guard
     // index, which exists only now.
-    record_crash_frontier_lower_bounds(program, facts, incoming_guards);
-    validate_linear_permission_events(program, facts)?;
-    borrowed_windows::check_recorded_invocations(program, facts)
+    phase_profile::scope("05.d.7.4.a.crash_frontiers", || {
+        record_crash_frontier_lower_bounds(program, facts, incoming_guards)
+    });
+    phase_profile::scope("05.d.7.4.b.validate_linear", || {
+        validate_linear_permission_events(program, facts)
+    })?;
+    phase_profile::scope("05.d.7.4.c.borrowed_windows", || {
+        borrowed_windows::check_recorded_invocations(program, facts)
+    })
 }
 
 /// A nominal cleanup machine is entitled to one whole valid value. Reject a

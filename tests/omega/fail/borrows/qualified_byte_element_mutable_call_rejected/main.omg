@@ -1,6 +1,6 @@
 // A primitive element loan must preserve the enclosing byte field's domain.
 // The explicit length premise isolates the domain failure from bounds checking.
-domain [u8; 4]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8; 4]::Ascii requires ascii_only(self);
 data Packet { bytes: [u8; 4] in Ascii; }
 
 machine corrupt(leaf: &mut u8) -> bool { leaf = 255; true }

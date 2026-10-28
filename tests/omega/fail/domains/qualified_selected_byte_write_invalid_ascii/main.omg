@@ -1,5 +1,5 @@
 // A closed-sum result reborrows the selected element through a stored view.
-domain [u8; 8]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8; 8]::Ascii requires ascii_only(self);
 data Choice [copy] { case First; case Second; }
 data Room [copy] { value: u64; text: [u8; 8] in Ascii; }
 data Level [copy] { rooms: [Room; 2]; }

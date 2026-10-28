@@ -23,10 +23,7 @@ pub(super) fn source_geometry(
     if !geometry.readable || source.access == terminal_psi::StructuralAccess::WriteOnlyBorrow {
         return None;
     }
-    let shape = signature
-        .structural_types
-        .iter()
-        .find(|declaration| declaration.id == geometry.selected)?
+    let shape = terminal_psi::find_structural_type(&signature.structural_types, geometry.selected)?
         .shape
         .clone();
     Some((geometry, shape))

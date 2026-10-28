@@ -2,9 +2,9 @@
 // Place: target body. Target-scoped machine bodies initialize and consume the write-only borrow on all four hosted targets.
 // Expected exit: 0
 
-domain u64::SlotDomain(v)
+domain u64::SlotDomain
 requires
-    v >= 100u64 && v <= 100u64;
+    self >= 100u64 && self <= 100u64;
 
 data BoxedSlot {
     value: u64 in SlotDomain;

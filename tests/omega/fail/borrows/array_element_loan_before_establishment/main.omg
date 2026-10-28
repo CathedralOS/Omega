@@ -1,6 +1,6 @@
 // Zero-filled storage is not an established Cell. Writing another element
 // cannot authorize a readable loan of this element's unsatisfied default domain.
-domain i32::Positive(value) requires value >= 1;
+domain i32::Positive requires self >= 1;
 data Cell { value: i32 in Positive; }
 machine inspect(value: &Cell) -> i32 { value.value }
 machine main() -> i32 {

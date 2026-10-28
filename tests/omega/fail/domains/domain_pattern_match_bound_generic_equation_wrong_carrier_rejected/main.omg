@@ -3,8 +3,8 @@
 
 data Cell [copy] { value: u64; }
 data Other [copy] { value: u64; }
-domain Cell::Ready(cell)
-requires cell.value >= 73u64;
+domain Cell::Ready
+requires self.value >= 73u64;
 
 machine generic_ready<Value>(cell: &Value) -> bool
 where Value == Cell

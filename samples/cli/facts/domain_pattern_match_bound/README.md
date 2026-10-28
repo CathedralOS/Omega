@@ -4,7 +4,7 @@ A selected predicate-domain match arm establishes value >= 73, and the joined va
 
 Owning outcome: **MATCH-SELECTIVE-LOWERING** in [TASKS.md](../../../../TASKS.md). The requirement is ordered predicate-domain selection over one saved subject, with the selected domain facts retained through the scalar result join and ordinary exact arithmetic.
 
-The root [main.omg](main.omg) and its four-target [build.omg](build.omg) retain the same fact, input and subtraction as the frozen reproduction. Published root/local witnesses use explicit nested completion machines with their own crash contracts; the original baseline source and receipt remain immutable in the claim record. Every positive declares `Expected exit: 0` and exercises both the matching `Cell::Ready` path (`Cell { value: 90u64 }` yielding `17u64`) and the wildcard fallback path (`Cell { value: 12u64 }` yielding `0u64`). The same `Cell::Ready` predicate supplies `cell.value >= 73u64`; the wildcard supplies `73u64`. The consumer performs the same subtraction without a caller guard establishing the bound. Each twin changes only the domain predicate to `cell.value >= 72u64`.
+The root [main.omg](main.omg) and its four-target [build.omg](build.omg) retain the same fact, input and subtraction as the frozen reproduction. Published root/local witnesses use explicit nested completion machines with their own crash contracts; the original baseline source and receipt remain immutable in the claim record. Every positive declares `Expected exit: 0` and exercises both the matching `Cell::Ready` path (`Cell { value: 90u64 }` yielding `17u64`) and the wildcard fallback path (`Cell { value: 12u64 }` yielding `0u64`). The same `Cell::Ready` predicate supplies `self.value >= 73u64`; the wildcard supplies `73u64`. The consumer performs the same subtraction without a caller guard establishing the bound. Each twin changes only the domain predicate to `self.value >= 72u64`.
 
 | Place | Positive | Weakened-domain twin |
 | --- | --- | --- |
@@ -19,6 +19,39 @@ The root [main.omg](main.omg) and its four-target [build.omg](build.omg) retain 
 | target_body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) |
 
 The [ordered-effects control](controls/ordered_effects/main.omg) evaluates a computed record subject once, chooses the first of overlapping domains and executes only the selected effectful arm. [Wrong-carrier](controls/wrong_carrier/main.omg) and [missing-coverage](controls/missing_coverage/main.omg) controls preserve exact carrier and exhaustiveness obligations.
+
+## Logical subject migration
+
+The same row also establishes **DOMAIN-DEFAULT-PREDICATE-UNIFICATION**'s
+Rust producer's retirement of authored domain subject binders. `Cell::Ready` now states
+`requires self.value >= 73u64`; `self` names the exact selected value and
+creates no runtime receiver or authority. Each twin changes only the bound to
+72. The target place uses four ordinary named implementations, each selected
+by its target's Build entry, as required by the ratified target-selection model.
+
+Fresh optimized Rust producer `0b4dc5763bf5f093e14605958817c031e4df07f5` executes the root
+and all nine public places with native and Terminal exit 0 on macOS ARM64;
+all nine pinned positives also agree in the corpus, and all nine twins reject
+their missing-bound obligations. Foreign-host execution is not claimed by
+this observation. The qualification record retains the producer, accepted
+replay inputs, raw streams and canonical Terminal products (native-row receipt
+`ba8a0eb05b92405f9823ca2704447c67`, macOS ARM64).
+
+The [constant formation control](../../../../tests/omega/pass/domains/logical_subject_constants/main.omg)
+covers scalar, generic, indexed and record subjects independently of outer
+constants. Its [false-initializer control](../../../../tests/omega/fail/domains/logical_subject_false_constant/main.omg)
+changes only the scalar initializer from 3 to 9. These are checking fixtures;
+the executable row above owns runtime evidence. Retired-binder and machine-scope
+controls also live under `tests/omega/fail/domains/`.
+
+The parent remains open for case-dependent defaults, typed extraction, guarded
+payload formation and matching, mutation restoration and removal of case-local
+predicate paths. The Omega-written Psi producer still needs logical `self`
+parsing/resolution, authored-binder retirement, and data-`where self` resolution.
+Its existing product gate is blocked before these changes by retired state syntax;
+this Rust-producer milestone makes no product-compiler execution claim. The baseline
+`named_const_subject_binding` nested/inherited scalar result-domain refusals
+remain engineering work; this syntax migration does not claim to complete them.
 
 ## Current failure and retained evidence
 

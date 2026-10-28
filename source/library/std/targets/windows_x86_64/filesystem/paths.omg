@@ -100,14 +100,18 @@ terminates by budget;
         false -> (path.len)
     }
     machine inspect(path: &[u8], position: u64, remaining: u64, budget: u64) -> u64
-    requires position < path.len && budget > 0 {
+    requires position < path.len && budget > 0
+    terminates by budget;
+    {
         transition windows_filesystem_separator(path, path[position]) {
             true -> separator(path, position, remaining, budget)
             false -> windows_filesystem_root_components(path, position + 1, remaining, budget - 1)
         }
     }
     machine separator(path: &[u8], position: u64, remaining: u64, budget: u64) -> u64
-    requires position < path.len && budget > 0 {
+    requires position < path.len && budget > 0
+    terminates by budget;
+    {
         transition remaining > 1 {
             true -> windows_filesystem_root_components(path, position + 1, remaining - 1, budget - 1)
             false -> (position + 1)

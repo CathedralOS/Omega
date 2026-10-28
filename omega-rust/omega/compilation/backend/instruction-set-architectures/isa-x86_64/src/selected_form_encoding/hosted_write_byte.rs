@@ -8,10 +8,11 @@ use super::{
 use crate::selected_form_encoding::request_validation::resolve_registers;
 use register_model::RegisterConstraintKey;
 use selected_instructions::{
-    LocalStorageSlotId, MachineAlternativeFamily, MachineAlternativeKey, MachineEffectDeclaration,
-    MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect,
-    MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
-    MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior, SelectedInstructionKind,
+    LocalStorageSlotId, MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier,
+    MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedEffects,
+    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
+    MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
+    SelectedInstructionKind,
 };
 use target::NativeTarget;
 
@@ -62,11 +63,12 @@ pub(crate) fn declaration(
     target: NativeTarget,
     constraint: RegisterConstraintKey,
 ) -> MachineEffectDeclaration {
-    super::hosted_alternative_declaration(
+    super::alternative_declaration(
         constraint,
         MachineSemanticKind::HostedWriteByteI32,
         MachineMemoryEffect::HostedWriteByteV1,
         MachineTrapBehavior::HostedWriteFailureV1,
+        MachineBarrier::ExternalEffect,
         MachineAlternativeFamily::HostedWriteByteI32,
         MachineSizeKnowledge::ExactBytes(leaf_bytes(target)),
         effects(),

@@ -1,6 +1,6 @@
 // A captured scalar keeps its completed guarantee after its former slot changes.
 // Expected exit: 0.
-domain i64::Issued(value) requires value >= 0 established by issue;
+domain i64::Issued requires self >= 0 established by issue;
 machine query(input: i64) -> i64 ensures result >= 0 {
     transition input >= 0 { true -> (input) _ -> (0) }
 }

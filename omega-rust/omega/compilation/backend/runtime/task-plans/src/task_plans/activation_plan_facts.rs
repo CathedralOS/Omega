@@ -32,9 +32,9 @@ pub struct SelectedTaskRuntimeProviderFact {
 /// semantic checking.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TaskActivationPlanFact {
-    pub start_requirement: symbols::SymbolHandle,
-    pub target_machine: symbols::SymbolHandle,
-    pub target_entry: symbols::SymbolHandle,
+    pub start_requirement: terminal_psi::TerminalIdentityIndex,
+    pub target_machine: terminal_psi::TerminalIdentityIndex,
+    pub target_entry: terminal_psi::TerminalIdentityIndex,
     /// Historical compact compatibility/report coordinate.
     pub specialization_report_fingerprint: u64,
     /// Strong identity of the exact checked specialization structure.
@@ -47,6 +47,7 @@ pub struct TaskActivationPlanFact {
 /// Omega-owned task activation sidecar for one checked compilation.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TaskActivationPlanSet {
+    pub identities: terminal_psi::TerminalIdentityTable,
     pub activations: Vec<TaskActivationPlanFact>,
 }
 

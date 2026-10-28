@@ -7,8 +7,6 @@
 //! or source relocations, serialize ELF/program headers, or
 //! claim loader or runnable-image authority.
 
-use target::compatibility_fingerprint::Fnv1a;
-
 use super::super::checked::{self, CandidateValidationError};
 use crate::constants::{
     ELF64_DYNAMIC_ROW_SIZE, ELF64_DYNAMIC_VALUE_OFFSET, ELF64_DYNAMIC_VALUE_SIZE,
@@ -312,28 +310,14 @@ fn application_for_fixup(
     })
 }
 
-fn validate_candidate(
-    candidate: Candidate,
-) -> Result<ValidatedElfResolvedDynamicTable, CandidateValidationError<Candidate>> {
-    checked::validate_candidate(
-        candidate,
-        |candidate| validate_contents(&candidate.placed_section_headers, &candidate.contents),
-        |candidate| {
-            candidate.non_authoritative_resolved_compatibility_fingerprint != 0
-                && candidate.non_authoritative_resolved_compatibility_fingerprint
-                    == non_authoritative_resolved_compatibility_fingerprint(
-                        &candidate.placed_section_headers,
-                        &candidate.contents,
-                    )
-        },
-        "resolved ELF dynamic-table compatibility fingerprint does not replay",
-        |candidate| ValidatedElfResolvedDynamicTable {
-            placed_section_headers: candidate.placed_section_headers,
-            contents: candidate.contents,
-            non_authoritative_resolved_compatibility_fingerprint: candidate
-                .non_authoritative_resolved_compatibility_fingerprint,
-        },
-    )
+checked::seal_stage! {
+    field: placed_section_headers,
+    contents: contents,
+    validated: ValidatedElfResolvedDynamicTable,
+    validate: validate_contents,
+    fingerprint: non_authoritative_resolved_compatibility_fingerprint,
+    nonzero,
+    message: "resolved ELF dynamic-table compatibility fingerprint does not replay",
 }
 
 fn validate_contents(
@@ -599,12 +583,9 @@ fn non_authoritative_resolved_compatibility_fingerprint(
     placed: &ValidatedElfPlacedSectionHeaderTable,
     contents: &ElfResolvedDynamicTableContents,
 ) -> u64 {
-    let mut hash = Fnv1a::new();
-    hash.bytes(b"omega.elf.resolved-dynamic-table.v1");
-    hash.bytes(
-        &placed
-            .non_authoritative_placed_compatibility_fingerprint()
-            .to_le_bytes(),
+    let mut hash = checked::stage_fingerprint(
+        b"omega.elf.resolved-dynamic-table.v1",
+        placed.non_authoritative_placed_compatibility_fingerprint(),
     );
     hash.bytes(&contents.bytes);
     hash.bytes(&(contents.applications.len() as u64).to_le_bytes());

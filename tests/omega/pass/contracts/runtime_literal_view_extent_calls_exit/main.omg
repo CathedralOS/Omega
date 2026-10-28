@@ -32,7 +32,7 @@ machine main() crashes Trap {
     machine done() {}
     machine wrong() { crash Trap; }
 }
-domain [u8; 2]::Utf8(bytes)
-requires valid_utf8(bytes);
+domain [u8; 2]::Utf8
+requires valid_utf8(self);
 
-domain [u8; 0]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8; 0]::Utf8 requires valid_utf8(self);

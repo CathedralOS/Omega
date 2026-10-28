@@ -79,4 +79,20 @@ impl<'a> RowSite<'a> {
             self.provenance,
         )
     }
+
+    /// Publish an operation result's aggregate home at its own place, refusing
+    /// a place that already holds one.
+    pub(super) fn establish_home(
+        &mut self,
+        psi_operation: semantic_vocabulary::OperationId,
+        result: &terminal_psi::StructuralOperationResult,
+    ) -> Result<target_operations::TargetStructuralHomeRequirement, crate::LoweringError> {
+        super::aggregate_results::established_home(
+            self.live,
+            psi_operation,
+            result,
+            self.types,
+            self.function.machine,
+        )
+    }
 }

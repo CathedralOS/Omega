@@ -1,6 +1,6 @@
 // An alias's empty local fact list cannot waive its constituent predicates.
-domain i32::NotFive(value) requires value != 5;
-domain i32::BelowFive(value) requires value < 5;
+domain i32::NotFive requires self != 5;
+domain i32::BelowFive requires self < 5;
 domain i32::Small = i32::NotFive & i32::BelowFive;
 
 machine main() {

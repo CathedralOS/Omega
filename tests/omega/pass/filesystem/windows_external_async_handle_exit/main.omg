@@ -9,7 +9,7 @@ use omega::language::core::external_binding;
 use omega::language::core::filesystem_authority;
 use omega::language::core::numeric_conversion;
 
-domain [u16; 16]::ExternalNativePath(path) requires path[15] == 0;
+domain [u16; 16]::ExternalNativePath requires self[15] == 0;
 
 boundary trait ExternalFileOpen {
     machine open(path: &[u16; 16] in ExternalNativePath, access: u32, sharing: u32, security: u64,

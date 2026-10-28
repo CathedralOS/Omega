@@ -7,6 +7,7 @@ use super::{
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
 use crate::selection::construction::scalar_graph::structural::local_storage;
+use crate::selection::construction::scalar_graph::structural::operation_provenance;
 use crate::selection::scalar_call_abi::load_transfer;
 use selected_instructions::LocalStorageSlotId;
 
@@ -79,12 +80,7 @@ pub(super) fn write(
         byte_size,
         pointer,
         value_register,
-        SelectedInstructionProvenance {
-            operations: vec![row.operation],
-            values: vec![value.value],
-            fuel: row.fuel.clone(),
-            ..Default::default()
-        },
+        operation_provenance(row, vec![value.value]),
     )?;
     Ok(())
 }
@@ -208,16 +204,14 @@ pub(in crate::selection) fn read(
         instruction,
         constraint.ok_or_else(|| invalid())?,
         &[pointer, output],
-        SelectedInstructionProvenance {
-            operations: vec![row.operation],
-            values: indices
+        operation_provenance(
+            row,
+            indices
                 .iter()
                 .map(|index| index.operand.value)
                 .chain([definition.value])
                 .collect(),
-            fuel: row.fuel.clone(),
-            ..Default::default()
-        },
+        ),
     )?;
     normalize_signed_load(builder, definition, output)
 }

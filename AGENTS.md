@@ -96,10 +96,12 @@ continuation; it does not turn unfinished work into completion.
 Capability outcomes determine priority; samples provide executable evidence.
 Compiler advancement runs `samples/cli/facts` only. One fact is one folder.
 The nine places are local, field, parameter, call result, match join, const
-name, a nested machine, another machine, and another target body. Those places
+name, a nested machine, another machine, and another selected target implementation. Those places
 are one row. Do not expand them into a combinatorial matrix.
 The nested-machine place retains the existing `other_state/` path during the
 source migration; it is distinct from the non-nested `other_machine/` place.
+The other-target place uses an ordinary named implementation selected by Build;
+existing target-prefixed witnesses are migration inputs, not supported syntax.
 `samples/cli/facts/length/` is a reference row. Inspect each folder's current
 coverage and applicable evidence to distinguish filled rows from missing places.
 The next advance fills a missing place of the selected fact, or takes the next
@@ -205,9 +207,27 @@ capability.
    For new automatic work without a current assignment, repair an unclaimed
    active `main` regression (where the newest completed `Post-merge smoke` run
    on `main` failed and no live claim already covers it) before choosing an
-   actionable `TASKS.md` outcome
-   by its stated priority and release dependencies, then discharge it inside
-   `samples/cli/facts`. Read its full acceptance
+   actionable `TASKS.md` outcome in this priority order:
+   - First, take the first unassigned actionable item in `TASKS.md`'s
+     `## Priority (human-set only)` section (in top-down order; only humans add,
+     reorder, or move items into or out of that section).
+   - Within and immediately after that section, prioritize ratified
+     language-design and surface-syntax migrations that affect wide swaths of
+     authored `.omg` files (such as `NESTED-MACHINE-UNIFICATION` replacing
+     `state` with nested `machine` across 100% of `.omg` files,
+     `CANONICALIZE-SCALAR-RANGE-CONTRACTS` removing `T [lo..hi]` suffixes across
+     ~25% of `.omg` files, `DOMAIN-DEFAULT-PREDICATE-UNIFICATION`,
+     `STATIC-MACHINE-MIGRATION`, `BUILD-OWNED-TARGET-SELECTION`,
+     `BUILD-OWNED-NATIVE-BINDINGS`, and
+     `TOP-LEVEL-BOUNDARY-REQUIREMENTS`), ordered by `.omg` blast radius so new
+     witnesses and samples are not continually authored in deprecated syntax.
+   - Then take remaining `TASKS.md` outcomes in top-down board order and release
+     dependencies.
+   Discharge compiler capability gaps inside `samples/cli/facts`; for a ratified
+   language-design or surface-syntax migration outcome, carry both its nine-place
+   `samples/cli/facts` witnesses and its repository-wide `.omg`
+   source/library/sample/fixture migration and retired-syntax deletion bullets
+   to completion. Read its full acceptance
    and verify its remaining gap with an optimized exact-source producer
    for the recorded fixed base. Reuse a warm `build/gate-cli` or retained
    producer with verified inputs; build only when those inputs changed or no
@@ -339,7 +359,7 @@ task's full acceptance. Prove out and list these obligations in the sample fact:
   state transitions, crash routes, and strongly connected ranking/scalar-block-invariant
   edges, separating explicit `dyn` selector vs. data lanes, and retaining
   boundary-application demands, placed/atomic observations, integer arithmetic
-  modes/certificates, and checked target-scoped body candidates
+  modes/certificates, and checked named implementation candidates
   ([product](wiki/spec/terminal-psi/product.md),
   [encoding](wiki/spec/terminal-psi/encoding.md),
   [calls and outcomes](wiki/spec/terminal-psi/calls_and_outcomes.md),
@@ -353,7 +373,7 @@ task's full acceptance. Prove out and list these obligations in the sample fact:
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):**
   target realization joins Build companion rows (`ProgramEntry`, `ProviderPlan`,
   `CompilerBuiltinExecution`, `BoundaryExecutionBinding`, assumed binding
-  contracts, and target-scoped body selection) to the Terminal catalog without
+  contracts, and target-keyed provider selections) to the Terminal catalog without
   reopening source, evaluates and validates target layout plans (`size_of`/`align_of`,
   field/bit offsets, variant tags/payloads, `IntegerAt` stored widths,
   element/byte view descriptors, explicit recasts/codecs, and erased zero-byte
@@ -507,8 +527,12 @@ place:
   not model page tables, schedulers, or drivers as compiler-owned types.
 
 Terminal Psi is the only portable boundary. Targets are data, not control
-flow: Psi checks every target-scoped machine body in every compilation, and
-`--target` narrows what Omega realizes, never what Psi checks. The full
+flow: Psi checks every supplied ordinary implementation in every compilation,
+and Build records exact provider selections per target. Target-prefixed machine
+declarations and implicit same-path target-body families are retired; remove
+their remaining machinery under `BUILD-OWNED-TARGET-SELECTION` rather than
+adding compatibility paths. `--target` narrows what Omega realizes, never what
+Psi checks. The full
 architecture contract — deferred Psi audit policy, crate placement,
 discoverability, compositional lowering — lives in
 [omega-rust/pipeline.md](omega-rust/pipeline.md).
@@ -543,6 +567,25 @@ The rules that touch every edit:
   not a `Trait::member = Existing::machine;` reference row. Follow
   [named implementations](wiki/spec/language/conformances.md#data-and-code-are-independent)
   and remove legacy support rather than preserving it for old tests.
+- Source `via` binding clauses and one-to-one bodyless native forwarding
+  declarations are retired. The owning package records
+  `Build::bind<Requirement>(builder, target, locator)` intent; literal locator
+  byte lengths are inferred, not manually counted in helpers or Build generics.
+  The compiler derives plans and preserves exact contracts, ABI, provenance,
+  admission, and authority. Product rows never install Build-host backing;
+  application roots do not repeat dependency-private imports. Follow
+  [native bindings](wiki/spec/build/foreign_bindings.md#build-owned-native-binding);
+  `BUILD-OWNED-NATIVE-BINDINGS` owns compiler/source/review migration.
+- Core numeric carrier/property APIs live in ordinary `integer` and `float`
+  modules, not primitive-member `MAX`/`Maximum` aliases or a catch-all limits
+  module. Implement them through checked library bodies, exact type refinement
+  and authoritative semantic metadata, never spelling-based proof rules or
+  per-API intrinsics. Float extrema are finite; exact bit/classification APIs
+  preserve their promised sign/payload/kind without strengthening arithmetic
+  NaN guarantees. Payload constructors are conveniences, not permanent compiler
+  mechanisms. Follow [numeric APIs](wiki/spec/language/numeric_values.md#core-integer-and-float-apis);
+  `CORE-INTEGER-FLOAT-APIS` owns implementation and migration, without admitting
+  arbitrary-width integer families or general owned aggregate casts.
 - Source `state` declarations are retired in favor of arbitrarily nested
   machines. Nesting scopes names, never runtime data or implicit authority.
   All runtime arguments are explicit; ordinary calls resume, terminal calls
@@ -861,7 +904,7 @@ Commit messages carry no tool attribution: no "Generated with ..." line, no
   or mode with cleanup deferred to a task. Preserve genuine semantic and ABI
   distinctions. Optional optimization specialization requires a correct general
   path. See [compositional lowering](omega-rust/pipeline.md#compositional-lowering).
-  A repair counts only when the same proved fact (a length, a bound, or a loan) works through a local, a field, a parameter, a call result, a match join, a const name, a nested machine, another machine, and another target body, as pinned by the fact-place fixtures under [`tests/omega/pass/facts`](tests/omega/pass/facts) and [`tests/omega/fail/facts`](tests/omega/fail/facts). When the fact is a requirement the producing layer dropped, the sentence names the requirements recorded on the emitted value, the consuming operation uses that list, and another production that drops the same requirements stays in that fact folder.
+  A repair counts only when the same proved fact (a length, a bound, or a loan) works through a local, a field, a parameter, a call result, a match join, a const name, a nested machine, another machine, and another selected target implementation, as pinned by the fact-place fixtures under [`tests/omega/pass/facts`](tests/omega/pass/facts) and [`tests/omega/fail/facts`](tests/omega/fail/facts). When the fact is a requirement the producing layer dropped, the sentence names the requirements recorded on the emitted value, the consuming operation uses that list, and another production that drops the same requirements stays in that fact folder.
 - **Verify at trust boundaries, not after every stage.** Foreign package review
   and untrusted build-script execution verify; a stage never re-validates,
   replays or rebuilds output the same compile just produced. Verifiers stay

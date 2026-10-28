@@ -118,6 +118,7 @@ impl SourceCompilationRequest {
         let (syntax, pre_check) = evaluated.into_syntax_and_pre_check();
         let (mut typing, mut pending_bodies) =
             if let (Some(typing), Some(base)) = (retained, resolved_base) {
+                let _profile = phase_profile::guard("psi.source.prepare.resolve_extension");
                 let extension = observer.record_result(PsiCompilationStage::Resolution, || {
                     syntax_trees_to_symbol_resolved_trees::resolve_deferred_extension(
                         syntax_trees_to_symbol_resolved_trees::ExtensionRequest {
@@ -132,7 +133,8 @@ impl SourceCompilationRequest {
                     typing.append_deferred(extension)
                 })?
             } else {
-                let mut frontier =
+                let mut frontier = {
+                    let _profile = phase_profile::guard("psi.source.prepare.resolve_deferred");
                     observer.record_result(PsiCompilationStage::Resolution, || {
                         syntax_trees_to_symbol_resolved_trees::resolve_deferred(
                             syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
@@ -142,23 +144,28 @@ impl SourceCompilationRequest {
                                 retained_base: None,
                             },
                         )
-                    })?;
+                    })?
+                };
                 loop {
                     let selected = build_bodies(&frontier);
                     if selected.is_empty() {
                         break;
                     }
+                    let _profile = phase_profile::guard("psi.source.prepare.build_bodies_resolved");
                     frontier = observer
                         .record_result(PsiCompilationStage::Resolution, || {
                             frontier.complete_machine_bodies(&selected)
                         })?
                         .into_resolved_frontier();
                 }
-                let typing = observer.record_result(PsiCompilationStage::Typing, || {
-                symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees_to_seeded_base(
-                    frontier.shared_trees(),
-                ).map_err(|diagnostic| vec![diagnostic])
-            })?;
+                let typing = {
+                    let _profile = phase_profile::guard("psi.source.prepare.lower_seeded_base");
+                    observer.record_result(PsiCompilationStage::Typing, || {
+                        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees_to_seeded_base(
+                            frontier.shared_trees(),
+                        ).map_err(|diagnostic| vec![diagnostic])
+                    })?
+                };
                 (typing, frontier)
             };
         // Build may use its admitted declaration context. Product bodies stay
@@ -168,6 +175,7 @@ impl SourceCompilationRequest {
             if build_bodies.is_empty() {
                 break;
             }
+            let _profile = phase_profile::guard("psi.source.prepare.build_bodies_typed");
             pending_bodies = typing.join_prepared_allocations(pending_bodies)?;
             let completed = observer.record_result(PsiCompilationStage::Resolution, || {
                 pending_bodies.complete_machine_bodies(&build_bodies)
@@ -354,17 +362,25 @@ impl SourceContinuation {
             if selected.is_empty() {
                 break;
             }
-            let resolved = observer.record_result(PsiCompilationStage::Resolution, || {
-                pending_bodies.complete_machine_bodies(&selected)
-            })?;
-            (typing, pending_bodies) = observer
-                .record_result(PsiCompilationStage::Typing, || {
+            let resolved = {
+                let _profile =
+                    phase_profile::guard("psi.source.complete_authored.complete_machine_bodies");
+                observer.record_result(PsiCompilationStage::Resolution, || {
+                    pending_bodies.complete_machine_bodies(&selected)
+                })?
+            };
+            (typing, pending_bodies) = {
+                let _profile = phase_profile::guard("psi.source.complete_authored.complete_bodies");
+                observer.record_result(PsiCompilationStage::Typing, || {
                     typing.complete_bodies(resolved)
-                })?;
+                })?
+            };
         }
         let mut deferred = Vec::new();
         let mut accounting = build_time_evaluation::SourceCompletionAccounting::default();
         for pre_check in pending_pre_checks {
+            let _profile =
+                phase_profile::guard("psi.source.complete_authored.evaluate_or_defer_recorded");
             let recorded = pre_check.evaluate_or_defer_recorded(typing.typed_mut())?;
             accounting.append(recorded.accounting);
             if let Some(pending) = recorded.pending {

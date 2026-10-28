@@ -2,12 +2,12 @@
 // Expected exit: 0
 
 data Cell [copy] { value: u64; }
-domain Cell::Ready(cell)
-requires cell.value >= 73u64
+domain Cell::Ready
+requires self.value >= 73u64
 established by issue;
 
-domain Cell::Nested(cell)
-requires cell in Cell::Ready;
+domain Cell::Nested
+requires self in Cell::Ready;
 
 machine issue(value: u64) -> Cell in Cell::Ready
 requires value >= 73u64

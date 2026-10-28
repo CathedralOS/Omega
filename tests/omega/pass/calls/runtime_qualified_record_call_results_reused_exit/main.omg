@@ -1,4 +1,4 @@
-domain Number::Bounded(number) requires number.magnitude <= 255;
+domain Number::Bounded requires self.magnitude <= 255;
 data Number [copy] { negative: bool; magnitude: u64; }
 machine minimum() -> Number in Bounded { Number { negative: false, magnitude: 0 } }
 machine maximum() -> Number in Bounded { Number { negative: false, magnitude: 255 } }

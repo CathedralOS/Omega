@@ -6,6 +6,7 @@ use super::{
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
+use crate::selection::construction::scalar_graph::structural::operation_provenance;
 use crate::selection::construction::scalar_graph::structural::provenance;
 use crate::selection::construction::scalar_graph::structural::scaled_element_index;
 use crate::selection::construction::scalar_graph::structural::transport_register;
@@ -26,11 +27,8 @@ pub(super) fn element_stride(
     }
     let view_type = crate::selection::established_view_input::element_view_type(function, source)?;
     let signature = function.structural.as_ref()?;
-    let declaration = signature
-        .structural_types
-        .as_slice()
-        .iter()
-        .find(|declaration| declaration.id == view_type)?;
+    let declaration =
+        terminal_psi::find_structural_type(signature.structural_types.as_slice(), view_type)?;
     let StructuralTypeShape::ElementView { element, .. } = &declaration.shape else {
         return None;
     };
@@ -112,16 +110,13 @@ fn element_view_read(
     else {
         return Err(invalid());
     };
-    let element = signature
-        .structural_types
-        .as_slice()
-        .iter()
-        .find(|declaration| declaration.id == view_type)
-        .and_then(|declaration| match declaration.shape {
-            StructuralTypeShape::ElementView { element, .. } => Some(element),
-            _ => None,
-        })
-        .ok_or_else(|| invalid())?;
+    let element =
+        terminal_psi::find_structural_type(signature.structural_types.as_slice(), view_type)
+            .and_then(|declaration| match declaration.shape {
+                StructuralTypeShape::ElementView { element, .. } => Some(element),
+                _ => None,
+            })
+            .ok_or_else(|| invalid())?;
     let (byte_offset, byte_count, elements) =
         crate::structural_inputs::structural_reference_input::element_leaf_projection(
             element,
@@ -208,12 +203,7 @@ fn element_view_read(
         kind,
         constraint.ok_or_else(|| invalid())?,
         &[address, output],
-        SelectedInstructionProvenance {
-            operations: vec![row.operation],
-            values: vec![index, length, definition.value],
-            fuel: row.fuel.clone(),
-            ..Default::default()
-        },
+        operation_provenance(row, vec![index, length, definition.value]),
     )?;
     // A narrow signed element loads zero-extended; the register carrier is
     // sign-extended, so a signed compare of `-5` would otherwise see 2^32 - 5.

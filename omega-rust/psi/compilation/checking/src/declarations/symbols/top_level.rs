@@ -19,10 +19,12 @@ pub(crate) struct CallerSiteCaches {
     pub tracked_origin_machines: Mutex<HashMap<SymbolHandle, bool>>,
     /// (machine symbol, site kind, site identity) -> (state symbol, index)
     /// for the unique statement a caller write site resolves to.
-    pub site_statements: Mutex<HashMap<(SymbolHandle, u8, usize), Option<(SymbolHandle, usize)>>>,
+    pub site_statements:
+        Mutex<HashMap<(SymbolHandle, u8, usize, usize), Option<(SymbolHandle, usize)>>>,
     /// (machine symbol, site kind, site identity) -> the resolved prefix
     /// site outcome; None in the map encodes "no unique statement".
-    pub prefix_site_entries: Mutex<HashMap<(SymbolHandle, u8, usize), Option<PrefixSiteEntry>>>,
+    pub prefix_site_entries:
+        Mutex<HashMap<(SymbolHandle, u8, usize, usize), Option<PrefixSiteEntry>>>,
     /// Complete, context-independent state effects shared by resolver and
     /// nested origin queries. Never holds contextual prefixes or failures.
     complete_state_summaries: Mutex<HashMap<SymbolHandle, Vec<String>>>,

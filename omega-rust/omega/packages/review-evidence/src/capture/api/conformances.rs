@@ -17,10 +17,14 @@ pub(crate) fn project_public_conformances<'a>(
 ) -> Result<Vec<ProjectedReviewRow<'a, PackageReviewConformanceShape, Conformance>>, Vec<Diagnostic>>
 {
     let mut projected = Vec::new();
-    for conformance in compilation.conformances().iter().filter(|conformance| {
-        conformance.is_public
-            && is_product_scope_instance(&compilation.typed.symbols, conformance.symbol)
-    }) {
+    for conformance in compilation
+        .conformances()
+        .iter()
+        .filter(|conformance| conformance.is_public)
+    {
+        if !is_product_scope_instance(compilation, conformance.symbol)? {
+            continue;
+        }
         let identity = nominal_identity(compilation, conformance.symbol)?;
         if !reviewed_package_owns(&identity, package)? {
             continue;

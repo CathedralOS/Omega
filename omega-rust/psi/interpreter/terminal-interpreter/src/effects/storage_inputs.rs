@@ -81,6 +81,7 @@ struct StructuralLoanBinding {
     identity: Arc<()>,
     argument_index: usize,
     source: semantic_vocabulary::PlaceId,
+    source_path: Vec<terminal_psi::StructuralPathSegment>,
     access: terminal_psi::StructuralAccess,
     referent: TerminalStructuralValue,
     /// Preservation promised for this exact formal, captured before dispatch.
@@ -272,6 +273,7 @@ impl BoundaryStorageInputs {
             identity,
             argument_index,
             source: argument.place,
+            source_path: argument.path.clone(),
             access: parameter.access,
             referent: referent.clone(),
             normal_qualifications,

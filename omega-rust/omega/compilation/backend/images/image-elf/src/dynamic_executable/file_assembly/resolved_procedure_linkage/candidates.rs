@@ -117,28 +117,15 @@ fn derive_application(
     })
 }
 
-pub(crate) fn validate_candidate(
-    candidate: Candidate,
-) -> Result<ValidatedElfResolvedProcedureLinkage, CandidateValidationError<Candidate>> {
-    checked::validate_candidate(
-        candidate,
-        |candidate| validate_contents(&candidate.envelope, &candidate.contents),
-        |candidate| {
-            candidate.non_authoritative_resolved_linkage_compatibility_fingerprint != 0
-                && candidate.non_authoritative_resolved_linkage_compatibility_fingerprint
-                    == non_authoritative_resolved_linkage_compatibility_fingerprint(
-                        &candidate.envelope,
-                        &candidate.contents,
-                    )
-        },
-        "resolved procedure-linkage compatibility fingerprint does not replay",
-        |candidate| ValidatedElfResolvedProcedureLinkage {
-            envelope: candidate.envelope,
-            contents: candidate.contents,
-            non_authoritative_resolved_linkage_compatibility_fingerprint: candidate
-                .non_authoritative_resolved_linkage_compatibility_fingerprint,
-        },
-    )
+checked::seal_stage! {
+    field: envelope,
+    contents: contents,
+    validated: ValidatedElfResolvedProcedureLinkage,
+    validate: validate_contents,
+    fingerprint: non_authoritative_resolved_linkage_compatibility_fingerprint,
+    nonzero,
+    message: "resolved procedure-linkage compatibility fingerprint does not replay",
+    vis: pub(crate),
 }
 
 fn validate_contents(

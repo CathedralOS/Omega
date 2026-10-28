@@ -775,7 +775,7 @@ fn contains_borrowed_storage(
     if !visited.insert(identity) {
         return false;
     }
-    let Some(declaration) = types.iter().find(|declaration| declaration.id == identity) else {
+    let Some(declaration) = terminal_psi::find_structural_type(types, identity) else {
         return true;
     };
     match &declaration.shape {

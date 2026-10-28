@@ -1,6 +1,6 @@
 // Explicit text storage; domains never supply a length word.
-domain [u8; 128]::Ascii(bytes) requires ascii_only(bytes);
-domain [u8]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8; 128]::Ascii requires ascii_only(self);
+domain [u8]::Ascii requires ascii_only(self);
 data TextBuffer [copy] where used <= 128 { storage: [u8; 128] in Ascii; used: u64; }
 machine TextBuffer::live(buffer: &TextBuffer) -> &[u8] in Ascii { &buffer.storage[..buffer.used] }
 machine TextBuffer::copy(buffer: &mut [u8; 128] in Ascii, bytes: &[u8] in Ascii, start: u64)
@@ -39,7 +39,7 @@ requires left.len <= 24; right.len <= 100
 }
 
 // Explicit owner retains its original 8-byte capacity.
-domain [u8; 8]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8; 8]::Ascii requires ascii_only(self);
 data ExitCommand [copy] where used <= 8 { storage: [u8; 8] in Ascii; used: u64; }
 machine ExitCommand::live(buffer: &ExitCommand) -> &[u8] in Ascii
 ensures result.len == buffer.used && result.len <= 8
@@ -73,8 +73,8 @@ requires bytes.len <= 8
 }
 
 // Explicit owner retains its original 16-byte capacity.
-domain [u8; 16]::Ascii(bytes) requires ascii_only(bytes);
-domain [u8; 16]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8; 16]::Ascii requires ascii_only(self);
+domain [u8; 16]::Utf8 requires valid_utf8(self);
 data RoomLabel [copy] where used <= 16 { storage: [u8; 16] in Ascii; used: u64; }
 machine RoomLabel::live(buffer: &RoomLabel) -> &[u8] in Ascii
 ensures result.len == buffer.used && result.len <= 16
@@ -108,8 +108,8 @@ requires bytes.len <= 16
 }
 
 // Explicit owner retains its original 24-byte capacity.
-domain [u8; 24]::Ascii(bytes) requires ascii_only(bytes);
-domain [u8; 24]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8; 24]::Ascii requires ascii_only(self);
+domain [u8; 24]::Utf8 requires valid_utf8(self);
 data EnemyName [copy] where used <= 24 { storage: [u8; 24] in Ascii; used: u64; }
 machine EnemyName::live(buffer: &EnemyName) -> &[u8] in Ascii
 ensures result.len == buffer.used && result.len <= 24
@@ -143,7 +143,7 @@ requires bytes.len <= 24
 }
 
 // Explicit owner retains its original 64-byte capacity.
-domain [u8; 64]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8; 64]::Ascii requires ascii_only(self);
 data RoomDescription [copy] where used <= 64 { storage: [u8; 64] in Ascii; used: u64; }
 machine RoomDescription::live(buffer: &RoomDescription) -> &[u8] in Ascii
 ensures result.len == buffer.used && result.len <= 64

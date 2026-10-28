@@ -10,6 +10,8 @@
 mod channel;
 mod native_code;
 mod native_provider_runtime;
+mod pointer_links;
+pub use pointer_links::{NativePointerSlot, NativePointerTarget};
 mod shared_backing;
 mod wire;
 mod worker;

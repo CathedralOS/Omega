@@ -4,8 +4,8 @@ use omega::language::core::content;
 use omega::language::core::drop;
 use omega::language::core::external_binding;
 public data ByteUnit {}
-public domain u64::ResidentValue(value) requires value >= 0 && value <= 2147483647 && value != 42;
-public domain u64::MarkerValue(value) requires value >= 0 && value <= 100;
+public domain u64::ResidentValue requires self >= 0 && self <= 2147483647 && self != 42;
+public domain u64::MarkerValue requires self >= 0 && self <= 100;
 public data Cell [copy] { value: u64 in ResidentValue; }
 public data Buffer [linear] { marker: u64 in MarkerValue; cells: [Cell; 3]; }
 machine Buffer::drop(buffer: &mut Buffer) {}

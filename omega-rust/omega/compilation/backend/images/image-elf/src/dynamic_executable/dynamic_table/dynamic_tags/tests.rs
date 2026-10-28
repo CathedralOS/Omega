@@ -4,9 +4,11 @@ use super::{
     Candidate, ElfDynamicAddressObligation, ElfDynamicAddressTarget, ElfDynamicSemanticRow,
     ElfDynamicTag, ElfDynamicValue, TargetProfile,
     ValidatedElfProcedureLinkageSectionDescriptorPlan, checked_product, checked_sum, checked_u32,
-    derive_contents, dynamic_string, non_authoritative_tag_compatibility_fingerprint,
-    plan_elf_dynamic_tags, structural_contents, validate_candidate, validate_contents,
+    derive_contents, non_authoritative_tag_compatibility_fingerprint, plan_elf_dynamic_tags,
+    structural_contents, validate_candidate, validate_contents,
 };
+
+use crate::bytes::name_at;
 
 const IMPORTS: [crate::test_support::DynamicImportFixture; 2] = crate::test_support::PAIR_IMPORTS;
 
@@ -328,9 +330,9 @@ fn malformed_offsets_counts_and_arithmetic_reject_without_panicking() {
     assert!(checked_sum(usize::MAX, 1, "sum").is_err());
     assert!(checked_product(usize::MAX, 2, "product").is_err());
     assert!(checked_u32(usize::MAX, "word").is_err());
-    assert!(dynamic_string(&[], 0).is_err());
-    assert!(dynamic_string(b"unterminated", 0).is_err());
-    assert!(dynamic_string(b"\0", u32::MAX).is_err());
+    assert!(name_at(&[], 0, "DT_NEEDED string offset").is_err());
+    assert!(name_at(b"unterminated", 0, "DT_NEEDED string offset").is_err());
+    assert!(name_at(b"\0", u32::MAX, "DT_NEEDED string offset").is_err());
 
     let mut candidate = candidate(TargetProfile::LinuxX64);
     candidate.contents.address_obligations[0].row_ordinal = u32::MAX;

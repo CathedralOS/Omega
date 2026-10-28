@@ -1,7 +1,7 @@
 // Expected exit: 0. Nested qualifications survive lending owned storage into
 // another state, whether the selected owner is a whole record or array child.
 data Resource [copy] { identity: u64; }
-domain Resource::Open(resource) requires resource.identity != 0;
+domain Resource::Open requires self.identity != 0;
 data Envelope { resource: Resource in Open; marker: u64; }
 data IssuedValue<T> { value: T; }
 

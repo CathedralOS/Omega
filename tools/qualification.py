@@ -1156,8 +1156,11 @@ def main(arguments=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("context", "handoff", "start", "amend", "run", "assess", "run-pending", "status", "attest-source-reuse", "attest-source-reuse-batch", "source-reuse-context", "recover-interrupted", "recover-completed"))
     parser.add_argument("--repository", default=".")
-    parser.add_argument("--summary-output", action="store_true",
-                        help="present state command summaries; retain the complete canonical state")
+    presentation = parser.add_mutually_exclusive_group()
+    presentation.add_argument("--summary-output", action="store_true", default=True,
+                              help="present state command summaries (default); retain the complete canonical state")
+    presentation.add_argument("--full-output", action="store_false", dest="summary_output",
+                              help="print the complete canonical state instead of its summary")
     parser.add_argument("--state")
     parser.add_argument("--revision", type=int)
     parser.add_argument("--base")

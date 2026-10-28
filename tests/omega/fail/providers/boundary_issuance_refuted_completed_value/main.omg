@@ -1,6 +1,6 @@
 data Token { value: u64; }
 data Holder { token: Token; }
-domain Token::Issued(value) requires value.value == 7 established by Issuer::issue;
+domain Token::Issued requires self.value == 7 established by Issuer::issue;
 boundary trait Issuer {
     machine issue() -> Token reaches ensures result in Token::Issued;
 }

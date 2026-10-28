@@ -24,6 +24,14 @@ use filesystem_authority::CanonicalFilesystemMetadataIndex;
 const INPUTS_DIGEST_DOMAIN: &[u8] = b"OMEGA-COMPILED-REVIEW-CACHE-INPUTS\x02";
 const SNAPSHOT_DIGEST_DOMAIN: &[u8] = b"OMEGA-COMPILED-REVIEW-CACHE-SNAPSHOT\x01";
 
+/// Commit the current activation's own generated outputs as well as the
+/// dependency bundles already covered by `review_cache_inputs_digest`.
+pub fn generated_source_bundle_digest(bundle: &PackageGeneratedSourceBundle) -> [u8; 32] {
+    let mut digest = DomainDigestEncoder::new(b"omega-generated-source-bundle-v1\0");
+    hash_generated_bundle(&mut digest, bundle);
+    digest.finish()
+}
+
 /// Content digest of the complete compilation inputs a review pass reads:
 /// the shared source graph's canonical names, authenticated content
 /// commitments, and reconciled edge maps, plus the checked target's purpose,

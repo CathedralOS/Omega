@@ -111,9 +111,9 @@ public let no_wrap(base: addr, length: u64): core::Strict<0> =
 // the geometry above does not establish it; checked transformations must
 // conserve an existing claim and admitted roots must inherit the exact
 // owner-authored boundary requirement.
-public domain Extent::Granted(extent)
+public domain Extent::Granted
 requires
-    no_wrap(extent.base, extent.length)
+    no_wrap(self.base, self.length)
 established by
     ExtentRootProvider::grant,
     ProgramStorageEntry::enter,

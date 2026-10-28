@@ -7,12 +7,12 @@
 // which every step is verifiably in range -- no overflow domain needed.
 // Expected exit: 25.
 
-domain [u8]::Utf8(bytes)
+domain [u8]::Utf8
 requires
-    valid_utf8(bytes);
-domain [u8; 2]::Utf8(bytes)
+    valid_utf8(self);
+domain [u8; 2]::Utf8
 requires
-    valid_utf8(bytes);
+    valid_utf8(self);
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 

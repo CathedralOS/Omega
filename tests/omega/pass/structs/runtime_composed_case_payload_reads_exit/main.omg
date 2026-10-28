@@ -2,7 +2,7 @@
 // failure code and payload check; splitting the graph must not change validity.
 use omega_language_std::console;
 
-domain i32::Ten(value) requires 0 <= value && value <= 10;
+domain i32::Ten requires 0 <= self && self <= 10;
 
 data Evidence { case Only; }
 data Point [copy] { x: i32; y: i32; }

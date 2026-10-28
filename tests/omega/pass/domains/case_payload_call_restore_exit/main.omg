@@ -1,7 +1,7 @@
 // Calls restore conditional payload validity, not an old case selection.
 use omega_language_std::console;
 
-domain i32::NonZero(value) requires value != 0;
+domain i32::NonZero requires self != 0;
 data Divisor { case Unset; case By(amount: i32 in NonZero); }
 data Main { divisor: Divisor; }
 

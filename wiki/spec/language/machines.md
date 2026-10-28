@@ -119,7 +119,7 @@ selection without making data a code owner.
 | --- | --- |
 | Checked body | An ordinary machine with a checked `{ ... }` body, including generated/default bodies after generation. |
 | Required body | A bodyless trait/component machine requirement; a boundary operation belongs to a boundary trait, including a one-member trait when independent selection is required. |
-| External provider | A bodyless `boundary machine` satisfying an exact requirement under its pinned contract and admission policy. |
+| Native provider | A package-local `Build::bind<Requirement>(builder, target, locator)` row backing an exact boundary requirement under its pinned contract, calling policy, and foreign admission. No forwarding machine or `via` clause is declared. |
 | Admission-bearing declaration | A bodyless `boundary machine` publishing an unproved theorem or external-behavior guarantee for separate owner acceptance. |
 | Compiler-supplied primitive | A bodyless exact toolchain declaration with an authorized closed-catalog implementation and fixed semantic contract; not selectable by naming or user registration. |
 
@@ -145,28 +145,52 @@ bodyless ordinary direct declaration.
 
 `boundary` marks a crossing, not its direction. Imports and exports are
 artifact-relative; requirements and composition determine provision or demand.
-`satisfies` names an exact trait requirement and inherits its contract. `via`
-only supplies a compile-time-evaluated binding payload not derivable from
-declaration and target; it is neither a supply keyword nor trust authority.
+`satisfies` names an exact trait requirement and inherits its contract for a
+checked implementation. An irreducible native implementation is supplied by a
+package-local Build binding from that exact requirement and target to a typed
+locator. Source-level `via` clauses and per-symbol bodyless forwarding realizers
+are retired; a helper returning binding data is optional ordinary computation.
+Literal locator lengths are inferred, not manually counted in a return type or
+Build generic argument. Native binding selects backing, not source conformance
+evidence or execution authority.
 Compiler intrinsics use the sealed declaration/signature/target catalog without
 a binding payload. See [foreign bindings](../build/foreign_bindings.md) and
 [provider selection](../build/provider_selection.md).
 
 Composite providers remain ordinary checked bodies; only irreducible foreign
-leaves use external supply. The toolchain derives their selected conformance
+leaves use Build-owned native supply. The toolchain derives their selected conformance
 closure, coverage, dependencies, reach, and admission inputs. Programs cannot
 assemble provider-plan rows or reauthor inherited ceilings in a binding.
 
+`BUILD-OWNED-NATIVE-BINDINGS` in [the task board](../../../TASKS.md) tracks the
+reference compiler and source migration; current `via` parsing is legacy debt,
+not an alternate accepted binding form.
+
 ### Target-scoped families
 
-A machine declaration prefixed with a target name is one body of a family keyed
-by target under one path. Families are data: every body is resolved, typed,
-checked, and published in Terminal Psi with its target tag in every
-compilation, and realizing a target selects that target's body
-([multi-target compilation](../build/configuration.md#multi-target-compilation)).
-A family is never filtered before checking, and no realization set narrows
-checking. A realized target without a body for a called family rejects that
-realization; it is not a checking error for the program.
+Target-prefixed machine declarations and implicit same-path target-body families
+are retired. A spelling such as `windows_x86_64 machine play(...)` is not
+accepted language syntax. Target names are Build/toolchain data, not declaration
+modifiers or names that become keywords when a target package is available.
+
+Different operating-system or architecture implementations are ordinary named
+implementations of an explicit trait requirement. Build records which exact
+implementation supplies that requirement for each target through
+[provider selection](../build/provider_selection.md). Even when several targets
+share one implementation, selection retains explicit target-keyed rows; source
+declarations acquire no target tag or alternate-body identity.
+
+Psi resolves, types, checks, and publishes every supplied implementation once,
+independently of the realization set. Omega selects the Build row for the target
+it realizes and validates the selected closure's ABI, imports, layout, and ISA
+applicability. Missing or incompatible selected supply rejects that realization;
+selection never hides an unchecked body or grants authority. See
+[multi-target compilation](../build/configuration.md#multi-target-compilation).
+
+The reference compiler still accepts the retired syntax and retains its family
+machinery. `BUILD-OWNED-TARGET-SELECTION` in [the task board](../../../TASKS.md)
+tracks removal and migration; this specification does not claim that repair has
+already landed.
 
 ## Substitution
 

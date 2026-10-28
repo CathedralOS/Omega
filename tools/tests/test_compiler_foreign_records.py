@@ -39,7 +39,7 @@ class OwnedForeignCohortTests(unittest.TestCase):
 
     def test_selection_is_explicit_and_default_cohort_stays_available(self):
         self.assertEqual(foreign.select_cohorts("nested, arrays,nested"), ("nested", "arrays"))
-        self.assertEqual(foreign.select_cohorts("all"), ("scalar-opaque", "nested", "arrays", "zero-leaf"))
+        self.assertEqual(foreign.select_cohorts("all"), ("scalar-opaque", "nested", "arrays", "zero-leaf", "scalar-backing"))
         self.assertEqual(foreign.select_cohorts("zero-leaf"), ("zero-leaf",))
         for selection in ("", " , ", "unknown", "nested,unknown", "nested; echo wrong"):
             with self.subTest(selection=selection), self.assertRaises(ValueError):
@@ -252,6 +252,39 @@ class OwnedForeignCohortTests(unittest.TestCase):
             status, report, builds, measured = self.run_cohorts(Path(temporary), [None, None])
         self.assertEqual((status, builds, measured), (0, 1, 2))
         self.assertTrue(report["passed"])
+
+    def test_installed_library_cohort_never_builds_a_fixture_provider(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            producer = Mock()
+            producer.record.return_value = dict(revision="a" * 40)
+            with patch.object(pilot, "ROOT", root), patch.dict(os.environ), \
+                 patch.object(pilot, "command", return_value="a" * 40), \
+                 patch.object(pilot.corpus_gate, "host_target", return_value="linux_x86_64"), \
+                 patch.object(pilot, "prepare_producer", return_value=producer), \
+                 patch.object(rows, "fixtures", return_value=(("positive",), ("negative",))), \
+                 patch.object(foreign, "prepare_provider") as prepare, \
+                 patch.object(foreign, "owned_row") as qualify:
+                status = foreign.main(["--cohorts", "scalar-backing"])
+            self.assertEqual(status, 0)
+            prepare.assert_not_called()
+            self.assertIsNone(qualify.call_args.args[3])
+
+    def test_installed_library_row_preserves_environment_without_resource_folders(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            output = root / "build/evidence"
+            output.mkdir(parents=True)
+            specification = foreign.OWNED_ROWS["scalar-backing"]
+            with patch.object(rows, "fixtures", return_value=(("positive",), ("negative",))), \
+                 patch.object(rows, "prepare", return_value={}), \
+                 patch.object(rows, "measure"), \
+                 patch.object(pilot, "run_suite", return_value=0), \
+                 patch.object(pilot, "ROOT", root), \
+                 patch.object(foreign, "provider_path") as provider_path:
+                foreign.owned_row(output, root / "fact", specification, None, Mock())
+            provider_path.assert_not_called()
+            self.assertEqual(json.loads((output / "resource-inputs.json").read_text()), {})
 
     def test_provider_environment_is_restored_after_failure(self):
         library = Path("provider/library.dll").resolve()

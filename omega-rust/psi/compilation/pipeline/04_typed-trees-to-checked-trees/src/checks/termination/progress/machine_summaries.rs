@@ -149,9 +149,15 @@ fn family_summary(
         else {
             return Some(no_guarantee(head.symbol));
         };
-        let checked = summaries
-            .iter()
-            .find(|summary| summary.machine == machine.symbol)?;
+        let checked = program
+            .machine_position_by_symbol(machine.symbol)
+            .and_then(|index| summaries.get(index))
+            .filter(|summary| summary.machine == machine.symbol)
+            .or_else(|| {
+                summaries
+                    .iter()
+                    .find(|summary| summary.machine == machine.symbol)
+            })?;
         if !checked.guarantee.promises_termination() {
             return Some(no_guarantee(head.symbol));
         }
@@ -246,13 +252,21 @@ pub(crate) fn selected_call_summary<'a>(
         let satisfiers = validation::requirement_satisfiers(program, target_machine.symbol);
         if !satisfiers.is_empty()
             && satisfiers.iter().all(|satisfier| {
-                summaries.iter().any(|summary| {
-                    summary.machine == *satisfier
-                        && matches!(
+                program
+                    .machine_position_by_symbol(*satisfier)
+                    .and_then(|index| summaries.get(index))
+                    .filter(|summary| summary.machine == *satisfier)
+                    .or_else(|| {
+                        summaries
+                            .iter()
+                            .find(|summary| summary.machine == *satisfier)
+                    })
+                    .is_some_and(|summary| {
+                        matches!(
                             &summary.guarantee,
                             TerminationGuarantee::Terminates { premises } if premises.is_empty()
                         )
-                })
+                    })
             })
         {
             return Some(SelectedCallProgress {

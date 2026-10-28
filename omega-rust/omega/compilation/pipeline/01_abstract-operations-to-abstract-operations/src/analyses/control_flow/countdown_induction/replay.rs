@@ -1,11 +1,11 @@
 //! Optimizer module role: validation leaf. Independently keyed countdown-summary reconstruction.
 
 use super::{
-    CountedLoopAnalysisError, CountedLoopAnalysisSnapshot, CycleComponentEdge,
+    AnalysisRoot, CountedLoopAnalysisError, CountedLoopAnalysisSnapshot, CycleComponentEdge,
     ExactUnsignedTripCount, MachineId, O, OptimizerCycleComponent,
     OptimizerUnsignedCountdownRankingCertificate, PsiOptimizationFunction, PsiOptimizationUnit,
-    ScalarType, UnsignedCountdownLoopSummary, ValidatedOptimizerCycleComponents,
-    recompute_psi_optimization_unit_identity, region, shape,
+    ScalarType, UnsignedCountdownLoopSummary, ValidatedOptimizerCycleComponents, region, shape,
+    validate_analysis_root,
 };
 use std::collections::BTreeMap;
 
@@ -13,18 +13,7 @@ pub(super) fn reconstruct(
     unit: &PsiOptimizationUnit,
     custody: &ValidatedOptimizerCycleComponents,
 ) -> Result<CountedLoopAnalysisSnapshot, CountedLoopAnalysisError> {
-    let recomputed = recompute_psi_optimization_unit_identity(unit);
-    if unit.identity != recomputed {
-        return Err(CountedLoopAnalysisError::StaleUnitIdentity {
-            stored: unit.identity,
-            recomputed,
-        });
-    }
-    if unit.psi != custody.snapshot().terminal_psi
-        || unit.psi != custody.ranking_certificates().snapshot().terminal_psi
-    {
-        return Err(CountedLoopAnalysisError::TerminalIdentityMismatch);
-    }
+    validate_analysis_root(unit, custody, &[]).map_err(CountedLoopAnalysisError::Root)?;
     let components = custody
         .components()
         .iter()
@@ -62,8 +51,7 @@ pub(super) fn reconstruct(
         loops.push(reconstruct_one(function, component, certificate)?);
     }
     Ok(CountedLoopAnalysisSnapshot {
-        revision: unit.identity,
-        terminal_psi: unit.psi,
+        root: AnalysisRoot::of(unit),
         loops,
     })
 }

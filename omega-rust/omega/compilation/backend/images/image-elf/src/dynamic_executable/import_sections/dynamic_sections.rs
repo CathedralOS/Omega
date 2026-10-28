@@ -577,19 +577,11 @@ fn build_version_needs(
     Ok(needs)
 }
 
-fn validate_candidate(
-    candidate: Candidate,
-) -> Result<ValidatedElfDynamicSectionPlan, CandidateValidationError<Candidate>> {
-    checked::validate_candidate(
-        candidate,
-        |candidate| validate_contents(&candidate.inputs, &candidate.contents),
-        |_| true,
-        "",
-        |candidate| ValidatedElfDynamicSectionPlan {
-            inputs: candidate.inputs,
-            contents: candidate.contents,
-        },
-    )
+checked::seal_stage! {
+    field: inputs,
+    contents: contents,
+    validated: ValidatedElfDynamicSectionPlan,
+    validate: validate_contents,
 }
 
 fn validate_contents(

@@ -14,6 +14,7 @@
 
 pub(crate) mod checking;
 mod compilation_session;
+mod component_cache;
 pub use compilation_session::CompilationSession;
 mod package_compilation;
 mod package_review;
@@ -30,7 +31,7 @@ pub use artifacts::compile_timings::counters::{
     source_assembly_invocation_count, typed_frontier_reuse_count,
 };
 pub use checking::SourceCompilation;
-pub use checking::compile_thread::run_on_compile_thread;
+pub use checking::compile_thread::{COMPILE_STACK_SIZE, run_on_compile_thread};
 pub use checking::{
     CheckedCompilation, CheckedCompileOutcome, CheckedCompileRequest,
     IndependentComponentDiscovery, IndependentComponentSelection, PreparedCheckedSource,

@@ -254,23 +254,7 @@ impl<'program> ShapeCollector<'program> {
         // directly declared predicate/issuer theory; richer normalized theories
         // keep their independent source owner until that vocabulary is retained.
         let complete_predicate_theory = definition.is_some_and(|definition| {
-            definition.classification.is_none()
-                && definition.semantic_roles.is_empty()
-                && definition.cleanup_selection.is_none()
-                && definition.alias.is_none()
-                && definition.operators.is_empty()
-                && !matches!(
-                    self.program
-                        .type_reference_table
-                        .type_reference(definition.target_type),
-                    typed_trees::types::TypeReferenceNode::Constrained { .. }
-                )
-                && validation::field_domains::domain_constraint_symbols(
-                    self.program,
-                    definition.target_type,
-                )
-                .is_empty()
-                && required_memberships.is_some()
+            validation::field_domains::domain_predicate_theory_is_complete(self.program, definition)
         });
         let plan = CheckedUnitStructuralDomainPlan {
             required_memberships,

@@ -17,9 +17,10 @@ use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceN
 /// An already-formed integer value under the receiving validator's live facts.
 /// Statement validation has conservatively retired every nested call's writes,
 /// including destination selectors; transition arguments may carry their own
-/// separately fenced environments. No pre-effect storage fact is recovered here.
-/// The shared relation owner preserves identity and all-predecessor joins; this
-/// query neither executes an expression nor publishes the requested bound.
+/// separately fenced environments. If their sufficient interval/relation proof
+/// does not settle admission, the completed-value owner reconstructs the exact
+/// occurrence with ordered effects and complete private arrivals. Neither route
+/// publishes the requested bound as a premise.
 #[derive(Clone, Copy)]
 pub(crate) struct IntegerValueObservation<'a> {
     pub machine: &'a Machine,
@@ -52,7 +53,7 @@ impl IntegerValueObservation<'_> {
         };
         let minimum = stated.low.map(BigInt::from_i64);
         let maximum = stated.high.map(BigInt::from_i64);
-        super::live_integer_constraints::proves_range(
+        if super::live_integer_constraints::proves_range(
             program,
             self.machine,
             state,
@@ -60,6 +61,25 @@ impl IntegerValueObservation<'_> {
             self.expression,
             if lower_proven { None } else { minimum.as_ref() },
             if upper_proven { None } else { maximum.as_ref() },
+        ) {
+            return true;
+        }
+        let Some(statement_index) =
+            crate::proof_contracts::contract_entailment::expression_statement_index(
+                program,
+                state,
+                self.expression,
+            )
+        else {
+            return false;
+        };
+        crate::proof_contracts::contract_entailment::completed_value_fits_integer_interval(
+            program,
+            self.machine,
+            state,
+            statement_index,
+            self.expression,
+            stated,
         )
     }
 }

@@ -69,6 +69,12 @@ pub struct NormalizedForeignLocator {
 pub struct ForeignLocatorIdentityDigest([u8; 32]);
 
 impl ForeignLocatorIdentityDigest {
+    /// Recover a digest claim; normalized locator and receipt admission still
+    /// establish which concrete bytes it names.
+    pub const fn from_digest(digest: [u8; 32]) -> Self {
+        Self(digest)
+    }
+
     pub const fn as_bytes(self) -> [u8; 32] {
         self.0
     }
