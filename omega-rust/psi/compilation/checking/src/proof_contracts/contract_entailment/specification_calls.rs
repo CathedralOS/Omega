@@ -551,9 +551,20 @@ fn validate_specification_expression(
                 );
                 return;
             }
+            let status = resolution.status;
             let Some(selected) = resolution.into_selected() else {
+                let operands = types
+                    .iter()
+                    .map(|reference| {
+                        reference.map_or_else(
+                            || "unresolved".to_owned(),
+                            |reference| program.display_type_reference(reference),
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
                 diagnostics.push(Diagnostic::error(format!(
-                    "cannot form specification operator `{}` in {owner}: no exact selected meaning",
+                    "cannot form specification operator `{}` in {owner}: no exact selected meaning (operands: {operands}; {status:?})",
                     spelling.symbol(),
                 )).with_source_span(program.expression_table.source_span(expression)));
                 return;
