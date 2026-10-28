@@ -441,6 +441,26 @@ fn unchanged_static_arguments(
     arguments: &[typed_trees::expression::StaticMachineArgument],
 ) -> bool {
     let parameters = program.machine_type_parameters(target);
+    if !parameters.is_empty() || !arguments.is_empty() {
+        eprintln!(
+            "ORIGIN STATIC source={} target={} source_parameters={:?} target_parameters={:?} arguments={:?}",
+            source.name,
+            target.name,
+            program.machine_type_parameters(source),
+            parameters,
+            arguments
+        );
+        for argument in arguments {
+            if argument.type_reference.is_valid() {
+                eprintln!(
+                    "ORIGIN STATIC TYPE {:?}",
+                    program
+                        .type_reference_table
+                        .type_reference(argument.type_reference)
+                );
+            }
+        }
+    }
     parameters.len() == arguments.len()
         && parameters.iter().zip(arguments).all(|(parameter, argument)| {
             program.machine_type_parameters(source).iter().any(|in_scope| {
