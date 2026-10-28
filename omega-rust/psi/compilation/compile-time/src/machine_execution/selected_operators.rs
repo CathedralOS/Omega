@@ -843,3 +843,198 @@ pub fn validate_selected_operators(
     }
     Ok(())
 }
+
+/// Extend already supplied execution to actual compiler-produced body copies.
+/// Authored occurrence and specialization identities establish correspondence;
+/// current operator facts establish meaning. Neither can choose a provider.
+pub(crate) fn retain_specialized_operators(
+    program: &TypedTrees,
+    selected: &[SelectedBuildTimeBinaryOperator],
+) -> Result<Vec<SelectedBuildTimeBinaryOperator>, String> {
+    validate_selected_operators(program, selected)?;
+    if selected.is_empty() {
+        return Ok(Vec::new());
+    }
+    let facts = validation::derive_pre_flow_operator_selections(program);
+    let mut retained = selected.to_vec();
+    for (expression, origin, requirement, policy) in facts.resolved_expression_selections() {
+        let Some(owner) = origin.machine_symbol() else {
+            continue;
+        };
+        if selected
+            .iter()
+            .any(|row| row.expression == expression && row.origin == origin)
+        {
+            continue;
+        }
+        for source in selected {
+            if source.requirement != requirement || source.policy != policy {
+                continue;
+            }
+            let Some(source_owner) = source.origin.machine_symbol() else {
+                continue;
+            };
+            if !specialization_preserves_application(program, source_owner, owner)? {
+                continue;
+            }
+            let Some(occurrence) =
+                direct_operator_occurrence(program, source.expression, requirement)
+            else {
+                continue;
+            };
+            if direct_operator_occurrence(program, expression, requirement) != Some(occurrence) {
+                continue;
+            }
+            // The copy's checked operation owns its actual substituted operands.
+            // Keep the exact original provider, carrier, and arithmetic policy.
+            let row = SelectedBuildTimeBinaryOperator::prepare(
+                program,
+                expression,
+                origin,
+                requirement,
+                policy,
+                source.provider,
+            )?;
+            if row.operation != source.operation || row.format != source.format {
+                return Err("specialized build-time operator changed its selected meaning".into());
+            }
+            if let Some(previous) = retained
+                .iter()
+                .find(|previous| previous.expression == expression && previous.origin == origin)
+            {
+                if previous != &row {
+                    return Err(
+                        "specialized build-time operator has competing supplied executions".into(),
+                    );
+                }
+            } else {
+                retained.push(row);
+            }
+        }
+    }
+    validate_selected_operators(program, &retained)?;
+    Ok(retained)
+}
+
+fn direct_operator_occurrence(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    requirement: symbols::SymbolHandle,
+) -> Option<typed_trees::AuthoredDeclarationSelectionOccurrenceId> {
+    use language_semantics::declaration_selection::AuthoredDeclarationSelectionKind;
+    let mut children = Vec::new();
+    validation::expression_traversal::children(
+        program,
+        program.expression_table.expression(expression),
+        |child| children.push(child),
+    );
+    let mut selected = None;
+    for occurrence in program
+        .expression_table
+        .authored_selection_occurrences(expression)
+    {
+        // An enclosing expression may retain a child's history. Only this
+        // operation's own occurrence can authorize its specialized copy.
+        if children.iter().any(|child| {
+            program
+                .expression_table
+                .authored_selection_occurrences(*child)
+                .any(|inherited| inherited == occurrence)
+        }) {
+            continue;
+        }
+        let selection = program.authored_declaration_selections().get(occurrence)?;
+        if !matches!(
+            selection.kind(),
+            AuthoredDeclarationSelectionKind::Operator | AuthoredDeclarationSelectionKind::Call
+        ) {
+            continue;
+        }
+        let target = selection.target();
+        let Some(target) = target.as_resolved().map(|target| target.selected_symbol()) else {
+            continue;
+        };
+        if target != requirement
+            && !program
+                .machine_holding_state(target)
+                .is_some_and(|machine| machine.symbol == requirement)
+        {
+            continue;
+        }
+        if selected.is_some_and(|previous| previous != occurrence) {
+            return None;
+        }
+        selected = Some(occurrence);
+    }
+    selected
+}
+
+fn specialization_preserves_application(
+    program: &TypedTrees,
+    source: symbols::SymbolHandle,
+    instance: symbols::SymbolHandle,
+) -> Result<bool, String> {
+    if source == instance {
+        return Ok(false);
+    }
+    let mut source_rows = program
+        .machine_specializations
+        .iter()
+        .filter(|row| row.instance == source);
+    let mut instance_rows = program
+        .machine_specializations
+        .iter()
+        .filter(|row| row.instance == instance);
+    let (Some(original), Some(application)) = (source_rows.next(), instance_rows.next()) else {
+        // A source occurrence alone is not a qualified execution application.
+        return Ok(false);
+    };
+    if source_rows.next().is_some() || instance_rows.next().is_some() {
+        return Err("selected operator copy has ambiguous specialization provenance".into());
+    }
+    let (Some(source_machine), Some(instance_machine)) =
+        (program.machine(source), program.machine(instance))
+    else {
+        return Ok(false);
+    };
+    if !original.binding_application.is_valid() || !application.binding_application.is_valid() {
+        return Err("selected operator copy lacks its exact specialization application".into());
+    }
+    let original_binding = program
+        .expression_table
+        .static_machine_applications()
+        .find(|(handle, _)| *handle == original.binding_application)
+        .map(|(_, binding)| binding)
+        .ok_or("selected operator source lost its exact specialization binding")?;
+    let current_binding = program
+        .expression_table
+        .static_machine_applications()
+        .find(|(handle, _)| *handle == application.binding_application)
+        .map(|(_, binding)| binding)
+        .ok_or("selected operator copy lost its exact specialization binding")?;
+    // The first closed application can reuse its template's symbol. Neither
+    // that representation nor a shared authored occurrence grants a different
+    // tuple the original application's execution selection.
+    Ok(original.template == application.template
+        && original.template_parameters == application.template_parameters
+        && original.type_argument_identities == application.type_argument_identities
+        && original.const_argument_identities == application.const_argument_identities
+        && original.machine_arguments == application.machine_arguments
+        && original.conformance_arguments == application.conformance_arguments
+        && original.conformance_applications == application.conformance_applications
+        && original.operator_realizations == application.operator_realizations
+        && original.normalized_template_identity == application.normalized_template_identity
+        && original.accepted_template_commitment == application.accepted_template_commitment
+        && original_binding.binding_declaration == original.template
+        && current_binding.binding_declaration == application.template
+        && original_binding.registration_operation == current_binding.registration_operation
+        && original_binding.conformance_selection == current_binding.conformance_selection
+        && program
+            .expression_table
+            .static_machine_application_lifetimes(original.binding_application)
+            == program
+                .expression_table
+                .static_machine_application_lifetimes(application.binding_application)
+        && program.source_target_context(source_machine)
+            == program.source_target_context(instance_machine))
+}

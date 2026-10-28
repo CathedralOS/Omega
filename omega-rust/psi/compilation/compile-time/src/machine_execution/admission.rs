@@ -416,8 +416,8 @@ impl BuildTimeAdmissionPlan {
         program: &TypedTrees,
         operators: &[crate::SelectedBuildTimeBinaryOperator],
     ) -> Result<Self, String> {
-        crate::validate_selected_operators(program, operators)?;
-        self.selected_operators = operators.to_vec();
+        self.selected_operators =
+            super::selected_operators::retain_specialized_operators(program, operators)?;
         self.checked_closures.borrow_mut().clear();
         Ok(self)
     }
